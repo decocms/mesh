@@ -82,7 +82,11 @@ export function StoreDiscoveryUI({
     navigate({
       to: "/$org/store/$appName",
       params: { org: org.slug, appName: appNameSlug },
-      search: { registryId },
+      search: {
+        registryId,
+        serverName: item.server?.name || itemName,
+        itemId: item.id,
+      } as any,
     });
   };
 

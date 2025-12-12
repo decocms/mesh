@@ -82,7 +82,10 @@ export const ConnectionEntitySchema = z.object({
     .optional()
     .describe("Configuration scopes"),
 
-  metadata: z.record(z.unknown()).nullable().describe("Additional metadata"),
+  metadata: z
+    .record(z.unknown())
+    .nullable()
+    .describe("Additional metadata (includes repository info)"),
   tools: z
     .array(ToolDefinitionSchema)
     .nullable()

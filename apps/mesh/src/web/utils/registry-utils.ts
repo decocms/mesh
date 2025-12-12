@@ -16,24 +16,6 @@ export function findListToolName(
 }
 
 /**
- * Extract total count from the first page of paginated results
- * Handles various response formats from different registries
- */
-export function extractTotalCount(pages?: unknown[]): number | null {
-  if (!pages?.length) return null;
-  const firstPage = pages[0];
-  if (
-    typeof firstPage === "object" &&
-    firstPage !== null &&
-    "totalCount" in firstPage &&
-    typeof firstPage.totalCount === "number"
-  ) {
-    return firstPage.totalCount;
-  }
-  return null;
-}
-
-/**
  * Flatten paginated items from multiple pages into a single array
  * Handles both direct array responses and nested array responses
  */
