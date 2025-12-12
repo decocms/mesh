@@ -27,7 +27,6 @@ import { ReadmeViewer } from "@/web/components/store/readme-viewer";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -247,7 +246,6 @@ export default function StoreAppDetail() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>(
     "asc",
   );
-  const [isInstalling, setIsInstalling] = useState(false);
 
   const connectionsCollection = useConnectionsCollection();
   const allConnections = useConnections();
@@ -347,28 +345,18 @@ export default function StoreAppDetail() {
       return;
     }
 
-    setIsInstalling(true);
-    try {
-      const tx = connectionsCollection.insert(connectionData);
-      await tx.isPersisted.promise;
+    const tx = connectionsCollection.insert(connectionData);
 
-      toast.success(`${connectionData.title} installed successfully`);
+    navigate({
+      to: "/$org/mcps/$connectionId",
+      params: { org: org.slug, connectionId: connectionData.id },
+    });
 
-      // Use the deterministic ID to directly look up the connection
-      const newConnection = connectionsCollection.get(connectionData.id);
+    toast.success(`${connectionData.title} installed successfully`);
 
-      if (newConnection?.id && org) {
-        navigate({
-          to: "/$org/mcps/$connectionId",
-          params: { org: org.slug, connectionId: newConnection.id },
-        });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(`Failed to install app: ${message}`);
-    } finally {
-      setIsInstalling(false);
-    }
+    tx.isPersisted.promise.catch((err) => {
+      toast.error(`Failed to install app: ${err.message}`);
+    });
   };
 
   const handleBackClick = () => {
@@ -505,20 +493,10 @@ export default function StoreAppDetail() {
                 <Button
                   variant="brand"
                   onClick={handleInstall}
-                  disabled={isInstalling}
                   className="shrink-0"
                 >
-                  {isInstalling ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Installing...
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="add" size={20} />
-                      Install App
-                    </>
-                  )}
+                  <Icon name="add" size={20} />
+                  Install App
                 </Button>
               </div>
             </div>

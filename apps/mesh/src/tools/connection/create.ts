@@ -19,7 +19,7 @@ import { fetchToolsFromMCP } from "./fetch-tools";
  */
 const CreateInputSchema = z.object({
   data: ConnectionCreateDataSchema.describe(
-    "Data for the new connection (id is auto-generated)",
+    "Data for the new connection (id is auto-generated if not provided)",
   ),
 });
 
