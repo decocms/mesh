@@ -10,6 +10,7 @@ import { MeshContext } from "@/core/mesh-context";
 import * as ApiKeyTools from "./apiKeys";
 import * as ConnectionTools from "./connection";
 import * as DatabaseTools from "./database";
+import * as EventBusTools from "./eventbus";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
 import { ToolName } from "./registry";
@@ -50,6 +51,12 @@ export const ALL_TOOLS = [
   ApiKeyTools.API_KEY_LIST,
   ApiKeyTools.API_KEY_UPDATE,
   ApiKeyTools.API_KEY_DELETE,
+
+  // Event Bus tools
+  EventBusTools.EVENT_PUBLISH,
+  EventBusTools.EVENT_SUBSCRIBE,
+  EventBusTools.EVENT_UNSUBSCRIBE,
+  EventBusTools.EVENT_SUBSCRIPTION_LIST,
 ] as const satisfies { name: ToolName }[];
 
 export type MCPMeshTools = typeof ALL_TOOLS;

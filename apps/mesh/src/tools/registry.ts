@@ -22,7 +22,8 @@ export type ToolCategory =
   | "Organizations"
   | "Connections"
   | "Monitoring"
-  | "API Keys";
+  | "API Keys"
+  | "Event Bus";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -58,6 +59,11 @@ const ALL_TOOL_NAMES = [
   "API_KEY_LIST",
   "API_KEY_UPDATE",
   "API_KEY_DELETE",
+  // Event Bus tools
+  "EVENT_PUBLISH",
+  "EVENT_SUBSCRIBE",
+  "EVENT_UNSUBSCRIBE",
+  "EVENT_SUBSCRIPTION_LIST",
 ] as const;
 
 /**
@@ -232,6 +238,27 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "API Keys",
     dangerous: true,
   },
+  // Event Bus tools
+  {
+    name: "EVENT_PUBLISH",
+    description: "Publish events",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_SUBSCRIBE",
+    description: "Subscribe to events",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_UNSUBSCRIBE",
+    description: "Unsubscribe from events",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_SUBSCRIPTION_LIST",
+    description: "List event subscriptions",
+    category: "Event Bus",
+  },
 ];
 
 /**
@@ -263,6 +290,10 @@ const TOOL_LABELS: Record<ToolName, string> = {
   API_KEY_LIST: "List API keys",
   API_KEY_UPDATE: "Update API key",
   API_KEY_DELETE: "Delete API key",
+  EVENT_PUBLISH: "Publish events",
+  EVENT_SUBSCRIBE: "Subscribe to events",
+  EVENT_UNSUBSCRIBE: "Unsubscribe from events",
+  EVENT_SUBSCRIPTION_LIST: "List event subscriptions",
 };
 
 // ============================================================================
@@ -278,6 +309,7 @@ export function getToolsByCategory() {
     Connections: [],
     Monitoring: [],
     "API Keys": [],
+    "Event Bus": [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

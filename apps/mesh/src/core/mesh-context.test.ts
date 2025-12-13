@@ -8,6 +8,7 @@ import {
   requireAuth,
   requireOrganization,
 } from "./mesh-context";
+import type { EventBus } from "../event-bus/interface";
 
 // Helper to create mock context
 const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
@@ -43,6 +44,7 @@ const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
     requestId: "req_123",
     timestamp: new Date(),
   },
+  eventBus: null as unknown as EventBus,
   ...overrides,
 });
 

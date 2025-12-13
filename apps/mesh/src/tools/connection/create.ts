@@ -41,6 +41,7 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const organization = requireOrganization(ctx);
+
     await ctx.access.check();
 
     const userId = getUserId(ctx);
@@ -70,6 +71,12 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
       ...connectionData,
       tools,
     });
+
+    // TODO, how to get the source connection ID?
+    // await ctx.eventBus.publish(organization.id, "conn_ouYs05Kuk-yFWfFhA6-mb", {
+    //   type: "connection.created",
+    //   data: connection,
+    // });
 
     return {
       item: connection,

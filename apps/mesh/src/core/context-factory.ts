@@ -28,6 +28,8 @@ import type {
 // Configuration
 // ============================================================================
 
+import type { EventBus } from "../event-bus/interface";
+
 export interface MeshContextConfig {
   db: Kysely<Database>;
   auth: BetterAuthInstance;
@@ -38,6 +40,7 @@ export interface MeshContextConfig {
     tracer: Tracer;
     meter: Meter;
   };
+  eventBus: EventBus;
 }
 
 // ============================================================================
@@ -77,6 +80,7 @@ interface OrganizationContext {
 
 interface AuthenticatedUser {
   id: string;
+  connectionId?: string;
   email?: string;
   name?: string;
   role?: string;
@@ -445,7 +449,10 @@ async function authenticateRequest(
       const meshJwtPayload = await verifyMeshToken(token);
       if (meshJwtPayload) {
         return {
-          user: { id: meshJwtPayload.sub },
+          user: {
+            id: meshJwtPayload.sub,
+            connectionId: meshJwtPayload.metadata?.connectionId,
+          },
           permissions: meshJwtPayload.permissions,
           organization: meshJwtPayload.metadata?.organizationId
             ? {
@@ -591,6 +598,7 @@ export function createMeshContextFactory(
 
   // Return factory function
   return async (req: Request): Promise<MeshContext> => {
+    const connectionId = req.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = await authenticateRequest(req, config.auth, config.db);
 
@@ -634,6 +642,7 @@ export function createMeshContextFactory(
 
     return {
       auth: meshAuth,
+      connectionId,
       organization,
       storage,
       vault,
@@ -653,6 +662,7 @@ export function createMeshContextFactory(
             req.headers.get("X-Forwarded-For")) ??
           undefined,
       },
+      eventBus: config.eventBus,
     };
   };
 }

@@ -12,6 +12,7 @@ import type { Kysely } from "kysely";
 import type { Database } from "../../storage/types";
 import type { BoundAuthClient, MeshContext } from "../../core/mesh-context";
 import { ConnectionStorage } from "../../storage/connection";
+import type { EventBus } from "../../event-bus/interface";
 
 // Create a mock BoundAuthClient for tests
 const createMockBoundAuth = (): BoundAuthClient =>
@@ -100,6 +101,16 @@ describe("Connection Tools", () => {
         requestId: "req_123",
         timestamp: new Date(),
       },
+      eventBus: {
+        publish: vi.fn().mockResolvedValue({}),
+        subscribe: vi.fn().mockResolvedValue({}),
+        unsubscribe: vi.fn().mockResolvedValue({ success: true }),
+        listSubscriptions: vi.fn().mockResolvedValue([]),
+        getSubscription: vi.fn().mockResolvedValue(null),
+        start: vi.fn(),
+        stop: vi.fn(),
+        isRunning: vi.fn().mockReturnValue(false),
+      } as unknown as EventBus,
     };
   });
 

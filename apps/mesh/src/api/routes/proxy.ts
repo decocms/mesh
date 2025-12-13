@@ -153,6 +153,7 @@ function withStreamableConnectionAuthorization(
 export async function createMCPProxy(
   connectionIdOrConnection: string | ConnectionEntity,
   ctx: MeshContext,
+  skipAuth?: boolean,
 ) {
   // Get connection details
   const connection =
@@ -210,7 +211,7 @@ export async function createMCPProxy(
   if (!userId) {
     throw new Error("User ID required to issue configuration token");
   }
-
+  const callerConnectionId = ctx.auth.user?.connectionId;
   try {
     configurationToken = await issueMeshToken({
       sub: userId,
@@ -230,7 +231,9 @@ export async function createMCPProxy(
 
   // Build request headers - reusable for both client and direct fetch
   const buildRequestHeaders = (): Record<string, string> => {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
+    };
 
     // Add connection token (already decrypted by storage layer)
     if (connection.connection_token) {
@@ -273,11 +276,12 @@ export async function createMCPProxy(
 
   // Create authorization middlewares
   // Uses boundAuth for permission checks (delegates to Better Auth)
-  const authMiddleware = withConnectionAuthorization(ctx, connectionId);
-  const streamableAuthMiddleware = withStreamableConnectionAuthorization(
-    ctx,
-    connectionId,
-  );
+  const authMiddleware: CallToolMiddleware = skipAuth
+    ? async (_, next) => await next()
+    : withConnectionAuthorization(ctx, connectionId);
+  const streamableAuthMiddleware: CallStreamableToolMiddleware = skipAuth
+    ? async (_, next) => await next()
+    : withStreamableConnectionAuthorization(ctx, connectionId);
 
   // Compose middlewares
   const callToolPipeline = compose(authMiddleware);

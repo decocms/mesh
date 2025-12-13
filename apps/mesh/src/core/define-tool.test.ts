@@ -11,6 +11,7 @@ import { AccessControl } from "./access-control";
 import { defineTool } from "./define-tool";
 import type { MeshContext } from "./mesh-context";
 import type { AuditLogStorage } from "../storage/audit-log";
+import type { EventBus } from "../event-bus/interface";
 
 // Mock MeshContext
 const createMockContext = (): MeshContext => ({
@@ -96,6 +97,16 @@ const createMockContext = (): MeshContext => ({
     requestId: "req_123",
     timestamp: new Date(),
   },
+  eventBus: {
+    publish: vi.fn().mockResolvedValue({}),
+    subscribe: vi.fn().mockResolvedValue({}),
+    unsubscribe: vi.fn().mockResolvedValue({ success: true }),
+    listSubscriptions: vi.fn().mockResolvedValue([]),
+    getSubscription: vi.fn().mockResolvedValue(null),
+    start: vi.fn(),
+    stop: vi.fn(),
+    isRunning: vi.fn().mockReturnValue(false),
+  } as unknown as EventBus,
 });
 
 describe("defineTool", () => {
