@@ -7,6 +7,19 @@ import { createTestSchema } from "../storage/test-helpers";
 import type { Database } from "../storage/types";
 import { createMeshContextFactory } from "./context-factory";
 import type { BetterAuthInstance } from "./mesh-context";
+import type { EventBus } from "../event-bus/interface";
+
+// Mock EventBus
+const createMockEventBus = (): EventBus => ({
+  publish: vi.fn().mockResolvedValue({}),
+  subscribe: vi.fn().mockResolvedValue({}),
+  unsubscribe: vi.fn().mockResolvedValue({ success: true }),
+  listSubscriptions: vi.fn().mockResolvedValue([]),
+  getSubscription: vi.fn().mockResolvedValue(null),
+  start: vi.fn(),
+  stop: vi.fn(),
+  isRunning: vi.fn().mockReturnValue(false),
+});
 
 describe("createMeshContextFactory", () => {
   let db: Kysely<Database>;
@@ -68,6 +81,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       expect(typeof factory).toBe("function");
@@ -93,6 +107,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -119,6 +134,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -140,6 +156,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -168,6 +185,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest();
@@ -204,6 +222,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest();
@@ -223,6 +242,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -248,6 +268,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -297,6 +318,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -337,6 +359,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -377,6 +400,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const requestA = createMockRequest({
@@ -413,6 +437,7 @@ describe("createMeshContextFactory", () => {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const requestB = createMockRequest({

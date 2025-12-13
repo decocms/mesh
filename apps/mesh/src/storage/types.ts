@@ -422,6 +422,128 @@ export interface MonitoringLog {
   requestId: string;
 }
 
+// ============================================================================
+// Event Bus Table Definitions
+// ============================================================================
+
+/**
+ * Event status for delivery tracking
+ * - pending: Not yet processed
+ * - processing: Claimed by a worker, delivery in progress
+ * - delivered: Successfully delivered
+ * - failed: Max retries reached, delivery failed
+ */
+export type EventStatus = "pending" | "processing" | "delivered" | "failed";
+
+/**
+ * Event table definition - Stores CloudEvents
+ * Follows CloudEvents v1.0 specification
+ */
+export interface EventTable {
+  id: string; // UUID
+  organization_id: string;
+  // CloudEvent required attributes
+  type: string; // Event type (e.g., "order.created")
+  source: string; // Connection ID of publisher
+  specversion: string; // Always "1.0"
+  // CloudEvent optional attributes
+  subject: string | null; // Resource identifier
+  time: string; // ISO 8601 timestamp
+  datacontenttype: string; // Content type (default: "application/json")
+  dataschema: string | null; // Schema URI
+  data: JsonObject<unknown> | null; // JSON payload
+  // Delivery tracking
+  status: EventStatus;
+  attempts: number;
+  last_error: string | null;
+  next_retry_at: string | null; // ISO 8601 timestamp for retry
+  // Audit fields
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+/**
+ * Event entity - Runtime representation
+ */
+export interface Event {
+  id: string;
+  organizationId: string;
+  type: string;
+  source: string;
+  specversion: string;
+  subject: string | null;
+  time: string;
+  datacontenttype: string;
+  dataschema: string | null;
+  data: unknown | null;
+  status: EventStatus;
+  attempts: number;
+  lastError: string | null;
+  nextRetryAt: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+/**
+ * Event subscription table definition
+ * Links subscriber connections to event type patterns
+ */
+export interface EventSubscriptionTable {
+  id: string; // UUID
+  organization_id: string;
+  connection_id: string; // Subscriber connection (who receives events)
+  publisher: string | null; // Filter by publisher connection (null = wildcard)
+  event_type: string; // Event type pattern to match
+  filter: string | null; // Optional JSONPath filter on event data
+  enabled: number; // SQLite boolean (0 or 1)
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+/**
+ * Event subscription entity - Runtime representation
+ */
+export interface EventSubscription {
+  id: string;
+  organizationId: string;
+  connectionId: string;
+  publisher: string | null;
+  eventType: string;
+  filter: string | null;
+  enabled: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+/**
+ * Event delivery table definition
+ * Tracks per-subscription delivery status for each event
+ */
+export interface EventDeliveryTable {
+  id: string; // UUID
+  event_id: string;
+  subscription_id: string;
+  status: EventStatus;
+  attempts: number;
+  last_error: string | null;
+  delivered_at: string | null; // ISO 8601 timestamp
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+/**
+ * Event delivery entity - Runtime representation
+ */
+export interface EventDelivery {
+  id: string;
+  eventId: string;
+  subscriptionId: string;
+  status: EventStatus;
+  attempts: number;
+  lastError: string | null;
+  deliveredAt: string | null;
+  createdAt: Date | string;
+}
+
 /**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
@@ -448,4 +570,9 @@ export interface Database {
   organization: BetterAuthOrganizationTable;
   member: BetterAuthMemberTable;
   organizationRole: BetterAuthOrganizationRoleTable;
+
+  // Event bus tables
+  events: EventTable;
+  event_subscriptions: EventSubscriptionTable;
+  event_deliveries: EventDeliveryTable;
 }

@@ -168,6 +168,7 @@ export interface BoundAuthClient {
 export interface MeshAuth {
   user?: {
     id: string;
+    connectionId?: string;
     email?: string;
     name?: string;
     role?: string; // From Better Auth organization plugin
@@ -221,6 +222,7 @@ import type { AuditLogStorage } from "../storage/audit-log";
 import type { ConnectionStorage } from "../storage/connection";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
+import type { EventBus } from "../event-bus/interface";
 
 // Better Auth instance type - flexible for testing
 // In production, this is the actual Better Auth instance
@@ -253,6 +255,9 @@ export interface MeshStorage {
  * to implementation details.
  */
 export interface MeshContext {
+  // Connection ID (from url)
+  connectionId?: string;
+
   // Authentication (via Better Auth)
   auth: MeshAuth;
 
@@ -285,6 +290,9 @@ export interface MeshContext {
 
   // Request metadata (non-HTTP specific)
   metadata: RequestMetadata;
+
+  // Event bus for publishing and subscribing to events
+  eventBus: EventBus;
 }
 
 // ============================================================================

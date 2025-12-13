@@ -20,7 +20,12 @@ import {
   createMeshContextFactory,
 } from "../core/context-factory";
 import type { MeshContext } from "../core/mesh-context";
-import { getDb } from "../database";
+import { getDb, getDatabaseUrl } from "../database";
+import {
+  createEventBus,
+  createNotifySubscriber,
+  type EventBus,
+} from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
 import type { Database } from "../storage/types";
 import authRoutes from "./routes/auth";
@@ -64,6 +69,8 @@ export interface CreateAppOptions {
   db?: Kysely<Database>;
   /** Skip asset server routes (for testing) */
   skipAssetServer?: boolean;
+  /** Custom event bus instance (for testing) */
+  eventBus?: EventBus;
 }
 
 /**
@@ -72,6 +79,34 @@ export interface CreateAppOptions {
  */
 export function createApp(options: CreateAppOptions = {}) {
   const db = options.db ?? getDb();
+  const databaseUrl = getDatabaseUrl();
+
+  // Create event bus with a lazy context getter
+  // The notify function needs a context, but the context needs the event bus
+  // We resolve this by having notify create its own system context
+  let eventBus: EventBus;
+
+  if (options.eventBus) {
+    eventBus = options.eventBus;
+  } else {
+    // Create notify function that uses the context factory
+    // This is called by the worker to deliver events to subscribers
+    const notifySubscriber = createNotifySubscriber(async () => {
+      // Create a minimal system request for the context factory
+      const systemRequest = new Request("http://localhost/internal", {
+        headers: new Headers({
+          "X-System-Request": "event-bus-worker",
+        }),
+      });
+      const ctx = await ContextFactory.create(systemRequest);
+      return {
+        ...ctx,
+        auth: { ...ctx.auth, user: { id: "notify-worker" } },
+      };
+    });
+
+    eventBus = createEventBus(db, notifySubscriber, undefined, databaseUrl);
+  }
 
   const app = new Hono<{ Variables: Variables }>();
 
@@ -203,7 +238,7 @@ export function createApp(options: CreateAppOptions = {}) {
   // MeshContext Injection Middleware
   // ============================================================================
 
-  // Create context factory with the provided database
+  // Create context factory with the provided database and event bus
   ContextFactory.set(
     createMeshContextFactory({
       db,
@@ -215,8 +250,13 @@ export function createApp(options: CreateAppOptions = {}) {
         tracer,
         meter,
       },
+      eventBus,
     }),
   );
+
+  // Start the event bus worker
+  eventBus.start();
+  console.log("[EventBus] Worker started");
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext

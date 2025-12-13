@@ -164,6 +164,7 @@ const createMockContext = (
 ): MeshContext => {
   const boundAuth = createMockBoundAuth(authInstance);
   return {
+    eventBus: vi.fn().mockResolvedValue(undefined) as never,
     auth: {
       user: {
         id: "user_1",
