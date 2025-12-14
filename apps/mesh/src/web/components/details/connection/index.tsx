@@ -15,6 +15,7 @@ import {
   BaseCollectionJsonSchema,
   TOOL_CONNECTION_CONFIGURE,
 } from "@/web/utils/constants";
+import { normalizeUrl } from "@/web/utils/normalize-url";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import {
@@ -136,16 +137,6 @@ function ConnectionInspectorViewContent() {
   };
 
   // Initialize MCP connection
-  const normalizeUrl = (url: string) => {
-    try {
-      const parsed = new URL(url);
-      parsed.pathname = parsed.pathname.replace(/\/i:([a-f0-9-]+)/gi, "/$1");
-      return parsed.toString();
-    } catch {
-      return url;
-    }
-  };
-
   const normalizedUrl = connection?.connection_url
     ? normalizeUrl(connection.connection_url)
     : "";

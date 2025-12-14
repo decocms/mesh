@@ -24,11 +24,11 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useMcp } from "use-mcp/react";
+import { normalizeUrl } from "@/web/utils/normalize-url";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
 import { OAuthAuthenticationState } from "./connection/oauth-authentication-state";
 
-// Helper to normalize URL for MCP
 export interface ToolDetailsViewProps {
   itemId: string;
   onBack: () => void;
@@ -64,18 +64,6 @@ export function ToolDetailsView({
   } | null>(null);
   const [viewMode, setViewMode] = useState<"json" | "view">("json");
 
-  // Use proxy URL when connection has a token (OAuth completed)
-  // Use normalizedUrl directly when no token (OAuth flow needs direct access)
-  const normalizeUrl = (url: string) => {
-    try {
-      const parsed = new URL(url);
-      parsed.pathname = parsed.pathname.replace(/\/i:([a-f0-9-]+)/gi, "/$1");
-      return parsed.toString();
-    } catch {
-      return url;
-    }
-  };
-
   const normalizedUrl = connection?.connection_url
     ? normalizeUrl(connection.connection_url)
     : "";
@@ -94,7 +82,7 @@ export function ToolDetailsView({
   }
 
   const mcp = useMcp({
-    url: normalizedUrl, // Em vez de mcpProxyUrl.href
+    url: normalizedUrl,
     clientName: "MCP Tool Inspector",
     clientUri: window.location.origin,
     autoReconnect: false,

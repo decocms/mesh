@@ -5,9 +5,6 @@ interface OAuthAuthenticationStateProps {
   buttonText?: string;
 }
 
-/**
- * Componente de estado vazio para quando a conexão requer autenticação OAuth
- */
 export function OAuthAuthenticationState({
   onAuthenticate,
   buttonText = "Authenticate",
