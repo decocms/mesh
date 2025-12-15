@@ -404,98 +404,95 @@ export default function StoreAppDetail() {
       : connectionData.title;
 
     const tx = connectionsCollection.insert(connectionData);
-
+    toast.success(`${titleWithVersion} installed successfully`);
     navigate({
       to: "/$org/mcps/$connectionId",
       params: { org: org.slug, connectionId: connectionData.id },
     });
 
-    toast.success(`${titleWithVersion} installed successfully`);
-
     tx.isPersisted.promise.catch((err) => {
       toast.error(`Failed to install app: ${err.message}`);
     });
+  };
 
-    const handleBackClick = () => {
-      navigate({
-        to: "/$org/store",
-        params: { org: org.slug },
-      });
-    };
+  const handleBackClick = () => {
+    navigate({
+      to: "/$org/store",
+      params: { org: org.slug },
+    });
+  };
 
-    // Loading state
-    if (isLoading) {
-      return <AppDetailLoadingState />;
-    }
+  // Loading state
+  if (isLoading) {
+    return <AppDetailLoadingState />;
+  }
 
-    // Error state
-    if (error) {
-      return <AppDetailErrorState error={error} onBack={handleBackClick} />;
-    }
+  // Error state
+  if (error) {
+    return <AppDetailErrorState error={error} onBack={handleBackClick} />;
+  }
 
-    // Not found state
-    if (!selectedItem) {
-      return <AppDetailNotFoundState onBack={handleBackClick} />;
-    }
+  // Not found state
+  if (!selectedItem) {
+    return <AppDetailNotFoundState onBack={handleBackClick} />;
+  }
 
-    if (!data) {
-      return null;
-    }
+  if (!data) {
+    return null;
+  }
 
-    // Check if app can be installed (must have remotes)
-    const canInstall = (selectedItem?.server?.remotes?.length ?? 0) > 0;
+  // Check if app can be installed (must have remotes)
+  const canInstall = (selectedItem?.server?.remotes?.length ?? 0) > 0;
 
-    return (
-      <div className="flex flex-col h-full border-l border-border">
-        {/* Header */}
-        <AppDetailHeader onBack={handleBackClick} />
+  return (
+    <div className="flex flex-col h-full border-l border-border">
+      {/* Header */}
+      <AppDetailHeader onBack={handleBackClick} />
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto pt-10 h-full">
-          <div className="h-full">
-            <div className="max-w-7xl mx-auto h-full">
-              {/* Not installable state */}
-              {!canInstall && (
-                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
-                  <Icon name="info" size={16} className="inline mr-2" />
-                  This app cannot be installed - no installation method
-                  available.
-                </div>
-              )}
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto pt-10 h-full">
+        <div className="h-full">
+          <div className="max-w-7xl mx-auto h-full">
+            {/* Not installable state */}
+            {!canInstall && (
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+                <Icon name="info" size={16} className="inline mr-2" />
+                This app cannot be installed - no installation method available.
+              </div>
+            )}
 
-              {/* SECTION 1: Hero (Full Width) */}
-              <AppHeroSection
+            {/* SECTION 1: Hero (Full Width) */}
+            <AppHeroSection
+              data={data}
+              itemVersions={
+                allVersions.length > 0 ? allVersions : [selectedItem]
+              }
+              onInstall={handleInstall}
+              canInstall={canInstall}
+            />
+
+            {/* SECTION 2 & 3: Two Column Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 min-h-[677px]">
+              {/* SECTION 2: Left Column (Overview + Publisher) */}
+              <AppSidebar
                 data={data}
-                itemVersions={
-                  allVersions.length > 0 ? allVersions : [selectedItem]
-                }
-                onInstall={handleInstall}
-                canInstall={canInstall}
+                publisherInfo={publisherInfo}
+                selectedItem={selectedItem}
               />
 
-              {/* SECTION 2 & 3: Two Column Layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 min-h-[677px]">
-                {/* SECTION 2: Left Column (Overview + Publisher) */}
-                <AppSidebar
-                  data={data}
-                  publisherInfo={publisherInfo}
-                  selectedItem={selectedItem}
-                />
-
-                {/* SECTION 3: Right Column (Tabs + Content) */}
-                <AppTabsContent
-                  data={data}
-                  availableTabs={availableTabs}
-                  effectiveActiveTabId={effectiveActiveTabId}
-                  effectiveTools={effectiveTools}
-                  isLoadingTools={isLoadingRemoteTools}
-                  onTabChange={setActiveTabId}
-                />
-              </div>
+              {/* SECTION 3: Right Column (Tabs + Content) */}
+              <AppTabsContent
+                data={data}
+                availableTabs={availableTabs}
+                effectiveActiveTabId={effectiveActiveTabId}
+                effectiveTools={effectiveTools}
+                isLoadingTools={isLoadingRemoteTools}
+                onTabChange={setActiveTabId}
+              />
             </div>
           </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
 }
