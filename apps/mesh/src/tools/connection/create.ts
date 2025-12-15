@@ -72,11 +72,10 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
       tools,
     });
 
-    // TODO, how to get the source connection ID?
-    // await ctx.eventBus.publish(organization.id, "conn_ouYs05Kuk-yFWfFhA6-mb", {
-    //   type: "connection.created",
-    //   data: connection,
-    // });
+    await ctx.eventBus.publish(organization.id, "self", {
+      type: "connection.created",
+      data: connection,
+    });
 
     return {
       item: connection,
