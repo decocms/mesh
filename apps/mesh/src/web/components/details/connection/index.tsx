@@ -29,7 +29,7 @@ import {
 } from "@/web/hooks/use-binding";
 import { useCollection, useCollectionList } from "@/web/hooks/use-collections";
 import { useListState } from "@/web/hooks/use-list-state";
-import { useOAuthTokenValidation } from "@/web/hooks/use-oauth-token-validation";
+import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -287,10 +287,10 @@ function SettingsTab({
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const connectionsCollection = useConnectionsCollection();
 
-  const { isOauthNecessary } = useOAuthTokenValidation(
-    connection.connection_url,
-    connection?.connection_token,
-  );
+  const isMCPAuthenticated = useIsMCPAuthenticated({
+    url: connection.connection_url,
+    token: connection?.connection_token,
+  });
 
   // Connection settings form
   const connectionForm = useForm<ConnectionFormData>({
@@ -450,7 +450,7 @@ function SettingsTab({
         </div>
 
         {/* Right panel - MCP Configuration (3/5) */}
-        {isOauthNecessary ? (
+        {!isMCPAuthenticated ? (
           <OAuthAuthenticationState onAuthenticate={handleAuthenticate} />
         ) : (
           hasMcpBinding && (

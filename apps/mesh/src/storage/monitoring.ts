@@ -6,7 +6,6 @@
  */
 
 import type { Kysely } from "kysely";
-import { nanoid } from "nanoid";
 import { RegexRedactor } from "../monitoring/redactor";
 import type { MonitoringStorage } from "./ports";
 import type { Database, MonitoringLog } from "./types";

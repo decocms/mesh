@@ -12,14 +12,17 @@ export async function authenticateMcp(
 ): Promise<{ token: string | null; error: string | null }> {
   try {
     const authProvider = new BrowserOAuthClientProvider(serverUrl, {
-      clientName: options?.clientName || "MCP Client",
+      clientName: options?.clientName || "@decocms/mesh MCP inspector",
       clientUri: options?.clientUri || window.location.origin,
       callbackUrl:
         options?.callbackUrl || `${window.location.origin}/oauth/callback`,
     });
 
-    const isOauthNecessaryResult = await isOauthNecessary(serverUrl);
-    if (!isOauthNecessaryResult) {
+    const isAlreadyAuthenticated = await isConnectionAuthenticated({
+      url: serverUrl,
+      token: null,
+    });
+    if (isAlreadyAuthenticated) {
       return {
         token: null,
         error: null,
@@ -73,84 +76,49 @@ export async function authenticateMcp(
   }
 }
 
-async function isOauthNecessary(serverUrl: string): Promise<boolean> {
+export async function isConnectionAuthenticated({
+  url,
+  token,
+}: {
+  url: string;
+  token: string | null;
+}): Promise<boolean> {
   try {
-    const metadataUrl = new URL(
-      "/.well-known/oauth-protected-resource",
-      serverUrl,
-    );
-    const metadataResponse = await fetch(metadataUrl.toString(), {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-    if (metadataResponse.status === 404 || !metadataResponse.ok) {
-      console.log(
-        `[authenticateMcp] Server does not require OAuth (status: ${metadataResponse.status})`,
-      );
-      return false;
+    const metadataUrl = new URL("/.well-known/oauth-protected-resource", url);
+
+    const headers: HeadersInit = { Accept: "application/json" };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
-
-    const contentType = metadataResponse.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      console.log(
-        "[authenticateMcp] Server does not return OAuth metadata, assuming no auth required",
-      );
-      return false;
-    }
-  } catch (metadataError) {
-    console.log(
-      "[authenticateMcp] Error checking OAuth metadata, assuming no auth required:",
-      metadataError,
-    );
-    return true;
-  }
-  return true;
-}
-
-export async function isOAuthTokenValid(
-  serverUrl: string,
-  token: string | null,
-): Promise<boolean> {
-  const isOauthNecessaryResult = await isOauthNecessary(serverUrl);
-  if (isOauthNecessaryResult && !token) {
-    return false;
-  }
-
-  try {
-    const metadataUrl = new URL(
-      "/.well-known/oauth-protected-resource",
-      serverUrl,
-    );
 
     const response = await fetch(metadataUrl.toString(), {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
     });
 
-    if (response.status === 401 || response.status === 403) {
-      console.log(
-        `[isOAuthTokenValid] Token is invalid (status: ${response.status})`,
-      );
-      return false;
-    }
+    const serverDoesNotSupportOAuth = response.status === 404;
+    const contentType = response.headers.get("content-type");
+    const responseIsNotJson = !contentType?.includes("application/json");
+    const oauthNotRequired = serverDoesNotSupportOAuth || responseIsNotJson;
 
-    if (response.ok) {
-      console.log("[isOAuthTokenValid] Token is valid");
+    if (oauthNotRequired) {
       return true;
     }
 
-    console.log(
-      `[isOAuthTokenValid] Unexpected status ${response.status}, assuming token might be valid`,
-    );
-    return true;
+    const tokenNotProvided = !token;
+    if (tokenNotProvided) {
+      return false;
+    }
+
+    const tokenIsInvalid = response.status === 401 || response.status === 403;
+    if (tokenIsInvalid) {
+      return false;
+    }
+
+    return response.ok;
   } catch (error) {
     console.error(
-      "[isOAuthTokenValid] Error validating token, assuming invalid:",
+      "[isConnectionAuthenticated] Error checking authentication:",
       error,
     );
     return false;

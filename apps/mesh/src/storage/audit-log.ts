@@ -5,7 +5,6 @@
  */
 
 import type { Kysely } from "kysely";
-import { nanoid } from "nanoid";
 import type { Database, AuditLog } from "./types";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 

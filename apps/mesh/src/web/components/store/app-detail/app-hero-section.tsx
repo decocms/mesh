@@ -1,7 +1,6 @@
 import type { RegistryItem } from "@/web/components/store/registry-items-section";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { Loader2 } from "lucide-react";
 import { useState, useRef } from "react";
 import type { AppData } from "./types";
 

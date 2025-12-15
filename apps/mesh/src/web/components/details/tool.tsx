@@ -28,6 +28,7 @@ import { normalizeUrl } from "@/web/utils/normalize-url";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
 import { OAuthAuthenticationState } from "./connection/oauth-authentication-state";
+import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
 
 export interface ToolDetailsViewProps {
   itemId: string;
@@ -64,13 +65,16 @@ export function ToolDetailsView({
   } | null>(null);
   const [viewMode, setViewMode] = useState<"json" | "view">("json");
 
-  const normalizedUrl = connection?.connection_url
+  const mcpUrl = connection?.connection_url
     ? normalizeUrl(connection.connection_url)
     : "";
 
-  const hasToken = !!connection?.connection_token;
+  const isMCPAuthenticated = useIsMCPAuthenticated({
+    url: mcpUrl,
+    token: connection?.connection_token ?? null,
+  });
 
-  if (!hasToken) {
+  if (!isMCPAuthenticated) {
     return (
       <div className="flex h-full items-center justify-center">
         <OAuthAuthenticationState
@@ -82,7 +86,7 @@ export function ToolDetailsView({
   }
 
   const mcp = useMcp({
-    url: normalizedUrl,
+    url: mcpUrl,
     clientName: "MCP Tool Inspector",
     clientUri: window.location.origin,
     autoReconnect: false,
