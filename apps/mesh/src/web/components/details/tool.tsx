@@ -65,12 +65,13 @@ export function ToolDetailsView({
   } | null>(null);
   const [viewMode, setViewMode] = useState<"json" | "view">("json");
 
-  const mcpUrl = connection?.connection_url
+  const mcpOriginalUrl = connection?.connection_url
     ? normalizeUrl(connection.connection_url)
     : "";
+  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
 
   const isMCPAuthenticated = useIsMCPAuthenticated({
-    url: mcpUrl,
+    url: mcpOriginalUrl,
     token: connection?.connection_token ?? null,
   });
 
@@ -86,7 +87,7 @@ export function ToolDetailsView({
   }
 
   const mcp = useMcp({
-    url: mcpUrl,
+    url: mcpProxyUrl.href,
     clientName: "MCP Tool Inspector",
     clientUri: window.location.origin,
     autoReconnect: false,

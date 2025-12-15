@@ -56,15 +56,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
     private vault: CredentialVault,
   ) {}
 
-  private isValidConnectionId(id?: string): boolean {
-    if (!id) return false;
-    return /^conn_[a-zA-Z0-9_-]+$/.test(id);
-  }
-
   async create(data: Partial<ConnectionEntity>): Promise<ConnectionEntity> {
-    if (data.id !== undefined && !this.isValidConnectionId(data.id)) {
-      throw new Error(`Invalid connection ID format: ${data.id}.`);
-    }
     const id = data.id ?? generatePrefixedId("conn");
     const now = new Date().toISOString();
 
