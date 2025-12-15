@@ -27,6 +27,7 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
     // Deco Store
     {
       data: {
+        id: "registry",
         title: "Deco Store",
         description: "Official deco MCP registry with curated integrations",
         connection_type: "HTTP",
@@ -78,6 +79,7 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
         );
       },
       data: {
+        id: "self",
         title: "Management MCP",
         description: "Management MCP for the organization",
         connection_type: "HTTP",
