@@ -81,6 +81,15 @@ export function extractConnectionData(
     | null
     | undefined;
 
+  // Extract repository info for README support (stored in metadata)
+  const repository = server?.repository
+    ? {
+        url: server.repository.url,
+        source: server.repository.source,
+        subfolder: server.repository.subfolder,
+      }
+    : null;
+
   return {
     id: crypto.randomUUID(),
     title,
@@ -103,6 +112,7 @@ export function extractConnectionData(
       scopeName: meshMeta?.scopeName ?? null,
       toolsCount: publisherMeta?.tools?.length ?? 0,
       publishedAt: meshMeta?.publishedAt ?? null,
+      repository, // Repository info for README display
     },
     created_at: now,
     updated_at: now,

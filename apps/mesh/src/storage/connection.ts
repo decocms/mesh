@@ -20,7 +20,7 @@ import type {
 const JSON_FIELDS = [
   "connection_headers",
   "oauth_config",
-  "configuration_scopes", // Added
+  "configuration_scopes",
   "metadata",
   "tools",
   "bindings",

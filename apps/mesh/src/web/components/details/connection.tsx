@@ -4,7 +4,6 @@ import { ConnectionEntitySchema } from "@/tools/connection/schema";
 import { AddToCursorButton } from "@/web/components/add-to-cursor-button.tsx";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
-import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import {
   CollectionsList,
   generateSortOptionsFromSchema,
@@ -17,6 +16,8 @@ import {
 } from "@/web/utils/constants";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
+import { ReadmeViewer } from "@/web/components/store/readme-viewer";
+import { ToolsList } from "@/web/components/tools";
 import {
   useConnection,
   useConnectionsCollection,
@@ -38,7 +39,6 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
 import {
   Form,
   FormControl,
@@ -279,10 +279,17 @@ function ConnectionInspectorViewContent() {
     );
   }
 
+  // Check if connection has repository info for README tab (stored in metadata)
+  const repository = connection.metadata?.repository as
+    | { url?: string; source?: string; subfolder?: string }
+    | undefined;
+  const hasRepository = !!repository?.url;
+
   const tabs = [
     { id: "settings", label: "Settings" },
     { id: "tools", label: "Tools", count: mcp.tools?.length ?? 0 },
     ...(collections || []).map((c) => ({ id: c.name, label: c.displayName })),
+    ...(hasRepository ? [{ id: "readme", label: "README" }] : []),
   ];
 
   const handleTabChange = (tabId: string) => {
@@ -338,6 +345,10 @@ function ConnectionInspectorViewContent() {
                 onUpdate={handleUpdateConnection}
                 hasMcpBinding={hasMcpBinding}
               />
+            </div>
+          ) : activeTabId === "readme" && hasRepository ? (
+            <div className="flex-1 overflow-y-auto bg-background">
+              <ReadmeViewer repository={repository} />
             </div>
           ) : (
             <ErrorBoundary>
@@ -753,207 +764,6 @@ function CursorIDEIntegration({
         variant="default"
       />
     </div>
-  );
-}
-
-function ToolsList({
-  tools,
-  connectionId,
-  org,
-}: {
-  tools: Array<{ name: string; description?: string }> | undefined;
-  connectionId: string;
-  org: string;
-}) {
-  const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
-  const [sortKey, setSortKey] = useState<string | undefined>("name");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>(
-    "asc",
-  );
-
-  const handleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDirection((prev) =>
-        prev === "asc" ? "desc" : prev === "desc" ? null : "asc",
-      );
-      if (sortDirection === "desc") setSortKey(undefined);
-    } else {
-      setSortKey(key);
-      setSortDirection("asc");
-    }
-  };
-
-  const filteredTools =
-    !tools || tools.length === 0
-      ? []
-      : !search.trim()
-        ? tools
-        : (() => {
-            const searchLower = search.toLowerCase();
-            return tools.filter(
-              (t) =>
-                t.name.toLowerCase().includes(searchLower) ||
-                (t.description &&
-                  t.description.toLowerCase().includes(searchLower)),
-            );
-          })();
-
-  const sortedTools =
-    !sortKey || !sortDirection
-      ? filteredTools
-      : [...filteredTools].sort((a, b) => {
-          const aVal = (a as unknown as Record<string, unknown>)[sortKey] || "";
-          const bVal = (b as unknown as Record<string, unknown>)[sortKey] || "";
-          const comparison = String(aVal).localeCompare(String(bVal));
-          return sortDirection === "asc" ? comparison : -comparison;
-        });
-
-  const columns = [
-    {
-      id: "name",
-      header: "Name",
-      render: (tool: { name: string }) => (
-        <span className="text-sm font-medium font-mono text-foreground">
-          {tool.name}
-        </span>
-      ),
-      sortable: true,
-    },
-    {
-      id: "description",
-      header: "Description",
-      render: (tool: { description?: string }) => (
-        <span className="text-sm text-foreground">
-          {tool.description || "—"}
-        </span>
-      ),
-      cellClassName: "flex-1",
-      sortable: true,
-    },
-  ];
-
-  const sortOptions = columns
-    .filter((col) => col.sortable)
-    .map((col) => ({
-      id: col.id,
-      label: typeof col.header === "string" ? col.header : col.id,
-    }));
-
-  return (
-    <>
-      <ViewActions>
-        <CollectionDisplayButton
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={handleSort}
-          sortOptions={sortOptions}
-        />
-      </ViewActions>
-
-      <div className="flex flex-col h-full overflow-hidden">
-        {/* Search */}
-        <CollectionSearch
-          value={search}
-          onChange={setSearch}
-          placeholder="Search tools..."
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              setSearch("");
-              (event.target as HTMLInputElement).blur();
-            }
-          }}
-        />
-
-        {/* Content: Cards or Table */}
-        {viewMode === "cards" ? (
-          <div className="flex-1 overflow-auto p-5">
-            {sortedTools.length === 0 ? (
-              <EmptyState
-                image={null}
-                title={search ? "No tools found" : "No tools available"}
-                description={
-                  search
-                    ? "Try adjusting your search terms"
-                    : "This connection doesn't have any tools yet."
-                }
-              />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {sortedTools.map((tool) => (
-                  <Card
-                    key={tool.name}
-                    className="cursor-pointer transition-colors"
-                    onClick={() =>
-                      navigate({
-                        to: "/$org/mcps/$connectionId/$collectionName/$itemId",
-                        params: {
-                          org: org ?? "",
-                          connectionId: connectionId ?? "",
-                          collectionName: "tools",
-                          itemId: encodeURIComponent(tool.name),
-                        },
-                      })
-                    }
-                  >
-                    <div className="flex flex-col gap-4 p-6">
-                      <IntegrationIcon
-                        icon={null}
-                        name={tool.name}
-                        size="md"
-                        className="shrink-0 shadow-sm"
-                      />
-                      <div className="flex flex-col gap-0">
-                        <h3 className="text-base font-medium text-foreground truncate">
-                          {tool.name}
-                        </h3>
-                        <p className="text-base text-muted-foreground line-clamp-2">
-                          {tool.description || "No description"}
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <CollectionTableWrapper
-            columns={columns}
-            data={sortedTools}
-            isLoading={false}
-            sortKey={sortKey}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            onRowClick={(tool: { name: string; description?: string }) =>
-              navigate({
-                to: "/$org/mcps/$connectionId/$collectionName/$itemId",
-                params: {
-                  org: org ?? "",
-                  connectionId: connectionId ?? "",
-                  collectionName: "tools",
-                  itemId: encodeURIComponent(tool.name),
-                },
-              })
-            }
-            emptyState={
-              <EmptyState
-                image={null}
-                title={search ? "No tools found" : "No tools available"}
-                description={
-                  search
-                    ? "Try adjusting your search terms"
-                    : "This connection doesn't have any tools yet."
-                }
-              />
-            }
-          />
-        )}
-      </div>
-    </>
   );
 }
 

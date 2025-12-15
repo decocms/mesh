@@ -48,7 +48,6 @@ export default function StorePage() {
           return existing;
         }
       }
-
       // Fallback to first available registry
       return registryConnections[0]?.id || "";
     },
