@@ -1,7 +1,62 @@
-import { describe, it, expect } from "bun:test";
-import app from "./index";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import type { Kysely } from "kysely";
+import { createDatabase, closeDatabase } from "../database";
+import type { EventBus } from "../event-bus";
+import { createTestSchema } from "../storage/test-helpers";
+import type { Database } from "../storage/types";
+import { createApp } from "./index";
+
+/**
+ * Create a no-op mock event bus for testing
+ */
+function createMockEventBus(): EventBus {
+  return {
+    start: () => {},
+    stop: () => {},
+    isRunning: () => false,
+    publish: async () =>
+      ({
+        id: "mock-event",
+        organizationId: "org",
+        type: "test",
+        source: "test",
+        specversion: "1.0",
+        time: new Date().toISOString(),
+        datacontenttype: "application/json",
+        status: "pending",
+        attempts: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }) as never,
+    subscribe: async () =>
+      ({
+        id: "mock-sub",
+        organizationId: "org",
+        connectionId: "conn",
+        eventType: "test",
+        enabled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }) as never,
+    unsubscribe: async () => ({ success: true }),
+    listSubscriptions: async () => [],
+    getSubscription: async () => null,
+  };
+}
 
 describe("Hono App", () => {
+  let db: Kysely<Database>;
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(async () => {
+    db = createDatabase(":memory:");
+    await createTestSchema(db);
+    app = createApp({ db, eventBus: createMockEventBus() });
+  });
+
+  afterEach(async () => {
+    await closeDatabase(db);
+  });
   describe("health check", () => {
     it("should respond to health check", async () => {
       const res = await app.request("/health");

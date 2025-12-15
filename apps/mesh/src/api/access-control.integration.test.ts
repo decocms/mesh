@@ -10,10 +10,28 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { auth } from "../auth";
 import { createDatabase, closeDatabase } from "../database";
+import type { EventBus } from "../event-bus";
 import { createTestSchema } from "../storage/test-helpers";
 import type { Kysely } from "kysely";
 import type { Database, Permission } from "../storage/types";
 import { createApp } from "./index";
+
+/**
+ * Create a no-op mock event bus for testing
+ */
+function createMockEventBus(): EventBus {
+  return {
+    getSubscription: async () => null,
+    isRunning: () => false,
+    start: async () => {},
+    stop: async () => {},
+    publish: async () => ({ success: true }) as any,
+    subscribe: async () =>
+      ({ success: true, subscriptionId: "mock-sub" }) as any,
+    unsubscribe: async () => ({ success: true }),
+    listSubscriptions: async () => [],
+  };
+}
 
 // ============================================================================
 // Types
@@ -93,8 +111,8 @@ describe("Access Control Integration Tests", () => {
     db = createDatabase(":memory:");
     await createTestSchema(db);
 
-    // Create app instance with test database
-    app = createApp({ db, skipAssetServer: true });
+    // Create app instance with test database and mock event bus
+    app = createApp({ db, eventBus: createMockEventBus() });
 
     // Initialize test data maps
     testUsers = new Map();

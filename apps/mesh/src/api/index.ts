@@ -362,5 +362,19 @@ export function createApp(options: CreateAppOptions = {}) {
   return app;
 }
 
-// Default app instance for production use
-export default createApp();
+// Default app factory for production use
+// Not eagerly created to avoid side effects during test imports
+let defaultApp: ReturnType<typeof createApp> | null = null;
+function getDefaultApp() {
+  if (!defaultApp) {
+    defaultApp = createApp();
+  }
+  return defaultApp;
+}
+
+// Re-export for backwards compatibility (but now lazy)
+export default new Proxy({} as ReturnType<typeof createApp>, {
+  get(_, prop) {
+    return (getDefaultApp() as never)[prop];
+  },
+});
