@@ -2,27 +2,46 @@
  * Event Bus Module
  *
  * Provides a unified event bus for MCP Mesh.
- * Automatically selects the appropriate implementation based on database type.
  *
- * - PostgreSQL: Uses LISTEN/NOTIFY for efficient event notification (reuses Pool)
- * - SQLite: Uses polling for event delivery
+ * Architecture:
+ * - EventBus: Single class handling publish/subscribe and worker management
+ * - EventBusStorage: Database operations (unified for SQLite/PostgreSQL via Kysely)
+ * - EventBusWorker: Polling and delivery logic
+ * - NotifyStrategy: Optional immediate wake-up (PostgreSQL uses LISTEN/NOTIFY)
+ *
+ * Usage:
+ * ```ts
+ * const eventBus = createEventBus(database, notifySubscriber, config);
+ * await eventBus.start();
+ * ```
  */
 
 import type { MeshDatabase } from "../database";
+import { createEventBusStorage } from "../storage/event-bus";
+import { EventBus as EventBusImpl } from "./event-bus";
 import type { EventBus, EventBusConfig, NotifySubscriberFn } from "./interface";
-import { PostgresEventBus } from "./postgres-worker";
-import { SqliteEventBus } from "./sqlite-worker";
+import { PostgresNotifyStrategy } from "./postgres-notify";
 
-// Re-export types
-export * from "./interface";
+// Re-export types and interfaces
+export {
+  type EventBusConfig,
+  type IEventBus,
+  type NotifySubscriberFn,
+  type PublishEventInput,
+  type SubscribeInput,
+} from "./interface";
+
+// Export EventBus type alias (for typing in tests/consumers)
+export type { EventBus } from "./interface";
+
 export { createNotifySubscriber } from "./notify";
+export type { NotifyStrategy } from "./notify-strategy";
 
 /**
  * Create an EventBus instance based on database type
  *
- * Uses the MeshDatabase discriminated union to select the right implementation:
- * - PostgreSQL: Reuses the existing Pool for LISTEN/NOTIFY
- * - SQLite: Uses polling
+ * For PostgreSQL: Uses LISTEN/NOTIFY for immediate wake-up + polling fallback
+ * For SQLite: Uses polling only
  *
  * @param database - MeshDatabase instance (discriminated union)
  * @param notifySubscriber - Callback to notify subscribers of events
@@ -34,14 +53,19 @@ export function createEventBus(
   notifySubscriber: NotifySubscriberFn,
   config?: EventBusConfig,
 ): EventBus {
-  if (database.type === "postgres") {
-    return new PostgresEventBus(
-      database.db,
-      database.pool,
-      notifySubscriber,
-      config,
-    );
-  }
+  const storage = createEventBusStorage(database.db);
 
-  return new SqliteEventBus(database.db, notifySubscriber, config);
+  // Create notify strategy for PostgreSQL (uses LISTEN/NOTIFY)
+  // For SQLite, no notify strategy - relies on polling only
+  const notifyStrategy =
+    database.type === "postgres"
+      ? new PostgresNotifyStrategy(database.db, database.pool)
+      : undefined;
+
+  return new EventBusImpl({
+    storage,
+    notifySubscriber,
+    config,
+    notifyStrategy,
+  });
 }
