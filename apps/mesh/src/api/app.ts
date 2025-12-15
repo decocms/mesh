@@ -40,6 +40,7 @@ import {
   oAuthDiscoveryMetadata,
   oAuthProtectedResourceMetadata,
 } from "better-auth/plugins";
+import { WellKnownMCPId } from "@/core/well-known-mcp";
 const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
 const getHandleOAuthDiscoveryMetadata = () => oAuthDiscoveryMetadata(auth);
@@ -181,7 +182,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.get(
     "/.well-known/oauth-authorization-server/*/:connectionId?",
     async (c) => {
-      const connectionId = c.req.param("connectionId") ?? "self";
+      const connectionId = c.req.param("connectionId") ?? WellKnownMCPId.SELF;
       const handleOAuthDiscoveryMetadata = getHandleOAuthDiscoveryMetadata();
       const res = await handleOAuthDiscoveryMetadata(c.req.raw);
       const data = await res.json();

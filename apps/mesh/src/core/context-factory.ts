@@ -326,6 +326,7 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 // Import built-in roles from separate module to avoid circular dependency
 import { SqlMonitoringStorage } from "@/storage/monitoring";
 import { BUILTIN_ROLES } from "../auth/roles";
+import { WellKnownMCPId } from "./well-known-mcp";
 
 /**
  * Fetch role permissions from the database
@@ -639,7 +640,7 @@ export function createMeshContextFactory(
       undefined, // toolName set later by defineTool
       boundAuth, // Bound auth client for permission checks
       authResult.role, // Role from session (for built-in role bypass)
-      "self", // Default connectionId for management APIs
+      WellKnownMCPId.SELF, // Default connectionId for management APIs
     );
 
     return {
