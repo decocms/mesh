@@ -316,13 +316,12 @@ export default function StoreAppDetail() {
     clientUri: typeof window !== "undefined" ? window.location.origin : "",
     autoReconnect: false,
     autoRetry: false,
+    preventAutoAuth: true,
   });
 
   const isLoadingRemoteTools =
     shouldFetchRemote &&
-    (remoteMcp.state === "connecting" ||
-      remoteMcp.state === "authenticating" ||
-      remoteMcp.state === "pending_auth");
+    (remoteMcp.state === "connecting" || remoteMcp.state === "authenticating");
 
   const remoteTools =
     shouldFetchRemote && remoteMcp.state === "ready"

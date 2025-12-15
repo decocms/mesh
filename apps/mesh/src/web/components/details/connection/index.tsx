@@ -147,8 +147,9 @@ function ConnectionInspectorViewContent() {
     clientUri: window.location.origin,
     callbackUrl: `${window.location.origin}/oauth/callback`,
     debug: false,
-    autoReconnect: true,
-    autoRetry: 5000,
+    preventAutoAuth: true,
+    autoReconnect: false,
+    autoRetry: false,
   });
 
   if (!connection && connectionId) {
