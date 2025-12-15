@@ -20,10 +20,15 @@ export const EVENT_UNSUBSCRIBE = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
 
-    // Get the caller's connection ID for verification
+    // Get the caller's connection ID - required for ownership verification
     const connectionId = ctx.connectionId;
+    if (!connectionId) {
+      throw new Error(
+        "Connection ID required to unsubscribe. Use a connection-scoped token.",
+      );
+    }
 
-    // Verify the subscription belongs to the caller's connection
+    // Verify the subscription exists and belongs to the caller's connection
     const subscription = await ctx.eventBus.getSubscription(
       organization.id,
       input.subscriptionId,
@@ -33,7 +38,7 @@ export const EVENT_UNSUBSCRIBE = defineTool({
       throw new Error(`Subscription not found: ${input.subscriptionId}`);
     }
 
-    if (connectionId && subscription.connectionId !== connectionId) {
+    if (subscription.connectionId !== connectionId) {
       throw new Error(
         "Cannot unsubscribe from a subscription owned by another connection",
       );

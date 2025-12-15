@@ -72,8 +72,11 @@ export const DEFAULT_EVENT_BUS_CONFIG: Required<EventBusConfig> = {
 
 /**
  * EventBus interface for publishing and subscribing to events
+ *
+ * Note: The interface is named IEventBus internally, but exported as EventBus
+ * for backwards compatibility. Use `import type { EventBus }` for typing.
  */
-export interface EventBus {
+export interface IEventBus {
   /**
    * Publish an event
    *
@@ -161,3 +164,9 @@ export type NotifySubscriberFn = (
   connectionId: string,
   events: CloudEvent[],
 ) => Promise<{ success: boolean; error?: string }>;
+
+/**
+ * EventBus type alias for the interface
+ * Use this for typing (e.g., in tests or function parameters)
+ */
+export type EventBus = IEventBus;

@@ -18,7 +18,7 @@ import { createApp } from "./app";
  */
 function createMockEventBus(): EventBus {
   return {
-    start: () => {},
+    start: async () => {},
     stop: () => {},
     isRunning: () => false,
     publish: async () => ({}) as never,
