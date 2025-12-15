@@ -561,13 +561,13 @@ async function authenticateRequest(
 // Context Factory
 // ============================================================================
 
-let createContextFn: (req: Request) => Promise<MeshContext>;
+let createContextFn: (req?: Request) => Promise<MeshContext>;
 
 export const ContextFactory = {
-  set: (fn: (req: Request) => Promise<MeshContext>) => {
+  set: (fn: (req?: Request) => Promise<MeshContext>) => {
     createContextFn = fn;
   },
-  create: async (req: Request) => {
+  create: async (req?: Request) => {
     return await createContextFn(req);
   },
 };
@@ -580,7 +580,7 @@ export const ContextFactory = {
  */
 export function createMeshContextFactory(
   config: MeshContextConfig,
-): (c: Request) => Promise<MeshContext> {
+): (req?: Request) => Promise<MeshContext> {
   // Create vault instance for credential encryption
   const vault = new CredentialVault(config.encryption.key);
 
@@ -597,15 +597,17 @@ export function createMeshContextFactory(
   };
 
   // Return factory function
-  return async (req: Request): Promise<MeshContext> => {
-    const connectionId = req.headers.get("x-caller-id") ?? undefined;
+  return async (req?: Request): Promise<MeshContext> => {
+    const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
-    const authResult = await authenticateRequest(req, config.auth, config.db);
+    const authResult = req
+      ? await authenticateRequest(req, config.auth, config.db)
+      : { user: undefined };
 
     // Create bound auth client (encapsulates HTTP headers and auth context)
     const boundAuth = createBoundAuthClient({
       auth: config.auth,
-      headers: req.headers,
+      headers: req?.headers ?? new Headers(),
       role: authResult.role,
       permissions: authResult.permissions,
     });
@@ -627,7 +629,7 @@ export function createMeshContextFactory(
     const organization = authResult.organization;
 
     // Derive base URL from request
-    const url = new URL(req.url);
+    const url = req ? new URL(req.url) : new URL("http://localhost:3000");
     const baseUrl = process.env.BASE_URL ?? `${url.protocol}//${url.host}`;
 
     // Create AccessControl instance with bound auth client
@@ -656,10 +658,10 @@ export function createMeshContextFactory(
       metadata: {
         requestId: crypto.randomUUID(),
         timestamp: new Date(),
-        userAgent: req.headers.get("User-Agent") ?? undefined,
+        userAgent: req?.headers.get("User-Agent") ?? undefined,
         ipAddress:
-          (req.headers.get("CF-Connecting-IP") ||
-            req.headers.get("X-Forwarded-For")) ??
+          (req?.headers.get("CF-Connecting-IP") ||
+            req?.headers.get("X-Forwarded-For")) ??
           undefined,
       },
       eventBus: config.eventBus,

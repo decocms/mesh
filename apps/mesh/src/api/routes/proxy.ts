@@ -150,10 +150,10 @@ function withStreamableConnectionAuthorization(
  *
  * Single server approach - tools from downstream are dynamically fetched and registered
  */
-export async function createMCPProxy(
+async function createMCPProxyDoNotUseDirectly(
   connectionIdOrConnection: string | ConnectionEntity,
   ctx: MeshContext,
-  skipAuth?: boolean,
+  { superUser }: { superUser: boolean }, // this is basically used for background workers that needs cross-organization access
 ) {
   // Get connection details
   const connection =
@@ -276,10 +276,10 @@ export async function createMCPProxy(
 
   // Create authorization middlewares
   // Uses boundAuth for permission checks (delegates to Better Auth)
-  const authMiddleware: CallToolMiddleware = skipAuth
+  const authMiddleware: CallToolMiddleware = superUser
     ? async (_, next) => await next()
     : withConnectionAuthorization(ctx, connectionId);
-  const streamableAuthMiddleware: CallStreamableToolMiddleware = skipAuth
+  const streamableAuthMiddleware: CallStreamableToolMiddleware = superUser
     ? async (_, next) => await next()
     : withStreamableConnectionAuthorization(ctx, connectionId);
 
@@ -542,6 +542,36 @@ export async function createMCPProxy(
     },
     callStreamableTool,
   };
+}
+
+/**
+ * Create MCP proxy for a downstream connection
+ * Pattern from @deco/api proxy() function
+ *
+ * Single server approach - tools from downstream are dynamically fetched and registered
+ */
+export async function createMCPProxy(
+  connectionIdOrConnection: string | ConnectionEntity,
+  ctx: MeshContext,
+) {
+  return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
+    superUser: false,
+  });
+}
+
+/**
+ * Create a MCP proxy for a downstream connection with super user access
+ * @param connectionIdOrConnection - The connection ID or connection entity
+ * @param ctx - The mesh context
+ * @returns The MCP proxy
+ */
+export async function dangerouslyCreateSuperUserMCPProxy(
+  connectionIdOrConnection: string | ConnectionEntity,
+  ctx: MeshContext,
+) {
+  return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
+    superUser: true,
+  });
 }
 
 // ============================================================================

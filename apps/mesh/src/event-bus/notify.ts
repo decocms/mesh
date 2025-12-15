@@ -5,10 +5,10 @@
  * and the Event Receiver binding.
  */
 
+import { ContextFactory } from "@/core/context-factory";
 import type { CloudEvent } from "@decocms/bindings";
 import { EventSubscriberBinding } from "@decocms/bindings";
-import { createMCPProxy } from "../api/routes/proxy";
-import type { MeshContext } from "../core/mesh-context";
+import { dangerouslyCreateSuperUserMCPProxy } from "../api/routes/proxy";
 import type { NotifySubscriberFn } from "./interface";
 
 /**
@@ -20,19 +20,20 @@ import type { NotifySubscriberFn } from "./interface";
  * @param getSystemContext - Function that returns a system context for making proxy calls
  * @returns NotifySubscriberFn callback
  */
-export function createNotifySubscriber(
-  getSystemContext: () => Promise<MeshContext>,
-): NotifySubscriberFn {
+export function createNotifySubscriber(): NotifySubscriberFn {
   return async (
     connectionId: string,
     events: CloudEvent[],
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       // Get a system context for the notification
-      const ctx = await getSystemContext();
+      const ctx = await ContextFactory.create();
 
       // Create MCP proxy for the subscriber connection
-      const proxy = await createMCPProxy(connectionId, ctx, true);
+      const proxy = await dangerouslyCreateSuperUserMCPProxy(connectionId, {
+        ...ctx,
+        auth: { ...ctx.auth, user: { id: "notify-worker" } },
+      });
 
       // Use the Event Subscriber binding - pass the whole proxy object
       // Same pattern as LanguageModelBinding.forClient(proxy) in models.ts

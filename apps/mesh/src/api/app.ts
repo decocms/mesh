@@ -87,22 +87,8 @@ export function createApp(options: CreateAppOptions = {}) {
   } else {
     // Create notify function that uses the context factory
     // This is called by the worker to deliver events to subscribers
-    const notifySubscriber = createNotifySubscriber(async () => {
-      // Create a minimal system request for the context factory
-      const systemRequest = new Request("http://localhost/internal", {
-        headers: new Headers({
-          "X-System-Request": "event-bus-worker",
-        }),
-      });
-      const ctx = await ContextFactory.create(systemRequest);
-      return {
-        ...ctx,
-        auth: { ...ctx.auth, user: { id: "notify-worker" } },
-      };
-    });
-
     // EventBus uses the full MeshDatabase (includes Pool for PostgreSQL)
-    eventBus = createEventBus(database, notifySubscriber);
+    eventBus = createEventBus(database, createNotifySubscriber());
   }
 
   const app = new Hono<{ Variables: Variables }>();
