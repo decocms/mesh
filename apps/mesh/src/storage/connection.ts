@@ -14,7 +14,7 @@ import type {
   OAuthConfig,
   ToolDefinition,
 } from "../tools/connection/schema";
-import { generateConnectionId } from "@/shared/utils/generate-id";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /** JSON fields that need serialization/deserialization */
 const JSON_FIELDS = [
@@ -65,7 +65,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
     if (data.id !== undefined && !this.isValidConnectionId(data.id)) {
       throw new Error(`Invalid connection ID format: ${data.id}.`);
     }
-    const id = data.id ?? generateConnectionId();
+    const id = data.id ?? generatePrefixedId("conn");
     const now = new Date().toISOString();
 
     const existing = await this.findById(id);

@@ -10,6 +10,7 @@ import { nanoid } from "nanoid";
 import { RegexRedactor } from "../monitoring/redactor";
 import type { MonitoringStorage } from "./ports";
 import type { Database, MonitoringLog } from "./types";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 // ============================================================================
 // Monitoring Storage Implementation
@@ -182,7 +183,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   // ============================================================================
 
   private toDbRow(log: MonitoringLog) {
-    const id = log.id || `log_${nanoid()}`;
+    const id = log.id || generatePrefixedId("log");
 
     return {
       id,

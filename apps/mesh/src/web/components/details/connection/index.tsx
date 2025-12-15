@@ -80,7 +80,7 @@ import {
   useMcpConfiguration,
 } from "./mcp-configuration-form";
 import { authenticateMcp } from "@/web/lib/browser-oauth-provider";
-import { generateConnectionId } from "@/shared/utils/generate-id";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { OAuthAuthenticationState } from "./oauth-authentication-state";
 
 function ConnectionInspectorViewContent() {
@@ -725,7 +725,7 @@ function CollectionContent({
     const now = new Date().toISOString();
     collection.insert({
       ...item,
-      id: generateConnectionId(),
+      id: generatePrefixedId("conn"),
       title: `${item.title} (Copy)`,
       created_at: now,
       updated_at: now,
@@ -765,7 +765,7 @@ function CollectionContent({
 
     const now = new Date().toISOString();
     const newItem: BaseCollectionEntity = {
-      id: generateConnectionId(),
+      id: generatePrefixedId("conn"),
       title: "New Item",
       created_at: now,
       updated_at: now,

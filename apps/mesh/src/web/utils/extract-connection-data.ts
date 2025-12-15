@@ -12,7 +12,7 @@ import {
 } from "@/web/utils/constants";
 import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
 import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
-import { generateConnectionId } from "@/shared/utils/generate-id";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
  * Extract connection data from a registry item for installation
@@ -92,7 +92,7 @@ export function extractConnectionData(
     : null;
 
   return {
-    id: generateConnectionId(),
+    id: generatePrefixedId("conn"),
     title,
     description,
     icon,

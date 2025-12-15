@@ -67,7 +67,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { authClient } from "@/web/lib/auth-client";
-import { generateConnectionId } from "@/shared/utils/generate-id";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 // Form validation schema derived from ConnectionEntitySchema
 // Pick the relevant fields and adapt for form use
@@ -218,7 +218,7 @@ function OrgMcpsContent() {
       } else {
         // Create new connection
         const tx = connectionsCollection.insert({
-          id: generateConnectionId(),
+          id: generatePrefixedId("conn"),
           title: data.title,
           description: data.description || null,
           connection_type: data.connection_type,
