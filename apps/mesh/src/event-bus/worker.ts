@@ -13,6 +13,7 @@ import {
   type EventBusConfig,
   type NotifySubscriberFn,
 } from "./interface";
+import { createNotifySubscriber } from "./notify";
 
 /**
  * Convert internal Event to CloudEvent format
@@ -75,16 +76,20 @@ function groupBySubscription(pendingDeliveries: PendingDelivery[]): Map<
  * EventBusWorker handles the background processing of events
  */
 export class EventBusWorker {
+  private notifySubscriber: NotifySubscriberFn;
   private running = false;
   private pollTimer: Timer | null = null;
   private config: Required<EventBusConfig>;
 
   constructor(
     private storage: EventBusStorage,
-    private notifySubscriber: NotifySubscriberFn,
     config?: EventBusConfig,
   ) {
-    this.config = { ...DEFAULT_EVENT_BUS_CONFIG, ...config };
+    this.notifySubscriber = createNotifySubscriber();
+    this.config = {
+      ...DEFAULT_EVENT_BUS_CONFIG,
+      ...config,
+    };
   }
 
   /**

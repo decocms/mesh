@@ -20,11 +20,7 @@ import {
 } from "../core/context-factory";
 import type { MeshContext } from "../core/mesh-context";
 import { getDb, type MeshDatabase } from "../database";
-import {
-  createEventBus,
-  createNotifySubscriber,
-  type EventBus,
-} from "../event-bus";
+import { createEventBus, type EventBus } from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
 import authRoutes from "./routes/auth";
 import managementRoutes from "./routes/management";
@@ -88,7 +84,7 @@ export function createApp(options: CreateAppOptions = {}) {
     // Create notify function that uses the context factory
     // This is called by the worker to deliver events to subscribers
     // EventBus uses the full MeshDatabase (includes Pool for PostgreSQL)
-    eventBus = createEventBus(database, createNotifySubscriber());
+    eventBus = createEventBus(database);
   }
 
   const app = new Hono<{ Variables: Variables }>();
