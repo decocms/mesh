@@ -316,6 +316,7 @@ export default function StoreAppDetail() {
     clientUri: typeof window !== "undefined" ? window.location.origin : "",
     autoReconnect: false,
     autoRetry: false,
+    preventAutoAuth: true,
   });
 
   const isLoadingRemoteTools =
