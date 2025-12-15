@@ -108,6 +108,8 @@ const storeAppDetailRoute = createRoute({
   validateSearch: z.lazy(() =>
     z.object({
       registryId: z.string().optional(),
+      serverName: z.string().optional(),
+      itemId: z.string().optional(),
     }),
   ),
 });

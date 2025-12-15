@@ -20,7 +20,7 @@ import { generateConnectionId } from "@/shared/utils/generate-id";
 const JSON_FIELDS = [
   "connection_headers",
   "oauth_config",
-  "configuration_scopes", // Added
+  "configuration_scopes",
   "metadata",
   "tools",
   "bindings",

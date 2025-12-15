@@ -81,6 +81,7 @@ interface RegistryItemCardProps {
   description: string | null;
   version: string | null;
   isVerified: boolean;
+  canInstall: boolean;
   onClick: () => void;
 }
 
@@ -99,7 +100,9 @@ export function extractCardDisplayData(
     getGitHubAvatarUrl(item.server?.repository) ||
     null;
   const isVerified = item._meta?.["mcp.mesh"]?.verified ?? false;
-  const version = item.server?.version || null;
+  const version = item.server?.version;
+  const hasRemotes = ((item.server as any)?.remotes?.length ?? 0) > 0;
+  const canInstall = hasRemotes;
 
   // Extract scopeName and displayName from title if it contains "/"
   let displayName = rawTitle;
@@ -129,8 +132,9 @@ export function extractCardDisplayData(
     scopeName,
     displayName,
     description,
-    version,
+    version: version || null,
     isVerified,
+    canInstall,
   };
 }
 
@@ -141,6 +145,7 @@ export function RegistryItemCard({
   description,
   version,
   isVerified,
+  canInstall,
   onClick,
 }: RegistryItemCardProps) {
   return (
@@ -170,10 +175,21 @@ export function RegistryItemCard({
                         className="text-success shrink-0"
                       />
                     )}
+                    {!canInstall && (
+                      <Icon
+                        name="lock"
+                        size={16}
+                        className="text-muted-foreground shrink-0"
+                        title="This app cannot be installed"
+                      />
+                    )}
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>{displayName}</p>
+                  {!canInstall && (
+                    <p className="text-xs mt-1">No installation available</p>
+                  )}
                 </TooltipContent>
               </Tooltip>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
