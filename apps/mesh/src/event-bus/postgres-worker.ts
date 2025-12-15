@@ -135,12 +135,12 @@ export class PostgresEventBus implements EventBus {
     return this.storage.getSubscription(subscriptionId, organizationId);
   }
 
-  start(): void {
+  async start(): Promise<void> {
     if (this.running) return;
     this.running = true;
 
-    // Start the polling worker (fallback)
-    this.worker.start();
+    // Start the polling worker (fallback) - also resets stuck deliveries
+    await this.worker.start();
 
     // Start LISTEN if pool is available
     if (this.pool) {

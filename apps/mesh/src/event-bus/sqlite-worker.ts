@@ -104,8 +104,8 @@ export class SqliteEventBus implements EventBus {
     return this.storage.getSubscription(subscriptionId, organizationId);
   }
 
-  start(): void {
-    this.worker.start();
+  async start(): Promise<void> {
+    await this.worker.start();
   }
 
   stop(): void {

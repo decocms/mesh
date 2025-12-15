@@ -51,6 +51,8 @@ export interface EventBusConfig {
   maxAttempts?: number;
   /** Base delay between retries (ms) - exponential backoff applied */
   retryDelayMs?: number;
+  /** Maximum delay between retries (ms) - caps exponential backoff */
+  maxDelayMs?: number;
 }
 
 /**
@@ -59,8 +61,9 @@ export interface EventBusConfig {
 export const DEFAULT_EVENT_BUS_CONFIG: Required<EventBusConfig> = {
   pollIntervalMs: 5000, // 5 seconds
   batchSize: 100,
-  maxAttempts: 5,
+  maxAttempts: 20, // 20 attempts before marking as failed
   retryDelayMs: 1000, // 1 second base delay
+  maxDelayMs: 3600000, // 1 hour max delay
 };
 
 // ============================================================================
@@ -135,8 +138,9 @@ export interface EventBus {
 
   /**
    * Start the background worker for event delivery
+   * Also resets any stuck deliveries from previous crashes
    */
-  start(): void;
+  start(): void | Promise<void>;
 
   /**
    * Stop the background worker

@@ -7,6 +7,7 @@ import * as migration005connectionconfiguration from "./005-connection-configura
 import * as migration006addviewstosettings from "./006-add-views-to-settings.ts";
 import * as migration007monitoringlogs from "./007-monitoring-logs.ts";
 import * as migration008eventbus from "./008-event-bus.ts";
+import * as migration009deliveryretry from "./009-delivery-retry.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -17,6 +18,7 @@ const migrations = {
   "006-add-views-to-settings": migration006addviewstosettings,
   "007-monitoring-logs": migration007monitoringlogs,
   "008-event-bus": migration008eventbus,
+  "009-delivery-retry": migration009deliveryretry,
 } satisfies Record<string, Migration>;
 
 export default migrations;

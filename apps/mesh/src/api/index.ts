@@ -254,9 +254,10 @@ export function createApp(options: CreateAppOptions = {}) {
     }),
   );
 
-  // Start the event bus worker
-  eventBus.start();
-  console.log("[EventBus] Worker started");
+  // Start the event bus worker (async - resets stuck deliveries from previous crashes)
+  Promise.resolve(eventBus.start()).then(() => {
+    console.log("[EventBus] Worker started");
+  });
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext

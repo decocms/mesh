@@ -136,8 +136,21 @@ export interface EventBusStorage {
 
   /**
    * Mark deliveries as failed with error message (batch)
+   * Implements exponential backoff for retries
+   *
+   * @param deliveryIds - IDs of deliveries to mark
+   * @param error - Error message
+   * @param maxAttempts - Maximum delivery attempts before permanent failure
+   * @param retryDelayMs - Base delay for exponential backoff (ms)
+   * @param maxDelayMs - Maximum delay cap for backoff (ms)
    */
-  markDeliveriesFailed(deliveryIds: string[], error: string): Promise<void>;
+  markDeliveriesFailed(
+    deliveryIds: string[],
+    error: string,
+    maxAttempts?: number,
+    retryDelayMs?: number,
+    maxDelayMs?: number,
+  ): Promise<void>;
 
   /**
    * Update event status based on delivery states
@@ -145,6 +158,13 @@ export interface EventBusStorage {
    * If any delivery has reached max attempts, mark as failed
    */
   updateEventStatus(eventId: string): Promise<void>;
+
+  /**
+   * Reset stuck deliveries that were in 'processing' state when server crashed.
+   * Called on worker startup to recover from unexpected shutdowns.
+   * @returns Number of deliveries reset
+   */
+  resetStuckDeliveries(): Promise<number>;
 }
 
 // ============================================================================
@@ -398,13 +418,22 @@ class KyselyEventBusStorage implements EventBusStorage {
     // This uses a subquery to select IDs, then updates only those that are still 'pending'
     // This prevents race conditions between multiple workers
 
+    const now = new Date().toISOString();
+
     // First, get the IDs of pending deliveries to claim
+    // Only claim deliveries that are ready for retry (next_retry_at is null or in the past)
     const pendingIds = await this.db
       .selectFrom("event_deliveries as d")
       .innerJoin("event_subscriptions as s", "s.id", "d.subscription_id")
       .select(["d.id"])
       .where("d.status", "=", "pending")
       .where("s.enabled", "=", 1)
+      .where((eb) =>
+        eb.or([
+          eb("d.next_retry_at", "is", null),
+          eb("d.next_retry_at", "<=", now),
+        ]),
+      )
       .orderBy("d.created_at", "asc")
       .limit(limit)
       .execute();
@@ -439,6 +468,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         "d.attempts as delivery_attempts",
         "d.last_error as delivery_last_error",
         "d.delivered_at",
+        "d.next_retry_at as delivery_next_retry_at",
         "d.created_at as delivery_created_at",
         // Event fields
         "e.organization_id",
@@ -478,6 +508,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         attempts: row.delivery_attempts,
         lastError: row.delivery_last_error,
         deliveredAt: row.delivered_at,
+        nextRetryAt: row.delivery_next_retry_at,
         createdAt: row.delivery_created_at,
       },
       event: {
@@ -530,37 +561,58 @@ class KyselyEventBusStorage implements EventBusStorage {
   async markDeliveriesFailed(
     deliveryIds: string[],
     error: string,
-    maxAttempts = 5,
+    maxAttempts = 20,
+    retryDelayMs = 1000,
+    maxDelayMs = 3600000,
   ): Promise<void> {
     if (deliveryIds.length === 0) return;
 
-    // Increment attempts and set error for all deliveries
+    // Process each delivery individually to calculate exponential backoff
     for (const id of deliveryIds) {
-      await this.db
-        .updateTable("event_deliveries")
-        .set((eb) => ({
-          attempts: eb("attempts", "+", 1),
-          last_error: error,
-        }))
+      // Get current attempts
+      const delivery = await this.db
+        .selectFrom("event_deliveries")
+        .select(["attempts"])
         .where("id", "=", id)
-        .execute();
+        .executeTakeFirst();
+
+      if (!delivery) continue;
+
+      const newAttempts = delivery.attempts + 1;
+
+      if (newAttempts >= maxAttempts) {
+        // Max attempts reached - mark as permanently failed
+        await this.db
+          .updateTable("event_deliveries")
+          .set({
+            attempts: newAttempts,
+            last_error: error,
+            status: "failed",
+            next_retry_at: null,
+          })
+          .where("id", "=", id)
+          .execute();
+      } else {
+        // Calculate exponential backoff: delay = retryDelayMs * 2^(attempts-1)
+        // Cap at maxDelayMs (default 1 hour)
+        const backoffDelay = Math.min(
+          retryDelayMs * Math.pow(2, newAttempts - 1),
+          maxDelayMs,
+        );
+        const nextRetryAt = new Date(Date.now() + backoffDelay).toISOString();
+
+        await this.db
+          .updateTable("event_deliveries")
+          .set({
+            attempts: newAttempts,
+            last_error: error,
+            status: "pending",
+            next_retry_at: nextRetryAt,
+          })
+          .where("id", "=", id)
+          .execute();
+      }
     }
-
-    // For deliveries that haven't reached max attempts, reset to 'pending' for retry
-    await this.db
-      .updateTable("event_deliveries")
-      .set({ status: "pending" })
-      .where("id", "in", deliveryIds)
-      .where("attempts", "<", maxAttempts)
-      .execute();
-
-    // For deliveries that have reached max attempts, mark as 'failed'
-    await this.db
-      .updateTable("event_deliveries")
-      .set({ status: "failed" })
-      .where("id", "in", deliveryIds)
-      .where("attempts", ">=", maxAttempts)
-      .execute();
   }
 
   async updateEventStatus(eventId: string): Promise<void> {
@@ -599,6 +651,18 @@ class KyselyEventBusStorage implements EventBusStorage {
         .where("id", "=", eventId)
         .execute();
     }
+  }
+
+  async resetStuckDeliveries(): Promise<number> {
+    // Reset deliveries that were 'processing' when server crashed back to 'pending'
+    // This ensures they will be retried on restart
+    const result = await this.db
+      .updateTable("event_deliveries")
+      .set({ status: "pending" })
+      .where("status", "=", "processing")
+      .executeTakeFirst();
+
+    return Number(result.numUpdatedRows ?? 0);
   }
 }
 

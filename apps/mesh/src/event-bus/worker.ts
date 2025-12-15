@@ -89,9 +89,18 @@ export class EventBusWorker {
 
   /**
    * Start the polling loop
+   * Also resets any stuck deliveries from previous crashes
    */
-  start(): void {
+  async start(): Promise<void> {
     if (this.running) return;
+
+    // Reset any deliveries that were stuck in 'processing' state from previous crash
+    const resetCount = await this.storage.resetStuckDeliveries();
+    if (resetCount > 0) {
+      console.log(
+        `[EventBus] Reset ${resetCount} stuck deliveries from previous shutdown`,
+      );
+    }
 
     this.running = true;
     this.poll();
@@ -173,10 +182,13 @@ export class EventBusWorker {
           // Mark all deliveries as delivered
           await this.storage.markDeliveriesDelivered(batch.deliveryIds);
         } else {
-          // Mark as failed with error
+          // Mark as failed with error and apply exponential backoff
           await this.storage.markDeliveriesFailed(
             batch.deliveryIds,
             result.error || "Subscriber returned success=false",
+            this.config.maxAttempts,
+            this.config.retryDelayMs,
+            this.config.maxDelayMs,
           );
         }
       } catch (error) {
@@ -188,9 +200,13 @@ export class EventBusWorker {
           errorMessage,
         );
 
+        // Apply exponential backoff with config settings
         await this.storage.markDeliveriesFailed(
           batch.deliveryIds,
           errorMessage,
+          this.config.maxAttempts,
+          this.config.retryDelayMs,
+          this.config.maxDelayMs,
         );
       }
 
