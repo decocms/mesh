@@ -216,9 +216,10 @@ function OrgMcpsContent() {
         );
         await tx.isPersisted.promise;
       } else {
+        const newId = generatePrefixedId("conn");
         // Create new connection
         const tx = connectionsCollection.insert({
-          id: generatePrefixedId("conn"),
+          id: newId,
           title: data.title,
           description: data.description || null,
           connection_type: data.connection_type,
@@ -241,12 +242,10 @@ function OrgMcpsContent() {
         });
         await tx.isPersisted.promise;
 
-        if (tx.mutations[0]?.key && org) {
-          navigate({
-            to: "/$org/mcps/$connectionId",
-            params: { org: org.slug, connectionId: tx.mutations[0].key },
-          });
-        }
+        navigate({
+          to: "/$org/mcps/$connectionId",
+          params: { org: org.slug, connectionId: newId },
+        });
       }
     } catch (error) {
       toast.error(
