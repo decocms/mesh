@@ -25,6 +25,7 @@ import { meter, prometheusExporter, tracer } from "../observability";
 import type { Database } from "../storage/types";
 import authRoutes from "./routes/auth";
 import managementRoutes from "./routes/management";
+import mcpOAuthRoutes from "./routes/mcp-oauth";
 import modelsRoutes from "./routes/models";
 import proxyRoutes from "./routes/proxy";
 
@@ -150,6 +151,9 @@ export function createApp(options: CreateAppOptions = {}) {
     });
   });
 
+  // Mount MCP OAuth proxy routes (no auth required - used during OAuth flow)
+  app.route("/api/mcp-oauth", mcpOAuthRoutes);
+
   // Mount custom auth routes at /api/auth before Better Auth catch-all
   app.route("/api/auth/custom", authRoutes);
 
@@ -223,9 +227,10 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("*", async (c, next) => {
     const path = c.req.path;
 
-    // Skip MeshContext for auth endpoints, static pages, health check, and metrics
+    // Skip MeshContext for auth endpoints, MCP OAuth proxy, static pages, health check, and metrics
     if (
       path.startsWith("/api/auth/") ||
+      path.startsWith("/api/mcp-oauth/") ||
       path === "/health" ||
       path === "/metrics" ||
       path.startsWith("/.well-known/")

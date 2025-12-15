@@ -84,38 +84,49 @@ export async function isConnectionAuthenticated({
   token: string | null;
 }): Promise<boolean> {
   try {
-    const metadataUrl = new URL("/.well-known/oauth-protected-resource", url);
-
-    const headers: HeadersInit = { Accept: "application/json" };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    const response = await fetch(metadataUrl.toString(), {
-      method: "GET",
-      headers,
+    const response = await fetch("/api/mcp-oauth/check-auth", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url, token }),
     });
 
-    const serverDoesNotSupportOAuth = response.status === 404;
-    const contentType = response.headers.get("content-type");
-    const responseIsNotJson = !contentType?.includes("application/json");
-    const oauthNotRequired = serverDoesNotSupportOAuth || responseIsNotJson;
-
-    if (oauthNotRequired) {
-      return true;
-    }
-
-    const tokenNotProvided = !token;
-    if (tokenNotProvided) {
+    if (!response.ok) {
+      console.error(
+        "[isConnectionAuthenticated] Proxy request failed with status:",
+        response.status,
+      );
       return false;
     }
 
-    const tokenIsInvalid = response.status === 401 || response.status === 403;
-    if (tokenIsInvalid) {
-      return false;
-    }
+    const data = await response.json();
 
-    return response.ok;
+    switch (data.status) {
+      case "no_oauth":
+        return true;
+
+      case "authenticated":
+        return true;
+
+      case "needs_auth":
+        return false;
+
+      case "network_error":
+        console.warn(
+          "[isConnectionAuthenticated] Network error checking OAuth status:",
+          data.error
+        );
+        return true;
+
+      default:
+        console.warn(
+          "[isConnectionAuthenticated] Unknown status:",
+          data.status,
+          "- using authenticated flag",
+        );
+        return data.authenticated;
+    }
   } catch (error) {
     console.error(
       "[isConnectionAuthenticated] Error checking authentication:",
