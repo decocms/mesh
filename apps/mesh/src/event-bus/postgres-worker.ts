@@ -5,6 +5,7 @@
  * Falls back to polling as a safety mechanism.
  *
  * Architecture:
+ * - Reuses the shared Pool from MeshDatabase (no duplicate connections)
  * - When an event is published, we insert into the table and NOTIFY 'mesh_events'
  * - The worker listens for NOTIFY and wakes up immediately to process
  * - Polling still runs as a fallback in case notifications are missed
@@ -35,28 +36,29 @@ const NOTIFY_CHANNEL = "mesh_events";
 export class PostgresEventBus implements EventBus {
   private storage: EventBusStorage;
   private worker: EventBusWorker;
-  private pool: Pool | null = null;
   private listenClient: PoolClient | null = null;
   private running = false;
   private db: Kysely<Database>;
+  private pool: Pool;
 
+  /**
+   * Create a PostgreSQL EventBus
+   *
+   * @param db - Kysely database instance
+   * @param pool - Shared Pool from MeshDatabase (reused for LISTEN)
+   * @param notifySubscriber - Callback to notify subscribers of events
+   * @param config - Optional event bus configuration
+   */
   constructor(
     db: Kysely<Database>,
+    pool: Pool,
     notifySubscriber: NotifySubscriberFn,
     config?: EventBusConfig,
-    connectionString?: string,
   ) {
     this.db = db;
+    this.pool = pool;
     this.storage = createEventBusStorage(db);
     this.worker = new EventBusWorker(this.storage, notifySubscriber, config);
-
-    // Create pool for LISTEN if connection string provided
-    if (connectionString) {
-      this.pool = new Pool({
-        connectionString,
-        max: 1, // Only need one connection for LISTEN
-      });
-    }
   }
 
   async publish(
@@ -142,12 +144,10 @@ export class PostgresEventBus implements EventBus {
     // Start the polling worker (fallback) - also resets stuck deliveries
     await this.worker.start();
 
-    // Start LISTEN if pool is available
-    if (this.pool) {
-      this.startListen().catch((error) => {
-        console.error("[EventBus] Failed to start LISTEN:", error);
-      });
-    }
+    // Start LISTEN using the shared pool
+    this.startListen().catch((error) => {
+      console.error("[EventBus] Failed to start LISTEN:", error);
+    });
   }
 
   stop(): void {
@@ -166,7 +166,7 @@ export class PostgresEventBus implements EventBus {
    * Start listening for NOTIFY events
    */
   private async startListen(): Promise<void> {
-    if (!this.pool || this.listenClient) return;
+    if (this.listenClient) return;
 
     try {
       this.listenClient = await this.pool.connect();
@@ -193,6 +193,7 @@ export class PostgresEventBus implements EventBus {
 
   /**
    * Stop listening for NOTIFY events
+   * Note: We don't close the pool - it's shared with Kysely
    */
   private async stopListen(): Promise<void> {
     if (this.listenClient) {
@@ -203,11 +204,6 @@ export class PostgresEventBus implements EventBus {
       }
       this.listenClient.release();
       this.listenClient = null;
-    }
-
-    if (this.pool) {
-      await this.pool.end();
-      this.pool = null;
     }
   }
 }

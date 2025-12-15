@@ -110,9 +110,9 @@ export async function createDefaultOrgConnections(
   createdBy: string,
 ) {
   try {
-    const db = getDb();
+    const database = getDb();
     const vault = new CredentialVault(process.env.ENCRYPTION_KEY || "");
-    const connectionStorage = new ConnectionStorage(db, vault);
+    const connectionStorage = new ConnectionStorage(database.db, vault);
     const defaultOrgMcps = getDefaultOrgMcps();
     await Promise.all(
       defaultOrgMcps.map(async (mcpConfig) => {

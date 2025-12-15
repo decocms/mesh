@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "bun:test";
-import { createDatabase, closeDatabase } from "../../database";
+import {
+  createDatabase,
+  closeDatabase,
+  type MeshDatabase,
+} from "../../database";
 import { createTestSchema } from "../../storage/test-helpers";
 import { CredentialVault } from "../../encryption/credential-vault";
 import {
@@ -8,8 +12,6 @@ import {
   COLLECTION_CONNECTIONS_GET,
   CONNECTION_TEST,
 } from "./index";
-import type { Kysely } from "kysely";
-import type { Database } from "../../storage/types";
 import type { BoundAuthClient, MeshContext } from "../../core/mesh-context";
 import { ConnectionStorage } from "../../storage/connection";
 import type { EventBus } from "../../event-bus/interface";
@@ -32,13 +34,13 @@ const createMockBoundAuth = (): BoundAuthClient =>
   }) as unknown as BoundAuthClient;
 
 describe("Connection Tools", () => {
-  let db: Kysely<Database>;
+  let database: MeshDatabase;
   let ctx: MeshContext;
 
   beforeAll(async () => {
     const tempDbPath = `/tmp/test-connection-tools-${Date.now()}.db`;
-    db = createDatabase(`file:${tempDbPath}`);
-    await createTestSchema(db);
+    database = createDatabase(`file:${tempDbPath}`);
+    await createTestSchema(database.db);
 
     const vault = new CredentialVault(CredentialVault.generateKey());
 
@@ -58,7 +60,7 @@ describe("Connection Tools", () => {
         name: "Test Organization",
       },
       storage: {
-        connections: new ConnectionStorage(db, vault),
+        connections: new ConnectionStorage(database.db, vault),
         auditLogs: null as never,
         organizationSettings: {
           get: async () => null,
@@ -79,7 +81,7 @@ describe("Connection Tools", () => {
         grant: () => {},
         setToolName: () => {},
       } as never,
-      db,
+      db: database.db,
       tracer: {
         startActiveSpan: (
           _name: string,
@@ -115,7 +117,7 @@ describe("Connection Tools", () => {
   });
 
   afterAll(async () => {
-    await closeDatabase(db);
+    await closeDatabase(database);
   });
 
   describe("COLLECTION_CONNECTIONS_CREATE", () => {
