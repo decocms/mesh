@@ -527,6 +527,7 @@ export interface EventDeliveryTable {
   attempts: number;
   last_error: string | null;
   delivered_at: string | null; // ISO 8601 timestamp
+  next_retry_at: string | null; // ISO 8601 timestamp for next retry
   created_at: ColumnType<Date, Date | string, never>;
 }
 
@@ -541,6 +542,7 @@ export interface EventDelivery {
   attempts: number;
   lastError: string | null;
   deliveredAt: string | null;
+  nextRetryAt: string | null;
   createdAt: Date | string;
 }
 
