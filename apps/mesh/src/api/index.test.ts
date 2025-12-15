@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import type { Kysely } from "kysely";
-import { createDatabase, closeDatabase } from "../database";
+import { createDatabase, closeDatabase, type MeshDatabase } from "../database";
 import type { EventBus } from "../event-bus";
 import { createTestSchema } from "../storage/test-helpers";
-import type { Database } from "../storage/types";
-import { createApp } from "./index";
+import { createApp } from "./app";
 
 /**
  * Create a no-op mock event bus for testing
@@ -45,17 +43,17 @@ function createMockEventBus(): EventBus {
 }
 
 describe("Hono App", () => {
-  let db: Kysely<Database>;
+  let database: MeshDatabase;
   let app: ReturnType<typeof createApp>;
 
   beforeEach(async () => {
-    db = createDatabase(":memory:");
-    await createTestSchema(db);
-    app = createApp({ db, eventBus: createMockEventBus() });
+    database = createDatabase(":memory:");
+    await createTestSchema(database.db);
+    app = createApp({ database, eventBus: createMockEventBus() });
   });
 
   afterEach(async () => {
-    await closeDatabase(db);
+    await closeDatabase(database);
   });
   describe("health check", () => {
     it("should respond to health check", async () => {
