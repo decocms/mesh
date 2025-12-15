@@ -19,7 +19,7 @@
 import type { MeshDatabase } from "../database";
 import { createEventBusStorage } from "../storage/event-bus";
 import { EventBus as EventBusImpl } from "./event-bus";
-import type { EventBus, EventBusConfig, NotifySubscriberFn } from "./interface";
+import type { EventBus, EventBusConfig } from "./interface";
 import { PostgresNotifyStrategy } from "./postgres-notify";
 
 // Re-export types and interfaces
@@ -50,7 +50,6 @@ export type { NotifyStrategy } from "./notify-strategy";
  */
 export function createEventBus(
   database: MeshDatabase,
-  notifySubscriber: NotifySubscriberFn,
   config?: EventBusConfig,
 ): EventBus {
   const storage = createEventBusStorage(database.db);
@@ -64,7 +63,6 @@ export function createEventBus(
 
   return new EventBusImpl({
     storage,
-    notifySubscriber,
     config,
     notifyStrategy,
   });

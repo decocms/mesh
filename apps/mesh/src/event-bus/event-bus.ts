@@ -13,12 +13,11 @@
  * - NotifyStrategy: Optional - wakes up worker immediately (e.g., PostgreSQL LISTEN/NOTIFY)
  */
 
-import type { Event, EventSubscription } from "../storage/types";
 import type { EventBusStorage } from "../storage/event-bus";
+import type { Event, EventSubscription } from "../storage/types";
 import type {
-  IEventBus,
   EventBusConfig,
-  NotifySubscriberFn,
+  IEventBus,
   PublishEventInput,
   SubscribeInput,
 } from "./interface";
@@ -31,8 +30,6 @@ import { EventBusWorker } from "./worker";
 export interface EventBusOptions {
   /** Database storage operations */
   storage: EventBusStorage;
-  /** Callback to deliver events to subscribers */
-  notifySubscriber: NotifySubscriberFn;
   /** Optional event bus configuration */
   config?: EventBusConfig;
   /** Optional notify strategy for immediate wake-up (e.g., PostgreSQL LISTEN/NOTIFY) */
@@ -54,11 +51,7 @@ export class EventBus implements IEventBus {
   constructor(options: EventBusOptions) {
     this.storage = options.storage;
     this.notifyStrategy = options.notifyStrategy;
-    this.worker = new EventBusWorker(
-      this.storage,
-      options.notifySubscriber,
-      options.config,
-    );
+    this.worker = new EventBusWorker(this.storage, options.config);
   }
 
   async publish(
