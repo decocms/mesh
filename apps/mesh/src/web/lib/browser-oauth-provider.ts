@@ -115,7 +115,7 @@ export async function isConnectionAuthenticated({
       case "network_error":
         console.warn(
           "[isConnectionAuthenticated] Network error checking OAuth status:",
-          data.error
+          data.error,
         );
         return true;
 
