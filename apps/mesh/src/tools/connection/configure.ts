@@ -5,6 +5,7 @@
  * This allows MCPs to declare their configuration needs and reference other connections.
  */
 
+import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { z } from "zod";
 import { createMCPProxy } from "../../api/routes/proxy";
 import { defineTool } from "../../core/define-tool";
@@ -114,7 +115,7 @@ export const CONNECTION_CONFIGURE = defineTool({
 
     // Validate all referenced connections
     for (const refConnectionId of referencedConnections) {
-      if (refConnectionId === "self") {
+      if (refConnectionId === WellKnownMCPId.SELF) {
         continue;
       }
       // Verify connection exists
