@@ -321,9 +321,7 @@ export default function StoreAppDetail() {
 
   const isLoadingRemoteTools =
     shouldFetchRemote &&
-    (remoteMcp.state === "connecting" ||
-      remoteMcp.state === "authenticating" ||
-      remoteMcp.state === "pending_auth");
+    (remoteMcp.state === "connecting" || remoteMcp.state === "authenticating");
 
   const remoteTools =
     shouldFetchRemote && remoteMcp.state === "ready"
