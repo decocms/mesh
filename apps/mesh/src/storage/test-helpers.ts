@@ -123,7 +123,10 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
     .ifNotExists()
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("organization_id", "text", (col) => col.notNull())
-    .addColumn("connection_id", "text", (col) => col.notNull())
+    // CASCADE DELETE: When connection is deleted, subscriptions are automatically removed
+    .addColumn("connection_id", "text", (col) =>
+      col.notNull().references("connections.id").onDelete("cascade"),
+    )
     .addColumn("publisher", "text")
     .addColumn("event_type", "text", (col) => col.notNull())
     .addColumn("filter", "text")
@@ -138,7 +141,10 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
     .ifNotExists()
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("event_id", "text", (col) => col.notNull())
-    .addColumn("subscription_id", "text", (col) => col.notNull())
+    // CASCADE DELETE: When subscription is deleted, deliveries are automatically removed
+    .addColumn("subscription_id", "text", (col) =>
+      col.notNull().references("event_subscriptions.id").onDelete("cascade"),
+    )
     .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
     .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("last_error", "text")
