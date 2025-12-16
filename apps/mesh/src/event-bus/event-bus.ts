@@ -13,6 +13,7 @@
  * - NotifyStrategy: Optional - wakes up worker immediately (e.g., PostgreSQL LISTEN/NOTIFY)
  */
 
+import { Cron } from "croner";
 import type { EventBusStorage } from "../storage/event-bus";
 import type { Event, EventSubscription } from "../storage/types";
 import type {
@@ -59,6 +60,30 @@ export class EventBus implements IEventBus {
     sourceConnectionId: string,
     input: PublishEventInput,
   ): Promise<Event> {
+    // Validate that deliverAt and cron aren't both set
+    if (input.deliverAt && input.cron) {
+      throw new Error(
+        "Cannot set both deliverAt and cron. Use one or the other.",
+      );
+    }
+
+    // Validate cron expression if provided
+    let firstDeliveryTime: string | undefined;
+    if (input.cron) {
+      try {
+        const cron = new Cron(input.cron);
+        const nextRun = cron.nextRun();
+        if (!nextRun) {
+          throw new Error("Cron expression does not produce a next run time");
+        }
+        firstDeliveryTime = nextRun.toISOString();
+      } catch (error) {
+        throw new Error(
+          `Invalid cron expression: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
     const eventId = crypto.randomUUID();
     const now = new Date().toISOString();
 
@@ -71,21 +96,27 @@ export class EventBus implements IEventBus {
       subject: input.subject,
       time: now,
       data: input.data,
+      cron: input.cron,
     });
 
     // Find matching subscriptions and create delivery records
     const subscriptions = await this.storage.getMatchingSubscriptions(event);
     if (subscriptions.length > 0) {
-      // Pass deliverAt to schedule deliveries for later if specified
+      // Determine when to deliver:
+      // - deliverAt: use specified time
+      // - cron: use calculated first delivery time
+      // - neither: immediate delivery (undefined)
+      const deliverAt = input.deliverAt ?? firstDeliveryTime;
+
       await this.storage.createDeliveries(
         eventId,
         subscriptions.map((s) => s.id),
-        input.deliverAt,
+        deliverAt,
       );
 
-      // Only notify strategy for immediate delivery (no scheduled time)
+      // Only notify strategy for immediate delivery (no scheduled time and no cron)
       // Scheduled events will be picked up by the polling worker at the right time
-      if (this.notifyStrategy && !input.deliverAt) {
+      if (this.notifyStrategy && !deliverAt) {
         await this.notifyStrategy.notify(eventId).catch((error) => {
           console.warn("[EventBus] Notify failed (non-critical):", error);
         });
@@ -128,6 +159,25 @@ export class EventBus implements IEventBus {
     subscriptionId: string,
   ): Promise<EventSubscription | null> {
     return this.storage.getSubscription(subscriptionId, organizationId);
+  }
+
+  async getEvent(
+    organizationId: string,
+    eventId: string,
+  ): Promise<Event | null> {
+    return this.storage.getEvent(eventId, organizationId);
+  }
+
+  async cancelEvent(
+    organizationId: string,
+    eventId: string,
+    sourceConnectionId: string,
+  ): Promise<{ success: boolean }> {
+    return this.storage.cancelEvent(
+      eventId,
+      organizationId,
+      sourceConnectionId,
+    );
   }
 
   async start(): Promise<void> {

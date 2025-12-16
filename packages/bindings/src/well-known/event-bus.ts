@@ -44,6 +44,7 @@ export const EventPublishInputSchema = z.object({
    * Optional scheduled delivery time (ISO 8601 timestamp).
    * If provided, the event will not be delivered until this time.
    * If omitted, the event is delivered immediately.
+   * Cannot be used together with `cron`.
    */
   deliverAt: z
     .string()
@@ -51,6 +52,25 @@ export const EventPublishInputSchema = z.object({
     .optional()
     .describe(
       "Scheduled delivery time (ISO 8601). Omit for immediate delivery.",
+    ),
+
+  /**
+   * Optional cron expression for recurring events.
+   * If provided, the event will be delivered repeatedly according to the schedule.
+   * Uses standard cron syntax (5 or 6 fields).
+   * Cannot be used together with `deliverAt`.
+   *
+   * Examples:
+   * - "0 9 * * 1" - Every Monday at 9:00 AM
+   * - "0 0 1 * *" - First day of every month at midnight
+   * - "0/15 * * * *" - Every 15 minutes
+   */
+  cron: z
+    .string()
+    .max(100)
+    .optional()
+    .describe(
+      "Cron expression for recurring delivery. Use EVENT_CANCEL to stop.",
     ),
 });
 
@@ -169,6 +189,36 @@ export type EventUnsubscribeOutput = z.infer<
 >;
 
 // ============================================================================
+// Cancel Schemas (for stopping recurring events)
+// ============================================================================
+
+/**
+ * EVENT_CANCEL Input Schema
+ *
+ * Input for cancelling a recurring event.
+ * Only the publisher connection can cancel its own events.
+ */
+export const EventCancelInputSchema = z.object({
+  /** Event ID to cancel */
+  eventId: z.string().describe("Event ID to cancel"),
+});
+
+export type EventCancelInput = z.infer<typeof EventCancelInputSchema>;
+
+/**
+ * EVENT_CANCEL Output Schema
+ */
+export const EventCancelOutputSchema = z.object({
+  /** Success status */
+  success: z.boolean().describe("Whether cancellation was successful"),
+
+  /** Event ID that was cancelled */
+  eventId: z.string().describe("Event ID that was cancelled"),
+});
+
+export type EventCancelOutput = z.infer<typeof EventCancelOutputSchema>;
+
+// ============================================================================
 // Event Bus Binding
 // ============================================================================
 
@@ -176,12 +226,13 @@ export type EventUnsubscribeOutput = z.infer<
  * Event Bus Binding
  *
  * Defines the interface for interacting with an event bus.
- * Implementations must provide PUBLISH, SUBSCRIBE, and UNSUBSCRIBE tools.
+ * Implementations must provide PUBLISH, SUBSCRIBE, UNSUBSCRIBE, and CANCEL tools.
  *
  * Required tools:
- * - EVENT_PUBLISH: Publish an event
+ * - EVENT_PUBLISH: Publish an event (supports one-time, scheduled, and recurring via cron)
  * - EVENT_SUBSCRIBE: Subscribe to events
  * - EVENT_UNSUBSCRIBE: Remove a subscription
+ * - EVENT_CANCEL: Cancel a recurring event (stops future deliveries)
  */
 export const EVENT_BUS_BINDING = [
   {
@@ -198,6 +249,11 @@ export const EVENT_BUS_BINDING = [
     name: "EVENT_UNSUBSCRIBE" as const,
     inputSchema: EventUnsubscribeInputSchema,
     outputSchema: EventUnsubscribeOutputSchema,
+  },
+  {
+    name: "EVENT_CANCEL" as const,
+    inputSchema: EventCancelInputSchema,
+    outputSchema: EventCancelOutputSchema,
   },
 ] satisfies ToolBinder[];
 

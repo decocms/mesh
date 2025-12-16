@@ -62,6 +62,7 @@ const ALL_TOOL_NAMES = [
   "EVENT_PUBLISH",
   "EVENT_SUBSCRIBE",
   "EVENT_UNSUBSCRIBE",
+  "EVENT_CANCEL",
   "EVENT_SUBSCRIPTION_LIST",
 ] as const;
 
@@ -249,6 +250,11 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Event Bus",
   },
   {
+    name: "EVENT_CANCEL",
+    description: "Cancel recurring events",
+    category: "Event Bus",
+  },
+  {
     name: "EVENT_SUBSCRIPTION_LIST",
     description: "List event subscriptions",
     category: "Event Bus",
@@ -286,6 +292,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
   EVENT_PUBLISH: "Publish events",
   EVENT_SUBSCRIBE: "Subscribe to events",
   EVENT_UNSUBSCRIBE: "Unsubscribe from events",
+  EVENT_CANCEL: "Cancel recurring events",
   EVENT_SUBSCRIPTION_LIST: "List event subscriptions",
 };
 

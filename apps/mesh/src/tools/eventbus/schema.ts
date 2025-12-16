@@ -24,6 +24,11 @@ export {
   type EventUnsubscribeInput as UnsubscribeInput,
   EventUnsubscribeOutputSchema as UnsubscribeOutputSchema,
   type EventUnsubscribeOutput as UnsubscribeOutput,
+  // Cancel schemas
+  EventCancelInputSchema as CancelEventInputSchema,
+  type EventCancelInput as CancelEventInput,
+  EventCancelOutputSchema as CancelEventOutputSchema,
+  type EventCancelOutput as CancelEventOutput,
 } from "@decocms/bindings";
 
 // ============================================================================

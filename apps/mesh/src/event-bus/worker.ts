@@ -6,6 +6,7 @@
  */
 
 import type { CloudEvent } from "@decocms/bindings";
+import { Cron } from "croner";
 import type { EventBusStorage, PendingDelivery } from "../storage/event-bus";
 import type { Event } from "../storage/types";
 import {
@@ -223,16 +224,76 @@ export class EventBusWorker {
       }
     }
 
-    // Update event statuses
+    // Update event statuses and handle cron scheduling
     for (const eventId of eventIdsToUpdate) {
       try {
         await this.storage.updateEventStatus(eventId);
+
+        // For cron events, schedule the next delivery after all current deliveries are done
+        const event = pendingDeliveries.find(
+          (p) => p.event.id === eventId,
+        )?.event;
+        if (event?.cron) {
+          await this.scheduleNextCronDelivery(event);
+        }
       } catch (error) {
         console.error(
           `[EventBus] Failed to update event status ${eventId}:`,
           error,
         );
       }
+    }
+  }
+
+  /**
+   * Schedule the next delivery for a cron event.
+   * Called after all current deliveries are processed.
+   */
+  private async scheduleNextCronDelivery(event: Event): Promise<void> {
+    if (!event.cron) return;
+
+    // Check if the event is still active (not cancelled/failed)
+    // We can't query the DB here since we don't have the latest status,
+    // but the cron event was just delivered, so it should be active.
+    // If it was cancelled, no new deliveries will be created.
+
+    try {
+      const cron = new Cron(event.cron);
+      const nextRun = cron.nextRun();
+
+      if (!nextRun) {
+        console.log(
+          `[EventBus] Cron expression for event ${event.id} has no more runs`,
+        );
+        return;
+      }
+
+      const nextDeliveryTime = nextRun.toISOString();
+
+      // Get the subscriptions that match this event
+      const subscriptions = await this.storage.getMatchingSubscriptions(event);
+      if (subscriptions.length === 0) {
+        console.log(
+          `[EventBus] No subscriptions for cron event ${event.id}, skipping next delivery`,
+        );
+        return;
+      }
+
+      // Create new deliveries scheduled for the next cron run
+      await this.storage.createDeliveries(
+        event.id,
+        subscriptions.map((s) => s.id),
+        nextDeliveryTime,
+      );
+
+      console.log(
+        `[EventBus] Scheduled next cron delivery for event ${event.id} at ${nextDeliveryTime}`,
+      );
+    } catch (error) {
+      console.error(
+        `[EventBus] Failed to schedule next cron delivery for event ${event.id}:`,
+        error,
+      );
     }
   }
 }

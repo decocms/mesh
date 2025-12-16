@@ -39,6 +39,7 @@ export interface CreateEventInput {
   datacontenttype?: string;
   dataschema?: string | null;
   data?: unknown | null;
+  cron?: string | null;
 }
 
 /**
@@ -173,6 +174,26 @@ export interface EventBusStorage {
    * @returns Number of deliveries reset
    */
   resetStuckDeliveries(): Promise<number>;
+
+  /**
+   * Get an event by ID
+   */
+  getEvent(eventId: string, organizationId: string): Promise<Event | null>;
+
+  /**
+   * Cancel a recurring event (sets status to 'failed' to stop future deliveries)
+   * Only the publisher can cancel their own events.
+   *
+   * @param eventId - The event ID to cancel
+   * @param organizationId - Organization scope
+   * @param sourceConnectionId - Connection ID of the caller (for ownership verification)
+   * @returns Success status
+   */
+  cancelEvent(
+    eventId: string,
+    organizationId: string,
+    sourceConnectionId: string,
+  ): Promise<{ success: boolean }>;
 }
 
 // ============================================================================
@@ -201,6 +222,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         datacontenttype: input.datacontenttype ?? "application/json",
         dataschema: input.dataschema ?? null,
         data: input.data ? JSON.stringify(input.data) : null,
+        cron: input.cron ?? null,
         status: "pending",
         attempts: 0,
         last_error: null,
@@ -221,6 +243,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       datacontenttype: input.datacontenttype ?? "application/json",
       dataschema: input.dataschema ?? null,
       data: input.data ?? null,
+      cron: input.cron ?? null,
       status: "pending",
       attempts: 0,
       lastError: null,
@@ -494,6 +517,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         "e.datacontenttype",
         "e.dataschema",
         "e.data",
+        "e.cron",
         "e.status as event_status",
         "e.attempts as event_attempts",
         "e.last_error as event_last_error",
@@ -536,6 +560,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         datacontenttype: row.datacontenttype,
         dataschema: row.dataschema,
         data: row.data ? JSON.parse(row.data as string) : null,
+        cron: row.cron,
         status: row.event_status as EventStatus,
         attempts: row.event_attempts,
         lastError: row.event_last_error,
@@ -677,6 +702,75 @@ class KyselyEventBusStorage implements EventBusStorage {
       .executeTakeFirst();
 
     return Number(result.numUpdatedRows ?? 0);
+  }
+
+  async getEvent(
+    eventId: string,
+    organizationId: string,
+  ): Promise<Event | null> {
+    const row = await this.db
+      .selectFrom("events")
+      .selectAll()
+      .where("id", "=", eventId)
+      .where("organization_id", "=", organizationId)
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      type: row.type,
+      source: row.source,
+      specversion: row.specversion,
+      subject: row.subject,
+      time: row.time,
+      datacontenttype: row.datacontenttype,
+      dataschema: row.dataschema,
+      data: row.data ? JSON.parse(row.data as string) : null,
+      cron: row.cron,
+      status: row.status as EventStatus,
+      attempts: row.attempts,
+      lastError: row.last_error,
+      nextRetryAt: row.next_retry_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  async cancelEvent(
+    eventId: string,
+    organizationId: string,
+    sourceConnectionId: string,
+  ): Promise<{ success: boolean }> {
+    // Only the publisher can cancel their own events
+    const result = await this.db
+      .updateTable("events")
+      .set({
+        status: "failed",
+        last_error: "Cancelled by publisher",
+        updated_at: new Date().toISOString(),
+      })
+      .where("id", "=", eventId)
+      .where("organization_id", "=", organizationId)
+      .where("source", "=", sourceConnectionId) // Ownership check
+      .where("status", "in", ["pending", "processing"]) // Only cancel active events
+      .executeTakeFirst();
+
+    // Also cancel any pending deliveries for this event
+    if ((result.numUpdatedRows ?? 0n) > 0n) {
+      await this.db
+        .updateTable("event_deliveries")
+        .set({
+          status: "failed",
+          last_error: "Event cancelled by publisher",
+        })
+        .where("event_id", "=", eventId)
+        .where("status", "in", ["pending", "processing"])
+        .execute();
+    }
+
+    return { success: (result.numUpdatedRows ?? 0n) > 0n };
   }
 }
 

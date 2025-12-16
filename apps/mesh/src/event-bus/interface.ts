@@ -7,7 +7,7 @@
  */
 
 import type { CloudEvent } from "@decocms/bindings";
-import type { EventSubscription, Event } from "../storage/types";
+import type { Event, EventSubscription } from "../storage/types";
 
 // ============================================================================
 // Event Bus Types
@@ -27,8 +27,16 @@ export interface PublishEventInput {
    * Optional scheduled delivery time (ISO 8601 timestamp).
    * If provided, the event will not be delivered until this time.
    * If omitted, the event is delivered immediately.
+   * Cannot be used together with `cron`.
    */
   deliverAt?: string;
+  /**
+   * Optional cron expression for recurring events.
+   * If provided, the event will be delivered repeatedly according to the schedule.
+   * Use cancelEvent to stop recurring deliveries.
+   * Cannot be used together with `deliverAt`.
+   */
+  cron?: string;
 }
 
 /**
@@ -144,6 +152,30 @@ export interface IEventBus {
     organizationId: string,
     subscriptionId: string,
   ): Promise<EventSubscription | null>;
+
+  /**
+   * Get an event by ID
+   *
+   * @param organizationId - Organization scope
+   * @param eventId - Event ID
+   * @returns Event or null if not found
+   */
+  getEvent(organizationId: string, eventId: string): Promise<Event | null>;
+
+  /**
+   * Cancel a recurring event to stop future deliveries.
+   * Only the publisher connection can cancel its own events.
+   *
+   * @param organizationId - Organization scope
+   * @param eventId - Event to cancel
+   * @param sourceConnectionId - Connection ID of the caller (for ownership verification)
+   * @returns Success status
+   */
+  cancelEvent(
+    organizationId: string,
+    eventId: string,
+    sourceConnectionId: string,
+  ): Promise<{ success: boolean }>;
 
   /**
    * Start the background worker for event delivery

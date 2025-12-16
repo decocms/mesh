@@ -108,6 +108,7 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
     )
     .addColumn("dataschema", "text")
     .addColumn("data", "text")
+    .addColumn("cron", "text")
     .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
     .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("last_error", "text")

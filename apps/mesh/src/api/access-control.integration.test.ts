@@ -21,6 +21,8 @@ import { createApp } from "./app";
 function createMockEventBus(): EventBus {
   return {
     getSubscription: async () => null,
+    getEvent: async () => null,
+    cancelEvent: async () => ({ success: true }),
     isRunning: () => false,
     start: async () => {},
     stop: async () => {},
