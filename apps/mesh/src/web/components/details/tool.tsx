@@ -96,6 +96,8 @@ function ToolDetailsAuthenticated({
 }) {
   // Store only user edits; defaults are derived from the schema (no effect-driven initialization).
   const [editedParams, setEditedParams] = useState<Record<string, unknown>>({});
+  // For tools without `inputSchema.properties`, allow free-form JSON editing (including temporarily invalid JSON while typing).
+  const [rawJsonText, setRawJsonText] = useState("{}");
   const [executionResult, setExecutionResult] = useState<Record<
     string,
     unknown
@@ -153,9 +155,22 @@ function ToolDetailsAuthenticated({
     const toolCaller = createToolCaller(connectionId);
 
     try {
-      // Prepare arguments: try to parse JSON for object/array types
-      const args = { ...defaultParams, ...editedParams };
-      if (tool?.inputSchema?.properties) {
+      // Prepare arguments:
+      // - If we have properties, merge derived defaults with user edits and parse object/array fields when provided as strings.
+      // - Otherwise, parse the raw JSON input as the full args payload.
+      const args: Record<string, unknown> = hasToolProperties
+        ? { ...defaultParams, ...editedParams }
+        : (() => {
+            const trimmed = rawJsonText.trim();
+            if (!trimmed) return {};
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === "object") {
+              return parsed as Record<string, unknown>;
+            }
+            throw new Error("Raw JSON input must be an object.");
+          })();
+
+      if (hasToolProperties && tool?.inputSchema?.properties) {
         Object.entries(tool.inputSchema.properties).forEach(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ([key, prop]: [string, any]) => {
@@ -366,19 +381,9 @@ function ToolDetailsAuthenticated({
                   <label className="text-sm font-medium">Raw JSON Input</label>
                   <textarea
                     className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={
-                      typeof editedParams === "string"
-                        ? editedParams
-                        : JSON.stringify(editedParams, null, 2)
-                    }
-                    onChange={(e) => {
-                      try {
-                        setEditedParams(JSON.parse(e.target.value));
-                      } catch {
-                        // Allow typing invalid JSON momentarily, but maybe store as string in a separate state if we want robust editing
-                        // For now, just let it be assuming user pastes valid JSON
-                      }
-                    }}
+                    value={rawJsonText}
+                    onChange={(e) => setRawJsonText(e.target.value)}
+                    placeholder='e.g. { "foo": "bar" }'
                   />
                 </div>
               )}
