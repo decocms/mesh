@@ -1,13 +1,14 @@
 import type { RegistryItem } from "@/web/components/store/registry-items-section";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import type { AppData } from "./types";
 
 interface AppHeroSectionProps {
   data: AppData;
   itemVersions: RegistryItem[];
   onInstall: (versionIndex?: number) => void;
+  isInstalling?: boolean;
   canInstall?: boolean;
 }
 
@@ -16,6 +17,7 @@ export function AppHeroSection({
   itemVersions,
   onInstall,
   canInstall = true,
+  isInstalling = false,
 }: AppHeroSectionProps) {
   const [showVersions, setShowVersions] = useState(false);
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
@@ -94,10 +96,11 @@ export function AppHeroSection({
                 <Button
                   variant="brand"
                   onClick={() => setShowVersions(!showVersions)}
+                  disabled={isInstalling}
                   className="shrink-0"
                 >
                   <Icon name="add" size={20} />
-                  Install App
+                  {isInstalling ? "Installing..." : "Install App"}
                   <Icon
                     name={showVersions ? "expand_less" : "expand_more"}
                     size={16}
@@ -116,7 +119,8 @@ export function AppHeroSection({
                           <button
                             key={index}
                             onClick={() => handleInstallVersion(index)}
-                            className="w-full text-left px-4 py-3 hover:bg-muted border-b border-border last:border-b-0 transition-colors"
+                            disabled={isInstalling}
+                            className="w-full text-left px-4 py-3 hover:bg-muted border-b border-border last:border-b-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1">
@@ -148,11 +152,11 @@ export function AppHeroSection({
               <Button
                 variant="brand"
                 onClick={() => onInstall()}
-                disabled={itemVersions.length === 0}
+                disabled={itemVersions.length === 0 || isInstalling}
                 className="shrink-0"
               >
                 <Icon name="add" size={20} />
-                Install App
+                {isInstalling ? "Installing..." : "Install App"}
               </Button>
             )}
           </div>

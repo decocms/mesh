@@ -13,7 +13,7 @@ import {
 import {
   useConnection,
   useConnections,
-  useConnectionsCollection,
+  useConnectionActions,
   type ConnectionEntity,
 } from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
@@ -32,7 +32,13 @@ import {
 } from "@/web/utils/registry-utils";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { useState } from "react";
+import {
+  Component,
+  type ErrorInfo,
+  type ReactNode,
+  Suspense,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { createToolCaller } from "@/tools/client";
 
@@ -133,7 +139,41 @@ function extractItemData(item: RegistryItem): AppData {
   };
 }
 
-export default function StoreAppDetail() {
+/**
+ * Error boundary for store app detail that renders AppDetailErrorState
+ */
+class StoreAppDetailErrorBoundary extends Component<
+  { children: ReactNode; onBack: () => void },
+  { hasError: boolean; error: Error | null }
+> {
+  override state = {
+    hasError: false,
+    error: null,
+  };
+
+  public static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Store app detail error:", error, errorInfo);
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return (
+        <AppDetailErrorState
+          error={this.state.error || new Error("Unknown error")}
+          onBack={this.props.onBack}
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function StoreAppDetailContent() {
   const { org } = useProjectContext();
   const navigate = useNavigate();
   // Get appName from the child route (just /$appName)
@@ -153,7 +193,7 @@ export default function StoreAppDetail() {
   // Track active tab - initially "readme"
   const [activeTabId, setActiveTabId] = useState<string>("readme");
 
-  const connectionsCollection = useConnectionsCollection();
+  const actions = useConnectionActions();
   const allConnections = useConnections();
   const { data: session } = authClient.useSession();
   const registryConnections = useRegistryConnections(allConnections);
@@ -209,16 +249,11 @@ export default function StoreAppDetail() {
     toolInputParams = {};
   }
 
-  const {
-    data: listResults,
-    isLoading,
-    error,
-  } = useToolCall({
+  const { data: listResults } = useToolCall({
     toolCaller,
     toolName: toolName,
     toolInputParams: toolInputParams,
     connectionId: effectiveRegistryId,
-    enabled: !!toolName && !!effectiveRegistryId,
   });
 
   // Extract items and totalCount from results
@@ -393,25 +428,18 @@ export default function StoreAppDetail() {
       return;
     }
 
-    // Build title with version and LATEST badge
-    const versionNumber = version.server?.version;
-    const isLatest = (
-      version._meta?.["io.modelcontextprotocol.registry/official"] as any
-    )?.isLatest;
-    const titleWithVersion = versionNumber
-      ? `${connectionData.title} v${versionNumber}${isLatest ? " (LATEST)" : ""}`
-      : connectionData.title;
+    try {
+      const { id } = await actions.create.mutateAsync(connectionData);
 
-    const tx = connectionsCollection.insert(connectionData);
-    toast.success(`${titleWithVersion} installed successfully`);
-    navigate({
-      to: "/$org/mcps/$connectionId",
-      params: { org: org.slug, connectionId: connectionData.id },
-    });
-
-    tx.isPersisted.promise.catch((err) => {
-      toast.error(`Failed to install app: ${err.message}`);
-    });
+      navigate({
+        to: "/$org/mcps/$connectionId",
+        params: { org: org.slug, connectionId: id },
+      });
+    } catch (error) {
+      toast.error(
+        `Failed to install app: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   };
 
   const handleBackClick = () => {
@@ -420,16 +448,6 @@ export default function StoreAppDetail() {
       params: { org: org.slug },
     });
   };
-
-  // Loading state
-  if (isLoading) {
-    return <AppDetailLoadingState />;
-  }
-
-  // Error state
-  if (error) {
-    return <AppDetailErrorState error={error} onBack={handleBackClick} />;
-  }
 
   // Not found state
   if (!selectedItem) {
@@ -468,6 +486,7 @@ export default function StoreAppDetail() {
               }
               onInstall={handleInstall}
               canInstall={canInstall}
+              isInstalling={actions.create.isPending}
             />
 
             {/* SECTION 2 & 3: Two Column Layout */}
@@ -493,5 +512,25 @@ export default function StoreAppDetail() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StoreAppDetail() {
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
+
+  const handleBackClick = () => {
+    navigate({
+      to: "/$org/store",
+      params: { org: org.slug },
+    });
+  };
+
+  return (
+    <StoreAppDetailErrorBoundary onBack={handleBackClick}>
+      <Suspense fallback={<AppDetailLoadingState />}>
+        <StoreAppDetailContent />
+      </Suspense>
+    </StoreAppDetailErrorBoundary>
   );
 }

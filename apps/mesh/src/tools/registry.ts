@@ -47,7 +47,6 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_CONNECTIONS_UPDATE",
   "COLLECTION_CONNECTIONS_DELETE",
   "CONNECTION_TEST",
-  "CONNECTION_CONFIGURE",
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
@@ -190,11 +189,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Connections",
   },
   {
-    name: "CONNECTION_CONFIGURE",
-    description: "Configure connections",
-    category: "Connections",
-  },
-  {
     name: "DATABASES_RUN_SQL",
     description: "Run SQL queries",
     category: "Connections",
@@ -255,7 +249,6 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_CONNECTIONS_UPDATE: "Update connections",
   COLLECTION_CONNECTIONS_DELETE: "Delete connections",
   CONNECTION_TEST: "Test connections",
-  CONNECTION_CONFIGURE: "Configure connections",
   DATABASES_RUN_SQL: "Run SQL queries",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
