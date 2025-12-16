@@ -166,14 +166,13 @@ export function createApp(options: CreateAppOptions = {}) {
   // Better Auth Routes
   // ============================================================================
 
+  // Auth routes (API key management via web UI)
+  app.route("/api/auth/custom", authRoutes);
+
   // All Better Auth routes (OAuth, session management, etc.)
-  app.on(
-    ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "/api/auth/*",
-    async (c) => {
-      return await auth.handler(c.req.raw);
-    },
-  );
+  app.all("/api/auth/*", async (c) => {
+    return await auth.handler(c.req.raw);
+  });
 
   // Mount OAuth discovery metadata endpoints
   app.get(
@@ -267,11 +266,8 @@ export function createApp(options: CreateAppOptions = {}) {
   // MCP Proxy routes (connection-specific)
   app.route("/mcp", proxyRoutes);
 
-  // Auth routes (API key management via web UI)
-  app.route("/api", authRoutes);
-
   // LLM API routes (OpenAI-compatible)
-  app.route("/v1", modelsRoutes);
+  app.route("/api", modelsRoutes);
 
   // ============================================================================
   // 404 Handler
