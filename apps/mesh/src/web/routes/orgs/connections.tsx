@@ -501,10 +501,16 @@ function OrgMcpsContent() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {editingConnection
-                    ? "Update Connection"
-                    : "Create Connection"}
+                <Button
+                  type="submit"
+                  disabled={form.formState.isSubmitting}
+                  className="min-w-40"
+                >
+                  {form.formState.isSubmitting
+                    ? "Saving..."
+                    : editingConnection
+                      ? "Update Connection"
+                      : "Create Connection"}
                 </Button>
               </DialogFooter>
             </form>
