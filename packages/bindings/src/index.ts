@@ -20,3 +20,45 @@ export {
   type RegistryAppCollectionEntity,
   REGISTRY_APP_BINDING,
 } from "./well-known/registry";
+
+// Re-export event subscriber binding types (for connections that receive events)
+export {
+  CloudEventSchema,
+  type CloudEvent,
+  EventResultSchema,
+  type EventResult,
+  OnEventsInputSchema,
+  type OnEventsInput,
+  OnEventsOutputSchema,
+  type OnEventsOutput,
+  EVENT_SUBSCRIBER_BINDING,
+  EventSubscriberBinding,
+  type EventSubscriberBindingClient,
+} from "./well-known/event-subscriber";
+
+// Re-export event bus binding types (for interacting with an event bus)
+export {
+  EventPublishInputSchema,
+  type EventPublishInput,
+  EventPublishOutputSchema,
+  type EventPublishOutput,
+  EventSubscribeInputSchema,
+  type EventSubscribeInput,
+  EventSubscribeOutputSchema,
+  type EventSubscribeOutput,
+  EventUnsubscribeInputSchema,
+  type EventUnsubscribeInput,
+  EventUnsubscribeOutputSchema,
+  type EventUnsubscribeOutput,
+  EventCancelInputSchema,
+  type EventCancelInput,
+  EventCancelOutputSchema,
+  type EventCancelOutput,
+  EventAckInputSchema,
+  type EventAckInput,
+  EventAckOutputSchema,
+  type EventAckOutput,
+  EVENT_BUS_BINDING,
+  EventBusBinding,
+  type EventBusBindingClient,
+} from "./well-known/event-bus";

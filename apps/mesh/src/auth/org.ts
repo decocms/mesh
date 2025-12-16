@@ -1,14 +1,15 @@
+import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
 import { ConnectionStorage } from "@/storage/connection";
 import { Permission } from "@/storage/types";
+import { fetchToolsFromMCP } from "@/tools/connection/fetch-tools";
 import {
   ConnectionCreateData,
   ToolDefinition,
 } from "@/tools/connection/schema";
 import zodToJsonSchema from "zod-to-json-schema";
 import { auth } from "./index";
-import { fetchToolsFromMCP } from "@/tools/connection/fetch-tools";
 
 interface MCPCreationSpec {
   data: ConnectionCreateData;
@@ -27,6 +28,7 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
     // Deco Store
     {
       data: {
+        id: WellKnownMCPId.REGISTRY,
         title: "Deco Store",
         description: "Official deco MCP registry with curated integrations",
         connection_type: "HTTP",
@@ -78,6 +80,7 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
         );
       },
       data: {
+        id: WellKnownMCPId.SELF,
         title: "Management MCP",
         description: "Management MCP for the organization",
         connection_type: "HTTP",
@@ -91,7 +94,7 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
         configuration_scopes: null,
         metadata: {
           isDefault: true,
-          type: "self",
+          type: WellKnownMCPId.SELF,
         },
       },
     },
@@ -108,9 +111,9 @@ export async function createDefaultOrgConnections(
   createdBy: string,
 ) {
   try {
-    const db = getDb();
+    const database = getDb();
     const vault = new CredentialVault(process.env.ENCRYPTION_KEY || "");
-    const connectionStorage = new ConnectionStorage(db, vault);
+    const connectionStorage = new ConnectionStorage(database.db, vault);
     const defaultOrgMcps = getDefaultOrgMcps();
     await Promise.all(
       defaultOrgMcps.map(async (mcpConfig) => {

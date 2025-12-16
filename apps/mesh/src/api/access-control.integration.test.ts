@@ -9,11 +9,31 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { auth } from "../auth";
-import { createDatabase, closeDatabase } from "../database";
+import { createDatabase, closeDatabase, type MeshDatabase } from "../database";
+import type { EventBus } from "../event-bus";
 import { createTestSchema } from "../storage/test-helpers";
-import type { Kysely } from "kysely";
-import type { Database, Permission } from "../storage/types";
-import { createApp } from "./index";
+import type { Permission } from "../storage/types";
+import { createApp } from "./app";
+
+/**
+ * Create a no-op mock event bus for testing
+ */
+function createMockEventBus(): EventBus {
+  return {
+    getSubscription: async () => null,
+    getEvent: async () => null,
+    cancelEvent: async () => ({ success: true }),
+    ackEvent: async () => ({ success: true }),
+    isRunning: () => false,
+    start: async () => {},
+    stop: async () => {},
+    publish: async () => ({ success: true }) as any,
+    subscribe: async () =>
+      ({ success: true, subscriptionId: "mock-sub" }) as any,
+    unsubscribe: async () => ({ success: true }),
+    listSubscriptions: async () => [],
+  };
+}
 
 // ============================================================================
 // Types
@@ -73,7 +93,7 @@ interface MCPRequest {
 // ============================================================================
 
 describe("Access Control Integration Tests", () => {
-  let db: Kysely<Database>;
+  let database: MeshDatabase;
   let app: ReturnType<typeof createApp>;
   let testUsers: Map<string, TestUser>;
   let testOrganizations: Map<string, TestOrganization>;
@@ -90,11 +110,11 @@ describe("Access Control Integration Tests", () => {
 
   beforeEach(async () => {
     // Create in-memory database
-    db = createDatabase(":memory:");
-    await createTestSchema(db);
+    database = createDatabase(":memory:");
+    await createTestSchema(database.db);
 
-    // Create app instance with test database
-    app = createApp({ db, skipAssetServer: true });
+    // Create app instance with test database and mock event bus
+    app = createApp({ database, eventBus: createMockEventBus() });
 
     // Initialize test data maps
     testUsers = new Map();
@@ -114,7 +134,7 @@ describe("Access Control Integration Tests", () => {
   });
 
   afterEach(async () => {
-    await closeDatabase(db);
+    await closeDatabase(database);
     vi.restoreAllMocks();
   });
 
@@ -137,7 +157,7 @@ describe("Access Control Integration Tests", () => {
     };
 
     // Insert directly into database - using camelCase column names
-    await db
+    await database.db
       .insertInto("users")
       .values({
         id: user.id,
@@ -184,7 +204,7 @@ describe("Access Control Integration Tests", () => {
     };
 
     // Insert directly into database
-    await db
+    await database.db
       .insertInto("connections")
       .values({
         id: connection.id,
@@ -522,7 +542,7 @@ describe("Access Control Integration Tests", () => {
 
       // Verify: Connection lookup should filter by organization
       // Connection A should be visible (same org)
-      const connectionsA = await db
+      const connectionsA = await database.db
         .selectFrom("connections")
         .selectAll()
         .where("id", "=", connectionA.id)
@@ -533,7 +553,7 @@ describe("Access Control Integration Tests", () => {
       expect(connectionsA[0]?.organization_id).toBe(orgA.id);
 
       // Connection B should not be accessible from org A context
-      const connectionsB = await db
+      const connectionsB = await database.db
         .selectFrom("connections")
         .selectAll()
         .where("id", "=", connectionB.id)

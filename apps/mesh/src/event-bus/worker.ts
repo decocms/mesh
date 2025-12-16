@@ -1,0 +1,407 @@
+/**
+ * Event Bus Worker
+ *
+ * Base worker implementation for processing and delivering events.
+ * Handles batching events per subscriber and calling ON_EVENTS.
+ */
+
+import type { CloudEvent } from "@decocms/bindings";
+import { Cron } from "croner";
+import type { EventBusStorage, PendingDelivery } from "../storage/event-bus";
+import type { Event } from "../storage/types";
+import {
+  DEFAULT_EVENT_BUS_CONFIG,
+  type EventBusConfig,
+  type NotifySubscriberFn,
+} from "./interface";
+import { createNotifySubscriber } from "./notify";
+
+/**
+ * Convert internal Event to CloudEvent format
+ */
+function toCloudEvent(event: Event): CloudEvent {
+  return {
+    specversion: "1.0",
+    id: event.id,
+    source: event.source,
+    type: event.type,
+    time: event.time,
+    subject: event.subject ?? undefined,
+    datacontenttype: event.datacontenttype,
+    dataschema: event.dataschema ?? undefined,
+    data: event.data ?? undefined,
+  };
+}
+
+/**
+ * Group pending deliveries by subscription (connection)
+ * Returns a map of connectionId -> { deliveryIds, events }
+ */
+function groupBySubscription(pendingDeliveries: PendingDelivery[]): Map<
+  string,
+  {
+    connectionId: string;
+    deliveryIds: string[];
+    events: CloudEvent[];
+  }
+> {
+  const grouped = new Map<
+    string,
+    {
+      connectionId: string;
+      deliveryIds: string[];
+      events: CloudEvent[];
+    }
+  >();
+
+  for (const pending of pendingDeliveries) {
+    const key = pending.subscription.id;
+    const existing = grouped.get(key);
+
+    if (existing) {
+      existing.deliveryIds.push(pending.delivery.id);
+      existing.events.push(toCloudEvent(pending.event));
+    } else {
+      grouped.set(key, {
+        connectionId: pending.subscription.connectionId,
+        deliveryIds: [pending.delivery.id],
+        events: [toCloudEvent(pending.event)],
+      });
+    }
+  }
+
+  return grouped;
+}
+
+/**
+ * EventBusWorker handles the background processing of events
+ *
+ * The worker doesn't manage its own timing - it relies on a NotifyStrategy
+ * to trigger processing. This allows:
+ * - SQLite: Timer-based polling
+ * - PostgreSQL: Event-based via LISTEN/NOTIFY
+ */
+export class EventBusWorker {
+  private notifySubscriber: NotifySubscriberFn;
+  private running = false;
+  private processing = false;
+  private config: Required<EventBusConfig>;
+
+  constructor(
+    private storage: EventBusStorage,
+    config?: EventBusConfig,
+  ) {
+    this.notifySubscriber = createNotifySubscriber();
+    this.config = {
+      ...DEFAULT_EVENT_BUS_CONFIG,
+      ...config,
+    };
+  }
+
+  /**
+   * Start the worker
+   * Resets any stuck deliveries from previous crashes
+   */
+  async start(): Promise<void> {
+    if (this.running) return;
+
+    // Reset any deliveries that were stuck in 'processing' state from previous crash
+    const resetCount = await this.storage.resetStuckDeliveries();
+    if (resetCount > 0) {
+      console.log(
+        `[EventBus] Reset ${resetCount} stuck deliveries from previous shutdown`,
+      );
+    }
+
+    this.running = true;
+    console.log("[EventBus] Worker started");
+  }
+
+  /**
+   * Stop the worker
+   */
+  stop(): void {
+    this.running = false;
+    console.log("[EventBus] Worker stopped");
+  }
+
+  /**
+   * Check if worker is running
+   */
+  isRunning(): boolean {
+    return this.running;
+  }
+
+  /**
+   * Trigger event processing
+   * Called by the NotifyStrategy when events are available
+   */
+  async processNow(): Promise<void> {
+    if (!this.running) return;
+
+    // Prevent concurrent processing
+    if (this.processing) return;
+
+    this.processing = true;
+    try {
+      await this.processEvents();
+    } catch (error) {
+      console.error("[EventBus] Error processing events:", error);
+    } finally {
+      this.processing = false;
+    }
+  }
+
+  /**
+   * Process pending events
+   */
+  private async processEvents(): Promise<void> {
+    // Atomically claim pending deliveries
+    // This ensures only one worker processes each delivery
+    const pendingDeliveries = await this.storage.claimPendingDeliveries(
+      this.config.batchSize,
+    );
+    if (pendingDeliveries.length === 0) return;
+
+    // Group by subscription (connection)
+    const grouped = groupBySubscription(pendingDeliveries);
+
+    // Process each subscription's batch
+    const eventIdsToUpdate = new Set<string>();
+
+    for (const [subscriptionId, batch] of grouped) {
+      try {
+        // Call ON_EVENTS on the subscriber connection
+        const result = await this.notifySubscriber(
+          batch.connectionId,
+          batch.events,
+        );
+
+        // Check if per-event results were provided
+        if (result.results && Object.keys(result.results).length > 0) {
+          // Per-event mode: process each event individually
+          await this.processPerEventResults(batch, result);
+        } else if (result.success) {
+          // Batch mode: mark all deliveries as delivered
+          await this.storage.markDeliveriesDelivered(batch.deliveryIds);
+        } else if (result.retryAfter && result.retryAfter > 0) {
+          // Batch mode: subscriber wants re-delivery after a delay
+          await this.storage.scheduleRetryWithoutAttemptIncrement(
+            batch.deliveryIds,
+            result.retryAfter,
+          );
+        } else {
+          // Batch mode: mark as failed with error and apply exponential backoff
+          await this.storage.markDeliveriesFailed(
+            batch.deliveryIds,
+            result.error || "Subscriber returned success=false",
+            this.config.maxAttempts,
+            this.config.retryDelayMs,
+            this.config.maxDelayMs,
+          );
+        }
+      } catch (error) {
+        // Network error or other failure
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error(
+          `[EventBus] Failed to notify subscription ${subscriptionId}:`,
+          errorMessage,
+        );
+
+        // Apply exponential backoff with config settings
+        await this.storage.markDeliveriesFailed(
+          batch.deliveryIds,
+          errorMessage,
+          this.config.maxAttempts,
+          this.config.retryDelayMs,
+          this.config.maxDelayMs,
+        );
+      }
+
+      // Collect event IDs for status update
+      for (const pending of pendingDeliveries) {
+        if (batch.deliveryIds.includes(pending.delivery.id)) {
+          eventIdsToUpdate.add(pending.event.id);
+        }
+      }
+    }
+
+    // Update event statuses and handle cron scheduling
+    for (const eventId of eventIdsToUpdate) {
+      try {
+        await this.storage.updateEventStatus(eventId);
+
+        // For cron events, schedule the next delivery after all current deliveries are done
+        const event = pendingDeliveries.find(
+          (p) => p.event.id === eventId,
+        )?.event;
+        if (event?.cron) {
+          await this.scheduleNextCronDelivery(event);
+        }
+      } catch (error) {
+        console.error(
+          `[EventBus] Failed to update event status ${eventId}:`,
+          error,
+        );
+      }
+    }
+  }
+
+  /**
+   * Process per-event results from ON_EVENTS response.
+   * Handles mixed results where some events succeed and others fail or need retry.
+   */
+  private async processPerEventResults(
+    batch: {
+      connectionId: string;
+      deliveryIds: string[];
+      events: CloudEvent[];
+    },
+    result: {
+      success?: boolean;
+      error?: string;
+      retryAfter?: number;
+      results?: Record<
+        string,
+        { success: boolean; error?: string; retryAfter?: number }
+      >;
+    },
+  ): Promise<void> {
+    const delivered: string[] = [];
+    const retryWithDelay: Map<number, string[]> = new Map(); // delay -> deliveryIds
+    const failed: { deliveryId: string; error: string }[] = [];
+
+    // Map event IDs to delivery IDs
+    const eventToDelivery = new Map<string, string>();
+    for (let i = 0; i < batch.events.length; i++) {
+      const event = batch.events?.[i];
+      if (!event) continue;
+      const deliveryId = batch.deliveryIds?.[i];
+      if (!deliveryId) continue;
+      eventToDelivery.set(event.id, deliveryId);
+    }
+
+    // Process each event's result
+    for (const event of batch.events) {
+      const deliveryId = eventToDelivery.get(event.id);
+      if (!deliveryId) continue;
+
+      const eventResult = result.results?.[event.id];
+
+      if (eventResult) {
+        // Per-event result provided
+        if (eventResult.success) {
+          delivered.push(deliveryId);
+        } else if (eventResult.retryAfter && eventResult.retryAfter > 0) {
+          const existing = retryWithDelay.get(eventResult.retryAfter) || [];
+          existing.push(deliveryId);
+          retryWithDelay.set(eventResult.retryAfter, existing);
+        } else {
+          failed.push({
+            deliveryId,
+            error: eventResult.error || "Event processing failed",
+          });
+        }
+      } else {
+        // Fall back to batch-level result
+        if (result.success) {
+          delivered.push(deliveryId);
+        } else if (result.retryAfter && result.retryAfter > 0) {
+          const existing = retryWithDelay.get(result.retryAfter) || [];
+          existing.push(deliveryId);
+          retryWithDelay.set(result.retryAfter, existing);
+        } else {
+          failed.push({
+            deliveryId,
+            error: result.error || "Batch processing failed",
+          });
+        }
+      }
+    }
+
+    // Apply results
+    if (delivered.length > 0) {
+      await this.storage.markDeliveriesDelivered(delivered);
+    }
+
+    for (const [delay, deliveryIds] of retryWithDelay) {
+      await this.storage.scheduleRetryWithoutAttemptIncrement(
+        deliveryIds,
+        delay,
+      );
+    }
+
+    if (failed.length > 0) {
+      // Group by error message for batch processing
+      const errorGroups = new Map<string, string[]>();
+      for (const { deliveryId, error } of failed) {
+        const existing = errorGroups.get(error) || [];
+        existing.push(deliveryId);
+        errorGroups.set(error, existing);
+      }
+
+      for (const [error, deliveryIds] of errorGroups) {
+        await this.storage.markDeliveriesFailed(
+          deliveryIds,
+          error,
+          this.config.maxAttempts,
+          this.config.retryDelayMs,
+          this.config.maxDelayMs,
+        );
+      }
+    }
+  }
+
+  /**
+   * Schedule the next delivery for a cron event.
+   * Called after all current deliveries are processed.
+   */
+  private async scheduleNextCronDelivery(event: Event): Promise<void> {
+    if (!event.cron) return;
+
+    // Check if the event is still active (not cancelled/failed)
+    // We can't query the DB here since we don't have the latest status,
+    // but the cron event was just delivered, so it should be active.
+    // If it was cancelled, no new deliveries will be created.
+
+    try {
+      const cron = new Cron(event.cron);
+      const nextRun = cron.nextRun();
+
+      if (!nextRun) {
+        console.log(
+          `[EventBus] Cron expression for event ${event.id} has no more runs`,
+        );
+        return;
+      }
+
+      const nextDeliveryTime = nextRun.toISOString();
+
+      // Get the subscriptions that match this event
+      const subscriptions = await this.storage.getMatchingSubscriptions(event);
+      if (subscriptions.length === 0) {
+        console.log(
+          `[EventBus] No subscriptions for cron event ${event.id}, skipping next delivery`,
+        );
+        return;
+      }
+
+      // Create new deliveries scheduled for the next cron run
+      await this.storage.createDeliveries(
+        event.id,
+        subscriptions.map((s) => s.id),
+        nextDeliveryTime,
+      );
+
+      console.log(
+        `[EventBus] Scheduled next cron delivery for event ${event.id} at ${nextDeliveryTime}`,
+      );
+    } catch (error) {
+      console.error(
+        `[EventBus] Failed to schedule next cron delivery for event ${event.id}:`,
+        error,
+      );
+    }
+  }
+}

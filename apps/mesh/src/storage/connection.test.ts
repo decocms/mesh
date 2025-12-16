@@ -1,26 +1,24 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { createDatabase, closeDatabase } from "../database";
+import { createDatabase, closeDatabase, type MeshDatabase } from "../database";
 import { ConnectionStorage } from "./connection";
 import { CredentialVault } from "../encryption/credential-vault";
 import { createTestSchema } from "./test-helpers";
-import type { Kysely } from "kysely";
-import type { Database } from "./types";
 
 describe("ConnectionStorage", () => {
-  let db: Kysely<Database>;
+  let database: MeshDatabase;
   let storage: ConnectionStorage;
   let vault: CredentialVault;
 
   beforeAll(async () => {
     const tempDbPath = `/tmp/test-connection-${Date.now()}.db`;
-    db = createDatabase(`file:${tempDbPath}`);
+    database = createDatabase(`file:${tempDbPath}`);
     vault = new CredentialVault(CredentialVault.generateKey());
-    storage = new ConnectionStorage(db, vault);
-    await createTestSchema(db);
+    storage = new ConnectionStorage(database.db, vault);
+    await createTestSchema(database.db);
   });
 
   afterAll(async () => {
-    await closeDatabase(db);
+    await closeDatabase(database);
   });
 
   describe("create", () => {

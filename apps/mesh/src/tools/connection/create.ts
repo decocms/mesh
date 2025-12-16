@@ -11,8 +11,8 @@ import {
   requireAuth,
   requireOrganization,
 } from "../../core/mesh-context";
-import { ConnectionEntitySchema, ConnectionCreateDataSchema } from "./schema";
 import { fetchToolsFromMCP } from "./fetch-tools";
+import { ConnectionCreateDataSchema, ConnectionEntitySchema } from "./schema";
 
 /**
  * Input schema for creating connections (wrapped in data field for collection compliance)
@@ -41,6 +41,7 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const organization = requireOrganization(ctx);
+
     await ctx.access.check();
 
     const userId = getUserId(ctx);
