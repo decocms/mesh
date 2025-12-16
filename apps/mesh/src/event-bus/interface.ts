@@ -23,6 +23,12 @@ export interface PublishEventInput {
   subject?: string;
   /** Event payload (any JSON value) */
   data?: unknown;
+  /**
+   * Optional scheduled delivery time (ISO 8601 timestamp).
+   * If provided, the event will not be delivered until this time.
+   * If omitted, the event is delivered immediately.
+   */
+  deliverAt?: string;
 }
 
 /**

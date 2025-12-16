@@ -39,6 +39,19 @@ export const EventPublishInputSchema = z.object({
 
   /** Event payload (any JSON value) */
   data: z.unknown().optional().describe("Event payload"),
+
+  /**
+   * Optional scheduled delivery time (ISO 8601 timestamp).
+   * If provided, the event will not be delivered until this time.
+   * If omitted, the event is delivered immediately.
+   */
+  deliverAt: z
+    .string()
+    .datetime()
+    .optional()
+    .describe(
+      "Scheduled delivery time (ISO 8601). Omit for immediate delivery.",
+    ),
 });
 
 export type EventPublishInput = z.infer<typeof EventPublishInputSchema>;

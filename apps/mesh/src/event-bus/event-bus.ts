@@ -76,14 +76,16 @@ export class EventBus implements IEventBus {
     // Find matching subscriptions and create delivery records
     const subscriptions = await this.storage.getMatchingSubscriptions(event);
     if (subscriptions.length > 0) {
+      // Pass deliverAt to schedule deliveries for later if specified
       await this.storage.createDeliveries(
         eventId,
         subscriptions.map((s) => s.id),
+        input.deliverAt,
       );
 
-      // Notify strategy to wake up workers immediately (optional)
-      // If no strategy or notify fails, polling will still pick it up
-      if (this.notifyStrategy) {
+      // Only notify strategy for immediate delivery (no scheduled time)
+      // Scheduled events will be picked up by the polling worker at the right time
+      if (this.notifyStrategy && !input.deliverAt) {
         await this.notifyStrategy.notify(eventId).catch((error) => {
           console.warn("[EventBus] Notify failed (non-critical):", error);
         });

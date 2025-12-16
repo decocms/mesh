@@ -112,8 +112,16 @@ export interface EventBusStorage {
 
   /**
    * Create delivery records for an event and its matching subscriptions
+   *
+   * @param eventId - The event ID
+   * @param subscriptionIds - Subscription IDs to create deliveries for
+   * @param deliverAt - Optional scheduled delivery time (ISO 8601). If provided, deliveries won't be processed until this time.
    */
-  createDeliveries(eventId: string, subscriptionIds: string[]): Promise<void>;
+  createDeliveries(
+    eventId: string,
+    subscriptionIds: string[],
+    deliverAt?: string,
+  ): Promise<void>;
 
   /**
    * Atomically claim pending deliveries for processing.
@@ -394,10 +402,15 @@ class KyselyEventBusStorage implements EventBusStorage {
   async createDeliveries(
     eventId: string,
     subscriptionIds: string[],
+    deliverAt?: string,
   ): Promise<void> {
     if (subscriptionIds.length === 0) return;
 
     const now = new Date().toISOString();
+
+    // If deliverAt is provided, set next_retry_at to that time
+    // The worker will only pick up deliveries where next_retry_at is null or in the past
+    const nextRetryAt = deliverAt ?? null;
 
     const values = subscriptionIds.map((subscriptionId) => ({
       id: crypto.randomUUID(),
@@ -407,6 +420,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       attempts: 0,
       last_error: null,
       delivered_at: null,
+      next_retry_at: nextRetryAt,
       created_at: now,
     }));
 

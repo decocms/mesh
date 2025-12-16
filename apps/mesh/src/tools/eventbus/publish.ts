@@ -30,7 +30,7 @@ export const EVENT_PUBLISH = defineTool({
       );
     }
 
-    // Publish the event
+    // Publish the event (optionally scheduled for later delivery)
     const event = await ctx.eventBus.publish(
       organization.id,
       sourceConnectionId,
@@ -38,6 +38,7 @@ export const EVENT_PUBLISH = defineTool({
         type: input.type,
         subject: input.subject,
         data: input.data,
+        deliverAt: input.deliverAt,
       },
     );
 
