@@ -30,6 +30,11 @@ import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
 import { HttpServerTransport } from "../http-server-transport";
 import { compose } from "../utils/compose";
+import {
+  createProxyMonitoringMiddleware,
+  createProxyStreamableMonitoringMiddleware,
+  ProxyMonitoringMiddlewareParams,
+} from "./proxy-monitoring";
 
 // Define Hono variables type
 type Variables = {
@@ -283,9 +288,24 @@ async function createMCPProxyDoNotUseDirectly(
     ? async (_, next) => await next()
     : withStreamableConnectionAuthorization(ctx, connectionId);
 
+  const monitoringConfig: ProxyMonitoringMiddlewareParams = {
+    enabled: getMonitoringConfig().enabled,
+    connectionId,
+    connectionTitle: connection.title,
+    ctx,
+  };
+
+  const proxyMonitoringMiddleware =
+    createProxyMonitoringMiddleware(monitoringConfig);
+  const proxyStreamableMonitoringMiddleware =
+    createProxyStreamableMonitoringMiddleware(monitoringConfig);
+
   // Compose middlewares
-  const callToolPipeline = compose(authMiddleware);
-  const callStreamableToolPipeline = compose(streamableAuthMiddleware);
+  const callToolPipeline = compose(proxyMonitoringMiddleware, authMiddleware);
+  const callStreamableToolPipeline = compose(
+    proxyStreamableMonitoringMiddleware,
+    streamableAuthMiddleware,
+  );
 
   // Core tool execution logic - shared between fetch and callTool
   const executeToolCall = async (
@@ -325,26 +345,6 @@ async function createMCPProxyDoNotUseDirectly(
               status: "success",
             });
 
-            // Log to monitoring (blocking)
-            if (getMonitoringConfig().enabled && ctx.organization) {
-              await ctx.storage.monitoring.log({
-                organizationId: ctx.organization.id,
-                connectionId,
-                connectionTitle: connection.title,
-                toolName: request.params.name,
-                input: (request.params.arguments ?? {}) as Record<
-                  string,
-                  unknown
-                >,
-                output: result as Record<string, unknown>,
-                isError: (result.isError as boolean) ?? false,
-                durationMs: duration,
-                timestamp: new Date(),
-                userId: ctx.auth.user?.id || ctx.auth.apiKey?.userId || null,
-                requestId: ctx.metadata.requestId,
-              });
-            }
-
             span.end();
             return result as CallToolResult;
           } catch (error) {
@@ -366,27 +366,6 @@ async function createMCPProxyDoNotUseDirectly(
               "tool.name": request.params.name,
               error: err.message,
             });
-
-            // Log error to monitoring (blocking)
-            if (getMonitoringConfig().enabled && ctx.organization) {
-              await ctx.storage.monitoring.log({
-                organizationId: ctx.organization.id,
-                connectionId,
-                connectionTitle: connection.title,
-                toolName: request.params.name,
-                input: (request.params.arguments ?? {}) as Record<
-                  string,
-                  unknown
-                >,
-                output: {},
-                isError: true,
-                errorMessage: err.message,
-                durationMs: duration,
-                timestamp: new Date(),
-                userId: ctx.auth.user?.id || ctx.auth.apiKey?.userId || null,
-                requestId: ctx.metadata.requestId,
-              });
-            }
 
             span.recordException(err);
             span.end();
