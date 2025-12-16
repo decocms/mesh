@@ -320,7 +320,10 @@ class McpServerBuilder {
        * Handle fetch requests (MCP protocol over HTTP)
        */
       fetch: async (req: Request): Promise<Response> => {
-        const transport = new HttpServerTransport();
+        const transport = new HttpServerTransport({
+          enableJsonResponse:
+            req.headers.get("Accept")?.includes("application/json") ?? false,
+        });
         await createServer().connect(transport);
         return await transport.handleMessage(req);
       },
