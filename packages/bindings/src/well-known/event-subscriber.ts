@@ -105,23 +105,73 @@ export const OnEventsInputSchema = z.object({
 export type OnEventsInput = z.infer<typeof OnEventsInputSchema>;
 
 /**
- * ON_EVENTS Output Schema
- *
- * Returns success status. If success=true, all events in the batch
- * are considered delivered and will be marked as such by the event bus.
- *
- * Alternatively, return retryAfter (ms) to request re-delivery after a delay.
- * Events with retryAfter stay pending until explicitly ACKed via EVENT_ACK.
- * This enables async processing patterns where the subscriber needs time to process.
+ * Per-event result schema
+ * Allows granular control over each event in a batch
  */
-export const OnEventsOutputSchema = z.object({
-  /** Whether all events were successfully processed */
+export const EventResultSchema = z.object({
+  /** Whether this specific event was processed successfully */
   success: z
     .boolean()
-    .describe("True if all events were successfully processed"),
+    .describe("Whether this event was processed successfully"),
 
-  /** Optional error message if success=false */
-  error: z.string().optional().describe("Error message if processing failed"),
+  /** Error message if success=false */
+  error: z.string().optional().describe("Error message for this event"),
+
+  /**
+   * Request re-delivery of this event after this many milliseconds.
+   * Does not count toward max retry attempts.
+   */
+  retryAfter: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Re-deliver this event after this many ms"),
+});
+
+/**
+ * Per-event result type
+ */
+export type EventResult = z.infer<typeof EventResultSchema>;
+
+/**
+ * ON_EVENTS Output Schema
+ *
+ * Two modes of operation:
+ *
+ * 1. **Batch mode** (backward compatible): Use `success`, `error`, `retryAfter`
+ *    to apply the same result to all events in the batch.
+ *
+ * 2. **Per-event mode**: Use `results` to specify individual outcomes for each event.
+ *    Keys are event IDs, values are per-event results.
+ *    Events not in `results` will use the batch-level fields as fallback.
+ *
+ * @example
+ * // Batch mode - all events succeeded
+ * { success: true }
+ *
+ * @example
+ * // Per-event mode - mixed results
+ * {
+ *   results: {
+ *     "event-1": { success: true },
+ *     "event-2": { success: false, error: "Validation failed" },
+ *     "event-3": { retryAfter: 60000 }
+ *   }
+ * }
+ */
+export const OnEventsOutputSchema = z.object({
+  /** Batch-level success (applies to events not in `results`) */
+  success: z
+    .boolean()
+    .optional()
+    .describe("Batch success - applies to events not in results"),
+
+  /** Batch-level error message */
+  error: z
+    .string()
+    .optional()
+    .describe("Batch error message - applies to events not in results"),
 
   /** Optional count of successfully processed events */
   processedCount: z
@@ -132,18 +182,24 @@ export const OnEventsOutputSchema = z.object({
     .describe("Number of events successfully processed"),
 
   /**
-   * Request re-delivery after this many milliseconds.
-   * Events remain pending until explicitly ACKed via EVENT_ACK.
-   * Does not count toward max retry attempts.
+   * Batch-level re-delivery request (applies to events not in `results`)
    */
   retryAfter: z
     .number()
     .int()
     .positive()
     .optional()
-    .describe(
-      "Request re-delivery after this many ms. Call EVENT_ACK to mark delivered.",
-    ),
+    .describe("Batch retryAfter - applies to events not in results"),
+
+  /**
+   * Per-event results, keyed by event ID.
+   * Allows different handling for each event in the batch.
+   * Events not specified here use batch-level fields as fallback.
+   */
+  results: z
+    .record(z.string(), EventResultSchema)
+    .optional()
+    .describe("Per-event results keyed by event ID"),
 });
 
 /**

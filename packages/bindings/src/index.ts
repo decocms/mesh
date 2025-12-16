@@ -25,6 +25,8 @@ export {
 export {
   CloudEventSchema,
   type CloudEvent,
+  EventResultSchema,
+  type EventResult,
   OnEventsInputSchema,
   type OnEventsInput,
   OnEventsOutputSchema,

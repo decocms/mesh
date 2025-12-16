@@ -6,7 +6,6 @@
  */
 
 import { ContextFactory } from "@/core/context-factory";
-import type { CloudEvent } from "@decocms/bindings";
 import { EventSubscriberBinding } from "@decocms/bindings";
 import { dangerouslyCreateSuperUserMCPProxy } from "../api/routes/proxy";
 import type { NotifySubscriberFn } from "./interface";
@@ -21,10 +20,7 @@ import type { NotifySubscriberFn } from "./interface";
  * @returns NotifySubscriberFn callback
  */
 export function createNotifySubscriber(): NotifySubscriberFn {
-  return async (
-    connectionId: string,
-    events: CloudEvent[],
-  ): Promise<{ success: boolean; error?: string; retryAfter?: number }> => {
+  return async (connectionId, events) => {
     try {
       // Get a system context for the notification
       const ctx = await ContextFactory.create();
@@ -46,6 +42,7 @@ export function createNotifySubscriber(): NotifySubscriberFn {
         success: result.success,
         error: result.error,
         retryAfter: result.retryAfter,
+        results: result.results,
       };
     } catch (error) {
       const errorMessage =

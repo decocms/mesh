@@ -167,7 +167,6 @@ export class EventBusWorker {
     const pendingDeliveries = await this.storage.claimPendingDeliveries(
       this.config.batchSize,
     );
-
     if (pendingDeliveries.length === 0) return;
 
     // Group by subscription (connection)
@@ -184,19 +183,21 @@ export class EventBusWorker {
           batch.events,
         );
 
-        if (result.success) {
-          // Mark all deliveries as delivered
+        // Check if per-event results were provided
+        if (result.results && Object.keys(result.results).length > 0) {
+          // Per-event mode: process each event individually
+          await this.processPerEventResults(batch, result);
+        } else if (result.success) {
+          // Batch mode: mark all deliveries as delivered
           await this.storage.markDeliveriesDelivered(batch.deliveryIds);
         } else if (result.retryAfter && result.retryAfter > 0) {
-          // Subscriber wants re-delivery after a delay
-          // Schedule retry WITHOUT counting toward maxAttempts
-          // Subscriber must call EVENT_ACK to mark as delivered
+          // Batch mode: subscriber wants re-delivery after a delay
           await this.storage.scheduleRetryWithoutAttemptIncrement(
             batch.deliveryIds,
             result.retryAfter,
           );
         } else {
-          // Mark as failed with error and apply exponential backoff
+          // Batch mode: mark as failed with error and apply exponential backoff
           await this.storage.markDeliveriesFailed(
             batch.deliveryIds,
             result.error || "Subscriber returned success=false",
@@ -248,6 +249,111 @@ export class EventBusWorker {
         console.error(
           `[EventBus] Failed to update event status ${eventId}:`,
           error,
+        );
+      }
+    }
+  }
+
+  /**
+   * Process per-event results from ON_EVENTS response.
+   * Handles mixed results where some events succeed and others fail or need retry.
+   */
+  private async processPerEventResults(
+    batch: {
+      connectionId: string;
+      deliveryIds: string[];
+      events: CloudEvent[];
+    },
+    result: {
+      success?: boolean;
+      error?: string;
+      retryAfter?: number;
+      results?: Record<
+        string,
+        { success: boolean; error?: string; retryAfter?: number }
+      >;
+    },
+  ): Promise<void> {
+    const delivered: string[] = [];
+    const retryWithDelay: Map<number, string[]> = new Map(); // delay -> deliveryIds
+    const failed: { deliveryId: string; error: string }[] = [];
+
+    // Map event IDs to delivery IDs
+    const eventToDelivery = new Map<string, string>();
+    for (let i = 0; i < batch.events.length; i++) {
+      const event = batch.events?.[i];
+      if (!event) continue;
+      const deliveryId = batch.deliveryIds?.[i];
+      if (!deliveryId) continue;
+      eventToDelivery.set(event.id, deliveryId);
+    }
+
+    // Process each event's result
+    for (const event of batch.events) {
+      const deliveryId = eventToDelivery.get(event.id);
+      if (!deliveryId) continue;
+
+      const eventResult = result.results?.[event.id];
+
+      if (eventResult) {
+        // Per-event result provided
+        if (eventResult.success) {
+          delivered.push(deliveryId);
+        } else if (eventResult.retryAfter && eventResult.retryAfter > 0) {
+          const existing = retryWithDelay.get(eventResult.retryAfter) || [];
+          existing.push(deliveryId);
+          retryWithDelay.set(eventResult.retryAfter, existing);
+        } else {
+          failed.push({
+            deliveryId,
+            error: eventResult.error || "Event processing failed",
+          });
+        }
+      } else {
+        // Fall back to batch-level result
+        if (result.success) {
+          delivered.push(deliveryId);
+        } else if (result.retryAfter && result.retryAfter > 0) {
+          const existing = retryWithDelay.get(result.retryAfter) || [];
+          existing.push(deliveryId);
+          retryWithDelay.set(result.retryAfter, existing);
+        } else {
+          failed.push({
+            deliveryId,
+            error: result.error || "Batch processing failed",
+          });
+        }
+      }
+    }
+
+    // Apply results
+    if (delivered.length > 0) {
+      await this.storage.markDeliveriesDelivered(delivered);
+    }
+
+    for (const [delay, deliveryIds] of retryWithDelay) {
+      await this.storage.scheduleRetryWithoutAttemptIncrement(
+        deliveryIds,
+        delay,
+      );
+    }
+
+    if (failed.length > 0) {
+      // Group by error message for batch processing
+      const errorGroups = new Map<string, string[]>();
+      for (const { deliveryId, error } of failed) {
+        const existing = errorGroups.get(error) || [];
+        existing.push(deliveryId);
+        errorGroups.set(error, existing);
+      }
+
+      for (const [error, deliveryIds] of errorGroups) {
+        await this.storage.markDeliveriesFailed(
+          deliveryIds,
+          error,
+          this.config.maxAttempts,
+          this.config.retryDelayMs,
+          this.config.maxDelayMs,
         );
       }
     }

@@ -508,7 +508,10 @@ async function createMCPProxyDoNotUseDirectly(
     );
 
     // Create transport (uses HttpServerTransport for fetch Request/Response)
-    const transport = new HttpServerTransport();
+    const transport = new HttpServerTransport({
+      enableJsonResponse:
+        req.headers.get("Accept")?.includes("application/json") ?? false,
+    });
 
     // Connect server to transport
     await server.connect(transport);

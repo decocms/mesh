@@ -211,18 +211,31 @@ export interface IEventBus {
 }
 
 /**
+ * Per-event result from subscriber
+ */
+export interface EventResult {
+  success: boolean;
+  error?: string;
+  retryAfter?: number;
+}
+
+/**
  * Notify subscriber callback type
  * Called by the worker to deliver events to subscribers
  *
  * Response options:
- * - success: true - Events delivered successfully
- * - success: false, error - Delivery failed, will retry with exponential backoff
- * - retryAfter: ms - Re-deliver after delay, must call EVENT_ACK to confirm
+ * - Batch mode: success, error, retryAfter apply to all events
+ * - Per-event mode: results map contains individual outcomes by event ID
  */
 export type NotifySubscriberFn = (
   connectionId: string,
   events: CloudEvent[],
-) => Promise<{ success: boolean; error?: string; retryAfter?: number }>;
+) => Promise<{
+  success?: boolean;
+  error?: string;
+  retryAfter?: number;
+  results?: Record<string, EventResult>;
+}>;
 
 /**
  * EventBus type alias for the interface
