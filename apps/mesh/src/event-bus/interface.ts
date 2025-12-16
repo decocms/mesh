@@ -230,9 +230,14 @@ export interface IEventBus {
 
 /**
  * Per-event result from subscriber
+ *
+ * Three modes:
+ * - `{ success: true }` - Event processed successfully
+ * - `{ success: false, error: "..." }` - Event failed permanently
+ * - `{ retryAfter: 60000 }` - Retry later (success not yet determined)
  */
 export interface EventResult {
-  success: boolean;
+  success?: boolean;
   error?: string;
   retryAfter?: number;
 }

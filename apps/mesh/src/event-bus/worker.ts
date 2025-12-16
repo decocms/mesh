@@ -263,7 +263,7 @@ export class EventBusWorker {
       retryAfter?: number;
       results?: Record<
         string,
-        { success: boolean; error?: string; retryAfter?: number }
+        { success?: boolean; error?: string; retryAfter?: number }
       >;
     },
   ): Promise<void> {
