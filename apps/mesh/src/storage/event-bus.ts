@@ -973,65 +973,97 @@ class KyselyEventBusStorage implements EventBusStorage {
       desiredMap.set(makeKey(sub.eventType, sub.publisher), sub);
     }
 
-    let created = 0;
-    let updated = 0;
-    let deleted = 0;
-    let unchanged = 0;
-
     const now = new Date().toISOString();
 
-    // Process desired subscriptions: create or update
+    // Collect batch operations
+    const toCreate: Array<{
+      id: string;
+      organization_id: string;
+      connection_id: string;
+      event_type: string;
+      publisher: string | null;
+      filter: string | null;
+      enabled: number;
+      created_at: string;
+      updated_at: string;
+    }> = [];
+    const toUpdate: Array<{ id: string; filter: string | null }> = [];
+    const toDelete: string[] = [];
+    let unchanged = 0;
+
+    // Process desired subscriptions: collect creates and updates
     for (const [key, desiredSub] of desiredMap) {
       const currentSub = currentMap.get(key);
 
       if (!currentSub) {
-        // Create new subscription
-        await this.db
-          .insertInto("event_subscriptions")
-          .values({
-            id: crypto.randomUUID(),
-            organization_id: organizationId,
-            connection_id: connectionId,
-            event_type: desiredSub.eventType,
-            publisher: desiredSub.publisher ?? null,
-            filter: desiredSub.filter ?? null,
-            enabled: 1,
-            created_at: now,
-            updated_at: now,
-          })
-          .execute();
-        created++;
+        // Collect for batch insert
+        toCreate.push({
+          id: crypto.randomUUID(),
+          organization_id: organizationId,
+          connection_id: connectionId,
+          event_type: desiredSub.eventType,
+          publisher: desiredSub.publisher ?? null,
+          filter: desiredSub.filter ?? null,
+          enabled: 1,
+          created_at: now,
+          updated_at: now,
+        });
       } else {
         // Check if filter needs update
         const currentFilter = currentSub.filter ?? null;
         const desiredFilter = desiredSub.filter ?? null;
 
         if (currentFilter !== desiredFilter) {
-          await this.db
-            .updateTable("event_subscriptions")
-            .set({
-              filter: desiredFilter,
-              updated_at: now,
-            })
-            .where("id", "=", currentSub.id)
-            .execute();
-          updated++;
+          toUpdate.push({ id: currentSub.id, filter: desiredFilter });
         } else {
           unchanged++;
         }
       }
     }
 
-    // Delete subscriptions not in desired state
+    // Collect subscriptions to delete (not in desired state)
     for (const [key, currentSub] of currentMap) {
       if (!desiredMap.has(key)) {
-        await this.db
-          .deleteFrom("event_subscriptions")
-          .where("id", "=", currentSub.id)
-          .execute();
-        deleted++;
+        toDelete.push(currentSub.id);
       }
     }
+
+    // Execute batch insert
+    if (toCreate.length > 0) {
+      await this.db
+        .insertInto("event_subscriptions")
+        .values(toCreate)
+        .execute();
+    }
+
+    // Execute batch updates (unfortunately Kysely doesn't support multi-row UPDATE in one query,
+    // but we can at least run them concurrently)
+    if (toUpdate.length > 0) {
+      await Promise.all(
+        toUpdate.map((u) =>
+          this.db
+            .updateTable("event_subscriptions")
+            .set({
+              filter: u.filter,
+              updated_at: now,
+            })
+            .where("id", "=", u.id)
+            .execute(),
+        ),
+      );
+    }
+
+    // Execute batch delete
+    if (toDelete.length > 0) {
+      await this.db
+        .deleteFrom("event_subscriptions")
+        .where("id", "in", toDelete)
+        .execute();
+    }
+
+    const created = toCreate.length;
+    const updated = toUpdate.length;
+    const deleted = toDelete.length;
 
     // Fetch final state
     const finalSubscriptions = await this.listSubscriptions(
