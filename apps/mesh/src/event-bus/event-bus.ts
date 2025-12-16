@@ -14,7 +14,11 @@
  */
 
 import { Cron } from "croner";
-import type { EventBusStorage } from "../storage/event-bus";
+import type {
+  EventBusStorage,
+  SyncSubscriptionsInput,
+  SyncSubscriptionsResult,
+} from "../storage/event-bus";
 import type { Event, EventSubscription } from "../storage/types";
 import type {
   EventBusConfig,
@@ -186,6 +190,16 @@ export class EventBus implements IEventBus {
     connectionId: string,
   ): Promise<{ success: boolean }> {
     return this.storage.ackDelivery(eventId, organizationId, connectionId);
+  }
+
+  async syncSubscriptions(
+    organizationId: string,
+    input: Omit<SyncSubscriptionsInput, "organizationId">,
+  ): Promise<SyncSubscriptionsResult> {
+    return this.storage.syncSubscriptions({
+      organizationId,
+      ...input,
+    });
   }
 
   async start(): Promise<void> {

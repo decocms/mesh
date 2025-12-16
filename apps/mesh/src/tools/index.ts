@@ -58,6 +58,7 @@ export const ALL_TOOLS = [
   EventBusTools.EVENT_CANCEL,
   EventBusTools.EVENT_ACK,
   EventBusTools.EVENT_SUBSCRIPTION_LIST,
+  EventBusTools.EVENT_SYNC_SUBSCRIPTIONS,
 ] as const satisfies { name: ToolName }[];
 
 export type MCPMeshTools = typeof ALL_TOOLS;
