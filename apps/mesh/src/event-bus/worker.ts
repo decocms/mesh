@@ -75,11 +75,16 @@ function groupBySubscription(pendingDeliveries: PendingDelivery[]): Map<
 
 /**
  * EventBusWorker handles the background processing of events
+ *
+ * The worker doesn't manage its own timing - it relies on a NotifyStrategy
+ * to trigger processing. This allows:
+ * - SQLite: Timer-based polling
+ * - PostgreSQL: Event-based via LISTEN/NOTIFY
  */
 export class EventBusWorker {
   private notifySubscriber: NotifySubscriberFn;
   private running = false;
-  private pollTimer: Timer | null = null;
+  private processing = false;
   private config: Required<EventBusConfig>;
 
   constructor(
@@ -94,8 +99,8 @@ export class EventBusWorker {
   }
 
   /**
-   * Start the polling loop
-   * Also resets any stuck deliveries from previous crashes
+   * Start the worker
+   * Resets any stuck deliveries from previous crashes
    */
   async start(): Promise<void> {
     if (this.running) return;
@@ -109,18 +114,15 @@ export class EventBusWorker {
     }
 
     this.running = true;
-    this.poll();
+    console.log("[EventBus] Worker started");
   }
 
   /**
-   * Stop the polling loop
+   * Stop the worker
    */
   stop(): void {
     this.running = false;
-    if (this.pollTimer) {
-      clearTimeout(this.pollTimer);
-      this.pollTimer = null;
-    }
+    console.log("[EventBus] Worker stopped");
   }
 
   /**
@@ -131,31 +133,23 @@ export class EventBusWorker {
   }
 
   /**
-   * Trigger immediate processing (used by PostgreSQL NOTIFY)
+   * Trigger event processing
+   * Called by the NotifyStrategy when events are available
    */
   async processNow(): Promise<void> {
     if (!this.running) return;
-    await this.processEvents();
-  }
 
-  /**
-   * Poll for pending events
-   */
-  private poll(): void {
-    if (!this.running) return;
+    // Prevent concurrent processing
+    if (this.processing) return;
 
-    this.processEvents()
-      .catch((error) => {
-        console.error("[EventBus] Error processing events:", error);
-      })
-      .finally(() => {
-        if (this.running) {
-          this.pollTimer = setTimeout(
-            () => this.poll(),
-            this.config.pollIntervalMs,
-          );
-        }
-      });
+    this.processing = true;
+    try {
+      await this.processEvents();
+    } catch (error) {
+      console.error("[EventBus] Error processing events:", error);
+    } finally {
+      this.processing = false;
+    }
   }
 
   /**
