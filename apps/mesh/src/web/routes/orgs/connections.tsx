@@ -183,7 +183,7 @@ function OrgMcpsContent() {
 
     try {
       await actions.delete.mutateAsync(id);
-    } catch (error) {
+    } catch {
       // Error toast is handled by the mutation's onError
     }
   };
@@ -207,7 +207,9 @@ function OrgMcpsContent() {
             description: data.description || null,
             connection_type: data.connection_type,
             connection_url: data.connection_url,
-            ...(data.connection_token && { connection_token: data.connection_token }),
+            ...(data.connection_token && {
+              connection_token: data.connection_token,
+            }),
           },
         });
       } else {

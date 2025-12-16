@@ -2,15 +2,11 @@ import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { AgentDetailsView } from "@/web/components/details/agent.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import {
-  useCollectionActions,
-  useCollectionItem,
-} from "@/web/hooks/use-collections";
+import { useCollectionActions } from "@/web/hooks/use-collections";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { Suspense, type ComponentType } from "react";
-import { toast } from "sonner";
 
 interface CollectionDetailsProps {
   itemId: string;
@@ -70,20 +66,19 @@ function CollectionDetailsContent() {
   const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
   const toolCaller = createToolCaller(safeConnectionId);
 
-  const actions = useCollectionActions(safeConnectionId, collectionName, toolCaller);
+  const actions = useCollectionActions(
+    safeConnectionId,
+    collectionName,
+    toolCaller,
+  );
 
   const handleUpdate = async (updates: Record<string, unknown>) => {
     if (!itemId) return;
-    try {
-      await actions.update.mutateAsync({
-        id: itemId,
-        data: updates,
-      });
-      // Success toast is handled by the mutation's onSuccess
-    } catch (error) {
-      // Error toast is handled by the mutation's onError
-      throw error;
-    }
+    await actions.update.mutateAsync({
+      id: itemId,
+      data: updates,
+    });
+    // Success/error toasts are handled by the mutation's onSuccess/onError
   };
 
   // Check for well-known collections (case insensitive, singular/plural)

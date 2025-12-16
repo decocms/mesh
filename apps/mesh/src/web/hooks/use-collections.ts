@@ -344,10 +344,10 @@ export function useCollectionActions<T extends CollectionEntity>(
     onSuccess: () => {
       // Invalidate all list queries for this collection
       queryClient.invalidateQueries({
-        queryKey: ["collection-list", scopeKey, collectionName],
+        queryKey: KEYS.collectionListPrefix(scopeKey, collectionName),
       });
       queryClient.invalidateQueries({
-        queryKey: ["collection-list-infinite", scopeKey, collectionName],
+        queryKey: KEYS.collectionListInfinitePrefix(scopeKey, collectionName),
       });
       toast.success("Item created successfully");
     },
@@ -369,13 +369,13 @@ export function useCollectionActions<T extends CollectionEntity>(
     onSuccess: (item: T) => {
       // Invalidate list queries and the specific item query
       queryClient.invalidateQueries({
-        queryKey: ["collection-list", scopeKey, collectionName],
+        queryKey: KEYS.collectionListPrefix(scopeKey, collectionName),
       });
       queryClient.invalidateQueries({
-        queryKey: ["collection-list-infinite", scopeKey, collectionName],
+        queryKey: KEYS.collectionListInfinitePrefix(scopeKey, collectionName),
       });
       queryClient.invalidateQueries({
-        queryKey: ["collection-item", scopeKey, collectionName, item.id],
+        queryKey: KEYS.collectionItem(scopeKey, collectionName, item.id),
       });
       toast.success("Item updated successfully");
     },
@@ -396,10 +396,10 @@ export function useCollectionActions<T extends CollectionEntity>(
     onSuccess: () => {
       // Invalidate all list queries for this collection
       queryClient.invalidateQueries({
-        queryKey: ["collection-list", scopeKey, collectionName],
+        queryKey: KEYS.collectionListPrefix(scopeKey, collectionName),
       });
       queryClient.invalidateQueries({
-        queryKey: ["collection-list-infinite", scopeKey, collectionName],
+        queryKey: KEYS.collectionListInfinitePrefix(scopeKey, collectionName),
       });
       toast.success("Item deleted successfully");
     },

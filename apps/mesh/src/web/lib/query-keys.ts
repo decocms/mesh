@@ -11,6 +11,14 @@ export const KEYS = {
   // Auth-related queries
   authConfig: () => ["authConfig"] as const,
 
+  // Chat store (IndexedDB) queries
+  threads: (locator: string) => ["threads", locator] as const,
+  thread: (locator: string, threadId: string) =>
+    ["thread", locator, threadId] as const,
+  threadMessages: (locator: string, threadId: string) =>
+    ["thread-messages", locator, threadId] as const,
+  messages: (locator: string) => ["messages", locator] as const,
+
   // Organizations list
   organizations: () => ["organizations"] as const,
 
@@ -64,11 +72,17 @@ export const KEYS = {
   // scopeKey is connectionId for connection-scoped tools, org.slug for mesh-scoped collections
   collectionItem: (scopeKey: string, collectionName: string, itemId: string) =>
     ["collection-item", scopeKey, collectionName, itemId] as const,
+  // Prefix keys (used for invalidating all variants regardless of paramsKey)
+  collectionListPrefix: (scopeKey: string, collectionName: string) =>
+    ["collection-list", scopeKey, collectionName] as const,
   collectionList: (
     scopeKey: string,
     collectionName: string,
     paramsKey: string,
   ) => ["collection-list", scopeKey, collectionName, paramsKey] as const,
+  // Prefix keys (used for invalidating all variants regardless of paramsKey)
+  collectionListInfinitePrefix: (scopeKey: string, collectionName: string) =>
+    ["collection-list-infinite", scopeKey, collectionName] as const,
   collectionListInfinite: (
     scopeKey: string,
     collectionName: string,

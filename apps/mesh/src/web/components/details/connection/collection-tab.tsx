@@ -9,9 +9,7 @@ import {
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import type { ValidatedCollection } from "@/web/hooks/use-binding";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import {
-  useConnection,
-} from "@/web/hooks/collections/use-connection";
+import { useConnection } from "@/web/hooks/collections/use-connection";
 import {
   useCollectionActions,
   useCollectionList,
@@ -31,9 +29,7 @@ import {
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
-import {
-  useNavigate,
-} from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -296,4 +292,3 @@ export function CollectionTab({
     </>
   );
 }
-

@@ -11,6 +11,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
+import { KEYS } from "../lib/query-keys";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message, Thread } from "../types/chat-threads";
 
@@ -71,7 +72,7 @@ function getThreadMessagesFromIndexedDB(
         b.metadata?.created_at ||
         (b as unknown as { createdAt?: string }).createdAt ||
         "";
-      return aTime.localeCompare(bTime);
+      return String(aTime).localeCompare(String(bTime));
     });
   });
 }
@@ -85,7 +86,7 @@ export function useThreads() {
   const { locator } = useProjectContext();
 
   const { data } = useSuspenseQuery({
-    queryKey: ["threads", locator],
+    queryKey: KEYS.threads(locator),
     queryFn: () => getThreadsFromIndexedDB(locator),
     staleTime: 30_000, // 30 seconds
   });
@@ -103,7 +104,7 @@ export function useThread(threadId: string | undefined) {
   const { locator } = useProjectContext();
 
   const { data } = useSuspenseQuery({
-    queryKey: ["thread", locator, threadId ?? ""],
+    queryKey: KEYS.thread(locator, threadId ?? ""),
     queryFn: () =>
       threadId ? getThreadFromIndexedDB(locator, threadId) : null,
     staleTime: 30_000,
@@ -122,7 +123,7 @@ export function useThreadMessages(threadId: string) {
   const { locator } = useProjectContext();
 
   const { data } = useSuspenseQuery({
-    queryKey: ["thread-messages", locator, threadId],
+    queryKey: KEYS.threadMessages(locator, threadId),
     queryFn: () => getThreadMessagesFromIndexedDB(locator, threadId),
     staleTime: 30_000,
   });
@@ -146,7 +147,7 @@ export function useThreadActions() {
       return thread;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["threads", locator] });
+      queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
     },
   });
 
@@ -168,9 +169,9 @@ export function useThreadActions() {
       return updated;
     },
     onSuccess: (updated: Thread) => {
-      queryClient.invalidateQueries({ queryKey: ["threads", locator] });
+      queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
       queryClient.invalidateQueries({
-        queryKey: ["thread", locator, updated.id],
+        queryKey: KEYS.thread(locator, updated.id),
       });
     },
   });
@@ -182,7 +183,7 @@ export function useThreadActions() {
       return id;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["threads", locator] });
+      queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
     },
   });
 
@@ -214,10 +215,10 @@ export function useMessageActions() {
         (message as unknown as { threadId?: string }).threadId;
       if (threadId) {
         queryClient.invalidateQueries({
-          queryKey: ["thread-messages", locator, threadId],
+          queryKey: KEYS.threadMessages(locator, threadId),
         });
       }
-      queryClient.invalidateQueries({ queryKey: ["messages", locator] });
+      queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
     },
   });
 
@@ -243,10 +244,10 @@ export function useMessageActions() {
       }
       for (const threadId of threadIds) {
         queryClient.invalidateQueries({
-          queryKey: ["thread-messages", locator, threadId],
+          queryKey: KEYS.threadMessages(locator, threadId),
         });
       }
-      queryClient.invalidateQueries({ queryKey: ["messages", locator] });
+      queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
     },
   });
 
@@ -273,10 +274,10 @@ export function useMessageActions() {
         (updated as unknown as { threadId?: string }).threadId;
       if (threadId) {
         queryClient.invalidateQueries({
-          queryKey: ["thread-messages", locator, threadId],
+          queryKey: KEYS.threadMessages(locator, threadId),
         });
       }
-      queryClient.invalidateQueries({ queryKey: ["messages", locator] });
+      queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
     },
   });
 
@@ -287,7 +288,7 @@ export function useMessageActions() {
       return id;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages", locator] });
+      queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
     },
   });
 

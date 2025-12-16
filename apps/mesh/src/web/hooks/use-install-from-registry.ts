@@ -121,18 +121,13 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
       return undefined;
     }
 
-    try {
-      await actions.create.mutateAsync(connectionData);
-      // Success toast is handled by the mutation's onSuccess
-      // Return full connection data so caller doesn't need to fetch from collection
-      return {
-        id: connectionData.id,
-        connection: connectionData as ConnectionEntity,
-      };
-    } catch (err) {
-      // Error toast is handled by the mutation's onError
-      return undefined;
-    }
+    await actions.create.mutateAsync(connectionData);
+    // Success toast is handled by the mutation's onSuccess
+    // Return full connection data so caller doesn't need to fetch from collection
+    return {
+      id: connectionData.id,
+      connection: connectionData as ConnectionEntity,
+    };
   };
 
   return {

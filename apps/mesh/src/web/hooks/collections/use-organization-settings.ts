@@ -5,7 +5,11 @@
  * Uses tool calls to ORGANIZATION_SETTINGS_GET and ORGANIZATION_SETTINGS_UPDATE.
  */
 
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import type { OrganizationSettings } from "../../../storage/types";
 import { createToolCaller } from "../../../tools/client";
 import { KEYS } from "../../lib/query-keys";

@@ -8,7 +8,6 @@ import {
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense } from "react";
-import { toast } from "sonner";
 import {
   useOrganizationSettings,
   useOrganizationSettingsActions,

@@ -48,7 +48,12 @@ export function useAgentsFromConnection(
   const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
   const toolCaller = createToolCaller(safeConnectionId);
 
-  return useCollectionList<Agent>(safeConnectionId, "AGENT", toolCaller, options);
+  return useCollectionList<Agent>(
+    safeConnectionId,
+    "AGENT",
+    toolCaller,
+    options,
+  );
 }
 
 /**

@@ -1,7 +1,6 @@
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
 import { useCollectionItem } from "@/web/hooks/use-collections";
-import { useAgentActions } from "@/web/hooks/collections/use-agent";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -110,8 +109,6 @@ export function AgentDetailsView({
     itemId,
     toolCaller,
   );
-
-  const actions = useAgentActions(safeConnectionId);
 
   const {
     register,

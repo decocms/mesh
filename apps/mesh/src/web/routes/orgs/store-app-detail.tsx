@@ -32,7 +32,13 @@ import {
 } from "@/web/utils/registry-utils";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { Component, type ErrorInfo, type ReactNode, Suspense, useState } from "react";
+import {
+  Component,
+  type ErrorInfo,
+  type ReactNode,
+  Suspense,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { createToolCaller } from "@/tools/client";
 

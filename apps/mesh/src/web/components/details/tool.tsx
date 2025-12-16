@@ -76,7 +76,6 @@ function ToolDetailsContent({
     <ToolDetailsAuthenticated
       toolName={toolName}
       connectionId={connectionId}
-      connection={connection}
       mcpProxyUrl={mcpProxyUrl}
       onBack={onBack}
     />
@@ -86,13 +85,11 @@ function ToolDetailsContent({
 function ToolDetailsAuthenticated({
   toolName,
   connectionId,
-  connection,
   mcpProxyUrl,
   onBack,
 }: {
   toolName: string;
   connectionId: string;
-  connection: NonNullable<ReturnType<typeof useConnection>>;
   mcpProxyUrl: URL;
   onBack: () => void;
 }) {

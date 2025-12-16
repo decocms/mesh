@@ -66,7 +66,6 @@ function ThreadListItem({
 }
 
 const MAX_THREADS_ON_SIDEBAR = 5;
-const FILTERS = [{ column: "hidden", value: false }];
 
 /**
  * Renders the list of recent chat threads

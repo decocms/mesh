@@ -7,7 +7,6 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { useRouterState } from "@tanstack/react-router";
-import { toast } from "sonner";
 import {
   useOrganizationSettings,
   useOrganizationSettingsActions,
