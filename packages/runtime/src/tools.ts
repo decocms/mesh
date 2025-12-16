@@ -7,6 +7,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
 import { Binding } from "./wrangler.ts";
+import { Event } from "./events.ts";
 
 export const createRuntimeContext = (prev?: AppContext) => {
   const store = State.getStore();
@@ -213,6 +214,50 @@ export interface OAuthConfig {
   };
 }
 
+// import type { CloudEvent } from "@decocms/bindings";
+
+/**
+ * Event handler function signature
+ */
+type EventHandler<TEnv> = (
+  // TODO: replace any with CloudEvent type when bindings are updated
+  context: { events: any[] },
+  env: TEnv,
+) => void | Promise<void>;
+
+/**
+ * Events type - maps MCP binding properties to event handler objects.
+ *
+ * Only properties with shape { __type: string, value: string } are included.
+ *
+ * @example
+ *
+ * interface State {
+ *   DATABASE: { __type: "@deco/postgres", value: string };
+ *   CONFIG: string; // ignored - not an MCP binding
+ * }
+ *
+ * const events: Events<typeof StateSchema> = {
+ *   DATABASE: {
+ *     "order.created": ({ events }, env) => {
+ *       // handle order.created events from DATABASE connection
+ *     },
+ *   },
+ * };
+ *  */
+export type EventHandlers<TSchema extends z.ZodTypeAny = never> = [
+  TSchema,
+] extends [never]
+  ? Record<string, never>
+  : {
+      [K in keyof z.infer<TSchema> as z.infer<TSchema>[K] extends {
+        __type: string;
+        value: string;
+      }
+        ? K
+        : never]?: Record<string, EventHandler<z.infer<TSchema>>>;
+    };
+
 export interface CreateMCPServerOptions<
   Env = unknown,
   TSchema extends z.ZodTypeAny = never,
@@ -226,6 +271,10 @@ export interface CreateMCPServerOptions<
     ) => Promise<void>;
     state?: TSchema;
     scopes?: string[];
+    events?: {
+      bus?: (env: Env & DefaultEnv<TSchema>) => {};
+      handlers?: EventHandlers<TSchema>;
+    };
   };
   bindings?: Binding[];
   tools?:
@@ -259,6 +308,7 @@ const configurationToolsFor = <TSchema extends z.ZodTypeAny = never>({
   state: schema,
   scopes,
   onChange,
+  events = {},
 }: CreateMCPServerOptions<
   any,
   TSchema
@@ -282,10 +332,20 @@ const configurationToolsFor = <TSchema extends z.ZodTypeAny = never>({
             }),
             outputSchema: z.object({}),
             execute: async (input) => {
+              const state = input.context.state as z.infer<TSchema>;
               await onChange(input.runtimeContext.env, {
-                state: input.context.state,
+                state,
                 scopes: input.context.scopes,
               });
+              if (events && state) {
+                // subscribe to events
+                const subscriptions = Event.subscriptions(
+                  events?.handlers ?? {},
+                  state,
+                );
+
+                subscriptions.map(async () => {});
+              }
               return Promise.resolve({});
             },
           }),
@@ -302,7 +362,7 @@ const configurationToolsFor = <TSchema extends z.ZodTypeAny = never>({
       execute: () => {
         return Promise.resolve({
           stateSchema: jsonSchema,
-          scopes,
+          scopes: [...(scopes ?? []), ...Event.scopes(events.handlers ?? {})],
         });
       },
     }),
