@@ -16,6 +16,7 @@ const createMockEventBus = (): EventBus => ({
   getSubscription: vi.fn().mockResolvedValue(null),
   getEvent: vi.fn().mockResolvedValue(null),
   cancelEvent: vi.fn().mockResolvedValue({ success: true }),
+  ackEvent: vi.fn().mockResolvedValue({ success: true }),
   start: vi.fn(),
   stop: vi.fn(),
   isRunning: vi.fn().mockReturnValue(false),

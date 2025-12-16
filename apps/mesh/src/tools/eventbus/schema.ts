@@ -29,6 +29,11 @@ export {
   type EventCancelInput as CancelEventInput,
   EventCancelOutputSchema as CancelEventOutputSchema,
   type EventCancelOutput as CancelEventOutput,
+  // Ack schemas
+  EventAckInputSchema as AckEventInputSchema,
+  type EventAckInput as AckEventInput,
+  EventAckOutputSchema as AckEventOutputSchema,
+  type EventAckOutput as AckEventOutput,
 } from "@decocms/bindings";
 
 // ============================================================================

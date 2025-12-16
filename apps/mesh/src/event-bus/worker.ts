@@ -187,6 +187,14 @@ export class EventBusWorker {
         if (result.success) {
           // Mark all deliveries as delivered
           await this.storage.markDeliveriesDelivered(batch.deliveryIds);
+        } else if (result.retryAfter && result.retryAfter > 0) {
+          // Subscriber wants re-delivery after a delay
+          // Schedule retry WITHOUT counting toward maxAttempts
+          // Subscriber must call EVENT_ACK to mark as delivered
+          await this.storage.scheduleRetryWithoutAttemptIncrement(
+            batch.deliveryIds,
+            result.retryAfter,
+          );
         } else {
           // Mark as failed with error and apply exponential backoff
           await this.storage.markDeliveriesFailed(

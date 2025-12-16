@@ -23,6 +23,7 @@ function createMockEventBus(): EventBus {
     getSubscription: async () => null,
     getEvent: async () => null,
     cancelEvent: async () => ({ success: true }),
+    ackEvent: async () => ({ success: true }),
     isRunning: () => false,
     start: async () => {},
     stop: async () => {},

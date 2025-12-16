@@ -56,6 +56,7 @@ export const ALL_TOOLS = [
   EventBusTools.EVENT_SUBSCRIBE,
   EventBusTools.EVENT_UNSUBSCRIBE,
   EventBusTools.EVENT_CANCEL,
+  EventBusTools.EVENT_ACK,
   EventBusTools.EVENT_SUBSCRIPTION_LIST,
 ] as const satisfies { name: ToolName }[];
 

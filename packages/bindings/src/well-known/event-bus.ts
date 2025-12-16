@@ -219,6 +219,39 @@ export const EventCancelOutputSchema = z.object({
 export type EventCancelOutput = z.infer<typeof EventCancelOutputSchema>;
 
 // ============================================================================
+// Ack Schemas (for acknowledging async event processing)
+// ============================================================================
+
+/**
+ * EVENT_ACK Input Schema
+ *
+ * Input for acknowledging an event delivery.
+ * Used when ON_EVENTS returns retryAfter - the subscriber must call EVENT_ACK
+ * to confirm successful processing, otherwise the event will be re-delivered.
+ *
+ * The subscriber connection ID is determined from the caller's token.
+ */
+export const EventAckInputSchema = z.object({
+  /** Event ID to acknowledge */
+  eventId: z.string().describe("Event ID to acknowledge"),
+});
+
+export type EventAckInput = z.infer<typeof EventAckInputSchema>;
+
+/**
+ * EVENT_ACK Output Schema
+ */
+export const EventAckOutputSchema = z.object({
+  /** Success status */
+  success: z.boolean().describe("Whether ACK was successful"),
+
+  /** Event ID that was acknowledged */
+  eventId: z.string().describe("Event ID that was acknowledged"),
+});
+
+export type EventAckOutput = z.infer<typeof EventAckOutputSchema>;
+
+// ============================================================================
 // Event Bus Binding
 // ============================================================================
 
@@ -226,13 +259,14 @@ export type EventCancelOutput = z.infer<typeof EventCancelOutputSchema>;
  * Event Bus Binding
  *
  * Defines the interface for interacting with an event bus.
- * Implementations must provide PUBLISH, SUBSCRIBE, UNSUBSCRIBE, and CANCEL tools.
+ * Implementations must provide PUBLISH, SUBSCRIBE, UNSUBSCRIBE, CANCEL, and ACK tools.
  *
  * Required tools:
  * - EVENT_PUBLISH: Publish an event (supports one-time, scheduled, and recurring via cron)
  * - EVENT_SUBSCRIBE: Subscribe to events
  * - EVENT_UNSUBSCRIBE: Remove a subscription
  * - EVENT_CANCEL: Cancel a recurring event (stops future deliveries)
+ * - EVENT_ACK: Acknowledge event delivery (for async processing with retryAfter)
  */
 export const EVENT_BUS_BINDING = [
   {
@@ -254,6 +288,11 @@ export const EVENT_BUS_BINDING = [
     name: "EVENT_CANCEL" as const,
     inputSchema: EventCancelInputSchema,
     outputSchema: EventCancelOutputSchema,
+  },
+  {
+    name: "EVENT_ACK" as const,
+    inputSchema: EventAckInputSchema,
+    outputSchema: EventAckOutputSchema,
   },
 ] satisfies ToolBinder[];
 

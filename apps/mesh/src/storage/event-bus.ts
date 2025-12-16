@@ -194,6 +194,35 @@ export interface EventBusStorage {
     organizationId: string,
     sourceConnectionId: string,
   ): Promise<{ success: boolean }>;
+
+  /**
+   * Schedule deliveries for retry without incrementing attempts.
+   * Used when subscriber returns retryAfter - they want more time but it shouldn't
+   * count toward the max attempts limit.
+   *
+   * @param deliveryIds - IDs of deliveries to reschedule
+   * @param retryAfterMs - Milliseconds from now to retry
+   */
+  scheduleRetryWithoutAttemptIncrement(
+    deliveryIds: string[],
+    retryAfterMs: number,
+  ): Promise<void>;
+
+  /**
+   * Acknowledge delivery of an event to a subscriber.
+   * Used when subscriber returned retryAfter and later calls EVENT_ACK
+   * to confirm successful processing.
+   *
+   * @param eventId - The event ID to acknowledge
+   * @param organizationId - Organization scope (for security)
+   * @param connectionId - The subscriber's connection ID
+   * @returns Success status
+   */
+  ackDelivery(
+    eventId: string,
+    organizationId: string,
+    connectionId: string,
+  ): Promise<{ success: boolean }>;
 }
 
 // ============================================================================
@@ -771,6 +800,80 @@ class KyselyEventBusStorage implements EventBusStorage {
     }
 
     return { success: (result.numUpdatedRows ?? 0n) > 0n };
+  }
+
+  async scheduleRetryWithoutAttemptIncrement(
+    deliveryIds: string[],
+    retryAfterMs: number,
+  ): Promise<void> {
+    if (deliveryIds.length === 0) return;
+
+    const nextRetryAt = new Date(Date.now() + retryAfterMs).toISOString();
+
+    // Set status back to 'pending' with next_retry_at, but DON'T increment attempts
+    // This is used when subscriber returns retryAfter - they want more time but
+    // it shouldn't count toward the max attempts limit
+    await this.db
+      .updateTable("event_deliveries")
+      .set({
+        status: "pending",
+        next_retry_at: nextRetryAt,
+      })
+      .where("id", "in", deliveryIds)
+      .execute();
+  }
+
+  async ackDelivery(
+    eventId: string,
+    organizationId: string,
+    connectionId: string,
+  ): Promise<{ success: boolean }> {
+    // First verify the event belongs to the organization (defense in depth)
+    const event = await this.db
+      .selectFrom("events")
+      .select(["id"])
+      .where("id", "=", eventId)
+      .where("organization_id", "=", organizationId)
+      .executeTakeFirst();
+
+    if (!event) {
+      return { success: false };
+    }
+
+    // Find deliveries for this event where the subscription belongs to the connection
+    // and is in the same organization, then mark them as delivered
+    const result = await this.db
+      .updateTable("event_deliveries")
+      .set({
+        status: "delivered",
+        delivered_at: new Date().toISOString(),
+      })
+      .where("event_id", "=", eventId)
+      .where("status", "in", ["pending", "processing"])
+      .where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("event_subscriptions")
+            .select("id")
+            .whereRef(
+              "event_subscriptions.id",
+              "=",
+              "event_deliveries.subscription_id",
+            )
+            .where("event_subscriptions.connection_id", "=", connectionId)
+            .where("event_subscriptions.organization_id", "=", organizationId),
+        ),
+      )
+      .executeTakeFirst();
+
+    const updated = (result.numUpdatedRows ?? 0n) > 0n;
+
+    // If we acked deliveries, update the event status
+    if (updated) {
+      await this.updateEventStatus(eventId);
+    }
+
+    return { success: updated };
   }
 }
 

@@ -24,7 +24,7 @@ export function createNotifySubscriber(): NotifySubscriberFn {
   return async (
     connectionId: string,
     events: CloudEvent[],
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; error?: string; retryAfter?: number }> => {
     try {
       // Get a system context for the notification
       const ctx = await ContextFactory.create();
@@ -45,6 +45,7 @@ export function createNotifySubscriber(): NotifySubscriberFn {
       return {
         success: result.success,
         error: result.error,
+        retryAfter: result.retryAfter,
       };
     } catch (error) {
       const errorMessage =

@@ -109,6 +109,10 @@ export type OnEventsInput = z.infer<typeof OnEventsInputSchema>;
  *
  * Returns success status. If success=true, all events in the batch
  * are considered delivered and will be marked as such by the event bus.
+ *
+ * Alternatively, return retryAfter (ms) to request re-delivery after a delay.
+ * Events with retryAfter stay pending until explicitly ACKed via EVENT_ACK.
+ * This enables async processing patterns where the subscriber needs time to process.
  */
 export const OnEventsOutputSchema = z.object({
   /** Whether all events were successfully processed */
@@ -126,6 +130,20 @@ export const OnEventsOutputSchema = z.object({
     .min(0)
     .optional()
     .describe("Number of events successfully processed"),
+
+  /**
+   * Request re-delivery after this many milliseconds.
+   * Events remain pending until explicitly ACKed via EVENT_ACK.
+   * Does not count toward max retry attempts.
+   */
+  retryAfter: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      "Request re-delivery after this many ms. Call EVENT_ACK to mark delivered.",
+    ),
 });
 
 /**

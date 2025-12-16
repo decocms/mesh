@@ -180,6 +180,14 @@ export class EventBus implements IEventBus {
     );
   }
 
+  async ackEvent(
+    organizationId: string,
+    eventId: string,
+    connectionId: string,
+  ): Promise<{ success: boolean }> {
+    return this.storage.ackDelivery(eventId, organizationId, connectionId);
+  }
+
   async start(): Promise<void> {
     if (this.running) return;
     this.running = true;

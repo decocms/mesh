@@ -40,6 +40,7 @@ function createMockEventBus(): EventBus {
     listSubscriptions: async () => [],
     getEvent: async () => null,
     cancelEvent: async () => ({ success: true }),
+    ackEvent: async () => ({ success: true }),
     getSubscription: async () => null,
   };
 }

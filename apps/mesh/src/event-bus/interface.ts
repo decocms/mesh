@@ -178,6 +178,22 @@ export interface IEventBus {
   ): Promise<{ success: boolean }>;
 
   /**
+   * Acknowledge delivery of an event.
+   * Used when subscriber returns retryAfter in ON_EVENTS response and later
+   * calls EVENT_ACK to confirm successful processing.
+   *
+   * @param organizationId - Organization scope
+   * @param eventId - Event to acknowledge
+   * @param connectionId - Subscriber connection ID (from auth token)
+   * @returns Success status
+   */
+  ackEvent(
+    organizationId: string,
+    eventId: string,
+    connectionId: string,
+  ): Promise<{ success: boolean }>;
+
+  /**
    * Start the background worker for event delivery
    * Also resets any stuck deliveries from previous crashes
    */
@@ -197,11 +213,16 @@ export interface IEventBus {
 /**
  * Notify subscriber callback type
  * Called by the worker to deliver events to subscribers
+ *
+ * Response options:
+ * - success: true - Events delivered successfully
+ * - success: false, error - Delivery failed, will retry with exponential backoff
+ * - retryAfter: ms - Re-deliver after delay, must call EVENT_ACK to confirm
  */
 export type NotifySubscriberFn = (
   connectionId: string,
   events: CloudEvent[],
-) => Promise<{ success: boolean; error?: string }>;
+) => Promise<{ success: boolean; error?: string; retryAfter?: number }>;
 
 /**
  * EventBus type alias for the interface
