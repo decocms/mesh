@@ -13,7 +13,6 @@ import {
 } from "../../core/mesh-context";
 import { fetchToolsFromMCP } from "./fetch-tools";
 import { ConnectionCreateDataSchema, ConnectionEntitySchema } from "./schema";
-import { WellKnownMCPId } from "@/core/well-known-mcp";
 
 /**
  * Input schema for creating connections (wrapped in data field for collection compliance)
@@ -71,11 +70,6 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
     const connection = await ctx.storage.connections.create({
       ...connectionData,
       tools,
-    });
-
-    await ctx.eventBus.publish(organization.id, WellKnownMCPId.SELF, {
-      type: "connection.created",
-      data: connection,
     });
 
     return {

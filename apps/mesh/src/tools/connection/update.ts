@@ -5,16 +5,17 @@
  * Also handles MCP configuration state and scopes validation.
  */
 
+import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { z } from "zod";
 import { createMCPProxy } from "../../api/routes/proxy";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
+import { fetchToolsFromMCP } from "./fetch-tools";
 import {
   type ConnectionEntity,
   ConnectionEntitySchema,
   ConnectionUpdateDataSchema,
 } from "./schema";
-import { fetchToolsFromMCP } from "./fetch-tools";
 
 /**
  * Input schema for updating connections
@@ -88,7 +89,7 @@ async function validateConfiguration(
 
   // Validate all referenced connections
   for (const refConnectionId of referencedConnections) {
-    if (refConnectionId === "self") {
+    if (refConnectionId === WellKnownMCPId.SELF) {
       continue;
     }
     // Verify connection exists
