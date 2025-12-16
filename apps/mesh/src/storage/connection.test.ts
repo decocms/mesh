@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { createDatabase, closeDatabase } from "../database";
 import { ConnectionStorage } from "./connection";
 import { CredentialVault } from "../encryption/credential-vault";

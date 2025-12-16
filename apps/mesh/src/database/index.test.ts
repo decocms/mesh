@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { closeDatabase, createDatabase } from "./index";
 
 describe("Database Factory", () => {

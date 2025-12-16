@@ -5,8 +5,8 @@
  */
 
 import type { Kysely } from "kysely";
-import { nanoid } from "nanoid";
 import type { Database, AuditLog } from "./types";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 export interface LogAuditParams {
   organizationId?: string;
@@ -23,7 +23,7 @@ export class AuditLogStorage {
   constructor(private db: Kysely<Database>) {}
 
   async log(params: LogAuditParams): Promise<void> {
-    const id = `audit_${nanoid()}`;
+    const id = generatePrefixedId("audit");
 
     await this.db
       .insertInto("audit_logs")

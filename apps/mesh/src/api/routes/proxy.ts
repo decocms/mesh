@@ -219,6 +219,7 @@ export async function createMCPProxy(
         state: connection.configuration_state ?? undefined,
         meshUrl: ctx.baseUrl,
         connectionId,
+        organizationId: ctx.organization?.id,
       },
       permissions,
     });

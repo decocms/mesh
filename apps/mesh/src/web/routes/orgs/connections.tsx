@@ -67,6 +67,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { authClient } from "@/web/lib/auth-client";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 // Form validation schema derived from ConnectionEntitySchema
 // Pick the relevant fields and adapt for form use
@@ -215,9 +216,10 @@ function OrgMcpsContent() {
         );
         await tx.isPersisted.promise;
       } else {
+        const newId = generatePrefixedId("conn");
         // Create new connection
         const tx = connectionsCollection.insert({
-          id: crypto.randomUUID(),
+          id: newId,
           title: data.title,
           description: data.description || null,
           connection_type: data.connection_type,
@@ -239,6 +241,11 @@ function OrgMcpsContent() {
           status: "inactive",
         });
         await tx.isPersisted.promise;
+
+        navigate({
+          to: "/$org/mcps/$connectionId",
+          params: { org: org.slug, connectionId: newId },
+        });
       }
     } catch (error) {
       toast.error(

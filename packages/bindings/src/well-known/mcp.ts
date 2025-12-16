@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import type { Binder } from "../core/binder";
+export type { ServerClient } from "../core/client/mcp-client";
 
 /**
  * MCP Configuration Output Schema

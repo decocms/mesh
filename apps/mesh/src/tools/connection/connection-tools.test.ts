@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "bun:test";
 import { createDatabase, closeDatabase } from "../../database";
 import { createTestSchema } from "../../storage/test-helpers";
 import { CredentialVault } from "../../encryption/credential-vault";

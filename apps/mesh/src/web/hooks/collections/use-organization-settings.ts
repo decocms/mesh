@@ -39,9 +39,10 @@ function createOrganizationSettingsCollection(
 
         async function initialSync() {
           try {
-            const settings = (await toolCaller("ORGANIZATION_SETTINGS_GET", {
-              organizationId,
-            })) as OrganizationSettings | null;
+            const settings = (await toolCaller(
+              "ORGANIZATION_SETTINGS_GET",
+              {},
+            )) as OrganizationSettings | null;
 
             if (!isActive) {
               return;

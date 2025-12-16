@@ -47,13 +47,18 @@
  * ```
  */
 
+import type { ServerClient } from "@decocms/bindings/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ServerCapabilities } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  ListToolsResult,
+  ServerCapabilities,
+} from "@modelcontextprotocol/sdk/types.js";
 import {
   type CallToolRequest,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import z from "zod";
+import zodToJsonSchema from "zod-to-json-schema";
 import { HttpServerTransport } from "../http-server-transport";
 import { compose } from "./compose";
 
@@ -155,7 +160,7 @@ class McpServerBuilder {
   /**
    * Build the final server with all tools and middlewares
    */
-  build() {
+  build(): ServerClient & { fetch: (req: Request) => Promise<Response> } {
     // Compose middlewares once
     const callToolPipeline =
       this.callToolMiddlewares.length > 0
@@ -246,6 +251,71 @@ class McpServerBuilder {
 
     // Return the API
     return {
+      callStreamableTool: async (
+        toolName: string,
+        args: Record<string, unknown>,
+      ): Promise<Response> => {
+        const tool = this.tools.find((t) => t.name === toolName);
+        if (!tool) {
+          throw new Error(`Tool ${toolName} not found`);
+        }
+        const result = await tool.handler(args);
+        if (!(result instanceof Response)) {
+          throw new Error(`Tool ${toolName} returned a non-response`);
+        }
+        return result;
+      },
+      client: {
+        listTools: async (): Promise<ListToolsResult> => {
+          return {
+            tools: this.tools.map((t) => ({
+              name: t.name,
+              description: t.description ?? "",
+              inputSchema: zodToJsonSchema(t.inputSchema),
+              outputSchema: t.outputSchema
+                ? zodToJsonSchema(t.outputSchema)
+                : undefined,
+            })),
+          } as ListToolsResult;
+        },
+        callTool: async (
+          req: CallToolRequest["params"],
+        ): Promise<CallToolResult> => {
+          const tool = this.tools.find((t) => t.name === req.name);
+          if (!tool) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Tool not found",
+                },
+              ],
+            };
+          }
+          try {
+            const result = await tool?.handler(req.arguments ?? {});
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(result),
+                },
+              ],
+              structuredContent: result as { [x: string]: unknown } | undefined,
+            };
+          } catch (err) {
+            const error = err as Error;
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Error: ${error.message}`,
+                },
+              ],
+            };
+          }
+        },
+      },
       /**
        * Handle fetch requests (MCP protocol over HTTP)
        */

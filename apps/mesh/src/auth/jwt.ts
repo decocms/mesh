@@ -54,6 +54,8 @@ export interface MeshTokenPayload {
     meshUrl: string;
     /** Connection ID this token was issued for */
     connectionId: string;
+    /** Organization ID */
+    organizationId?: string;
   };
   /** Permissions per connection: { [connectionId]: [scopes] } */
   permissions: Record<string, string[]>;

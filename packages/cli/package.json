@@ -1,6 +1,6 @@
 {
   "name": "deco-cli",
-  "version": "0.28.0",
+  "version": "0.28.3",
   "description": "CLI for managing decocms.com apps & projects",
   "license": "MIT",
   "author": "Deco team",

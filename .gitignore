@@ -54,3 +54,8 @@ kv-wal
 *.db
 *.db-shm
 *.db-wal
+
+# Local test files
+deploy/auth-config.json
+deploy/docs
+deploy/test*

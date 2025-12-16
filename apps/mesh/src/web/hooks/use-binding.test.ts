@@ -1,7 +1,7 @@
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { connectionImplementsBinding } from "@/web/hooks/use-binding";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 
 describe("Configuration Binding Detection", () => {
   it("should detect MCP binding when tools match", () => {

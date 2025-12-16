@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { Database, Permission } from "./types";
 import type { ConnectionEntity } from "../tools/connection/schema";
 

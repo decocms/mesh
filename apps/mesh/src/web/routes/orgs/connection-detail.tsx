@@ -1,4 +1,4 @@
-import ConnectionInspectorView from "@/web/components/details/connection.tsx";
+import ConnectionInspectorView from "@/web/components/details/connection";
 
 export default function ConnectionLayout() {
   return <ConnectionInspectorView />;

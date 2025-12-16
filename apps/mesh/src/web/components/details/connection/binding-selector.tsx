@@ -10,8 +10,8 @@ import {
   SelectValue,
 } from "@deco/ui/components/select.tsx";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
-import { useConnections } from "../hooks/collections/use-connection";
-import { useBindingConnections } from "../hooks/use-binding";
+import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useBindingConnections } from "@/web/hooks/use-binding";
 
 interface BindingSelectorProps {
   value: string;
@@ -65,7 +65,6 @@ export function BindingSelector({
     binding: binding,
   });
 
-  // Parse bindingType to get scope and appName (e.g., "@deco/database" -> { scope: "deco", appName: "database" })
   const parsedBindingType = (() => {
     if (!bindingType?.startsWith("@")) return null;
     const [scope, appName] = bindingType.replace("@", "").split("/");
@@ -76,8 +75,13 @@ export function BindingSelector({
   const connections = (() => {
     let result = filteredConnections;
 
-    // If we have a specific binding type (@scope/appName), filter connections that match
-    if (parsedBindingType) {
+    // Only filter by app_name/scopeName if:
+    // 1. We have a parsedBindingType (@scope/appName format)
+    // 2. AND we don't have a binding schema (tools array) for filtering
+    // When we have a binding schema, the tools-based filtering is sufficient
+    const hasBindingSchema = Array.isArray(binding) && binding.length > 0;
+
+    if (parsedBindingType && !hasBindingSchema) {
       result = result.filter((conn) => {
         const connAppName = conn.app_name;
         const connScopeName = (conn.metadata as Record<string, unknown> | null)
@@ -149,7 +153,7 @@ export function BindingSelector({
                     className="w-4 h-4 rounded"
                   />
                 ) : (
-                  <div className="w-4 h-4 rounded bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                  <div className="w-4 h-4 rounded bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
                     {connection.title.slice(0, 1).toUpperCase()}
                   </div>
                 )}

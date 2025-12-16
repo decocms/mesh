@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   mesh:
-    image: ${IMAGE_REPOSITORY:-ghcr.io/decocms/admin/mesh}:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPOSITORY:-ghcr.io/decocms/mesh/mesh}:${IMAGE_TAG:-latest}
     platform: linux/amd64
     container_name: deco-mcp-mesh
     restart: unless-stopped
@@ -22,10 +20,6 @@ services:
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       
       # Database URL
-      # If POSTGRES_USER is defined in .env: mounts PostgreSQL automatically
-      # Otherwise: uses SQLite as default (/app/data/mesh.db)
-      # You can override by defining DATABASE_URL manually in .env
-      - DATABASE_URL=${DATABASE_URL:-${POSTGRES_USER:+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-localhost}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-mesh_db}}}
       - DATABASE_URL=${DATABASE_URL:-/app/data/mesh.db}
     volumes:
       # Persistent volume for data (SQLite or other files)
@@ -49,4 +43,3 @@ services:
 volumes:
   mesh-data:
     driver: local
-

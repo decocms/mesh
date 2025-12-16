@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { MCPConnection } from "../connection";
 import { createMCPClientProxy } from "./proxy";
-
+export type { ServerClient } from "./mcp-client";
 export const isStreamableToolBinder = (
   toolBinder: ToolBinder,
 ): toolBinder is ToolBinder<string, any, any, true> => {

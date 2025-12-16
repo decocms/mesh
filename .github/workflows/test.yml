@@ -31,11 +31,8 @@ jobs:
       - name: Run check
         run: bun run check:ci
 
-      - name: Run package tests
-        run: bun run test
-
-      - name: Run mesh tests
-        run: bun --cwd=apps/mesh test
+      - name: Run tests
+        run: bun test
 
       - name: Run knip
         run: bun run knip

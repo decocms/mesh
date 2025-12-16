@@ -621,14 +621,14 @@ This will generate ESM output in the `dist/` directory with TypeScript declarati
 
 ### Testing
 
-Tests are written with [Vitest](https://vitest.dev/):
+Tests are written with [Bun](https://bun.com/docs/test):
 
 ```bash
 # Run tests once
-bun run test
+bun test
 
 # Watch mode
-bun run test:watch
+bun test --watch
 ```
 
 ## Publishing

@@ -4,7 +4,7 @@
  * Ensures registry.ts stays in sync with index.ts
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { ALL_TOOLS, type ToolNameFromTools } from "./index";
 import { MANAGEMENT_TOOLS, type ToolName } from "./registry";
 

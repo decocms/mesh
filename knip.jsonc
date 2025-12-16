@@ -12,20 +12,9 @@
       "ignore": ["src/styles/global.css"]
     },
     "apps/mesh": {
-      "entry": ["src/web/index.tsx", "migrations/**/*.ts", "scripts/**/*.ts"]
+      "entry": ["src/web/index.tsx!", "migrations/**/*.ts", "scripts/**/*.ts"]
     }
   },
-  "ignore": [
-    "**/*.d.ts",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "**/test/**",
-    "**/dist/**",
-    "**/node_modules/**",
-    ".github/workflows/publish-runtime-npm.yaml",
-    ".github/workflows/publish-bindings.yml",
-    ".github/workflows/publish-vite-plugin-npm.yaml"
-  ],
   "ignoreDependencies": ["@types/*"],
   // TODO(@camudo): Remove this config once I fix all unused type exports
   "ignoreIssues": {

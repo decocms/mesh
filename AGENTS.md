@@ -1,22 +1,57 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The workspace is managed via npm workspaces. Runtime surfaces live in `apps/`: `apps/web` hosts the Vite/React client, `apps/api` contains the edge API (Deno + Supabase bindings), and `apps/outbound` and `apps/deconfig` cover auxiliary services. Shared logic sits in `packages/` (UI kit, SDK, runtime, CLI tooling). Long-form docs are under `docs/`, infrastructure helpers sit in `scripts/`, and Supabase migrations live in `supabase/`.
+The workspace is managed via Bun workspaces. The main application lives in `apps/mesh/` and contains the full-stack MCP Mesh implementation (Hono API server + Vite/React client). Documentation site lives in `apps/docs/` (Astro-based). Shared logic sits in `packages/`:
+- `packages/bindings/` - Core MCP bindings and connection abstractions
+- `packages/runtime/` - Runtime utilities for MCP proxy, OAuth, and tools
+- `packages/ui/` - Shared React components (shadcn-based design system)
+- `packages/cli/` - CLI tooling for project scaffolding and management
+- `packages/vite-plugin-deco/` - Vite plugin for Deco projects
+- `packages/create-deco/` - Project scaffolding tool (npm init)
+
+Database migrations live in `apps/mesh/migrations/`, code quality plugins in `plugins/`, and infrastructure/deploy configs in `deploy/`.
 
 ## Build, Test, and Development Commands
-- `npm run dev`: boots the web client and API locally (runs from repo root).
-- `npm run build`: Deno-driven build targeting `apps/web` for production assets.
-- `npm run lint`: runs `deno lint` with the repo-wide configuration.
-- `npm run fmt` / `npm run fmt:check`: format or verify via Biome.
-- `npm run check`: TypeScript compile-only check for all workspaces.
-- `npm run test` / `npm run test:watch`: execute the Vitest suite once or in watch mode.
-- `npm run db:migration` and `npm run db:types`: manage Supabase migrations and regenerate shared types.
+- `bun run dev`: boots the Mesh client (Vite) and server (Hono) locally, runs migrations first
+- `bun run check`: TypeScript compile-only check for all workspaces
+- `bun run lint`: runs oxlint with custom plugins (kebab-case enforcement, ban-use-effect, etc.)
+- `bun run fmt` / `bun run fmt:check`: format or verify via Biome
+- `bun test` / `bun test .`: run all tests in Bun test runner
+- `bun run build:runtime`: build the runtime package
+- `bun run docs:dev`: run documentation site locally
+
+### Mesh-specific commands (from `apps/mesh/`)
+- `bun run dev:client`: Vite dev server (port 4000)
+- `bun run dev:server`: Hono server with hot reload
+- `bun run build:client`: production client build
+- `bun run build:server`: bundle server for deployment
+- `bun run migrate`: run Kysely migrations
+- `bun run better-auth:migrate`: run Better Auth schema migrations
+
+## Database & Storage
+Uses Kysely ORM with support for both SQLite (default, via `kysely-bun-worker`) and PostgreSQL. Database URL is configured via `DATABASE_URL` environment variable. Defaults to `file:./data/mesh.db`. Migrations use Kysely's migration system combined with Better Auth migrations.
 
 ## Coding Style & Naming Conventions
-Biome enforces two-space indentation and double quotes; keep imports sorted and prefer explicit file extensions when Deno requires them. Components and classes use PascalCase, hooks and utilities use camelCase, and shared packages enforce kebab-case filenames via `plugins/enforce-kebab-case-file-names.ts`. Favor TypeScript types over `any`, and keep Tailwind design tokens consistent—`plugins/ensure-tailwind-design-system-tokens.ts` will fail builds otherwise.
+Biome enforces two-space indentation and double quotes. Components and classes use PascalCase, hooks and utilities use camelCase. Oxlint plugins enforce additional rules:
+- `plugins/enforce-kebab-case-file-names.js` - kebab-case for files in shared packages
+- `plugins/enforce-query-key-constants.js` - query keys must use constants
+- `plugins/ban-use-effect.js` - ban useEffect (prefer alternatives)
+- `plugins/ban-memoization.js` - ban useMemo/useCallback/memo (React 19 compiler handles this)
+- `plugins/ensure-tailwind-design-system-tokens.js` - enforce Tailwind design system consistency
+
+Favor TypeScript types over `any`. The repository uses React 19 with the React Compiler (babel-plugin-react-compiler) and Tailwind v4.
 
 ## Testing Guidelines
-Vitest is the default runner. Co-locate specs next to source as `*.test.ts` or under each app's `test/` directory; align describe blocks with module names. Run `npm run test` before raising a PR, and add targeted integration tests when touching API endpoints. Use `vitest --run --coverage` locally if changes could regress critical flows, and document any intentional coverage gaps in the PR description.
+Bun is the test runner throughout. Co-locate test files next to source as `*.test.ts` or `*.test.tsx`. Test files use Bun's built-in test framework. Run `bun test` before raising a PR. Add targeted integration tests when touching API endpoints or database operations. Document any intentional coverage gaps in PR descriptions.
+
+## Authentication & Authorization
+Uses Better Auth for authentication (OAuth 2.1 + SSO + API keys). Authorization uses custom AccessControl layer with organization/project-level RBAC. Auth configuration is in `apps/mesh/auth-config.json` (example: `auth-config.example.json`).
 
 ## Commit & Pull Request Guidelines
-Follow the existing Conventional Commit-style history: `type(scope): message`, optionally wrapping the type in brackets for chores (e.g., `[chore]: update deps`). Reference issues or tickets with `(#1234)` when applicable. PRs should include a succinct summary, testing notes, and relevant screenshots for UI changes. Confirm formatting (`npm run fmt`) and tests before requesting review, and flag follow-up work with TODOs linked to issues.
+Follow Conventional Commit-style history: `type(scope): message`, optionally wrapping the type in brackets for chores (e.g., `[chore]: update deps`). Reference issues with `(#1234)` when applicable. PRs should include:
+- Succinct summary of changes
+- Testing notes and affected areas
+- Screenshots for UI changes
+- Confirm formatting (`bun run fmt`) and linting (`bun run lint`) pass
+- Run tests (`bun test`) before requesting review
+- Flag follow-up work with TODOs linked to issues

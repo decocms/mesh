@@ -7,7 +7,7 @@
  * - Cross-organization isolation
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { auth } from "../auth";
 import { createDatabase, closeDatabase } from "../database";
 import { createTestSchema } from "../storage/test-helpers";
@@ -110,6 +110,7 @@ describe("Access Control Integration Tests", () => {
 
     // Mock Better Auth methods
     vi.spyOn(auth.api, "getMcpSession").mockResolvedValue(null);
+    vi.spyOn(auth.api, "setActiveOrganization").mockResolvedValue(null as any);
   });
 
   afterEach(async () => {

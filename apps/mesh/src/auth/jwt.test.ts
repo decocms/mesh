@@ -9,7 +9,7 @@
  * - Backwards compatibility
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import {
   issueMeshToken,
   verifyMeshToken,

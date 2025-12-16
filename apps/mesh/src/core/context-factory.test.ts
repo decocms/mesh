@@ -1,6 +1,6 @@
 /* oxlint-disable no-explicit-any */
 import type { Kysely } from "kysely";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "bun:test";
 import type { Meter, Tracer } from "@opentelemetry/api";
 import { closeDatabase, createDatabase } from "../database";
 import { createTestSchema } from "../storage/test-helpers";
@@ -21,25 +21,19 @@ describe("createMeshContextFactory", () => {
     await closeDatabase(db);
   });
 
-  const createMockHonoContext: any = (overrides?: any) => ({
-    req: {
-      url: "https://mesh.example.com/mcp/tools",
-      path: "/mcp/tools",
-      header: vi.fn((name: string) => {
-        if (name === "Authorization") return "Bearer test_key";
-        if (name === "User-Agent") return "Test/1.0";
-        if (name === "X-Forwarded-For") return "192.168.1.1";
-        return undefined;
-      }),
-      raw: {
-        headers: new Headers({
-          Authorization: "Bearer test_key",
-        }),
+  // Helper to create a mock Request object (factory expects Request, not Hono context)
+  const createMockRequest = (options?: {
+    url?: string;
+    headers?: Record<string, string>;
+  }): Request => {
+    const url = options?.url ?? "https://mesh.example.com/mcp/tools";
+    const headers = new Headers(
+      options?.headers ?? {
+        Authorization: "Bearer test_key",
       },
-      ...overrides?.req,
-    },
-    ...overrides,
-  });
+    );
+    return new Request(url, { headers });
+  };
 
   const createMockAuth = (): any => ({
     api: {
@@ -60,6 +54,7 @@ describe("createMeshContextFactory", () => {
           },
         },
       }),
+      setActiveOrganization: vi.fn().mockResolvedValue(null),
     },
   });
 
@@ -89,7 +84,7 @@ describe("createMeshContextFactory", () => {
   });
 
   describe("MeshContext creation", () => {
-    it("should create MeshContext from Hono context", async () => {
+    it("should create MeshContext from Request", async () => {
       const factory = createMeshContextFactory({
         db,
         auth: createMinimalMockAuth() as unknown as BetterAuthInstance,
@@ -100,16 +95,12 @@ describe("createMeshContextFactory", () => {
         },
       });
 
-      const honoCtx = createMockHonoContext({
-        req: {
-          url: "https://mesh.example.com/mcp/tools",
-          path: "/mcp/tools",
-          header: vi.fn(() => undefined), // No Authorization
-          raw: { headers: new Headers() },
-        },
+      const request = createMockRequest({
+        url: "https://mesh.example.com/mcp/tools",
+        headers: {}, // No Authorization
       });
 
-      const meshCtx = await factory(honoCtx);
+      const meshCtx = await factory(request);
 
       expect(meshCtx).toBeDefined();
       expect(meshCtx.auth).toBeDefined();
@@ -130,16 +121,12 @@ describe("createMeshContextFactory", () => {
         },
       });
 
-      const honoCtx = createMockHonoContext({
-        req: {
-          url: "http://localhost:3000/mcp/tools",
-          path: "/mcp/tools",
-          header: vi.fn(() => undefined),
-          raw: { headers: new Headers() },
-        },
+      const request = createMockRequest({
+        url: "http://localhost:3000/mcp/tools",
+        headers: {},
       });
 
-      const meshCtx = await factory(honoCtx);
+      const meshCtx = await factory(request);
 
       expect(meshCtx.baseUrl).toBe("http://localhost:3000");
     });
@@ -155,20 +142,15 @@ describe("createMeshContextFactory", () => {
         },
       });
 
-      const honoCtx = createMockHonoContext({
-        req: {
-          url: "https://mesh.example.com/mcp/tools",
-          path: "/mcp/tools", // Organization-scoped
-          header: vi.fn((name: string) => {
-            if (name === "User-Agent") return "Test/1.0";
-            if (name === "X-Forwarded-For") return "192.168.1.1";
-            return undefined;
-          }),
-          raw: { headers: new Headers() },
+      const request = createMockRequest({
+        url: "https://mesh.example.com/mcp/tools",
+        headers: {
+          "User-Agent": "Test/1.0",
+          "X-Forwarded-For": "192.168.1.1",
         },
       });
 
-      const meshCtx = await factory(honoCtx);
+      const meshCtx = await factory(request);
 
       expect(meshCtx.metadata.userAgent).toBe("Test/1.0");
       expect(meshCtx.metadata.ipAddress).toBe("192.168.1.1");
@@ -188,9 +170,9 @@ describe("createMeshContextFactory", () => {
         },
       });
 
-      const honoCtx = createMockHonoContext();
+      const request = createMockRequest();
 
-      const meshCtx = await factory(honoCtx);
+      const meshCtx = await factory(request);
 
       expect(meshCtx.organization).toBeDefined();
       expect(meshCtx.organization?.id).toBe("org_123");
@@ -210,6 +192,7 @@ describe("createMeshContextFactory", () => {
               metadata: {},
             },
           }),
+          setActiveOrganization: vi.fn().mockResolvedValue(null),
         },
       };
 
@@ -223,8 +206,8 @@ describe("createMeshContextFactory", () => {
         },
       });
 
-      const honoCtx = createMockHonoContext();
-      const meshCtx = await factory(honoCtx);
+      const request = createMockRequest();
+      const meshCtx = await factory(request);
 
       expect(meshCtx.organization).toBeUndefined();
     });
@@ -242,16 +225,12 @@ describe("createMeshContextFactory", () => {
         },
       });
 
-      const honoCtx = createMockHonoContext({
-        req: {
-          url: "https://mesh.example.com/mcp/tools",
-          path: "/mcp/tools",
-          header: vi.fn(() => undefined),
-          raw: { headers: new Headers() },
-        },
+      const request = createMockRequest({
+        url: "https://mesh.example.com/mcp/tools",
+        headers: {},
       });
 
-      const meshCtx = await factory(honoCtx);
+      const meshCtx = await factory(request);
 
       expect(meshCtx.storage.connections).toBeDefined();
       expect(meshCtx.storage.auditLogs).toBeDefined();
@@ -271,21 +250,180 @@ describe("createMeshContextFactory", () => {
         },
       });
 
-      const honoCtx = createMockHonoContext({
-        req: {
-          url: "https://mesh.example.com/mcp/tools",
-          path: "/mcp/tools",
-          header: vi.fn(() => undefined),
-          raw: { headers: new Headers() },
-        },
+      const request = createMockRequest({
+        url: "https://mesh.example.com/mcp/tools",
+        headers: {},
       });
 
-      const meshCtx = await factory(honoCtx);
+      const meshCtx = await factory(request);
 
       expect(meshCtx.access).toBeDefined();
       expect(meshCtx.access.granted).toBeDefined();
       expect(meshCtx.access.check).toBeDefined();
       expect(meshCtx.access.grant).toBeDefined();
+    });
+  });
+
+  describe("API Key organization scope", () => {
+    it("should set organization from API key metadata", async () => {
+      const mockAuthWithOrgInApiKey = {
+        api: {
+          getMcpSession: vi.fn().mockResolvedValue(null),
+          verifyApiKey: vi.fn().mockResolvedValue({
+            valid: true,
+            key: {
+              id: "key_org_a",
+              name: "Org A Key",
+              userId: "user_1",
+              permissions: { self: ["*"] },
+              metadata: {
+                organization: {
+                  id: "org_a",
+                  slug: "org-a",
+                  name: "Organization A",
+                },
+              },
+            },
+          }),
+          setActiveOrganization: vi.fn().mockResolvedValue(null),
+        },
+      };
+
+      const factory = createMeshContextFactory({
+        db,
+        auth: mockAuthWithOrgInApiKey as unknown as BetterAuthInstance,
+        encryption: { key: "test_key" },
+        observability: {
+          tracer: {} as unknown as Tracer,
+          meter: {} as unknown as Meter,
+        },
+      });
+
+      const request = createMockRequest({
+        headers: { Authorization: "Bearer api_key_org_a" },
+      });
+
+      const meshCtx = await factory(request);
+
+      // Organization should be extracted from API key metadata
+      expect(meshCtx.organization).toBeDefined();
+      expect(meshCtx.organization?.id).toBe("org_a");
+      expect(meshCtx.organization?.slug).toBe("org-a");
+      expect(meshCtx.organization?.name).toBe("Organization A");
+    });
+
+    it("should have undefined organization when API key has no org metadata", async () => {
+      const mockAuthWithoutOrg = {
+        api: {
+          getMcpSession: vi.fn().mockResolvedValue(null),
+          verifyApiKey: vi.fn().mockResolvedValue({
+            valid: true,
+            key: {
+              id: "key_no_org",
+              name: "No Org Key",
+              userId: "user_1",
+              permissions: { self: ["*"] },
+              metadata: {}, // No organization
+            },
+          }),
+        },
+      };
+
+      const factory = createMeshContextFactory({
+        db,
+        auth: mockAuthWithoutOrg as unknown as BetterAuthInstance,
+        encryption: { key: "test_key" },
+        observability: {
+          tracer: {} as unknown as Tracer,
+          meter: {} as unknown as Meter,
+        },
+      });
+
+      const request = createMockRequest({
+        headers: { Authorization: "Bearer api_key_no_org" },
+      });
+
+      const meshCtx = await factory(request);
+
+      // Organization should be undefined when not in API key metadata
+      expect(meshCtx.organization).toBeUndefined();
+    });
+
+    it("should set different organizations for different API keys", async () => {
+      // Create factory for Org A key
+      const mockAuthOrgA = {
+        api: {
+          getMcpSession: vi.fn().mockResolvedValue(null),
+          verifyApiKey: vi.fn().mockResolvedValue({
+            valid: true,
+            key: {
+              id: "key_org_a",
+              userId: "user_1",
+              permissions: { self: ["*"] },
+              metadata: {
+                organization: { id: "org_a", slug: "org-a", name: "Org A" },
+              },
+            },
+          }),
+          setActiveOrganization: vi.fn().mockResolvedValue(null),
+        },
+      };
+
+      const factoryA = createMeshContextFactory({
+        db,
+        auth: mockAuthOrgA as unknown as BetterAuthInstance,
+        encryption: { key: "test_key" },
+        observability: {
+          tracer: {} as unknown as Tracer,
+          meter: {} as unknown as Meter,
+        },
+      });
+
+      const requestA = createMockRequest({
+        headers: { Authorization: "Bearer api_key_org_a" },
+      });
+
+      const ctxA = await factoryA(requestA);
+      expect(ctxA.organization?.id).toBe("org_a");
+
+      // Create factory for Org B key
+      const mockAuthOrgB = {
+        api: {
+          getMcpSession: vi.fn().mockResolvedValue(null),
+          verifyApiKey: vi.fn().mockResolvedValue({
+            valid: true,
+            key: {
+              id: "key_org_b",
+              userId: "user_1", // Same user, different org
+              permissions: { self: ["*"] },
+              metadata: {
+                organization: { id: "org_b", slug: "org-b", name: "Org B" },
+              },
+            },
+          }),
+          setActiveOrganization: vi.fn().mockResolvedValue(null),
+        },
+      };
+
+      const factoryB = createMeshContextFactory({
+        db,
+        auth: mockAuthOrgB as unknown as BetterAuthInstance,
+        encryption: { key: "test_key" },
+        observability: {
+          tracer: {} as unknown as Tracer,
+          meter: {} as unknown as Meter,
+        },
+      });
+
+      const requestB = createMockRequest({
+        headers: { Authorization: "Bearer api_key_org_b" },
+      });
+
+      const ctxB = await factoryB(requestB);
+      expect(ctxB.organization?.id).toBe("org_b");
+
+      // Verify they are different organizations
+      expect(ctxA.organization?.id).not.toBe(ctxB.organization?.id);
     });
   });
 });

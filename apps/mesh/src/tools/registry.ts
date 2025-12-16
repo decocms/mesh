@@ -18,7 +18,11 @@
 // Types
 // ============================================================================
 
-export type ToolCategory = "Organizations" | "Connections" | "Monitoring";
+export type ToolCategory =
+  | "Organizations"
+  | "Connections"
+  | "Monitoring"
+  | "API Keys";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -50,6 +54,11 @@ const ALL_TOOL_NAMES = [
   // Monitoring tools
   "MONITORING_LOGS_LIST",
   "MONITORING_STATS",
+  // API Key tools
+  "API_KEY_CREATE",
+  "API_KEY_LIST",
+  "API_KEY_UPDATE",
+  "API_KEY_DELETE",
 ] as const;
 
 /**
@@ -203,6 +212,27 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "View monitoring statistics",
     category: "Monitoring",
   },
+  {
+    name: "API_KEY_CREATE",
+    description: "Create API key",
+    category: "API Keys",
+  },
+  {
+    name: "API_KEY_LIST",
+    description: "List API keys",
+    category: "API Keys",
+  },
+  {
+    name: "API_KEY_UPDATE",
+    description: "Update API key",
+    category: "API Keys",
+  },
+  {
+    name: "API_KEY_DELETE",
+    description: "Delete API key",
+    category: "API Keys",
+    dangerous: true,
+  },
 ];
 
 /**
@@ -232,6 +262,10 @@ const TOOL_LABELS: Record<ToolName, string> = {
     "Allows other MCPs to call tools from any connection on this mesh",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
+  API_KEY_CREATE: "Create API key",
+  API_KEY_LIST: "List API keys",
+  API_KEY_UPDATE: "Update API key",
+  API_KEY_DELETE: "Delete API key",
 };
 
 // ============================================================================
@@ -246,6 +280,7 @@ export function getToolsByCategory() {
     Organizations: [],
     Connections: [],
     Monitoring: [],
+    "API Keys": [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

@@ -28,6 +28,9 @@ export const KEYS = {
   connection: (locator: ProjectLocator, id: string) =>
     [locator, "connection", id] as const,
 
+  isMCPAuthenticated: (url: string, token: string | null) =>
+    ["is-mcp-authenticated", url, token] as const,
+
   organizationSettings: (organizationId: string) =>
     ["organization-settings", organizationId] as const,
 
@@ -62,6 +65,7 @@ export const KEYS = {
     owner: string | null | undefined,
     repo: string | null | undefined,
   ) => ["github-readme", owner, repo] as const,
+
   // Monitoring queries
   monitoringStats: () => ["monitoring", "stats"] as const,
   monitoringLogs: (filters: {

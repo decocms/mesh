@@ -52,6 +52,17 @@ export type UpdateMemberRoleResult = Awaited<
   ReturnType<BetterAuthApi["updateMemberRole"]>
 >;
 
+// API Key return types
+export type CreateApiKeyResult = Awaited<
+  ReturnType<BetterAuthApi["createApiKey"]>
+>;
+export type ListApiKeysResult = Awaited<
+  ReturnType<BetterAuthApi["listApiKeys"]>
+>;
+export type UpdateApiKeyResult = Awaited<
+  ReturnType<BetterAuthApi["updateApiKey"]>
+>;
+
 /**
  * Bound auth client for Better Auth operations
  * Encapsulates HTTP context internally, keeping MeshContext HTTP-agnostic
@@ -113,6 +124,42 @@ export interface BoundAuthClient {
       organizationId?: string;
     }): Promise<UpdateMemberRoleResult>;
   };
+
+  // API Key APIs (bound with headers)
+  apiKey: {
+    /**
+     * Create a new API key
+     * @returns The created API key WITH its value (only time it's visible)
+     */
+    create(data: {
+      name: string;
+      permissions?: Record<string, string[]>;
+      expiresIn?: number;
+      metadata?: Record<string, unknown>;
+    }): Promise<CreateApiKeyResult>;
+
+    /**
+     * List all API keys for the authenticated user
+     * @returns Array of API keys (WITHOUT key values)
+     */
+    list(): Promise<ListApiKeysResult>;
+
+    /**
+     * Update an existing API key
+     * @returns The updated API key (WITHOUT key value)
+     */
+    update(data: {
+      keyId: string;
+      name?: string;
+      permissions?: Record<string, string[]>;
+      metadata?: Record<string, unknown>;
+    }): Promise<UpdateApiKeyResult>;
+
+    /**
+     * Delete an API key (instant revocation)
+     */
+    delete(keyId: string): Promise<void>;
+  };
 }
 
 /**
@@ -146,8 +193,8 @@ export interface MeshAuth {
  */
 export interface OrganizationScope {
   id: string;
-  slug: string;
-  name: string;
+  slug?: string;
+  name?: string;
 }
 
 // ============================================================================

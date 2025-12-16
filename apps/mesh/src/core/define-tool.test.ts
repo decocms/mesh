@@ -5,7 +5,7 @@ import {
   type Tracer,
   type Meter,
 } from "@opentelemetry/api";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { z } from "zod";
 import { AccessControl } from "./access-control";
 import { defineTool } from "./define-tool";

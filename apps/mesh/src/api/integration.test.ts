@@ -6,7 +6,7 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { RequestInfo } from "@modelcontextprotocol/sdk/types.js";
-import { afterEach, beforeEach, describe, vi } from "vitest";
+import { afterEach, beforeEach, describe, vi } from "bun:test";
 import { auth } from "../auth";
 import app from "./index";
 

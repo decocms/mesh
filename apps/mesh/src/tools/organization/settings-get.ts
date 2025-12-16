@@ -7,9 +7,7 @@ export const ORGANIZATION_SETTINGS_GET = defineTool({
   name: "ORGANIZATION_SETTINGS_GET",
   description: "Get organization-level settings",
 
-  inputSchema: z.object({
-    organizationId: z.string(),
-  }),
+  inputSchema: z.object({}),
 
   outputSchema: z.object({
     organizationId: z.string(),
@@ -18,21 +16,21 @@ export const ORGANIZATION_SETTINGS_GET = defineTool({
     updatedAt: z.union([z.date(), z.string()]).optional(),
   }),
 
-  handler: async (input, ctx) => {
+  handler: async (_, ctx) => {
     requireAuth(ctx);
     await ctx.access.check();
-
-    if (ctx.organization && ctx.organization.id !== input.organizationId) {
-      throw new Error("Cannot access settings for a different organization");
+    const organizationId = ctx.organization?.id;
+    if (!organizationId) {
+      throw new Error(
+        "Organization ID required (no active organization in context)",
+      );
     }
 
-    const settings = await ctx.storage.organizationSettings.get(
-      input.organizationId,
-    );
+    const settings = await ctx.storage.organizationSettings.get(organizationId);
 
     if (!settings) {
       return {
-        organizationId: input.organizationId,
+        organizationId,
       };
     }
 

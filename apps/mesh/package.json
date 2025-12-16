@@ -12,7 +12,7 @@
     "check": "tsc --noEmit",
     "start": "bun run ./dist/server/server.js",
     "migrate": "bun run src/database/migrate.ts",
-    "test": "bun test .",
+    "test": "bun test",
     "better-auth:migrate": "bunx --bun @better-auth/cli migrate -y --config src/auth/index.ts"
   },
   "dependencies": {
@@ -97,8 +97,7 @@
     "concurrently": "^9.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.2.1",
-    "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^4.0.5"
+    "vite-tsconfig-paths": "^5.1.4"
   },
   "module": "src/index.ts",
   "private": true

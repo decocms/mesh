@@ -22,6 +22,12 @@ interface PublishAppConfig {
   icon?: string;
   metadata?: Record<string, unknown>;
   unlisted?: boolean;
+  tools?: Array<{
+    name: string;
+    description: string;
+    inputSchema: unknown;
+    outputSchema?: unknown;
+  }>;
 }
 
 interface PublishOptions {
@@ -76,10 +82,10 @@ function validateConfig(config: unknown): config is PublishAppConfig {
   }
 
   const conn = c.connection as Record<string, unknown>;
-  const validTypes = ["HTTP", "SSE", "Websocket", "Deco", "INNATE"];
+  const validTypes = ["HTTP", "SSE", "Websocket", "Deco", "INNATE", "BINDING"];
   if (!validTypes.includes(conn.type as string)) {
     throw new Error(
-      `Invalid connection type '${conn.type}'. Must be one of: ${validTypes.join(", ")}`,
+      `Invalid connection type '${conn.type}'. Must be one of: ${validTypes.join(", ")}.`,
     );
   }
 
@@ -181,6 +187,7 @@ export async function publishApp({
       icon: appConfig.icon,
       metadata: appConfig.metadata,
       unlisted: appConfig.unlisted,
+      tools: appConfig.tools,
     },
   });
 

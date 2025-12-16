@@ -8,22 +8,25 @@
  * - CORS support
  */
 
+import { applyAssetServerRoutes } from "@decocms/runtime/asset-server";
+import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import type { Kysely } from "kysely";
 import { auth } from "../auth";
-import { createMeshContextFactory } from "../core/context-factory";
+import {
+  ContextFactory,
+  createMeshContextFactory,
+} from "../core/context-factory";
 import type { MeshContext } from "../core/mesh-context";
 import { getDb } from "../database";
 import type { Database } from "../storage/types";
 import { meter, prometheusExporter, tracer } from "../observability";
-import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
 import managementRoutes from "./routes/management";
 import proxyRoutes, { createMCPProxy } from "./routes/proxy";
 import authRoutes from "./routes/auth";
 import modelsRoutes from "./routes/models";
-import { applyAssetServerRoutes } from "@decocms/runtime/asset-server";
-import type { Kysely } from "kysely";
 
 // Define Hono variables type
 type Variables = {
@@ -38,9 +41,9 @@ import {
   oAuthDiscoveryMetadata,
   oAuthProtectedResourceMetadata,
 } from "better-auth/plugins";
-const handleOAuthProtectedResourceMetadata =
+const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
-const handleOAuthDiscoveryMetadata = oAuthDiscoveryMetadata(auth);
+const getHandleOAuthDiscoveryMetadata = () => oAuthDiscoveryMetadata(auth);
 
 import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
 
@@ -166,6 +169,8 @@ export function createApp(options: CreateAppOptions = {}) {
   app.get(
     "/mcp/:connectionId/.well-known/oauth-protected-resource/*",
     async (c) => {
+      const handleOAuthProtectedResourceMetadata =
+        getHandleOAuthProtectedResourceMetadata();
       const res = await handleOAuthProtectedResourceMetadata(c.req.raw);
       const data = (await res.json()) as ResourceServerMetadata;
       return Response.json(
@@ -184,6 +189,7 @@ export function createApp(options: CreateAppOptions = {}) {
     "/.well-known/oauth-authorization-server/*/:connectionId?",
     async (c) => {
       const connectionId = c.req.param("connectionId") ?? "self";
+      const handleOAuthDiscoveryMetadata = getHandleOAuthDiscoveryMetadata();
       const res = await handleOAuthDiscoveryMetadata(c.req.raw);
       const data = await res.json();
       return Response.json(
@@ -198,17 +204,19 @@ export function createApp(options: CreateAppOptions = {}) {
   // ============================================================================
 
   // Create context factory with the provided database
-  const createContext = createMeshContextFactory({
-    db,
-    auth,
-    encryption: {
-      key: process.env.ENCRYPTION_KEY || "",
-    },
-    observability: {
-      tracer,
-      meter,
-    },
-  });
+  ContextFactory.set(
+    createMeshContextFactory({
+      db,
+      auth,
+      encryption: {
+        key: process.env.ENCRYPTION_KEY || "",
+      },
+      observability: {
+        tracer,
+        meter,
+      },
+    }),
+  );
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext
@@ -226,7 +234,7 @@ export function createApp(options: CreateAppOptions = {}) {
     }
 
     try {
-      const ctx = await createContext(c);
+      const ctx = await ContextFactory.create(c.req.raw);
       c.set("meshContext", ctx);
       return await next();
     } catch (error) {
@@ -298,7 +306,6 @@ export function createApp(options: CreateAppOptions = {}) {
   // Organizations managed via Better Auth organization plugin
   // Authentication is handled by context-factory middleware above
   app.route("/mcp", managementRoutes);
-  app.route("/mcp/self", managementRoutes);
 
   // Mount MCP proxy routes at /mcp/:connectionId
   // Connection IDs are globally unique UUIDs

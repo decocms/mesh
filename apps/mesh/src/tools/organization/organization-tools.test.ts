@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import {
   ORGANIZATION_CREATE,
   ORGANIZATION_LIST,
@@ -136,6 +136,26 @@ const createMockBoundAuth = (
         body: data,
       });
     }),
+  },
+  apiKey: {
+    create: vi.fn().mockResolvedValue({
+      id: "key_123",
+      name: "Test Key",
+      key: "mcp_test_key_123",
+      permissions: {},
+      expiresAt: null,
+      createdAt: new Date(),
+    }),
+    list: vi.fn().mockResolvedValue([]),
+    update: vi.fn().mockResolvedValue({
+      id: "key_123",
+      name: "Updated Key",
+      userId: "user_1",
+      permissions: {},
+      expiresAt: null,
+      createdAt: new Date(),
+    }),
+    delete: vi.fn().mockResolvedValue(undefined),
   },
 });
 
@@ -461,7 +481,9 @@ describe("Organization Tools", () => {
 
       expect(result.members).toHaveLength(1);
       expect(result.members?.[0]?.userId).toBe("user_1");
-      expect(result.members?.[0]?.role).toEqual(["admin"]);
+      expect(result.members?.[0]?.role as unknown as string[]).toEqual([
+        "admin",
+      ]);
     });
 
     it("should support pagination", async () => {
@@ -507,7 +529,7 @@ describe("Organization Tools", () => {
         },
       });
 
-      expect(result.role).toEqual(["admin"]);
+      expect(result.role as unknown as string[]).toEqual(["admin"]);
     });
   });
 });

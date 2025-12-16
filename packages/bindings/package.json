@@ -1,11 +1,10 @@
 {
   "name": "@decocms/bindings",
-  "version": "1.0.1-alpha.17",
+  "version": "1.0.1-alpha.18",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
     "check": "tsc --noEmit",
-    "test:watch": "vitest"
+    "test": "bun test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.20.2",
@@ -21,9 +20,6 @@
     "./mcp": "./src/well-known/mcp.ts",
     "./agent": "./src/well-known/agent.ts",
     "./workflow": "./src/well-known/workflow.ts"
-  },
-  "devDependencies": {
-    "vitest": "3.2.4"
   },
   "engines": {
     "node": ">=24.0.0"

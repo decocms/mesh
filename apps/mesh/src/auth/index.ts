@@ -32,6 +32,8 @@ import { createAccessControl, Role } from "@decocms/better-auth/plugins/access";
 import { getDatabaseUrl, getDbDialect } from "../database";
 import { createEmailSender, findEmailProvider } from "./email-providers";
 import { createMagicLinkConfig } from "./magic-link";
+import { createDefaultOrgConnections } from "./org";
+import { ADMIN_ROLES } from "./roles";
 import { createSSOConfig } from "./sso";
 
 const allTools = Object.values(getToolsByCategory())
@@ -95,18 +97,18 @@ if (
   }
 }
 
-/**
- * Built-in roles that have full access (owner, admin, user)
- * These bypass custom permission checks
- */
-export const BUILTIN_ROLES = ["owner", "admin", "user"] as const;
-const ADMIN_ROLES: BuiltinRole[] = ["owner", "admin"];
-export type BuiltinRole = (typeof BUILTIN_ROLES)[number];
-
 const plugins = [
   // Organization plugin for multi-tenant organization management
   // https://www.better-auth.com/docs/plugins/organization
   organization({
+    organizationCreation: {
+      afterCreate: async (data) => {
+        await createDefaultOrgConnections(
+          data.organization.id,
+          data.member.userId,
+        );
+      },
+    },
     ac,
     creatorRole: "owner",
     allowUserToCreateOrganization: true, // Users can create organizations by default
@@ -151,6 +153,14 @@ const plugins = [
     keyExpiration: {
       minExpiresIn: 5 / 1440, // 5 minutes in days (default is 1 day)
     },
+    enableSessionForAPIKeys: true,
+    customAPIKeyGetter: (ctx) => {
+      const header = ctx.headers?.get("Authorization");
+      if (header?.startsWith("Bearer ")) {
+        return header.replace("Bearer ", "").trim();
+      }
+      return null;
+    },
     permissions: {
       defaultPermissions: {
         self: [
@@ -159,6 +169,9 @@ const plugins = [
           "ORGANIZATION_MEMBER_LIST", // Member read access
           "COLLECTION_CONNECTIONS_LIST",
           "COLLECTION_CONNECTIONS_GET", // Connection read access
+          "API_KEY_CREATE", // API key creation
+          "API_KEY_LIST", // API key listing (metadata only)
+          // Note: API_KEY_UPDATE and API_KEY_DELETE are not default - users must explicitly request
         ],
       },
     },

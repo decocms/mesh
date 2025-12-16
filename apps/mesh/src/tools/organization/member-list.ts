@@ -13,7 +13,6 @@ export const ORGANIZATION_MEMBER_LIST = defineTool({
   description: "List all members in an organization",
 
   inputSchema: z.object({
-    organizationId: z.string().optional(), // Optional: defaults to active organization
     limit: z.number().optional(),
     offset: z.number().optional(),
   }),
@@ -44,9 +43,8 @@ export const ORGANIZATION_MEMBER_LIST = defineTool({
 
     // Check authorization
     await ctx.access.check();
-
     // Use active organization if not specified
-    const organizationId = input.organizationId || ctx.organization?.id;
+    const organizationId = ctx.organization?.id;
     if (!organizationId) {
       throw new Error(
         "Organization ID required (no active organization in context)",

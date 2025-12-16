@@ -1,11 +1,12 @@
 import { createToolCaller } from "@/tools/client";
 import { useToolCall } from "@/web/hooks/use-tool-call";
+import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Loader2 } from "lucide-react";
 import Form from "@rjsf/shadcn";
 import validator from "@rjsf/validator-ajv8";
 import type { FieldTemplateProps, ObjectFieldTemplateProps } from "@rjsf/utils";
-import { BindingSelector } from "../binding-selector";
+import { BindingSelector } from "./binding-selector";
 import { useNavigate } from "@tanstack/react-router";
 
 interface McpConfigurationResult {
@@ -100,6 +101,117 @@ function extractFieldName(childId: string): string {
 }
 
 /**
+ * Check if a binding schema value represents an app name that needs dynamic resolution
+ * @example "@deco/database" -> true, "deco/database" -> true, [{name: "TOOL"}] -> false
+ */
+function isDynamicBindingSchema(
+  bindingSchema: unknown,
+): bindingSchema is string {
+  if (typeof bindingSchema !== "string") return false;
+  // Check for @scope/app or scope/app format
+  const normalized = bindingSchema.startsWith("@")
+    ? bindingSchema.slice(1)
+    : bindingSchema;
+  return normalized.includes("/");
+}
+
+/**
+ * Props for BindingFieldWithDynamicSchema component
+ */
+interface BindingFieldWithDynamicSchemaProps {
+  bindingSchema: unknown;
+  bindingType?: string;
+  currentValue: string;
+  onValueChange: (value: string) => void;
+  placeholder: string;
+  onAddNew: () => void;
+  className?: string;
+}
+
+/**
+ * Wrapper component that handles dynamic binding schema resolution from registry.
+ * If bindingSchema is an app name (e.g., "@deco/database"), it fetches the
+ * binding tools from the registry and uses them for filtering.
+ */
+function BindingFieldWithDynamicSchema({
+  bindingSchema,
+  bindingType,
+  currentValue,
+  onValueChange,
+  placeholder,
+  onAddNew,
+  className,
+}: BindingFieldWithDynamicSchemaProps) {
+  // Check if we need to resolve binding schema from registry
+  // Priority: use bindingSchema if it's a dynamic app name, otherwise check bindingType
+  const bindingSchemaIsDynamic = isDynamicBindingSchema(bindingSchema);
+  const bindingTypeIsDynamic = isDynamicBindingSchema(bindingType);
+  const needsDynamicResolution = bindingSchemaIsDynamic || bindingTypeIsDynamic;
+
+  // Determine which value to use for dynamic resolution
+  // - If bindingSchema is a dynamic app name (e.g., "@deco/database"), use it
+  // - Otherwise if bindingType is a dynamic app name (e.g., "@deco/postgres"), use that
+  const dynamicAppName = bindingSchemaIsDynamic
+    ? (bindingSchema as string)
+    : bindingTypeIsDynamic
+      ? bindingType
+      : undefined;
+
+  // Use the hook to fetch binding schema from registry (only when needed)
+  const { bindingSchema: resolvedSchema, isLoading: isResolvingSchema } =
+    useBindingSchemaFromRegistry(dynamicAppName);
+
+  // Determine the final binding to use:
+  // 1. If dynamic resolution is needed and we got a result, use it
+  // 2. If bindingSchema is an array of tools, use it directly
+  // 3. If bindingSchema is a well-known binding name (string without /), use it directly
+  // 4. Otherwise, undefined (no filtering)
+  const resolvedBinding = (() => {
+    if (needsDynamicResolution) {
+      // Use resolved schema from registry, or undefined while loading
+      return resolvedSchema;
+    }
+    if (Array.isArray(bindingSchema)) {
+      // Direct array of tools
+      return bindingSchema as Array<{
+        name: string;
+        inputSchema?: Record<string, unknown>;
+        outputSchema?: Record<string, unknown>;
+      }>;
+    }
+    if (typeof bindingSchema === "string") {
+      // Well-known binding name (e.g., "LLMS", "AGENTS")
+      return bindingSchema;
+    }
+    return undefined;
+  })();
+
+  // Show loading indicator if we're resolving schema
+  if (needsDynamicResolution && isResolvingSchema) {
+    return (
+      <div className={className ?? "w-[200px] shrink-0"}>
+        <div className="flex items-center justify-center h-8 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          <span className="text-xs">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <BindingSelector
+      value={currentValue}
+      onValueChange={onValueChange}
+      placeholder={placeholder}
+      binding={resolvedBinding}
+      bindingType={bindingType}
+      onAddNew={onAddNew}
+      className={className}
+    />
+  );
+}
+
+/**
  * Custom ObjectFieldTemplate that handles binding fields specially
  */
 function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
@@ -153,23 +265,12 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
             </p>
           )}
         </div>
-        <BindingSelector
-          value={currentValue}
+        <BindingFieldWithDynamicSchema
+          bindingSchema={bindingSchema}
+          bindingType={bindingType}
+          currentValue={currentValue}
           onValueChange={handleBindingChange}
           placeholder={`Select ${displayTitle.toLowerCase()}...`}
-          binding={
-            // Only use bindingSchema if it's an array of tools, not a string starting with @
-            bindingSchema && !String(bindingSchema).startsWith("@")
-              ? (bindingSchema as
-                  | string
-                  | Array<{
-                      name: string;
-                      inputSchema?: Record<string, unknown>;
-                      outputSchema?: Record<string, unknown>;
-                    }>)
-              : undefined
-          }
-          bindingType={bindingType}
           onAddNew={() => formContext?.onAddNew()}
           className="w-[200px] shrink-0"
         />

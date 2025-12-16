@@ -6,4 +6,6 @@ export {
   type CreateStubAPIOptions,
   type MCPClientFetchStub,
   type MCPClientStub,
+  type ServerClient,
 } from "./mcp";
+export { bindingClient } from "../binder";

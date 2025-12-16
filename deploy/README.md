@@ -73,7 +73,7 @@ Main variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `IMAGE_REPOSITORY` | `ghcr.io/decocms/admin/mesh` | Image repository |
+| `IMAGE_REPOSITORY` | `ghcr.io/decocms/mesh/mesh` | Image repository |
 | `IMAGE_TAG` | `latest` | Image tag |
 | `PORT` | `3000` | Port exposed on host |
 | `NODE_ENV` | `production` | Node.js environment |
