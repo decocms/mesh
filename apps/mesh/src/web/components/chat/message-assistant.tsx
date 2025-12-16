@@ -96,16 +96,16 @@ export function MessageAssistant<T extends Metadata>({
     }
   }, [isLoading]);
 
-  // Calculate duration when loading finishes
+  // Calculate duration when first part arrives (thinking time, not writing time)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (!isLoading && duration === null && parts.length > 0 && startTimeRef.current !== null) {
+    if (parts.length > 0 && duration === null && startTimeRef.current !== null) {
       const calculatedDuration = Date.now() - startTimeRef.current;
       setDuration(calculatedDuration);
       // Save to localStorage for persistence
       localStorage.setItem(`msg-duration-${id}`, calculatedDuration.toString());
     }
-  }, [isLoading, duration, parts.length, id]);
+  }, [parts.length, duration, id]);
 
   const hasContent = parts.length > 0;
   const showThought = hasContent && !isLoading && duration !== null;
