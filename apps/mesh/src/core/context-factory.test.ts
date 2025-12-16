@@ -1,24 +1,35 @@
 /* oxlint-disable no-explicit-any */
-import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it, vi } from "bun:test";
 import type { Meter, Tracer } from "@opentelemetry/api";
-import { closeDatabase, createDatabase } from "../database";
+import { closeDatabase, createDatabase, type MeshDatabase } from "../database";
 import { createTestSchema } from "../storage/test-helpers";
-import type { Database } from "../storage/types";
 import { createMeshContextFactory } from "./context-factory";
 import type { BetterAuthInstance } from "./mesh-context";
+import type { EventBus } from "../event-bus/interface";
+
+// Mock EventBus
+const createMockEventBus = (): EventBus => ({
+  publish: vi.fn().mockResolvedValue({}),
+  subscribe: vi.fn().mockResolvedValue({}),
+  unsubscribe: vi.fn().mockResolvedValue({ success: true }),
+  listSubscriptions: vi.fn().mockResolvedValue([]),
+  getSubscription: vi.fn().mockResolvedValue(null),
+  start: vi.fn(),
+  stop: vi.fn(),
+  isRunning: vi.fn().mockReturnValue(false),
+});
 
 describe("createMeshContextFactory", () => {
-  let db: Kysely<Database>;
+  let database: MeshDatabase;
 
   beforeAll(async () => {
     const tempDbPath = `/tmp/test-context-factory-${Date.now()}.db`;
-    db = createDatabase(`file:${tempDbPath}`);
-    await createTestSchema(db);
+    database = createDatabase(`file:${tempDbPath}`);
+    await createTestSchema(database.db);
   });
 
   afterAll(async () => {
-    await closeDatabase(db);
+    await closeDatabase(database);
   });
 
   // Helper to create a mock Request object (factory expects Request, not Hono context)
@@ -61,13 +72,14 @@ describe("createMeshContextFactory", () => {
   describe("factory creation", () => {
     it("should create context factory function", () => {
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: createMockAuth() as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       expect(typeof factory).toBe("function");
@@ -86,13 +98,14 @@ describe("createMeshContextFactory", () => {
   describe("MeshContext creation", () => {
     it("should create MeshContext from Request", async () => {
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: createMinimalMockAuth() as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -112,13 +125,14 @@ describe("createMeshContextFactory", () => {
 
     it("should derive base URL from request", async () => {
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: createMinimalMockAuth() as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -133,13 +147,14 @@ describe("createMeshContextFactory", () => {
 
     it("should populate request metadata", async () => {
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: createMinimalMockAuth() as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -161,13 +176,14 @@ describe("createMeshContextFactory", () => {
   describe("organization scope", () => {
     it("should extract organization from Better Auth", async () => {
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: createMockAuth() as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest();
@@ -197,13 +213,14 @@ describe("createMeshContextFactory", () => {
       };
 
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: authWithoutOrg as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest();
@@ -216,13 +233,14 @@ describe("createMeshContextFactory", () => {
   describe("storage initialization", () => {
     it("should create storage adapters", async () => {
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: createMinimalMockAuth() as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -241,13 +259,14 @@ describe("createMeshContextFactory", () => {
   describe("access control initialization", () => {
     it("should create AccessControl instance", async () => {
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: createMinimalMockAuth() as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -290,13 +309,14 @@ describe("createMeshContextFactory", () => {
       };
 
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: mockAuthWithOrgInApiKey as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -330,13 +350,14 @@ describe("createMeshContextFactory", () => {
       };
 
       const factory = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: mockAuthWithoutOrg as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const request = createMockRequest({
@@ -370,13 +391,14 @@ describe("createMeshContextFactory", () => {
       };
 
       const factoryA = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: mockAuthOrgA as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const requestA = createMockRequest({
@@ -406,13 +428,14 @@ describe("createMeshContextFactory", () => {
       };
 
       const factoryB = createMeshContextFactory({
-        db,
+        db: database.db,
         auth: mockAuthOrgB as unknown as BetterAuthInstance,
         encryption: { key: "test_key" },
         observability: {
           tracer: {} as unknown as Tracer,
           meter: {} as unknown as Meter,
         },
+        eventBus: createMockEventBus(),
       });
 
       const requestB = createMockRequest({

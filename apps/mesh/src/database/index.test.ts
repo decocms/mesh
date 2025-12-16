@@ -18,13 +18,15 @@ describe("Database Factory", () => {
   describe("createDatabase", () => {
     it("should create SQLite database from file:// URL", async () => {
       const dbPath = join(tempDir, "test-file.db");
-      const db = createDatabase(`file:${dbPath}`);
+      const database = createDatabase(`file:${dbPath}`);
 
-      expect(db).toBeDefined();
+      expect(database).toBeDefined();
+      expect(database.type).toBe("sqlite");
+      expect(database.db).toBeDefined();
 
       // Test that database is functional (will fail without migrations, but db exists)
       try {
-        await db
+        await database.db
           .selectFrom("projects" as never)
           .selectAll()
           .execute();
@@ -33,20 +35,22 @@ describe("Database Factory", () => {
         expect(error).toBeDefined();
       }
 
-      await closeDatabase(db);
+      await closeDatabase(database);
     });
 
     it("should create SQLite database from sqlite:// URL", async () => {
       const dbPath = join(tempDir, "test-sqlite.db");
-      const db = createDatabase(`sqlite://${dbPath}`);
+      const database = createDatabase(`sqlite://${dbPath}`);
 
-      expect(db).toBeDefined();
-      await closeDatabase(db);
+      expect(database).toBeDefined();
+      expect(database.type).toBe("sqlite");
+      await closeDatabase(database);
     });
 
     it("should default to SQLite when no URL provided", () => {
-      const db = createDatabase();
-      expect(db).toBeDefined();
+      const database = createDatabase();
+      expect(database).toBeDefined();
+      expect(database.type).toBe("sqlite");
       // Don't close the default instance as it's a singleton
     });
 
@@ -58,26 +62,27 @@ describe("Database Factory", () => {
 
     it("should create directory if not exists for SQLite", async () => {
       const dbPath = join(tempDir, "nested", "dir", "test.db");
-      const db = createDatabase(`file:${dbPath}`);
+      const database = createDatabase(`file:${dbPath}`);
 
-      expect(db).toBeDefined();
-      await closeDatabase(db);
+      expect(database).toBeDefined();
+      await closeDatabase(database);
     });
 
     it("should handle in-memory SQLite database", async () => {
-      const db = createDatabase(":memory:");
+      const database = createDatabase(":memory:");
 
-      expect(db).toBeDefined();
-      await closeDatabase(db);
+      expect(database).toBeDefined();
+      expect(database.type).toBe("sqlite");
+      await closeDatabase(database);
     });
   });
 
   describe("closeDatabase", () => {
     it("should close database connection", async () => {
-      const db = createDatabase(":memory:");
+      const database = createDatabase(":memory:");
 
       // Should not throw
-      await closeDatabase(db);
+      await closeDatabase(database);
       expect(true).toBe(true);
     });
   });
@@ -85,15 +90,17 @@ describe("Database Factory", () => {
   describe("PostgreSQL support", () => {
     it("should recognize postgres:// protocol", () => {
       // Don't actually connect, just check protocol recognition
-      expect(() => {
-        createDatabase("postgres://user:pass@localhost:5432/db");
-      }).not.toThrow("Unsupported database protocol");
+      // This will create a Pool but we can check the type
+      const database = createDatabase("postgres://user:pass@localhost:5432/db");
+      expect(database.type).toBe("postgres");
+      // Note: Pool connection will fail but type detection works
     });
 
     it("should recognize postgresql:// protocol", () => {
-      expect(() => {
-        createDatabase("postgresql://user:pass@localhost:5432/db");
-      }).not.toThrow("Unsupported database protocol");
+      const database = createDatabase(
+        "postgresql://user:pass@localhost:5432/db",
+      );
+      expect(database.type).toBe("postgres");
     });
   });
 });

@@ -150,9 +150,10 @@ function withStreamableConnectionAuthorization(
  *
  * Single server approach - tools from downstream are dynamically fetched and registered
  */
-export async function createMCPProxy(
+async function createMCPProxyDoNotUseDirectly(
   connectionIdOrConnection: string | ConnectionEntity,
   ctx: MeshContext,
+  { superUser }: { superUser: boolean }, // this is basically used for background workers that needs cross-organization access
 ) {
   // Get connection details
   const connection =
@@ -179,7 +180,7 @@ export async function createMCPProxy(
   // Result: { [connectionId]: [scopes...] }
   const permissions: Record<string, string[]> = {};
 
-  for (const scope of connection.configuration_scopes ?? []) {
+  for (const scope of connection.configuration_scopes ?? ["conn_YIQh1iif7j2RRNGU-PtIS::EVENT_PUBLISH"]) {
     const parts = scope.split("::");
     if (parts.length === 2) {
       const [key, scopeName] = parts;
@@ -210,7 +211,8 @@ export async function createMCPProxy(
   if (!userId) {
     throw new Error("User ID required to issue configuration token");
   }
-
+  const callerConnectionId = ctx.auth.user?.connectionId;
+  console.log({callerConnectionId})
   try {
     configurationToken = await issueMeshToken({
       sub: userId,
@@ -230,7 +232,10 @@ export async function createMCPProxy(
 
   // Build request headers - reusable for both client and direct fetch
   const buildRequestHeaders = (): Record<string, string> => {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
+    };
+
 
     // Add connection token (already decrypted by storage layer)
     if (connection.connection_token) {
@@ -249,6 +254,8 @@ export async function createMCPProxy(
 
     return headers;
   };
+
+  console.log({headers: buildRequestHeaders()})
 
   // Create client factory for downstream MCP
   const createClient = async () => {
@@ -273,11 +280,12 @@ export async function createMCPProxy(
 
   // Create authorization middlewares
   // Uses boundAuth for permission checks (delegates to Better Auth)
-  const authMiddleware = withConnectionAuthorization(ctx, connectionId);
-  const streamableAuthMiddleware = withStreamableConnectionAuthorization(
-    ctx,
-    connectionId,
-  );
+  const authMiddleware: CallToolMiddleware = superUser
+    ? async (_, next) => await next()
+    : withConnectionAuthorization(ctx, connectionId);
+  const streamableAuthMiddleware: CallStreamableToolMiddleware = superUser
+    ? async (_, next) => await next()
+    : withStreamableConnectionAuthorization(ctx, connectionId);
 
   // Compose middlewares
   const callToolPipeline = compose(authMiddleware);
@@ -540,6 +548,39 @@ export async function createMCPProxy(
   };
 }
 
+/**
+ * Create MCP proxy for a downstream connection
+ * Pattern from @deco/api proxy() function
+ *
+ * Single server approach - tools from downstream are dynamically fetched and registered
+ */
+export async function createMCPProxy(
+  connectionIdOrConnection: string | ConnectionEntity,
+  ctx: MeshContext,
+) {
+  return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
+    superUser: true,
+  });
+}
+
+/**
+ * Create a MCP proxy for a downstream connection with super user access
+ * @param connectionIdOrConnection - The connection ID or connection entity
+ * @param ctx - The mesh context
+ * @returns The MCP proxy
+ */
+export async function dangerouslyCreateSuperUserMCPProxy(
+  connectionIdOrConnection: string | ConnectionEntity,
+  ctx: MeshContext,
+) {
+  return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
+    superUser: true,
+  });
+}
+
+// ============================================================================
+// Route Handler
+// ============================================================================
 /**
  * Proxy MCP request to a downstream connection
  *

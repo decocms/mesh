@@ -90,4 +90,59 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
     .addColumn("timestamp", "text", (col) => col.notNull())
     .addColumn("requestMetadata", "text")
     .execute();
+
+  // Event Bus tables
+  // Events table - stores CloudEvents
+  await db.schema
+    .createTable("events")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("organization_id", "text", (col) => col.notNull())
+    .addColumn("type", "text", (col) => col.notNull())
+    .addColumn("source", "text", (col) => col.notNull())
+    .addColumn("specversion", "text", (col) => col.notNull().defaultTo("1.0"))
+    .addColumn("subject", "text")
+    .addColumn("time", "text", (col) => col.notNull())
+    .addColumn("datacontenttype", "text", (col) =>
+      col.notNull().defaultTo("application/json"),
+    )
+    .addColumn("dataschema", "text")
+    .addColumn("data", "text")
+    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
+    .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
+    .addColumn("last_error", "text")
+    .addColumn("next_retry_at", "text")
+    .addColumn("created_at", "text", (col) => col.notNull())
+    .addColumn("updated_at", "text", (col) => col.notNull())
+    .execute();
+
+  // Event Subscriptions table
+  await db.schema
+    .createTable("event_subscriptions")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("organization_id", "text", (col) => col.notNull())
+    .addColumn("connection_id", "text", (col) => col.notNull())
+    .addColumn("publisher", "text")
+    .addColumn("event_type", "text", (col) => col.notNull())
+    .addColumn("filter", "text")
+    .addColumn("enabled", "integer", (col) => col.notNull().defaultTo(1))
+    .addColumn("created_at", "text", (col) => col.notNull())
+    .addColumn("updated_at", "text", (col) => col.notNull())
+    .execute();
+
+  // Event Deliveries table
+  await db.schema
+    .createTable("event_deliveries")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("event_id", "text", (col) => col.notNull())
+    .addColumn("subscription_id", "text", (col) => col.notNull())
+    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
+    .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
+    .addColumn("last_error", "text")
+    .addColumn("delivered_at", "text")
+    .addColumn("next_retry_at", "text")
+    .addColumn("created_at", "text", (col) => col.notNull())
+    .execute();
 }

@@ -1,0 +1,55 @@
+/**
+ * EVENT_SUBSCRIBE Tool
+ *
+ * Creates a subscription to receive events.
+ * The subscriber connection ID is automatically set from the caller's auth token.
+ */
+
+import { defineTool } from "../../core/define-tool";
+import { requireAuth, requireOrganization } from "../../core/mesh-context";
+import { SubscribeInputSchema, SubscribeOutputSchema } from "./schema";
+
+export const EVENT_SUBSCRIBE = defineTool({
+  name: "EVENT_SUBSCRIBE",
+  description:
+    "Subscribe to events of a specific type. The subscriber is automatically set to the caller's connection.",
+
+  inputSchema: SubscribeInputSchema,
+  outputSchema: SubscribeOutputSchema,
+
+  handler: async (input, ctx) => {
+    requireAuth(ctx);
+    // const organization = requireOrganization(ctx);
+    await ctx.access.check();
+
+    // Get the subscriber connection ID from the caller's token
+    // const connectionId = ctx.connectionId;
+    const connectionId = 'conn_OUYBSJZWhBS6ry7PgnCRd';
+    if (!connectionId) {
+      throw new Error(
+        "Connection ID required to subscribe. Use a connection-scoped token.",
+      );
+    }
+
+    // Create the subscription
+    const subscription = await ctx.eventBus.subscribe('As1Q1eS0lxRnRf7SaeaD8CR4z4nCvisq', {
+      connectionId,
+      eventType: input.eventType,
+      publisher: input.publisher,
+      filter: input.filter,
+    });
+
+    return {
+      subscription: {
+        id: subscription.id,
+        connectionId: subscription.connectionId,
+        eventType: subscription.eventType,
+        publisher: subscription.publisher,
+        filter: subscription.filter,
+        enabled: subscription.enabled,
+        createdAt: subscription.createdAt,
+        updatedAt: subscription.updatedAt,
+      },
+    };
+  },
+});

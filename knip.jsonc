@@ -12,7 +12,13 @@
       "ignore": ["src/styles/global.css"]
     },
     "apps/mesh": {
-      "entry": ["src/web/index.tsx!", "migrations/**/*.ts", "scripts/**/*.ts"]
+      "entry": [
+        "src/index.ts",
+        "src/web/index.tsx!",
+        "migrations/**/*.ts",
+        "scripts/**/*.ts"
+      ],
+      "ignore": ["src/api/index.ts"]
     }
   },
   "ignoreDependencies": ["@types/*"],

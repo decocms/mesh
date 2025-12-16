@@ -8,14 +8,40 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { RequestInfo } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, vi } from "bun:test";
 import { auth } from "../auth";
-import app from "./index";
+import { createDatabase, closeDatabase, type MeshDatabase } from "../database";
+import type { EventBus } from "../event-bus";
+import { createTestSchema } from "../storage/test-helpers";
+import { createApp } from "./app";
+
+/**
+ * Create a no-op mock event bus for testing
+ */
+function createMockEventBus(): EventBus {
+  return {
+    start: async () => {},
+    stop: () => {},
+    isRunning: () => false,
+    publish: async () => ({}) as never,
+    subscribe: async () => ({}) as never,
+    unsubscribe: async () => ({ success: true }),
+    listSubscriptions: async () => [],
+    getSubscription: async () => null,
+  };
+}
 
 describe("MCP Integration", () => {
   describe("Management Tools MCP Server", () => {
     let client: Client | null = null;
     let originalFetch: typeof global.fetch;
+    let database: MeshDatabase;
+    let app: ReturnType<typeof createApp>;
 
-    beforeEach(() => {
+    beforeEach(async () => {
+      // Create test database and app
+      database = createDatabase(":memory:");
+      await createTestSchema(database.db);
+      app = createApp({ database, eventBus: createMockEventBus() });
+
       // Store original fetch
       originalFetch = global.fetch;
 
@@ -53,7 +79,7 @@ describe("MCP Integration", () => {
           },
         },
         // oxlint-disable-next-line no-explicit-any
-      } as any);
+      } as never);
 
       // Mock global fetch to route through Hono app
       global.fetch = vi.fn(
@@ -83,6 +109,8 @@ describe("MCP Integration", () => {
         await client.close();
         client = null;
       }
+
+      await closeDatabase(database);
     });
 
     // Integration tests for MCP protocol removed - require complex Better Auth mocking

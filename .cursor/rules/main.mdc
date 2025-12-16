@@ -51,6 +51,41 @@ Bun is the test runner throughout. Co-locate test files next to source as `*.tes
 ## Authentication & Authorization
 Uses Better Auth for authentication (OAuth 2.1 + SSO + API keys). Authorization uses custom AccessControl layer with organization/project-level RBAC. Auth configuration is in `apps/mesh/auth-config.json` (example: `auth-config.example.json`).
 
+## Event Bus
+The MCP Mesh includes an event bus for pub/sub between connections. Key components:
+- **Events**: Follow CloudEvents v1.0 spec with `type`, `source`, `id`, `time`, `data`
+- **Subscriptions**: Connect subscribers to event types with optional publisher filter
+- **Delivery**: At-least-once with exponential backoff (1s to 1hr, max 20 attempts)
+
+### Event Bus Files
+- `packages/bindings/src/well-known/event-bus.ts` - EVENT_BUS_BINDING (PUBLISH, SUBSCRIBE, UNSUBSCRIBE)
+- `packages/bindings/src/well-known/event-subscriber.ts` - EVENT_SUBSCRIBER_BINDING (ON_EVENTS)
+- `apps/mesh/src/event-bus/` - EventBus interface and SQLite/PostgreSQL implementations
+- `apps/mesh/src/storage/event-bus.ts` - Database operations
+- `apps/mesh/src/tools/eventbus/` - MCP tools (publish.ts, subscribe.ts, unsubscribe.ts, list.ts)
+- `apps/mesh/migrations/008-event-bus.ts` - Database schema
+
+### Event Bus MCP Tools
+- `EVENT_PUBLISH` - Publish events (source = calling connection)
+- `EVENT_SUBSCRIBE` - Subscribe to event types
+- `EVENT_UNSUBSCRIBE` - Remove subscriptions
+- `EVENT_SUBSCRIPTION_LIST` - List subscriptions
+
+### Event Bus Bindings
+- `EVENT_BUS_BINDING` - For connections using the event bus
+- `EVENT_SUBSCRIBER_BINDING` - For connections receiving events (implements `ON_EVENTS`)
+
+### Event Bus Configuration (EventBusConfig)
+```typescript
+{
+  pollIntervalMs: 5000,    // Poll interval (default 5s)
+  batchSize: 100,          // Max events per batch
+  maxAttempts: 20,         // Delivery attempts before failure
+  retryDelayMs: 1000,      // Base delay (1s)
+  maxDelayMs: 3600000,     // Max delay cap (1hr)
+}
+```
+
 ## Commit & Pull Request Guidelines
 Follow Conventional Commit-style history: `type(scope): message`, optionally wrapping the type in brackets for chores (e.g., `[chore]: update deps`). Reference issues with `(#1234)` when applicable. PRs should include:
 - Succinct summary of changes
