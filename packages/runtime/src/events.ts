@@ -10,8 +10,8 @@ import z from "zod";
 // ============================================================================
 
 export interface EventSubscription {
-  connectionId: string;
-  events: string[];
+  eventType: string;
+  publisher: string;
 }
 
 interface Binding {
@@ -214,6 +214,7 @@ const scopesFromEvents = <TSchema extends z.ZodTypeAny = never>(
 
 /**
  * Get subscriptions from event handlers and state
+ * Returns flat array of { eventType, publisher } for EVENT_SYNC_SUBSCRIPTIONS
  */
 const eventsSubscriptions = <TSchema extends z.ZodTypeAny = never>(
   handlers: EventHandlers<TSchema>,
@@ -224,10 +225,12 @@ const eventsSubscriptions = <TSchema extends z.ZodTypeAny = never>(
     const subscriptions: EventSubscription[] = [];
     for (const [, value] of Object.entries(state)) {
       if (isBinding(value)) {
-        subscriptions.push({
-          connectionId: value.value,
-          events: handlers.events,
-        });
+        for (const eventType of handlers.events) {
+          subscriptions.push({
+            eventType,
+            publisher: value.value,
+          });
+        }
       }
     }
     return subscriptions;
@@ -239,10 +242,12 @@ const eventsSubscriptions = <TSchema extends z.ZodTypeAny = never>(
     if (!isBinding(bindingValue)) continue;
 
     const eventTypes = getEventTypesForBinding(handlers, binding);
-    subscriptions.push({
-      connectionId: bindingValue.value,
-      events: eventTypes,
-    });
+    for (const eventType of eventTypes) {
+      subscriptions.push({
+        eventType,
+        publisher: bindingValue.value,
+      });
+    }
   }
   return subscriptions;
 };

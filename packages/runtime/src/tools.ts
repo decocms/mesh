@@ -314,24 +314,12 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
               });
               const bus = getEventBus(busProp, input.runtimeContext.env);
               if (events && state && bus) {
-                // subscribe to events
+                // Sync subscriptions - always call to handle deletions too
                 const subscriptions = Event.subscriptions(
                   events?.handlers ?? {},
                   state,
                 );
-
-                await Promise.all(
-                  subscriptions.map(async (subscription) => {
-                    return Promise.all(
-                      subscription.events.map(async (event) => {
-                        return bus.EVENT_SUBSCRIBE({
-                          publisher: subscription.connectionId,
-                          eventType: event,
-                        });
-                      }),
-                    );
-                  }),
-                );
+                await bus.EVENT_SYNC_SUBSCRIPTIONS({ subscriptions });
               }
               return Promise.resolve({});
             },
@@ -375,7 +363,7 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
           scopes: [
             ...(scopes ?? []),
             ...Event.scopes(events?.handlers ?? {}),
-            ...(busProp ? [`${busProp}::EVENT_SUBSCRIBE`] : []),
+            ...(busProp ? [`${busProp}::EVENT_SYNC_SUBSCRIPTIONS`] : []),
           ],
         });
       },
