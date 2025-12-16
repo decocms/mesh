@@ -7,8 +7,6 @@
 
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "../../../tools/client";
 import {
-  useCollectionActions,
-  useCollectionItem,
   useCollectionList,
   type UseCollectionListOptions,
 } from "../use-collections";
@@ -54,39 +52,4 @@ export function useAgentsFromConnection(
     toolCaller,
     options,
   );
-}
-
-/**
- * Hook to get a single agent by ID from a specific connection
- *
- * @param connectionId - The ID of the connection
- * @param agentId - The ID of the agent to fetch
- * @returns Suspense query result with the agent
- */
-export function useAgentFromConnection(
-  connectionId: string | undefined,
-  agentId: string | undefined,
-) {
-  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
-  const toolCaller = createToolCaller(safeConnectionId);
-
-  return useCollectionItem<Agent>(
-    safeConnectionId,
-    "AGENT",
-    agentId,
-    toolCaller,
-  );
-}
-
-/**
- * Hook to get agent mutation actions (create, update, delete) for a specific connection
- *
- * @param connectionId - The ID of the connection
- * @returns Object with create, update, and delete mutation hooks
- */
-export function useAgentActions(connectionId: string | undefined) {
-  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
-  const toolCaller = createToolCaller(safeConnectionId);
-
-  return useCollectionActions<Agent>(safeConnectionId, "AGENT", toolCaller);
 }

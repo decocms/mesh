@@ -33,13 +33,6 @@ function getThreadsFromIndexedDB(locator: string): Promise<Thread[]> {
 /**
  * Get a single thread by ID from IndexedDB
  */
-function getThreadFromIndexedDB(
-  locator: string,
-  threadId: string,
-): Promise<Thread | null> {
-  const key = `${locator}:threads:${threadId}`;
-  return get<Thread>(key).then((value: Thread | undefined) => value ?? null);
-}
 
 /**
  * Get messages for a specific thread from IndexedDB
@@ -89,25 +82,6 @@ export function useThreads() {
     queryKey: KEYS.threads(locator),
     queryFn: () => getThreadsFromIndexedDB(locator),
     staleTime: 30_000, // 30 seconds
-  });
-
-  return data;
-}
-
-/**
- * Hook to get a single thread by ID
- *
- * @param threadId - The ID of the thread to fetch
- * @returns Suspense query result with the thread or null
- */
-export function useThread(threadId: string | undefined) {
-  const { locator } = useProjectContext();
-
-  const { data } = useSuspenseQuery({
-    queryKey: KEYS.thread(locator, threadId ?? ""),
-    queryFn: () =>
-      threadId ? getThreadFromIndexedDB(locator, threadId) : null,
-    staleTime: 30_000,
   });
 
   return data;

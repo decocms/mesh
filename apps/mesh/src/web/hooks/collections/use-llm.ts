@@ -9,8 +9,6 @@ import type { ModelCollectionEntitySchema } from "@decocms/bindings/llm";
 import { z } from "zod";
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "../../../tools/client";
 import {
-  useCollectionActions,
-  useCollectionItem,
   useCollectionList,
   type UseCollectionListOptions,
 } from "../use-collections";
@@ -40,34 +38,4 @@ export function useLLMsFromConnection(
   const toolCaller = createToolCaller(safeConnectionId);
 
   return useCollectionList<LLM>(safeConnectionId, "LLM", toolCaller, options);
-}
-
-/**
- * Hook to get a single LLM by ID from a specific connection
- *
- * @param connectionId - The ID of the connection
- * @param llmId - The ID of the LLM to fetch
- * @returns Suspense query result with the LLM
- */
-export function useLLMFromConnection(
-  connectionId: string | undefined,
-  llmId: string | undefined,
-) {
-  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
-  const toolCaller = createToolCaller(safeConnectionId);
-
-  return useCollectionItem<LLM>(safeConnectionId, "LLM", llmId, toolCaller);
-}
-
-/**
- * Hook to get LLM mutation actions (create, update, delete) for a specific connection
- *
- * @param connectionId - The ID of the connection
- * @returns Object with create, update, and delete mutation hooks
- */
-export function useLLMActions(connectionId: string | undefined) {
-  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
-  const toolCaller = createToolCaller(safeConnectionId);
-
-  return useCollectionActions<LLM>(safeConnectionId, "LLM", toolCaller);
 }

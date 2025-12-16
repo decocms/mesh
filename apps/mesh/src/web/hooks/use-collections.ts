@@ -23,7 +23,6 @@ import {
 import {
   useMutation,
   useQueryClient,
-  useSuspenseInfiniteQuery,
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -46,7 +45,7 @@ export interface CollectionFilter {
 }
 
 /**
- * Options for useCollectionList and useCollectionListInfinite hooks
+ * Options for useCollectionList hook
  */
 export interface UseCollectionListOptions<T extends CollectionEntity> {
   /** Text search term (searches configured searchable fields) */
@@ -174,85 +173,6 @@ export function useCollectionItem<T extends CollectionEntity>(
   });
 
   return data.item;
-}
-
-/**
- * Get a paginated list of items from a collection with infinite scrolling
- *
- * @param scopeKey - The scope key (connectionId for connection-scoped, org.slug for mesh-scoped)
- * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
- * @param toolCaller - The tool caller function for making API calls
- * @param options - Filter and configuration options
- * @returns Suspense infinite query result
- */
-export function useCollectionListInfinite<T extends CollectionEntity>(
-  scopeKey: string,
-  collectionName: string,
-  toolCaller: ToolCaller,
-  options: UseCollectionListOptions<T> = {},
-) {
-  const {
-    searchTerm,
-    filters,
-    sortKey,
-    sortDirection,
-    searchFields = ["title", "description"] as (keyof T)[],
-    defaultSortKey = "updated_at" as keyof T,
-    pageSize = 100,
-  } = options;
-
-  const upperName = collectionName.toUpperCase();
-  const listToolName = `COLLECTION_${upperName}_LIST`;
-
-  const where = buildWhereExpression(searchTerm, filters, searchFields);
-  const orderBy = buildOrderByExpression(
-    sortKey,
-    sortDirection,
-    defaultSortKey,
-  );
-
-  // Create a stable params key for the query key
-  const paramsKey = JSON.stringify({ where, orderBy, limit: pageSize });
-
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useSuspenseInfiniteQuery({
-      queryKey: KEYS.collectionListInfinite(
-        scopeKey,
-        collectionName,
-        paramsKey,
-      ),
-      queryFn: async ({ pageParam = 0 }) => {
-        const input: CollectionListInput = {
-          ...(where && { where }),
-          ...(orderBy && { orderBy }),
-          limit: pageSize,
-          offset: pageParam as number,
-        };
-        const result = (await toolCaller(
-          listToolName,
-          input,
-        )) as CollectionListOutput<T>;
-
-        return result ?? [];
-      },
-      initialPageParam: 0,
-      getNextPageParam: (
-        lastPage: CollectionListOutput<T>,
-        allPages: CollectionListOutput<T>[],
-      ) => {
-        if (!lastPage.hasMore) {
-          return undefined;
-        }
-        return allPages.length * pageSize;
-      },
-    });
-
-  return {
-    data,
-    fetchNextPage,
-    hasNextPage: hasNextPage ?? false,
-    isFetchingNextPage,
-  };
 }
 
 /**
