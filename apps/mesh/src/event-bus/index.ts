@@ -34,7 +34,6 @@ export {
 // Export EventBus type alias (for typing in tests/consumers)
 export type { EventBus } from "./interface";
 
-export { createNotifySubscriber } from "./notify";
 export type { NotifyStrategy } from "./notify-strategy";
 
 /**
