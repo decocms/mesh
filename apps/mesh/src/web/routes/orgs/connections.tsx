@@ -9,7 +9,7 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   useConnections,
-  useConnectionsCollection,
+  useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -118,7 +118,7 @@ function OrgMcpsContent() {
     resource: "connections",
   });
 
-  const connectionsCollection = useConnectionsCollection();
+  const actions = useConnectionActions();
   const connections = useConnections(listState);
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
@@ -182,11 +182,9 @@ function OrgMcpsContent() {
     dispatch({ type: "close" });
 
     try {
-      await connectionsCollection.delete(id).isPersisted.promise;
+      await actions.delete.mutateAsync(id);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete connection",
-      );
+      // Error toast is handled by the mutation's onError
     }
   };
 
@@ -202,23 +200,20 @@ function OrgMcpsContent() {
 
       if (editingConnection) {
         // Update existing connection
-        const tx = connectionsCollection.update(
-          editingConnection.id,
-          (draft) => {
-            draft.title = data.title;
-            draft.description = data.description || null;
-            draft.connection_type = data.connection_type;
-            draft.connection_url = data.connection_url;
-            if (data.connection_token) {
-              draft.connection_token = data.connection_token;
-            }
+        await actions.update.mutateAsync({
+          id: editingConnection.id,
+          data: {
+            title: data.title,
+            description: data.description || null,
+            connection_type: data.connection_type,
+            connection_url: data.connection_url,
+            ...(data.connection_token && { connection_token: data.connection_token }),
           },
-        );
-        await tx.isPersisted.promise;
+        });
       } else {
         const newId = generatePrefixedId("conn");
         // Create new connection
-        const tx = connectionsCollection.insert({
+        await actions.create.mutateAsync({
           id: newId,
           title: data.title,
           description: data.description || null,

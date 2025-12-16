@@ -21,13 +21,13 @@ import {
   Play,
   Plus,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useMcp } from "use-mcp/react";
 import { normalizeUrl } from "@/web/utils/normalize-url";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
-import { OAuthAuthenticationState } from "./connection/oauth-authentication-state";
+import { OAuthAuthenticationState } from "./connection/settings-tab";
 import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
 
 export interface ToolDetailsViewProps {
@@ -42,14 +42,60 @@ const beautifyToolName = (toolName: string) => {
     .replace(/\b\w/g, (char) => char.toLocaleLowerCase());
 };
 
-export function ToolDetailsView({
-  itemId: toolName,
+function ToolDetailsContent({
+  toolName,
+  connectionId,
+  connection,
   onBack,
-}: ToolDetailsViewProps) {
-  const params = useParams({ strict: false });
-  const connectionId = params.connectionId ?? UNKNOWN_CONNECTION_ID;
+}: {
+  toolName: string;
+  connectionId: string;
+  connection: NonNullable<ReturnType<typeof useConnection>>;
+  onBack: () => void;
+}) {
+  const mcpOriginalUrl = normalizeUrl(connection.connection_url);
+  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
 
-  const connection = useConnection(connectionId);
+  const isMCPAuthenticated = useIsMCPAuthenticated({
+    url: mcpOriginalUrl,
+    token: connection.connection_token ?? null,
+  });
+
+  if (!isMCPAuthenticated) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <OAuthAuthenticationState
+          onAuthenticate={() => onBack()}
+          buttonText="Go back"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <ToolDetailsAuthenticated
+      toolName={toolName}
+      connectionId={connectionId}
+      connection={connection}
+      mcpProxyUrl={mcpProxyUrl}
+      onBack={onBack}
+    />
+  );
+}
+
+function ToolDetailsAuthenticated({
+  toolName,
+  connectionId,
+  connection,
+  mcpProxyUrl,
+  onBack,
+}: {
+  toolName: string;
+  connectionId: string;
+  connection: NonNullable<ReturnType<typeof useConnection>>;
+  mcpProxyUrl: URL;
+  onBack: () => void;
+}) {
   const [inputParams, setInputParams] = useState<Record<string, unknown>>({});
   const [executionResult, setExecutionResult] = useState<Record<
     string,
@@ -64,27 +110,6 @@ export function ToolDetailsView({
     cost?: string;
   } | null>(null);
   const [viewMode, setViewMode] = useState<"json" | "view">("json");
-
-  const mcpOriginalUrl = connection?.connection_url
-    ? normalizeUrl(connection.connection_url)
-    : "";
-  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
-
-  const isMCPAuthenticated = useIsMCPAuthenticated({
-    url: mcpOriginalUrl,
-    token: connection?.connection_token ?? null,
-  });
-
-  if (!isMCPAuthenticated) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <OAuthAuthenticationState
-          onAuthenticate={() => onBack()}
-          buttonText="Go back"
-        />
-      </div>
-    );
-  }
 
   const mcp = useMcp({
     url: mcpProxyUrl.href,
@@ -185,14 +210,6 @@ export function ToolDetailsView({
   const handleInputChange = (key: string, value: string) => {
     setInputParams((prev) => ({ ...prev, [key]: value }));
   };
-
-  if (!connection) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
     <ViewLayout onBack={onBack}>
@@ -437,5 +454,45 @@ export function ToolDetailsView({
         </div>
       </div>
     </ViewLayout>
+  );
+}
+
+export function ToolDetailsView({
+  itemId: toolName,
+  onBack,
+}: ToolDetailsViewProps) {
+  const params = useParams({ strict: false });
+  const connectionId = params.connectionId ?? UNKNOWN_CONNECTION_ID;
+
+  const connection = useConnection(connectionId);
+
+  if (!connection) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h3 className="text-lg font-semibold">Connection not found</h3>
+          <p className="text-sm text-muted-foreground">
+            This connection may have been deleted or you may not have access.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <ToolDetailsContent
+        toolName={toolName}
+        connectionId={connectionId}
+        connection={connection}
+        onBack={onBack}
+      />
+    </Suspense>
   );
 }

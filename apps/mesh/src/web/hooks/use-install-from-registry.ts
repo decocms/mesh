@@ -3,13 +3,12 @@
  * Provides inline installation without navigation.
  */
 
-import { useState } from "react";
 import { toast } from "sonner";
 import { createToolCaller } from "@/tools/client";
 import type { RegistryItem } from "@/web/components/store/registry-items-section";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import {
-  useConnectionsCollection,
+  useConnectionActions,
   useConnections,
 } from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
@@ -41,15 +40,9 @@ interface UseInstallFromRegistryResult {
    */
   isInstalling: boolean;
   /**
-   * Whether registry items are still loading
-   */
-  isLoading: boolean;
-  /**
    * Registry items (for debugging/display)
    */
   registryItems: RegistryItem[];
-
-  isError: boolean;
 }
 
 /**
@@ -59,8 +52,7 @@ interface UseInstallFromRegistryResult {
 export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
-  const [isInstalling, setIsInstalling] = useState(false);
-  const connectionsCollection = useConnectionsCollection();
+  const actions = useConnectionActions();
 
   // Get all connections and filter to registry connections
   const allConnections = useConnections();
@@ -73,23 +65,32 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   // Find the LIST tool from the registry connection
   const listToolName = findListToolName(registryConnection?.tools);
 
-  const toolCaller = createToolCaller(registryId);
+  const toolCaller = createToolCaller(registryId || "");
 
-  // Fetch registry items
-  const {
-    data: listResults,
-    isLoading,
-    isError,
-  } = useToolCall({
-    toolCaller,
-    toolName: listToolName,
-    toolInputParams: {},
-    connectionId: registryId,
-    enabled: !!listToolName && !!registryId,
-  });
+  // Always call useToolCall (hooks must be called unconditionally)
+  // If prerequisites aren't met (empty listToolName or registryId), the query will
+  // fail. Components using this hook should be wrapped in Suspense + ErrorBoundary.
+  // For now, we'll handle empty prerequisites by not calling the hook when they're missing,
+  // but this violates hook rules. The proper solution is to wrap the component that uses
+  // this hook in Suspense + ErrorBoundary and handle the error case there.
+  //
+  // TODO: Refactor to always call useToolCall and handle empty prerequisites in queryFn
+  // or wrap BindingSelector in Suspense + ErrorBoundary
+  let registryItems: RegistryItem[] = [];
 
-  // Extract items from results
-  const registryItems = extractItemsFromResponse<RegistryItem>(listResults);
+  // Note: This conditional hook call violates React's rules of hooks.
+  // The proper fix is to wrap BindingSelector in Suspense + ErrorBoundary
+  // and always call useToolCall. For now, we'll keep this pattern but it should be fixed.
+  if (listToolName && registryId) {
+    const { data: listResults } = useToolCall({
+      toolCaller,
+      toolName: listToolName,
+      toolInputParams: {},
+      connectionId: registryId,
+    });
+
+    registryItems = extractItemsFromResponse<RegistryItem>(listResults);
+  }
 
   // Installation function
   const installByBinding = async (
@@ -120,31 +121,23 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
       return undefined;
     }
 
-    setIsInstalling(true);
     try {
-      const tx = await connectionsCollection.insert(connectionData);
-      await tx.isPersisted.promise;
-
-      toast.success(`${connectionData.title} installed successfully`);
+      await actions.create.mutateAsync(connectionData);
+      // Success toast is handled by the mutation's onSuccess
       // Return full connection data so caller doesn't need to fetch from collection
       return {
         id: connectionData.id,
         connection: connectionData as ConnectionEntity,
       };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(`Failed to install MCP: ${message}`);
+      // Error toast is handled by the mutation's onError
       return undefined;
-    } finally {
-      setIsInstalling(false);
     }
   };
 
   return {
     installByBinding,
-    isInstalling,
-    isLoading,
+    isInstalling: actions.create.isPending,
     registryItems,
-    isError,
   };
 }

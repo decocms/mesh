@@ -60,6 +60,22 @@ export const KEYS = {
   collectionItems: (connectionId: string, collectionName: string) =>
     ["collection", connectionId, collectionName] as const,
 
+  // Collection CRUD queries (scoped by scopeKey and collection name)
+  // scopeKey is connectionId for connection-scoped tools, org.slug for mesh-scoped collections
+  collectionItem: (scopeKey: string, collectionName: string, itemId: string) =>
+    ["collection-item", scopeKey, collectionName, itemId] as const,
+  collectionList: (
+    scopeKey: string,
+    collectionName: string,
+    paramsKey: string,
+  ) => ["collection-list", scopeKey, collectionName, paramsKey] as const,
+  collectionListInfinite: (
+    scopeKey: string,
+    collectionName: string,
+    paramsKey: string,
+  ) =>
+    ["collection-list-infinite", scopeKey, collectionName, paramsKey] as const,
+
   // GitHub README (scoped by owner and repo)
   githubReadme: (
     owner: string | null | undefined,

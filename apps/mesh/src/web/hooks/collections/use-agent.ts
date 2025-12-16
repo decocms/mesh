@@ -2,12 +2,13 @@
  * Agent Collection Hooks
  *
  * Provides React hooks for working with agents from remote connections
- * using TanStack DB collections and live queries.
+ * using React Query.
  */
 
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "../../../tools/client";
 import {
-  useCollection,
+  useCollectionActions,
+  useCollectionItem,
   useCollectionList,
   type UseCollectionListOptions,
 } from "../use-collections";
@@ -32,11 +33,11 @@ export interface Agent {
 export type UseAgentsOptions = UseCollectionListOptions<Agent>;
 
 /**
- * Hook to get all agents from a specific connection with live query reactivity
+ * Hook to get all agents from a specific connection
  *
  * @param connectionId - The ID of the connection to fetch agents from
  * @param options - Filter and configuration options
- * @returns Live query result with agents
+ * @returns Suspense query result with agents
  */
 export function useAgentsFromConnection(
   connectionId: string | undefined,
@@ -44,12 +45,43 @@ export function useAgentsFromConnection(
 ) {
   // Use a placeholder ID when connectionId is undefined to ensure hooks are always called
   // in the same order (Rules of Hooks compliance)
-  const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
+  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(safeConnectionId);
 
-  const collection = useCollection<Agent>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
+  return useCollectionList<Agent>(safeConnectionId, "AGENT", toolCaller, options);
+}
+
+/**
+ * Hook to get a single agent by ID from a specific connection
+ *
+ * @param connectionId - The ID of the connection
+ * @param agentId - The ID of the agent to fetch
+ * @returns Suspense query result with the agent
+ */
+export function useAgentFromConnection(
+  connectionId: string | undefined,
+  agentId: string | undefined,
+) {
+  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(safeConnectionId);
+
+  return useCollectionItem<Agent>(
+    safeConnectionId,
     "AGENT",
+    agentId,
     toolCaller,
   );
-  return useCollectionList(collection, options);
+}
+
+/**
+ * Hook to get agent mutation actions (create, update, delete) for a specific connection
+ *
+ * @param connectionId - The ID of the connection
+ * @returns Object with create, update, and delete mutation hooks
+ */
+export function useAgentActions(connectionId: string | undefined) {
+  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(safeConnectionId);
+
+  return useCollectionActions<Agent>(safeConnectionId, "AGENT", toolCaller);
 }

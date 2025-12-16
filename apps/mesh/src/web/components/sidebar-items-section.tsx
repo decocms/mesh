@@ -10,8 +10,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense } from "react";
 import { toast } from "sonner";
 import {
-  getOrganizationSettingsCollection,
   useOrganizationSettings,
+  useOrganizationSettingsActions,
 } from "../hooks/collections/use-organization-settings";
 import { useProjectContext } from "../providers/project-context-provider";
 
@@ -22,7 +22,7 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const settings = useOrganizationSettings(org.id);
-  const collection = getOrganizationSettingsCollection(org.id);
+  const actions = useOrganizationSettingsActions(org.id);
 
   const handleDelete = async () => {
     const currentItems = settings?.sidebar_items || [];
@@ -30,12 +30,8 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
       (sidebarItem) => sidebarItem.url !== item.url,
     );
 
-    const tx = collection.update(org.id, (draft) => {
-      draft.sidebar_items = updatedItems;
-    });
-    tx.isPersisted.promise.catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to delete sidebar item: ${message}`);
+    await actions.update.mutateAsync({
+      sidebar_items: updatedItems,
     });
   };
 

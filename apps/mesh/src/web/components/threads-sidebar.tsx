@@ -6,8 +6,7 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { Suspense } from "react";
-import { useThreadsCollection } from "../hooks/use-chat-store";
-import { useCollectionList } from "../hooks/use-collections";
+import { useThreads } from "../hooks/use-chat-store";
 import { useDecoChatOpen } from "../hooks/use-deco-chat-open";
 import { useChat } from "../providers/chat-provider";
 import type { Thread } from "../types/chat-threads";
@@ -74,13 +73,17 @@ const FILTERS = [{ column: "hidden", value: false }];
  */
 function RecentThreadsList() {
   const { activeThreadId } = useChat();
-  const threadsCollection = useThreadsCollection();
-  const threads = useCollectionList(threadsCollection, {
-    sortKey: "updated_at",
-    sortDirection: "desc",
-    maxItems: MAX_THREADS_ON_SIDEBAR,
-    filters: FILTERS,
-  });
+  const allThreads = useThreads();
+
+  // Filter and sort threads
+  const threads = allThreads
+    .filter((thread) => !thread.hidden)
+    .sort((a, b) => {
+      const aTime = new Date(a.updated_at).getTime();
+      const bTime = new Date(b.updated_at).getTime();
+      return bTime - aTime; // Descending order
+    })
+    .slice(0, MAX_THREADS_ON_SIDEBAR);
 
   if (threads.length === 0) {
     return (

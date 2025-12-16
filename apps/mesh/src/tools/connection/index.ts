@@ -14,7 +14,4 @@ export { COLLECTION_CONNECTIONS_DELETE } from "./delete";
 // Connection test tool
 export { CONNECTION_TEST } from "./test";
 
-// Connection configuration tool
-export { CONNECTION_CONFIGURE } from "./configure";
-
 // Utility exports

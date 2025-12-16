@@ -2,7 +2,10 @@ import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { AgentDetailsView } from "@/web/components/details/agent.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { useCollection } from "@/web/hooks/use-collections";
+import {
+  useCollectionActions,
+  useCollectionItem,
+} from "@/web/hooks/use-collections";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
@@ -64,29 +67,21 @@ function CollectionDetailsContent() {
     router.history.back();
   };
 
-  const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
+  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(safeConnectionId);
 
-  const collection = useCollection(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
-    collectionName,
-    toolCaller,
-  );
+  const actions = useCollectionActions(safeConnectionId, collectionName, toolCaller);
 
   const handleUpdate = async (updates: Record<string, unknown>) => {
-    if (!collection || !itemId) return;
+    if (!itemId) return;
     try {
-      const tx = collection.update(itemId, (draft: Record<string, unknown>) => {
-        // Apply updates to draft
-        // Note: The draft structure depends on how the collection was defined and data shape.
-        // For objects, Object.assign is usually fine if we want shallow merge.
-        // We might need to handle nested updates if `updates` contains deep structures.
-        Object.assign(draft, updates);
+      await actions.update.mutateAsync({
+        id: itemId,
+        data: updates,
       });
-      await tx.isPersisted.promise;
-      toast.success("Item updated successfully");
+      // Success toast is handled by the mutation's onSuccess
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to update item: ${message}`);
+      // Error toast is handled by the mutation's onError
       throw error;
     }
   };
