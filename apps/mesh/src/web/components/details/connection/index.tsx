@@ -6,7 +6,7 @@ import {
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
 import { useCollectionBindings } from "@/web/hooks/use-binding";
-import { normalizeUrl } from "@/web/utils/normalize-url";
+import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import {
@@ -17,15 +17,124 @@ import {
 } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { Suspense } from "react";
-import { useMcp } from "use-mcp/react";
 import { ViewLayout, ViewTabs } from "../layout";
 import { CollectionTab } from "./collection-tab";
 import { ReadmeTab } from "./readme-tab";
 import { SettingsTab } from "./settings-tab";
 import { ToolsTab } from "./tools-tab";
 
-function ConnectionInspectorViewContent() {
+function ConnectionInspectorViewWithConnection({
+  connection,
+  connectionId,
+  org,
+  requestedTabId,
+  collections,
+  onUpdate,
+  isUpdating,
+}: {
+  connection: ConnectionEntity;
+  connectionId: string;
+  org: string;
+  requestedTabId: string;
+  collections: ReturnType<typeof useCollectionBindings>;
+  onUpdate: (connection: Partial<ConnectionEntity>) => Promise<void>;
+  isUpdating: boolean;
+}) {
   const router = useRouter();
+  const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
+
+  const isMCPAuthenticated = useIsMCPAuthenticated({
+    url: connection.connection_url,
+    token: connection.connection_token,
+  });
+
+  // Check if connection has repository info for README tab (stored in metadata)
+  const repository = connection?.metadata?.repository as
+    | { url?: string; source?: string; subfolder?: string }
+    | undefined;
+  const hasRepository = !!repository?.url;
+
+  const toolsCount = connection?.tools?.length ?? 0;
+
+  const tabs = [
+    { id: "settings", label: "Settings" },
+    ...(isMCPAuthenticated && toolsCount > 0
+      ? [{ id: "tools", label: "Tools", count: toolsCount }]
+      : []),
+    ...(isMCPAuthenticated
+      ? (collections || []).map((c) => ({ id: c.name, label: c.displayName }))
+      : []),
+    ...(hasRepository ? [{ id: "readme", label: "README" }] : []),
+  ];
+
+  const activeTabId = tabs.some((t) => t.id === requestedTabId)
+    ? requestedTabId
+    : "settings";
+
+  const handleTabChange = (tabId: string) => {
+    navigate({ search: (prev) => ({ ...prev, tab: tabId }), replace: true });
+  };
+
+  const activeCollection = (collections || []).find(
+    (c) => c.name === activeTabId,
+  );
+
+  return (
+    <ViewLayout onBack={() => router.history.back()}>
+      <ViewTabs>
+        <ResourceTabs
+          tabs={tabs}
+          activeTab={activeTabId}
+          onTabChange={handleTabChange}
+        />
+      </ViewTabs>
+      <div className="flex h-full w-full bg-background overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 bg-background overflow-auto">
+          <ErrorBoundary>
+            <Suspense
+              fallback={
+                <div className="flex h-full items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              }
+            >
+              {activeTabId === "tools" ? (
+                <ToolsTab
+                  tools={connection.tools ?? undefined}
+                  connectionId={connectionId}
+                  org={org}
+                />
+              ) : activeTabId === "settings" ? (
+                <SettingsTab
+                  connection={connection}
+                  onUpdate={onUpdate}
+                  isUpdating={isUpdating}
+                  isMCPAuthenticated={isMCPAuthenticated}
+                />
+              ) : activeTabId === "readme" && hasRepository ? (
+                <ReadmeTab repository={repository} />
+              ) : activeCollection && isMCPAuthenticated ? (
+                <CollectionTab
+                  key={activeTabId}
+                  connectionId={connectionId}
+                  org={org}
+                  activeCollection={activeCollection}
+                />
+              ) : (
+                <EmptyState
+                  title="Collection not found"
+                  description="This collection may have been deleted or you may not have access."
+                />
+              )}
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+      </div>
+    </ViewLayout>
+  );
+}
+
+function ConnectionInspectorViewContent() {
   const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
   const { connectionId, org } = useParams({
     from: "/shell/$org/mcps/$connectionId",
@@ -33,7 +142,7 @@ function ConnectionInspectorViewContent() {
 
   // We can use search params for active tab if we want persistent tabs
   const search = useSearch({ from: "/shell/$org/mcps/$connectionId" });
-  const activeTabId = search.tab || "settings";
+  const requestedTabId = search.tab || "settings";
 
   const connection = useConnection(connectionId);
   const actions = useConnectionActions();
@@ -50,41 +159,6 @@ function ConnectionInspectorViewContent() {
       data: updatedConnection,
     });
   };
-
-  // Initialize MCP connection
-  const normalizedUrl = connection?.connection_url
-    ? normalizeUrl(connection.connection_url)
-    : "";
-
-  const mcp = useMcp({
-    url: normalizedUrl,
-    clientName: "MCP Mesh Inspector",
-    clientUri: window.location.origin,
-    callbackUrl: `${window.location.origin}/oauth/callback`,
-    debug: false,
-    preventAutoAuth: true,
-    autoReconnect: false,
-    autoRetry: false,
-  });
-
-  // Check if connection has repository info for README tab (stored in metadata)
-  const repository = connection?.metadata?.repository as
-    | { url?: string; source?: string; subfolder?: string }
-    | undefined;
-  const hasRepository = !!repository?.url;
-
-  const tabs = [
-    { id: "settings", label: "Settings" },
-    { id: "tools", label: "Tools", count: mcp.tools?.length ?? 0 },
-    ...(collections || []).map((c) => ({ id: c.name, label: c.displayName })),
-    ...(hasRepository ? [{ id: "readme", label: "README" }] : []),
-  ];
-
-  const handleTabChange = (tabId: string) => {
-    navigate({ search: (prev) => ({ ...prev, tab: tabId }), replace: true });
-  };
-
-  const activeCollection = collections.find((c) => c.name === activeTabId);
 
   if (!connection) {
     return (
@@ -111,56 +185,15 @@ function ConnectionInspectorViewContent() {
   }
 
   return (
-    <ViewLayout onBack={() => router.history.back()}>
-      <ViewTabs>
-        <ResourceTabs
-          tabs={tabs}
-          activeTab={activeTabId}
-          onTabChange={handleTabChange}
-        />
-      </ViewTabs>
-      <div className="flex h-full w-full bg-background overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0 bg-background overflow-auto">
-          <ErrorBoundary>
-            <Suspense
-              fallback={
-                <div className="flex h-full items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              }
-            >
-              {activeTabId === "tools" ? (
-                <ToolsTab
-                  tools={mcp.tools}
-                  connectionId={connectionId}
-                  org={org}
-                />
-              ) : activeTabId === "settings" ? (
-                <SettingsTab
-                  connection={connection}
-                  onUpdate={handleUpdateConnection}
-                  isUpdating={actions.update.isPending}
-                />
-              ) : activeTabId === "readme" && hasRepository ? (
-                <ReadmeTab repository={repository} />
-              ) : activeCollection ? (
-                <CollectionTab
-                  key={activeTabId}
-                  connectionId={connectionId}
-                  org={org}
-                  activeCollection={activeCollection}
-                />
-              ) : (
-                <EmptyState
-                  title="Collection not found"
-                  description="This collection may have been deleted or you may not have access."
-                />
-              )}
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-      </div>
-    </ViewLayout>
+    <ConnectionInspectorViewWithConnection
+      connection={connection}
+      connectionId={connectionId}
+      org={org}
+      requestedTabId={requestedTabId}
+      collections={collections}
+      onUpdate={handleUpdateConnection}
+      isUpdating={actions.update.isPending}
+    />
   );
 }
 
