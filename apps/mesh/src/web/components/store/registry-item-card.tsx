@@ -92,16 +92,15 @@ interface RegistryItemCardProps {
 export function extractCardDisplayData(
   item: RegistryItem,
 ): Omit<RegistryItemCardProps, "onClick"> {
-  const rawTitle =
-    item.title || item.server?.title || item.id || "Unnamed Item";
-  const description = item.server?.description || null;
+  const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
+  const description = item.server.description || null;
   const icon =
-    item.server?.icons?.[0]?.src ||
-    getGitHubAvatarUrl(item.server?.repository) ||
+    item.server.icons?.[0]?.src ||
+    getGitHubAvatarUrl(item.server.repository) ||
     null;
   const isVerified = item._meta?.["mcp.mesh"]?.verified ?? false;
-  const version = item.server?.version;
-  const hasRemotes = ((item.server as any)?.remotes?.length ?? 0) > 0;
+  const version = item.server.version;
+  const hasRemotes = (item.server.remotes?.length ?? 0) > 0;
   const canInstall = hasRemotes;
 
   // Extract scopeName and displayName from title if it contains "/"

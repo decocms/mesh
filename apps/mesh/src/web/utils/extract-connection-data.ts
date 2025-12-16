@@ -145,7 +145,7 @@ export function findRegistryItemByBinding(
 
   return items.find((item) => {
     const meta = item._meta?.["mcp.mesh"];
-    const serverName = item.server?.name;
+    const serverName = item.server.name;
 
     // Match by meta (scopeName + appName)
     if (meta?.scopeName === scope && meta?.appName === appName) {

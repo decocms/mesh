@@ -88,17 +88,17 @@ function getPublisherInfo(
 
 /** Helper to extract data from different JSON structures */
 function extractItemData(item: RegistryItem): AppData {
-  const publisherMeta = item.server?._meta?.["mcp.mesh/publisher-provided"];
+  const publisherMeta = item.server._meta?.["mcp.mesh/publisher-provided"];
   const decoMeta = item._meta?.["mcp.mesh"];
   const officialMeta =
     item._meta?.["io.modelcontextprotocol.registry/official"];
   const server = item.server;
 
   // Extract connection type from remotes
-  const connectionType = getConnectionTypeLabel(server?.remotes?.[0]?.type);
+  const connectionType = getConnectionTypeLabel(server.remotes?.[0]?.type);
 
   // Extract schema version from $schema URL
-  const schemaVersion = extractSchemaVersion(server?.$schema);
+  const schemaVersion = extractSchemaVersion(server.$schema);
 
   // Extract publisher - prioritize official registry meta
   const publisher = officialMeta
@@ -106,36 +106,34 @@ function extractItemData(item: RegistryItem): AppData {
     : item.publisher || decoMeta?.scopeName || "Unknown";
 
   // Get icon with GitHub fallback
-  const githubIcon = getGitHubAvatarUrl(server?.repository);
+  const githubIcon = getGitHubAvatarUrl(server.repository);
 
   const icon =
     item.icon ||
     item.image ||
     item.logo ||
-    item.server?.icons?.[0]?.src ||
+    server.icons?.[0]?.src ||
     githubIcon ||
     null;
 
   return {
-    name: item.name || item.title || item.server?.title || "Unnamed Item",
-    description:
-      item.description || item.summary || item.server?.description || "",
+    name: item.name || item.title || server.title || "Unnamed Item",
+    description: item.description || item.summary || server.description || "",
     icon: icon,
     verified: item.verified || decoMeta?.verified,
     publisher: publisher,
-    version: server?.version || null,
-    websiteUrl: server?.websiteUrl || null,
-    repository: server?.repository || null,
+    version: server.version || null,
+    websiteUrl: server.websiteUrl || null,
+    repository: server.repository || null,
     schemaVersion: schemaVersion ?? null,
     connectionType: connectionType,
     connectionUrl: null,
     remoteUrl: null,
-    tools: item.tools || item.server?.tools || publisherMeta?.tools || [],
-    models: item.models || item.server?.models || publisherMeta?.models || [],
-    emails: item.emails || item.server?.emails || publisherMeta?.emails || [],
-    analytics:
-      item.analytics || item.server?.analytics || publisherMeta?.analytics,
-    cdn: item.cdn || item.server?.cdn || publisherMeta?.cdn,
+    tools: item.tools || server.tools || publisherMeta?.tools || [],
+    models: item.models || server.models || publisherMeta?.models || [],
+    emails: item.emails || server.emails || publisherMeta?.emails || [],
+    analytics: item.analytics || server.analytics || publisherMeta?.analytics,
+    cdn: item.cdn || server.cdn || publisherMeta?.cdn,
   };
 }
 
@@ -178,16 +176,11 @@ function StoreAppDetailContent() {
   const navigate = useNavigate();
   // Get appName from the child route (just /$appName)
   const { appName } = useParams({ strict: false }) as { appName?: string };
-  const {
-    registryId: registryIdParam,
-    serverName,
-    itemId,
-  } = useSearch({
+  const { registryId: registryIdParam, serverName } = useSearch({
     strict: false,
   }) as {
-    registryId?: string;
-    serverName?: string;
-    itemId?: string;
+    registryId: string;
+    serverName: string;
   };
 
   // Track active tab - initially "readme"
@@ -241,7 +234,6 @@ function StoreAppDetailContent() {
     // Send both to support all registry types - each will use what it needs
     toolInputParams = {
       name: serverName,
-      id: itemId || serverName,
     };
   } else {
     // Use LIST tool
@@ -321,7 +313,7 @@ function StoreAppDetailContent() {
 
   // Find the item matching the appName slug or serverName
   let selectedItem = items.find((item) => {
-    const itemName = item.name || item.title || item.server?.title || "";
+    const itemName = item.name || item.title || item.server.title || "";
     return slugify(itemName) === appName;
   });
 
@@ -329,7 +321,7 @@ function StoreAppDetailContent() {
   if (!selectedItem && serverName) {
     selectedItem = items.find((item) => {
       const serverNameMatch =
-        item.server?.name === serverName ||
+        item.server.name === serverName ||
         item.name === serverName ||
         item.title === serverName;
       return serverNameMatch;
