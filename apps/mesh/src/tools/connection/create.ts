@@ -4,7 +4,6 @@
  * Create a new MCP connection (organization-scoped) with collection binding compliance.
  */
 
-import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import {
@@ -71,11 +70,6 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
     const connection = await ctx.storage.connections.create({
       ...connectionData,
       tools,
-    });
-
-    await ctx.eventBus.publish(organization.id, WellKnownMCPId.SELF, {
-      type: "connection.created",
-      data: connection,
     });
 
     return {
