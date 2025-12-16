@@ -164,7 +164,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
 
       // Use provided scopes or existing ones
       if (data.configuration_scopes !== undefined) {
-      finalScopes = data.configuration_scopes ?? [];
+        finalScopes = data.configuration_scopes ?? [];
       }
 
       // Validate configuration if we have scopes
