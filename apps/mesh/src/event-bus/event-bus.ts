@@ -222,7 +222,6 @@ export class EventBus implements IEventBus {
 
     // Process any pending events from before startup
     // This ensures we don't wait for new events to trigger processing
-    console.log("[EventBus] Processing pending events from startup...");
     await this.worker.processNow().catch((error) => {
       console.error(
         "[EventBus] Error processing pending events on startup:",
