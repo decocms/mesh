@@ -47,6 +47,29 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
         },
       },
     },
+    // MCP Registry (Official MCP Store)
+    {
+      data: {
+        id: WellKnownMCPId.MCP_REGISTRY,
+        title: "MCP Registry",
+        description:
+          "A registry translation server that normalizes third-party MCP registries into this system's format. When no external registry URL is supplied, the server automatically falls back to the official MCP store.",
+        connection_type: "HTTP",
+        connection_url: "https://sites-registry.decocache.com/mcp",
+        icon: "https://assets.decocache.com/decocms/cd7ca472-0f72-463a-b0de-6e44bdd0f9b4/mcp.png",
+        app_name: "registrys",
+        app_id: null,
+        connection_token: null,
+        connection_headers: null,
+        oauth_config: null,
+        configuration_state: null,
+        configuration_scopes: null,
+        metadata: {
+          isDefault: true,
+          type: "registry",
+        },
+      },
+    },
     {
       permissions: {
         self: ["*"],
