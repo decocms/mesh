@@ -11,7 +11,6 @@ import {
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
-import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { authenticateMcp } from "@/web/lib/browser-oauth-provider";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -65,6 +64,7 @@ interface SettingsTabProps {
   connection: ConnectionEntity;
   onUpdate: (connection: Partial<ConnectionEntity>) => Promise<void>;
   isUpdating: boolean;
+  isMCPAuthenticated: boolean;
 }
 
 type SettingsTabWithMcpBindingProps = SettingsTabProps & {
@@ -671,23 +671,18 @@ function SettingsTabContentWithoutMcpBinding(
 }
 
 function SettingsRightPanel({
-  connection,
   hasMcpBinding,
   stateSchema,
   form,
   onAuthenticate,
+  isMCPAuthenticated,
 }: {
-  connection: ConnectionEntity;
   hasMcpBinding: boolean;
   stateSchema?: Record<string, unknown>;
   form: ReturnType<typeof useForm<ConnectionFormData>>;
   onAuthenticate: () => void | Promise<void>;
+  isMCPAuthenticated: boolean;
 }) {
-  const isMCPAuthenticated = useIsMCPAuthenticated({
-    url: connection.connection_url,
-    token: connection?.connection_token,
-  });
-
   const hasProperties =
     stateSchema &&
     stateSchema.properties &&
@@ -817,11 +812,11 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
           }
         >
           <SettingsRightPanel
-            connection={connection}
             hasMcpBinding={hasMcpBinding}
             stateSchema={stateSchema}
             form={form}
             onAuthenticate={handleAuthenticate}
+            isMCPAuthenticated={props.isMCPAuthenticated}
           />
         </Suspense>
       </div>
