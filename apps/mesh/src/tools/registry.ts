@@ -48,8 +48,6 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_CONNECTIONS_UPDATE",
   "COLLECTION_CONNECTIONS_DELETE",
   "CONNECTION_TEST",
-  "CONNECTION_CONFIGURE",
-  "CONNECTION_CALL_TOOL",
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
@@ -64,6 +62,8 @@ const ALL_TOOL_NAMES = [
   "EVENT_PUBLISH",
   "EVENT_SUBSCRIBE",
   "EVENT_UNSUBSCRIBE",
+  "EVENT_CANCEL",
+  "EVENT_ACK",
   "EVENT_SUBSCRIPTION_LIST",
 ] as const;
 
@@ -197,11 +197,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Connections",
   },
   {
-    name: "CONNECTION_CONFIGURE",
-    description: "Configure connections",
-    category: "Connections",
-  },
-  {
     name: "DATABASES_RUN_SQL",
     description: "Run SQL queries",
     category: "Connections",
@@ -256,6 +251,16 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Event Bus",
   },
   {
+    name: "EVENT_CANCEL",
+    description: "Cancel recurring events",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_ACK",
+    description: "Acknowledge event delivery",
+    category: "Event Bus",
+  },
+  {
     name: "EVENT_SUBSCRIPTION_LIST",
     description: "List event subscriptions",
     category: "Event Bus",
@@ -283,7 +288,6 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_CONNECTIONS_UPDATE: "Update connections",
   COLLECTION_CONNECTIONS_DELETE: "Delete connections",
   CONNECTION_TEST: "Test connections",
-  CONNECTION_CONFIGURE: "Configure connections",
   DATABASES_RUN_SQL: "Run SQL queries",
   CONNECTION_CALL_TOOL:
     "Allows other MCPs to call tools from any connection on this mesh",
@@ -296,6 +300,8 @@ const TOOL_LABELS: Record<ToolName, string> = {
   EVENT_PUBLISH: "Publish events",
   EVENT_SUBSCRIBE: "Subscribe to events",
   EVENT_UNSUBSCRIBE: "Unsubscribe from events",
+  EVENT_CANCEL: "Cancel recurring events",
+  EVENT_ACK: "Acknowledge event delivery",
   EVENT_SUBSCRIPTION_LIST: "List event subscriptions",
 };
 

@@ -45,22 +45,30 @@ const ComparisonExpressionSchema = z.object({
 });
 
 /**
- * Where expression schema for filtering
- * Supports TanStack DB predicate push-down patterns
+ * Where expression type for filtering
+ * Recursive to allow nested logical operators
  */
-export const WhereExpressionSchema = z.union([
-  ComparisonExpressionSchema,
-  z.object({
-    operator: z.enum(["and", "or", "not"]),
-    conditions: z.array(ComparisonExpressionSchema),
-  }),
-]);
+export type WhereExpression =
+  | z.infer<typeof ComparisonExpressionSchema>
+  | {
+      operator: "and" | "or" | "not";
+      conditions: WhereExpression[];
+    };
 
 /**
- * Where expression type for filtering
- * Derived from WhereExpressionSchema
+ * Where expression schema for filtering
+ * Supports TanStack DB predicate push-down patterns
+ * Recursive to allow nested logical operators
  */
-export type WhereExpression = z.infer<typeof WhereExpressionSchema>;
+export const WhereExpressionSchema: z.ZodType<WhereExpression> = z.lazy(() =>
+  z.union([
+    ComparisonExpressionSchema,
+    z.object({
+      operator: z.enum(["and", "or", "not"]),
+      conditions: z.array(WhereExpressionSchema),
+    }),
+  ]),
+);
 
 /**
  * Order by expression for sorting

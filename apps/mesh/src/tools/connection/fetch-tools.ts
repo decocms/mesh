@@ -55,7 +55,7 @@ export async function fetchToolsFromMCP(
 
     // Add timeout to prevent hanging connections
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Connection timeout")), 5000);
+      setTimeout(() => reject(new Error("Connection timeout")), 10_000);
     });
 
     await Promise.race([client.connect(transport), timeoutPromise]);

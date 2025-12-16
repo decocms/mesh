@@ -136,9 +136,8 @@ export function useBindingSchemaFromRegistry(
   const parsedAppName = appName ? parseAppName(appName) : "";
 
   // Build the tool input params - query by appName directly
-  const toolInputParams = parsedAppName
-    ? { where: { appName: parsedAppName } }
-    : {};
+  // When disabled, we still pass a stable, type-safe shape.
+  const toolInputParams = { where: { appName: parsedAppName || "" } };
 
   // Determine if the query should be enabled
   // parsedAppName should be in @scope/name format (e.g., "@deco/postgres")
@@ -161,9 +160,8 @@ export function useBindingSchemaFromRegistry(
   } = useToolCall<{ where: { appName: string } }, unknown>({
     toolCaller,
     toolName: listToolName,
-    toolInputParams: toolInputParams as { where: { appName: string } },
+    toolInputParams,
     connectionId: registryId,
-    enabled: isEnabled,
     staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 

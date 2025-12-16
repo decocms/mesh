@@ -19,20 +19,27 @@ export const EVENT_SUBSCRIBE = defineTool({
 
   handler: async (input, ctx) => {
     requireAuth(ctx);
-    // const organization = requireOrganization(ctx);
+    const organization = requireOrganization(ctx);
     await ctx.access.check();
 
     // Get the subscriber connection ID from the caller's token
-    // const connectionId = ctx.connectionId;
-    const connectionId = 'conn_OUYBSJZWhBS6ry7PgnCRd';
+    const connectionId = ctx.connectionId;
     if (!connectionId) {
       throw new Error(
         "Connection ID required to subscribe. Use a connection-scoped token.",
       );
     }
+    if (input.publisher) {
+      const hasPermission = await ctx.boundAuth.hasPermission({
+        [input.publisher]: [`event@${input.eventType}`],
+      });
+      if (!hasPermission) {
+        throw new Error("You are not authorized to subscribe to this event.");
+      }
+    }
 
     // Create the subscription
-    const subscription = await ctx.eventBus.subscribe('As1Q1eS0lxRnRf7SaeaD8CR4z4nCvisq', {
+    const subscription = await ctx.eventBus.subscribe(organization.id, {
       connectionId,
       eventType: input.eventType,
       publisher: input.publisher,

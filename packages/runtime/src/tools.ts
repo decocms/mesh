@@ -1,12 +1,21 @@
 /* oxlint-disable no-explicit-any */
 /* oxlint-disable ban-types */
 import { HttpServerTransport } from "@deco/mcp/http";
+import {
+  OnEventsInputSchema,
+  OnEventsOutputSchema,
+  type EventBusBindingClient,
+} from "@decocms/bindings";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
 import { Binding } from "./wrangler.ts";
+
+// Re-export EventHandlers type for external use
+export type { EventHandlers } from "./events.ts";
 
 export const createRuntimeContext = (prev?: AppContext) => {
   const store = State.getStore();
@@ -213,12 +222,23 @@ export interface OAuthConfig {
   };
 }
 
+/**
+ * Constructs a type by picking all properties from T that are assignable to Value.
+ */
+type PickByType<T, Value> = {
+  [P in keyof T as T[P] extends Value ? P : never]: T[P];
+};
+
 export interface CreateMCPServerOptions<
   Env = unknown,
   TSchema extends z.ZodTypeAny = never,
 > {
   before?: (env: Env & DefaultEnv<TSchema>) => Promise<void> | void;
   oauth?: OAuthConfig;
+  events?: {
+    bus?: keyof PickByType<Env & DefaultEnv<TSchema>, EventBusBindingClient>;
+    handlers?: EventHandlers<TSchema>;
+  };
   configuration?: {
     onChange?: (
       env: Env & DefaultEnv<TSchema>,
@@ -255,17 +275,22 @@ export interface AppContext<TEnv extends DefaultEnv = DefaultEnv> {
   req?: Request;
 }
 
-const configurationToolsFor = <TSchema extends z.ZodTypeAny = never>({
-  state: schema,
-  scopes,
-  onChange,
-}: CreateMCPServerOptions<
-  any,
-  TSchema
->["configuration"] = {}): CreatedTool[] => {
+const getEventBus = (
+  prop: string | number,
+  env: DefaultEnv,
+): EventBusBindingClient | undefined => {
+  const bus = env as unknown as { [prop]: EventBusBindingClient };
+  return typeof bus[prop] !== "undefined" ? bus[prop] : undefined;
+};
+
+const toolsFor = <TSchema extends z.ZodTypeAny = never>({
+  events,
+  configuration: { state: schema, scopes, onChange } = {},
+}: CreateMCPServerOptions<any, TSchema> = {}): CreatedTool[] => {
   const jsonSchema = schema
     ? zodToJsonSchema(schema)
     : { type: "object", properties: {} };
+  const busProp = String(events?.bus ?? "EVENT_BUS");
   return [
     ...(onChange
       ? [
@@ -282,11 +307,56 @@ const configurationToolsFor = <TSchema extends z.ZodTypeAny = never>({
             }),
             outputSchema: z.object({}),
             execute: async (input) => {
+              const state = input.context.state as z.infer<TSchema>;
               await onChange(input.runtimeContext.env, {
-                state: input.context.state,
+                state,
                 scopes: input.context.scopes,
               });
+              const bus = getEventBus(busProp, input.runtimeContext.env);
+              if (events && state && bus) {
+                // subscribe to events
+                const subscriptions = Event.subscriptions(
+                  events?.handlers ?? {},
+                  state,
+                );
+
+                await Promise.all(
+                  subscriptions.map(async (subscription) => {
+                    return Promise.all(
+                      subscription.events.map(async (event) => {
+                        return bus.EVENT_SUBSCRIBE({
+                          publisher: subscription.connectionId,
+                          eventType: event,
+                        });
+                      }),
+                    );
+                  }),
+                );
+              }
               return Promise.resolve({});
+            },
+          }),
+        ]
+      : []),
+
+    ...(events?.handlers
+      ? [
+          createTool({
+            id: "ON_EVENTS",
+            description:
+              "Receive and process CloudEvents from the event bus. Returns per-event or batch results.",
+            inputSchema: OnEventsInputSchema,
+            outputSchema: OnEventsOutputSchema,
+            execute: async (input) => {
+              const env = input.runtimeContext.env;
+              // Get state from env - it should have the binding values
+              const state = env as z.infer<TSchema>;
+              return Event.execute(
+                events.handlers!,
+                input.context.events,
+                env,
+                state,
+              );
             },
           }),
         ]
@@ -302,7 +372,11 @@ const configurationToolsFor = <TSchema extends z.ZodTypeAny = never>({
       execute: () => {
         return Promise.resolve({
           stateSchema: jsonSchema,
-          scopes,
+          scopes: [
+            ...(scopes ?? []),
+            ...Event.scopes(events?.handlers ?? {}),
+            ...(busProp ? [`${busProp}::EVENT_SUBSCRIBE`] : []),
+          ],
         });
       },
     }),
@@ -353,7 +427,7 @@ export const createMCPServer = <
           };
     const tools = await toolsFn(bindings);
 
-    tools.push(...configurationToolsFor<TSchema>(options.configuration));
+    tools.push(...toolsFor<TSchema>(options));
 
     for (const tool of tools) {
       server.registerTool(

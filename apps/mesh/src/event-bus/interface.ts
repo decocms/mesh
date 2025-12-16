@@ -7,7 +7,7 @@
  */
 
 import type { CloudEvent } from "@decocms/bindings";
-import type { EventSubscription, Event } from "../storage/types";
+import type { Event, EventSubscription } from "../storage/types";
 
 // ============================================================================
 // Event Bus Types
@@ -23,6 +23,20 @@ export interface PublishEventInput {
   subject?: string;
   /** Event payload (any JSON value) */
   data?: unknown;
+  /**
+   * Optional scheduled delivery time (ISO 8601 timestamp).
+   * If provided, the event will not be delivered until this time.
+   * If omitted, the event is delivered immediately.
+   * Cannot be used together with `cron`.
+   */
+  deliverAt?: string;
+  /**
+   * Optional cron expression for recurring events.
+   * If provided, the event will be delivered repeatedly according to the schedule.
+   * Use cancelEvent to stop recurring deliveries.
+   * Cannot be used together with `deliverAt`.
+   */
+  cron?: string;
 }
 
 /**
@@ -140,6 +154,46 @@ export interface IEventBus {
   ): Promise<EventSubscription | null>;
 
   /**
+   * Get an event by ID
+   *
+   * @param organizationId - Organization scope
+   * @param eventId - Event ID
+   * @returns Event or null if not found
+   */
+  getEvent(organizationId: string, eventId: string): Promise<Event | null>;
+
+  /**
+   * Cancel a recurring event to stop future deliveries.
+   * Only the publisher connection can cancel its own events.
+   *
+   * @param organizationId - Organization scope
+   * @param eventId - Event to cancel
+   * @param sourceConnectionId - Connection ID of the caller (for ownership verification)
+   * @returns Success status
+   */
+  cancelEvent(
+    organizationId: string,
+    eventId: string,
+    sourceConnectionId: string,
+  ): Promise<{ success: boolean }>;
+
+  /**
+   * Acknowledge delivery of an event.
+   * Used when subscriber returns retryAfter in ON_EVENTS response and later
+   * calls EVENT_ACK to confirm successful processing.
+   *
+   * @param organizationId - Organization scope
+   * @param eventId - Event to acknowledge
+   * @param connectionId - Subscriber connection ID (from auth token)
+   * @returns Success status
+   */
+  ackEvent(
+    organizationId: string,
+    eventId: string,
+    connectionId: string,
+  ): Promise<{ success: boolean }>;
+
+  /**
    * Start the background worker for event delivery
    * Also resets any stuck deliveries from previous crashes
    */
@@ -157,13 +211,31 @@ export interface IEventBus {
 }
 
 /**
+ * Per-event result from subscriber
+ */
+export interface EventResult {
+  success: boolean;
+  error?: string;
+  retryAfter?: number;
+}
+
+/**
  * Notify subscriber callback type
  * Called by the worker to deliver events to subscribers
+ *
+ * Response options:
+ * - Batch mode: success, error, retryAfter apply to all events
+ * - Per-event mode: results map contains individual outcomes by event ID
  */
 export type NotifySubscriberFn = (
   connectionId: string,
   events: CloudEvent[],
-) => Promise<{ success: boolean; error?: string }>;
+) => Promise<{
+  success?: boolean;
+  error?: string;
+  retryAfter?: number;
+  results?: Record<string, EventResult>;
+}>;
 
 /**
  * EventBus type alias for the interface

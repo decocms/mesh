@@ -25,7 +25,7 @@ import { meter, prometheusExporter, tracer } from "../observability";
 import authRoutes from "./routes/auth";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
-import proxyRoutes, { createMCPProxy } from "./routes/proxy";
+import proxyRoutes from "./routes/proxy";
 
 // Define Hono variables type
 type Variables = {
@@ -247,7 +247,6 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // Management MCP routes
   app.route("/mcp", managementRoutes);
-  app.route("/mcp/self", managementRoutes);
 
   // MCP Proxy routes (connection-specific)
   app.route("/mcp", proxyRoutes);
@@ -257,37 +256,6 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // LLM API routes (OpenAI-compatible)
   app.route("/v1", modelsRoutes);
-
-  app.post("/api/scheduler", async (c) => {
-    try {
-      const meshContext = c.var.meshContext;
-      const connectionId = c.req.query("connectionId");
-      const sub = c.req.query("sub");
-      const toolName = c.req.query("toolName");
-      const payload = await c.req.json();
-      if (!connectionId || !sub || !toolName) {
-        return c.body(null, 400);
-      }
-      const proxy = await createMCPProxy(connectionId, {
-        ...meshContext,
-        auth: {
-          ...meshContext.auth,
-          user: { id: sub, role: "owner" }, // lol someone pls help me here
-        },
-        baseUrl: meshContext.authInstance.options.baseURL,
-        toolName: toolName,
-      });
-      const result = await proxy.client.callTool({
-        name: toolName,
-        arguments: payload,
-      });
-      console.log({result: result.content[0]})
-      return c.body(null, 204);
-    } catch (error) {
-      console.error("Error calling tool:", error);
-      return c.body(null, 500);
-    }
-  });
 
   // ============================================================================
   // 404 Handler

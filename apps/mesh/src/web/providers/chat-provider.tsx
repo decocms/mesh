@@ -8,10 +8,11 @@ import {
   useRef,
   type RefObject,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  useMessagesCollection,
+  useMessageActions,
+  useThreadActions,
   useThreadMessages,
-  useThreadsCollection,
 } from "../hooks/use-chat-store";
 import { useLocalStorage } from "../hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "../lib/localstorage-keys";
@@ -65,10 +66,11 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: PropsWithChildren) {
   const { locator, org } = useProjectContext();
+  const queryClient = useQueryClient();
 
-  // Get org-scoped collections
-  const threadsCollection = useThreadsCollection();
-  const messagesCollection = useMessagesCollection();
+  // Get mutation actions
+  const threadActions = useThreadActions();
+  const messageActions = useMessageActions();
 
   // Active Thread ID State
   const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
@@ -79,7 +81,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Messages for active thread
   const messages = useThreadMessages(activeThreadId);
 
-  // // Actions
+  // Actions
   const createThread = (thread?: Partial<Thread>) => {
     const id = thread?.id || crypto.randomUUID();
     const now = new Date().toISOString();
@@ -90,7 +92,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       updated_at: thread?.updated_at || now,
       hidden: thread?.hidden ?? false,
     };
-    threadsCollection.insert(newThread);
+    threadActions.insert.mutate(newThread);
 
     setActiveThreadId(id);
     return newThread;
@@ -98,9 +100,12 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Consolidated hide/delete
   const hideThread = (threadId: string) => {
-    threadsCollection.update(threadId, (draft) => {
-      draft.hidden = true;
-      draft.updated_at = new Date().toISOString();
+    threadActions.update.mutate({
+      id: threadId,
+      updates: {
+        hidden: true,
+        updated_at: new Date().toISOString(),
+      },
     });
 
     // If hiding active thread, clear selection
@@ -147,7 +152,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
       if (newMessages.length === 2) {
         // 1. Insert all messages at once (batch insertion)
-        messagesCollection.insert(newMessages);
+        messageActions.insertMany.mutate(newMessages);
 
         const title =
           newMessages
@@ -155,12 +160,22 @@ export function ChatProvider({ children }: PropsWithChildren) {
             ?.parts?.find((part) => part.type === "text")
             ?.text.slice(0, 100) || "";
 
-        if (!threadsCollection.has(activeThreadId)) {
+        // Check if thread exists in cache
+        const existingThread = queryClient.getQueryData<Thread | null>([
+          "thread",
+          locator,
+          activeThreadId,
+        ]);
+
+        if (!existingThread) {
           createThread({ id: activeThreadId, title });
         } else {
-          threadsCollection.update(activeThreadId, (draft) => {
-            draft.title ||= title;
-            draft.updated_at = new Date().toISOString();
+          threadActions.update.mutate({
+            id: activeThreadId,
+            updates: {
+              title: existingThread.title || title,
+              updated_at: new Date().toISOString(),
+            },
           });
         }
       }

@@ -260,7 +260,7 @@ export async function closeDatabase(database: MeshDatabase): Promise<void> {
   await database.db.destroy();
 
   // PostgreSQL: also close the pool
-  if (database.type === "postgres") {
+  if (database.type === "postgres" && !database.pool.ended) {
     await database.pool.end();
   }
 }

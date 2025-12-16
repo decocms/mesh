@@ -212,7 +212,6 @@ async function createMCPProxyDoNotUseDirectly(
     throw new Error("User ID required to issue configuration token");
   }
   const callerConnectionId = ctx.auth.user?.connectionId;
-  console.log({callerConnectionId})
   try {
     configurationToken = await issueMeshToken({
       sub: userId,
@@ -235,7 +234,6 @@ async function createMCPProxyDoNotUseDirectly(
     const headers: Record<string, string> = {
       ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
     };
-
 
     // Add connection token (already decrypted by storage layer)
     if (connection.connection_token) {
@@ -512,7 +510,10 @@ async function createMCPProxyDoNotUseDirectly(
     );
 
     // Create transport (uses HttpServerTransport for fetch Request/Response)
-    const transport = new HttpServerTransport();
+    const transport = new HttpServerTransport({
+      enableJsonResponse:
+        req.headers.get("Accept")?.includes("application/json") ?? false,
+    });
 
     // Connect server to transport
     await server.connect(transport);
@@ -559,7 +560,7 @@ export async function createMCPProxy(
   ctx: MeshContext,
 ) {
   return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
-    superUser: true,
+    superUser: false,
   });
 }
 

@@ -2,8 +2,9 @@
  * Event Bus Tables Migration
  *
  * Creates the events and subscriptions tables for the MCP Mesh event bus.
- * - events: Stores CloudEvents with delivery status tracking
- * - subscriptions: Links subscriber connections to event type patterns
+ * - events: Stores CloudEvents with delivery status tracking and cron support
+ * - event_subscriptions: Links subscriber connections to event type patterns
+ * - event_deliveries: Tracks per-subscription delivery status with retry support
  *
  * Events follow the CloudEvents v1.0 specification.
  * @see https://cloudevents.io/
@@ -30,8 +31,10 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     )
     .addColumn("dataschema", "text") // Schema URI
     .addColumn("data", "text") // JSON payload stored as text
+    // Recurring event support
+    .addColumn("cron", "varchar(255)") // Cron expression for recurring delivery
     // Delivery tracking
-    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending")) // pending, delivered, failed
+    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending")) // pending, processing, delivered, failed
     .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("last_error", "text") // Last delivery error message
     .addColumn("next_retry_at", "text") // ISO 8601 timestamp for next retry
@@ -76,10 +79,11 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("event_id", "text", (col) => col.notNull())
     .addColumn("subscription_id", "text", (col) => col.notNull())
-    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending")) // pending, delivered, failed
+    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending")) // pending, processing, delivered, failed
     .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("last_error", "text")
     .addColumn("delivered_at", "text") // ISO 8601 timestamp
+    .addColumn("next_retry_at", "text") // ISO 8601 timestamp for scheduled/retry
     .addColumn("created_at", "text", (col) =>
       col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
     )
@@ -95,7 +99,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   // Query by source connection
   await db.schema
-    .createIndex("idx_bus_events_source")
+    .createIndex("idx_events_source")
     .on("events")
     .columns(["source"])
     .execute();
@@ -159,10 +163,18 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .on("event_deliveries")
     .columns(["subscription_id", "status"])
     .execute();
+
+  // Index for efficient retry/scheduled delivery polling
+  await db.schema
+    .createIndex("idx_deliveries_retry")
+    .on("event_deliveries")
+    .columns(["status", "next_retry_at"])
+    .execute();
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
   // Drop indexes first
+  await db.schema.dropIndex("idx_deliveries_retry").execute();
   await db.schema.dropIndex("idx_deliveries_subscription_status").execute();
   await db.schema.dropIndex("idx_deliveries_event").execute();
   await db.schema.dropIndex("idx_subscriptions_unique").execute();

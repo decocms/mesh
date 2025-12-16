@@ -39,6 +39,7 @@ export interface CreateEventInput {
   datacontenttype?: string;
   dataschema?: string | null;
   data?: unknown | null;
+  cron?: string | null;
 }
 
 /**
@@ -112,8 +113,16 @@ export interface EventBusStorage {
 
   /**
    * Create delivery records for an event and its matching subscriptions
+   *
+   * @param eventId - The event ID
+   * @param subscriptionIds - Subscription IDs to create deliveries for
+   * @param deliverAt - Optional scheduled delivery time (ISO 8601). If provided, deliveries won't be processed until this time.
    */
-  createDeliveries(eventId: string, subscriptionIds: string[]): Promise<void>;
+  createDeliveries(
+    eventId: string,
+    subscriptionIds: string[],
+    deliverAt?: string,
+  ): Promise<void>;
 
   /**
    * Atomically claim pending deliveries for processing.
@@ -165,6 +174,55 @@ export interface EventBusStorage {
    * @returns Number of deliveries reset
    */
   resetStuckDeliveries(): Promise<number>;
+
+  /**
+   * Get an event by ID
+   */
+  getEvent(eventId: string, organizationId: string): Promise<Event | null>;
+
+  /**
+   * Cancel a recurring event (sets status to 'failed' to stop future deliveries)
+   * Only the publisher can cancel their own events.
+   *
+   * @param eventId - The event ID to cancel
+   * @param organizationId - Organization scope
+   * @param sourceConnectionId - Connection ID of the caller (for ownership verification)
+   * @returns Success status
+   */
+  cancelEvent(
+    eventId: string,
+    organizationId: string,
+    sourceConnectionId: string,
+  ): Promise<{ success: boolean }>;
+
+  /**
+   * Schedule deliveries for retry without incrementing attempts.
+   * Used when subscriber returns retryAfter - they want more time but it shouldn't
+   * count toward the max attempts limit.
+   *
+   * @param deliveryIds - IDs of deliveries to reschedule
+   * @param retryAfterMs - Milliseconds from now to retry
+   */
+  scheduleRetryWithoutAttemptIncrement(
+    deliveryIds: string[],
+    retryAfterMs: number,
+  ): Promise<void>;
+
+  /**
+   * Acknowledge delivery of an event to a subscriber.
+   * Used when subscriber returned retryAfter and later calls EVENT_ACK
+   * to confirm successful processing.
+   *
+   * @param eventId - The event ID to acknowledge
+   * @param organizationId - Organization scope (for security)
+   * @param connectionId - The subscriber's connection ID
+   * @returns Success status
+   */
+  ackDelivery(
+    eventId: string,
+    organizationId: string,
+    connectionId: string,
+  ): Promise<{ success: boolean }>;
 }
 
 // ============================================================================
@@ -193,6 +251,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         datacontenttype: input.datacontenttype ?? "application/json",
         dataschema: input.dataschema ?? null,
         data: input.data ? JSON.stringify(input.data) : null,
+        cron: input.cron ?? null,
         status: "pending",
         attempts: 0,
         last_error: null,
@@ -213,6 +272,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       datacontenttype: input.datacontenttype ?? "application/json",
       dataschema: input.dataschema ?? null,
       data: input.data ?? null,
+      cron: input.cron ?? null,
       status: "pending",
       attempts: 0,
       lastError: null,
@@ -394,10 +454,15 @@ class KyselyEventBusStorage implements EventBusStorage {
   async createDeliveries(
     eventId: string,
     subscriptionIds: string[],
+    deliverAt?: string,
   ): Promise<void> {
     if (subscriptionIds.length === 0) return;
 
     const now = new Date().toISOString();
+
+    // If deliverAt is provided, set next_retry_at to that time
+    // The worker will only pick up deliveries where next_retry_at is null or in the past
+    const nextRetryAt = deliverAt ?? null;
 
     const values = subscriptionIds.map((subscriptionId) => ({
       id: crypto.randomUUID(),
@@ -407,6 +472,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       attempts: 0,
       last_error: null,
       delivered_at: null,
+      next_retry_at: nextRetryAt,
       created_at: now,
     }));
 
@@ -480,6 +546,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         "e.datacontenttype",
         "e.dataschema",
         "e.data",
+        "e.cron",
         "e.status as event_status",
         "e.attempts as event_attempts",
         "e.last_error as event_last_error",
@@ -522,6 +589,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         datacontenttype: row.datacontenttype,
         dataschema: row.dataschema,
         data: row.data ? JSON.parse(row.data as string) : null,
+        cron: row.cron,
         status: row.event_status as EventStatus,
         attempts: row.event_attempts,
         lastError: row.event_last_error,
@@ -663,6 +731,149 @@ class KyselyEventBusStorage implements EventBusStorage {
       .executeTakeFirst();
 
     return Number(result.numUpdatedRows ?? 0);
+  }
+
+  async getEvent(
+    eventId: string,
+    organizationId: string,
+  ): Promise<Event | null> {
+    const row = await this.db
+      .selectFrom("events")
+      .selectAll()
+      .where("id", "=", eventId)
+      .where("organization_id", "=", organizationId)
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      type: row.type,
+      source: row.source,
+      specversion: row.specversion,
+      subject: row.subject,
+      time: row.time,
+      datacontenttype: row.datacontenttype,
+      dataschema: row.dataschema,
+      data: row.data ? JSON.parse(row.data as string) : null,
+      cron: row.cron,
+      status: row.status as EventStatus,
+      attempts: row.attempts,
+      lastError: row.last_error,
+      nextRetryAt: row.next_retry_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  async cancelEvent(
+    eventId: string,
+    organizationId: string,
+    sourceConnectionId: string,
+  ): Promise<{ success: boolean }> {
+    // Only the publisher can cancel their own events
+    const result = await this.db
+      .updateTable("events")
+      .set({
+        status: "failed",
+        last_error: "Cancelled by publisher",
+        updated_at: new Date().toISOString(),
+      })
+      .where("id", "=", eventId)
+      .where("organization_id", "=", organizationId)
+      .where("source", "=", sourceConnectionId) // Ownership check
+      .where("status", "in", ["pending", "processing"]) // Only cancel active events
+      .executeTakeFirst();
+
+    // Also cancel any pending deliveries for this event
+    if ((result.numUpdatedRows ?? 0n) > 0n) {
+      await this.db
+        .updateTable("event_deliveries")
+        .set({
+          status: "failed",
+          last_error: "Event cancelled by publisher",
+        })
+        .where("event_id", "=", eventId)
+        .where("status", "in", ["pending", "processing"])
+        .execute();
+    }
+
+    return { success: (result.numUpdatedRows ?? 0n) > 0n };
+  }
+
+  async scheduleRetryWithoutAttemptIncrement(
+    deliveryIds: string[],
+    retryAfterMs: number,
+  ): Promise<void> {
+    if (deliveryIds.length === 0) return;
+
+    const nextRetryAt = new Date(Date.now() + retryAfterMs).toISOString();
+
+    // Set status back to 'pending' with next_retry_at, but DON'T increment attempts
+    // This is used when subscriber returns retryAfter - they want more time but
+    // it shouldn't count toward the max attempts limit
+    await this.db
+      .updateTable("event_deliveries")
+      .set({
+        status: "pending",
+        next_retry_at: nextRetryAt,
+      })
+      .where("id", "in", deliveryIds)
+      .execute();
+  }
+
+  async ackDelivery(
+    eventId: string,
+    organizationId: string,
+    connectionId: string,
+  ): Promise<{ success: boolean }> {
+    // First verify the event belongs to the organization (defense in depth)
+    const event = await this.db
+      .selectFrom("events")
+      .select(["id"])
+      .where("id", "=", eventId)
+      .where("organization_id", "=", organizationId)
+      .executeTakeFirst();
+
+    if (!event) {
+      return { success: false };
+    }
+
+    // Find deliveries for this event where the subscription belongs to the connection
+    // and is in the same organization, then mark them as delivered
+    const result = await this.db
+      .updateTable("event_deliveries")
+      .set({
+        status: "delivered",
+        delivered_at: new Date().toISOString(),
+      })
+      .where("event_id", "=", eventId)
+      .where("status", "in", ["pending", "processing"])
+      .where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("event_subscriptions")
+            .select("id")
+            .whereRef(
+              "event_subscriptions.id",
+              "=",
+              "event_deliveries.subscription_id",
+            )
+            .where("event_subscriptions.connection_id", "=", connectionId)
+            .where("event_subscriptions.organization_id", "=", organizationId),
+        ),
+      )
+      .executeTakeFirst();
+
+    const updated = (result.numUpdatedRows ?? 0n) > 0n;
+
+    // If we acked deliveries, update the event status
+    if (updated) {
+      await this.updateEventStatus(eventId);
+    }
+
+    return { success: updated };
   }
 }
 

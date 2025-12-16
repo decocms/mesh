@@ -38,6 +38,9 @@ function createMockEventBus(): EventBus {
       }) as never,
     unsubscribe: async () => ({ success: true }),
     listSubscriptions: async () => [],
+    getEvent: async () => null,
+    cancelEvent: async () => ({ success: true }),
+    ackEvent: async () => ({ success: true }),
     getSubscription: async () => null,
   };
 }

@@ -56,29 +56,56 @@ The MCP Mesh includes an event bus for pub/sub between connections. Key componen
 - **Events**: Follow CloudEvents v1.0 spec with `type`, `source`, `id`, `time`, `data`
 - **Subscriptions**: Connect subscribers to event types with optional publisher filter
 - **Delivery**: At-least-once with exponential backoff (1s to 1hr, max 20 attempts)
+- **Scheduling**: Supports immediate, scheduled (`deliverAt`), and recurring (`cron`) delivery
+- **Per-event results**: Subscribers can return individual results per event in batch
 
 ### Event Bus Files
-- `packages/bindings/src/well-known/event-bus.ts` - EVENT_BUS_BINDING (PUBLISH, SUBSCRIBE, UNSUBSCRIBE)
+- `packages/bindings/src/well-known/event-bus.ts` - EVENT_BUS_BINDING (PUBLISH, SUBSCRIBE, UNSUBSCRIBE, CANCEL, ACK)
 - `packages/bindings/src/well-known/event-subscriber.ts` - EVENT_SUBSCRIBER_BINDING (ON_EVENTS)
-- `apps/mesh/src/event-bus/` - EventBus interface and SQLite/PostgreSQL implementations
+- `apps/mesh/src/event-bus/` - EventBus implementation and worker
+- `apps/mesh/src/event-bus/polling.ts` - Timer-based NotifyStrategy (for SQLite/other)
+- `apps/mesh/src/event-bus/postgres-notify.ts` - LISTEN/NOTIFY NotifyStrategy (for PostgreSQL)
 - `apps/mesh/src/storage/event-bus.ts` - Database operations
-- `apps/mesh/src/tools/eventbus/` - MCP tools (publish.ts, subscribe.ts, unsubscribe.ts, list.ts)
+- `apps/mesh/src/tools/eventbus/` - MCP tools (publish, subscribe, unsubscribe, list, cancel, ack)
 - `apps/mesh/migrations/008-event-bus.ts` - Database schema
 
 ### Event Bus MCP Tools
-- `EVENT_PUBLISH` - Publish events (source = calling connection)
+- `EVENT_PUBLISH` - Publish events (supports `deliverAt` for scheduled, `cron` for recurring)
 - `EVENT_SUBSCRIBE` - Subscribe to event types
 - `EVENT_UNSUBSCRIBE` - Remove subscriptions
 - `EVENT_SUBSCRIPTION_LIST` - List subscriptions
+- `EVENT_CANCEL` - Cancel a recurring cron event (only publisher can cancel)
+- `EVENT_ACK` - Acknowledge event delivery (used with `retryAfter` flow)
 
 ### Event Bus Bindings
-- `EVENT_BUS_BINDING` - For connections using the event bus
+- `EVENT_BUS_BINDING` - For connections using the event bus (PUBLISH, SUBSCRIBE, UNSUBSCRIBE, CANCEL, ACK)
 - `EVENT_SUBSCRIBER_BINDING` - For connections receiving events (implements `ON_EVENTS`)
+
+### ON_EVENTS Response
+Subscribers can return batch or per-event results:
+```typescript
+// Batch mode
+{ success: true }
+
+// Per-event mode
+{
+  results: {
+    "event-1": { success: true },
+    "event-2": { success: false, error: "Validation failed" },
+    "event-3": { retryAfter: 60000 }  // Retry in 1 minute, use EVENT_ACK to confirm
+  }
+}
+```
+
+### NotifyStrategy Architecture
+The worker doesn't poll internally - it relies on a NotifyStrategy to trigger processing:
+- `PollingStrategy(intervalMs)` - Timer-based, for SQLite or databases without pub/sub
+- `PostgresNotifyStrategy(pool)` - Event-based via LISTEN/NOTIFY, no polling
 
 ### Event Bus Configuration (EventBusConfig)
 ```typescript
 {
-  pollIntervalMs: 5000,    // Poll interval (default 5s)
+  pollIntervalMs: 5000,    // Poll interval for PollingStrategy (default 5s)
   batchSize: 100,          // Max events per batch
   maxAttempts: 20,         // Delivery attempts before failure
   retryDelayMs: 1000,      // Base delay (1s)

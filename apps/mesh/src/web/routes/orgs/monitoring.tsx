@@ -33,7 +33,7 @@ import { Suspense, useState } from "react";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { createToolCaller } from "@/tools/client";
-import { useSuspenseToolCall } from "@/web/hooks/use-tool-call";
+import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useSearch, useNavigate } from "@tanstack/react-router";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { useConnections } from "@/web/hooks/collections/use-connection";
@@ -107,10 +107,7 @@ function MonitoringStatsContent({
     endDate: dateRange.endDate.toISOString(),
   };
 
-  const { data: stats } = useSuspenseToolCall<
-    typeof statsParams,
-    MonitoringStats
-  >({
+  const { data: stats } = useToolCall<typeof statsParams, MonitoringStats>({
     toolCaller,
     toolName: "MONITORING_STATS",
     toolInputParams: statsParams,
@@ -490,16 +487,15 @@ function MonitoringLogsTableContent({
     offset: page * pageSize,
   };
 
-  const { data: logs } = useSuspenseToolCall<
-    typeof logsParams,
-    MonitoringLogsResponse
-  >({
-    toolCaller,
-    toolName: "MONITORING_LOGS_LIST",
-    toolInputParams: logsParams,
-    staleTime: 0,
-    refetchInterval: isStreaming ? 3000 : false,
-  });
+  const { data: logs } = useToolCall<typeof logsParams, MonitoringLogsResponse>(
+    {
+      toolCaller,
+      toolName: "MONITORING_LOGS_LIST",
+      toolInputParams: logsParams,
+      staleTime: 0,
+      refetchInterval: isStreaming ? 3000 : false,
+    },
+  );
 
   // Filter logs by search query and multiple connections (client-side)
   let filteredLogs = logs?.logs ?? [];
