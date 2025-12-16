@@ -249,18 +249,6 @@ function StoreAppDetailContent() {
     toolInputParams = {};
   }
 
-  // Only call useToolCall if we have a valid toolName and registryId
-  // Otherwise, show not found state
-  if (!toolName || !effectiveRegistryId) {
-    const handleBackClick = () => {
-      navigate({
-        to: "/$org/store",
-        params: { org: org.slug },
-      });
-    };
-    return <AppDetailNotFoundState onBack={handleBackClick} />;
-  }
-
   const { data: listResults } = useToolCall({
     toolCaller,
     toolName: toolName,
@@ -443,13 +431,10 @@ function StoreAppDetailContent() {
     try {
       const { id } = await actions.create.mutateAsync(connectionData);
 
-      // Success toast is handled by the mutation's onSuccess
       navigate({
         to: "/$org/mcps/$connectionId",
         params: { org: org.slug, connectionId: id },
       });
-
-      toast.success("App installed successfully");
     } catch (error) {
       toast.error(
         `Failed to install app: ${error instanceof Error ? error.message : String(error)}`,

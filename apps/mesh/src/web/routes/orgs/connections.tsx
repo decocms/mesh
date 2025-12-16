@@ -64,7 +64,6 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { Suspense, useEffect, useReducer } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { z } from "zod";
 import { authClient } from "@/web/lib/auth-client";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
@@ -189,66 +188,57 @@ function OrgMcpsContent() {
   };
 
   const onSubmit = async (data: ConnectionFormData) => {
-    try {
-      // Close dialog based on mode
-      if (isCreating) {
-        closeCreateDialog();
-      } else {
-        dispatch({ type: "close" });
-      }
-      form.reset();
-
-      if (editingConnection) {
-        // Update existing connection
-        await actions.update.mutateAsync({
-          id: editingConnection.id,
-          data: {
-            title: data.title,
-            description: data.description || null,
-            connection_type: data.connection_type,
-            connection_url: data.connection_url,
-            ...(data.connection_token && {
-              connection_token: data.connection_token,
-            }),
-          },
-        });
-      } else {
-        const newId = generatePrefixedId("conn");
-        // Create new connection
-        await actions.create.mutateAsync({
-          id: newId,
+    if (editingConnection) {
+      // Update existing connection
+      await actions.update.mutateAsync({
+        id: editingConnection.id,
+        data: {
           title: data.title,
           description: data.description || null,
           connection_type: data.connection_type,
           connection_url: data.connection_url,
-          connection_token: data.connection_token || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          created_by: session?.user?.id || "system",
-          organization_id: org.id,
-          icon: null,
-          app_name: null,
-          app_id: null,
-          connection_headers: null,
-          oauth_config: null,
-          configuration_state: null,
-          metadata: null,
-          tools: null,
-          bindings: null,
-          status: "inactive",
-        });
-        await tx.isPersisted.promise;
+          ...(data.connection_token && {
+            connection_token: data.connection_token,
+          }),
+        },
+      });
 
-        navigate({
-          to: "/$org/mcps/$connectionId",
-          params: { org: org.slug, connectionId: newId },
-        });
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to save connection",
-      );
+      dispatch({ type: "close" });
+      form.reset();
+      return;
     }
+
+    const newId = generatePrefixedId("conn");
+    // Create new connection
+    await actions.create.mutateAsync({
+      id: newId,
+      title: data.title,
+      description: data.description || null,
+      connection_type: data.connection_type,
+      connection_url: data.connection_url,
+      connection_token: data.connection_token || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      created_by: session?.user?.id || "system",
+      organization_id: org.id,
+      icon: null,
+      app_name: null,
+      app_id: null,
+      connection_headers: null,
+      oauth_config: null,
+      configuration_state: null,
+      metadata: null,
+      tools: null,
+      bindings: null,
+      status: "inactive",
+    });
+
+    closeCreateDialog();
+    form.reset();
+    navigate({
+      to: "/$org/mcps/$connectionId",
+      params: { org: org.slug, connectionId: newId },
+    });
   };
 
   const handleDialogClose = (open: boolean) => {

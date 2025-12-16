@@ -65,32 +65,19 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   // Find the LIST tool from the registry connection
   const listToolName = findListToolName(registryConnection?.tools);
 
-  const toolCaller = createToolCaller(registryId || "");
+  const toolCaller = createToolCaller(registryId || undefined);
 
-  // Always call useToolCall (hooks must be called unconditionally)
-  // If prerequisites aren't met (empty listToolName or registryId), the query will
-  // fail. Components using this hook should be wrapped in Suspense + ErrorBoundary.
-  // For now, we'll handle empty prerequisites by not calling the hook when they're missing,
-  // but this violates hook rules. The proper solution is to wrap the component that uses
-  // this hook in Suspense + ErrorBoundary and handle the error case there.
-  //
-  // TODO: Refactor to always call useToolCall and handle empty prerequisites in queryFn
-  // or wrap BindingSelector in Suspense + ErrorBoundary
-  let registryItems: RegistryItem[] = [];
+  // Always call useToolCall (Rules of Hooks). Use `enabled` to avoid executing until ready.
+  const { data: listResults } = useToolCall<{}, unknown>({
+    toolCaller,
+    toolName: listToolName,
+    toolInputParams: {},
+    connectionId: registryId,
+  });
 
-  // Note: This conditional hook call violates React's rules of hooks.
-  // The proper fix is to wrap BindingSelector in Suspense + ErrorBoundary
-  // and always call useToolCall. For now, we'll keep this pattern but it should be fixed.
-  if (listToolName && registryId) {
-    const { data: listResults } = useToolCall({
-      toolCaller,
-      toolName: listToolName,
-      toolInputParams: {},
-      connectionId: registryId,
-    });
-
-    registryItems = extractItemsFromResponse<RegistryItem>(listResults);
-  }
+  const registryItems = extractItemsFromResponse<RegistryItem>(
+    listResults ?? [],
+  );
 
   // Installation function
   const installByBinding = async (

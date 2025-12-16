@@ -56,7 +56,6 @@ function parseScope(scope: string): [string, string] {
 async function validateConfiguration(
   state: Record<string, unknown>,
   scopes: string[],
-  connectionId: string,
   organizationId: string,
   ctx: Parameters<typeof COLLECTION_CONNECTIONS_UPDATE.execute>[1],
 ): Promise<void> {
@@ -165,7 +164,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
 
       // Use provided scopes or existing ones
       if (data.configuration_scopes !== undefined) {
-        finalScopes = data.configuration_scopes;
+      finalScopes = data.configuration_scopes ?? [];
       }
 
       // Validate configuration if we have scopes
@@ -173,7 +172,6 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
         await validateConfiguration(
           finalState as Record<string, unknown>,
           finalScopes,
-          id,
           organization.id,
           ctx,
         );
