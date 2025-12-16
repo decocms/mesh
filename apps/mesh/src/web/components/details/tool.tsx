@@ -74,6 +74,7 @@ function ToolDetailsContent({
 
   return (
     <ToolDetailsAuthenticated
+      key={`${connectionId}:${toolName}`}
       toolName={toolName}
       connectionId={connectionId}
       mcpProxyUrl={mcpProxyUrl}
@@ -93,7 +94,8 @@ function ToolDetailsAuthenticated({
   mcpProxyUrl: URL;
   onBack: () => void;
 }) {
-  const [inputParams, setInputParams] = useState<Record<string, unknown>>({});
+  // Store only user edits; defaults are derived from the schema (no effect-driven initialization).
+  const [editedParams, setEditedParams] = useState<Record<string, unknown>>({});
   const [executionResult, setExecutionResult] = useState<Record<
     string,
     unknown
@@ -125,24 +127,21 @@ function ToolDetailsAuthenticated({
   // Find the tool definition
   const tool = mcp.tools?.find((t) => t.name === toolName);
 
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (
-      tool?.inputSchema?.properties &&
-      Object.keys(inputParams).length === 0
-    ) {
-      const initialParams: Record<string, unknown> = {};
-      // Simple initialization for now
-      Object.keys(tool.inputSchema.properties).forEach((key) => {
-        if (tool.inputSchema.required?.includes(key)) {
-          initialParams[key] = "";
-        } else {
-          initialParams[key] = undefined;
-        }
-      });
-      setInputParams(initialParams);
+  const toolProperties = tool?.inputSchema?.properties;
+  const toolPropertyKeys = toolProperties ? Object.keys(toolProperties) : [];
+  const hasToolProperties = toolPropertyKeys.length > 0;
+
+  const defaultParams: Record<string, unknown> = {};
+  if (hasToolProperties && tool?.inputSchema?.properties) {
+    for (const key of toolPropertyKeys) {
+      defaultParams[key] = tool.inputSchema.required?.includes(key)
+        ? ""
+        : undefined;
     }
-  }, [tool, inputParams]);
+  }
+
+  const hasEditedKey = (key: string) =>
+    Object.prototype.hasOwnProperty.call(editedParams, key);
 
   const handleExecute = async () => {
     setIsExecuting(true);
@@ -155,7 +154,7 @@ function ToolDetailsAuthenticated({
 
     try {
       // Prepare arguments: try to parse JSON for object/array types
-      const args = { ...inputParams };
+      const args = { ...defaultParams, ...editedParams };
       if (tool?.inputSchema?.properties) {
         Object.entries(tool.inputSchema.properties).forEach(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,7 +204,7 @@ function ToolDetailsAuthenticated({
   };
 
   const handleInputChange = (key: string, value: string) => {
-    setInputParams((prev) => ({ ...prev, [key]: value }));
+    setEditedParams((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
@@ -305,7 +304,7 @@ function ToolDetailsAuthenticated({
                 Arguments
               </div>
 
-              {tool?.inputSchema?.properties ? (
+              {hasToolProperties && tool?.inputSchema?.properties ? (
                 Object.entries(tool.inputSchema.properties).map(
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   ([key, prop]: [string, any]) => (
@@ -330,9 +329,9 @@ function ToolDetailsAuthenticated({
                         <Textarea
                           className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
                           value={
-                            typeof inputParams[key] === "object"
-                              ? JSON.stringify(inputParams[key], null, 2)
-                              : (inputParams[key] as string) || ""
+                            hasEditedKey(key)
+                              ? ((editedParams[key] as string) ?? "")
+                              : ((defaultParams[key] as string) ?? "")
                           }
                           onChange={(e) =>
                             handleInputChange(key, e.target.value)
@@ -341,7 +340,11 @@ function ToolDetailsAuthenticated({
                         />
                       ) : (
                         <Input
-                          value={(inputParams[key] as string) || ""}
+                          value={
+                            hasEditedKey(key)
+                              ? ((editedParams[key] as string) ?? "")
+                              : ((defaultParams[key] as string) ?? "")
+                          }
                           onChange={(e) =>
                             handleInputChange(key, e.target.value)
                           }
@@ -358,19 +361,19 @@ function ToolDetailsAuthenticated({
               )}
 
               {/* Fallback for no properties but valid schema */}
-              {tool?.inputSchema && !tool.inputSchema.properties && (
+              {tool?.inputSchema && !hasToolProperties && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Raw JSON Input</label>
                   <textarea
                     className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     value={
-                      typeof inputParams === "string"
-                        ? inputParams
-                        : JSON.stringify(inputParams, null, 2)
+                      typeof editedParams === "string"
+                        ? editedParams
+                        : JSON.stringify(editedParams, null, 2)
                     }
                     onChange={(e) => {
                       try {
-                        setInputParams(JSON.parse(e.target.value));
+                        setEditedParams(JSON.parse(e.target.value));
                       } catch {
                         // Allow typing invalid JSON momentarily, but maybe store as string in a separate state if we want robust editing
                         // For now, just let it be assuming user pastes valid JSON
