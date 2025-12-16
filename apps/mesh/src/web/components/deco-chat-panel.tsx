@@ -196,7 +196,7 @@ export function DecoChatPanel() {
     if (sentinelRef.current && chat.messages.length > 0) {
       sentinelRef.current.scrollIntoView({
         behavior: "smooth",
-        block: "end",
+        block: "start",
       });
     }
   }, [chat.messages, sentinelRef]);

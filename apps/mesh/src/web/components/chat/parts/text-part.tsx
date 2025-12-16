@@ -28,7 +28,7 @@ export function MessageTextPart({
     <div className="group/part relative">
       <MemoizedMarkdown id={id} text={text} />
       {copyable && (
-        <div className="mt-2 flex w-full min-h-[28px] items-center justify-end gap-2 text-xs text-muted-foreground opacity-0 pointer-events-none transition-all duration-200 group-hover/part:opacity-100 group-hover/part:pointer-events-auto">
+        <div className="flex w-full items-center justify-end gap-2 text-xs text-muted-foreground opacity-0 pointer-events-none transition-all duration-200 group-hover/part:opacity-100 group-hover/part:pointer-events-auto">
           <div className="flex gap-1">
             <Button
               onClick={handleCopyMessage}
@@ -39,12 +39,10 @@ export function MessageTextPart({
               {isCopied ? (
                 <>
                   <Icon name="check" className="mr-1 text-sm" />
-                  Copied!
                 </>
               ) : (
                 <>
                   <Icon name="content_copy" className="mr-1 text-sm" />
-                  Copy message
                 </>
               )}
             </Button>

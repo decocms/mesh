@@ -48,14 +48,14 @@ export function MessageList({
         className,
       )}
     >
-      <div className="flex flex-col gap-4 min-w-0 max-w-2xl mx-auto w-full py-4">
+      <div className="flex flex-col min-w-0 max-w-2xl mx-auto w-full py-4">
         {rest.length > 0 && (
-          <div className="flex flex-col gap-4">{rest.toReversed()}</div>
+          <div className="flex flex-col">{rest.toReversed()}</div>
         )}
 
         {assistant && user ? (
           <div
-            className="flex flex-col gap-4"
+            className="flex flex-col"
             style={
               minHeightOffset
                 ? { minHeight: `calc(100vh - ${minHeightOffset}px)` }
@@ -66,7 +66,7 @@ export function MessageList({
             {assistant}
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col">
             {user}
             {assistant}
           </div>
