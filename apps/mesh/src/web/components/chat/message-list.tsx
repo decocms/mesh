@@ -105,7 +105,7 @@ export function MessageList({
                 ref={(el) => {
                   pairRefs.current[index] = el;
                 }}
-                className="flex flex-col gap-4 py-2"
+                className="flex flex-col gap-2 py-2"
                 style={
                   isLastPair && minHeightOffset
                     ? { minHeight: `calc(100vh - ${minHeightOffset}px)` }
