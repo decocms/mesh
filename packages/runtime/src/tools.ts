@@ -237,7 +237,7 @@ export interface CreateMCPServerOptions<
   oauth?: OAuthConfig;
   events?: {
     bus?: keyof PickByType<Env & DefaultEnv<TSchema>, EventBusBindingClient>;
-    handlers?: EventHandlers<TSchema>;
+    handlers?: EventHandlers<Env & DefaultEnv<TSchema>, TSchema>;
   };
   configuration?: {
     onChange?: (

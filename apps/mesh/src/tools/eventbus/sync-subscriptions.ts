@@ -6,6 +6,7 @@
  * Subscriptions are identified by (eventType, publisher).
  */
 
+import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import {
@@ -53,6 +54,23 @@ export const EVENT_SYNC_SUBSCRIPTIONS = defineTool({
       connectionId,
       subscriptions: input.subscriptions,
     });
+    const cronSubscriptions = result.subscriptions.filter(
+      (sub) =>
+        sub.eventType?.startsWith("cron/") &&
+        sub.publisher === WellKnownMCPId.SELF,
+    );
+
+    await Promise.all(
+      cronSubscriptions.map(async (sub) => {
+        const cron = sub.eventType.split("/")[1];
+        cron &&
+          (await ctx.eventBus.publish(organization.id, WellKnownMCPId.SELF, {
+            type: sub.eventType,
+            cron,
+            data: {},
+          }));
+      }),
+    );
 
     return {
       created: result.created,
