@@ -63,6 +63,30 @@ export interface PendingDelivery {
   subscription: EventSubscription;
 }
 
+/**
+ * Input for syncing subscriptions
+ */
+export interface SyncSubscriptionsInput {
+  organizationId: string;
+  connectionId: string;
+  subscriptions: Array<{
+    eventType: string;
+    publisher?: string | null;
+    filter?: string | null;
+  }>;
+}
+
+/**
+ * Result of syncing subscriptions
+ */
+export interface SyncSubscriptionsResult {
+  created: number;
+  updated: number;
+  deleted: number;
+  unchanged: number;
+  subscriptions: EventSubscription[];
+}
+
 // ============================================================================
 // EventBusStorage Interface
 // ============================================================================
@@ -223,6 +247,18 @@ export interface EventBusStorage {
     organizationId: string,
     connectionId: string,
   ): Promise<{ success: boolean }>;
+
+  /**
+   * Sync subscriptions to a desired state.
+   * Creates new subscriptions, deletes removed ones, and updates filters.
+   * Subscriptions are identified by (eventType, publisher) - only one per combination.
+   *
+   * @param input - Organization, connection, and desired subscriptions
+   * @returns Summary of changes and current subscriptions
+   */
+  syncSubscriptions(
+    input: SyncSubscriptionsInput,
+  ): Promise<SyncSubscriptionsResult>;
 }
 
 // ============================================================================
@@ -480,47 +516,78 @@ class KyselyEventBusStorage implements EventBusStorage {
   }
 
   async claimPendingDeliveries(limit: number): Promise<PendingDelivery[]> {
-    // Step 1: Atomically claim deliveries by updating status to 'processing'
-    // This uses a subquery to select IDs, then updates only those that are still 'pending'
-    // This prevents race conditions between multiple workers
+    // Distributed-safe claiming:
+    // - PostgreSQL: UPDATE ... RETURNING is atomic, returns only the rows we claimed
+    // - SQLite: Falls back to SELECT + UPDATE (safe because SQLite serializes writes)
 
     const now = new Date().toISOString();
+    let claimedIds: string[];
 
-    // First, get the IDs of pending deliveries to claim
-    // Only claim deliveries that are ready for retry (next_retry_at is null or in the past)
-    const pendingIds = await this.db
-      .selectFrom("event_deliveries as d")
-      .innerJoin("event_subscriptions as s", "s.id", "d.subscription_id")
-      .select(["d.id"])
-      .where("d.status", "=", "pending")
-      .where("s.enabled", "=", 1)
-      .where((eb) =>
-        eb.or([
-          eb("d.next_retry_at", "is", null),
-          eb("d.next_retry_at", "<=", now),
-        ]),
-      )
-      .orderBy("d.created_at", "asc")
-      .limit(limit)
-      .execute();
+    try {
+      // Atomic claim with RETURNING (PostgreSQL)
+      // The subquery + WHERE status='pending' ensures no double-claiming
+      const result = await this.db
+        .updateTable("event_deliveries")
+        .set({ status: "processing" })
+        .where("id", "in", (eb) =>
+          eb
+            .selectFrom("event_deliveries as d")
+            .innerJoin("event_subscriptions as s", "s.id", "d.subscription_id")
+            .select("d.id")
+            .where("d.status", "=", "pending")
+            .where("s.enabled", "=", 1)
+            .where((inner) =>
+              inner.or([
+                inner("d.next_retry_at", "is", null),
+                inner("d.next_retry_at", "<=", now),
+              ]),
+            )
+            .orderBy("d.created_at", "asc")
+            .limit(limit),
+        )
+        .where("status", "=", "pending")
+        .returning(["id"])
+        .execute();
 
-    if (pendingIds.length === 0) {
+      claimedIds = result.map((r) => r.id);
+    } catch {
+      // Fallback for SQLite (no RETURNING support)
+      // SQLite serializes all writes, so simple SELECT + UPDATE is safe
+      const pendingIds = await this.db
+        .selectFrom("event_deliveries as d")
+        .innerJoin("event_subscriptions as s", "s.id", "d.subscription_id")
+        .select(["d.id"])
+        .where("d.status", "=", "pending")
+        .where("s.enabled", "=", 1)
+        .where((eb) =>
+          eb.or([
+            eb("d.next_retry_at", "is", null),
+            eb("d.next_retry_at", "<=", now),
+          ]),
+        )
+        .orderBy("d.created_at", "asc")
+        .limit(limit)
+        .execute();
+
+      if (pendingIds.length === 0) {
+        return [];
+      }
+
+      claimedIds = pendingIds.map((r) => r.id);
+
+      await this.db
+        .updateTable("event_deliveries")
+        .set({ status: "processing" })
+        .where("id", "in", claimedIds)
+        .where("status", "=", "pending")
+        .execute();
+    }
+
+    if (claimedIds.length === 0) {
       return [];
     }
 
-    const idsToClam = pendingIds.map((r) => r.id);
-
-    // Step 2: Atomically update status to 'processing' for these IDs
-    // Only updates rows that are still 'pending' (race condition protection)
-    await this.db
-      .updateTable("event_deliveries")
-      .set({ status: "processing" })
-      .where("id", "in", idsToClam)
-      .where("status", "=", "pending") // Only claim if still pending
-      .execute();
-
-    // Step 3: Fetch the claimed deliveries with full details
-    // Only get ones we successfully claimed (status = 'processing')
+    // Fetch the claimed deliveries with full details
     const rows = await this.db
       .selectFrom("event_deliveries as d")
       .innerJoin("events as e", "e.id", "d.event_id")
@@ -562,8 +629,8 @@ class KyselyEventBusStorage implements EventBusStorage {
         "s.created_at as subscription_created_at",
         "s.updated_at as subscription_updated_at",
       ])
-      .where("d.id", "in", idsToClam)
-      .where("d.status", "=", "processing") // Only get ones we claimed
+      .where("d.id", "in", claimedIds)
+      .where("d.status", "=", "processing")
       .execute();
 
     return rows.map((row) => ({
@@ -874,6 +941,143 @@ class KyselyEventBusStorage implements EventBusStorage {
     }
 
     return { success: updated };
+  }
+
+  async syncSubscriptions(
+    input: SyncSubscriptionsInput,
+  ): Promise<SyncSubscriptionsResult> {
+    const { organizationId, connectionId, subscriptions: desired } = input;
+
+    // Build a key for subscription identity: (eventType, publisher)
+    const makeKey = (
+      eventType: string,
+      publisher: string | null | undefined,
+    ): string => {
+      return `${eventType}::${publisher ?? ""}`;
+    };
+
+    // Get current subscriptions for this connection
+    const current = await this.listSubscriptions(organizationId, connectionId);
+
+    // Build maps for efficient lookup
+    const currentMap = new Map<string, EventSubscription>();
+    for (const sub of current) {
+      currentMap.set(makeKey(sub.eventType, sub.publisher), sub);
+    }
+
+    const desiredMap = new Map<
+      string,
+      { eventType: string; publisher?: string | null; filter?: string | null }
+    >();
+    for (const sub of desired) {
+      desiredMap.set(makeKey(sub.eventType, sub.publisher), sub);
+    }
+
+    const now = new Date().toISOString();
+
+    // Collect batch operations
+    const toCreate: Array<{
+      id: string;
+      organization_id: string;
+      connection_id: string;
+      event_type: string;
+      publisher: string | null;
+      filter: string | null;
+      enabled: number;
+      created_at: string;
+      updated_at: string;
+    }> = [];
+    const toUpdate: Array<{ id: string; filter: string | null }> = [];
+    const toDelete: string[] = [];
+    let unchanged = 0;
+
+    // Process desired subscriptions: collect creates and updates
+    for (const [key, desiredSub] of desiredMap) {
+      const currentSub = currentMap.get(key);
+
+      if (!currentSub) {
+        // Collect for batch insert
+        toCreate.push({
+          id: crypto.randomUUID(),
+          organization_id: organizationId,
+          connection_id: connectionId,
+          event_type: desiredSub.eventType,
+          publisher: desiredSub.publisher ?? null,
+          filter: desiredSub.filter ?? null,
+          enabled: 1,
+          created_at: now,
+          updated_at: now,
+        });
+      } else {
+        // Check if filter needs update
+        const currentFilter = currentSub.filter ?? null;
+        const desiredFilter = desiredSub.filter ?? null;
+
+        if (currentFilter !== desiredFilter) {
+          toUpdate.push({ id: currentSub.id, filter: desiredFilter });
+        } else {
+          unchanged++;
+        }
+      }
+    }
+
+    // Collect subscriptions to delete (not in desired state)
+    for (const [key, currentSub] of currentMap) {
+      if (!desiredMap.has(key)) {
+        toDelete.push(currentSub.id);
+      }
+    }
+
+    // Execute batch insert
+    if (toCreate.length > 0) {
+      await this.db
+        .insertInto("event_subscriptions")
+        .values(toCreate)
+        .execute();
+    }
+
+    // Execute batch updates (unfortunately Kysely doesn't support multi-row UPDATE in one query,
+    // but we can at least run them concurrently)
+    if (toUpdate.length > 0) {
+      await Promise.all(
+        toUpdate.map((u) =>
+          this.db
+            .updateTable("event_subscriptions")
+            .set({
+              filter: u.filter,
+              updated_at: now,
+            })
+            .where("id", "=", u.id)
+            .execute(),
+        ),
+      );
+    }
+
+    // Execute batch delete
+    if (toDelete.length > 0) {
+      await this.db
+        .deleteFrom("event_subscriptions")
+        .where("id", "in", toDelete)
+        .execute();
+    }
+
+    const created = toCreate.length;
+    const updated = toUpdate.length;
+    const deleted = toDelete.length;
+
+    // Fetch final state
+    const finalSubscriptions = await this.listSubscriptions(
+      organizationId,
+      connectionId,
+    );
+
+    return {
+      created,
+      updated,
+      deleted,
+      unchanged,
+      subscriptions: finalSubscriptions,
+    };
   }
 }
 

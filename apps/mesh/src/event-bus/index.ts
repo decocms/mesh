@@ -38,6 +38,12 @@ export {
   type SubscribeInput,
 } from "./interface";
 
+// Re-export storage types used in the interface
+export type {
+  SyncSubscriptionsInput,
+  SyncSubscriptionsResult,
+} from "../storage/event-bus";
+
 // Export EventBus type alias (for typing in tests/consumers)
 export type { EventBus } from "./interface";
 

@@ -10,6 +10,7 @@ export { EVENT_UNSUBSCRIBE } from "./unsubscribe";
 export { EVENT_CANCEL } from "./cancel";
 export { EVENT_ACK } from "./ack";
 export { EVENT_SUBSCRIPTION_LIST } from "./list";
+export { EVENT_SYNC_SUBSCRIPTIONS } from "./sync-subscriptions";
 
 // Re-export schemas
 export * from "./schema";
