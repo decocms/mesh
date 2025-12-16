@@ -390,7 +390,7 @@ export function DecoChatPanel() {
             }
           />
         ) : (
-          <MessageList minHeightOffset={264}>
+          <MessageList minHeightOffset={240}>
             {chat.messages.map((message, index) =>
               message.role === "user" ? (
                 <MessageUser
