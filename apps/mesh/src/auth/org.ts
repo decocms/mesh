@@ -50,7 +50,7 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
     // MCP Registry (Official MCP Store)
     {
       data: {
-        id: WellKnownMCPId.MCP_REGISTRY,
+        id: WellKnownMCPId.OFFICIAL_REGISTRY,
         title: "MCP Registry",
         description:
           "A registry translation server that normalizes third-party MCP registries into this system's format. When no external registry URL is supplied, the server automatically falls back to the official MCP store.",
