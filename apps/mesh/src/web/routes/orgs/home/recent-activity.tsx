@@ -2,6 +2,7 @@ import { createToolCaller } from "@/tools/client";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
+import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
@@ -36,18 +37,9 @@ function RecentActivityContent() {
   const navigate = useNavigate();
   const toolCaller = createToolCaller();
 
-  // Calculate date range for last 24 hours
-  const now = new Date();
-  const startDate = new Date();
-  startDate.setHours(now.getHours() - 24);
-  // Round to nearest minute to ensure stable query keys
-  startDate.setSeconds(0, 0);
-  const endDate = new Date(now);
-  endDate.setHours(endDate.getHours() + 1);
-  endDate.setSeconds(0, 0);
+  const dateRange = getLast24HoursDateRange();
   const toolInputParams = {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
+    ...dateRange,
     limit: 20,
     offset: 0,
   };

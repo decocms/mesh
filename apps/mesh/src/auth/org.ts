@@ -1,7 +1,4 @@
-import {
-  getWellKnownRegistryConnection,
-  getWellKnownSelfConnection,
-} from "@/core/well-known-mcp";
+import { getWellKnownSelfConnection } from "@/core/well-known-mcp";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
 import { ConnectionStorage } from "@/storage/connection";
@@ -28,10 +25,6 @@ interface MCPCreationSpec {
  */
 function getDefaultOrgMcps(): MCPCreationSpec[] {
   return [
-    // Deco Store
-    {
-      data: getWellKnownRegistryConnection(),
-    },
     {
       permissions: {
         self: ["*"],

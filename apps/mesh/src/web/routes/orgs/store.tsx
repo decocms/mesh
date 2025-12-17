@@ -1,13 +1,19 @@
-import { StoreRegistrySelect } from "@/web/components/store-registry-select";
-import { EmptyState } from "@/web/components/empty-state";
+import {
+  getWellKnownCommunityRegistryConnection,
+  getWellKnownRegistryConnection,
+} from "@/core/well-known-mcp";
+import { CollectionHeader } from "@/web/components/collections/collection-header";
 import { StoreDiscovery } from "@/web/components/store";
+import { StoreRegistrySelect } from "@/web/components/store-registry-select";
+import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-empty-state";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
-import { useProjectContext } from "@/web/providers/project-context-provider";
-import { useNavigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { CollectionHeader } from "@/web/components/collections/collection-header";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
+import { useProjectContext } from "@/web/providers/project-context-provider";
+import { Icon } from "@deco/ui/components/icon.js";
+import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Suspense } from "react";
 
 export default function StorePage() {
   const { org } = useProjectContext();
@@ -30,31 +36,22 @@ export default function StorePage() {
   }));
 
   // Persist selected registry in localStorage (scoped by org)
-  // If the saved registry is no longer available, fallback to first available
-  const [selectedRegistry, setSelectedRegistry] = useLocalStorage<string>(
+  const [selectedRegistryId, setSelectedRegistryId] = useLocalStorage<string>(
     LOCALSTORAGE_KEYS.selectedRegistry(org.slug),
-    (existing) => {
-      // If connections haven't loaded yet, preserve existing value
-      if (registryConnections.length === 0) {
-        return existing || "";
-      }
-
-      // Validate existing value against current registry connections
-      if (existing) {
-        const savedRegistryExists = registryConnections.some(
-          (c) => c.id === existing,
-        );
-        if (savedRegistryExists) {
-          return existing;
-        }
-      }
-      // Fallback to first available registry
-      return registryConnections[0]?.id || "";
-    },
+    () => "",
   );
 
+  const selectedRegistry = registryConnections.find(
+    (c) => c.id === selectedRegistryId,
+  );
+
+  // If there's only one registry, use it; otherwise use the selected one if it still exists.
+  // If not found, that's fine: the connection may have been deleted/changed.
   const effectiveRegistry =
-    selectedRegistry || registryConnections[0]?.id || "";
+    selectedRegistry?.id || registryConnections[0]?.id || "";
+
+  // Only show selector when there are multiple registries
+  const showRegistrySelector = registryConnections.length > 1;
 
   const handleAddNewRegistry = () => {
     navigate({
@@ -63,6 +60,12 @@ export default function StorePage() {
       search: { action: "create" },
     });
   };
+
+  // Well-known registries to show in empty state
+  const wellKnownRegistries = [
+    getWellKnownRegistryConnection(),
+    getWellKnownCommunityRegistryConnection(),
+  ];
 
   // If we're viewing an app detail (child route), render the Outlet
   if (isViewingAppDetail) {
@@ -74,46 +77,48 @@ export default function StorePage() {
       <CollectionHeader
         title="Store"
         ctaButton={
-          <StoreRegistrySelect
-            registries={registryOptions}
-            value={effectiveRegistry}
-            onValueChange={setSelectedRegistry}
-            onAddNew={handleAddNewRegistry}
-            placeholder="Select store..."
-          />
+          showRegistrySelector ? (
+            <StoreRegistrySelect
+              registries={registryOptions}
+              value={effectiveRegistry}
+              onValueChange={setSelectedRegistryId}
+              onAddNew={handleAddNewRegistry}
+              placeholder="Select store..."
+            />
+          ) : undefined
         }
       />
 
       {/* Content Section */}
       <div className="h-full flex flex-col overflow-hidden">
-        {effectiveRegistry ? (
-          <StoreDiscovery registryId={effectiveRegistry} />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full">
-            <EmptyState
-              image={
-                <img
-                  src="/store-empty-state.svg"
-                  alt="No store connected"
-                  width={423}
-                  height={279}
-                  className="max-w-full h-auto"
-                />
-              }
-              title="No store connected"
-              description="Connect to a store to discover and install MCPs from the community."
-              actions={
-                <StoreRegistrySelect
-                  registries={registryOptions}
-                  value={effectiveRegistry}
-                  onValueChange={setSelectedRegistry}
-                  onAddNew={handleAddNewRegistry}
-                  placeholder="Select store..."
-                />
-              }
-            />
-          </div>
-        )}
+        <Suspense
+          fallback={
+            <div className="flex flex-col items-center justify-center h-full">
+              <Icon
+                name="progress_activity"
+                size={32}
+                className="animate-spin text-muted-foreground mb-4"
+              />
+              <p className="text-sm text-muted-foreground">
+                Loading store items...
+              </p>
+            </div>
+          }
+        >
+          {effectiveRegistry ? (
+            <StoreDiscovery registryId={effectiveRegistry} />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full">
+              <StoreRegistryEmptyState
+                registries={wellKnownRegistries}
+                onConnected={(createdRegistryId) => {
+                  // Auto-select the newly created registry
+                  setSelectedRegistryId(createdRegistryId);
+                }}
+              />
+            </div>
+          )}
+        </Suspense>
       </div>
     </div>
   );

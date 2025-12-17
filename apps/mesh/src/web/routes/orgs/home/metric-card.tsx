@@ -2,6 +2,7 @@ import { Card } from "@deco/ui/components/card.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import type { ReactNode } from "react";
+import { cn } from "@deco/ui/lib/utils.js";
 
 interface MetricCardProps {
   label: string;
@@ -20,33 +21,38 @@ export function MetricCard({
   onClick,
   className,
 }: MetricCardProps) {
-  const cardContent = quickstartContent ? (
-    <div className="space-y-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      {quickstartContent}
-    </div>
-  ) : (
-    <div className="space-y-1">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-semibold text-foreground">{value}</div>
-      {subValue && (
-        <div className="text-xs text-muted-foreground">{subValue}</div>
-      )}
-    </div>
-  );
-
-  if (onClick) {
+  if (quickstartContent) {
     return (
       <Card
-        className={`p-4 cursor-pointer transition-colors hover:bg-muted/50 ${className || ""}`}
         onClick={onClick}
+        className={cn("p-4 hover:bg-accent/0", className)}
       >
-        {cardContent}
+        <div className="space-y-1">
+          <div className="text-xs text-muted-foreground">{label}</div>
+          {quickstartContent}
+        </div>
       </Card>
     );
   }
 
-  return <Card className={`p-4 ${className || ""}`}>{cardContent}</Card>;
+  return (
+    <Card
+      onClick={onClick}
+      className={cn(
+        "p-4 transition-colors",
+        onClick ? "cursor-pointer" : "hover:bg-accent/0",
+        className,
+      )}
+    >
+      <div className="space-y-1">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="text-2xl font-semibold text-foreground">{value}</div>
+        {subValue && (
+          <div className="text-xs text-muted-foreground">{subValue}</div>
+        )}
+      </div>
+    </Card>
+  );
 }
 
 interface QuickstartButtonProps {
@@ -71,7 +77,10 @@ export function QuickstartButton({
       )}
       <Button
         size="sm"
-        onClick={onClick}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick();
+        }}
         disabled={isLoading}
         className="w-full"
       >

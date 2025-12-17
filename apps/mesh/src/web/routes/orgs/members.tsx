@@ -38,7 +38,6 @@ import {
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
@@ -551,7 +550,11 @@ export default function OrgMembers() {
         fallback={
           <CollectionPage>
             <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Icon
+                name="progress_activity"
+                size={32}
+                className="animate-spin text-muted-foreground"
+              />
             </div>
           </CollectionPage>
         }

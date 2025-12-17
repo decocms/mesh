@@ -1,9 +1,8 @@
 import { EmptyState } from "@/web/components/empty-state.tsx";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { useNavigate } from "@tanstack/react-router";
-import { Badge } from "@deco/ui/components/badge.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 
@@ -102,42 +101,12 @@ function ConnectionsPreviewContent() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {previewConnections.map((connection) => (
-          <Card
+          <ConnectionCard
             key={connection.id}
-            className="cursor-pointer transition-colors hover:bg-muted/50 group"
+            connection={connection}
             onClick={() => handleCardClick(connection.id)}
-          >
-            <div className="flex flex-col gap-4 p-4">
-              <div className="flex items-start justify-between">
-                <IntegrationIcon
-                  icon={connection.icon}
-                  name={connection.title}
-                  size="md"
-                  className="shrink-0 shadow-sm"
-                />
-                <Badge
-                  variant={
-                    connection.status === "active" ? "default" : "outline"
-                  }
-                  className="text-xs"
-                >
-                  {connection.status}
-                </Badge>
-              </div>
-              <div className="flex flex-col gap-0">
-                <h3 className="text-sm font-medium text-foreground truncate">
-                  {connection.title}
-                </h3>
-                <p className="text-xs text-muted-foreground line-clamp-2">
-                  {connection.description || "No description"}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                <Icon name="visibility" size={14} />
-                <span>Inspect</span>
-              </div>
-            </div>
-          </Card>
+            size="sm"
+          />
         ))}
       </div>
     </Card>
