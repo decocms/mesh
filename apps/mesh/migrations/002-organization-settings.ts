@@ -1,9 +1,12 @@
 import { Kysely, sql } from "kysely";
 
 export async function up(db: Kysely<unknown>): Promise<void> {
+  // CASCADE DELETE: When organization is deleted, settings are automatically removed
   await db.schema
     .createTable("organization_settings")
-    .addColumn("organizationId", "text", (col) => col.primaryKey())
+    .addColumn("organizationId", "text", (col) =>
+      col.primaryKey().references("organization.id").onDelete("cascade"),
+    )
     .addColumn("modelsBindingConnectionId", "text", (col) =>
       col.references("connections.id").onDelete("set null"),
     )

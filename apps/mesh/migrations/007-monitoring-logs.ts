@@ -9,11 +9,16 @@ import { Kysely } from "kysely";
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   // Create monitoring_logs table
+  // CASCADE DELETE: When organization is deleted, logs are automatically removed
   await db.schema
     .createTable("monitoring_logs")
     .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("organization_id", "text", (col) => col.notNull())
-    .addColumn("connection_id", "text", (col) => col.notNull())
+    .addColumn("organization_id", "text", (col) =>
+      col.notNull().references("organization.id").onDelete("cascade"),
+    )
+    .addColumn("connection_id", "text", (col) =>
+      col.notNull().references("connections.id").onDelete("cascade"),
+    )
     .addColumn("connection_title", "text", (col) => col.notNull())
     .addColumn("tool_name", "text", (col) => col.notNull())
     .addColumn("input", "text", (col) => col.notNull()) // JSON stored as text

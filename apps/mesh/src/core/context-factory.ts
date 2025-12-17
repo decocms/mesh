@@ -151,6 +151,7 @@ interface AuthContext {
   auth: BetterAuthInstance;
   role?: string; // User's role (for built-in role bypass)
   permissions?: Permission; // Permissions from API key or custom role (MCP OAuth)
+  userId?: string; // User ID for server-side API key operations
 }
 
 /**
@@ -162,7 +163,7 @@ interface AuthContext {
  * 2. Browser sessions → delegate to Better Auth's hasPermission API
  */
 function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
-  const { auth, headers, role, permissions } = ctx;
+  const { auth, headers, role, permissions, userId } = ctx;
 
   // Get hasPermission from Better Auth's organization plugin (for browser sessions)
   const hasPermissionApi = (auth.api as { hasPermission?: HasPermissionAPI })
@@ -294,9 +295,14 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 
     apiKey: {
       create: async (data) => {
+        // Don't pass headers - Better Auth treats requests with headers as "client" requests
+        // and blocks server-only properties like `permissions`. By not passing headers and
+        // providing userId in the body, Better Auth treats this as a server-side call.
         return auth.api.createApiKey({
-          headers,
-          body: data,
+          body: {
+            ...data,
+            userId, // Required for server-side calls (no headers = no session lookup)
+          },
         });
       },
 
@@ -307,9 +313,12 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
       },
 
       update: async (data) => {
+        // Don't pass headers - same reason as create: enables server-only properties
         return auth.api.updateApiKey({
-          headers,
-          body: data,
+          body: {
+            ...data,
+            userId, // Required for server-side calls
+          },
         });
       },
 
@@ -611,6 +620,7 @@ export function createMeshContextFactory(
       headers: req?.headers ?? new Headers(),
       role: authResult.role,
       permissions: authResult.permissions,
+      userId: authResult.user?.id, // For server-side API key operations
     });
 
     // Build auth object for MeshContext

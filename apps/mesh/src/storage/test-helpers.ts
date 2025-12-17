@@ -12,6 +12,18 @@ import type { Database } from "./types";
 export async function createTestSchema(db: Kysely<Database>): Promise<void> {
   console.log("Creating test schema...");
 
+  // Organization table (Better Auth managed, but needed for FK constraints)
+  await db.schema
+    .createTable("organization")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("name", "text", (col) => col.notNull())
+    .addColumn("slug", "text", (col) => col.notNull().unique())
+    .addColumn("logo", "text")
+    .addColumn("metadata", "text")
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .execute();
+
   // Users table - camelCase to match UserTable type
   await db.schema
     .createTable("users")
