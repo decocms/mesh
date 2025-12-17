@@ -14,4 +14,5 @@ export const LOCALSTORAGE_KEYS = {
   decoChatPanelWidth: () => `mesh:decochat:panel-width`,
   sidebarOpen: () => `mesh:sidebar-open`,
   selectedRegistry: (org: string) => `mesh:store:selected-registry:${org}`,
+  orgHomeQuickstart: (org: string) => `mesh:org-home:quickstart:${org}`,
 } as const;
