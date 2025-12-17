@@ -151,6 +151,7 @@ interface AuthContext {
   auth: BetterAuthInstance;
   role?: string; // User's role (for built-in role bypass)
   permissions?: Permission; // Permissions from API key or custom role (MCP OAuth)
+  userId?: string; // User ID for server-side API key operations
 }
 
 /**
@@ -162,7 +163,7 @@ interface AuthContext {
  * 2. Browser sessions → delegate to Better Auth's hasPermission API
  */
 function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
-  const { auth, headers, role, permissions } = ctx;
+  const { auth, headers, role, permissions, userId } = ctx;
 
   // Get hasPermission from Better Auth's organization plugin (for browser sessions)
   const hasPermissionApi = (auth.api as { hasPermission?: HasPermissionAPI })
@@ -294,26 +295,40 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 
     apiKey: {
       create: async (data) => {
+        // Don't pass headers - Better Auth treats requests with headers as "client" requests
+        // and blocks server-only properties like `permissions`. By not passing headers and
+        // providing userId in the body, Better Auth treats this as a server-side call.
+        // Note: Authorization to create API keys is already checked by ctx.access.check()
         return auth.api.createApiKey({
-          headers,
-          body: data,
+          body: {
+            ...data,
+            userId, // Required for server-side calls (no headers = no session lookup)
+          },
         });
       },
 
       list: async () => {
+        // Uses headers - Better Auth's sessionMiddleware handles this
+        // enableSessionForAPIKeys: true creates a session for API key auth
         return auth.api.listApiKeys({
           headers,
         });
       },
 
       update: async (data) => {
+        // Don't pass headers - same reason as create: enables server-only properties
+        // Note: Authorization is already checked by ctx.access.check()
         return auth.api.updateApiKey({
-          headers,
-          body: data,
+          body: {
+            ...data,
+            userId, // Required for server-side calls
+          },
         });
       },
 
       delete: async (keyId) => {
+        // Uses headers - Better Auth's sessionMiddleware handles this
+        // enableSessionForAPIKeys: true creates a session for API key auth
         await auth.api.deleteApiKey({
           headers,
           body: { keyId },
@@ -483,6 +498,7 @@ async function authenticateRequest(
 
         return {
           apiKeyId: result.key.id,
+          user: { id: result.key.userId }, // Include userId from API key
           permissions, // Store the API key's permissions
           organization: orgMetadata
             ? {
@@ -611,6 +627,7 @@ export function createMeshContextFactory(
       headers: req?.headers ?? new Headers(),
       role: authResult.role,
       permissions: authResult.permissions,
+      userId: authResult.user?.id, // For server-side API key operations
     });
 
     // Build auth object for MeshContext
