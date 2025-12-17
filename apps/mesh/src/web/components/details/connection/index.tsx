@@ -8,6 +8,7 @@ import {
 import { useCollectionBindings } from "@/web/hooks/use-binding";
 import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import {
   useNavigate,
@@ -15,7 +16,6 @@ import {
   useRouter,
   useSearch,
 } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { Suspense } from "react";
 import { ViewLayout, ViewTabs } from "../layout";
 import { CollectionTab } from "./collection-tab";
@@ -94,7 +94,11 @@ function ConnectionInspectorViewWithConnection({
             <Suspense
               fallback={
                 <div className="flex h-full items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <Icon
+                    name="progress_activity"
+                    size={32}
+                    className="animate-spin text-muted-foreground"
+                  />
                 </div>
               }
             >
@@ -203,7 +207,11 @@ export default function ConnectionInspectorView() {
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center bg-background">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Icon
+              name="progress_activity"
+              size={32}
+              className="animate-spin text-muted-foreground"
+            />
           </div>
         }
       >

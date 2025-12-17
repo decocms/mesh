@@ -1,4 +1,4 @@
-import { WellKnownMCPId } from "@/core/well-known-mcp";
+import { getWellKnownSelfConnection } from "@/core/well-known-mcp";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
 import { ConnectionStorage } from "@/storage/connection";
@@ -25,28 +25,6 @@ interface MCPCreationSpec {
  */
 function getDefaultOrgMcps(): MCPCreationSpec[] {
   return [
-    // Deco Store
-    {
-      data: {
-        id: WellKnownMCPId.REGISTRY,
-        title: "Deco Store",
-        description: "Official deco MCP registry with curated integrations",
-        connection_type: "HTTP",
-        connection_url: "https://api.decocms.com/mcp/registry",
-        icon: "https://assets.decocache.com/decocms/00ccf6c3-9e13-4517-83b0-75ab84554bb9/596364c63320075ca58483660156b6d9de9b526e.png",
-        app_name: "deco-registry",
-        app_id: null,
-        connection_token: null,
-        connection_headers: null,
-        oauth_config: null,
-        configuration_state: null,
-        configuration_scopes: null,
-        metadata: {
-          isDefault: true,
-          type: "registry",
-        },
-      },
-    },
     {
       permissions: {
         self: ["*"],
@@ -79,24 +57,9 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
           },
         );
       },
-      data: {
-        id: WellKnownMCPId.SELF,
-        title: "Management MCP",
-        description: "Management MCP for the organization",
-        connection_type: "HTTP",
-        connection_url: `${process.env.BASE_URL || "http://localhost:3000"}/mcp`,
-        icon: "https://assets.decocache.com/mcp/09e44283-f47d-4046-955f-816d227c626f/app.png",
-        app_name: "@deco/management-mcp",
-        connection_token: null,
-        connection_headers: null,
-        oauth_config: null,
-        configuration_state: null,
-        configuration_scopes: null,
-        metadata: {
-          isDefault: true,
-          type: WellKnownMCPId.SELF,
-        },
-      },
+      data: getWellKnownSelfConnection(
+        process.env.BASE_URL || "http://localhost:3000",
+      ),
     },
   ];
 }

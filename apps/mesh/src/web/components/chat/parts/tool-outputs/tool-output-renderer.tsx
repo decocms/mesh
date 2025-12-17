@@ -1,10 +1,10 @@
+import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { useConnection } from "@/web/hooks/collections/use-connection";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ConnectionCard } from "./connection-card.tsx";
 
 interface ToolOutputRendererProps {
   toolName: string;
@@ -109,14 +109,7 @@ function ConnectionRenderer({
     );
   }
 
-  return (
-    <ConnectionCard
-      icon={connection.icon}
-      title={connection.title}
-      description={connection.description}
-      onClick={handleOpen}
-    />
-  );
+  return <ConnectionCard connection={connection} onClick={handleOpen} />;
 }
 
 function CopyButton({ text }: { text: string }) {

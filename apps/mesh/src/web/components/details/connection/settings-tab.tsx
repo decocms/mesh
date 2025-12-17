@@ -38,7 +38,6 @@ import type { FieldTemplateProps, ObjectFieldTemplateProps } from "@rjsf/utils";
 import validator from "@rjsf/validator-ajv8";
 import { useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2 } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -434,7 +433,11 @@ function BindingSelector({
             >
               {isInstalling ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Icon
+                    name="progress_activity"
+                    size={16}
+                    className="animate-spin"
+                  />
                   <span>Installing...</span>
                 </>
               ) : (
@@ -776,7 +779,13 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
       <ViewActions>
         {hasAnyChanges && (
           <Button onClick={handleSave} disabled={isUpdating} size="sm">
-            {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isUpdating && (
+              <Icon
+                name="progress_activity"
+                size={16}
+                className="mr-2 animate-spin"
+              />
+            )}
             Save Changes
           </Button>
         )}
@@ -792,7 +801,11 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
         <Suspense
           fallback={
             <div className="w-3/5 min-w-0 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Icon
+                name="progress_activity"
+                size={32}
+                className="animate-spin text-muted-foreground"
+              />
             </div>
           }
         >

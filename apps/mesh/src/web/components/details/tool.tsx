@@ -8,6 +8,7 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useParams } from "@tanstack/react-router";
 import {
@@ -17,7 +18,6 @@ import {
   Code,
   Copy,
   Database,
-  Loader2,
   Play,
   Plus,
 } from "lucide-react";
@@ -248,7 +248,11 @@ function ToolDetailsAuthenticated({
             {mcp.state === "ready" ? (
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
             ) : mcp.state === "connecting" || mcp.state === "authenticating" ? (
-              <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
+              <Icon
+                name="progress_activity"
+                size={12}
+                className="animate-spin text-yellow-500"
+              />
             ) : (
               <div className="h-2 w-2 rounded-full bg-red-500" />
             )}
@@ -306,7 +310,11 @@ function ToolDetailsAuthenticated({
                 disabled={isExecuting}
               >
                 {isExecuting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Icon
+                    name="progress_activity"
+                    size={14}
+                    className="animate-spin"
+                  />
                 ) : (
                   <Play className="h-3.5 w-3.5 fill-current" />
                 )}
@@ -488,7 +496,11 @@ export function ToolDetailsView({
     <Suspense
       fallback={
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Icon
+            name="progress_activity"
+            size={32}
+            className="animate-spin text-muted-foreground"
+          />
         </div>
       }
     >
