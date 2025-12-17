@@ -42,7 +42,7 @@ export default function OrgHomePage() {
   return (
     <CollectionPage>
       <CollectionHeader
-        title={`Mesh · ${org.name}`}
+        title={org.name}
         ctaButton={
           <div className="flex items-center gap-2">
             <Button
