@@ -48,7 +48,7 @@ export function getWellKnownCommunityRegistryConnection(): ConnectionCreateData 
     connection_type: "HTTP",
     connection_url: "https://sites-registry.decocache.com/mcp",
     icon: "https://assets.decocache.com/decocms/cd7ca472-0f72-463a-b0de-6e44bdd0f9b4/mcp.png",
-    app_name: "registrys",
+    app_name: "mcp-registry",
     app_id: null,
     connection_token: null,
     connection_headers: null,
