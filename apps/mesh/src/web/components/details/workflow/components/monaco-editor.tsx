@@ -1,4 +1,11 @@
-import { memo, useRef, useId, useState, Component, type ReactNode } from "react";
+import {
+  memo,
+  useRef,
+  useId,
+  useState,
+  Component,
+  type ReactNode,
+} from "react";
 import Editor, {
   loader,
   OnMount,
@@ -32,7 +39,10 @@ class MonacoErrorBoundary extends Component<
     }
   }
 
-  override componentDidUpdate(prevProps: { children: ReactNode; onError: () => void }) {
+  override componentDidUpdate(prevProps: {
+    children: ReactNode;
+    onError: () => void;
+  }) {
     // Reset error state when children change (new key)
     if (this.state.hasError && prevProps.children !== this.props.children) {
       this.setState({ hasError: false });

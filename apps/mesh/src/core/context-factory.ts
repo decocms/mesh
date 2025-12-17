@@ -460,7 +460,6 @@ async function authenticateRequest(
                 id: meshJwtPayload.metadata?.organizationId,
               }
             : undefined,
-          permissions: meshJwtPayload.permissions,
         };
       }
     } catch {

@@ -4,7 +4,6 @@
  * Create a new MCP connection (organization-scoped) with collection binding compliance.
  */
 
-import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import {

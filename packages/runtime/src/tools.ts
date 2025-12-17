@@ -8,7 +8,11 @@ import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
 import { Binding } from "./wrangler.ts";
-import { EventBusBindingClient, OnEventsInputSchema, OnEventsOutputSchema } from "@decocms/bindings";
+import {
+  EventBusBindingClient,
+  OnEventsInputSchema,
+  OnEventsOutputSchema,
+} from "@decocms/bindings";
 
 // Re-export EventHandlers type for external use
 export type { EventHandlers } from "./events.ts";

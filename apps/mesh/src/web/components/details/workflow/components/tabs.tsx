@@ -27,10 +27,12 @@ import { MonacoCodeEditor } from "./monaco-editor";
 import { ConnectionSelector, ItemCard, ToolSelector } from "./tool-selector";
 import { Button } from "@deco/ui/components/button.js";
 import { CodeXml, GitBranch, Loader2 } from "lucide-react";
-import { useConnection, useConnections } from "@/web/hooks/collections/use-connection";
+import {
+  useConnection,
+  useConnections,
+} from "@/web/hooks/collections/use-connection";
 import { usePollingWorkflowExecution } from "../hooks/use-workflow-collection-item";
 import { MentionItem } from "@/web/components/tiptap-mentions-input";
-import { useCollectionItem } from "@/web/hooks/use-collections";
 import { ExecutionResult, ToolDetail } from "./tool";
 import { useMcp } from "use-mcp/react";
 
@@ -362,7 +364,6 @@ function ToolAction({ step }: { step: Step & { action: ToolCallAction } }) {
   );
 }
 
-
 export function useTool(toolName: string, connectionId: string) {
   const connection = useConnection(connectionId);
   // Use proxy URL when connection has a token (OAuth completed)
@@ -406,7 +407,7 @@ function SelectedTool({
   selectedToolName,
   selectedConnectionId,
   input,
-  onBack
+  onBack,
 }: {
   selectedToolName: string;
   selectedConnectionId: string;
@@ -416,7 +417,10 @@ function SelectedTool({
   const { updateStep } = useWorkflowActions();
   const currentStep = useCurrentStep();
   const workflowSteps = useWorkflowSteps();
-  const { tool, mcp, connection, isLoading } = useTool(selectedToolName, selectedConnectionId);
+  const { tool, mcp, connection } = useTool(
+    selectedToolName,
+    selectedConnectionId,
+  );
   const handleInputChange = (input: Record<string, unknown>) => {
     if (!currentStep?.name) return;
     const recursivelyParseIfObjectOrArray = (
@@ -469,15 +473,15 @@ function SelectedTool({
 
   return (
     <div className="h-full">
-<ToolDetail
-tool={tool}
-mcp={mcp}
-connection={connection}
-onInputChange={handleInputChange}
-initialInputParams={input}
-mentions={allMentions}
-onBack={onBack}
-/>      
+      <ToolDetail
+        tool={tool}
+        mcp={mcp}
+        connection={connection}
+        onInputChange={handleInputChange}
+        initialInputParams={input}
+        mentions={allMentions}
+        onBack={onBack}
+      />
     </div>
   );
 }

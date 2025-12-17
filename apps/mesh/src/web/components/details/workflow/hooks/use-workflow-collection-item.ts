@@ -19,14 +19,19 @@ export function useWorkflowCollectionItem(itemId: string) {
     strict: false,
   });
   const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
-  const item = useCollectionItem<Workflow>(connectionId ?? UNKNOWN_CONNECTION_ID, "workflow", itemId, toolCaller);
+  const item = useCollectionItem<Workflow>(
+    connectionId ?? UNKNOWN_CONNECTION_ID,
+    "workflow",
+    itemId,
+    toolCaller,
+  );
   return {
     item,
     update: (updates: Record<string, unknown>) => {
       toolCaller("COLLECTION_WORKFLOW_UPDATE", {
         id: itemId,
-          data: updates,
-        });
+        data: updates,
+      });
     },
   };
 }
@@ -40,18 +45,23 @@ export function useWorkflowExecutionCollectionList({
     strict: false,
   });
   const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
-  const list = useCollectionList(connectionId ?? UNKNOWN_CONNECTION_ID, "workflow_execution", toolCaller, {
-    sortKey: "created_at",
-    sortDirection: "desc",
-    filters: [
-      workflowId
-        ? {
-            column: "workflow_id",
-            value: workflowId,
-          }
-        : undefined,
-    ].filter(Boolean) as CollectionFilter[],
-  });
+  const list = useCollectionList(
+    connectionId ?? UNKNOWN_CONNECTION_ID,
+    "workflow_execution",
+    toolCaller,
+    {
+      sortKey: "created_at",
+      sortDirection: "desc",
+      filters: [
+        workflowId
+          ? {
+              column: "workflow_id",
+              value: workflowId,
+            }
+          : undefined,
+      ].filter(Boolean) as CollectionFilter[],
+    },
+  );
   return {
     list,
   };
@@ -62,7 +72,12 @@ export function useWorkflowExecutionCollectionItem(itemId?: string) {
     strict: false,
   });
   const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
-  const item = useCollectionItem<WorkflowExecution>(connectionId ?? UNKNOWN_CONNECTION_ID, "workflow_execution", itemId, toolCaller);
+  const item = useCollectionItem<WorkflowExecution>(
+    connectionId ?? UNKNOWN_CONNECTION_ID,
+    "workflow_execution",
+    itemId,
+    toolCaller,
+  );
   return {
     item,
   };
@@ -94,8 +109,17 @@ export function usePollingWorkflowExecution(executionId?: string) {
     },
     enabled: !!executionId,
     refetchInterval: executionId
-      ? (query: Query<{ item: WorkflowExecution | null }, Error, { item: WorkflowExecution | null }, readonly unknown[]>) => {
-          return query.state?.data?.item?.completed_at_epoch_ms === null ? 1000 : false;
+      ? (
+          query: Query<
+            { item: WorkflowExecution | null },
+            Error,
+            { item: WorkflowExecution | null },
+            readonly unknown[]
+          >,
+        ) => {
+          return query.state?.data?.item?.completed_at_epoch_ms === null
+            ? 1000
+            : false;
         }
       : false,
   }) as {

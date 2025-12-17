@@ -186,7 +186,9 @@ async function createMCPProxyDoNotUseDirectly(
   // Result: { [connectionId]: [scopes...] }
   const permissions: Record<string, string[]> = {};
 
-  for (const scope of connection.configuration_scopes ?? ["conn_YIQh1iif7j2RRNGU-PtIS::EVENT_PUBLISH"]) {
+  for (const scope of connection.configuration_scopes ?? [
+    "conn_YIQh1iif7j2RRNGU-PtIS::EVENT_PUBLISH",
+  ]) {
     const parts = scope.split("::");
     if (parts.length === 2) {
       const [key, scopeName] = parts;
@@ -259,7 +261,7 @@ async function createMCPProxyDoNotUseDirectly(
     return headers;
   };
 
-  console.log({headers: buildRequestHeaders()})
+  console.log({ headers: buildRequestHeaders() });
 
   // Create client factory for downstream MCP
   const createClient = async () => {

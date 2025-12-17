@@ -29,9 +29,6 @@ import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
 import { OAuthAuthenticationState } from "./connection/settings-tab";
 import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
-import { JsonSchema } from "@/web/utils/constants";
-import { MentionInput, MentionItem } from "../tiptap-mentions-input";
-import { ScrollArea } from "@deco/ui/components/scroll-area.js";
 
 export interface ToolDetailsViewProps {
   itemId: string;
@@ -146,9 +143,6 @@ function ToolDetailsAuthenticated({
     }
   }
 
-  const hasEditedKey = (key: string) =>
-    Object.prototype.hasOwnProperty.call(editedParams, key);
-
   const handleExecute = async () => {
     setIsExecuting(true);
     setExecutionError(null);
@@ -163,16 +157,10 @@ function ToolDetailsAuthenticated({
       // - If we have properties, merge derived defaults with user edits and parse object/array fields when provided as strings.
       // - Otherwise, parse the raw JSON input as the full args payload.
       const args: Record<string, unknown> = hasToolProperties
-        ? { ...defaultParams, ...editedParams }
+        ? { ...defaultParams, ...inputParams }
         : (() => {
-            const trimmed = rawJsonText.trim();
-            if (!trimmed) return {};
-            const parsed = JSON.parse(trimmed);
-            if (parsed && typeof parsed === "object") {
-              return parsed as Record<string, unknown>;
-            }
-            throw new Error("Raw JSON input must be an object.");
-          })();
+          return inputParams;
+        })();
 
       if (hasToolProperties && tool?.inputSchema?.properties) {
         Object.entries(tool.inputSchema.properties).forEach(
@@ -223,7 +211,7 @@ function ToolDetailsAuthenticated({
   };
 
   const handleInputChange = (key: string, value: string) => {
-    setEditedParams((prev) => ({ ...prev, [key]: value }));
+    setInputParams((prev) => ({ ...prev, [key]: value }));
   };
 
   return (

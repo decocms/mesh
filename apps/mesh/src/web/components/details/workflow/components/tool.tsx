@@ -25,7 +25,10 @@ import { ViewActions, ViewLayout } from "@/web/components/details/layout";
 import { useParams } from "@tanstack/react-router";
 import { JsonSchema } from "@/web/utils/constants";
 import { ScrollArea } from "@deco/ui/components/scroll-area.js";
-import { MentionInput, MentionItem } from "@/web/components/tiptap-mentions-input";
+import {
+  MentionInput,
+  MentionItem,
+} from "@/web/components/tiptap-mentions-input";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 
 // Helper to normalize URL for MCP

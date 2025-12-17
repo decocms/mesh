@@ -5,7 +5,12 @@
  * Uses Suspense for loading states - wrap components in <Suspense> and <ErrorBoundary>.
  */
 
-import { Query, useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  Query,
+  useMutation,
+  useQuery,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import type { ToolCaller } from "../../tools/client";
 import { KEYS } from "../lib/query-keys";
 
@@ -26,7 +31,9 @@ export interface UseToolCallOptions<TInput, _TOutput> {
   /** Refetch interval in milliseconds (false to disable) */
   refetchInterval?:
     | number
-    | ((query: Query<_TOutput, Error, _TOutput, readonly unknown[]>) => number | false)
+    | ((
+        query: Query<_TOutput, Error, _TOutput, readonly unknown[]>,
+      ) => number | false)
     | false;
   /** Whether to enable the tool call */
   enabled?: boolean;
@@ -75,7 +82,7 @@ export function useToolCall<TInput, TOutput>(
     staleTime,
     refetchInterval,
     queryKey: KEYS.toolCall(toolName, paramsKey, connectionId),
-    queryFn: async () => {      
+    queryFn: async () => {
       const result = await toolCaller(toolName, toolInputParams);
       return result as TOutput;
     },
@@ -108,10 +115,22 @@ export function useToolCallMutation<TInput>(
 export function useToolCallQuery<TInput, TOutput>(
   options: UseToolCallOptions<TInput, TOutput>,
 ) {
-  const { toolCaller, toolName, toolInputParams, connectionId, staleTime = 60_000, refetchInterval, enabled } = options;
+  const {
+    toolCaller,
+    toolName,
+    toolInputParams,
+    connectionId,
+    staleTime = 60_000,
+    refetchInterval,
+    enabled,
+  } = options;
 
   return useQuery({
-    queryKey: KEYS.toolCall(toolName, JSON.stringify(toolInputParams ?? {}), connectionId),
+    queryKey: KEYS.toolCall(
+      toolName,
+      JSON.stringify(toolInputParams ?? {}),
+      connectionId,
+    ),
     queryFn: async () => {
       const result = await toolCaller(toolName, toolInputParams ?? {});
       return result as TOutput;

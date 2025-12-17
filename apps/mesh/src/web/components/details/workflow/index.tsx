@@ -269,7 +269,6 @@ function ExecutionSelect() {
                   }}
                 >
                   {new Date(execution.created_at).toLocaleString()}-{" "}
-                  {execution.status}
                   <Check
                     className={cn(
                       "ml-auto",
