@@ -35,6 +35,7 @@ import {
   createProxyStreamableMonitoringMiddleware,
   ProxyMonitoringMiddlewareParams,
 } from "./proxy-monitoring";
+import { prop } from "@/tools/connection/json-path";
 
 // Define Hono variables type
 type Variables = {
@@ -204,7 +205,7 @@ async function createMCPProxyDoNotUseDirectly(
         const [key, scopeName] = parts;
         if (!key || !scopeName) continue; // Skip invalid parts
 
-        const stateValue: unknown = connection.configuration_state?.[key];
+        const stateValue: unknown = prop(key, connection.configuration_state);
 
         if (
           typeof stateValue === "object" &&

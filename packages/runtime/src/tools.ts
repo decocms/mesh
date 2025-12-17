@@ -363,7 +363,7 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
           scopes: [
             ...(scopes ?? []),
             ...Event.scopes(events?.handlers ?? {}),
-            ...(busProp ? [`${busProp}::EVENT_SYNC_SUBSCRIPTIONS`] : []),
+            ...(events ? [`${busProp}::EVENT_SYNC_SUBSCRIPTIONS`] : []),
           ],
         });
       },

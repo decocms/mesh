@@ -16,6 +16,7 @@ import {
   ConnectionEntitySchema,
   ConnectionUpdateDataSchema,
 } from "./schema";
+import { prop } from "./json-path";
 
 /**
  * Input schema for updating connections
@@ -65,9 +66,10 @@ async function validateConfiguration(
   for (const scope of scopes) {
     // Parse scope format: "KEY::SCOPE"
     const [key] = parseScope(scope);
+    const value = prop(key, state);
 
     // Check if this key exists in state
-    if (!(key in state)) {
+    if (!value) {
       throw new Error(
         `Scope references key "${key}" but it's not present in state`,
       );

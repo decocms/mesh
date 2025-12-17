@@ -1,5 +1,6 @@
 export interface BindingBase {
   name: string;
+  array?: true;
 }
 
 export interface MCPConnectionBinding extends BindingBase {
@@ -15,7 +16,7 @@ export interface MCPAppBinding extends BindingBase {
   /**
    * The name of the integration to bind.
    */
-  app_name: string;
+  app_name?: string;
 }
 export interface ContractClause {
   id: string;
