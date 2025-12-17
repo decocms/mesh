@@ -11,7 +11,7 @@ import {
   MCPServer,
 } from "./tools.ts";
 import type { Binding, ContractBinding, MCPBinding } from "./wrangler.ts";
-export { proxyConnectionForId } from "./bindings.ts";
+export { mcpClientForConnectionId, proxyConnectionForId } from "./bindings.ts";
 export { type CORSOptions, type CORSOrigin } from "./cors.ts";
 export {
   createMCPFetchStub,

@@ -5,7 +5,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Card, CardHeader, CardTitle } from "@deco/ui/components/card.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useToolCallMutation } from "@/web/hooks/use-tool-call";
-import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
+import { createToolCaller } from "@/tools/client";
 import {
   useIsAddingStep,
   useIsDirty,
@@ -15,9 +15,6 @@ import {
 } from "@/web/components/details/workflow/stores/workflow";
 import { useWorkflowBindingConnection } from "../../../hooks/use-workflow-binding-connection";
 import { useWorkflowExecutionCollectionItem } from "../../../hooks/use-workflow-collection-item";
-import { authClient } from "@/web/lib/auth-client";
-import { useCollection } from "@/web/hooks/use-collections";
-import { WorkflowExecution } from "@decocms/bindings/workflow";
 import { ExecutionScheduleTooltip, useIsExecutionScheduled } from "../../..";
 
 // ============================================
@@ -29,16 +26,10 @@ function useWorkflowStart() {
   const { setTrackingExecutionId } = useWorkflowActions();
   const toolCaller = createToolCaller(connectionId);
   const workflow = useWorkflow();
-  const collection = useCollection<WorkflowExecution>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
-    "workflow_execution",
-    toolCaller,
-  );
   const { mutateAsync: startWorkflow, isPending } = useToolCallMutation({
     toolCaller,
     toolName: "WORKFLOW_START",
   });
-  const { data: session } = authClient.useSession();
   const handleRunWorkflow = async () => {
     const startAtEpochMs = Date.now() + 100;
     const timeoutMs = 30000;
@@ -53,18 +44,6 @@ function useWorkflowStart() {
       (result as { executionId: string }).executionId ??
       (result as { structuredContent: { executionId: string } })
         .structuredContent.executionId;
-    await collection.utils.writeInsert({
-      id: executionId,
-      title: workflow.title,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      status: "enqueued",
-      workflow_id: workflow.id,
-      start_at_epoch_ms: startAtEpochMs,
-      timeout_ms: timeoutMs,
-      created_by: session?.user?.id,
-      input: {},
-    });
     setTrackingExecutionId(executionId);
     return executionId;
   };

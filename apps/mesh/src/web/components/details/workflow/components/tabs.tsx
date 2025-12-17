@@ -15,7 +15,7 @@ import {
   TabsTrigger,
 } from "@deco/ui/components/tabs.js";
 import { cn } from "@deco/ui/lib/utils.js";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CodeAction,
   SleepAction,
@@ -26,11 +26,13 @@ import {
 import { MonacoCodeEditor } from "./monaco-editor";
 import { ConnectionSelector, ItemCard, ToolSelector } from "./tool-selector";
 import { Button } from "@deco/ui/components/button.js";
-import { ExecutionResult, ToolDetail, useTool } from "../../tool";
 import { CodeXml, GitBranch, Loader2 } from "lucide-react";
-import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useConnection, useConnections } from "@/web/hooks/collections/use-connection";
 import { usePollingWorkflowExecution } from "../hooks/use-workflow-collection-item";
 import { MentionItem } from "@/web/components/tiptap-mentions-input";
+import { useCollectionItem } from "@/web/hooks/use-collections";
+import { ExecutionResult, ToolDetail } from "./tool";
+import { useMcp } from "use-mcp/react";
 
 export function WorkflowTabs() {
   const currentTab = useCurrentTab();
@@ -97,8 +99,8 @@ function OutputTabContent({
   return (
     <div className="h-full">
       <ExecutionResult
-        placeholder="No output found"
-        executionResult={stepResult}
+        executionResult={stepResult.output as Record<string, unknown> | null}
+        placeholder="No output available"
       />
     </div>
   );
@@ -166,6 +168,7 @@ export function StepTabs() {
         )}
         {currentStep && activeTab === "input" && (
           <MonacoCodeEditor
+            key={`input-${currentStep.name}`}
             height="100%"
             code={JSON.stringify(currentStep.input ?? {}, null, 2)}
             language="json"
@@ -204,6 +207,7 @@ function ActionTab({
     return (
       <div className="h-[calc(100%-60px)]">
         <MonacoCodeEditor
+          key={`code-${step.name}`}
           height="100%"
           code={step.action.code}
           language="typescript"
@@ -221,6 +225,7 @@ function ActionTab({
   } else if ("sleepMs" in step.action || "sleepUntil" in step.action) {
     return (
       <MonacoCodeEditor
+        key={`sleep-${step.name}`}
         height="100%"
         code={JSON.stringify(step.action, null, 2)}
         language="json"
@@ -357,25 +362,61 @@ function ToolAction({ step }: { step: Step & { action: ToolCallAction } }) {
   );
 }
 
+
+export function useTool(toolName: string, connectionId: string) {
+  const connection = useConnection(connectionId);
+  // Use proxy URL when connection has a token (OAuth completed)
+  // Use normalizedUrl directly when no token (OAuth flow needs direct access)
+  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
+
+  // Initialize MCP client
+  const mcp = useMcp({
+    url: mcpProxyUrl.href,
+    clientName: "MCP Tool Inspector",
+    clientUri: window.location.origin,
+    autoReconnect: true,
+    autoRetry: 5000,
+  });
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (mcp.error) {
+      console.error("MCP Error:", mcp.error);
+    }
+  }, [mcp.error]);
+
+  // Find the tool definition
+  const tool = mcp.tools?.find((t) => t.name === toolName);
+
+  // Check if MCP is still loading/discovering
+  const isLoading =
+    mcp.state === "connecting" ||
+    mcp.state === "authenticating" ||
+    mcp.state === "discovering";
+
+  return {
+    tool,
+    mcp,
+    connection,
+    isLoading,
+  };
+}
+
 function SelectedTool({
   selectedToolName,
   selectedConnectionId,
   input,
-  onBack,
+  onBack
 }: {
   selectedToolName: string;
   selectedConnectionId: string;
   input: Record<string, unknown>;
   onBack: () => void;
 }) {
-  const { tool, mcp, connection } = useTool(
-    selectedToolName,
-    selectedConnectionId,
-  );
   const { updateStep } = useWorkflowActions();
   const currentStep = useCurrentStep();
   const workflowSteps = useWorkflowSteps();
-
+  const { tool, mcp, connection, isLoading } = useTool(selectedToolName, selectedConnectionId);
   const handleInputChange = (input: Record<string, unknown>) => {
     if (!currentStep?.name) return;
     const recursivelyParseIfObjectOrArray = (
@@ -417,7 +458,7 @@ function SelectedTool({
     ),
   }));
 
-  if (!tool || !mcp || !connection) {
+  if (!tool) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -427,15 +468,16 @@ function SelectedTool({
   }
 
   return (
-    <ToolDetail
-      tool={tool}
-      mcp={mcp}
-      withHeader={false}
-      onInputChange={handleInputChange}
-      connection={connection}
-      onBack={onBack}
-      initialInputParams={input}
-      mentions={allMentions}
-    />
+    <div className="h-full">
+<ToolDetail
+tool={tool}
+mcp={mcp}
+connection={connection}
+onInputChange={handleInputChange}
+initialInputParams={input}
+mentions={allMentions}
+onBack={onBack}
+/>      
+    </div>
   );
 }

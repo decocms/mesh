@@ -8,7 +8,7 @@
   "dependencies": {
     "@cloudflare/workers-types": "^4.20250617.0",
     "@deco/mcp": "npm:@jsr/deco__mcp@0.7.8",
-    "@decocms/bindings": "file:/Users/pedrofranca/Documents/dev/decocms/admin/packages/bindings",
+    "@decocms/bindings": "file:/Users/pedrofranca/Documents/dev/decocms/mesh/packages/bindings",
     "@modelcontextprotocol/sdk": "1.20.2",
     "@ai-sdk/provider": "^2.0.0",
     "hono": "^4.10.7",

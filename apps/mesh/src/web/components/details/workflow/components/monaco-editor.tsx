@@ -1,4 +1,4 @@
-import { memo, useRef, useId, useState } from "react";
+import { memo, useRef, useId, useState, Component, type ReactNode } from "react";
 import Editor, {
   loader,
   OnMount,
@@ -6,6 +6,50 @@ import Editor, {
 } from "@monaco-editor/react";
 import type { Plugin } from "prettier";
 import { Spinner } from "@deco/ui/components/spinner.js";
+
+// Error boundary to catch Monaco disposal errors and recover
+class MonacoErrorBoundary extends Component<
+  { children: ReactNode; onError: () => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; onError: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    // Check if it's the specific Monaco disposal error
+    if (error.message?.includes("InstantiationService has been disposed")) {
+      return { hasError: true };
+    }
+    throw error;
+  }
+
+  override componentDidCatch(error: Error) {
+    if (error.message?.includes("InstantiationService has been disposed")) {
+      // Trigger recovery
+      this.props.onError();
+    }
+  }
+
+  override componentDidUpdate(prevProps: { children: ReactNode; onError: () => void }) {
+    // Reset error state when children change (new key)
+    if (this.state.hasError && prevProps.children !== this.props.children) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center h-full w-full bg-[#1e1e1e] text-gray-400">
+          <Spinner size="sm" />
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Lazy load Prettier modules
 let prettierCache: {
@@ -106,6 +150,7 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
   language = "typescript",
 }: MonacoCodeEditorProps) {
   const [isDirty, setIsDirty] = useState(false);
+  const [mountKey, setMountKey] = useState(0);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const lastSavedVersionIdRef = useRef<number | null>(null);
   const onSaveRef = useRef(onSave);
@@ -120,8 +165,14 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
   const uniqueId = useId();
   const filePath =
     language === "typescript"
-      ? `file:///workflow-${uniqueId.replace(/:/g, "-")}.tsx`
+      ? `file:///workflow-${uniqueId.replace(/:/g, "-")}-${mountKey}.tsx`
       : undefined;
+
+  // Handle Monaco error recovery by incrementing mount key
+  const handleMonacoError = () => {
+    editorRef.current = null;
+    setMountKey((k) => k + 1);
+  };
 
   // Compute options with readOnly merged in
   const editorOptions = readOnly
@@ -525,17 +576,20 @@ declare const __outputValue: __InferredOutput;
           Save (⌘S)
         </button>
       </div>
-      <Editor
-        height={height}
-        language={language}
-        value={code}
-        path={filePath}
-        theme="vs-dark"
-        onChange={onChange}
-        onMount={handleEditorDidMount}
-        loading={LoadingPlaceholder}
-        options={editorOptions}
-      />
+      <MonacoErrorBoundary onError={handleMonacoError}>
+        <Editor
+          key={mountKey}
+          height={height}
+          language={language}
+          value={code}
+          path={filePath}
+          theme="vs-dark"
+          onChange={onChange}
+          onMount={handleEditorDidMount}
+          loading={LoadingPlaceholder}
+          options={editorOptions}
+        />
+      </MonacoErrorBoundary>
     </div>
   );
 });

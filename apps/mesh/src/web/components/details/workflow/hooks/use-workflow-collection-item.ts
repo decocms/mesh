@@ -1,7 +1,6 @@
 import { useParams } from "@tanstack/react-router";
 import {
   CollectionFilter,
-  useCollection,
   useCollectionItem,
   useCollectionList,
 } from "@/web/hooks/use-collections";
@@ -12,25 +11,22 @@ import {
 } from "@decocms/bindings/workflow";
 import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
 import { useWorkflowBindingConnection } from "./use-workflow-binding-connection";
-import { useToolCall } from "@/web/hooks/use-tool-call";
+import { useToolCallQuery } from "@/web/hooks/use-tool-call";
+import { Query } from "@tanstack/react-query";
 
 export function useWorkflowCollectionItem(itemId: string) {
   const { connectionId } = useParams({
     strict: false,
   });
   const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
-  const collection = useCollection<Workflow>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
-    "workflow",
-    toolCaller,
-  );
-  const item = useCollectionItem<Workflow>(collection, itemId);
+  const item = useCollectionItem<Workflow>(connectionId ?? UNKNOWN_CONNECTION_ID, "workflow", itemId, toolCaller);
   return {
     item,
     update: (updates: Record<string, unknown>) => {
-      collection.update(itemId, (draft) => {
-        Object.assign(draft, updates);
-      });
+      toolCaller("COLLECTION_WORKFLOW_UPDATE", {
+        id: itemId,
+          data: updates,
+        });
     },
   };
 }
@@ -44,14 +40,7 @@ export function useWorkflowExecutionCollectionList({
     strict: false,
   });
   const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
-  const collection = useCollection<WorkflowExecution>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
-    "workflow_execution",
-    toolCaller,
-  );
-
-  const list = useCollectionList(collection, {
-    maxItems: 10,
+  const list = useCollectionList(connectionId ?? UNKNOWN_CONNECTION_ID, "workflow_execution", toolCaller, {
     sortKey: "created_at",
     sortDirection: "desc",
     filters: [
@@ -73,12 +62,7 @@ export function useWorkflowExecutionCollectionItem(itemId?: string) {
     strict: false,
   });
   const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
-  const collection = useCollection<WorkflowExecution>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
-    "workflow_execution",
-    toolCaller,
-  );
-  const item = useCollectionItem<WorkflowExecution>(collection, itemId);
+  const item = useCollectionItem<WorkflowExecution>(connectionId ?? UNKNOWN_CONNECTION_ID, "workflow_execution", itemId, toolCaller);
   return {
     item,
   };
@@ -101,15 +85,8 @@ function useWorkflowGetExecutionStepResultTool() {
 export function usePollingWorkflowExecution(executionId?: string) {
   const { connectionId } = useWorkflowGetExecutionStepResultTool();
   const toolCaller = createToolCaller(connectionId);
-  const collection = useCollection<WorkflowExecution>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
-    "workflow_execution",
-    toolCaller,
-  );
 
-  const existingExecution = useWorkflowExecutionCollectionItem(executionId);
-
-  const { data } = useToolCall({
+  const { data } = useToolCallQuery({
     toolCaller: toolCaller,
     toolName: "COLLECTION_WORKFLOW_EXECUTION_GET",
     toolInputParams: {
@@ -117,36 +94,8 @@ export function usePollingWorkflowExecution(executionId?: string) {
     },
     enabled: !!executionId,
     refetchInterval: executionId
-      ? (query) => {
-          const completedAtEpochMs =
-            existingExecution?.item?.completed_at_epoch_ms;
-          const status = existingExecution?.item?.status;
-          const item = (query.state?.data as { item: WorkflowExecution | null })
-            ?.item;
-          const id = item?.id;
-          if (
-            (id && completedAtEpochMs !== null) ||
-            (status === "error" &&
-              (query.state?.data as { item: WorkflowExecution | null })?.item &&
-              id === executionId)
-          ) {
-            collection.utils.writeUpdate([
-              {
-                id,
-                title: item?.title ?? "",
-                created_at: item?.created_at ?? "",
-                updated_at: item?.updated_at ?? "",
-                status: item?.status ?? "enqueued",
-                workflow_id: item?.workflow_id ?? "",
-                description: item?.description ?? "",
-                deadline_at_epoch_ms: item?.deadline_at_epoch_ms ?? undefined,
-                start_at_epoch_ms: item?.start_at_epoch_ms ?? undefined,
-                timeout_ms: item?.timeout_ms ?? undefined,
-                completed_at_epoch_ms: completedAtEpochMs,
-              },
-            ]);
-          }
-          return item?.completed_at_epoch_ms === null ? 1000 : false;
+      ? (query: Query<{ item: WorkflowExecution | null }, Error, { item: WorkflowExecution | null }, readonly unknown[]>) => {
+          return query.state?.data?.item?.completed_at_epoch_ms === null ? 1000 : false;
         }
       : false,
   }) as {

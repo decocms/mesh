@@ -157,6 +157,7 @@ function WorkflowCode({
   };
   return (
     <MonacoCodeEditor
+      key={`workflow-${workflow.id}`}
       height="100%"
       code={JSON.stringify(wf, null, 2)}
       language="json"
