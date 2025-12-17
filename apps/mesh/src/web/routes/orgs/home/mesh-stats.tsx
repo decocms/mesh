@@ -139,16 +139,16 @@ function MeshStatsContent() {
         ) : undefined,
     },
     {
-      label: "Registries",
+      label: "Stores",
       value: totalRegistries.toLocaleString(),
       subValue: hasNoRegistry
-        ? "No registry found"
-        : `${totalRegistries} registry${totalRegistries !== 1 ? "ies" : ""}`,
+        ? "No store found"
+        : `${totalRegistries} store${totalRegistries !== 1 ? "s" : ""}`,
       onClick: handleGoToStore,
       quickstartContent: hasNoRegistry ? (
         <QuickstartButton
-          label="Add Registry"
-          description="Connect to a registry to discover and install MCPs"
+          label="Add Store"
+          description="Connect to a store to discover and install MCPs"
           icon="add"
           onClick={handleGoToStore}
         />

@@ -6,18 +6,20 @@ import { useNavigate } from "@tanstack/react-router";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 
+const MAX_LISTED_CONNECTIONS = 4;
+
 function ConnectionsPreviewContent() {
   const { org } = useProjectContext();
   const navigate = useNavigate();
   const connections = useConnections() ?? [];
 
-  // Show up to 8 connections, prioritizing active ones
+  // Show up to MAX_LISTED_CONNECTIONS connections, prioritizing active ones
   const sortedConnections = [...connections].sort((a, b) => {
     if (a.status === "active" && b.status !== "active") return -1;
     if (a.status !== "active" && b.status === "active") return 1;
     return 0;
   });
-  const previewConnections = sortedConnections.slice(0, 8);
+  const previewConnections = sortedConnections.slice(0, MAX_LISTED_CONNECTIONS);
 
   const handleCardClick = (connectionId: string) => {
     navigate({
@@ -37,7 +39,7 @@ function ConnectionsPreviewContent() {
     return (
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-medium text-foreground">Your MCPs</h2>
+          <h2 className="text-lg font-medium text-foreground">Your MCP Servers</h2>
         </div>
         <EmptyState
           image={
@@ -87,7 +89,7 @@ function ConnectionsPreviewContent() {
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">Your MCPs</h2>
+        <h2 className="text-lg font-medium text-foreground">Your MCP Servers</h2>
         {connections.length > previewConnections.length && (
           <button
             onClick={handleViewAll}
