@@ -124,35 +124,40 @@ export function MessageAssistant<T extends Metadata>({
       <div className="flex flex-col gap-2 min-w-0 w-full items-start">
         <div className="w-full min-w-0 not-only:rounded-2xl text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-transparent">
           {hasContent ? (
-            parts.map((part, index) => {
-              if (part.type === "text") {
-                return (
-                  <div key={`${id}-${index}`}>
-                    {showThought && <ThoughtSummary duration={duration} />}
-                    <MessageTextPart id={id} text={part.text} copyable={true} />
-                  </div>
-                );
-              }
-              if (part.type === "reasoning") {
-                return (
-                  <MessageReasoningPart
-                    key={`${id}-${index}`}
-                    part={part}
-                    id={id}
-                  />
-                );
-              }
-              if (part.type.startsWith("tool-")) {
-                return (
-                  <ToolCallPart
-                    key={`${id}-${index}`}
-                    part={part as ToolUIPart}
-                    id={id}
-                  />
-                );
-              }
-              return null;
-            })
+            <>
+              {showThought && <ThoughtSummary duration={duration} />}
+              {parts.map((part, index) => {
+                if (part.type === "text") {
+                  return (
+                    <MessageTextPart
+                      key={`${id}-${index}`}
+                      id={id}
+                      text={part.text}
+                      copyable={true}
+                    />
+                  );
+                }
+                if (part.type === "reasoning") {
+                  return (
+                    <MessageReasoningPart
+                      key={`${id}-${index}`}
+                      part={part}
+                      id={id}
+                    />
+                  );
+                }
+                if (part.type.startsWith("tool-")) {
+                  return (
+                    <ToolCallPart
+                      key={`${id}-${index}`}
+                      part={part as ToolUIPart}
+                      id={id}
+                    />
+                  );
+                }
+                return null;
+              })}
+            </>
           ) : isLoading ? (
             <TypingIndicator />
           ) : null}
