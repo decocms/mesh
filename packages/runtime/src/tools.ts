@@ -233,7 +233,7 @@ export interface CreateMCPServerOptions<
   oauth?: OAuthConfig;
   events?: {
     bus?: keyof PickByType<Env & DefaultEnv<TSchema>, EventBusBindingClient>;
-    handlers?: EventHandlers<TSchema>;
+    handlers?: EventHandlers<Env & DefaultEnv<TSchema>, TSchema>;
   };
   configuration?: {
     onChange?: (
@@ -310,24 +310,12 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
               });
               const bus = getEventBus(busProp, input.runtimeContext.env);
               if (events && state && bus) {
-                // subscribe to events
+                // Sync subscriptions - always call to handle deletions too
                 const subscriptions = Event.subscriptions(
                   events?.handlers ?? {},
                   state,
                 );
-
-                await Promise.all(
-                  subscriptions.map(async (subscription) => {
-                    return Promise.all(
-                      subscription.events.map(async (event) => {
-                        return bus.EVENT_SUBSCRIBE({
-                          publisher: subscription.connectionId,
-                          eventType: event,
-                        });
-                      }),
-                    );
-                  }),
-                );
+                await bus.EVENT_SYNC_SUBSCRIPTIONS({ subscriptions });
               }
               return Promise.resolve({});
             },
@@ -345,8 +333,8 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
             outputSchema: OnEventsOutputSchema,
             execute: async (input) => {
               const env = input.runtimeContext.env;
-              // Get state from env - it should have the binding values
-              const state = env as z.infer<TSchema>;
+              // Get state from MESH_REQUEST_CONTEXT - this has the binding values
+              const state = env.MESH_REQUEST_CONTEXT?.state as z.infer<TSchema>;
               return Event.execute(
                 events.handlers!,
                 input.context.events,
@@ -371,7 +359,7 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
           scopes: [
             ...(scopes ?? []),
             ...Event.scopes(events?.handlers ?? {}),
-            ...(busProp ? [`${busProp}::EVENT_SUBSCRIBE`] : []),
+            ...(busProp ? [`${busProp}::EVENT_SYNC_SUBSCRIPTIONS`] : []),
           ],
         });
       },

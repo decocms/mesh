@@ -160,6 +160,119 @@ export const EventSubscribeOutputSchema = z.object({
 export type EventSubscribeOutput = z.infer<typeof EventSubscribeOutputSchema>;
 
 // ============================================================================
+// Sync Subscriptions Schemas
+// ============================================================================
+
+/**
+ * Subscription item schema for sync operations
+ */
+export const SubscriptionItemSchema = z.object({
+  /** Event type pattern to match */
+  eventType: z.string().min(1).max(255).describe("Event type to subscribe to"),
+
+  /** Optional: Only receive events from this publisher connection */
+  publisher: z
+    .string()
+    .optional()
+    .describe("Filter events by publisher connection ID"),
+
+  /** Optional: JSONPath filter expression on event data */
+  filter: z
+    .string()
+    .max(1000)
+    .optional()
+    .describe("JSONPath filter expression on event data"),
+});
+
+export type SubscriptionItem = z.infer<typeof SubscriptionItemSchema>;
+
+/**
+ * Subscription detail schema (returned in responses)
+ */
+export const SubscriptionDetailSchema = z.object({
+  /** Subscription ID */
+  id: z.string().describe("Subscription ID"),
+
+  /** Subscriber connection ID */
+  connectionId: z.string().describe("Subscriber connection ID"),
+
+  /** Event type pattern */
+  eventType: z.string().describe("Event type pattern"),
+
+  /** Publisher connection filter */
+  publisher: z.string().nullable().describe("Publisher connection filter"),
+
+  /** JSONPath filter */
+  filter: z.string().nullable().describe("JSONPath filter expression"),
+
+  /** Whether subscription is enabled */
+  enabled: z.boolean().describe("Whether subscription is enabled"),
+
+  /** Created timestamp */
+  createdAt: z.union([z.string(), z.date()]).describe("Created timestamp"),
+
+  /** Updated timestamp */
+  updatedAt: z.union([z.string(), z.date()]).describe("Updated timestamp"),
+});
+
+export type SubscriptionDetail = z.infer<typeof SubscriptionDetailSchema>;
+
+/**
+ * EVENT_SYNC_SUBSCRIPTIONS Input Schema
+ *
+ * Input for syncing subscriptions to a desired state.
+ * The system will create new, delete removed, and update changed subscriptions.
+ * Subscriptions are identified by (eventType, publisher) - only one subscription
+ * per combination is allowed.
+ */
+export const EventSyncSubscriptionsInputSchema = z.object({
+  /** Desired subscriptions - system will create/update/delete to match */
+  subscriptions: z
+    .array(SubscriptionItemSchema)
+    .describe(
+      "Desired subscriptions - system will create/update/delete to match",
+    ),
+});
+
+export type EventSyncSubscriptionsInput = z.infer<
+  typeof EventSyncSubscriptionsInputSchema
+>;
+
+/**
+ * EVENT_SYNC_SUBSCRIPTIONS Output Schema
+ */
+export const EventSyncSubscriptionsOutputSchema = z.object({
+  /** Number of new subscriptions created */
+  created: z.number().int().min(0).describe("Number of subscriptions created"),
+
+  /** Number of subscriptions with filter updated */
+  updated: z
+    .number()
+    .int()
+    .min(0)
+    .describe("Number of subscriptions with filter updated"),
+
+  /** Number of old subscriptions removed */
+  deleted: z.number().int().min(0).describe("Number of subscriptions removed"),
+
+  /** Number of subscriptions unchanged */
+  unchanged: z
+    .number()
+    .int()
+    .min(0)
+    .describe("Number of subscriptions unchanged"),
+
+  /** Current subscriptions after sync */
+  subscriptions: z
+    .array(SubscriptionDetailSchema)
+    .describe("Current subscriptions after sync"),
+});
+
+export type EventSyncSubscriptionsOutput = z.infer<
+  typeof EventSyncSubscriptionsOutputSchema
+>;
+
+// ============================================================================
 // Unsubscribe Schemas
 // ============================================================================
 
@@ -259,7 +372,7 @@ export type EventAckOutput = z.infer<typeof EventAckOutputSchema>;
  * Event Bus Binding
  *
  * Defines the interface for interacting with an event bus.
- * Implementations must provide PUBLISH, SUBSCRIBE, UNSUBSCRIBE, CANCEL, and ACK tools.
+ * Implementations must provide PUBLISH, SUBSCRIBE, UNSUBSCRIBE, CANCEL, ACK, and SYNC_SUBSCRIPTIONS tools.
  *
  * Required tools:
  * - EVENT_PUBLISH: Publish an event (supports one-time, scheduled, and recurring via cron)
@@ -267,6 +380,7 @@ export type EventAckOutput = z.infer<typeof EventAckOutputSchema>;
  * - EVENT_UNSUBSCRIBE: Remove a subscription
  * - EVENT_CANCEL: Cancel a recurring event (stops future deliveries)
  * - EVENT_ACK: Acknowledge event delivery (for async processing with retryAfter)
+ * - EVENT_SYNC_SUBSCRIPTIONS: Sync subscriptions to desired state
  */
 export const EVENT_BUS_BINDING = [
   {
@@ -293,6 +407,11 @@ export const EVENT_BUS_BINDING = [
     name: "EVENT_ACK" as const,
     inputSchema: EventAckInputSchema,
     outputSchema: EventAckOutputSchema,
+  },
+  {
+    name: "EVENT_SYNC_SUBSCRIPTIONS" as const,
+    inputSchema: EventSyncSubscriptionsInputSchema,
+    outputSchema: EventSyncSubscriptionsOutputSchema,
   },
 ] satisfies ToolBinder[];
 

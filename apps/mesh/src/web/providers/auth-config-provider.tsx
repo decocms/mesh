@@ -6,7 +6,7 @@ import { KEYS } from "@/web/lib/query-keys";
 const AuthConfigContext = createContext<AuthConfig | undefined>(undefined);
 
 async function fetchAuthConfig(): Promise<AuthConfig> {
-  const response = await fetch("/api/config");
+  const response = await fetch("/api/auth/custom/config");
   if (!response.ok) {
     throw new Error("Failed to load auth configuration");
   }

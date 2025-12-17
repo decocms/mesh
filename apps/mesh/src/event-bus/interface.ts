@@ -7,6 +7,10 @@
  */
 
 import type { CloudEvent } from "@decocms/bindings";
+import type {
+  SyncSubscriptionsInput,
+  SyncSubscriptionsResult,
+} from "../storage/event-bus";
 import type { Event, EventSubscription } from "../storage/types";
 
 // ============================================================================
@@ -194,6 +198,20 @@ export interface IEventBus {
   ): Promise<{ success: boolean }>;
 
   /**
+   * Sync subscriptions to a desired state.
+   * Creates new subscriptions, deletes removed ones, and updates filters.
+   * Subscriptions are identified by (eventType, publisher).
+   *
+   * @param organizationId - Organization scope
+   * @param input - Sync configuration with connectionId and desired subscriptions
+   * @returns Summary of changes and current subscriptions
+   */
+  syncSubscriptions(
+    organizationId: string,
+    input: Omit<SyncSubscriptionsInput, "organizationId">,
+  ): Promise<SyncSubscriptionsResult>;
+
+  /**
    * Start the background worker for event delivery
    * Also resets any stuck deliveries from previous crashes
    */
@@ -202,7 +220,7 @@ export interface IEventBus {
   /**
    * Stop the background worker
    */
-  stop(): void;
+  stop(): void | Promise<void>;
 
   /**
    * Check if the worker is running
@@ -212,9 +230,14 @@ export interface IEventBus {
 
 /**
  * Per-event result from subscriber
+ *
+ * Three modes:
+ * - `{ success: true }` - Event processed successfully
+ * - `{ success: false, error: "..." }` - Event failed permanently
+ * - `{ retryAfter: 60000 }` - Retry later (success not yet determined)
  */
 export interface EventResult {
-  success: boolean;
+  success?: boolean;
   error?: string;
   retryAfter?: number;
 }

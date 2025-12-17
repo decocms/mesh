@@ -10,8 +10,8 @@ import z from "zod";
 // ============================================================================
 
 export interface EventSubscription {
-  connectionId: string;
-  events: string[];
+  eventType: string;
+  publisher: string;
 }
 
 interface Binding {
@@ -60,10 +60,18 @@ export interface BatchHandler<TEnv> {
  * { handler: fn, events: ["order.created", "order.updated"] }
  * ```
  */
-export type BindingHandlers<TEnv> =
+export type BindingHandlers<TEnv, Binding = unknown> =
   | BatchHandler<TEnv>
-  | Record<string, PerEventHandler<TEnv>>;
+  | (Record<string, PerEventHandler<TEnv>> & CronHandlers<Binding, TEnv>);
 
+export type CronHandlers<Binding, Env = unknown> = Binding extends {
+  __type: "@deco/event-bus";
+  value: string;
+}
+  ? {
+      [key in `cron/${string}`]: (env: Env) => Promise<void>;
+    }
+  : {};
 /**
  * EventHandlers type supports three granularity levels:
  *
@@ -82,9 +90,10 @@ export type BindingHandlers<TEnv> =
  * { DATABASE: { "order.created": (ctx, env) => result } }
  * ```
  */
-export type EventHandlers<TSchema extends z.ZodTypeAny = never> = [
-  TSchema,
-] extends [never]
+export type EventHandlers<
+  Env = unknown,
+  TSchema extends z.ZodTypeAny = never,
+> = [TSchema] extends [never]
   ? Record<string, never>
   :
       | BatchHandler<z.infer<TSchema>> // Global handler with events
@@ -94,7 +103,7 @@ export type EventHandlers<TSchema extends z.ZodTypeAny = never> = [
             value: string;
           }
             ? K
-            : never]?: BindingHandlers<z.infer<TSchema>>;
+            : never]?: BindingHandlers<Env, z.infer<TSchema>[K]>;
         };
 
 /**
@@ -124,7 +133,7 @@ const isBinding = (v: unknown): v is Binding => {
  * Check if handlers is a global batch handler (has handler + events at top level)
  */
 const isGlobalHandler = <TEnv>(
-  handlers: EventHandlers<z.ZodTypeAny>,
+  handlers: EventHandlers<TEnv, z.ZodTypeAny>,
 ): handlers is BatchHandler<TEnv> => {
   return (
     typeof handlers === "object" &&
@@ -159,10 +168,10 @@ const isBatchHandler = <TEnv>(
 /**
  * Get binding keys from event handlers object
  */
-const getBindingKeys = <TSchema extends z.ZodTypeAny>(
-  handlers: EventHandlers<TSchema>,
+const getBindingKeys = <TEnv, TSchema extends z.ZodTypeAny>(
+  handlers: EventHandlers<TEnv, TSchema>,
 ): string[] => {
-  if (isGlobalHandler(handlers)) {
+  if (isGlobalHandler<TEnv>(handlers)) {
     return [];
   }
   return Object.keys(handlers);
@@ -171,11 +180,11 @@ const getBindingKeys = <TSchema extends z.ZodTypeAny>(
 /**
  * Get event types for a binding from handlers
  */
-const getEventTypesForBinding = <TSchema extends z.ZodTypeAny>(
-  handlers: EventHandlers<TSchema>,
+const getEventTypesForBinding = <TEnv, TSchema extends z.ZodTypeAny>(
+  handlers: EventHandlers<TEnv, TSchema>,
   binding: string,
 ): string[] => {
-  if (isGlobalHandler(handlers)) {
+  if (isGlobalHandler<TEnv>(handlers)) {
     return handlers.events;
   }
   const bindingHandler = handlers[binding as keyof typeof handlers];
@@ -193,10 +202,10 @@ const getEventTypesForBinding = <TSchema extends z.ZodTypeAny>(
 /**
  * Get scopes from event handlers for subscription
  */
-const scopesFromEvents = <TSchema extends z.ZodTypeAny = never>(
-  handlers: EventHandlers<TSchema>,
+const scopesFromEvents = <TEnv, TSchema extends z.ZodTypeAny = never>(
+  handlers: EventHandlers<TEnv, TSchema>,
 ): string[] => {
-  if (isGlobalHandler(handlers)) {
+  if (isGlobalHandler<TEnv>(handlers)) {
     // Global handler - scopes are based on explicit events array
     // Note: "*" binding means all bindings
     return handlers.events.map((event) => `*::event@${event}`);
@@ -214,20 +223,23 @@ const scopesFromEvents = <TSchema extends z.ZodTypeAny = never>(
 
 /**
  * Get subscriptions from event handlers and state
+ * Returns flat array of { eventType, publisher } for EVENT_SYNC_SUBSCRIPTIONS
  */
-const eventsSubscriptions = <TSchema extends z.ZodTypeAny = never>(
-  handlers: EventHandlers<TSchema>,
+const eventsSubscriptions = <TEnv, TSchema extends z.ZodTypeAny = never>(
+  handlers: EventHandlers<TEnv, TSchema>,
   state: z.infer<TSchema>,
 ): EventSubscription[] => {
-  if (isGlobalHandler(handlers)) {
+  if (isGlobalHandler<TEnv>(handlers)) {
     // Global handler - subscribe to all bindings with the explicit events
     const subscriptions: EventSubscription[] = [];
     for (const [, value] of Object.entries(state)) {
       if (isBinding(value)) {
-        subscriptions.push({
-          connectionId: value.value,
-          events: handlers.events,
-        });
+        for (const eventType of handlers.events) {
+          subscriptions.push({
+            eventType,
+            publisher: value.value,
+          });
+        }
       }
     }
     return subscriptions;
@@ -239,10 +251,12 @@ const eventsSubscriptions = <TSchema extends z.ZodTypeAny = never>(
     if (!isBinding(bindingValue)) continue;
 
     const eventTypes = getEventTypesForBinding(handlers, binding);
-    subscriptions.push({
-      connectionId: bindingValue.value,
-      events: eventTypes,
-    });
+    for (const eventType of eventTypes) {
+      subscriptions.push({
+        eventType,
+        publisher: bindingValue.value,
+      });
+    }
   }
   return subscriptions;
 };
@@ -338,14 +352,14 @@ const mergeResults = (results: OnEventsOutput[]): OnEventsOutput => {
  * 2. Per-binding: `{ BINDING: (context, env) => result }` - handles all events from binding
  * 3. Per-event: `{ BINDING: { "event.type": (context, env) => result } }` - handles specific events
  */
-const executeEventHandlers = async <TSchema extends z.ZodTypeAny>(
-  handlers: EventHandlers<TSchema>,
+const executeEventHandlers = async <TEnv, TSchema extends z.ZodTypeAny>(
+  handlers: EventHandlers<TEnv, TSchema>,
   events: CloudEvent[],
   env: z.infer<TSchema>,
   state: z.infer<TSchema>,
 ): Promise<OnEventsOutput> => {
   // Case 1: Global handler
-  if (isGlobalHandler(handlers)) {
+  if (isGlobalHandler<TEnv>(handlers)) {
     try {
       return await handlers.handler({ events }, env);
     } catch (error) {
@@ -417,6 +431,33 @@ const executeEventHandlers = async <TSchema extends z.ZodTypeAny>(
         continue;
       }
 
+      // Case 3a: Cron handlers (event type starts with "cron/")
+      // - Handler signature: (env) => Promise<void>
+      // - Fire and forget (don't await)
+      // - Always return success immediately
+      if (eventType.startsWith("cron/")) {
+        const cronHandler = eventHandler as unknown as (
+          env: z.infer<TSchema>,
+        ) => Promise<void>;
+
+        // Fire and forget - don't await, just log errors
+        cronHandler(env).catch((error) => {
+          console.error(
+            `[Event] Cron handler error for ${eventType}:`,
+            error instanceof Error ? error.message : String(error),
+          );
+        });
+
+        // Immediately return success for all cron events
+        const results: Record<string, EventResult> = {};
+        for (const event of typedEvents) {
+          results[event.id] = { success: true };
+        }
+        promises.push(Promise.resolve({ results }));
+        continue;
+      }
+
+      // Case 3b: Regular per-event handlers
       // Call handler for each event type (handler receives all events of that type)
       promises.push(
         (async () => {

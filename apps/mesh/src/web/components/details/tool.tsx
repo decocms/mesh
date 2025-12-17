@@ -77,6 +77,7 @@ function ToolDetailsContent({
 
   return (
     <ToolDetailsAuthenticated
+      key={`${connectionId}:${toolName}`}
       toolName={toolName}
       connectionId={connectionId}
       mcpProxyUrl={mcpProxyUrl}
@@ -132,24 +133,21 @@ function ToolDetailsAuthenticated({
   // Find the tool definition
   const tool = mcp.tools?.find((t) => t.name === toolName);
 
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (
-      tool?.inputSchema?.properties &&
-      Object.keys(inputParams).length === 0
-    ) {
-      const initialParams: Record<string, unknown> = {};
-      // Simple initialization for now
-      Object.keys(tool.inputSchema.properties).forEach((key) => {
-        if (tool.inputSchema.required?.includes(key)) {
-          initialParams[key] = "";
-        } else {
-          initialParams[key] = undefined;
-        }
-      });
-      setInputParams(initialParams);
+  const toolProperties = tool?.inputSchema?.properties;
+  const toolPropertyKeys = toolProperties ? Object.keys(toolProperties) : [];
+  const hasToolProperties = toolPropertyKeys.length > 0;
+
+  const defaultParams: Record<string, unknown> = {};
+  if (hasToolProperties && tool?.inputSchema?.properties) {
+    for (const key of toolPropertyKeys) {
+      defaultParams[key] = tool.inputSchema.required?.includes(key)
+        ? ""
+        : undefined;
     }
-  }, [tool, inputParams]);
+  }
+
+  const hasEditedKey = (key: string) =>
+    Object.prototype.hasOwnProperty.call(editedParams, key);
 
   const handleExecute = async () => {
     setIsExecuting(true);
@@ -161,9 +159,22 @@ function ToolDetailsAuthenticated({
     const toolCaller = createToolCaller(connectionId);
 
     try {
-      // Prepare arguments: try to parse JSON for object/array types
-      const args = { ...inputParams };
-      if (tool?.inputSchema?.properties) {
+      // Prepare arguments:
+      // - If we have properties, merge derived defaults with user edits and parse object/array fields when provided as strings.
+      // - Otherwise, parse the raw JSON input as the full args payload.
+      const args: Record<string, unknown> = hasToolProperties
+        ? { ...defaultParams, ...editedParams }
+        : (() => {
+            const trimmed = rawJsonText.trim();
+            if (!trimmed) return {};
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === "object") {
+              return parsed as Record<string, unknown>;
+            }
+            throw new Error("Raw JSON input must be an object.");
+          })();
+
+      if (hasToolProperties && tool?.inputSchema?.properties) {
         Object.entries(tool.inputSchema.properties).forEach(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ([key, prop]: [string, any]) => {
@@ -212,7 +223,7 @@ function ToolDetailsAuthenticated({
   };
 
   const handleInputChange = (key: string, value: string) => {
-    setInputParams((prev) => ({ ...prev, [key]: value }));
+    setEditedParams((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
@@ -363,7 +374,7 @@ function ToolDetailsAuthenticated({
                 )}
 
               {/* Fallback for no properties but valid schema */}
-              {tool?.inputSchema && !tool.inputSchema.properties && (
+              {tool?.inputSchema && !hasToolProperties && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Raw JSON Input</label>
                   <textarea

@@ -34,10 +34,13 @@ function toCloudEvent(event: Event): CloudEvent {
 }
 
 /**
- * Group pending deliveries by subscription (connection)
+ * Group pending deliveries by connection (not subscription)
+ * Deduplicates events by ID to avoid sending the same event multiple times
+ * when multiple subscriptions match the same event.
+ *
  * Returns a map of connectionId -> { deliveryIds, events }
  */
-function groupBySubscription(pendingDeliveries: PendingDelivery[]): Map<
+function groupByConnection(pendingDeliveries: PendingDelivery[]): Map<
   string,
   {
     connectionId: string;
@@ -51,26 +54,47 @@ function groupBySubscription(pendingDeliveries: PendingDelivery[]): Map<
       connectionId: string;
       deliveryIds: string[];
       events: CloudEvent[];
+      seenEventIds: Set<string>;
     }
   >();
 
   for (const pending of pendingDeliveries) {
-    const key = pending.subscription.id;
+    // Group by connectionId (not subscription.id)
+    const key = pending.subscription.connectionId;
     const existing = grouped.get(key);
 
     if (existing) {
+      // Always track the delivery ID (for marking delivered/failed)
       existing.deliveryIds.push(pending.delivery.id);
-      existing.events.push(toCloudEvent(pending.event));
+
+      // Only add unique events (deduplicate by event ID)
+      if (!existing.seenEventIds.has(pending.event.id)) {
+        existing.seenEventIds.add(pending.event.id);
+        existing.events.push(toCloudEvent(pending.event));
+      }
     } else {
       grouped.set(key, {
         connectionId: pending.subscription.connectionId,
         deliveryIds: [pending.delivery.id],
         events: [toCloudEvent(pending.event)],
+        seenEventIds: new Set([pending.event.id]),
       });
     }
   }
 
-  return grouped;
+  // Return without seenEventIds (internal tracking only)
+  const result = new Map<
+    string,
+    { connectionId: string; deliveryIds: string[]; events: CloudEvent[] }
+  >();
+  for (const [key, value] of grouped) {
+    result.set(key, {
+      connectionId: value.connectionId,
+      deliveryIds: value.deliveryIds,
+      events: value.events,
+    });
+  }
+  return result;
 }
 
 /**
@@ -114,7 +138,6 @@ export class EventBusWorker {
     }
 
     this.running = true;
-    console.log("[EventBus] Worker started");
   }
 
   /**
@@ -164,7 +187,7 @@ export class EventBusWorker {
     if (pendingDeliveries.length === 0) return;
 
     // Group by subscription (connection)
-    const grouped = groupBySubscription(pendingDeliveries);
+    const grouped = groupByConnection(pendingDeliveries);
 
     // Process each subscription's batch
     const eventIdsToUpdate = new Set<string>();
@@ -264,7 +287,7 @@ export class EventBusWorker {
       retryAfter?: number;
       results?: Record<
         string,
-        { success: boolean; error?: string; retryAfter?: number }
+        { success?: boolean; error?: string; retryAfter?: number }
       >;
     },
   ): Promise<void> {

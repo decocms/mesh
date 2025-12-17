@@ -107,11 +107,17 @@ export type OnEventsInput = z.infer<typeof OnEventsInputSchema>;
 /**
  * Per-event result schema
  * Allows granular control over each event in a batch
+ *
+ * Three modes:
+ * - `{ success: true }` - Event processed successfully
+ * - `{ success: false, error: "..." }` - Event failed permanently
+ * - `{ retryAfter: 60000 }` - Retry later (success not yet determined)
  */
 export const EventResultSchema = z.object({
   /** Whether this specific event was processed successfully */
   success: z
     .boolean()
+    .optional()
     .describe("Whether this event was processed successfully"),
 
   /** Error message if success=false */
@@ -120,6 +126,7 @@ export const EventResultSchema = z.object({
   /**
    * Request re-delivery of this event after this many milliseconds.
    * Does not count toward max retry attempts.
+   * When present without success, indicates the event should be retried.
    */
   retryAfter: z
     .number()

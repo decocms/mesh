@@ -76,45 +76,47 @@ export async function authenticateMcp(
   }
 }
 
+interface MCPRequestParams {
+  url: string;
+  token: string | null;
+}
+
+const performMCPInitializeRequest = async ({
+  url,
+  token,
+}: MCPRequestParams) => {
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("Accept", "application/json, text/event-stream");
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: {
+          name: "@decocms/mesh MCP inspector",
+          version: "1.0.0",
+        },
+      },
+    }),
+  });
+  return response;
+};
+
 export async function isConnectionAuthenticated({
   url,
   token,
-}: {
-  url: string;
-  token: string | null;
-}): Promise<boolean> {
+}: MCPRequestParams): Promise<boolean> {
   try {
-    const metadataUrl = new URL("/.well-known/oauth-protected-resource", url);
-
-    const headers: HeadersInit = { Accept: "application/json" };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    const response = await fetch(metadataUrl.toString(), {
-      method: "GET",
-      headers,
-    });
-
-    const serverDoesNotSupportOAuth = response.status === 404;
-    const contentType = response.headers.get("content-type");
-    const responseIsNotJson = !contentType?.includes("application/json");
-    const oauthNotRequired = serverDoesNotSupportOAuth || responseIsNotJson;
-
-    if (oauthNotRequired) {
-      return true;
-    }
-
-    const tokenNotProvided = !token;
-    if (tokenNotProvided) {
-      return false;
-    }
-
-    const tokenIsInvalid = response.status === 401 || response.status === 403;
-    if (tokenIsInvalid) {
-      return false;
-    }
-
+    const response = await performMCPInitializeRequest({ url, token });
     return response.ok;
   } catch (error) {
     console.error(

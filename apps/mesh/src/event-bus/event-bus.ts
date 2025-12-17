@@ -14,7 +14,11 @@
  */
 
 import { Cron } from "croner";
-import type { EventBusStorage } from "../storage/event-bus";
+import type {
+  EventBusStorage,
+  SyncSubscriptionsInput,
+  SyncSubscriptionsResult,
+} from "../storage/event-bus";
 import type { Event, EventSubscription } from "../storage/types";
 import type {
   EventBusConfig,
@@ -188,14 +192,25 @@ export class EventBus implements IEventBus {
     return this.storage.ackDelivery(eventId, organizationId, connectionId);
   }
 
+  async syncSubscriptions(
+    organizationId: string,
+    input: Omit<SyncSubscriptionsInput, "organizationId">,
+  ): Promise<SyncSubscriptionsResult> {
+    return this.storage.syncSubscriptions({
+      organizationId,
+      ...input,
+    });
+  }
+
   async start(): Promise<void> {
     if (this.running) return;
     this.running = true;
 
-    // Start the polling worker (also resets stuck deliveries from previous crashes)
+    // Start the worker (resets stuck deliveries from previous crashes)
     await this.worker.start();
 
-    // Start notify strategy if available (e.g., PostgreSQL LISTEN)
+    // Start notify strategy if available
+    // Use compose() to combine multiple strategies (e.g., polling + postgres notify)
     if (this.notifyStrategy) {
       await this.notifyStrategy.start(() => {
         // When notified, trigger immediate processing
@@ -204,18 +219,33 @@ export class EventBus implements IEventBus {
         });
       });
     }
+
+    // Process any pending events from before startup
+    // This ensures we don't wait for new events to trigger processing
+    await this.worker.processNow().catch((error) => {
+      console.error(
+        "[EventBus] Error processing pending events on startup:",
+        error,
+      );
+    });
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
+    if (!this.running) return;
+
     this.running = false;
     this.worker.stop();
 
     // Stop notify strategy if available
     if (this.notifyStrategy) {
-      this.notifyStrategy.stop().catch((error) => {
+      try {
+        await this.notifyStrategy.stop();
+      } catch (error) {
         console.error("[EventBus] Error stopping notify strategy:", error);
-      });
+      }
     }
+
+    console.log("[EventBus] Stopped");
   }
 
   isRunning(): boolean {

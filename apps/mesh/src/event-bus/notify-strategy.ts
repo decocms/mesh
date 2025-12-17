@@ -34,3 +34,56 @@ export interface NotifyStrategy {
    */
   notify(eventId: string): Promise<void>;
 }
+
+/**
+ * Compose multiple notify strategies into one.
+ *
+ * This allows combining different notification mechanisms, e.g.:
+ * - PostgreSQL LISTEN/NOTIFY for immediate event-driven notifications
+ * - Polling as a safety net for missed notifications
+ *
+ * @example
+ * ```ts
+ * import { compose } from "./notify-strategy";
+ * import { PollingStrategy } from "./polling";
+ * import { PostgresNotifyStrategy } from "./postgres-notify";
+ *
+ * const strategy = compose(
+ *   new PollingStrategy(30000),        // Safety net: poll every 30s
+ *   new PostgresNotifyStrategy(pool),  // Primary: LISTEN/NOTIFY
+ * );
+ * ```
+ */
+export function compose(...strategies: NotifyStrategy[]): NotifyStrategy {
+  return {
+    async start(onNotify: () => void): Promise<void> {
+      // Start all strategies with the same callback
+      await Promise.all(strategies.map((s) => s.start(onNotify)));
+    },
+
+    async stop(): Promise<void> {
+      // Stop all strategies
+      await Promise.all(
+        strategies.map((s) =>
+          s.stop().catch((error) => {
+            console.error("[NotifyStrategy] Error stopping strategy:", error);
+          }),
+        ),
+      );
+    },
+
+    async notify(eventId: string): Promise<void> {
+      // Notify all strategies (fire and forget for non-critical)
+      await Promise.all(
+        strategies.map((s) =>
+          s.notify(eventId).catch((error) => {
+            console.warn(
+              "[NotifyStrategy] Notify failed (non-critical):",
+              error,
+            );
+          }),
+        ),
+      );
+    },
+  };
+}

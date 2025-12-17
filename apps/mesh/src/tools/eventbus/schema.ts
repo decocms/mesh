@@ -34,6 +34,11 @@ export {
   type EventAckInput as AckEventInput,
   EventAckOutputSchema as AckEventOutputSchema,
   type EventAckOutput as AckEventOutput,
+  // Sync subscriptions schemas
+  EventSyncSubscriptionsInputSchema as SyncSubscriptionsInputSchema,
+  type EventSyncSubscriptionsInput as SyncSubscriptionsInput,
+  EventSyncSubscriptionsOutputSchema as SyncSubscriptionsOutputSchema,
+  type EventSyncSubscriptionsOutput as SyncSubscriptionsOutput,
 } from "@decocms/bindings";
 
 // ============================================================================

@@ -32,6 +32,9 @@ type Variables = {
   meshContext: MeshContext;
 };
 
+// Track current event bus instance for cleanup during HMR
+let currentEventBus: EventBus | null = null;
+
 // Create serializer for Prometheus text format (shared across instances)
 const prometheusSerializer = new PrometheusSerializer();
 
@@ -74,6 +77,16 @@ export interface CreateAppOptions {
 export function createApp(options: CreateAppOptions = {}) {
   const database = options.database ?? getDb();
 
+  // Stop any existing event bus worker (cleanup during HMR)
+  if (currentEventBus && currentEventBus.isRunning()) {
+    console.log("[EventBus] Stopping previous worker (HMR cleanup)");
+    // Fire and forget - don't block app creation
+    // The stop is mostly synchronous, async part is just UNLISTEN cleanup
+    Promise.resolve(currentEventBus.stop()).catch((error) => {
+      console.error("[EventBus] Error stopping previous worker:", error);
+    });
+  }
+
   // Create event bus with a lazy context getter
   // The notify function needs a context, but the context needs the event bus
   // We resolve this by having notify create its own system context
@@ -87,6 +100,9 @@ export function createApp(options: CreateAppOptions = {}) {
     // EventBus uses the full MeshDatabase (includes Pool for PostgreSQL)
     eventBus = createEventBus(database);
   }
+
+  // Track for cleanup during HMR
+  currentEventBus = eventBus;
 
   const app = new Hono<{ Variables: Variables }>();
 
@@ -150,14 +166,13 @@ export function createApp(options: CreateAppOptions = {}) {
   // Better Auth Routes
   // ============================================================================
 
+  // Auth routes (API key management via web UI)
+  app.route("/api/auth/custom", authRoutes);
+
   // All Better Auth routes (OAuth, session management, etc.)
-  app.on(
-    ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "/api/auth/*",
-    async (c) => {
-      return await auth.handler(c.req.raw);
-    },
-  );
+  app.all("/api/auth/*", async (c) => {
+    return await auth.handler(c.req.raw);
+  });
 
   // Mount OAuth discovery metadata endpoints
   app.get(
@@ -251,11 +266,8 @@ export function createApp(options: CreateAppOptions = {}) {
   // MCP Proxy routes (connection-specific)
   app.route("/mcp", proxyRoutes);
 
-  // Auth routes (API key management via web UI)
-  app.route("/api", authRoutes);
-
   // LLM API routes (OpenAI-compatible)
-  app.route("/v1", modelsRoutes);
+  app.route("/api", modelsRoutes);
 
   // ============================================================================
   // 404 Handler

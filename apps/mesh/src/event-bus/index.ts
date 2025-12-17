@@ -9,7 +9,7 @@
  * - EventBusWorker: Event processing and delivery logic (no internal polling)
  * - NotifyStrategy: Triggers worker processing
  *   - SQLite: Timer-based polling
- *   - PostgreSQL: Event-based via LISTEN/NOTIFY
+ *   - PostgreSQL: LISTEN/NOTIFY + polling safety net (for scheduled retries)
  *
  * Usage:
  * ```ts
@@ -26,6 +26,7 @@ import {
   type EventBus,
   type EventBusConfig,
 } from "./interface";
+import { compose } from "./notify-strategy";
 import { PollingStrategy } from "./polling";
 import { PostgresNotifyStrategy } from "./postgres-notify";
 
@@ -38,6 +39,12 @@ export {
   type SubscribeInput,
 } from "./interface";
 
+// Re-export storage types used in the interface
+export type {
+  SyncSubscriptionsInput,
+  SyncSubscriptionsResult,
+} from "../storage/event-bus";
+
 // Export EventBus type alias (for typing in tests/consumers)
 export type { EventBus } from "./interface";
 
@@ -46,8 +53,10 @@ export type { NotifyStrategy } from "./notify-strategy";
 /**
  * Create an EventBus instance based on database type
  *
- * For PostgreSQL: Uses LISTEN/NOTIFY for event-based wake-up (no polling)
- * For SQLite: Uses timer-based polling
+ * For PostgreSQL: Uses LISTEN/NOTIFY + polling safety net
+ *   - LISTEN/NOTIFY: Immediate delivery when events are published
+ *   - Polling: Picks up scheduled retries (retryAfter, failed deliveries)
+ * For SQLite: Uses timer-based polling only
  *
  * @param database - MeshDatabase instance (discriminated union)
  * @param config - Optional event bus configuration
@@ -62,11 +71,14 @@ export function createEventBus(
     config?.pollIntervalMs ?? DEFAULT_EVENT_BUS_CONFIG.pollIntervalMs;
 
   // Create notify strategy based on database type
-  // - PostgreSQL: LISTEN/NOTIFY (event-based, no polling)
-  // - Other: Timer-based polling
+  // - PostgreSQL: LISTEN/NOTIFY + polling (for scheduled retries)
+  // - Other: Timer-based polling only
   const notifyStrategy =
     database.type === "postgres"
-      ? new PostgresNotifyStrategy(database.db, database.pool)
+      ? compose(
+          new PollingStrategy(pollIntervalMs), // Safety net for retries
+          new PostgresNotifyStrategy(database.db, database.pool), // Immediate delivery
+        )
       : new PollingStrategy(pollIntervalMs);
 
   return new EventBusImpl({
