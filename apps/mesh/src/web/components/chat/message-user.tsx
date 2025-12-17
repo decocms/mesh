@@ -5,6 +5,7 @@ import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { MessageListContext } from "./message-list.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
 
 export interface MessageProps<T extends Metadata> {
   message: UIMessage<T>;
@@ -23,6 +24,11 @@ export function MessageUser<T extends Metadata>({
   const messageListContext = useContext(MessageListContext);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Early return if no parts
+  if (!parts || parts.length === 0) {
+    return null;
+  }
+
   const totalTextLength = parts.reduce((acc, part) => {
     if (part.type === "text") {
       return acc + part.text.length;
@@ -30,7 +36,7 @@ export function MessageUser<T extends Metadata>({
     return acc;
   }, 0);
 
-  const isLongMessage = totalTextLength > 50;
+  const isLongMessage = totalTextLength > 60;
 
   const handleClick = () => {
     if (pairIndex !== undefined) {
@@ -49,41 +55,49 @@ export function MessageUser<T extends Metadata>({
       {" "}
       <div
         onClick={handleClick}
-        className="w-full border min-w-0 shadow-[0_3px_6px_-1px_rgba(0,0,0,0.1)] rounded-lg text-[0.9375rem] break-words overflow-wrap-anywhere bg-muted px-4 py-2 cursor-pointer transition-colors relative"
+        className="w-full border min-w-0 shadow-[0_3px_6px_-1px_rgba(0,0,0,0.1)] rounded-lg text-[0.9375rem] break-words overflow-wrap-anywhere bg-muted px-4 py-2 cursor-pointer transition-colors"
       >
-        <div className="flex flex-col gap-2">
-          <div
-            className={cn(
-              "w-full min-w-0 not-only:rounded-2xl text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-muted transition-all",
-              isLongMessage && !isExpanded && "max-h-16 overflow-hidden relative",
-            )}
-          >
-            {parts.map((part, index) => {
-              if (part.type === "text") {
-                return (
-                  <MessageTextPart
-                    key={`${id}-${index}`}
-                    id={id}
-                    text={part.text}
-                  />
-                );
-              }
-              return null;
-            })}
-          </div>
-          {isLongMessage && (
-            <button
-              type="button"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="cursor-pointer flex w-full items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors relative -mt-8 pt-8 pb-2 bg-gradient-to-t from-muted via-muted/80 to-transparent"
+        <div
+          className={cn(
+            isLongMessage &&
+              !isExpanded &&
+              "overflow-hidden relative max-h-[60px]",
+          )}
+        >
+          {parts.map((part, index) => {
+            if (part.type === "text") {
+              return (
+                <MessageTextPart
+                  key={`${id}-${index}`}
+                  id={id}
+                  text={part.text}
+                />
+              );
+            }
+            return null;
+          })}
+          {isLongMessage && !isExpanded && (
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-muted to-transparent pointer-events-none" />
+          )}
+        </div>
+        {isLongMessage && (
+          <div className="flex justify-center">
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
+              }}
+              variant="ghost"
+              size="xs"
+              className="text-xs w-full text-muted-foreground hover:text-foreground"
             >
               <Icon
                 name={isExpanded ? "expand_less" : "expand_more"}
-                size={16}
+                className="text-sm"
               />
-            </button>
-          )}
-        </div>
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

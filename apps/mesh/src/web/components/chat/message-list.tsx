@@ -9,8 +9,6 @@ import {
   cloneElement,
 } from "react";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { MessageAssistant } from "./message-assistant.tsx";
-import { MessageUser } from "./message-user.tsx";
 
 export const MessageListContext = createContext<{
   scrollToPair: (pairIndex: number) => void;
@@ -32,16 +30,24 @@ function groupMessagesInPairs(messages: ReactNode[]): MessagePair[] {
     const message = messages[i];
     if (!isValidElement(message)) continue;
 
-    if (message.type === MessageAssistant) {
+    // Use message.props.message.role instead of component type comparison
+    // This fixes HMR issues where component references change
+    const messageRole = (message.props as any)?.message?.role;
+
+    if (messageRole === "assistant") {
       const previousMessage = messages[i - 1];
+      const prevRole =
+        isValidElement(previousMessage) &&
+        (previousMessage.props as any)?.message?.role;
+
       const user =
         previousMessage &&
         isValidElement(previousMessage) &&
-        previousMessage.type === MessageUser
-          ? previousMessage
+        prevRole === "user"
+          ? (previousMessage as ReactElement)
           : null;
 
-      pairs.push({ user, assistant: message });
+      pairs.push({ user, assistant: message as ReactElement });
     }
   }
 
@@ -78,7 +84,7 @@ export function MessageList({
     if (pairElement && messageListRef.current) {
       const containerOffsetTop = messageListRef.current.offsetTop;
       const elementOffsetTop = pairElement.offsetTop;
-      
+
       messageListRef.current.scrollTo({
         top: elementOffsetTop - containerOffsetTop,
         behavior: "smooth",

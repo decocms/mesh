@@ -99,7 +99,11 @@ export function MessageAssistant<T extends Metadata>({
   // Calculate duration when first part arrives (thinking time, not writing time)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (parts.length > 0 && duration === null && startTimeRef.current !== null) {
+    if (
+      parts.length > 0 &&
+      duration === null &&
+      startTimeRef.current !== null
+    ) {
       const calculatedDuration = Date.now() - startTimeRef.current;
       setDuration(calculatedDuration);
       // Save to localStorage for persistence
@@ -117,22 +121,16 @@ export function MessageAssistant<T extends Metadata>({
         className,
       )}
     >
-
       <div className="flex flex-col gap-2 min-w-0 w-full items-start">
         <div className="w-full min-w-0 not-only:rounded-2xl text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-transparent">
           {hasContent ? (
             parts.map((part, index) => {
               if (part.type === "text") {
                 return (
-                  <>
-                  {showThought && <ThoughtSummary duration={duration} />}
-                  <MessageTextPart
-                    key={`${id}-${index}`}
-                    id={id}
-                    text={part.text}
-                    copyable={true}
-                  />
-                  </>
+                  <div key={`${id}-${index}`}>
+                    {showThought && <ThoughtSummary duration={duration} />}
+                    <MessageTextPart id={id} text={part.text} copyable={true} />
+                  </div>
                 );
               }
               if (part.type === "reasoning") {
