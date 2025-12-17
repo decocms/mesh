@@ -46,13 +46,11 @@ const mcpClientForConnectionId = (
   // TODO(@igorbrasileiro): Switch this proxy to be a proxy that call MCP Client.toolCall from @modelcontextprotocol
   return MCPClient.forConnection(mcpConnection);
 };
-
-function mcpClientFromState(
+const createClientFromBindingState = (
   binding: BindingBase | MCPAppBinding,
-  env: DefaultEnv,
-) {
-  const ctx = env.MESH_REQUEST_CONTEXT;
-  const bindingFromState = ctx?.state?.[binding.name];
+  bindingFromState: any,
+  ctx: ClientContext,
+) => {
   const connectionId =
     bindingFromState &&
     typeof bindingFromState === "object" &&
@@ -64,6 +62,21 @@ function mcpClientFromState(
     return undefined;
   }
   return mcpClientForConnectionId(connectionId, ctx);
+};
+
+function mcpClientFromState(
+  binding: BindingBase | MCPAppBinding,
+  env: DefaultEnv,
+) {
+  const ctx = env.MESH_REQUEST_CONTEXT;
+  const bindingFromState = ctx?.state?.[binding.name];
+  if (binding.array && Array.isArray(bindingFromState)) {
+    return bindingFromState.map((state: any) =>
+      createClientFromBindingState(binding, state, ctx),
+    );
+  }
+
+  return createClientFromBindingState(binding, bindingFromState, ctx);
 }
 
 export const createContractBinding = (

@@ -11,18 +11,30 @@ const safeParse = (content: string) => {
   }
 };
 
-const toolsMap = new Map<
-  string,
-  Promise<
-    Array<{
-      name: string;
-      inputSchema: any;
-      outputSchema?: any;
-      description: string;
-    }>
-  >
->();
+type Tool = {
+  name: string;
+  inputSchema: any;
+  outputSchema?: any;
+  description: string;
+};
 
+const toolsMap = new Map<string, Promise<Array<Tool>>>();
+
+const mapTool = (tool: Tool, callToolFn: (input: any) => Promise<any>) => {
+  return {
+    ...tool,
+    id: tool.name,
+    inputSchema: tool.inputSchema
+      ? convertJsonSchemaToZod(tool.inputSchema)
+      : undefined,
+    outputSchema: tool.outputSchema
+      ? convertJsonSchemaToZod(tool.outputSchema)
+      : undefined,
+    execute: (input: any) => {
+      return callToolFn(input.context);
+    },
+  };
+};
 /**
  * The base fetcher used to fetch the MCP from API.
  */
@@ -46,6 +58,9 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
       }
       if (typeof name !== "string") {
         throw new Error("Name must be a string");
+      }
+      if (name === "$listTools") {
+        return asCallableTools;
       }
       async function callToolFn(args: Record<string, unknown>) {
         const debugId = options?.debugId?.();
@@ -93,7 +108,7 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
         return structuredContent;
       }
 
-      const listToolsFn = async () => {
+      async function listToolsFn() {
         const { client } = await createClient();
         const { tools } = await client.listTools();
 
@@ -103,7 +118,7 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
           outputSchema?: any;
           description: string;
         }[];
-      };
+      }
 
       async function listToolsOnce() {
         if (!("connection" in options)) {
@@ -125,6 +140,12 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
           return;
         }
       }
+
+      async function asCallableTools() {
+        const tools = (await listToolsOnce()) ?? [];
+        return tools.map((tool) => mapTool(tool, callToolFn));
+      }
+
       callToolFn.asTool = async () => {
         const tools = (await listToolsOnce()) ?? [];
         const tool = tools.find((t) => t.name === name);
@@ -132,19 +153,7 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
           throw new Error(`Tool ${name} not found`);
         }
 
-        return {
-          ...tool,
-          id: tool.name,
-          inputSchema: tool.inputSchema
-            ? convertJsonSchemaToZod(tool.inputSchema)
-            : undefined,
-          outputSchema: tool.outputSchema
-            ? convertJsonSchemaToZod(tool.outputSchema)
-            : undefined,
-          execute: (input: any) => {
-            return callToolFn(input.context);
-          },
-        };
+        return mapTool(tool, callToolFn);
       };
       return callToolFn;
     },
