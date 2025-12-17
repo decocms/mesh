@@ -231,7 +231,7 @@ function BindingFieldWithDynamicSchema({
       : undefined;
 
   // Use the hook to fetch binding schema from registry (only when needed)
-  const { bindingSchema: resolvedSchema, isLoading: isResolvingSchema } =
+  const { bindingSchema: registrySchema } =
     useBindingSchemaFromRegistry(dynamicAppName);
 
   // Determine the final binding to use:
@@ -242,7 +242,7 @@ function BindingFieldWithDynamicSchema({
   const resolvedBinding = (() => {
     if (needsDynamicResolution) {
       // Use resolved schema from registry, or undefined while loading
-      return resolvedSchema;
+      return registrySchema;
     }
     if (Array.isArray(bindingSchema)) {
       // Direct array of tools
@@ -258,18 +258,6 @@ function BindingFieldWithDynamicSchema({
     }
     return undefined;
   })();
-
-  // Show loading indicator if we're resolving schema
-  if (needsDynamicResolution && isResolvingSchema) {
-    return (
-      <div className={className ?? "w-[200px] shrink-0"}>
-        <div className="flex items-center justify-center h-8 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          <span className="text-xs">Loading...</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <BindingSelector
@@ -575,6 +563,11 @@ function CustomFieldTemplate(props: FieldTemplateProps) {
   );
 }
 
+const TEMPLATES = {
+  ObjectFieldTemplate: CustomObjectFieldTemplate,
+  FieldTemplate: CustomFieldTemplate,
+};
+
 function McpConfigurationForm({
   formState,
   onFormStateChange,
@@ -618,10 +611,7 @@ function McpConfigurationForm({
         formContext={formContext}
         liveValidate={false}
         showErrorList={false}
-        templates={{
-          ObjectFieldTemplate: CustomObjectFieldTemplate,
-          FieldTemplate: CustomFieldTemplate,
-        }}
+        templates={TEMPLATES}
       >
         {/* Hide default submit button */}
         <></>
@@ -673,13 +663,16 @@ function SettingsTabContentWithoutMcpBinding(
 function SettingsRightPanel({
   hasMcpBinding,
   stateSchema,
-  form,
+  formState,
+  onFormStateChange,
   onAuthenticate,
   isMCPAuthenticated,
 }: {
   hasMcpBinding: boolean;
   stateSchema?: Record<string, unknown>;
-  form: ReturnType<typeof useForm<ConnectionFormData>>;
+  formState?: Record<string, unknown>;
+  onFormStateChange: (state: Record<string, unknown>) => void;
+
   onAuthenticate: () => void | Promise<void>;
   isMCPAuthenticated: boolean;
 }) {
@@ -714,12 +707,8 @@ function SettingsRightPanel({
     <div className="w-3/5 min-w-0 overflow-auto">
       <McpConfigurationForm
         stateSchema={stateSchema}
-        formState={form.watch("configuration_state") ?? {}}
-        onFormStateChange={(state) => {
-          form.setValue("configuration_state", state, {
-            shouldDirty: true,
-          });
-        }}
+        formState={formState ?? {}}
+        onFormStateChange={onFormStateChange}
       />
     </div>
   );
@@ -749,42 +738,38 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
     },
   });
 
+  const formState = form.watch("configuration_state");
+  const hasAnyChanges = form.formState.isDirty;
+
+  const handleFormStateChange = (state: Record<string, unknown>) => {
+    form.setValue("configuration_state", state, { shouldDirty: true });
+  };
+
   const handleSave = async () => {
     const isValid = await form.trigger();
 
     if (!isValid) return;
 
     const data = form.getValues();
-    const updated = {
-      ...data,
-      description: data.description || null,
-      connection_token: data.connection_token || null,
-      configuration_state: data.configuration_state ?? {},
-      configuration_scopes: data.configuration_scopes ?? [],
-    };
 
-    await onUpdate(updated);
-    form.reset(updated);
+    await onUpdate(data);
+    form.reset(data);
   };
 
   const handleAuthenticate = async () => {
     const { token, error } = await authenticateMcp(connection.connection_url);
-    if (error) {
+    if (error || !token) {
       toast.error(`Authentication failed: ${error}`);
       return;
     }
 
-    if (token) {
-      await connectionActions.update.mutateAsync({
-        id: connection.id,
-        data: { connection_token: token },
-      });
-    }
+    await connectionActions.update.mutateAsync({
+      id: connection.id,
+      data: { connection_token: token },
+    });
 
     toast.success("Authentication successful");
   };
-
-  const hasAnyChanges = form.formState.isDirty;
 
   return (
     <>
@@ -814,7 +799,8 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
           <SettingsRightPanel
             hasMcpBinding={hasMcpBinding}
             stateSchema={stateSchema}
-            form={form}
+            formState={formState ?? undefined}
+            onFormStateChange={handleFormStateChange}
             onAuthenticate={handleAuthenticate}
             isMCPAuthenticated={props.isMCPAuthenticated}
           />

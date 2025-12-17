@@ -7,17 +7,14 @@
 
 import { createToolCaller } from "@/tools/client";
 import { useConnections } from "@/web/hooks/collections/use-connection";
+import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import {
   MCP_REGISTRY_DECOCMS_KEY,
   MCP_REGISTRY_PUBLISHER_KEY,
 } from "@/web/utils/constants";
-import {
-  findListToolName,
-  extractItemsFromResponse,
-} from "@/web/utils/registry-utils";
-import type { BindingDefinition } from "@/web/hooks/use-binding";
+import { findListToolName } from "@/web/utils/registry-utils";
 
 /**
  * Registry item from the registry API response.
@@ -63,14 +60,6 @@ interface UseBindingSchemaFromRegistryResult {
    * Returns undefined if not found or still loading
    */
   bindingSchema: BindingDefinition[] | undefined;
-  /**
-   * Whether the binding schema is still loading
-   */
-  isLoading: boolean;
-  /**
-   * Error if the query failed
-   */
-  error: Error | null;
 }
 
 /**
@@ -139,25 +128,16 @@ export function useBindingSchemaFromRegistry(
   // When disabled, we still pass a stable, type-safe shape.
   const toolInputParams = { where: { appName: parsedAppName || "" } };
 
-  // Determine if the query should be enabled
-  // parsedAppName should be in @scope/name format (e.g., "@deco/postgres")
-  const isEnabled = Boolean(
-    listToolName &&
-      registryId &&
-      parsedAppName &&
-      parsedAppName.startsWith("@") &&
-      parsedAppName.includes("/"),
-  );
-
   // Create tool caller only when we have a valid registry ID
   const toolCaller = createToolCaller(registryId || undefined);
 
   // Query registry by appName (returns list with single result)
   const {
-    data: listResults,
-    isLoading,
-    error,
-  } = useToolCall<{ where: { appName: string } }, unknown>({
+    data: { items: [app] = [] },
+  } = useToolCall<
+    { where: { appName: string } },
+    { items: RegistryItemWithBinding[] }
+  >({
     toolCaller,
     toolName: listToolName,
     toolInputParams,
@@ -165,18 +145,8 @@ export function useBindingSchemaFromRegistry(
     staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 
-  // Extract items from response (should be a single item when querying by appName)
-  const items = extractItemsFromResponse<RegistryItemWithBinding>(listResults);
-
-  // Get the first (and typically only) item from the result
-  const app = items[0];
-
   // Extract binding schema (tools) from the app
   const bindingSchema = app ? extractBindingTools(app) : undefined;
 
-  return {
-    bindingSchema,
-    isLoading: isEnabled && isLoading,
-    error: error as Error | null,
-  };
+  return { bindingSchema };
 }
