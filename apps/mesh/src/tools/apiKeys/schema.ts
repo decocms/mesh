@@ -13,13 +13,13 @@ import { z } from "zod";
 
 /**
  * Permission schema - Better Auth format: { resource: [actions] }
- * 
+ *
  * Resource types:
  * - "self": Management API tools (organization-level operations)
  * - "conn_<UUID>": Proxy API tools (connection-specific operations)
- * 
+ *
  * Actions: Array of tool names or "*" for all permissions
- * 
+ *
  * Examples:
  * - { "self": ["API_KEY_CREATE", "COLLECTION_CONNECTIONS_LIST"] }
  * - { "conn_abc123": ["SEND_MESSAGE", "LIST_THREADS"] }
