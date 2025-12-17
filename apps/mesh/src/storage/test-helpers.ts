@@ -134,7 +134,10 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
     .createTable("event_subscriptions")
     .ifNotExists()
     .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("organization_id", "text", (col) => col.notNull())
+    // CASCADE DELETE: When organization is deleted, subscriptions are automatically removed
+    .addColumn("organization_id", "text", (col) =>
+      col.notNull().references("organization.id").onDelete("cascade"),
+    )
     // CASCADE DELETE: When connection is deleted, subscriptions are automatically removed
     .addColumn("connection_id", "text", (col) =>
       col.notNull().references("connections.id").onDelete("cascade"),

@@ -55,7 +55,10 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable("event_subscriptions")
     .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("organization_id", "text", (col) => col.notNull())
+    // CASCADE DELETE: When organization is deleted, subscriptions are automatically removed
+    .addColumn("organization_id", "text", (col) =>
+      col.notNull().references("organization.id").onDelete("cascade"),
+    )
     // Subscriber connection (who receives events)
     // CASCADE DELETE: When connection is deleted, subscriptions are automatically removed
     .addColumn("connection_id", "text", (col) =>
