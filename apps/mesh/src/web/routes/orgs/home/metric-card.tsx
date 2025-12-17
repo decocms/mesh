@@ -27,7 +27,7 @@ export function MetricCard({
         onClick={onClick}
         className={cn("p-4 hover:bg-accent/0", className)}
       >
-        <div className="space-y-1">
+        <div className="flex flex-col gap-1 justify-between flex-1">
           <div className="text-xs text-muted-foreground">{label}</div>
           {quickstartContent}
         </div>
@@ -44,7 +44,7 @@ export function MetricCard({
         className,
       )}
     >
-      <div className="space-y-1">
+      <div className="flex flex-col gap-1 justify-start">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div className="text-2xl font-semibold text-foreground">{value}</div>
         {subValue && (
@@ -71,7 +71,7 @@ export function QuickstartButton({
   isLoading,
 }: QuickstartButtonProps) {
   return (
-    <div className="space-y-2">
+    <div className="gap-2 flex-1 justify-between flex flex-col">
       {description && (
         <p className="text-xs text-muted-foreground">{description}</p>
       )}

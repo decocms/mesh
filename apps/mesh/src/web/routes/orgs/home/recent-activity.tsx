@@ -4,17 +4,10 @@ import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { Badge } from "@deco/ui/components/badge.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@deco/ui/components/table.tsx";
 import { useNavigate } from "@tanstack/react-router";
+import { BentoTile } from "./bento-tile";
 
 interface MonitoringLog {
   id: string;
@@ -38,11 +31,7 @@ function RecentActivityContent() {
   const toolCaller = createToolCaller();
 
   const dateRange = getLast24HoursDateRange();
-  const toolInputParams = {
-    ...dateRange,
-    limit: 20,
-    offset: 0,
-  };
+  const toolInputParams = { ...dateRange, limit: 6, offset: 0 };
 
   const { data: logsData } = useToolCall<
     {
@@ -81,12 +70,18 @@ function RecentActivityContent() {
 
   if (logs.length === 0) {
     return (
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-medium text-foreground">
+      <BentoTile
+        title={
+          <div className="flex items-center gap-2">
+            <span className="inline-flex size-7 items-center justify-center rounded-lg">
+              <Icon name="history" size={16} />
+            </span>
             Recent Activity
-          </h2>
-        </div>
+          </div>
+        }
+        description="Latest tool calls across your connections"
+        className="lg:col-span-3"
+      >
         <EmptyState
           image={null}
           title="No activity yet"
@@ -105,91 +100,99 @@ function RecentActivityContent() {
             </button>
           }
         />
-      </Card>
+      </BentoTile>
     );
   }
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">Recent Activity</h2>
-        {logsData && logsData.total > logs.length && (
-          <button
-            onClick={handleViewAll}
-            className="text-sm text-primary hover:underline flex items-center gap-1"
-          >
+    <BentoTile
+      title={
+        <div className="flex items-center gap-2">
+          <span className="inline-flex size-7 items-center justify-center rounded-lg">
+            <Icon name="history" size={16} />
+          </span>
+          Recent Activity
+        </div>
+      }
+      description="Latest tool calls across your connections"
+      className="lg:col-span-3"
+      action={
+        logsData && logsData.total > logs.length ? (
+          <Button variant="ghost" size="sm" onClick={handleViewAll}>
             View all
             <Icon name="chevron_right" size={16} />
-          </button>
-        )}
-      </div>
+          </Button>
+        ) : null
+      }
+    >
+      <div className="space-y-2">
+        {logs.map((log) => {
+          const time = new Date(log.timestamp).toLocaleTimeString();
+          const badge = log.isError ? (
+            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+              Error
+            </Badge>
+          ) : (
+            <Badge variant="default" className="text-[10px] px-1.5 py-0">
+              OK
+            </Badge>
+          );
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[120px]">Time</TableHead>
-              <TableHead className="w-[80px]">Status</TableHead>
-              <TableHead className="w-[200px]">Tool</TableHead>
-              <TableHead>Connection</TableHead>
-              <TableHead className="w-[100px] text-right">Duration</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {logs.map((log) => (
-              <TableRow
-                key={log.id}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleRowClick(log)}
-              >
-                <TableCell className="text-xs text-muted-foreground font-mono">
-                  {new Date(log.timestamp).toLocaleTimeString()}
-                </TableCell>
-                <TableCell>
-                  {log.isError ? (
-                    <Badge
-                      variant="destructive"
-                      className="text-xs px-1.5 py-0"
-                    >
-                      Error
-                    </Badge>
-                  ) : (
-                    <Badge variant="default" className="text-xs px-1.5 py-0">
-                      OK
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="font-mono text-xs truncate">
-                  {log.toolName}
-                </TableCell>
-                <TableCell className="text-sm truncate">
-                  {log.connectionTitle}
-                </TableCell>
-                <TableCell className="text-xs text-right font-mono">
-                  {log.durationMs}ms
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+          return (
+            <button
+              key={log.id}
+              type="button"
+              onClick={() => handleRowClick(log)}
+              className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-left transition-colors hover:bg-muted/40"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {badge}
+                    <div className="font-mono text-xs text-foreground truncate">
+                      {log.toolName}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      on {log.connectionTitle}
+                    </div>
+                  </div>
+                  {log.isError && log.errorMessage ? (
+                    <div className="mt-1 text-xs text-muted-foreground truncate">
+                      {log.errorMessage}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="font-mono text-xs text-muted-foreground">
+                    {time}
+                  </div>
+                  <div className="font-mono text-xs text-foreground">
+                    {log.durationMs}ms
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
-    </Card>
+    </BentoTile>
   );
 }
 
 function RecentActivitySkeleton() {
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="h-6 w-32 bg-muted rounded animate-pulse" />
-        <div className="h-4 w-16 bg-muted rounded animate-pulse" />
-      </div>
+    <BentoTile
+      title="Recent Activity"
+      description="Latest tool calls across your connections"
+      className="lg:col-span-3"
+      action={<div className="h-7 w-20 rounded bg-muted animate-pulse" />}
+    >
       <div className="space-y-2">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="h-12 rounded-xl bg-muted animate-pulse" />
         ))}
       </div>
-    </Card>
+    </BentoTile>
   );
 }
 

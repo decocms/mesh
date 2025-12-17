@@ -2,9 +2,10 @@ import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useProjectContext } from "@/web/providers/project-context-provider";
+import { Button } from "@deco/ui/components/button.tsx";
 import { useNavigate } from "@tanstack/react-router";
-import { Card } from "@deco/ui/components/card.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
+import { BentoTile } from "./bento-tile";
 
 const MAX_LISTED_CONNECTIONS = 4;
 
@@ -37,10 +38,18 @@ function ConnectionsPreviewContent() {
 
   if (connections.length === 0) {
     return (
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-medium text-foreground">Your MCP Servers</h2>
-        </div>
+      <BentoTile
+        title={
+          <div className="flex items-center gap-2">
+            <span className="inline-flex size-7 items-center justify-center rounded-lg bg-accent text-foreground">
+              <Icon name="hub" size={16} />
+            </span>
+            Your MCP Servers
+          </div>
+        }
+        description="Connect MCP servers to power your Mesh"
+        className="lg:col-span-2"
+      >
         <EmptyState
           image={
             <img
@@ -82,26 +91,32 @@ function ConnectionsPreviewContent() {
             </div>
           }
         />
-      </Card>
+      </BentoTile>
     );
   }
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">Your MCP Servers</h2>
-        {connections.length > previewConnections.length && (
-          <button
-            onClick={handleViewAll}
-            className="text-sm text-primary hover:underline flex items-center gap-1"
-          >
+    <BentoTile
+      title={
+        <div className="flex items-center gap-2">
+          <span className="inline-flex size-7 items-center justify-center rounded-lg">
+            <Icon name="grid_view" size={16} />
+          </span>
+          Your MCP Servers
+        </div>
+      }
+      description="A quick view of your connected MCP servers"
+      className="lg:col-span-2"
+      action={
+        connections.length > previewConnections.length ? (
+          <Button variant="ghost" size="sm" onClick={handleViewAll}>
             View all ({connections.length})
             <Icon name="chevron_right" size={16} />
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          </Button>
+        ) : null
+      }
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-4">
         {previewConnections.map((connection) => (
           <ConnectionCard
             key={connection.id}
@@ -111,20 +126,24 @@ function ConnectionsPreviewContent() {
           />
         ))}
       </div>
-    </Card>
+    </BentoTile>
   );
 }
 
 function ConnectionsPreviewSkeleton() {
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="h-6 w-24 bg-muted rounded animate-pulse" />
-        <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-      </div>
+    <BentoTile
+      title="Your MCP Servers"
+      description="A quick view of your connected MCP servers"
+      className="lg:col-span-2"
+      action={<div className="h-7 w-28 rounded bg-muted animate-pulse" />}
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <Card key={i} className="p-4">
+          <div
+            key={i}
+            className="rounded-xl border border-border/60 bg-background p-4"
+          >
             <div className="space-y-3">
               <div className="flex items-start justify-between">
                 <div className="w-12 h-12 bg-muted rounded animate-pulse" />
@@ -135,10 +154,10 @@ function ConnectionsPreviewSkeleton() {
                 <div className="h-3 w-3/4 bg-muted rounded animate-pulse" />
               </div>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
-    </Card>
+    </BentoTile>
   );
 }
 

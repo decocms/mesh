@@ -8,7 +8,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { ConnectionsPreview } from "./connections-preview.tsx";
 import { MeshStats } from "./mesh-stats.tsx";
+import { MonitoringHero } from "./monitoring-hero.tsx";
 import { RecentActivity } from "./recent-activity.tsx";
+import { TopTools } from "./top-tools.tsx";
+import { BentoTile } from "./bento-tile.tsx";
 
 export default function OrgHomePage() {
   const { org } = useProjectContext();
@@ -70,7 +73,7 @@ export default function OrgHomePage() {
 
       <div className="flex-1 overflow-auto p-5">
         <div className="max-w-7xl mx-auto space-y-6">
-          {/* Mesh Stats */}
+          {/* KPI Bento */}
           <ErrorBoundary
             fallback={
               <div className="text-sm text-muted-foreground">
@@ -78,36 +81,78 @@ export default function OrgHomePage() {
               </div>
             }
           >
-            <Suspense fallback={<MeshStats.Skeleton />}>
-              <MeshStats />
+            <Suspense
+              fallback={
+                <BentoTile
+                  title="Overview"
+                  description="At-a-glance health for the last 24 hours"
+                >
+                  <MeshStats.Skeleton />
+                </BentoTile>
+              }
+            >
+              <BentoTile
+                title="Overview"
+                description="At-a-glance health for the last 24 hours"
+              >
+                <MeshStats />
+              </BentoTile>
             </Suspense>
           </ErrorBoundary>
 
-          {/* Recent Activity */}
-          <ErrorBoundary
-            fallback={
-              <div className="text-sm text-muted-foreground">
-                Failed to load recent activity
-              </div>
-            }
-          >
-            <Suspense fallback={<RecentActivity.Skeleton />}>
-              <RecentActivity />
-            </Suspense>
-          </ErrorBoundary>
+          {/* Monitoring Bento */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <ErrorBoundary
+              fallback={
+                <div className="text-sm text-muted-foreground">
+                  Failed to load monitoring chart
+                </div>
+              }
+            >
+              <Suspense fallback={<MonitoringHero.Skeleton />}>
+                <MonitoringHero />
+              </Suspense>
+            </ErrorBoundary>
 
-          {/* Connections Preview */}
-          <ErrorBoundary
-            fallback={
-              <div className="text-sm text-muted-foreground">
-                Failed to load connections
-              </div>
-            }
-          >
-            <Suspense fallback={<ConnectionsPreview.Skeleton />}>
-              <ConnectionsPreview />
-            </Suspense>
-          </ErrorBoundary>
+            <ErrorBoundary
+              fallback={
+                <div className="text-sm text-muted-foreground">
+                  Failed to load top tools
+                </div>
+              }
+            >
+              <Suspense fallback={<TopTools.Skeleton />}>
+                <TopTools />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+
+          {/* Activity + MCP Servers */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <ErrorBoundary
+              fallback={
+                <div className="text-sm text-muted-foreground">
+                  Failed to load recent activity
+                </div>
+              }
+            >
+              <Suspense fallback={<RecentActivity.Skeleton />}>
+                <RecentActivity />
+              </Suspense>
+            </ErrorBoundary>
+
+            <ErrorBoundary
+              fallback={
+                <div className="text-sm text-muted-foreground">
+                  Failed to load connections
+                </div>
+              }
+            >
+              <Suspense fallback={<ConnectionsPreview.Skeleton />}>
+                <ConnectionsPreview />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
         </div>
       </div>
     </CollectionPage>
