@@ -260,7 +260,7 @@ export interface CollectionBindingOptions {
  * ```
  */
 export function createCollectionBindings<
-  TEntitySchema extends z.AnyZodObject,
+  TEntitySchema extends z.ZodObject<z.ZodRawShape>,
   TName extends string,
 >(
   collectionName: TName,
@@ -329,9 +329,11 @@ type ToolBinding<
  * Type helper to extract the collection binding type
  */
 export type CollectionBinding<
-  TEntitySchema extends z.AnyZodObject,
+  TEntitySchema,
   TUpperName extends Uppercase<string> = Uppercase<string>,
-  TEntity = z.infer<TEntitySchema>,
+  TEntity = TEntitySchema extends z.AnyZodObject
+    ? z.infer<TEntitySchema>
+    : TEntitySchema,
 > = [
   ToolBinding<
     `COLLECTION_${TUpperName}_LIST`,
