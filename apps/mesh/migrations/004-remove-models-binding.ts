@@ -3,9 +3,12 @@ import { Kysely } from "kysely";
 export async function up(db: Kysely<unknown>): Promise<void> {
   // SQLite doesn't support DROP COLUMN directly, so we need to recreate the table
   // First, create a new table without the modelsBindingConnectionId column
+  // CASCADE DELETE: When organization is deleted, settings are automatically removed
   await db.schema
     .createTable("organization_settings_new")
-    .addColumn("organizationId", "text", (col) => col.primaryKey())
+    .addColumn("organizationId", "text", (col) =>
+      col.primaryKey().references("organization.id").onDelete("cascade"),
+    )
     .addColumn("createdAt", "text", (col) => col.notNull())
     .addColumn("updatedAt", "text", (col) => col.notNull())
     .execute();
@@ -37,9 +40,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
 export async function down(db: Kysely<unknown>): Promise<void> {
   // Re-add the modelsBindingConnectionId column by recreating the table
+  // CASCADE DELETE: When organization is deleted, settings are automatically removed
   await db.schema
     .createTable("organization_settings_new")
-    .addColumn("organizationId", "text", (col) => col.primaryKey())
+    .addColumn("organizationId", "text", (col) =>
+      col.primaryKey().references("organization.id").onDelete("cascade"),
+    )
     .addColumn("modelsBindingConnectionId", "text", (col) =>
       col.references("connections.id").onDelete("set null"),
     )

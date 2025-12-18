@@ -12,6 +12,18 @@ import type { Database } from "./types";
 export async function createTestSchema(db: Kysely<Database>): Promise<void> {
   console.log("Creating test schema...");
 
+  // Organization table (Better Auth managed, but needed for FK constraints)
+  await db.schema
+    .createTable("organization")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("name", "text", (col) => col.notNull())
+    .addColumn("slug", "text", (col) => col.notNull().unique())
+    .addColumn("logo", "text")
+    .addColumn("metadata", "text")
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .execute();
+
   // Users table - camelCase to match UserTable type
   await db.schema
     .createTable("users")
@@ -122,7 +134,10 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
     .createTable("event_subscriptions")
     .ifNotExists()
     .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("organization_id", "text", (col) => col.notNull())
+    // CASCADE DELETE: When organization is deleted, subscriptions are automatically removed
+    .addColumn("organization_id", "text", (col) =>
+      col.notNull().references("organization.id").onDelete("cascade"),
+    )
     // CASCADE DELETE: When connection is deleted, subscriptions are automatically removed
     .addColumn("connection_id", "text", (col) =>
       col.notNull().references("connections.id").onDelete("cascade"),

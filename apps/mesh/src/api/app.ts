@@ -39,11 +39,12 @@ let currentEventBus: EventBus | null = null;
 const prometheusSerializer = new PrometheusSerializer();
 
 // Mount OAuth discovery metadata endpoints (shared across instances)
+import { WellKnownMCPId } from "@/core/well-known-mcp";
 import {
   oAuthDiscoveryMetadata,
   oAuthProtectedResourceMetadata,
 } from "better-auth/plugins";
-import { WellKnownMCPId } from "@/core/well-known-mcp";
+import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
 const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
 const getHandleOAuthDiscoveryMetadata = () => oAuthDiscoveryMetadata(auth);
@@ -256,9 +257,33 @@ export function createApp(options: CreateAppOptions = {}) {
     return next();
   });
 
+  // Get all management tools (for OAuth consent UI)
+  app.get("/api/tools/management", (c) => {
+    return c.json({
+      tools: MANAGEMENT_TOOLS,
+      grouped: getToolsByCategory(),
+    });
+  });
+
   // ============================================================================
   // API Routes
   // ============================================================================
+
+  app.use("/mcp/:connectionId?", async (c, next) => {
+    const meshContext = c.var.meshContext;
+    const connectionId = c.req.param("connectionId") ?? WellKnownMCPId.SELF;
+    // Require either user or API key authentication
+    if (!meshContext.auth.user?.id && !meshContext.auth.apiKey?.id) {
+      const origin = new URL(c.req.url).origin;
+      return (c.res = new Response(null, {
+        status: 401,
+        headers: {
+          "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
+        },
+      }));
+    }
+    return await next();
+  });
 
   // Management MCP routes
   app.route("/mcp", managementRoutes);

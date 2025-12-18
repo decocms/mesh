@@ -7,6 +7,8 @@ interface EmptyStateProps {
   description: string | ReactNode;
   actions?: ReactNode;
   className?: string;
+  descriptionClassName?: string;
+  actionsClassName?: string;
 }
 
 /**
@@ -31,6 +33,8 @@ export function EmptyState({
   description,
   actions,
   className,
+  descriptionClassName,
+  actionsClassName,
 }: EmptyStateProps) {
   return (
     <div
@@ -50,13 +54,22 @@ export function EmptyState({
       <div className="flex flex-col items-center gap-4">
         <div className="flex flex-col items-center gap-2">
           <h3 className="text-lg font-medium text-foreground">{title}</h3>
-          <div className="text-sm text-muted-foreground text-center max-w-[300px]">
+          <div
+            className={cn(
+              "text-sm text-muted-foreground text-center max-w-[300px]",
+              descriptionClassName,
+            )}
+          >
             {description}
           </div>
         </div>
 
         {/* Actions */}
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className={cn("flex items-center gap-2", actionsClassName)}>
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   );

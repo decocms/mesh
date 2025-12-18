@@ -4,8 +4,8 @@ import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useCollectionActions } from "@/web/hooks/use-collections";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
 import { useParams, useRouter } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { Suspense, type ComponentType } from "react";
 import {
   WorkflowDetailsView,
@@ -139,7 +139,11 @@ export default function CollectionDetails() {
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Icon
+              name="progress_activity"
+              size={32}
+              className="animate-spin text-muted-foreground"
+            />
           </div>
         }
       >
