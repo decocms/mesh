@@ -164,7 +164,10 @@ async function createMCPProxyDoNotUseDirectly(
   // Get connection details
   const connection =
     typeof connectionIdOrConnection === "string"
-      ? await ctx.storage.connections.findById(connectionIdOrConnection)
+      ? await ctx.storage.connections.findById(
+          connectionIdOrConnection,
+          ctx.organization?.id,
+        )
       : connectionIdOrConnection;
   if (!connection) {
     throw new Error("Connection not found");

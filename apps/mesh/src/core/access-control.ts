@@ -9,8 +9,8 @@
  * 4. Tools can manually grant access for custom logic
  */
 
+import { WellKnownMCPId } from "@/core/well-known-mcp";
 import type { BetterAuthInstance, BoundAuthClient } from "./mesh-context";
-import { WellKnownMCPId } from "./well-known-mcp";
 
 // Forward declaration (will be replaced with actual Better Auth type)
 

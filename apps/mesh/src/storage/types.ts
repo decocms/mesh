@@ -520,6 +520,87 @@ export interface EventDelivery {
   createdAt: Date | string;
 }
 
+// ============================================================================
+// Gateway Table Definitions
+// ============================================================================
+
+/**
+ * Gateway mode configuration
+ * - deduplicate: Remove duplicate tool names, keeping first occurrence
+ * - prefix_all: Prefix all tools with connectionId::toolName
+ * - custom: Custom mode with configuration in config field
+ */
+export interface GatewayMode {
+  type: "deduplicate" | "prefix_all" | "custom";
+  config?: Record<string, unknown>;
+}
+
+/**
+ * Gateway table definition
+ * Virtual gateway entities that aggregate tools from multiple connections
+ */
+export interface GatewayTable {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string | null;
+  mode: JsonObject<GatewayMode>;
+  status: "active" | "inactive";
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+  created_by: string;
+  updated_by: string | null;
+}
+
+/**
+ * Gateway entity - Runtime representation
+ */
+export interface Gateway {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  mode: GatewayMode;
+  status: "active" | "inactive";
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  createdBy: string;
+  updatedBy: string | null;
+}
+
+/**
+ * Gateway connection table definition
+ * Many-to-many relationship linking gateways to connections with selected tools
+ */
+export interface GatewayConnectionTable {
+  id: string;
+  gateway_id: string;
+  connection_id: string;
+  selected_tools: JsonArray<string[]> | null; // null = all tools
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+/**
+ * Gateway connection entity - Runtime representation
+ */
+export interface GatewayConnection {
+  id: string;
+  gatewayId: string;
+  connectionId: string;
+  selectedTools: string[] | null;
+  createdAt: Date | string;
+}
+
+/**
+ * Gateway with connections - Full entity for API responses
+ */
+export interface GatewayWithConnections extends Gateway {
+  connections: Array<{
+    connectionId: string;
+    selectedTools: string[] | null;
+  }>;
+}
+
 /**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
@@ -550,4 +631,8 @@ export interface Database {
   events: EventTable;
   event_subscriptions: EventSubscriptionTable;
   event_deliveries: EventDeliveryTable;
+
+  // Gateway tables
+  gateways: GatewayTable;
+  gateway_connections: GatewayConnectionTable;
 }

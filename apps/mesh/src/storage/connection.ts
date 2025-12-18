@@ -86,13 +86,20 @@ export class ConnectionStorage implements ConnectionStoragePort {
     return connection;
   }
 
-  async findById(id: string): Promise<ConnectionEntity | null> {
-    const row = await this.db
+  async findById(
+    id: string,
+    organizationId?: string,
+  ): Promise<ConnectionEntity | null> {
+    const query = this.db
       .selectFrom("connections")
       .selectAll()
-      .where("id", "=", id)
-      .executeTakeFirst();
+      .where("id", "=", id);
 
+    if (organizationId) {
+      query.where("organization_id", "=", organizationId);
+    }
+
+    const row = await query.executeTakeFirst();
     return row ? this.deserializeConnection(row as RawConnectionRow) : null;
   }
 

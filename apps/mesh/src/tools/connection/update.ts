@@ -11,12 +11,12 @@ import { createMCPProxy } from "../../api/routes/proxy";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { fetchToolsFromMCP } from "./fetch-tools";
+import { prop } from "./json-path";
 import {
   type ConnectionEntity,
   ConnectionEntitySchema,
   ConnectionUpdateDataSchema,
 } from "./schema";
-import { prop } from "./json-path";
 
 /**
  * Input schema for updating connections

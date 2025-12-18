@@ -185,6 +185,7 @@ const createMockContext = (
         upsert: vi.fn(),
       } as never,
       monitoring: null as never,
+      gateways: null as never,
     },
     vault: null as never,
     authInstance: authInstance as unknown as BetterAuthInstance,
