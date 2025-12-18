@@ -84,12 +84,19 @@ function TopToolsContent() {
 
   return (
     <BentoTile
-      title="Top tools"
+      title={
+        <div className="flex items-center gap-2">
+          <span className="inline-flex size-7 items-center justify-center rounded-lg">
+            <Icon name="build" size={16} />
+          </span>
+          Top tools
+        </div>
+      }
       description="Most called tools in the last 24 hours"
       action={
-        <span className="inline-flex size-7 items-center justify-center rounded-lg bg-accent text-foreground">
-          <Icon name="build" size={16} />
-        </span>
+        <div className="text-xs text-muted-foreground">
+          <span className="font-mono text-foreground">{top.length}</span> tools
+        </div>
       }
       className="lg:col-span-2"
     >

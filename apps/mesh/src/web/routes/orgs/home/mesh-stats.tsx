@@ -138,22 +138,24 @@ function MeshStatsContent() {
           />
         ) : undefined,
     },
-    {
-      label: "Stores",
-      value: totalRegistries.toLocaleString(),
-      subValue: hasNoRegistry
-        ? "No store found"
-        : `${totalRegistries} store${totalRegistries !== 1 ? "s" : ""}`,
-      onClick: handleGoToStore,
-      quickstartContent: hasNoRegistry ? (
-        <QuickstartButton
-          label="Add Store"
-          description="Connect to a store to discover and install MCPs"
-          icon="add"
-          onClick={handleGoToStore}
-        />
-      ) : undefined,
-    },
+    ...(hasNoRegistry
+      ? [
+          {
+            label: "Stores",
+            value: totalRegistries.toLocaleString(),
+            subValue: "No store found",
+            onClick: handleGoToStore,
+            quickstartContent: (
+              <QuickstartButton
+                label="Add Store"
+                description="Connect to a store to discover and install MCPs"
+                icon="add"
+                onClick={handleGoToStore}
+              />
+            ),
+          },
+        ]
+      : []),
     ...(!isMeshMcpInstalled
       ? [
           {
