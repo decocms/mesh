@@ -367,7 +367,7 @@ export function DecoChatPanel() {
     if (!hasModelsBinding && !hasAgentsBinding) {
       title = "Connect your providers";
       description =
-        "Add MCPs with llm and agents to unlock AI-powered features.";
+        "Connect MCPs with llm and agents to unlock AI-powered features.";
     } else if (!hasModelsBinding) {
       title = "No model provider connected";
       description =

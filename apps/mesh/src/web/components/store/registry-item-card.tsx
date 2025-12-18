@@ -179,7 +179,7 @@ export function RegistryItemCard({
                         name="lock"
                         size={16}
                         className="text-muted-foreground shrink-0"
-                        title="This app cannot be installed"
+                        title="This MCP cannot be connected"
                       />
                     )}
                   </div>
@@ -187,7 +187,7 @@ export function RegistryItemCard({
                 <TooltipContent>
                   <p>{displayName}</p>
                   {!canInstall && (
-                    <p className="text-xs mt-1">No installation available</p>
+                    <p className="text-xs mt-1">No connection available</p>
                   )}
                 </TooltipContent>
               </Tooltip>

@@ -374,13 +374,13 @@ function BindingSelector({
       try {
         const result = await installByBinding(bindingType);
         if (result) {
-          // Automatically select the newly installed connection
+          // Automatically select the newly connected MCP
           // The connection will appear in the list via allConnections
           onValueChange(result.id);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to install connection: ${message}`);
+        toast.error(`Failed to connect MCP: ${message}`);
       } finally {
         setIsLocalInstalling(false);
       }
@@ -439,13 +439,13 @@ function BindingSelector({
                     size={16}
                     className="animate-spin"
                   />
-                  <span>Installing...</span>
+                  <span>Connecting...</span>
                 </>
               ) : (
                 <>
                   <Icon name="add" size={16} />
                   <span>
-                    {canInstallInline ? "Install MCP" : "Create connection"}
+                    {canInstallInline ? "Connect MCP" : "Create connection"}
                   </span>
                 </>
               )}
