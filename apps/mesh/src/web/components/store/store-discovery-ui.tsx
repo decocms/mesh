@@ -2,30 +2,12 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import { slugify } from "@/web/utils/slugify";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { CollectionSearch } from "../collections/collection-search";
 import {
   type RegistryItem,
   RegistryItemsSection,
 } from "./registry-items-section";
-
-/**
- * Filter items by search term across name and description
- */
-function filterItemsBySearch(
-  items: RegistryItem[],
-  search: string,
-): RegistryItem[] {
-  if (!search) return items;
-  const searchLower = search.toLowerCase();
-  return items.filter(
-    (item) =>
-      (item.name || item.title || "").toLowerCase().includes(searchLower) ||
-      (item.description || item.server?.description || "")
-        .toLowerCase()
-        .includes(searchLower),
-  );
-}
 
 /**
  * Check if an item is verified
@@ -45,6 +27,9 @@ interface StoreDiscoveryUIProps {
   hasMore?: boolean;
   onLoadMore?: () => void;
   totalCount?: number | null;
+  searchTerm: string;
+  onSearchChange: (term: string) => void;
+  isSearchPending?: boolean;
 }
 
 export function StoreDiscoveryUI({
@@ -54,20 +39,19 @@ export function StoreDiscoveryUI({
   hasMore = false,
   onLoadMore,
   totalCount,
+  searchTerm,
+  onSearchChange,
+  isSearchPending = false,
 }: StoreDiscoveryUIProps) {
-  const [search, setSearch] = useState("");
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Filtered items based on search
-  const filteredItems = filterItemsBySearch(items, search);
-
   // Verified items
-  const verifiedItems = filteredItems.filter(isItemVerified);
+  const verifiedItems = items.filter(isItemVerified);
 
   // Non-verified items
-  const allItems = filteredItems.filter(
+  const allItems = items.filter(
     (item) => !verifiedItems.find((v) => v.id === item.id),
   );
 
@@ -87,7 +71,7 @@ export function StoreDiscoveryUI({
 
   // Infinite scroll: load more when near bottom
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!hasMore || !onLoadMore || search || isLoadingMore) return;
+    if (!hasMore || !onLoadMore || searchTerm || isLoadingMore) return;
 
     const target = e.currentTarget;
     const scrollBottom =
@@ -99,18 +83,16 @@ export function StoreDiscoveryUI({
     }
   };
 
+  // Show loading when search is pending (debounce in progress) or fetching
+  const showSearchLoading = isSearchPending && searchTerm.length > 0;
+
   // Main list view
   return (
     <div className="flex flex-col h-full">
       <CollectionSearch
-        value={search}
-        onChange={setSearch}
+        value={searchTerm}
+        onChange={onSearchChange}
         placeholder="Search for a MCP..."
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            setSearch(e.currentTarget.value);
-          }
-        }}
       />
 
       {/* Content */}
@@ -121,7 +103,19 @@ export function StoreDiscoveryUI({
       >
         <div className="p-5">
           <div>
-            {items.length === 0 ? (
+            {showSearchLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Icon
+                  name="progress_activity"
+                  size={48}
+                  className="text-muted-foreground mb-4 animate-spin"
+                />
+                <h3 className="text-lg font-medium mb-2">Searching...</h3>
+                <p className="text-muted-foreground">
+                  Looking for "{searchTerm}"
+                </p>
+              </div>
+            ) : items.length === 0 && !searchTerm ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Icon
                   name="inbox"
@@ -133,7 +127,7 @@ export function StoreDiscoveryUI({
                   This store doesn't have any available items yet.
                 </p>
               </div>
-            ) : search && filteredItems.length === 0 ? (
+            ) : searchTerm && items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Icon
                   name="search"
@@ -165,7 +159,7 @@ export function StoreDiscoveryUI({
                 )}
 
                 {/* Loading indicator */}
-                {hasMore && !search && isLoadingMore && (
+                {hasMore && !searchTerm && isLoadingMore && (
                   <div className="flex justify-center py-8">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Icon

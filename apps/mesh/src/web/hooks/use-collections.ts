@@ -66,8 +66,9 @@ export interface UseCollectionListOptions<T extends CollectionEntity> {
 
 /**
  * Build a where expression from search term and filters
+ * @public Exported for use in other components (e.g., store discovery)
  */
-function buildWhereExpression<T extends CollectionEntity>(
+export function buildWhereExpression<T extends CollectionEntity>(
   searchTerm: string | undefined,
   filters: CollectionFilter[] | undefined,
   searchFields: (keyof T)[],
