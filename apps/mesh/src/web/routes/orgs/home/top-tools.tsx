@@ -8,7 +8,7 @@ import {
 } from "@deco/ui/components/chart.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { Pie, PieChart, Cell } from "recharts";
-import { BentoTile } from "./bento-tile";
+import { HomeGridCell } from "./home-grid-cell.tsx";
 
 interface MonitoringLog {
   id: string;
@@ -83,15 +83,21 @@ function TopToolsContent() {
   ) as Record<string, { label: string; color: string }>;
 
   return (
-    <BentoTile
-      title="Top tools"
+    <HomeGridCell
+      title={
+        <div className="flex items-center gap-2">
+          <span className="inline-flex size-7 items-center justify-center rounded-lg">
+            <Icon name="build" size={16} />
+          </span>
+          Top tools
+        </div>
+      }
       description="Most called tools in the last 24 hours"
       action={
-        <span className="inline-flex size-7 items-center justify-center rounded-lg bg-accent text-foreground">
-          <Icon name="build" size={16} />
-        </span>
+        <div className="text-xs text-muted-foreground">
+          <span className="font-mono text-foreground">{top.length}</span> tools
+        </div>
       }
-      className="lg:col-span-2"
     >
       <div className="grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-[220px_1fr] md:items-center">
         <ChartContainer
@@ -148,19 +154,18 @@ function TopToolsContent() {
           ))}
         </div>
       </div>
-    </BentoTile>
+    </HomeGridCell>
   );
 }
 
 function TopToolsSkeleton() {
   return (
-    <BentoTile
+    <HomeGridCell
       title="Top tools"
       description="Most called tools in the last 24 hours"
-      className="lg:col-span-2"
     >
       <div className="h-[260px] w-full rounded-xl bg-muted animate-pulse" />
-    </BentoTile>
+    </HomeGridCell>
   );
 }
 

@@ -6,12 +6,11 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense } from "react";
-import { ConnectionsPreview } from "./connections-preview.tsx";
-import { MeshStats } from "./mesh-stats.tsx";
-import { MonitoringHero } from "./monitoring-hero.tsx";
+import { ConnectionsGauge } from "./connections-gauge.tsx";
+import { MembersGauge } from "./members-gauge.tsx";
+import { MonitoringKPIs } from "./monitoring-kpis.tsx";
 import { RecentActivity } from "./recent-activity.tsx";
 import { TopTools } from "./top-tools.tsx";
-import { BentoTile } from "./bento-tile.tsx";
 
 export default function OrgHomePage() {
   const { org } = useProjectContext();
@@ -72,86 +71,109 @@ export default function OrgHomePage() {
       />
 
       <div className="flex-1 overflow-auto p-5">
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* KPI Bento */}
-          <ErrorBoundary
-            fallback={
-              <div className="text-sm text-muted-foreground">
-                Failed to load stats
-              </div>
-            }
-          >
-            <Suspense
-              fallback={
-                <BentoTile
-                  title="Overview"
-                  description="At-a-glance health for the last 24 hours"
-                >
-                  <MeshStats.Skeleton />
-                </BentoTile>
-              }
-            >
-              <BentoTile
-                title="Overview"
-                description="At-a-glance health for the last 24 hours"
+        <div className="max-w-7xl mx-auto">
+          {/* Grid with internal dividers only */}
+          <div className="grid grid-cols-1 lg:grid-cols-6 gap-px bg-border">
+            {/* Row 1: 3 KPI bar charts */}
+            <div className="lg:col-span-2">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load tool calls
+                  </div>
+                }
               >
-                <MeshStats />
-              </BentoTile>
-            </Suspense>
-          </ErrorBoundary>
+                <Suspense fallback={<MonitoringKPIs.ToolCalls.Skeleton />}>
+                  <MonitoringKPIs.ToolCalls />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
 
-          {/* Monitoring Bento */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <ErrorBoundary
-              fallback={
-                <div className="text-sm text-muted-foreground">
-                  Failed to load monitoring chart
-                </div>
-              }
-            >
-              <Suspense fallback={<MonitoringHero.Skeleton />}>
-                <MonitoringHero />
-              </Suspense>
-            </ErrorBoundary>
+            <div className="lg:col-span-2">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load error rate
+                  </div>
+                }
+              >
+                <Suspense fallback={<MonitoringKPIs.ErrorRate.Skeleton />}>
+                  <MonitoringKPIs.ErrorRate />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
 
-            <ErrorBoundary
-              fallback={
-                <div className="text-sm text-muted-foreground">
-                  Failed to load top tools
-                </div>
-              }
-            >
-              <Suspense fallback={<TopTools.Skeleton />}>
-                <TopTools />
-              </Suspense>
-            </ErrorBoundary>
-          </div>
+            <div className="lg:col-span-2">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load latency
+                  </div>
+                }
+              >
+                <Suspense fallback={<MonitoringKPIs.Latency.Skeleton />}>
+                  <MonitoringKPIs.Latency />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
 
-          {/* Activity + MCP Servers */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <ErrorBoundary
-              fallback={
-                <div className="text-sm text-muted-foreground">
-                  Failed to load recent activity
-                </div>
-              }
-            >
-              <Suspense fallback={<RecentActivity.Skeleton />}>
-                <RecentActivity />
-              </Suspense>
-            </ErrorBoundary>
+            {/* Row 2: 2 gauges */}
+            <div className="lg:col-span-3">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load members
+                  </div>
+                }
+              >
+                <Suspense fallback={<MembersGauge.Skeleton />}>
+                  <MembersGauge />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
 
-            <ErrorBoundary
-              fallback={
-                <div className="text-sm text-muted-foreground">
-                  Failed to load connections
-                </div>
-              }
-            >
-              <Suspense fallback={<ConnectionsPreview.Skeleton />}>
-                <ConnectionsPreview />
-              </Suspense>
-            </ErrorBoundary>
+            <div className="lg:col-span-3">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load connections
+                  </div>
+                }
+              >
+                <Suspense fallback={<ConnectionsGauge.Skeleton />}>
+                  <ConnectionsGauge />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+
+            {/* Row 3: Recent Activity + Top Tools */}
+            <div className="lg:col-span-3">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load recent activity
+                  </div>
+                }
+              >
+                <Suspense fallback={<RecentActivity.Skeleton />}>
+                  <RecentActivity />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+
+            <div className="lg:col-span-3">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load top tools
+                  </div>
+                }
+              >
+                <Suspense fallback={<TopTools.Skeleton />}>
+                  <TopTools />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
           </div>
         </div>
       </div>
