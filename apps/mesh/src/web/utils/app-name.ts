@@ -1,21 +1,21 @@
 /**
- * Utilitários para extrair e formatar nomes de apps MCP
+ * Utilities for extracting and formatting MCP app names
  */
 
 /**
- * Extrai o nome de exibição de um app name no formato de domínio reverso.
+ * Extracts the display name from an app name in reverse domain format.
  *
- * Exemplos:
+ * Examples:
  * - "ai.zine/mcp" -> "zine"
  * - "com.apple-rag/mcp-server" -> "apple-rag"
  * - "simple-name" -> "simple-name"
  * - "io.modelcontextprotocol.registry/github" -> "github"
  *
- * @param fullName - O nome completo do app (pode estar no formato domínio/app)
- * @returns O nome formatado para exibição
+ * @param fullName - The full app name (may be in domain/app format)
+ * @returns The formatted name for display
  */
 export function extractDisplayNameFromDomain(fullName: string): string {
-  // Se não tem "/", retorna como está
+  // If no "/" is present, return as is
   if (!fullName.includes("/")) {
     return fullName;
   }
@@ -24,24 +24,24 @@ export function extractDisplayNameFromDomain(fullName: string): string {
   const domain = parts[0];
   const appName = parts[1];
 
-  // Se não conseguiu extrair as partes, retorna o original
+  // If unable to extract parts, return original
   if (!domain || !appName) {
     return fullName;
   }
 
-  // Se o domínio tem pontos (formato de domínio reverso), pega a última parte
+  // If domain has dots (reverse domain format), extract the last part
   if (domain.includes(".")) {
     const domainParts = domain.split(".");
     const lastDomainPart = domainParts[domainParts.length - 1] || domain;
 
-    // Remove sufixos comuns como "mcp" ou "mcp-server" do appName
+    // Remove common suffixes like "mcp" or "mcp-server" from appName
     const cleanAppName = appName
       .replace(/^mcp-?/, "")
       .replace(/-?mcp$/, "")
       .replace(/^server-?/, "")
       .replace(/-?server$/, "");
 
-    // Se após limpar o appName ficou vazio ou muito curto, usa a última parte do domínio
+    // If after cleaning the appName is empty or too short, use the last domain part
     if (!cleanAppName || cleanAppName.length < 2) {
       return lastDomainPart;
     }
@@ -49,6 +49,6 @@ export function extractDisplayNameFromDomain(fullName: string): string {
     return cleanAppName;
   }
 
-  // Se não tem pontos no domínio, retorna o appName
+  // If domain has no dots, return appName
   return appName;
 }
