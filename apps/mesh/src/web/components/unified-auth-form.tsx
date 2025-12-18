@@ -4,10 +4,6 @@ import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { motion, AnimatePresence } from "framer-motion";
-
-// Easing constants matching CSS tokens from global.css
-const EASE_OUT_CIRC = [0.075, 0.82, 0.165, 1] as const;
 
 export function UnifiedAuthForm() {
   const { emailAndPassword } = useAuthConfig();
@@ -148,33 +144,28 @@ export function UnifiedAuthForm() {
       {/* Email & Password Form */}
       {emailAndPassword.enabled && (
         <form onSubmit={handleEmailPassword} className="grid gap-4">
-          <AnimatePresence initial={false}>
-            {isSignUp && (
-              <motion.div
-                key="name-field"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{
-                  duration: 0.3,
-                  ease: EASE_OUT_CIRC,
-                }}
-                style={{ transformOrigin: "top" }}
-              >
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Name
-                </label>
-                <Input
-                  type="text"
-                  placeholder="Your name"
-                  value={name}
-                  onChange={handleInputChange(setName)}
-                  required
-                  disabled={isLoading}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)] ${
+              isSignUp
+                ? "max-h-[200px] opacity-100 translate-y-0"
+                : "max-h-0 opacity-0 -translate-y-2"
+            }`}
+          >
+            <div className={isSignUp ? "" : "pointer-events-none"}>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Name
+              </label>
+              <Input
+                type="text"
+                placeholder="Your name"
+                value={name}
+                onChange={handleInputChange(setName)}
+                required
+                disabled={isLoading || !isSignUp}
+                aria-hidden={!isSignUp}
+              />
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
               Email
@@ -207,34 +198,29 @@ export function UnifiedAuthForm() {
             />
           </div>
 
-          <AnimatePresence initial={false}>
-            {canSubmit && (
-              <motion.div
-                key="submit-button"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{
-                  duration: 0.3,
-                  ease: EASE_OUT_CIRC,
-                }}
-                style={{ transformOrigin: "top" }}
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)] ${
+              canSubmit
+                ? "max-h-[100px] opacity-100 translate-y-0"
+                : "max-h-0 opacity-0 -translate-y-2"
+            }`}
+          >
+            <div className={canSubmit ? "" : "pointer-events-none"}>
+              <Button
+                type="submit"
+                disabled={isLoading || !canSubmit}
+                className="w-full font-semibold"
+                size="lg"
+                aria-hidden={!canSubmit}
               >
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full font-semibold"
-                  size="lg"
-                >
-                  {isLoading
-                    ? isSignUp
-                      ? "Creating account..."
-                      : "Signing in..."
-                    : "Continue"}
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {isLoading
+                  ? isSignUp
+                    ? "Creating account..."
+                    : "Signing in..."
+                  : "Continue"}
+              </Button>
+            </div>
+          </div>
         </form>
       )}
 
