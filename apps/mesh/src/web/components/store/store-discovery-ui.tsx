@@ -115,7 +115,7 @@ export function StoreDiscoveryUI({
       <CollectionSearch
         value={search}
         onChange={setSearch}
-        placeholder="Search for a MCP..."
+        placeholder="Search for an MCP Server..."
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             setSearch(e.currentTarget.value);

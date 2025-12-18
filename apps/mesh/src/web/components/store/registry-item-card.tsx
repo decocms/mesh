@@ -179,7 +179,7 @@ export function RegistryItemCard({
                         name="lock"
                         size={16}
                         className="text-muted-foreground shrink-0"
-                        title="This MCP cannot be connected"
+                        title="This MCP Server cannot be connected"
                       />
                     )}
                   </div>

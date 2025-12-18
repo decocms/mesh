@@ -445,7 +445,7 @@ function BindingSelector({
                 <>
                   <Icon name="add" size={16} />
                   <span>
-                    {canInstallInline ? "Connect MCP" : "Create connection"}
+                    {canInstallInline ? "Connect MCP Server" : "Create connection"}
                   </span>
                 </>
               )}
@@ -1000,7 +1000,7 @@ function CursorIDEIntegration({
           Install in Cursor IDE
         </h4>
         <p className="text-sm text-muted-foreground">
-          Add this MCP server to Cursor via the Mesh HTTP proxy. Authentication
+          Add this MCP Server to Cursor via the Mesh HTTP proxy. Authentication
           and permissions are handled automatically through Mesh.
         </p>
       </div>

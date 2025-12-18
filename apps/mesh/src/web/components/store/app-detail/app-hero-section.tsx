@@ -89,7 +89,7 @@ export function AppHeroSection({
                   className="shrink-0 rounded-r-none cursor-pointer"
                 >
                   <Icon name="add" size={20} />
-                  {isInstalling ? "Connecting..." : "Connect MCP"}
+                  {isInstalling ? "Connecting..." : "Connect MCP Server"}
                 </Button>
 
                 <DropdownMenu>
@@ -148,7 +148,7 @@ export function AppHeroSection({
                 className="shrink-0"
               >
                 <Icon name="add" size={20} />
-                {isInstalling ? "Connecting..." : "Connect MCP"}
+                {isInstalling ? "Connecting..." : "Connect MCP Server"}
               </Button>
             )}
           </div>
