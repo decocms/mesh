@@ -118,7 +118,8 @@ function extractItemData(item: RegistryItem): AppData {
     null;
 
   // Extract raw name and apply display name formatting
-  const rawName = item.name || item.title || item.server?.title || "Unnamed Item";
+  const rawName =
+    item.name || item.title || item.server?.title || "Unnamed Item";
   const displayName = extractDisplayNameFromDomain(rawName);
 
   return {
