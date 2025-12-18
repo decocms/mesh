@@ -68,15 +68,10 @@ export function useGateway(gatewayId: string | undefined) {
 export function useGatewayActions() {
   const { org } = useProjectContext();
   const toolCaller = createToolCaller();
-  return useCollectionActions<GatewayEntity>(
-    org.slug,
-    "GATEWAY",
-    toolCaller,
-  );
+  return useCollectionActions<GatewayEntity>(org.slug, "GATEWAY", toolCaller);
 }
 
 /**
  * Re-export GatewayEntity type for convenience
  */
 export type { GatewayEntity };
-

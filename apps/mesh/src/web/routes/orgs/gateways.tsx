@@ -72,7 +72,9 @@ const gatewayFormSchema = z.object({
   description: z.string().nullable().optional(),
   status: z.enum(["active", "inactive"]),
   mode: z.enum(["deduplicate", "prefix_all", "custom"]),
-  selectedConnectionIds: z.array(z.string()).min(1, "Select at least one connection"),
+  selectedConnectionIds: z
+    .array(z.string())
+    .min(1, "Select at least one connection"),
 });
 
 type GatewayFormData = z.infer<typeof gatewayFormSchema>;
@@ -136,7 +138,10 @@ function ConnectionSelector({
               <span className="text-sm font-medium truncate flex-1">
                 {connection.title}
               </span>
-              <Badge variant={connection.status === "active" ? "default" : "outline"} className="text-xs">
+              <Badge
+                variant={connection.status === "active" ? "default" : "outline"}
+                className="text-xs"
+              >
                 {connection.status}
               </Badge>
             </label>
@@ -218,7 +223,7 @@ function OrgGatewaysContent() {
 
     closeCreateDialog();
     form.reset();
-    
+
     // Navigate to the created gateway detail
     if (result?.id) {
       navigate({
@@ -432,8 +437,12 @@ function OrgGatewaysContent() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="deduplicate">Deduplicate</SelectItem>
-                            <SelectItem value="prefix_all">Prefix All</SelectItem>
+                            <SelectItem value="deduplicate">
+                              Deduplicate
+                            </SelectItem>
+                            <SelectItem value="prefix_all">
+                              Prefix All
+                            </SelectItem>
                             <SelectItem value="custom">Custom</SelectItem>
                           </SelectContent>
                         </Select>
@@ -560,7 +569,9 @@ function OrgGatewaysContent() {
         <div className="flex-1 overflow-auto p-5">
           {gateways.length === 0 ? (
             <EmptyState
-              image={<Icon name="hub" size={48} className="text-muted-foreground" />}
+              image={
+                <Icon name="hub" size={48} className="text-muted-foreground" />
+              }
               title={listState.search ? "No gateways found" : "No gateways yet"}
               description={
                 listState.search
@@ -588,7 +599,10 @@ function OrgGatewaysContent() {
                   }
                   footer={
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{gateway.connections.length} connection{gateway.connections.length !== 1 ? "s" : ""}</span>
+                      <span>
+                        {gateway.connections.length} connection
+                        {gateway.connections.length !== 1 ? "s" : ""}
+                      </span>
                       <span>•</span>
                       <span>{gateway.mode.type}</span>
                     </div>
@@ -659,13 +673,25 @@ function OrgGatewaysContent() {
           emptyState={
             listState.search ? (
               <EmptyState
-                image={<Icon name="hub" size={48} className="text-muted-foreground" />}
+                image={
+                  <Icon
+                    name="hub"
+                    size={48}
+                    className="text-muted-foreground"
+                  />
+                }
                 title="No gateways found"
                 description={`No gateways match "${listState.search}"`}
               />
             ) : (
               <EmptyState
-                image={<Icon name="hub" size={48} className="text-muted-foreground" />}
+                image={
+                  <Icon
+                    name="hub"
+                    size={48}
+                    className="text-muted-foreground"
+                  />
+                }
                 title="No gateways yet"
                 description="Create a gateway to aggregate tools from multiple MCP connections."
               />
@@ -696,4 +722,3 @@ export default function OrgGateways() {
     </ErrorBoundary>
   );
 }
-

@@ -47,7 +47,9 @@ import { ViewLayout, ViewActions } from "../layout";
 function utf8ToBase64(str: string): string {
   const encoder = new TextEncoder();
   const bytes = encoder.encode(str);
-  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join(
+    "",
+  );
   return btoa(binary);
 }
 
@@ -152,16 +154,26 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
                 className="h-auto py-3 px-4 justify-start gap-3"
                 onClick={() => handleCopyCommand(claudeCommand, "Claude")}
               >
-                <Icon name="terminal" size={20} className="text-muted-foreground" />
+                <Icon
+                  name="terminal"
+                  size={20}
+                  className="text-muted-foreground"
+                />
                 <span className="text-sm font-medium">Claude Code</span>
                 {copiedCommand === "Claude" && (
-                  <Icon name="check" size={14} className="ml-auto text-green-500" />
+                  <Icon
+                    name="check"
+                    size={14}
+                    className="ml-auto text-green-500"
+                  />
                 )}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <p className="text-xs">Copies CLI command:</p>
-              <code className="text-xs block mt-1 break-all">{claudeCommand}</code>
+              <code className="text-xs block mt-1 break-all">
+                {claudeCommand}
+              </code>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -226,12 +238,12 @@ function toolSetToGatewayConnections(
 ): Array<{ connection_id: string; selected_tools: string[] | null }> {
   return Object.entries(toolSet).map(([connectionId, selectedTools]) => {
     const allTools = connectionToolsMap.get(connectionId) ?? [];
-    
+
     // If all tools are selected, store null (meaning "all")
     const hasAllTools =
       allTools.length > 0 &&
       allTools.every((tool) => selectedTools.includes(tool));
-    
+
     return {
       connection_id: connectionId,
       selected_tools: hasAllTools ? null : selectedTools,
@@ -259,11 +271,13 @@ function GatewaySettingsForm({
             <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <Icon name="hub" size={24} className="text-primary" />
             </div>
-            <Badge variant={gateway.status === "active" ? "default" : "outline"}>
+            <Badge
+              variant={gateway.status === "active" ? "default" : "outline"}
+            >
               {gateway.status}
             </Badge>
           </div>
-          
+
           <div className="flex flex-col">
             <FormField
               control={form.control}
@@ -355,7 +369,8 @@ function GatewaySettingsForm({
           </div>
 
           <div className="text-xs text-muted-foreground">
-            <strong>Deduplicate:</strong> Keep first occurrence of each tool name.
+            <strong>Deduplicate:</strong> Keep first occurrence of each tool
+            name.
             <br />
             <strong>Prefix All:</strong> Prefix all tools with connection ID.
             <br />
@@ -369,8 +384,9 @@ function GatewaySettingsForm({
             Connections & Tools
           </div>
           <div className="text-sm text-muted-foreground">
-            {gateway.connections.length} connection{gateway.connections.length !== 1 ? "s" : ""} configured.
-            Use the panel on the right to select which tools to expose.
+            {gateway.connections.length} connection
+            {gateway.connections.length !== 1 ? "s" : ""} configured. Use the
+            panel on the right to select which tools to expose.
           </div>
         </div>
 
@@ -395,10 +411,10 @@ function GatewayInspectorViewWithGateway({
 }) {
   const router = useRouter();
   const actions = useGatewayActions();
-  
+
   // Fetch all connections to get tool names for "all tools" expansion
   const connections = useConnections({});
-  
+
   // Build a map of connectionId -> all tool names
   const connectionToolsMap = new Map<string, string[]>();
   for (const conn of connections) {
@@ -409,15 +425,15 @@ function GatewayInspectorViewWithGateway({
       );
     }
   }
-  
+
   // Initialize toolSet from gateway connections
   const [toolSet, setToolSet] = useState<Record<string, string[]>>(() =>
     gatewayToToolSet(gateway, connectionToolsMap),
   );
-  
+
   // Track if toolSet has changed
   const [toolSetDirty, setToolSetDirty] = useState(false);
-  
+
   const handleToolSetChange = (newToolSet: Record<string, string[]>) => {
     setToolSet(newToolSet);
     setToolSetDirty(true);
@@ -439,10 +455,13 @@ function GatewayInspectorViewWithGateway({
 
   const handleSave = async () => {
     const formData = form.getValues();
-    
+
     // Convert toolSet back to gateway connections format
-    const newConnections = toolSetToGatewayConnections(toolSet, connectionToolsMap);
-    
+    const newConnections = toolSetToGatewayConnections(
+      toolSet,
+      connectionToolsMap,
+    );
+
     await actions.update.mutateAsync({
       id: gatewayId,
       data: {
@@ -585,4 +604,3 @@ export default function GatewayInspectorView() {
     </ErrorBoundary>
   );
 }
-
