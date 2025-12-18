@@ -97,7 +97,7 @@ export function AppHeroSection({
                     <Button
                       variant="brand"
                       disabled={isInstalling}
-                      className="shrink-0 rounded-l-none px-2 border-l border-l-white/20 cursor-pointer"
+                      className="shrink-0 rounded-l-none px-2 border-l-2 border-l-white/50 cursor-pointer"
                     >
                       <Icon name="expand_more" size={20} />
                     </Button>
