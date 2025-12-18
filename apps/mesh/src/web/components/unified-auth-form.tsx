@@ -4,6 +4,7 @@ import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 
 export function UnifiedAuthForm() {
   const { emailAndPassword } = useAuthConfig();
@@ -199,11 +200,12 @@ export function UnifiedAuthForm() {
           </div>
 
           <div
-            className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)] ${
+            className={cn(
+              `overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)]`,
               canSubmit
                 ? "max-h-[100px] opacity-100 translate-y-0"
-                : "max-h-0 opacity-0 -translate-y-2"
-            }`}
+                : "max-h-0 opacity-0 -translate-y-2",
+            )}
           >
             <div className={canSubmit ? "" : "pointer-events-none"}>
               <Button
