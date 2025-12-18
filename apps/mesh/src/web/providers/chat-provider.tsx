@@ -135,7 +135,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Create transport (stable, doesn't depend on selected model)
   const transport = createModelsTransport(org.slug);
 
-  // Memoize onFinish callback to prevent infinite loops
   const onFinish: ChatInit<UIMessage<Metadata>>["onFinish"] = (result) => {
     const { finishReason, messages, isAbort, isDisconnect, isError } = result;
 
