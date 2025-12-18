@@ -14,6 +14,7 @@ import type { Kysely } from "kysely";
 import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
 import { ConnectionStorage } from "../storage/connection";
+import { GatewayStorage } from "../storage/gateway";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { Database, Permission } from "../storage/types";
 import { AccessControl } from "./access-control";
@@ -340,7 +341,7 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 // Import built-in roles from separate module to avoid circular dependency
 import { SqlMonitoringStorage } from "@/storage/monitoring";
 import { BUILTIN_ROLES } from "../auth/roles";
-import { WellKnownMCPId } from "./well-known-mcp";
+import { WellKnownMCPId, WellKnownOrgMCPId } from "./well-known-mcp";
 
 /**
  * Fetch role permissions from the database
@@ -605,6 +606,7 @@ export function createMeshContextFactory(
     connections: new ConnectionStorage(config.db, vault),
     organizationSettings: new OrganizationSettingsStorage(config.db),
     monitoring: new SqlMonitoringStorage(config.db),
+    gateways: new GatewayStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin

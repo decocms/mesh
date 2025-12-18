@@ -5,6 +5,12 @@ export const WellKnownMCPId = {
   REGISTRY: "registry",
   COMMUNITY_REGISTRY: "community-registry",
 };
+export const WellKnownOrgMCPId = {
+  SELF: (org: string) => `${org}_${WellKnownMCPId.SELF}`,
+  REGISTRY: (org: string) => `${org}_${WellKnownMCPId.REGISTRY}`,
+  COMMUNITY_REGISTRY: (org: string) =>
+    `${org}_${WellKnownMCPId.COMMUNITY_REGISTRY}`,
+};
 
 /**
  * Get well-known connection definition for the Deco Store registry.
@@ -87,7 +93,7 @@ export function getWellKnownSelfConnection(
     configuration_scopes: null,
     metadata: {
       isDefault: true,
-      type: WellKnownMCPId.SELF,
+      type: WellKnownOrgMCPId.SELF,
     },
   };
 }

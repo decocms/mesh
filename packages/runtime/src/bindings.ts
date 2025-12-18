@@ -2,7 +2,7 @@ import { CollectionBinding } from "packages/bindings/src/well-known/collections.
 import type { MCPConnection } from "./connection.ts";
 import type { RequestContext } from "./index.ts";
 import { type MCPClientFetchStub, MCPClient, type ToolBinder } from "./mcp.ts";
-import { z } from 'zod';
+import { z } from "zod";
 
 type ClientContext = Omit<
   RequestContext,
@@ -31,11 +31,13 @@ export type BindingRegistry = Record<string, readonly ToolBinder[]>;
 /**
  * Function that returns Zod Schema
  */
-export const BindingOf = <TRegistry extends BindingRegistry>(name: keyof TRegistry | "*") => {
-	return z.object({
-		__type: z.literal(name).default(name as any),
-		value: z.string(),
-	});
+export const BindingOf = <TRegistry extends BindingRegistry>(
+  name: keyof TRegistry | "*",
+) => {
+  return z.object({
+    __type: z.literal(name).default(name as any),
+    value: z.string(),
+  });
 };
 
 /**

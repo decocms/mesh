@@ -6,7 +6,12 @@
  */
 
 import type { ConnectionEntity } from "../tools/connection/schema";
-import type { MonitoringLog, OrganizationSettings } from "./types";
+import type {
+  Gateway,
+  GatewayWithConnections,
+  MonitoringLog,
+  OrganizationSettings,
+} from "./types";
 
 // ============================================================================
 // Connection Storage Port
@@ -65,4 +70,52 @@ export interface MonitoringStorage {
     errorRate: number;
     avgDurationMs: number;
   }>;
+}
+
+// ============================================================================
+// Gateway Storage Port
+// ============================================================================
+
+/**
+ * Data for creating a gateway
+ */
+export interface GatewayCreateData {
+  title: string;
+  description?: string | null;
+  mode?: Gateway["mode"];
+  status?: Gateway["status"];
+  connections: Array<{
+    connectionId: string;
+    selectedTools?: string[] | null;
+  }>;
+}
+
+/**
+ * Data for updating a gateway
+ */
+export interface GatewayUpdateData {
+  title?: string;
+  description?: string | null;
+  mode?: Gateway["mode"];
+  status?: Gateway["status"];
+  connections?: Array<{
+    connectionId: string;
+    selectedTools?: string[] | null;
+  }>;
+}
+
+export interface GatewayStoragePort {
+  create(
+    organizationId: string,
+    userId: string,
+    data: GatewayCreateData,
+  ): Promise<GatewayWithConnections>;
+  findById(id: string): Promise<GatewayWithConnections | null>;
+  list(organizationId: string): Promise<GatewayWithConnections[]>;
+  update(
+    id: string,
+    userId: string,
+    data: GatewayUpdateData,
+  ): Promise<GatewayWithConnections>;
+  delete(id: string): Promise<void>;
 }

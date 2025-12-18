@@ -23,6 +23,7 @@ import { getDb, type MeshDatabase } from "../database";
 import { createEventBus, type EventBus } from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
 import authRoutes from "./routes/auth";
+import gatewayRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
 import proxyRoutes from "./routes/proxy";
@@ -39,11 +40,12 @@ let currentEventBus: EventBus | null = null;
 const prometheusSerializer = new PrometheusSerializer();
 
 // Mount OAuth discovery metadata endpoints (shared across instances)
-import { WellKnownMCPId } from "@/core/well-known-mcp";
+import { WellKnownOrgMCPId } from "@/core/well-known-mcp";
 import {
   oAuthDiscoveryMetadata,
   oAuthProtectedResourceMetadata,
 } from "better-auth/plugins";
+import { MiddlewareHandler } from "hono/types";
 import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
 const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
@@ -198,7 +200,8 @@ export function createApp(options: CreateAppOptions = {}) {
   app.get(
     "/.well-known/oauth-authorization-server/*/:connectionId?",
     async (c) => {
-      const connectionId = c.req.param("connectionId") ?? WellKnownMCPId.SELF;
+      const connectionId =
+        c.req.param("connectionId") ?? WellKnownOrgMCPId.SELF;
       const handleOAuthDiscoveryMetadata = getHandleOAuthDiscoveryMetadata();
       const res = await handleOAuthDiscoveryMetadata(c.req.raw);
       const data = await res.json();
@@ -269,9 +272,9 @@ export function createApp(options: CreateAppOptions = {}) {
   // API Routes
   // ============================================================================
 
-  app.use("/mcp/:connectionId?", async (c, next) => {
+  const mcpAuth: MiddlewareHandler = async (c, next) => {
     const meshContext = c.var.meshContext;
-    const connectionId = c.req.param("connectionId") ?? WellKnownMCPId.SELF;
+    const connectionId = c.req.param("connectionId") ?? WellKnownOrgMCPId.SELF;
     // Require either user or API key authentication
     if (!meshContext.auth.user?.id && !meshContext.auth.apiKey?.id) {
       const origin = new URL(c.req.url).origin;
@@ -283,8 +286,14 @@ export function createApp(options: CreateAppOptions = {}) {
       }));
     }
     return await next();
-  });
+  };
+  app.use("/mcp/:connectionId?", mcpAuth);
+  app.use("/mcp/gateway/:connectionId", mcpAuth);
 
+  // MCP Gateway routes (must be before proxy to match /mcp/gateway and /mcp/mesh before /mcp/:connectionId)
+  // Virtual gateway: /mcp/gateway/:gatewayId
+  // Legacy mesh: /mcp/mesh/:organizationSlug (deprecated)
+  app.route("/mcp", gatewayRoutes);
   // Management MCP routes
   app.route("/mcp", managementRoutes);
 

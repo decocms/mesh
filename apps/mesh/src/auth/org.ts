@@ -108,6 +108,9 @@ export async function createDefaultOrgConnections(
           }).catch(() => null));
         await connectionStorage.create({
           ...mcpConfig.data,
+          id: mcpConfig.data.id
+            ? `${organizationId}_${mcpConfig.data.id}`
+            : undefined,
           tools,
           organization_id: organizationId,
           created_by: createdBy,
