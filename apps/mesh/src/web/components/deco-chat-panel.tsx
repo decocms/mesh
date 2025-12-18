@@ -324,7 +324,7 @@ export function DecoChatPanel() {
       return;
     }
 
-    if (!selectedModelState || !selectedModel) {
+    if (!selectedModel) {
       // Console error kept for critical missing configuration
       console.error("No model configured");
       return;
@@ -334,7 +334,7 @@ export function DecoChatPanel() {
     const metadata: Metadata = {
       created_at: new Date().toISOString(),
       thread_id: activeThreadId,
-      model: selectedModelState ?? undefined,
+      model: selectedModel,
       agent: selectedAgent ?? undefined,
       user: {
         avatar: user?.image ?? undefined,
@@ -342,12 +342,15 @@ export function DecoChatPanel() {
       },
     };
 
-    await chat.sendMessage({
-      id: crypto.randomUUID(),
-      role: "user",
-      parts: [{ type: "text", text }],
-      metadata,
-    });
+    await chat.sendMessage(
+      {
+        id: crypto.randomUUID(),
+        role: "user",
+        parts: [{ type: "text", text }],
+        metadata,
+      },
+      { metadata },
+    );
   };
 
   const handleStop = () => {
