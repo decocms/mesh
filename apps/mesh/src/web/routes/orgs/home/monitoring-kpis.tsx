@@ -131,7 +131,7 @@ function getMinMaxTs(logs: MonitoringLog[]) {
 }
 
 function ToolCallsKPI() {
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const navigate = useNavigate();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
@@ -143,6 +143,7 @@ function ToolCallsKPI() {
     toolCaller,
     toolName: "MONITORING_STATS",
     toolInputParams: dateRange,
+    scope: locator,
     staleTime: 60_000,
   });
 
@@ -153,6 +154,7 @@ function ToolCallsKPI() {
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
     toolInputParams: { ...dateRange, limit: 750, offset: 0 },
+    scope: locator,
     staleTime: 30_000,
   });
 
@@ -289,7 +291,7 @@ function ToolCallsKPI() {
 }
 
 function ErrorRateKPI() {
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const navigate = useNavigate();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
@@ -301,6 +303,7 @@ function ErrorRateKPI() {
     toolCaller,
     toolName: "MONITORING_STATS",
     toolInputParams: dateRange,
+    scope: locator,
     staleTime: 60_000,
   });
 
@@ -311,6 +314,7 @@ function ErrorRateKPI() {
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
     toolInputParams: { ...dateRange, limit: 750, offset: 0 },
+    scope: locator,
     staleTime: 30_000,
   });
 
@@ -456,7 +460,7 @@ function ErrorRateKPI() {
 }
 
 function LatencyKPI() {
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const navigate = useNavigate();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
@@ -468,6 +472,7 @@ function LatencyKPI() {
     toolCaller,
     toolName: "MONITORING_STATS",
     toolInputParams: dateRange,
+    scope: locator,
     staleTime: 60_000,
   });
 
@@ -478,6 +483,7 @@ function LatencyKPI() {
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
     toolInputParams: { ...dateRange, limit: 750, offset: 0 },
+    scope: locator,
     staleTime: 30_000,
   });
 

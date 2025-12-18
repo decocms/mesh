@@ -26,7 +26,7 @@ interface MonitoringLogsResponse {
 }
 
 function RecentActivityContent() {
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const navigate = useNavigate();
   const toolCaller = createToolCaller();
 
@@ -45,6 +45,7 @@ function RecentActivityContent() {
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
     toolInputParams,
+    scope: locator,
     staleTime: 30_000,
   });
 

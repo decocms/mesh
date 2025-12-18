@@ -72,7 +72,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
     toolCaller,
     toolName: listToolName,
     toolInputParams: {},
-    connectionId: registryId,
+    scope: registryId,
   });
 
   const registryItems = extractItemsFromResponse<RegistryItem>(

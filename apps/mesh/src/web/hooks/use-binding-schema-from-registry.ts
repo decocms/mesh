@@ -141,7 +141,7 @@ export function useBindingSchemaFromRegistry(
     toolCaller,
     toolName: listToolName,
     toolInputParams,
-    connectionId: registryId,
+    scope: registryId,
     staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 

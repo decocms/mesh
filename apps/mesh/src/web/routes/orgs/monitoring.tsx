@@ -100,6 +100,7 @@ function MonitoringStatsContent({
   dateRange,
   isStreaming,
 }: MonitoringStatsProps) {
+  const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
 
   const statsParams = {
@@ -111,6 +112,7 @@ function MonitoringStatsContent({
     toolCaller,
     toolName: "MONITORING_STATS",
     toolInputParams: statsParams,
+    scope: locator,
     staleTime: 0,
     refetchInterval: isStreaming ? 3000 : false,
   });
@@ -469,6 +471,7 @@ function MonitoringLogsTableContent({
   isStreaming,
   onUpdateFilters,
 }: MonitoringLogsTableProps) {
+  const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -492,6 +495,7 @@ function MonitoringLogsTableContent({
       toolCaller,
       toolName: "MONITORING_LOGS_LIST",
       toolInputParams: logsParams,
+      scope: locator,
       staleTime: 0,
       refetchInterval: isStreaming ? 3000 : false,
     },

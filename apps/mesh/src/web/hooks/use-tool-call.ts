@@ -19,8 +19,8 @@ export interface UseToolCallOptions<TInput, _TOutput> {
   toolName: string;
   /** The input parameters for the tool */
   toolInputParams: TInput;
-  /** Connection ID to scope the cache (optional) */
-  connectionId?: string;
+  /** Scope to cache the tool call (connectionId for connection-scoped, locator for org/project-scoped) */
+  scope: string;
   /** Cache time in milliseconds */
   staleTime?: number;
   /** Refetch interval in milliseconds (false to disable) */
@@ -42,10 +42,12 @@ export interface UseToolCallOptions<TInput, _TOutput> {
  * </Suspense>
  *
  * function MyComponent() {
+ *   const { locator } = useProjectContext();
  *   const { data } = useToolCall({
  *     toolCaller: createToolCaller(),
  *     toolName: "COLLECTION_LLM_LIST",
  *     toolInputParams: { limit: 10 },
+ *     scope: locator,
  *   });
  *   return <div>{data}</div>;
  * }
@@ -58,7 +60,7 @@ export function useToolCall<TInput, TOutput>(
     toolCaller,
     toolName,
     toolInputParams,
-    connectionId,
+    scope,
     staleTime = 60_000,
     refetchInterval,
   } = options;
@@ -69,7 +71,7 @@ export function useToolCall<TInput, TOutput>(
   return useSuspenseQuery<TOutput, Error, TOutput>({
     staleTime,
     refetchInterval,
-    queryKey: KEYS.toolCall(toolName, paramsKey, connectionId),
+    queryKey: KEYS.toolCall(scope, toolName, paramsKey),
     queryFn: async () => {
       const result = await toolCaller(toolName, toolInputParams);
       return result as TOutput;

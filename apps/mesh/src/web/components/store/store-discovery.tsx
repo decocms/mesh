@@ -29,9 +29,9 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useSuspenseInfiniteQuery({
       queryKey: KEYS.toolCall(
+        registryId,
         listToolName,
         JSON.stringify({ limit: PAGE_SIZE }),
-        registryId,
       ),
       queryFn: async ({ pageParam }) => {
         // Use cursor if available, otherwise fallback to offset for backward compatibility
