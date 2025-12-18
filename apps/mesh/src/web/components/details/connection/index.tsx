@@ -90,13 +90,13 @@ function ConnectionInspectorViewWithConnection({
       </ViewTabs>
       <div className="flex h-full w-full bg-background overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0 bg-background overflow-auto">
-          <ErrorBoundary>
+          <ErrorBoundary key={activeTabId}>
             <Suspense
               fallback={
                 <div className="flex h-full items-center justify-center">
                   <Icon
-                    name="progress_activity"
                     size={32}
+                    name="progress_activity"
                     className="animate-spin text-muted-foreground"
                   />
                 </div>
@@ -190,9 +190,9 @@ function ConnectionInspectorViewContent() {
 
   return (
     <ConnectionInspectorViewWithConnection
+      org={org}
       connection={connection}
       connectionId={connectionId}
-      org={org}
       requestedTabId={requestedTabId}
       collections={collections}
       onUpdate={handleUpdateConnection}
