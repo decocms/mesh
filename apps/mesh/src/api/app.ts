@@ -24,7 +24,6 @@ import { createEventBus, type EventBus } from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
 import authRoutes from "./routes/auth";
 import managementRoutes from "./routes/management";
-import meshRoutes from "./routes/mesh";
 import modelsRoutes from "./routes/models";
 import proxyRoutes from "./routes/proxy";
 
@@ -288,9 +287,6 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // Management MCP routes
   app.route("/mcp", managementRoutes);
-
-  // MCP Mesh aggregated routes (must be before proxy to match /mcp/mesh before /mcp/:connectionId)
-  app.route("/mcp/mesh", meshRoutes);
 
   // MCP Proxy routes (connection-specific)
   app.route("/mcp", proxyRoutes);

@@ -1,7 +1,11 @@
 /* oxlint-disable no-explicit-any */
 import { decodeJwt } from "jose";
 import type { z } from "zod";
-import { createContractBinding, createIntegrationBinding } from "./bindings.ts";
+import {
+  BindingRegistry,
+  initializeBindings,
+  ResolvedBindings,
+} from "./bindings.ts";
 import { type CORSOptions, handlePreflight, withCORS } from "./cors.ts";
 import { createOAuthHandlers } from "./oauth.ts";
 import { State } from "./state.ts";
@@ -10,7 +14,7 @@ import {
   type CreateMCPServerOptions,
   MCPServer,
 } from "./tools.ts";
-import type { Binding, ContractBinding, MCPBinding } from "./wrangler.ts";
+import type { Binding } from "./wrangler.ts";
 export { proxyConnectionForId } from "./bindings.ts";
 export { type CORSOptions, type CORSOrigin } from "./cors.ts";
 export {
@@ -19,9 +23,13 @@ export {
   type ToolBinder,
 } from "./mcp.ts";
 
-export interface DefaultEnv<TSchema extends z.ZodTypeAny = any> {
-  MESH_REQUEST_CONTEXT: RequestContext<TSchema>;
-  MESH_BINDINGS: string;
+export type { BindingRegistry } from "./bindings.ts";
+
+export interface DefaultEnv<
+  TSchema extends z.ZodTypeAny = any,
+  TBindings extends BindingRegistry = BindingRegistry,
+> {
+  MESH_REQUEST_CONTEXT: RequestContext<TSchema, TBindings>;
   MESH_APP_DEPLOYMENT_ID: string;
   IS_LOCAL: boolean;
   MESH_URL?: string;
@@ -51,20 +59,16 @@ export const MCPBindings = {
 export interface UserDefaultExport<
   TUserEnv = Record<string, unknown>,
   TSchema extends z.ZodTypeAny = never,
-  TEnv = TUserEnv & DefaultEnv<TSchema>,
-> extends CreateMCPServerOptions<TEnv, TSchema> {
+  TBindings extends BindingRegistry = BindingRegistry,
+  TEnv extends TUserEnv & DefaultEnv<TSchema, TBindings> = TUserEnv &
+    DefaultEnv<TSchema, TBindings>,
+> extends CreateMCPServerOptions<TEnv, TSchema, TBindings> {
   fetch?: (req: Request, env: TEnv, ctx: any) => Promise<Response> | Response;
   /**
    * CORS configuration options.
    * Set to `false` to disable CORS handling entirely.
    */
   cors?: CORSOptions | false;
-}
-
-// 1. Map binding type to its interface
-interface BindingTypeMap {
-  mcp: MCPBinding;
-  contract: ContractBinding;
 }
 
 export interface User {
@@ -79,8 +83,11 @@ export interface User {
   };
 }
 
-export interface RequestContext<TSchema extends z.ZodTypeAny = any> {
-  state: z.infer<TSchema>;
+export interface RequestContext<
+  TSchema extends z.ZodTypeAny = any,
+  TBindings extends BindingRegistry = BindingRegistry,
+> {
+  state: ResolvedBindings<z.infer<TSchema>, TBindings>;
   token: string;
   meshUrl: string;
   authorization?: string | null;
@@ -90,20 +97,6 @@ export interface RequestContext<TSchema extends z.ZodTypeAny = any> {
   callerApp?: string;
   connectionId?: string;
 }
-
-// 2. Map binding type to its creator function
-type CreatorByType = {
-  [K in keyof BindingTypeMap]: (
-    value: BindingTypeMap[K],
-    env: DefaultEnv,
-  ) => unknown;
-};
-
-// 3. Strongly type creatorByType
-const creatorByType: CreatorByType = {
-  mcp: createIntegrationBinding,
-  contract: createContractBinding,
-};
 
 const withDefaultBindings = ({
   env,
@@ -159,7 +152,6 @@ export const withBindings = <TEnv>({
   server,
   tokenOrContext,
   url,
-  bindings: inlineBindings,
   authToken,
 }: {
   env: TEnv;
@@ -169,7 +161,6 @@ export const withBindings = <TEnv>({
   // authToken is the authorization header
   authToken?: string | null;
   url?: string;
-  bindings?: Binding[];
 }): TEnv => {
   const env = _env as DefaultEnv<any>;
   const authorization = authToken ? authToken.split(" ")[1] : undefined;
@@ -223,11 +214,7 @@ export const withBindings = <TEnv>({
   }
 
   env.MESH_REQUEST_CONTEXT = context;
-  const bindings = inlineBindings ?? MCPBindings.parse(env.MESH_BINDINGS);
-
-  for (const binding of bindings) {
-    env[binding.name] = creatorByType[binding.type](binding as any, env);
-  }
+  initializeBindings(context);
 
   withDefaultBindings({
     env,
@@ -252,19 +239,21 @@ const DEFAULT_CORS_OPTIONS = {
   allowHeaders: ["Content-Type", "Authorization", "mcp-protocol-version"],
 };
 
-export const withRuntime = <TEnv, TSchema extends z.ZodTypeAny = never>(
-  userFns: UserDefaultExport<TEnv, TSchema>,
+export const withRuntime = <
+  TUserEnv,
+  TSchema extends z.ZodTypeAny = never,
+  TBindings extends BindingRegistry = BindingRegistry,
+  TEnv extends TUserEnv & DefaultEnv<TSchema, TBindings> = TUserEnv &
+    DefaultEnv<TSchema, TBindings>,
+>(
+  userFns: UserDefaultExport<TUserEnv, TSchema, TBindings>,
 ) => {
-  const server = createMCPServer<TEnv, TSchema>(userFns);
+  const server = createMCPServer<TUserEnv, TSchema, TBindings>(userFns);
   const corsOptions = userFns.cors ?? DEFAULT_CORS_OPTIONS;
   const oauth = userFns.oauth;
   const oauthHandlers = oauth ? createOAuthHandlers(oauth) : null;
 
-  const fetcher = async (
-    req: Request,
-    env: TEnv & DefaultEnv<TSchema>,
-    ctx: any,
-  ) => {
+  const fetcher = async (req: Request, env: TEnv, ctx: any) => {
     const url = new URL(req.url);
 
     // OAuth routes (when configured)
@@ -359,7 +348,7 @@ export const withRuntime = <TEnv, TSchema extends z.ZodTypeAny = never>(
   };
 
   return {
-    fetch: async (req: Request, env: TEnv & DefaultEnv<TSchema>, ctx?: any) => {
+    fetch: async (req: Request, env: TEnv, ctx?: any) => {
       if (new URL(req.url).pathname === "/_healthcheck") {
         return new Response("OK", { status: 200 });
       }
@@ -373,7 +362,6 @@ export const withRuntime = <TEnv, TSchema extends z.ZodTypeAny = never>(
         authToken: req.headers.get("authorization") ?? null,
         env: { ...process.env, ...env },
         server,
-        bindings: userFns.bindings,
         tokenOrContext: req.headers.get("x-mesh-token") ?? undefined,
         url: req.url,
       });
