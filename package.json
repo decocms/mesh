@@ -35,5 +35,8 @@
   },
   "engines": {
     "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "framer-motion": "^12.23.26"
   }
 }
