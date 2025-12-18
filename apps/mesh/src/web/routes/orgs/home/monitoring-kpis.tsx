@@ -167,6 +167,11 @@ function ToolCallsKPI() {
   const end = minMax ? new Date(minMax.max) : new Date(dateRange.endDate);
   const data = buildBuckets(logs, start, end, 24);
 
+  const startDate = new Date(dateRange.startDate);
+  const endDate = new Date(dateRange.endDate);
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
   if (totalCalls === 0) {
     return (
       <HomeGridCell
@@ -196,18 +201,13 @@ function ToolCallsKPI() {
             </BarChart>
           </ChartContainer>
           <div className="flex items-start justify-between text-xs text-muted-foreground w-full">
-            <p>Dec 17</p>
-            <p>Dec 18</p>
+            <p>{formatDate(startDate)}</p>
+            <p>{formatDate(endDate)}</p>
           </div>
         </div>
       </HomeGridCell>
     );
   }
-
-  const startDate = new Date(dateRange.startDate);
-  const endDate = new Date(dateRange.endDate);
-  const formatDate = (date: Date) =>
-    date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
     <HomeGridCell

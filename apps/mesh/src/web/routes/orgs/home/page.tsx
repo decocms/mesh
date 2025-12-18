@@ -77,7 +77,7 @@ function WelcomeOverlay() {
           </h2>
           <p className="text-sm text-muted-foreground leading-normal">
             Connect your first MCP server to unlock real-time metrics, activity
-            logs, and analytics righ here on your home.
+            logs, and analytics right here on your home.
           </p>
         </div>
 
