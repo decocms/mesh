@@ -5,14 +5,18 @@
  * Uses Suspense for loading states - wrap components in <Suspense> and <ErrorBoundary>.
  */
 
-import { useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useSuspenseQuery,
+  UseSuspenseQueryOptions,
+} from "@tanstack/react-query";
 import type { ToolCaller } from "../../tools/client";
 import { KEYS } from "../lib/query-keys";
 
 /**
  * Options for useToolCall hook
  */
-export interface UseToolCallOptions<TInput, _TOutput> {
+export interface UseToolCallOptions<TInput, TOutput>
+  extends Omit<UseSuspenseQueryOptions<TOutput>, "queryKey" | "queryFn"> {
   /** The tool caller function to use */
   toolCaller: ToolCaller;
   /** The name of the tool to call */
@@ -21,10 +25,6 @@ export interface UseToolCallOptions<TInput, _TOutput> {
   toolInputParams: TInput;
   /** Scope to cache the tool call (connectionId for connection-scoped, locator for org/project-scoped) */
   scope: string;
-  /** Cache time in milliseconds */
-  staleTime?: number;
-  /** Refetch interval in milliseconds (false to disable) */
-  refetchInterval?: number | false;
 }
 
 /**
@@ -53,24 +53,19 @@ export interface UseToolCallOptions<TInput, _TOutput> {
  * }
  * ```
  */
-export function useToolCall<TInput, TOutput>(
-  options: UseToolCallOptions<TInput, TOutput>,
-) {
-  const {
-    toolCaller,
-    toolName,
-    toolInputParams,
-    scope,
-    staleTime = 60_000,
-    refetchInterval,
-  } = options;
-
+export function useToolCall<TInput, TOutput>({
+  toolCaller,
+  toolName,
+  toolInputParams,
+  scope,
+  ...queryOptions
+}: UseToolCallOptions<TInput, TOutput>) {
   // Serialize the input params for the query key
   const paramsKey = JSON.stringify(toolInputParams);
 
   return useSuspenseQuery<TOutput, Error, TOutput>({
-    staleTime,
-    refetchInterval,
+    ...queryOptions,
+    staleTime: queryOptions.staleTime ?? 60_000,
     queryKey: KEYS.toolCall(scope, toolName, paramsKey),
     queryFn: async () => {
       const result = await toolCaller(toolName, toolInputParams);

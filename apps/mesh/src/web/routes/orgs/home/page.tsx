@@ -10,15 +10,12 @@ import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { MonitoringKPIs } from "./monitoring-kpis.tsx";
+import {
+  hasMonitoringActivity,
+  type MonitoringStats,
+} from "./monitoring-types.ts";
 import { RecentActivity } from "./recent-activity.tsx";
 import { TopTools } from "./top-tools.tsx";
-
-interface MonitoringStats {
-  totalCalls: number;
-  errorRate: number;
-  avgDurationMs: number;
-  errorRatePercent: string;
-}
 
 function WelcomeOverlay() {
   const { org, locator } = useProjectContext();
@@ -35,9 +32,11 @@ function WelcomeOverlay() {
     toolInputParams: dateRange,
     scope: locator,
     staleTime: 60_000,
+    refetchInterval: (query) =>
+      hasMonitoringActivity(query.state.data) ? false : 1_000,
   });
 
-  const hasActivity = (stats?.totalCalls ?? 0) > 0;
+  const hasActivity = hasMonitoringActivity(stats);
 
   const handleAddMcp = () => {
     navigate({
@@ -116,6 +115,8 @@ export default function OrgHomePage() {
 
   return (
     <CollectionPage>
+      <WelcomeOverlay />
+
       <CollectionHeader
         title={org.name}
         ctaButton={
@@ -207,8 +208,6 @@ export default function OrgHomePage() {
               </ErrorBoundary>
             </div>
           </div>
-
-          <WelcomeOverlay />
         </div>
       </div>
     </CollectionPage>

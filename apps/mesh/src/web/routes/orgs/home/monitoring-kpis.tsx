@@ -9,6 +9,7 @@ import {
 } from "@deco/ui/components/chart.tsx";
 import { Bar, BarChart, Cell } from "recharts";
 import { HomeGridCell } from "./home-grid-cell.tsx";
+import type { MonitoringStats } from "./monitoring-types.ts";
 
 interface MonitoringLog {
   id: string;
@@ -24,13 +25,6 @@ interface MonitoringLog {
 interface MonitoringLogsResponse {
   logs: MonitoringLog[];
   total: number;
-}
-
-interface MonitoringStats {
-  totalCalls: number;
-  errorRate: number;
-  avgDurationMs: number;
-  errorRatePercent: string;
 }
 
 type BucketPoint = {
