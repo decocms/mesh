@@ -135,6 +135,25 @@ const collectionDetailsRoute = createRoute({
   ),
 });
 
+const orgGatewaysRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/gateways",
+  component: lazyRouteComponent(() => import("./routes/orgs/gateways.tsx")),
+  validateSearch: z.lazy(() =>
+    z.object({
+      action: z.enum(["create"]).optional(),
+    }),
+  ),
+});
+
+const gatewayDetailRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/gateways/$gatewayId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/gateway-detail.tsx"),
+  ),
+});
+
 const oauthCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/oauth/callback",
@@ -150,6 +169,8 @@ const shellRouteTree = shellLayout.addChildren([
   orgHomeRoute,
   orgMembersRoute,
   orgConnectionsRoute,
+  orgGatewaysRoute,
+  gatewayDetailRoute,
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
   orgSettingsRoute,
