@@ -52,5 +52,3 @@ export async function down(db: Kysely<unknown>): Promise<void> {
     .column("timestamp")
     .execute();
 }
-
-
