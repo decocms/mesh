@@ -5,7 +5,7 @@ import { useState } from "react";
 interface IntegrationIconProps {
   icon: string | null | undefined;
   name: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   className?: string;
 }
 
@@ -18,12 +18,14 @@ export function IntegrationIcon({
   const [imageError, setImageError] = useState(icon ? false : true);
 
   const sizeClasses = {
+    xs: "h-6 w-6",
     sm: "h-8 w-8",
     md: "h-12 w-12",
     lg: "h-16 w-16",
   };
 
   const iconSizes = {
+    xs: 12,
     sm: 16,
     md: 24,
     lg: 32,

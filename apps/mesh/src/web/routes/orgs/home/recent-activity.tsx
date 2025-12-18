@@ -1,5 +1,6 @@
 import { createToolCaller } from "@/tools/client";
-import { EmptyState } from "@/web/components/empty-state.tsx";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
@@ -29,9 +30,10 @@ function RecentActivityContent() {
   const { org, locator } = useProjectContext();
   const navigate = useNavigate();
   const toolCaller = createToolCaller();
+  const connections = useConnections() ?? [];
 
   const dateRange = getLast24HoursDateRange();
-  const toolInputParams = { ...dateRange, limit: 6, offset: 0 };
+  const toolInputParams = { ...dateRange, limit: 8, offset: 0 };
 
   const { data: logsData } = useToolCall<
     {
@@ -51,6 +53,9 @@ function RecentActivityContent() {
 
   const logs = logsData?.logs ?? [];
 
+  // Get connection info for icons
+  const connectionMap = new Map(connections.map((c) => [c.id, c]));
+
   const handleRowClick = (log: MonitoringLog) => {
     navigate({
       to: "/$org/monitoring",
@@ -69,110 +74,154 @@ function RecentActivityContent() {
     });
   };
 
-  if (logs.length === 0) {
+  const mockLogs = [
+    {
+      id: "1",
+      toolName: "Google Drive",
+      connectionId: "mock1",
+      connectionTitle: "Google Drive",
+      timestamp: new Date().toISOString(),
+      durationMs: 200,
+      isError: true,
+    },
+    {
+      id: "2",
+      toolName: "Google Sheets",
+      connectionId: "mock2",
+      connectionTitle: "Google Sheets",
+      timestamp: new Date().toISOString(),
+      durationMs: 200,
+      isError: false,
+    },
+    {
+      id: "3",
+      toolName: "Google Slides",
+      connectionId: "mock3",
+      connectionTitle: "Google Slides",
+      timestamp: new Date().toISOString(),
+      durationMs: 200,
+      isError: false,
+    },
+    {
+      id: "4",
+      toolName: "Gmail",
+      connectionId: "mock4",
+      connectionTitle: "Gmail",
+      timestamp: new Date().toISOString(),
+      durationMs: 200,
+      isError: false,
+    },
+    {
+      id: "5",
+      toolName: "Google Calendar",
+      connectionId: "mock5",
+      connectionTitle: "Google Calendar",
+      timestamp: new Date().toISOString(),
+      durationMs: 200,
+      isError: false,
+    },
+    {
+      id: "6",
+      toolName: "Discord",
+      connectionId: "mock6",
+      connectionTitle: "Discord",
+      timestamp: new Date().toISOString(),
+      durationMs: 200,
+      isError: false,
+    },
+    {
+      id: "7",
+      toolName: "VTEX",
+      connectionId: "mock7",
+      connectionTitle: "VTEX",
+      timestamp: new Date().toISOString(),
+      durationMs: 200,
+      isError: false,
+    },
+    {
+      id: "8",
+      toolName: "Google Docs",
+      connectionId: "mock8",
+      connectionTitle: "Google Docs",
+      timestamp: new Date().toISOString(),
+      durationMs: 200,
+      isError: false,
+    },
+  ];
+
+  const displayLogs = logs.length === 0 ? mockLogs : logs;
+  const isShowingMockData = logs.length === 0;
+
+  const renderLogRow = (log: MonitoringLog | (typeof mockLogs)[0]) => {
+    const connection = connectionMap.get(log.connectionId);
+    const timestamp = new Date(log.timestamp);
+    const timeStr = timestamp.toLocaleString("en-US", {
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
     return (
-      <HomeGridCell
-        title={
-          <div className="flex items-center gap-2">
-            <span className="inline-flex size-7 items-center justify-center rounded-lg">
-              <Icon name="history" size={16} />
-            </span>
-            Recent Activity
-          </div>
+      <div
+        key={log.id}
+        className="flex items-center h-16 border-t border-border/60 hover:bg-muted/40 transition-colors cursor-pointer"
+        onClick={() =>
+          !isShowingMockData && handleRowClick(log as MonitoringLog)
         }
-        description="Latest tool calls across your connections"
       >
-        <EmptyState
-          image={null}
-          title="No activity yet"
-          description="Tool call activity will appear here once you make your first call through an MCP connection."
-          actions={
-            <button
-              onClick={() =>
-                navigate({
-                  to: "/$org/mcps",
-                  params: { org: org.slug },
-                })
-              }
-              className="text-sm text-primary hover:underline"
-            >
-              Browse MCPs
-            </button>
-          }
-        />
-      </HomeGridCell>
+        {/* Icon */}
+        <div className="flex items-center justify-center w-16 px-4">
+          <IntegrationIcon
+            icon={connection?.icon || null}
+            name={log.connectionTitle}
+            size="xs"
+            className="shadow-sm"
+          />
+        </div>
+
+        {/* Tool Name */}
+        <div className="flex-1 min-w-0">
+          <span className="text-xs font-medium text-foreground truncate block">
+            {log.toolName}
+          </span>
+        </div>
+
+        {/* Latency + Timestamp */}
+        <div className="flex items-center gap-2 px-5 text-xs whitespace-nowrap">
+          <span className="text-muted-foreground">{log.durationMs}ms</span>
+          <span className="text-foreground">{timeStr}</span>
+        </div>
+
+        {/* Status Badge */}
+        <div className="flex items-center pr-5">
+          <Badge
+            variant={log.isError ? "destructive" : "success"}
+            className="text-xs px-2 py-1"
+          >
+            {log.isError ? "Error" : "OK"}
+          </Badge>
+        </div>
+      </div>
     );
-  }
+  };
 
   return (
     <HomeGridCell
-      title={
-        <div className="flex items-center gap-2">
-          <span className="inline-flex size-7 items-center justify-center rounded-lg">
-            <Icon name="history" size={16} />
-          </span>
-          Recent Activity
-        </div>
-      }
-      description="Latest tool calls across your connections"
+      title={<p className="text-sm text-muted-foreground">Recent Activity</p>}
       action={
         logsData && logsData.total > logs.length ? (
           <Button variant="ghost" size="sm" onClick={handleViewAll}>
-            View all
+            See all
             <Icon name="chevron_right" size={16} />
           </Button>
         ) : null
       }
+      noPadding
     >
-      <div className="space-y-2">
-        {logs.map((log) => {
-          const time = new Date(log.timestamp).toLocaleTimeString();
-          const badge = log.isError ? (
-            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-              Error
-            </Badge>
-          ) : (
-            <Badge variant="default" className="text-[10px] px-1.5 py-0">
-              OK
-            </Badge>
-          );
-
-          return (
-            <button
-              key={log.id}
-              type="button"
-              onClick={() => handleRowClick(log)}
-              className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-left transition-colors hover:bg-muted/40"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {badge}
-                    <div className="font-mono text-xs text-foreground truncate">
-                      {log.toolName}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      on {log.connectionTitle}
-                    </div>
-                  </div>
-                  {log.isError && log.errorMessage ? (
-                    <div className="mt-1 text-xs text-muted-foreground truncate">
-                      {log.errorMessage}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="shrink-0 text-right">
-                  <div className="font-mono text-xs text-muted-foreground">
-                    {time}
-                  </div>
-                  <div className="font-mono text-xs text-foreground">
-                    {log.durationMs}ms
-                  </div>
-                </div>
-              </div>
-            </button>
-          );
-        })}
+      <div className={`w-full h-full overflow-auto ${""}`}>
+        {displayLogs.map((log) => renderLogRow(log))}
       </div>
     </HomeGridCell>
   );
@@ -181,8 +230,7 @@ function RecentActivityContent() {
 function RecentActivitySkeleton() {
   return (
     <HomeGridCell
-      title="Recent Activity"
-      description="Latest tool calls across your connections"
+      title={<p className="text-sm text-muted-foreground">Recent Activity</p>}
       action={<div className="h-7 w-20 rounded bg-muted animate-pulse" />}
     >
       <div className="space-y-2">
