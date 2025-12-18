@@ -110,7 +110,10 @@ export function DecoChatPanel() {
   const navigate = useNavigate();
 
   // Use thread management from ChatProvider
-  const { createThread, sentinelRef, activeThreadId } = useChat();
+  const { createThread, activeThreadId } = useChat();
+
+  // Sentinel ref for auto-scrolling to bottom
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Get mutation actions for persistence
   const threadActions = useThreadActions();

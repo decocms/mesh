@@ -2,8 +2,6 @@ import {
   createContext,
   PropsWithChildren,
   useContext,
-  useRef,
-  type RefObject,
 } from "react";
 import { useThreadActions } from "../hooks/use-chat-store";
 import { useLocalStorage } from "../hooks/use-local-storage";
@@ -17,9 +15,6 @@ export interface ChatContextValue {
   createThread: (thread?: Partial<Thread>) => Thread;
   setActiveThreadId: (threadId: string) => void;
   hideThread: (threadId: string) => void;
-
-  // Sentinel ref for auto-scrolling
-  sentinelRef: RefObject<HTMLDivElement | null>;
 }
 
 const createThreadId = () => crypto.randomUUID();
@@ -28,9 +23,6 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: PropsWithChildren) {
   const { locator } = useProjectContext();
-
-  // Sentinel ref for auto-scrolling to bottom
-  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Get mutation actions
   const threadActions = useThreadActions();
@@ -79,7 +71,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
     createThread,
     setActiveThreadId,
     hideThread,
-    sentinelRef,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
