@@ -112,7 +112,7 @@ export function extractCardDisplayData(
     const parts = rawTitle.split("/");
     if (parts.length >= 2) {
       scopeName = parts[0] || null;
-      // Usa a função para extrair o nome correto
+      // Use function to extract the correct name
       displayName = extractDisplayNameFromDomain(rawTitle);
     }
   }
