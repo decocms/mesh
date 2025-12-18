@@ -341,7 +341,7 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 // Import built-in roles from separate module to avoid circular dependency
 import { SqlMonitoringStorage } from "@/storage/monitoring";
 import { BUILTIN_ROLES } from "../auth/roles";
-import { WellKnownMCPId, WellKnownOrgMCPId } from "./well-known-mcp";
+import { WellKnownMCPId } from "./well-known-mcp";
 
 /**
  * Fetch role permissions from the database
