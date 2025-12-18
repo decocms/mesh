@@ -88,21 +88,6 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
     .addColumn("updatedAt", "text", (col) => col.notNull())
     .execute();
 
-  // Audit Logs table - camelCase to match AuditLogTable type
-  await db.schema
-    .createTable("audit_logs")
-    .ifNotExists()
-    .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("organizationId", "text")
-    .addColumn("userId", "text")
-    .addColumn("connectionId", "text")
-    .addColumn("toolName", "text", (col) => col.notNull())
-    .addColumn("allowed", "integer", (col) => col.notNull())
-    .addColumn("duration", "integer")
-    .addColumn("timestamp", "text", (col) => col.notNull())
-    .addColumn("requestMetadata", "text")
-    .execute();
-
   // Event Bus tables
   // Events table - stores CloudEvents
   await db.schema

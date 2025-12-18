@@ -153,23 +153,6 @@ export function defineTool<
               status: "success",
             });
 
-            // Audit log (fire and forget - don't block on logging)
-            if (ctx.storage.auditLogs?.log) {
-              ctx.storage.auditLogs
-                .log({
-                  organizationId: ctx.organization?.id,
-                  userId: ctx.auth.user?.id ?? ctx.auth.apiKey?.userId,
-                  toolName: definition.name,
-                  allowed: ctx.access?.granted ? ctx.access.granted() : true,
-                  duration,
-                  timestamp: new Date(),
-                  requestMetadata: { input },
-                })
-                .catch((err: Error) => {
-                  console.error("Audit log failed:", err);
-                });
-            }
-
             // Mark span as successful
             span.setStatus({ code: SpanStatusCode.OK });
 

@@ -13,7 +13,6 @@ import type { Meter, Tracer } from "@opentelemetry/api";
 import type { Kysely } from "kysely";
 import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
-import { AuditLogStorage } from "../storage/audit-log";
 import { ConnectionStorage } from "../storage/connection";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { Database, Permission } from "../storage/types";
@@ -604,7 +603,6 @@ export function createMeshContextFactory(
   // Create storage adapters once (singleton pattern)
   const storage = {
     connections: new ConnectionStorage(config.db, vault),
-    auditLogs: new AuditLogStorage(config.db),
     organizationSettings: new OrganizationSettingsStorage(config.db),
     monitoring: new SqlMonitoringStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin

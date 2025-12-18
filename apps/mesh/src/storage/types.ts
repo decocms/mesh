@@ -172,21 +172,6 @@ export interface ApiKeyTable {
 }
 
 /**
- * Audit Log table definition
- */
-export interface AuditLogTable {
-  id: string;
-  organizationId: string | null; // null = system-level action
-  userId: string | null;
-  connectionId: string | null;
-  toolName: string; // Tool that was called
-  allowed: number; // SQLite boolean (0 or 1)
-  duration: number | null; // Execution time in ms
-  timestamp: ColumnType<Date, Date | string, never>;
-  requestMetadata: JsonObject<Record<string, unknown>> | null;
-}
-
-/**
  * API Key entity - Runtime representation
  */
 export interface ApiKey {
@@ -203,20 +188,6 @@ export interface ApiKey {
 }
 
 /**
- * Audit Log entity - Runtime representation
- */
-export interface AuditLog {
-  id: string;
-  organizationId: string | null;
-  userId: string | null;
-  connectionId: string | null;
-  toolName: string;
-  allowed: boolean;
-  duration: number | null;
-  timestamp: Date | string;
-  requestMetadata: Record<string, unknown> | null;
-}
-
 // ============================================================================
 // OAuth Table Definitions (for MCP OAuth server)
 // ============================================================================
@@ -562,7 +533,6 @@ export interface Database {
   connections: MCPConnectionTable; // MCP connections (organization-scoped)
   organization_settings: OrganizationSettingsTable; // Organization-level configuration
   api_keys: ApiKeyTable; // Better Auth API keys
-  audit_logs: AuditLogTable; // Audit trail
   monitoring_logs: MonitoringLogTable; // Tool call monitoring logs
 
   // OAuth tables (for MCP OAuth server)
