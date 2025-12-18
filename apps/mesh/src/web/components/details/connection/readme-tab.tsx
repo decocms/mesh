@@ -15,4 +15,3 @@ export function ReadmeTab({ repository }: ReadmeTabProps) {
     </div>
   );
 }
-
