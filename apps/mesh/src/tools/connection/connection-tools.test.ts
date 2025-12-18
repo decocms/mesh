@@ -61,7 +61,6 @@ describe("Connection Tools", () => {
       },
       storage: {
         connections: new ConnectionStorage(database.db, vault),
-        auditLogs: null as never,
         organizationSettings: {
           get: async () => null,
           upsert: async (_orgId: string) => ({

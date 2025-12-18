@@ -65,14 +65,13 @@ describe("Database Types", () => {
       const tableNames: (keyof Database)[] = [
         "connections",
         "api_keys",
-        "audit_logs",
         "oauth_clients",
         "oauth_authorization_codes",
         "oauth_refresh_tokens",
         "downstream_tokens",
       ];
 
-      expect(tableNames).toHaveLength(7);
+      expect(tableNames).toHaveLength(6);
     });
   });
 

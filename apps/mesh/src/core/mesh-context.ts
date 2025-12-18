@@ -218,7 +218,6 @@ export interface RequestMetadata {
 
 // Forward declare storage types
 import type { BetterAuthInstance } from "@/auth";
-import type { AuditLogStorage } from "../storage/audit-log";
 import type { ConnectionStorage } from "../storage/connection";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
@@ -239,7 +238,6 @@ import type { EventBus } from "../event-bus/interface";
  */
 export interface MeshStorage {
   connections: ConnectionStorage;
-  auditLogs: AuditLogStorage;
   organizationSettings: OrganizationSettingsStorage;
   monitoring: SqlMonitoringStorage;
 }

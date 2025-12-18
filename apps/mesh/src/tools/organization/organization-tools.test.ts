@@ -180,7 +180,6 @@ const createMockContext = (
     },
     storage: {
       connections: null as never,
-      auditLogs: null as never,
       organizationSettings: {
         get: vi.fn(),
         upsert: vi.fn(),

@@ -10,7 +10,6 @@ import { z } from "zod";
 import { AccessControl } from "./access-control";
 import { defineTool } from "./define-tool";
 import type { MeshContext } from "./mesh-context";
-import type { AuditLogStorage } from "../storage/audit-log";
 import type { EventBus } from "../event-bus/interface";
 
 // Mock MeshContext
@@ -30,10 +29,6 @@ const createMockContext = (): MeshContext => ({
   },
   storage: {
     connections: null as never,
-    auditLogs: {
-      log: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn().mockResolvedValue([]),
-    } as Partial<AuditLogStorage> as AuditLogStorage,
     organizationSettings: {
       get: vi.fn(),
       upsert: vi.fn(),
@@ -263,65 +258,6 @@ describe("defineTool", () => {
         "tool.execution.errors",
         expect.any(Object),
       );
-    });
-  });
-
-  describe("audit logging", () => {
-    it("should log audit trail", async () => {
-      const tool = defineTool({
-        name: "AUDIT_TOOL",
-        description: "Test tool",
-        inputSchema: z.object({ data: z.string() }),
-        outputSchema: z.object({}),
-        handler: async () => ({}),
-      });
-
-      const ctx = createMockContext();
-      await tool.execute({ data: "test" }, ctx);
-
-      // Give async logging time to execute
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(ctx.storage.auditLogs.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          toolName: "AUDIT_TOOL",
-          allowed: true,
-        }),
-      );
-    });
-
-    it("should not throw if audit logging fails", async () => {
-      const tool = defineTool({
-        name: "SAFE_TOOL",
-        description: "Test tool",
-        inputSchema: z.object({}),
-        outputSchema: z.object({}),
-        handler: async () => ({}),
-      });
-
-      const ctx = createMockContext();
-      ctx.storage.auditLogs.log = vi
-        .fn()
-        .mockRejectedValue(new Error("Logging failed"));
-
-      // Should not throw even if logging fails
-      await expect(tool.execute({}, ctx)).resolves.toBeDefined();
-    });
-
-    it("should work without audit log storage", async () => {
-      const tool = defineTool({
-        name: "NO_AUDIT_TOOL",
-        description: "Test tool",
-        inputSchema: z.object({}),
-        outputSchema: z.object({}),
-        handler: async () => ({}),
-      });
-
-      const ctx = createMockContext();
-      ctx.storage.auditLogs = null as never;
-
-      // Should not throw
-      await expect(tool.execute({}, ctx)).resolves.toBeDefined();
     });
   });
 
