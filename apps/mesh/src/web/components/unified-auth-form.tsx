@@ -2,22 +2,17 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { authClient } from "@/web/lib/auth-client";
+import { Button } from "@deco/ui/components/button.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 
 export function UnifiedAuthForm() {
-  const { emailAndPassword, magicLink, socialProviders } = useAuthConfig();
+  const { emailAndPassword } = useAuthConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
-
-  const magicLinkMutation = useMutation({
-    mutationFn: async (email: string) => {
-      await authClient.signIn.magicLink({ email });
-    },
-    onSuccess: () => {
-      setEmail("");
-    },
-  });
+  const [emailError, setEmailError] = useState("");
 
   const emailPasswordMutation = useMutation({
     mutationFn: async ({
@@ -29,224 +24,249 @@ export function UnifiedAuthForm() {
       password: string;
       name?: string;
     }) => {
-      if (isSignUp) {
-        await authClient.signUp.email({ email, password, name: name || "" });
-      } else {
-        await authClient.signIn.email({ email, password });
+      try {
+        if (isSignUp) {
+          const result = await authClient.signUp.email({
+            email,
+            password,
+            name: name || "",
+          });
+          if (result.error) {
+            throw new Error(result.error.message || "Sign up failed");
+          }
+          return result;
+        } else {
+          const result = await authClient.signIn.email({ email, password });
+          if (result.error) {
+            throw new Error(result.error.message || "Sign in failed");
+          }
+          return result;
+        }
+      } catch (err) {
+        // Re-throw to ensure React Query catches it
+        throw err instanceof Error ? err : new Error("Authentication failed");
       }
     },
   });
 
-  const socialSignInMutation = useMutation({
-    mutationFn: async (providerId: string) => {
-      await authClient.signIn.social({
-        provider: providerId,
-        callbackURL: window.location.origin,
-      });
-    },
-  });
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
-  const handleMagicLink = (e: React.FormEvent) => {
-    e.preventDefault();
-    magicLinkMutation.mutate(email);
+  const handleEmailBlur = () => {
+    if (email.trim() && !validateEmail(email)) {
+      setEmailError("Invalid email address");
+    }
   };
 
   const handleEmailPassword = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check email validity before submitting
+    if (!validateEmail(email)) {
+      setEmailError("Invalid email address");
+      return;
+    }
+
     emailPasswordMutation.mutate({ email, password, name });
   };
 
-  const handleSocialSignIn = (providerId: string) => {
-    socialSignInMutation.mutate(providerId);
+  const handleInputChange =
+    (setter: (value: string) => void) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setter(e.target.value);
+      // Clear errors when user starts typing
+      if (error) {
+        emailPasswordMutation.reset();
+      }
+      if (setter === setEmail && emailError) {
+        setEmailError("");
+      }
+    };
+
+  const isLoading = emailPasswordMutation.isPending;
+  const error = emailPasswordMutation.error;
+
+  // Show button only when fields are filled
+  const canSubmit = isSignUp
+    ? email.trim() && password.trim() && name.trim()
+    : email.trim() && password.trim();
+
+  // Format error message
+  const getErrorMessage = (error: Error | null) => {
+    if (!error) return null;
+
+    const errorMessage = error.message.toLowerCase();
+
+    if (errorMessage.includes("unauthorized") || errorMessage.includes("401")) {
+      return "Invalid email or password. Please try again.";
+    }
+
+    if (
+      errorMessage.includes("already exists") ||
+      errorMessage.includes("409")
+    ) {
+      return "An account with this email already exists. Try signing in instead.";
+    }
+
+    if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
+      return "Network error. Please check your connection and try again.";
+    }
+
+    if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+      return "Too many attempts. Please wait a moment and try again.";
+    }
+
+    return error.message || "An error occurred. Please try again.";
   };
 
-  const isLoading =
-    magicLinkMutation.isPending ||
-    emailPasswordMutation.isPending ||
-    socialSignInMutation.isPending;
-
-  const error =
-    magicLinkMutation.error ||
-    emailPasswordMutation.error ||
-    socialSignInMutation.error;
-
   return (
-    <div className="mx-auto w-full max-w-md space-y-6 rounded-lg bg-card p-8 shadow-lg border">
+    <div className="mx-auto w-full min-w-[400px] max-w-md grid gap-6 bg-card p-10 border border-primary-foreground/20">
+      {/* Logo */}
+      <div className="flex justify-center">
+        <img src="/logos/deco logo.svg" alt="Deco" className="h-12 w-12" />
+      </div>
+
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">
-          {isSignUp ? "Create an account" : "Welcome back"}
-        </h1>
-        <p className="text-muted-foreground">
-          {isSignUp ? "Sign up to get started" : "Sign in to your account"}
+      <div className="text-center space-y-1">
+        <p className="text-sm text-foreground/70">
+          {isSignUp ? "Create your account" : "Login or signup below"}
         </p>
       </div>
 
-      {/* Social providers */}
-      {socialProviders.enabled && (
-        <div className="space-y-3">
-          {socialProviders.providers.map((provider) => (
-            <button
-              key={provider.name}
-              onClick={() => handleSocialSignIn(provider.name)}
-              disabled={isLoading}
-              className="flex w-full items-center justify-center gap-3 rounded-lg border border-input bg-background px-4 py-3 text-base font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {provider.icon && (
-                <img
-                  src={provider.icon}
-                  alt={provider.name}
-                  className="h-5 w-5"
-                />
-              )}
-              Continue with{" "}
-              {provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Divider */}
-      {socialProviders.enabled &&
-        (emailAndPassword.enabled || magicLink.enabled) && (
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="bg-card px-2 text-muted-foreground">or</span>
-            </div>
-          </div>
-        )}
-
       {/* Error message */}
       {error && (
-        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-          {error instanceof Error ? error.message : "An error occurred"}
+        <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive text-center">
+          {getErrorMessage(error)}
         </div>
-      )}
-
-      {/* Success message */}
-      {magicLinkMutation.isSuccess && (
-        <div className="rounded-lg bg-primary/10 p-3 text-sm text-primary">
-          Check your email for a magic link to sign in!
-        </div>
-      )}
-
-      {/* Magic Link Form */}
-      {magicLink.enabled && !emailAndPassword.enabled && (
-        <form onSubmit={handleMagicLink} className="space-y-4">
-          <div>
-            <input
-              type="email"
-              placeholder="Email address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={isLoading}
-              className="w-full rounded-lg border border-input bg-background px-4 py-3 text-base text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full rounded-lg bg-primary px-4 py-3 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {magicLinkMutation.isPending ? "Sending..." : "Send magic link"}
-          </button>
-        </form>
       )}
 
       {/* Email & Password Form */}
       {emailAndPassword.enabled && (
-        <form onSubmit={handleEmailPassword} className="space-y-4">
-          {isSignUp && (
-            <div>
-              <input
+        <form onSubmit={handleEmailPassword} className="grid gap-4">
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)] ${
+              isSignUp
+                ? "max-h-[200px] opacity-100 translate-y-0"
+                : "max-h-0 opacity-0 -translate-y-2"
+            }`}
+          >
+            <div className={isSignUp ? "" : "pointer-events-none"}>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Name
+              </label>
+              <Input
                 type="text"
-                placeholder="Full name"
+                placeholder="Your name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={handleInputChange(setName)}
                 required
-                disabled={isLoading}
-                className="w-full rounded-lg border border-input bg-background px-4 py-3 text-base text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isLoading || !isSignUp}
+                aria-hidden={!isSignUp}
               />
             </div>
-          )}
+          </div>
           <div>
-            <input
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Email
+            </label>
+            <Input
               type="email"
-              placeholder="Email address"
+              placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleInputChange(setEmail)}
+              onBlur={handleEmailBlur}
               required
               disabled={isLoading}
-              className="w-full rounded-lg border border-input bg-background px-4 py-3 text-base text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-invalid={!!emailError}
             />
+            {emailError && (
+              <p className="text-xs text-destructive mt-1.5">{emailError}</p>
+            )}
           </div>
           <div>
-            <input
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Password
+            </label>
+            <Input
               type="password"
-              placeholder="Password"
+              placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handleInputChange(setPassword)}
               required
               disabled={isLoading}
-              className="w-full rounded-lg border border-input bg-background px-4 py-3 text-base text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full rounded-lg bg-primary px-4 py-3 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {emailPasswordMutation.isPending
-              ? isSignUp
-                ? "Creating account..."
-                : "Signing in..."
-              : isSignUp
-                ? "Sign up"
-                : "Sign in"}
-          </button>
 
-          <div className="space-y-2">
-            {magicLink.enabled && (
-              <div className="text-center">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (email) {
-                      handleMagicLink(e);
-                    }
-                  }}
-                  disabled={isLoading || !email}
-                  className="text-sm text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Or send me a magic link
-                </button>
-              </div>
+          <div
+            className={cn(
+              `overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)]`,
+              canSubmit
+                ? "max-h-[100px] opacity-100 translate-y-0"
+                : "max-h-0 opacity-0 -translate-y-2",
             )}
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setIsSignUp(!isSignUp)}
-                disabled={isLoading}
-                className="text-sm text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <div className={canSubmit ? "" : "pointer-events-none"}>
+              <Button
+                type="submit"
+                disabled={isLoading || !canSubmit}
+                className="w-full font-semibold"
+                size="lg"
+                aria-hidden={!canSubmit}
               >
-                {isSignUp
-                  ? "Already have an account? Sign in"
-                  : "Don't have an account? Sign up"}
-              </button>
+                {isLoading
+                  ? isSignUp
+                    ? "Creating account..."
+                    : "Signing in..."
+                  : "Continue"}
+              </Button>
             </div>
           </div>
         </form>
       )}
 
+      {/* Sign up toggle */}
+      <div className="text-center">
+        <Button
+          type="button"
+          variant="link"
+          onClick={() => {
+            setIsSignUp(!isSignUp);
+            setEmail("");
+            setPassword("");
+            setName("");
+            setEmailError("");
+            emailPasswordMutation.reset();
+          }}
+          disabled={isLoading}
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          {isSignUp
+            ? "Already have an account? Sign in"
+            : "Don't have an account? Sign up"}
+        </Button>
+      </div>
+
       {/* Terms */}
-      <p className="text-center text-xs text-muted-foreground">
-        By continuing, you agree to our Terms of Service and Privacy Policy.
-      </p>
+      <div className="flex justify-between text-xs text-muted-foreground pt-4">
+        <a
+          href="https://www.decocms.com/terms-of-use"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-foreground transition-colors"
+        >
+          Terms of Service
+        </a>
+        <a
+          href="https://www.decocms.com/privacy-policy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-foreground transition-colors"
+        >
+          Privacy Policy
+        </a>
+      </div>
     </div>
   );
 }
