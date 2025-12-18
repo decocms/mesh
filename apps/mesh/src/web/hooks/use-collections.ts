@@ -1,253 +1,38 @@
 /**
- * Collection Factory from Tool Caller
+ * Collection Hooks using React Query
  *
- * Creates TanStack DB collections that automatically interact with collection-binding-compliant tools.
- * Handles automatic pagination to ensure the collection is fully populated with all items.
+ * Provides React hooks for working with collection-binding-compliant tools.
+ * Uses TanStack React Query for caching, loading states, and mutations.
  */
 
 import {
   type BaseCollectionEntity,
+  type CollectionDeleteInput,
   type CollectionDeleteOutput,
+  type CollectionGetInput,
+  type CollectionGetOutput,
+  type CollectionInsertInput,
   type CollectionInsertOutput,
+  type CollectionListInput,
   type CollectionListOutput,
+  type CollectionUpdateInput,
   type CollectionUpdateOutput,
+  type OrderByExpression,
+  type WhereExpression,
 } from "@decocms/bindings/collections";
 import {
-  and,
-  type Collection,
-  createCollection,
-  eq,
-  like,
-  or,
-} from "@tanstack/db";
-import { useLiveSuspenseQuery } from "@tanstack/react-db";
-import { type ToolCaller } from "../../tools/client";
-import { createCollectionWithSync } from "./create-collection-with-sync";
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
+import type { ToolCaller } from "../../tools/client";
+import { KEYS } from "../lib/query-keys";
 
 /**
  * Collection entity base type that matches the collection binding pattern
  */
 export type CollectionEntity = BaseCollectionEntity;
-
-/**
- * Options for creating a collection from a tool caller
- */
-export interface CreateCollectionOptions {
-  /** The tool caller function for making API calls */
-  toolCaller: ToolCaller;
-  /** The collection name (e.g., "CONNECTIONS", "LLM") - used for tool names and query key */
-  collectionName: string;
-  /** Default page size for pagination (default: 100) */
-  pageSize?: number;
-}
-
-/**
- * Creates a TanStack DB collection that syncs with collection-binding-compliant tools.
- *
- * Features:
- * - Automatic pagination: Fetches all pages of data to ensure complete collection
- * - Optimistic updates: Built-in via TanStack DB's collection.insert/update/delete
- * - Automatic rollback: On persistence errors, optimistic state is rolled back
- * - Live queries: Subscribers get real-time updates when data changes
- *
- * Usage:
- * ```ts
- * const collection = createCollectionFromToolCaller({
- *   toolCaller: createToolCaller(),
- *   collectionName: "CONNECTIONS",
- * });
- *
- * // Insert with optimistic update
- * collection.insert({ id: "1", title: "New Connection", ... });
- *
- * // Update with optimistic update
- * collection.update("1", (draft) => { draft.title = "Updated"; });
- *
- * // Delete with optimistic update
- * collection.delete("1");
- * ```
- *
- * @param options - Configuration options for the collection
- * @returns A TanStack DB collection instance with persistence handlers
- */
-function createCollectionFromToolCaller<T extends CollectionEntity>(
-  options: CreateCollectionOptions,
-): Collection<T, string> {
-  const { toolCaller, collectionName, pageSize = 100 } = options;
-
-  const upperName = collectionName.toUpperCase();
-  const listToolName = `COLLECTION_${upperName}_LIST`;
-  const createToolName = `COLLECTION_${upperName}_CREATE`;
-  const updateToolName = `COLLECTION_${upperName}_UPDATE`;
-  const deleteToolName = `COLLECTION_${upperName}_DELETE`;
-
-  /**
-   * Fetches all pages of data using pagination.
-   * This ensures the collection is fully populated with ALL items.
-   */
-  async function fetchAllPages(
-    queryOptions?: Record<string, unknown>,
-  ): Promise<T[]> {
-    const allItems: T[] = [];
-    let offset = 0;
-    const limit = pageSize;
-
-    while (true) {
-      try {
-        const params = {
-          ...queryOptions,
-          offset,
-          limit,
-        };
-
-        const result = (await toolCaller(
-          listToolName,
-          params,
-        )) as CollectionListOutput<unknown>;
-        const items = result?.items || [];
-
-        for (const item of items) {
-          allItems.push(item as T);
-        }
-
-        // Check if we've fetched all pages
-        if (!result?.hasMore || items.length === 0) {
-          break;
-        }
-
-        offset += limit;
-      } catch (error) {
-        console.error(
-          `Error fetching page at offset ${offset} for ${collectionName}:`,
-          error,
-        );
-        // Return accumulated items so far on error
-        break;
-      }
-    }
-
-    return allItems;
-  }
-
-  const collectionConfig = createCollectionWithSync<T, string>({
-    id: `collection-${collectionName.toLowerCase()}`,
-    getKey: (item: T) => item.id,
-
-    sync: {
-      rowUpdateMode: "full",
-      sync: ({ begin, write, commit, markReady }) => {
-        let isActive = true;
-
-        async function initialSync() {
-          try {
-            const items = await fetchAllPages();
-
-            if (!isActive) {
-              return;
-            }
-
-            begin();
-            for (const item of items) {
-              write({ type: "insert", value: item });
-            }
-            commit();
-          } catch (error) {
-            console.error(`Initial sync failed for ${collectionName}:`, error);
-          } finally {
-            markReady();
-          }
-        }
-
-        initialSync();
-
-        // Return cleanup function
-        return () => {
-          isActive = false;
-        };
-      },
-    },
-
-    // Persistence handler for inserts
-    onInsert: async ({ transaction }) => {
-      const results = await Promise.all(
-        transaction.mutations.map(
-          ({ modified: data }) =>
-            toolCaller(createToolName, { data }) as Promise<
-              CollectionInsertOutput<T>
-            >,
-        ),
-      );
-
-      return results.map((r) => r.item);
-    },
-
-    // Persistence handler for updates
-    onUpdate: async ({ transaction }) => {
-      const results = await Promise.all(
-        transaction.mutations.map(
-          ({ key: id, modified: data }) =>
-            toolCaller(updateToolName, { id, data }) as Promise<
-              CollectionUpdateOutput<T>
-            >,
-        ),
-      );
-
-      return results.map((r) => r.item);
-    },
-
-    // Persistence handler for deletes
-    onDelete: async ({ transaction }) => {
-      const results = await Promise.all(
-        transaction.mutations.map(
-          ({ key: id }) =>
-            toolCaller(deleteToolName, { id }) as Promise<
-              CollectionDeleteOutput<T>
-            >,
-        ),
-      );
-
-      return results.map((r) => r.item);
-    },
-  });
-
-  const collection = createCollection<T, string>(collectionConfig);
-
-  return collection;
-}
-
-// Module-level cache for collection instances
-// Key format: `${connectionKey}:${collectionName}`
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const collectionCache = new Map<string, Collection<any, string>>();
-
-/**
- * Get or create a collection instance for a specific connection and collection name.
- * Collections are cached to ensure singleton-like behavior per connection/collection pair.
- *
- * @param connectionKey - The unique key for the connection (e.g. connectionId or org slug)
- * @param collectionName - The name of the collection (e.g., "AGENT", "LLM")
- * @param toolCaller - The tool caller function for making API calls
- * @returns A TanStack DB collection instance
- */
-export function useCollection<T extends CollectionEntity>(
-  connectionKey: string | undefined | null,
-  collectionName: string,
-  toolCaller: ToolCaller,
-): Collection<T, string> {
-  // Use empty string key for null/undefined connectionKey to represent mesh tools
-  const safeConnectionKey = connectionKey ?? "";
-  const key = `${safeConnectionKey}:${collectionName}`;
-
-  if (!collectionCache.has(key)) {
-    const collection = createCollectionFromToolCaller<T>({
-      toolCaller,
-      collectionName,
-    });
-    collectionCache.set(key, collection);
-  }
-
-  return collectionCache.get(key) as Collection<T, string>;
-}
 
 /**
  * Filter definition for collection queries (matches @deco/ui Filter shape)
@@ -275,19 +60,134 @@ export interface UseCollectionListOptions<T extends CollectionEntity> {
   searchFields?: (keyof T)[];
   /** Default sort key when none provided */
   defaultSortKey?: keyof T;
-  /** Maximum number of items to retrieve from the query */
-  maxItems?: number;
+  /** Page size for pagination (default: 100) */
+  pageSize?: number;
 }
 
 /**
- * Generic hook to get all items from a collection with live query reactivity
+ * Build a where expression from search term and filters
+ */
+function buildWhereExpression<T extends CollectionEntity>(
+  searchTerm: string | undefined,
+  filters: CollectionFilter[] | undefined,
+  searchFields: (keyof T)[],
+): WhereExpression | undefined {
+  const conditions: WhereExpression[] = [];
+
+  // Add search conditions (OR)
+  if (searchTerm?.trim()) {
+    const trimmedSearchTerm = searchTerm.trim();
+    const searchConditions = searchFields.map((field) => ({
+      field: [String(field)],
+      operator: "contains" as const,
+      value: trimmedSearchTerm,
+    }));
+
+    if (searchConditions.length === 1 && searchConditions[0]) {
+      conditions.push(searchConditions[0]);
+    } else if (searchConditions.length > 1) {
+      conditions.push({
+        operator: "or",
+        conditions: searchConditions,
+      });
+    }
+  }
+
+  // Add filter conditions (AND)
+  if (filters && filters.length > 0) {
+    for (const filter of filters) {
+      conditions.push({
+        field: [filter.column],
+        operator: "eq" as const,
+        value: filter.value,
+      });
+    }
+  }
+
+  if (conditions.length === 0) {
+    return undefined;
+  }
+
+  if (conditions.length === 1) {
+    return conditions[0];
+  }
+
+  // Combine all conditions with AND
+  return {
+    operator: "and",
+    conditions,
+  };
+}
+
+/**
+ * Build orderBy expression from sort key and direction
+ */
+function buildOrderByExpression<T extends CollectionEntity>(
+  sortKey: keyof T | undefined,
+  sortDirection: "asc" | "desc" | null | undefined,
+  defaultSortKey: keyof T,
+): OrderByExpression[] | undefined {
+  const key = sortKey ?? defaultSortKey;
+  const direction = sortDirection ?? "asc";
+
+  return [
+    {
+      field: [String(key)],
+      direction,
+    },
+  ];
+}
+
+/**
+ * Get a single item by ID from a collection
  *
- * @param collection - The TanStack DB collection instance
+ * @param scopeKey - The scope key (connectionId for connection-scoped, org.slug for mesh-scoped)
+ * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
+ * @param itemId - The ID of the item to fetch
+ * @param toolCaller - The tool caller function for making API calls
+ * @returns Suspense query result with the item
+ */
+export function useCollectionItem<T extends CollectionEntity>(
+  scopeKey: string,
+  collectionName: string,
+  itemId: string | undefined,
+  toolCaller: ToolCaller,
+) {
+  const upperName = collectionName.toUpperCase();
+  const getToolName = `COLLECTION_${upperName}_GET`;
+
+  const { data } = useSuspenseQuery({
+    queryKey: KEYS.collectionItem(scopeKey, collectionName, itemId ?? ""),
+    queryFn: async () => {
+      if (!itemId) {
+        return { item: null } as CollectionGetOutput<T>;
+      }
+
+      const result = (await toolCaller(getToolName, {
+        id: itemId,
+      } as CollectionGetInput)) as CollectionGetOutput<T>;
+
+      return result;
+    },
+    staleTime: 60_000,
+  });
+
+  return data.item;
+}
+
+/**
+ * Get a paginated list of items from a collection
+ *
+ * @param scopeKey - The scope key (connectionId for connection-scoped, org.slug for mesh-scoped)
+ * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
+ * @param toolCaller - The tool caller function for making API calls
  * @param options - Filter and configuration options
- * @returns Live query result with items as T[]
+ * @returns Suspense query result with items array
  */
 export function useCollectionList<T extends CollectionEntity>(
-  collection: Collection<T, string>,
+  scopeKey: string,
+  collectionName: string,
+  toolCaller: ToolCaller,
   options: UseCollectionListOptions<T> = {},
 ) {
   const {
@@ -297,108 +197,141 @@ export function useCollectionList<T extends CollectionEntity>(
     sortDirection,
     searchFields = ["title", "description"] as (keyof T)[],
     defaultSortKey = "updated_at" as keyof T,
-    maxItems,
+    pageSize = 100,
   } = options;
 
-  const trimmedSearchTerm = searchTerm?.trim();
+  const upperName = collectionName.toUpperCase();
+  const listToolName = `COLLECTION_${upperName}_LIST`;
 
-  // Use live query for reactive data with all filtering and sorting in the query
-  // See: https://tanstack.com/db/latest/docs/guides/live-queries#functional-select
-  const { data } = useLiveSuspenseQuery(
-    (q) => {
-      // Start with base query and sorting
-      let query = q
-        .from({ item: collection })
-        .orderBy(
-          ({ item }) => item?.[sortKey ?? defaultSortKey],
-          sortDirection ?? "asc",
-        );
-
-      // Check if we need .where() (TanStack DB doesn't support returning plain `true`)
-      const hasSearch = !!trimmedSearchTerm;
-      const hasFilters = filters && filters.length > 0;
-
-      if (hasSearch || hasFilters) {
-        query = query.where(({ item }) => {
-          if (!item) {
-            return false;
-          }
-
-          const conditions: unknown[] = [];
-
-          // Text search (searches configured fields)
-          if (trimmedSearchTerm) {
-            const searchConditions = searchFields
-              .filter((field) => item[field])
-              .map((field) =>
-                like(item[field] as string, `%${trimmedSearchTerm}%`),
-              );
-
-            if (searchConditions.length > 0) {
-              conditions.push(
-                searchConditions.length === 1
-                  ? searchConditions[0]
-                  : or(...(searchConditions as Parameters<typeof or>)),
-              );
-            }
-          }
-
-          // Field filters
-          if (filters && filters.length > 0) {
-            for (const filter of filters) {
-              if (!item[filter.column as keyof T]) continue;
-              // Column must match an entity property
-              const field = item[filter.column as keyof T] ?? "";
-              conditions.push(eq(field as string, filter.value));
-            }
-          }
-
-          // Combine all conditions with AND using a ternary
-          return conditions.length === 1
-            ? conditions[0]
-            : and(...(conditions as Parameters<typeof and>));
-        });
-      }
-
-      // Apply limit if specified
-      if (maxItems !== undefined) {
-        query = query.limit(maxItems);
-      }
-
-      return query;
-    },
-    [trimmedSearchTerm, filters, sortKey, sortDirection, collection, maxItems],
+  const where = buildWhereExpression(searchTerm, filters, searchFields);
+  const orderBy = buildOrderByExpression(
+    sortKey,
+    sortDirection,
+    defaultSortKey,
   );
 
-  return data;
+  // Create a stable params key for the query key
+  const paramsKey = JSON.stringify({ where, orderBy, limit: pageSize });
+
+  const { data } = useSuspenseQuery({
+    queryKey: KEYS.collectionList(scopeKey, collectionName, paramsKey),
+    queryFn: async () => {
+      const input: CollectionListInput = {
+        ...(where && { where }),
+        ...(orderBy && { orderBy }),
+        limit: pageSize,
+        offset: 0,
+      };
+      const result = (await toolCaller(
+        listToolName,
+        input,
+      )) as CollectionListOutput<T>;
+
+      return result ?? [];
+    },
+  });
+
+  return data.items;
 }
 
 /**
- * Generic hook to get a single item by ID from a collection with live query reactivity
+ * Get mutation actions for create, update, and delete operations
  *
- * @param collection - The TanStack DB collection instance
- * @param itemId - The ID of the item to fetch
- * @returns Live query result with the item as T
+ * @param scopeKey - The scope key (connectionId for connection-scoped, org.slug for mesh-scoped)
+ * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
+ * @param toolCaller - The tool caller function for making API calls
+ * @returns Object with create, update, and delete mutation hooks
  */
-export function useCollectionItem<T extends CollectionEntity>(
-  collection: Collection<T, string>,
-  itemId: string | undefined,
+export function useCollectionActions<T extends CollectionEntity>(
+  scopeKey: string,
+  collectionName: string,
+  toolCaller: ToolCaller,
 ) {
-  const { data } = useLiveSuspenseQuery(
-    (q) => {
-      let query = q.from({ item: collection });
+  const queryClient = useQueryClient();
+  const upperName = collectionName.toUpperCase();
+  const createToolName = `COLLECTION_${upperName}_CREATE`;
+  const updateToolName = `COLLECTION_${upperName}_UPDATE`;
+  const deleteToolName = `COLLECTION_${upperName}_DELETE`;
 
-      if (!itemId) {
-        // Return an empty query when no ID provided
-        query = query.where(({ item }) => item && eq(item.id, ""));
-      } else {
-        query = query.where(({ item }) => item && eq(item.id, itemId));
-      }
+  const create = useMutation({
+    mutationFn: async (data: Partial<T>) => {
+      const result = (await toolCaller(createToolName, {
+        data,
+      } as CollectionInsertInput<T>)) as CollectionInsertOutput<T>;
 
-      return query.findOne();
+      return result.item;
     },
-    [itemId, collection],
-  );
+    onSuccess: () => {
+      // Invalidate all list queries for this collection
+      queryClient.invalidateQueries({
+        queryKey: KEYS.collectionListPrefix(scopeKey, collectionName),
+      });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.collectionListInfinitePrefix(scopeKey, collectionName),
+      });
+      toast.success("Item created successfully");
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to create item: ${message}`);
+    },
+  });
 
-  return data;
+  const update = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<T> }) => {
+      const result = (await toolCaller(updateToolName, {
+        id,
+        data,
+      } as CollectionUpdateInput<T>)) as CollectionUpdateOutput<T>;
+
+      return result.item;
+    },
+    onSuccess: (item: T) => {
+      // Invalidate list queries and the specific item query
+      queryClient.invalidateQueries({
+        queryKey: KEYS.collectionListPrefix(scopeKey, collectionName),
+      });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.collectionListInfinitePrefix(scopeKey, collectionName),
+      });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.collectionItem(scopeKey, collectionName, item.id),
+      });
+      toast.success("Item updated successfully");
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to update item: ${message}`);
+    },
+  });
+
+  const delete_ = useMutation({
+    mutationFn: async (id: string) => {
+      const result = (await toolCaller(deleteToolName, {
+        id,
+      } as CollectionDeleteInput)) as CollectionDeleteOutput<T>;
+
+      return result.item.id;
+    },
+    onSuccess: () => {
+      // Invalidate all list queries for this collection
+      queryClient.invalidateQueries({
+        queryKey: KEYS.collectionListPrefix(scopeKey, collectionName),
+      });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.collectionListInfinitePrefix(scopeKey, collectionName),
+      });
+      toast.success("Item deleted successfully");
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to delete item: ${message}`);
+    },
+  });
+
+  return {
+    create,
+    update,
+    delete: delete_,
+  };
 }

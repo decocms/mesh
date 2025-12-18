@@ -7,10 +7,9 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { useRouterState } from "@tanstack/react-router";
-import { toast } from "sonner";
 import {
-  getOrganizationSettingsCollection,
   useOrganizationSettings,
+  useOrganizationSettingsActions,
 } from "../hooks/collections/use-organization-settings";
 import { useProjectContext } from "../providers/project-context-provider";
 
@@ -32,11 +31,11 @@ export function PinToSidebarButton({
   const url = routerState.location.href;
   const { org } = useProjectContext();
   const settings = useOrganizationSettings(org.id);
-  const collection = getOrganizationSettingsCollection(org.id);
+  const actions = useOrganizationSettingsActions(org.id);
 
   const isPinned = !!settings?.sidebar_items?.some((item) => item.url === url);
 
-  const handleTogglePin = () => {
+  const handleTogglePin = async () => {
     const currentItems = settings?.sidebar_items || [];
     let updatedItems: typeof currentItems;
 
@@ -48,12 +47,8 @@ export function PinToSidebarButton({
       updatedItems = [...currentItems, { title, url, connectionId, icon }];
     }
 
-    const tx = collection.update(org.id, (draft) => {
-      draft.sidebar_items = updatedItems;
-    });
-    tx.isPersisted.promise.catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to ${isPinned ? "unpin" : "pin"} view: ${message}`);
+    await actions.update.mutateAsync({
+      sidebar_items: updatedItems,
     });
   };
 

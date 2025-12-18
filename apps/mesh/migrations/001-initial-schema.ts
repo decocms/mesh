@@ -18,10 +18,13 @@ import { Kysely, sql } from "kysely";
 // Using unknown for database parameter as schema is being created
 export async function up(db: Kysely<unknown>): Promise<void> {
   // MCP Connections table (organization-scoped)
+  // CASCADE DELETE: When organization is deleted, connections are automatically removed
   await db.schema
     .createTable("connections")
     .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("organizationId", "text", (col) => col.notNull())
+    .addColumn("organizationId", "text", (col) =>
+      col.notNull().references("organization.id").onDelete("cascade"),
+    )
     .addColumn("createdById", "text", (col) =>
       col.notNull().references("user.id").onDelete("cascade"),
     )

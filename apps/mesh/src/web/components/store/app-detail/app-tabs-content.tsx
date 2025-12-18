@@ -1,8 +1,8 @@
 import { EmptyState } from "@/web/components/empty-state";
 import { ReadmeViewer } from "@/web/components/store/readme-viewer";
+import { Icon } from "@deco/ui/components/icon.tsx";
 import { ToolsList, type Tool } from "@/web/components/tools";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
-import { Loader2 } from "lucide-react";
 import type { AppData, TabItem } from "./types";
 
 interface AppTabsContentProps {
@@ -49,7 +49,11 @@ export function AppTabsContent({
         <div className="flex flex-col flex-1">
           {isLoadingTools ? (
             <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Icon
+                name="progress_activity"
+                size={24}
+                className="animate-spin"
+              />
               <span className="ml-2 text-sm text-muted-foreground">
                 Loading tools...
               </span>

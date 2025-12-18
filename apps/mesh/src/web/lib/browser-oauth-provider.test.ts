@@ -7,181 +7,73 @@ describe("isConnectionAuthenticated", () => {
     mock.restore();
   });
 
-  describe("server does not support OAuth", () => {
-    test("returns true when server returns 404", async () => {
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 404,
-          ok: false,
-          headers: new Headers(),
-        } as Response),
-      ) as unknown as typeof fetch;
+  test("POSTs initialize and returns true when response is OK", async () => {
+    global.fetch = mock(() =>
+      Promise.resolve({
+        status: 200,
+        ok: true,
+        headers: new Headers(),
+      } as Response),
+    ) as unknown as typeof fetch;
 
-      const result = await isConnectionAuthenticated({
-        url: "https://example.com",
-        token: null,
-      });
-
-      expect(result).toBe(true);
-      expect(fetch).toHaveBeenCalledWith(
-        "https://example.com/.well-known/oauth-protected-resource",
-        {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        },
-      );
+    const result = await isConnectionAuthenticated({
+      url: "https://example.com/mcp",
+      token: null,
     });
 
-    test("returns true when server returns non-JSON content", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "text/html");
+    expect(result).toBe(true);
 
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      const result = await isConnectionAuthenticated({
-        url: "https://example.com",
-        token: null,
-      });
-
-      expect(result).toBe(true);
-    });
-
-    test("returns true when server returns no content-type header", async () => {
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          headers: new Headers(),
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      const result = await isConnectionAuthenticated({
-        url: "https://example.com",
-        token: null,
-      });
-
-      expect(result).toBe(true);
-    });
+    const calls = (global.fetch as unknown as ReturnType<typeof mock>).mock
+      .calls;
+    expect(calls.length).toBe(1);
+    const [calledUrl, init] = calls[0] as [string, RequestInit];
+    expect(calledUrl).toBe("https://example.com/mcp");
+    expect(init.method).toBe("POST");
+    expect(typeof init.body).toBe("string");
+    expect(String(init.body)).toContain('"method":"initialize"');
+    const headers = init.headers as Headers;
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("Accept")).toBe("application/json, text/event-stream");
   });
 
-  describe("server supports OAuth but token not provided", () => {
-    test("returns false when OAuth is required but no token provided", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json");
+  test("includes Authorization header when token is provided", async () => {
+    global.fetch = mock(() =>
+      Promise.resolve({
+        status: 200,
+        ok: true,
+        headers: new Headers(),
+      } as Response),
+    ) as unknown as typeof fetch;
 
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      const result = await isConnectionAuthenticated({
-        url: "https://example.com",
-        token: null,
-      });
-
-      expect(result).toBe(false);
+    const result = await isConnectionAuthenticated({
+      url: "https://example.com/mcp",
+      token: "valid-token",
     });
+
+    expect(result).toBe(true);
+
+    const calls = (global.fetch as unknown as ReturnType<typeof mock>).mock
+      .calls;
+    const [, init] = calls[0] as [string, RequestInit];
+    const headers = init.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer valid-token");
   });
 
-  describe("server supports OAuth and token provided", () => {
-    test("returns false when token is invalid (401)", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json");
+  test("returns false when response is not OK (401)", async () => {
+    global.fetch = mock(() =>
+      Promise.resolve({
+        status: 401,
+        ok: false,
+        headers: new Headers(),
+      } as Response),
+    ) as unknown as typeof fetch;
 
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 401,
-          ok: false,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      const result = await isConnectionAuthenticated({
-        url: "https://example.com",
-        token: "invalid-token",
-      });
-
-      expect(result).toBe(false);
-      expect(fetch).toHaveBeenCalledWith(
-        "https://example.com/.well-known/oauth-protected-resource",
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            Authorization: "Bearer invalid-token",
-          },
-        },
-      );
+    const result = await isConnectionAuthenticated({
+      url: "https://example.com/mcp",
+      token: "invalid-token",
     });
 
-    test("returns false when token is forbidden (403)", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json");
-
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 403,
-          ok: false,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      const result = await isConnectionAuthenticated({
-        url: "https://example.com",
-        token: "forbidden-token",
-      });
-
-      expect(result).toBe(false);
-    });
-
-    test("returns true when token is valid (200)", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json");
-
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      const result = await isConnectionAuthenticated({
-        url: "https://example.com",
-        token: "valid-token",
-      });
-
-      expect(result).toBe(true);
-    });
-
-    test("returns false for other non-OK status codes", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json");
-
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 500,
-          ok: false,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      const result = await isConnectionAuthenticated({
-        url: "https://example.com",
-        token: "some-token",
-      });
-
-      expect(result).toBe(false);
-    });
+    expect(result).toBe(false);
   });
 
   describe("edge cases and error handling", () => {
@@ -210,124 +102,30 @@ describe("isConnectionAuthenticated", () => {
 
       expect(result).toBe(false);
     });
-
-    test("handles content-type with charset", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json; charset=utf-8");
-
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      const result = await isConnectionAuthenticated({
-        url: "https://example.com",
-        token: "valid-token",
-      });
-
-      expect(result).toBe(true);
-    });
-
-    test("constructs correct URL with trailing slash", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json");
-
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      await isConnectionAuthenticated({
-        url: "https://example.com/",
-        token: "token",
-      });
-
-      expect(fetch).toHaveBeenCalledWith(
-        "https://example.com/.well-known/oauth-protected-resource",
-        expect.any(Object),
-      );
-    });
-
-    test("handles localhost URLs", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json");
-
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      await isConnectionAuthenticated({
-        url: "http://localhost:3000",
-        token: "token",
-      });
-
-      expect(fetch).toHaveBeenCalledWith(
-        "http://localhost:3000/.well-known/oauth-protected-resource",
-        expect.any(Object),
-      );
-    });
-
-    test("handles URLs with paths", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json");
-
-      global.fetch = mock(() =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          headers,
-        } as Response),
-      ) as unknown as typeof fetch;
-
-      await isConnectionAuthenticated({
-        url: "https://example.com/api/v1",
-        token: "token",
-      });
-
-      expect(fetch).toHaveBeenCalledWith(
-        "https://example.com/.well-known/oauth-protected-resource",
-        expect.any(Object),
-      );
-    });
   });
 
   describe("empty token vs null token", () => {
     test("treats empty string token as no token", async () => {
-      const headers = new Headers();
-      headers.set("content-type", "application/json");
-
       global.fetch = mock(() =>
         Promise.resolve({
           status: 200,
           ok: true,
-          headers,
+          headers: new Headers(),
         } as Response),
       ) as unknown as typeof fetch;
 
       const result = await isConnectionAuthenticated({
-        url: "https://example.com",
+        url: "https://example.com/mcp",
         token: "",
       });
 
-      // Empty string is falsy, so no Authorization header should be sent
-      expect(result).toBe(false);
-      expect(fetch).toHaveBeenCalledWith(
-        "https://example.com/.well-known/oauth-protected-resource",
-        {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        },
-      );
+      expect(result).toBe(true);
+
+      const calls = (global.fetch as unknown as ReturnType<typeof mock>).mock
+        .calls;
+      const [, init] = calls[0] as [string, RequestInit];
+      const headers = init.headers as Headers;
+      expect(headers.get("Authorization")).toBe(null);
     });
   });
 });

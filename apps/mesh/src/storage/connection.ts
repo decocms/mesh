@@ -5,16 +5,16 @@
  * All connections are organization-scoped.
  */
 
-import type { Kysely, Insertable, Updateable } from "kysely";
+import type { Insertable, Kysely, Updateable } from "kysely";
 import type { CredentialVault } from "../encryption/credential-vault";
-import type { ConnectionStoragePort } from "./ports";
-import type { Database } from "./types";
 import type {
   ConnectionEntity,
   OAuthConfig,
   ToolDefinition,
 } from "../tools/connection/schema";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import type { ConnectionStoragePort } from "./ports";
+import type { Database } from "./types";
 
 /** JSON fields that need serialization/deserialization */
 const JSON_FIELDS = [
@@ -68,7 +68,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
 
     const serialized = await this.serializeConnection({
       ...data,
-      id,
+      id: data.id ?? id,
       status: "active",
       created_at: now,
       updated_at: now,

@@ -6,7 +6,7 @@
  */
 
 import { defineTool } from "../../core/define-tool";
-import { getUserId, requireAuth } from "../../core/mesh-context";
+import { requireAuth } from "../../core/mesh-context";
 import { ApiKeyCreateInputSchema, ApiKeyCreateOutputSchema } from "./schema";
 
 export const API_KEY_CREATE = defineTool({
@@ -23,12 +23,6 @@ export const API_KEY_CREATE = defineTool({
 
     // Check authorization for this tool
     await ctx.access.check();
-
-    // Get the current user ID
-    const userId = getUserId(ctx);
-    if (!userId) {
-      throw new Error("User ID required to create API key");
-    }
 
     // Create the API key via Better Auth with organization context
     // This ensures the API key is scoped to the current organization

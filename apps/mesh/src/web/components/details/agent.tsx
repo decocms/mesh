@@ -1,15 +1,16 @@
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
-import { useCollection, useCollectionItem } from "@/web/hooks/use-collections";
+import { useCollectionItem } from "@/web/hooks/use-collections";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { AgentSchema } from "@decocms/bindings/agent";
 import { useParams } from "@tanstack/react-router";
-import { Info, Loader2, Upload } from "lucide-react";
+import { Info, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -100,15 +101,15 @@ export function AgentDetailsView({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
 
-  const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
+  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(safeConnectionId);
 
-  const collection = useCollection<Agent>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
+  const item = useCollectionItem<Agent>(
+    safeConnectionId,
     "AGENT",
+    itemId,
     toolCaller,
   );
-
-  const item = useCollectionItem(collection, itemId);
 
   const {
     register,
@@ -237,7 +238,11 @@ export function AgentDetailsView({
         >
           {isSaving ? (
             <>
-              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+              <Icon
+                name="progress_activity"
+                size={12}
+                className="mr-2 animate-spin"
+              />
               Saving...
             </>
           ) : (

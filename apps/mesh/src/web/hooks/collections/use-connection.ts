@@ -1,21 +1,20 @@
 /**
  * Connection Collection Hooks
  *
- * Provides React hooks for working with connections using TanStack DB collections
- * and live queries. These hooks offer a reactive interface for accessing and
- * manipulating connections.
+ * Provides React hooks for working with connections using React Query.
+ * These hooks offer a reactive interface for accessing and manipulating connections.
  */
 
 import { createToolCaller } from "../../../tools/client";
 import type { ConnectionEntity } from "../../../tools/connection/schema";
+import { useProjectContext } from "../../providers/project-context-provider";
 import {
   type CollectionFilter,
-  useCollection,
+  useCollectionActions,
   useCollectionItem,
   useCollectionList,
   type UseCollectionListOptions,
 } from "../use-collections";
-import { useProjectContext } from "../../providers/project-context-provider";
 
 /**
  * Filter definition for connections (matches @deco/ui Filter shape)
@@ -28,36 +27,52 @@ export type ConnectionFilter = CollectionFilter;
 export type UseConnectionsOptions = UseCollectionListOptions<ConnectionEntity>;
 
 /**
- * Hook to get the connections collection instance
- */
-export function useConnectionsCollection() {
-  const { org } = useProjectContext();
-  // Use org as the connectionKey, and default toolCaller (mesh tools)
-  const toolCaller = createToolCaller();
-
-  return useCollection<ConnectionEntity>(org.slug, "CONNECTIONS", toolCaller);
-}
-
-/**
- * Hook to get all connections with live query reactivity
+ * Hook to get all connections
  *
  * @param options - Filter and configuration options
- * @returns Live query result with connections as ConnectionEntity
+ * @returns Suspense query result with connections as ConnectionEntity[]
  */
 export function useConnections(options: UseConnectionsOptions = {}) {
-  const collection = useConnectionsCollection();
-  return useCollectionList(collection, options);
+  const { org } = useProjectContext();
+  const toolCaller = createToolCaller();
+  return useCollectionList<ConnectionEntity>(
+    org.slug,
+    "CONNECTIONS",
+    toolCaller,
+    options,
+  );
 }
 
 /**
- * Hook to get a single connection by ID with live query reactivity
+ * Hook to get a single connection by ID
  *
  * @param connectionId - The ID of the connection to fetch
- * @returns Live query result with the connection as ConnectionEntity
+ * @returns Suspense query result with the connection as ConnectionEntity | null
  */
 export function useConnection(connectionId: string | undefined) {
-  const collection = useConnectionsCollection();
-  return useCollectionItem(collection, connectionId);
+  const { org } = useProjectContext();
+  const toolCaller = createToolCaller();
+  return useCollectionItem<ConnectionEntity>(
+    org.slug,
+    "CONNECTIONS",
+    connectionId,
+    toolCaller,
+  );
+}
+
+/**
+ * Hook to get connection mutation actions (create, update, delete)
+ *
+ * @returns Object with create, update, and delete mutation hooks
+ */
+export function useConnectionActions() {
+  const { org } = useProjectContext();
+  const toolCaller = createToolCaller();
+  return useCollectionActions<ConnectionEntity>(
+    org.slug,
+    "CONNECTIONS",
+    toolCaller,
+  );
 }
 
 /**

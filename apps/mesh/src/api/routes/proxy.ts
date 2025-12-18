@@ -30,6 +30,11 @@ import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
 import { HttpServerTransport } from "../http-server-transport";
 import { compose } from "../utils/compose";
+import {
+  createProxyMonitoringMiddleware,
+  createProxyStreamableMonitoringMiddleware,
+  ProxyMonitoringMiddlewareParams,
+} from "./proxy-monitoring";
 
 // Define Hono variables type
 type Variables = {
@@ -150,9 +155,10 @@ function withStreamableConnectionAuthorization(
  *
  * Single server approach - tools from downstream are dynamically fetched and registered
  */
-export async function createMCPProxy(
+async function createMCPProxyDoNotUseDirectly(
   connectionIdOrConnection: string | ConnectionEntity,
   ctx: MeshContext,
+  { superUser }: { superUser: boolean }, // this is basically used for background workers that needs cross-organization access
 ) {
   // Get connection details
   const connection =
@@ -167,6 +173,7 @@ export async function createMCPProxy(
   if (ctx.organization && connection.organization_id !== ctx.organization.id) {
     throw new Error("Connection does not belong to the active organization");
   }
+  ctx.organization ??= { id: connection.organization_id };
 
   if (connection.status !== "active") {
     throw new Error(`Connection inactive: ${connection.status}`);
@@ -210,7 +217,7 @@ export async function createMCPProxy(
   if (!userId) {
     throw new Error("User ID required to issue configuration token");
   }
-
+  const callerConnectionId = ctx.auth.user?.connectionId;
   try {
     configurationToken = await issueMeshToken({
       sub: userId,
@@ -230,7 +237,9 @@ export async function createMCPProxy(
 
   // Build request headers - reusable for both client and direct fetch
   const buildRequestHeaders = (): Record<string, string> => {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
+    };
 
     // Add connection token (already decrypted by storage layer)
     if (connection.connection_token) {
@@ -273,15 +282,31 @@ export async function createMCPProxy(
 
   // Create authorization middlewares
   // Uses boundAuth for permission checks (delegates to Better Auth)
-  const authMiddleware = withConnectionAuthorization(ctx, connectionId);
-  const streamableAuthMiddleware = withStreamableConnectionAuthorization(
-    ctx,
+  const authMiddleware: CallToolMiddleware = superUser
+    ? async (_, next) => await next()
+    : withConnectionAuthorization(ctx, connectionId);
+  const streamableAuthMiddleware: CallStreamableToolMiddleware = superUser
+    ? async (_, next) => await next()
+    : withStreamableConnectionAuthorization(ctx, connectionId);
+
+  const monitoringConfig: ProxyMonitoringMiddlewareParams = {
+    enabled: getMonitoringConfig().enabled,
     connectionId,
-  );
+    connectionTitle: connection.title,
+    ctx,
+  };
+
+  const proxyMonitoringMiddleware =
+    createProxyMonitoringMiddleware(monitoringConfig);
+  const proxyStreamableMonitoringMiddleware =
+    createProxyStreamableMonitoringMiddleware(monitoringConfig);
 
   // Compose middlewares
-  const callToolPipeline = compose(authMiddleware);
-  const callStreamableToolPipeline = compose(streamableAuthMiddleware);
+  const callToolPipeline = compose(proxyMonitoringMiddleware, authMiddleware);
+  const callStreamableToolPipeline = compose(
+    proxyStreamableMonitoringMiddleware,
+    streamableAuthMiddleware,
+  );
 
   // Core tool execution logic - shared between fetch and callTool
   const executeToolCall = async (
@@ -321,26 +346,6 @@ export async function createMCPProxy(
               status: "success",
             });
 
-            // Log to monitoring (blocking)
-            if (getMonitoringConfig().enabled && ctx.organization) {
-              await ctx.storage.monitoring.log({
-                organizationId: ctx.organization.id,
-                connectionId,
-                connectionTitle: connection.title,
-                toolName: request.params.name,
-                input: (request.params.arguments ?? {}) as Record<
-                  string,
-                  unknown
-                >,
-                output: result as Record<string, unknown>,
-                isError: (result.isError as boolean) ?? false,
-                durationMs: duration,
-                timestamp: new Date(),
-                userId: ctx.auth.user?.id || ctx.auth.apiKey?.userId || null,
-                requestId: ctx.metadata.requestId,
-              });
-            }
-
             span.end();
             return result as CallToolResult;
           } catch (error) {
@@ -362,27 +367,6 @@ export async function createMCPProxy(
               "tool.name": request.params.name,
               error: err.message,
             });
-
-            // Log error to monitoring (blocking)
-            if (getMonitoringConfig().enabled && ctx.organization) {
-              await ctx.storage.monitoring.log({
-                organizationId: ctx.organization.id,
-                connectionId,
-                connectionTitle: connection.title,
-                toolName: request.params.name,
-                input: (request.params.arguments ?? {}) as Record<
-                  string,
-                  unknown
-                >,
-                output: {},
-                isError: true,
-                errorMessage: err.message,
-                durationMs: duration,
-                timestamp: new Date(),
-                userId: ctx.auth.user?.id || ctx.auth.apiKey?.userId || null,
-                requestId: ctx.metadata.requestId,
-              });
-            }
 
             span.recordException(err);
             span.end();
@@ -504,7 +488,10 @@ export async function createMCPProxy(
     );
 
     // Create transport (uses HttpServerTransport for fetch Request/Response)
-    const transport = new HttpServerTransport();
+    const transport = new HttpServerTransport({
+      enableJsonResponse:
+        req.headers.get("Accept")?.includes("application/json") ?? false,
+    });
 
     // Connect server to transport
     await server.connect(transport);
@@ -538,6 +525,36 @@ export async function createMCPProxy(
     },
     callStreamableTool,
   };
+}
+
+/**
+ * Create MCP proxy for a downstream connection
+ * Pattern from @deco/api proxy() function
+ *
+ * Single server approach - tools from downstream are dynamically fetched and registered
+ */
+export async function createMCPProxy(
+  connectionIdOrConnection: string | ConnectionEntity,
+  ctx: MeshContext,
+) {
+  return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
+    superUser: false,
+  });
+}
+
+/**
+ * Create a MCP proxy for a downstream connection with super user access
+ * @param connectionIdOrConnection - The connection ID or connection entity
+ * @param ctx - The mesh context
+ * @returns The MCP proxy
+ */
+export async function dangerouslyCreateSuperUserMCPProxy(
+  connectionIdOrConnection: string | ConnectionEntity,
+  ctx: MeshContext,
+) {
+  return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
+    superUser: true,
+  });
 }
 
 // ============================================================================

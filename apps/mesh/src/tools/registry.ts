@@ -22,7 +22,8 @@ export type ToolCategory =
   | "Organizations"
   | "Connections"
   | "Monitoring"
-  | "API Keys";
+  | "API Keys"
+  | "Event Bus";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -47,7 +48,6 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_CONNECTIONS_UPDATE",
   "COLLECTION_CONNECTIONS_DELETE",
   "CONNECTION_TEST",
-  "CONNECTION_CONFIGURE",
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
@@ -58,6 +58,14 @@ const ALL_TOOL_NAMES = [
   "API_KEY_LIST",
   "API_KEY_UPDATE",
   "API_KEY_DELETE",
+  // Event Bus tools
+  "EVENT_PUBLISH",
+  "EVENT_SUBSCRIBE",
+  "EVENT_UNSUBSCRIBE",
+  "EVENT_CANCEL",
+  "EVENT_ACK",
+  "EVENT_SUBSCRIPTION_LIST",
+  "EVENT_SYNC_SUBSCRIPTIONS",
 ] as const;
 
 /**
@@ -190,11 +198,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Connections",
   },
   {
-    name: "CONNECTION_CONFIGURE",
-    description: "Configure connections",
-    category: "Connections",
-  },
-  {
     name: "DATABASES_RUN_SQL",
     description: "Run SQL queries",
     category: "Connections",
@@ -232,6 +235,42 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "API Keys",
     dangerous: true,
   },
+  // Event Bus tools
+  {
+    name: "EVENT_PUBLISH",
+    description: "Publish events",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_SUBSCRIBE",
+    description: "Subscribe to events",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_UNSUBSCRIBE",
+    description: "Unsubscribe from events",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_CANCEL",
+    description: "Cancel recurring events",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_ACK",
+    description: "Acknowledge event delivery",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_SUBSCRIPTION_LIST",
+    description: "List event subscriptions",
+    category: "Event Bus",
+  },
+  {
+    name: "EVENT_SYNC_SUBSCRIPTIONS",
+    description: "Sync subscriptions to desired state",
+    category: "Event Bus",
+  },
 ];
 
 /**
@@ -255,7 +294,6 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_CONNECTIONS_UPDATE: "Update connections",
   COLLECTION_CONNECTIONS_DELETE: "Delete connections",
   CONNECTION_TEST: "Test connections",
-  CONNECTION_CONFIGURE: "Configure connections",
   DATABASES_RUN_SQL: "Run SQL queries",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
@@ -263,6 +301,13 @@ const TOOL_LABELS: Record<ToolName, string> = {
   API_KEY_LIST: "List API keys",
   API_KEY_UPDATE: "Update API key",
   API_KEY_DELETE: "Delete API key",
+  EVENT_PUBLISH: "Publish events",
+  EVENT_SUBSCRIBE: "Subscribe to events",
+  EVENT_UNSUBSCRIBE: "Unsubscribe from events",
+  EVENT_CANCEL: "Cancel recurring events",
+  EVENT_ACK: "Acknowledge event delivery",
+  EVENT_SUBSCRIPTION_LIST: "List event subscriptions",
+  EVENT_SYNC_SUBSCRIPTIONS: "Sync subscriptions to desired state",
 };
 
 // ============================================================================
@@ -278,6 +323,7 @@ export function getToolsByCategory() {
     Connections: [],
     Monitoring: [],
     "API Keys": [],
+    "Event Bus": [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

@@ -1,23 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { createDatabase, closeDatabase } from "../database";
+import { createDatabase, closeDatabase, type MeshDatabase } from "../database";
 import { createTestSchema } from "./test-helpers";
 import { AuditLogStorage } from "./audit-log";
-import type { Kysely } from "kysely";
-import type { Database } from "./types";
 
 describe("AuditLogStorage", () => {
-  let db: Kysely<Database>;
+  let database: MeshDatabase;
   let storage: AuditLogStorage;
 
   beforeAll(async () => {
     const tempDbPath = `/tmp/test-audit-log-${Date.now()}.db`;
-    db = createDatabase(`file:${tempDbPath}`);
-    storage = new AuditLogStorage(db);
-    await createTestSchema(db);
+    database = createDatabase(`file:${tempDbPath}`);
+    storage = new AuditLogStorage(database.db);
+    await createTestSchema(database.db);
   });
 
   afterAll(async () => {
-    await closeDatabase(db);
+    await closeDatabase(database);
   });
 
   describe("log", () => {

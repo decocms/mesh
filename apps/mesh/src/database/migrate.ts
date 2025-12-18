@@ -7,7 +7,7 @@
 import { Migrator } from "kysely";
 import migrations from "../../migrations";
 import { migrateBetterAuth } from "../auth/migrate";
-import { getDb } from "./index";
+import { closeDatabase, getDb } from "./index";
 
 /**
  * Run all pending migrations
@@ -18,13 +18,13 @@ export async function migrateToLatest(): Promise<void> {
 
   // Run Kysely migrations
   console.log("📊 Getting database instance...");
-  const db = getDb();
+  const database = getDb();
   console.log("✅ Database instance obtained");
 
   console.log("🔧 Creating migrator...");
 
   const migrator = new Migrator({
-    db,
+    db: database.db,
     provider: { getMigrations: () => Promise.resolve(migrations) },
   });
   console.log("✅ Migrator created");
@@ -45,7 +45,7 @@ export async function migrateToLatest(): Promise<void> {
     console.error("Failed to migrate");
     console.error(error);
     // Close database connection before throwing
-    await db.destroy().catch(() => {});
+    await closeDatabase(database).catch(() => {});
     throw error;
   }
 
@@ -53,7 +53,7 @@ export async function migrateToLatest(): Promise<void> {
 
   // Close database connection after all migrations
   console.log("🔒 Closing database connection...");
-  await db.destroy().catch((err) => {
+  await closeDatabase(database).catch((err: unknown) => {
     console.warn("Warning: Error closing database:", err);
   });
 }
@@ -62,10 +62,10 @@ export async function migrateToLatest(): Promise<void> {
  * Rollback the last migration
  */
 export async function migrateDown(): Promise<void> {
-  const db = getDb();
+  const database = getDb();
 
   const migrator = new Migrator({
-    db,
+    db: database.db,
     provider: { getMigrations: () => Promise.resolve(migrations) },
   });
 

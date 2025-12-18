@@ -1,25 +1,16 @@
-import { authClient } from "@/web/lib/auth-client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
+import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
-import type { TableColumn } from "@deco/ui/components/collection-table.tsx";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
+import { CreateRoleDialog } from "@/web/components/create-role-dialog";
+import { EmptyState } from "@/web/components/empty-state.tsx";
+import { ErrorBoundary } from "@/web/components/error-boundary";
+import { InviteMemberDialog } from "@/web/components/invite-member-dialog";
+import { useMembers } from "@/web/hooks/use-members";
+import { useOrganizationRoles } from "@/web/hooks/use-organization-roles";
+import { authClient } from "@/web/lib/auth-client";
+import { KEYS } from "@/web/lib/query-keys";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,22 +21,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
+import { Avatar } from "@deco/ui/components/avatar.tsx";
+import { Badge } from "@deco/ui/components/badge.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
+import { Card } from "@deco/ui/components/card.tsx";
+import type { TableColumn } from "@deco/ui/components/collection-table.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
-import { KEYS } from "@/web/lib/query-keys";
-import { useProjectContext } from "@/web/providers/project-context-provider";
-import { InviteMemberDialog } from "@/web/components/invite-member-dialog";
-import { useState } from "react";
-import { CreateRoleDialog } from "@/web/components/create-role-dialog";
-import { useOrganizationRoles } from "@/web/hooks/use-organization-roles";
-import { EmptyState } from "@/web/components/empty-state.tsx";
-
-const useMembers = () => {
-  const { locator } = useProjectContext();
-  return useQuery({
-    queryKey: KEYS.members(locator),
-    queryFn: () => authClient.organization.listMembers(),
-  });
-};
 
 function getInitials(name?: string) {
   if (!name) return "?";
@@ -189,8 +183,8 @@ function MemberActionsDropdown({
   );
 }
 
-export default function OrgMembers() {
-  const { data, isLoading } = useMembers();
+function OrgMembersContent() {
+  const { data } = useMembers();
   const queryClient = useQueryClient();
   const { locator } = useProjectContext();
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
@@ -461,11 +455,7 @@ export default function OrgMembers() {
 
       {viewMode === "cards" ? (
         <div className="flex-1 overflow-auto p-5">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-muted-foreground">Loading...</div>
-            </div>
-          ) : filteredAndSortedMembers.length === 0 ? (
+          {filteredAndSortedMembers.length === 0 ? (
             <EmptyState
               title={search ? "No members found" : "No members found"}
               description={
@@ -520,7 +510,7 @@ export default function OrgMembers() {
         <CollectionTableWrapper
           columns={columns}
           data={filteredAndSortedMembers}
-          isLoading={isLoading}
+          isLoading={false}
           sortKey={sortKey}
           sortDirection={sortDirection}
           onSort={handleSort}
@@ -540,5 +530,37 @@ export default function OrgMembers() {
         />
       )}
     </CollectionPage>
+  );
+}
+
+export default function OrgMembers() {
+  return (
+    <ErrorBoundary
+      fallback={
+        <CollectionPage>
+          <div className="flex items-center justify-center h-full">
+            <div className="text-sm text-muted-foreground">
+              Failed to load members
+            </div>
+          </div>
+        </CollectionPage>
+      }
+    >
+      <Suspense
+        fallback={
+          <CollectionPage>
+            <div className="flex items-center justify-center h-full">
+              <Icon
+                name="progress_activity"
+                size={32}
+                className="animate-spin text-muted-foreground"
+              />
+            </div>
+          </CollectionPage>
+        }
+      >
+        <OrgMembersContent />
+      </Suspense>
+    </ErrorBoundary>
   );
 }

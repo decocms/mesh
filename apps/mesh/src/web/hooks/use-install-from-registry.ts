@@ -3,13 +3,12 @@
  * Provides inline installation without navigation.
  */
 
-import { useState } from "react";
 import { toast } from "sonner";
 import { createToolCaller } from "@/tools/client";
 import type { RegistryItem } from "@/web/components/store/registry-items-section";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import {
-  useConnectionsCollection,
+  useConnectionActions,
   useConnections,
 } from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
@@ -41,15 +40,9 @@ interface UseInstallFromRegistryResult {
    */
   isInstalling: boolean;
   /**
-   * Whether registry items are still loading
-   */
-  isLoading: boolean;
-  /**
    * Registry items (for debugging/display)
    */
   registryItems: RegistryItem[];
-
-  isError: boolean;
 }
 
 /**
@@ -59,8 +52,7 @@ interface UseInstallFromRegistryResult {
 export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
-  const [isInstalling, setIsInstalling] = useState(false);
-  const connectionsCollection = useConnectionsCollection();
+  const actions = useConnectionActions();
 
   // Get all connections and filter to registry connections
   const allConnections = useConnections();
@@ -73,23 +65,19 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   // Find the LIST tool from the registry connection
   const listToolName = findListToolName(registryConnection?.tools);
 
-  const toolCaller = createToolCaller(registryId);
+  const toolCaller = createToolCaller(registryId || undefined);
 
-  // Fetch registry items
-  const {
-    data: listResults,
-    isLoading,
-    isError,
-  } = useToolCall({
+  // Always call useToolCall (Rules of Hooks). Use `enabled` to avoid executing until ready.
+  const { data: listResults } = useToolCall<{}, unknown>({
     toolCaller,
     toolName: listToolName,
     toolInputParams: {},
     connectionId: registryId,
-    enabled: !!listToolName && !!registryId,
   });
 
-  // Extract items from results
-  const registryItems = extractItemsFromResponse<RegistryItem>(listResults);
+  const registryItems = extractItemsFromResponse<RegistryItem>(
+    listResults ?? [],
+  );
 
   // Installation function
   const installByBinding = async (
@@ -120,31 +108,18 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
       return undefined;
     }
 
-    setIsInstalling(true);
-    try {
-      const tx = await connectionsCollection.insert(connectionData);
-      await tx.isPersisted.promise;
-
-      toast.success(`${connectionData.title} installed successfully`);
-      // Return full connection data so caller doesn't need to fetch from collection
-      return {
-        id: connectionData.id,
-        connection: connectionData as ConnectionEntity,
-      };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(`Failed to install MCP: ${message}`);
-      return undefined;
-    } finally {
-      setIsInstalling(false);
-    }
+    await actions.create.mutateAsync(connectionData);
+    // Success toast is handled by the mutation's onSuccess
+    // Return full connection data so caller doesn't need to fetch from collection
+    return {
+      id: connectionData.id,
+      connection: connectionData as ConnectionEntity,
+    };
   };
 
   return {
     installByBinding,
-    isInstalling,
-    isLoading,
+    isInstalling: actions.create.isPending,
     registryItems,
-    isError,
   };
 }

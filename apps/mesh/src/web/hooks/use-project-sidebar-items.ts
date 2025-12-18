@@ -1,21 +1,21 @@
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { Locator, ProjectLocator } from "@/web/lib/locator";
+import { Locator } from "@/web/lib/locator";
 import { useNavigate } from "@tanstack/react-router";
-import { KEYS } from "@/web/lib/query-keys";
 
-async function getProjectSidebarItems({
-  locator,
-  navigate,
-}: {
-  locator: ProjectLocator;
-  navigate: ReturnType<typeof useNavigate>;
-}) {
+export function useProjectSidebarItems() {
+  const { locator } = useProjectContext();
+  const navigate = useNavigate();
   const { org } = Locator.parse(locator);
   const isOrgAdminProject = Locator.isOrgAdminProject(locator);
 
   const KNOWN_ORG_ADMIN_SIDEBAR_ITEMS: NavigationSidebarItem[] = [
+    {
+      key: "home",
+      label: "Home",
+      icon: "home",
+      onClick: () => navigate({ to: "/$org", params: { org } }),
+    },
     {
       key: "store",
       label: "Store",
@@ -48,21 +48,5 @@ async function getProjectSidebarItems({
     },
   ];
 
-  const navigationItems: NavigationSidebarItem[] = isOrgAdminProject
-    ? KNOWN_ORG_ADMIN_SIDEBAR_ITEMS
-    : [];
-
-  return Promise.resolve(navigationItems);
-}
-
-export function useProjectSidebarItems() {
-  const { locator } = useProjectContext();
-  const navigate = useNavigate();
-
-  const { data: sidebarItems } = useSuspenseQuery({
-    queryKey: KEYS.sidebarItems(locator),
-    queryFn: () => getProjectSidebarItems({ locator, navigate }),
-  });
-
-  return sidebarItems;
+  return isOrgAdminProject ? KNOWN_ORG_ADMIN_SIDEBAR_ITEMS : [];
 }

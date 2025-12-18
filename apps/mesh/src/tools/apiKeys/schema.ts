@@ -13,7 +13,18 @@ import { z } from "zod";
 
 /**
  * Permission schema - Better Auth format: { resource: [actions] }
- * Example: { "self": ["API_KEY_CREATE"], "conn_123": ["SEND_MESSAGE"] }
+ *
+ * Resource types:
+ * - "self": Management API tools (organization-level operations)
+ * - "conn_<UUID>": Proxy API tools (connection-specific operations)
+ *
+ * Actions: Array of tool names or "*" for all permissions
+ *
+ * Examples:
+ * - { "self": ["API_KEY_CREATE", "COLLECTION_CONNECTIONS_LIST"] }
+ * - { "conn_abc123": ["SEND_MESSAGE", "LIST_THREADS"] }
+ * - { "self": ["*"] } (all management tools)
+ * - { "conn_abc123": ["*"] } (all tools for specific connection)
  */
 const PermissionSchema = z.record(z.array(z.string()));
 
@@ -32,7 +43,7 @@ const ApiKeyEntitySchema = z.object({
   name: z.string().describe("Human-readable name for the API key"),
   userId: z.string().describe("ID of the user who owns this API key"),
   permissions: PermissionSchema.describe(
-    "Permissions granted to this API key in format { resource: [actions] }",
+    'Permissions granted to this API key. Format: { resource: [actions] } where resource is "self" for management tools or "conn_<UUID>" for connection-specific tools. Example: { "self": ["API_KEY_CREATE"], "conn_abc123": ["SEND_MESSAGE"] }',
   ),
   expiresAt: z
     .union([z.string(), z.date()])
@@ -61,7 +72,7 @@ export const ApiKeyCreateInputSchema = z.object({
     .max(64)
     .describe("Human-readable name for the API key"),
   permissions: PermissionSchema.optional().describe(
-    "Permissions to grant. Format: { resource: [actions] }. Defaults to read-only permissions.",
+    'Permissions to grant. Format: { resource: [actions] }. Resource is "self" for management tools or "conn_<UUID>" for connection-specific tools. Actions are tool names (e.g., ["API_KEY_CREATE"]) or ["*"] for all. Example: { "self": ["API_KEY_CREATE", "COLLECTION_CONNECTIONS_LIST"] }. Defaults to read-only permissions.',
   ),
   expiresIn: z
     .number()
@@ -90,7 +101,9 @@ export const ApiKeyCreateOutputSchema = z.object({
     .describe(
       "The actual API key value. STORE THIS SECURELY - it will not be shown again!",
     ),
-  permissions: PermissionSchema.describe("Permissions granted to this API key"),
+  permissions: PermissionSchema.describe(
+    'Permissions granted to this API key. Format: { resource: [actions] } where resource is "self" for management tools or "conn_<UUID>" for connection-specific tools',
+  ),
   expiresAt: z
     .union([z.string(), z.date()])
     .nullable()
@@ -143,7 +156,7 @@ export const ApiKeyUpdateInputSchema = z.object({
     .optional()
     .describe("New name for the API key"),
   permissions: PermissionSchema.optional().describe(
-    "New permissions. Format: { resource: [actions] }. Replaces existing permissions.",
+    'New permissions. Format: { resource: [actions] } where resource is "self" for management tools or "conn_<UUID>" for connection-specific tools. Actions are tool names or "*" for all. Example: { "self": ["API_KEY_CREATE"] }. Replaces existing permissions.',
   ),
   metadata: z
     .record(z.unknown())

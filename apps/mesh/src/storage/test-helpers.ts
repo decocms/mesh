@@ -12,6 +12,18 @@ import type { Database } from "./types";
 export async function createTestSchema(db: Kysely<Database>): Promise<void> {
   console.log("Creating test schema...");
 
+  // Organization table (Better Auth managed, but needed for FK constraints)
+  await db.schema
+    .createTable("organization")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("name", "text", (col) => col.notNull())
+    .addColumn("slug", "text", (col) => col.notNull().unique())
+    .addColumn("logo", "text")
+    .addColumn("metadata", "text")
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .execute();
+
   // Users table - camelCase to match UserTable type
   await db.schema
     .createTable("users")
@@ -89,5 +101,70 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
     .addColumn("duration", "integer")
     .addColumn("timestamp", "text", (col) => col.notNull())
     .addColumn("requestMetadata", "text")
+    .execute();
+
+  // Event Bus tables
+  // Events table - stores CloudEvents
+  await db.schema
+    .createTable("events")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("organization_id", "text", (col) => col.notNull())
+    .addColumn("type", "text", (col) => col.notNull())
+    .addColumn("source", "text", (col) => col.notNull())
+    .addColumn("specversion", "text", (col) => col.notNull().defaultTo("1.0"))
+    .addColumn("subject", "text")
+    .addColumn("time", "text", (col) => col.notNull())
+    .addColumn("datacontenttype", "text", (col) =>
+      col.notNull().defaultTo("application/json"),
+    )
+    .addColumn("dataschema", "text")
+    .addColumn("data", "text")
+    .addColumn("cron", "text")
+    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
+    .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
+    .addColumn("last_error", "text")
+    .addColumn("next_retry_at", "text")
+    .addColumn("created_at", "text", (col) => col.notNull())
+    .addColumn("updated_at", "text", (col) => col.notNull())
+    .execute();
+
+  // Event Subscriptions table
+  await db.schema
+    .createTable("event_subscriptions")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    // CASCADE DELETE: When organization is deleted, subscriptions are automatically removed
+    .addColumn("organization_id", "text", (col) =>
+      col.notNull().references("organization.id").onDelete("cascade"),
+    )
+    // CASCADE DELETE: When connection is deleted, subscriptions are automatically removed
+    .addColumn("connection_id", "text", (col) =>
+      col.notNull().references("connections.id").onDelete("cascade"),
+    )
+    .addColumn("publisher", "text")
+    .addColumn("event_type", "text", (col) => col.notNull())
+    .addColumn("filter", "text")
+    .addColumn("enabled", "integer", (col) => col.notNull().defaultTo(1))
+    .addColumn("created_at", "text", (col) => col.notNull())
+    .addColumn("updated_at", "text", (col) => col.notNull())
+    .execute();
+
+  // Event Deliveries table
+  await db.schema
+    .createTable("event_deliveries")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("event_id", "text", (col) => col.notNull())
+    // CASCADE DELETE: When subscription is deleted, deliveries are automatically removed
+    .addColumn("subscription_id", "text", (col) =>
+      col.notNull().references("event_subscriptions.id").onDelete("cascade"),
+    )
+    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
+    .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
+    .addColumn("last_error", "text")
+    .addColumn("delivered_at", "text")
+    .addColumn("next_retry_at", "text")
+    .addColumn("created_at", "text", (col) => col.notNull())
     .execute();
 }

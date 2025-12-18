@@ -61,7 +61,7 @@ const homeRoute = createRoute({
 const orgHomeRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org",
-  component: lazyRouteComponent(() => import("./routes/orgs/home.tsx")),
+  component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
 const orgMembersRoute = createRoute({
