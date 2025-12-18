@@ -445,7 +445,9 @@ function BindingSelector({
                 <>
                   <Icon name="add" size={16} />
                   <span>
-                    {canInstallInline ? "Connect MCP Server" : "Create connection"}
+                    {canInstallInline
+                      ? "Connect MCP Server"
+                      : "Create connection"}
                   </span>
                 </>
               )}

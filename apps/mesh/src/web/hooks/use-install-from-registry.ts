@@ -104,7 +104,9 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
     );
 
     if (!connectionData.connection_url) {
-      toast.error("This MCP Server cannot be connected: no connection URL available");
+      toast.error(
+        "This MCP Server cannot be connected: no connection URL available",
+      );
       return undefined;
     }
 

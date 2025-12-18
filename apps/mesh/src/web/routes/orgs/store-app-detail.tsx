@@ -416,7 +416,9 @@ function StoreAppDetailContent() {
     );
 
     if (!connectionData.connection_url) {
-      toast.error("This MCP Server cannot be connected: no connection URL available");
+      toast.error(
+        "This MCP Server cannot be connected: no connection URL available",
+      );
       return;
     }
 
@@ -466,7 +468,8 @@ function StoreAppDetailContent() {
             {!canInstall && (
               <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
                 <Icon name="info" size={16} className="inline mr-2" />
-                This MCP Server cannot be connected - no connection method available.
+                This MCP Server cannot be connected - no connection method
+                available.
               </div>
             )}
 

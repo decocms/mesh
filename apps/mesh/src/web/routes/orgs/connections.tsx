@@ -590,7 +590,11 @@ function OrgMcpsContent() {
                   aria-hidden="true"
                 />
               }
-              title={listState.search ? "No MCP Servers found" : "No MCP Servers found"}
+              title={
+                listState.search
+                  ? "No MCP Servers found"
+                  : "No MCP Servers found"
+              }
               description={
                 listState.search
                   ? `No MCP Servers match "${listState.search}"`
