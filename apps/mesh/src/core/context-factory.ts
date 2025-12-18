@@ -28,6 +28,8 @@ import type {
 // Configuration
 // ============================================================================
 
+import type { EventBus } from "../event-bus/interface";
+
 export interface MeshContextConfig {
   db: Kysely<Database>;
   auth: BetterAuthInstance;
@@ -38,6 +40,7 @@ export interface MeshContextConfig {
     tracer: Tracer;
     meter: Meter;
   };
+  eventBus: EventBus;
 }
 
 // ============================================================================
@@ -77,6 +80,7 @@ interface OrganizationContext {
 
 interface AuthenticatedUser {
   id: string;
+  connectionId?: string;
   email?: string;
   name?: string;
   role?: string;
@@ -147,6 +151,7 @@ interface AuthContext {
   auth: BetterAuthInstance;
   role?: string; // User's role (for built-in role bypass)
   permissions?: Permission; // Permissions from API key or custom role (MCP OAuth)
+  userId?: string; // User ID for server-side API key operations
 }
 
 /**
@@ -158,7 +163,7 @@ interface AuthContext {
  * 2. Browser sessions → delegate to Better Auth's hasPermission API
  */
 function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
-  const { auth, headers, role, permissions } = ctx;
+  const { auth, headers, role, permissions, userId } = ctx;
 
   // Get hasPermission from Better Auth's organization plugin (for browser sessions)
   const hasPermissionApi = (auth.api as { hasPermission?: HasPermissionAPI })
@@ -290,26 +295,40 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 
     apiKey: {
       create: async (data) => {
+        // Don't pass headers - Better Auth treats requests with headers as "client" requests
+        // and blocks server-only properties like `permissions`. By not passing headers and
+        // providing userId in the body, Better Auth treats this as a server-side call.
+        // Note: Authorization to create API keys is already checked by ctx.access.check()
         return auth.api.createApiKey({
-          headers,
-          body: data,
+          body: {
+            ...data,
+            userId, // Required for server-side calls (no headers = no session lookup)
+          },
         });
       },
 
       list: async () => {
+        // Uses headers - Better Auth's sessionMiddleware handles this
+        // enableSessionForAPIKeys: true creates a session for API key auth
         return auth.api.listApiKeys({
           headers,
         });
       },
 
       update: async (data) => {
+        // Don't pass headers - same reason as create: enables server-only properties
+        // Note: Authorization is already checked by ctx.access.check()
         return auth.api.updateApiKey({
-          headers,
-          body: data,
+          body: {
+            ...data,
+            userId, // Required for server-side calls
+          },
         });
       },
 
       delete: async (keyId) => {
+        // Uses headers - Better Auth's sessionMiddleware handles this
+        // enableSessionForAPIKeys: true creates a session for API key auth
         await auth.api.deleteApiKey({
           headers,
           body: { keyId },
@@ -322,6 +341,7 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 // Import built-in roles from separate module to avoid circular dependency
 import { SqlMonitoringStorage } from "@/storage/monitoring";
 import { BUILTIN_ROLES } from "../auth/roles";
+import { WellKnownMCPId } from "./well-known-mcp";
 
 /**
  * Fetch role permissions from the database
@@ -445,7 +465,10 @@ async function authenticateRequest(
       const meshJwtPayload = await verifyMeshToken(token);
       if (meshJwtPayload) {
         return {
-          user: { id: meshJwtPayload.sub },
+          user: {
+            id: meshJwtPayload.sub,
+            connectionId: meshJwtPayload.metadata?.connectionId,
+          },
           permissions: meshJwtPayload.permissions,
           organization: meshJwtPayload.metadata?.organizationId
             ? {
@@ -475,6 +498,7 @@ async function authenticateRequest(
 
         return {
           apiKeyId: result.key.id,
+          user: { id: result.key.userId }, // Include userId from API key
           permissions, // Store the API key's permissions
           organization: orgMetadata
             ? {
@@ -554,13 +578,13 @@ async function authenticateRequest(
 // Context Factory
 // ============================================================================
 
-let createContextFn: (req: Request) => Promise<MeshContext>;
+let createContextFn: (req?: Request) => Promise<MeshContext>;
 
 export const ContextFactory = {
-  set: (fn: (req: Request) => Promise<MeshContext>) => {
+  set: (fn: (req?: Request) => Promise<MeshContext>) => {
     createContextFn = fn;
   },
-  create: async (req: Request) => {
+  create: async (req?: Request) => {
     return await createContextFn(req);
   },
 };
@@ -573,7 +597,7 @@ export const ContextFactory = {
  */
 export function createMeshContextFactory(
   config: MeshContextConfig,
-): (c: Request) => Promise<MeshContext> {
+): (req?: Request) => Promise<MeshContext> {
   // Create vault instance for credential encryption
   const vault = new CredentialVault(config.encryption.key);
 
@@ -590,16 +614,20 @@ export function createMeshContextFactory(
   };
 
   // Return factory function
-  return async (req: Request): Promise<MeshContext> => {
+  return async (req?: Request): Promise<MeshContext> => {
+    const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
-    const authResult = await authenticateRequest(req, config.auth, config.db);
+    const authResult = req
+      ? await authenticateRequest(req, config.auth, config.db)
+      : { user: undefined };
 
     // Create bound auth client (encapsulates HTTP headers and auth context)
     const boundAuth = createBoundAuthClient({
       auth: config.auth,
-      headers: req.headers,
+      headers: req?.headers ?? new Headers(),
       role: authResult.role,
       permissions: authResult.permissions,
+      userId: authResult.user?.id, // For server-side API key operations
     });
 
     // Build auth object for MeshContext
@@ -619,7 +647,7 @@ export function createMeshContextFactory(
     const organization = authResult.organization;
 
     // Derive base URL from request
-    const url = new URL(req.url);
+    const url = req ? new URL(req.url) : new URL("http://localhost:3000");
     const baseUrl = process.env.BASE_URL ?? `${url.protocol}//${url.host}`;
 
     // Create AccessControl instance with bound auth client
@@ -629,11 +657,12 @@ export function createMeshContextFactory(
       undefined, // toolName set later by defineTool
       boundAuth, // Bound auth client for permission checks
       authResult.role, // Role from session (for built-in role bypass)
-      "self", // Default connectionId for management APIs
+      WellKnownMCPId.SELF, // Default connectionId for management APIs
     );
 
     return {
       auth: meshAuth,
+      connectionId,
       organization,
       storage,
       vault,
@@ -647,12 +676,13 @@ export function createMeshContextFactory(
       metadata: {
         requestId: crypto.randomUUID(),
         timestamp: new Date(),
-        userAgent: req.headers.get("User-Agent") ?? undefined,
+        userAgent: req?.headers.get("User-Agent") ?? undefined,
         ipAddress:
-          (req.headers.get("CF-Connecting-IP") ||
-            req.headers.get("X-Forwarded-For")) ??
+          (req?.headers.get("CF-Connecting-IP") ||
+            req?.headers.get("X-Forwarded-For")) ??
           undefined,
       },
+      eventBus: config.eventBus,
     };
   };
 }

@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { Loader2 } from "lucide-react";
 import { extractGitHubRepo } from "@/web/utils/github-icon";
 import { KEYS } from "@/web/lib/query-keys";
 import "github-markdown-css/github-markdown-light.css";
@@ -80,7 +79,11 @@ export function ReadmeViewer({ repository }: ReadmeViewerProps) {
   if (isLoadingReadme) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Icon
+          name="progress_activity"
+          size={32}
+          className="animate-spin text-muted-foreground"
+        />
       </div>
     );
   }

@@ -8,6 +8,7 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useParams } from "@tanstack/react-router";
 import {
@@ -17,17 +18,16 @@ import {
   Code,
   Copy,
   Database,
-  Loader2,
   Play,
   Plus,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useMcp } from "use-mcp/react";
 import { normalizeUrl } from "@/web/utils/normalize-url";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
-import { OAuthAuthenticationState } from "./connection/oauth-authentication-state";
+import { OAuthAuthenticationState } from "./connection/settings-tab";
 import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
 
 export interface ToolDetailsViewProps {
@@ -42,15 +42,62 @@ const beautifyToolName = (toolName: string) => {
     .replace(/\b\w/g, (char) => char.toLocaleLowerCase());
 };
 
-export function ToolDetailsView({
-  itemId: toolName,
+function ToolDetailsContent({
+  toolName,
+  connectionId,
+  connection,
   onBack,
-}: ToolDetailsViewProps) {
-  const params = useParams({ strict: false });
-  const connectionId = params.connectionId ?? UNKNOWN_CONNECTION_ID;
+}: {
+  toolName: string;
+  connectionId: string;
+  connection: NonNullable<ReturnType<typeof useConnection>>;
+  onBack: () => void;
+}) {
+  const mcpOriginalUrl = normalizeUrl(connection.connection_url);
+  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
 
-  const connection = useConnection(connectionId);
-  const [inputParams, setInputParams] = useState<Record<string, unknown>>({});
+  const isMCPAuthenticated = useIsMCPAuthenticated({
+    url: mcpOriginalUrl,
+    token: connection.connection_token ?? null,
+  });
+
+  if (!isMCPAuthenticated) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <OAuthAuthenticationState
+          onAuthenticate={() => onBack()}
+          buttonText="Go back"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <ToolDetailsAuthenticated
+      key={`${connectionId}:${toolName}`}
+      toolName={toolName}
+      connectionId={connectionId}
+      mcpProxyUrl={mcpProxyUrl}
+      onBack={onBack}
+    />
+  );
+}
+
+function ToolDetailsAuthenticated({
+  toolName,
+  connectionId,
+  mcpProxyUrl,
+  onBack,
+}: {
+  toolName: string;
+  connectionId: string;
+  mcpProxyUrl: URL;
+  onBack: () => void;
+}) {
+  // Store only user edits; defaults are derived from the schema (no effect-driven initialization).
+  const [editedParams, setEditedParams] = useState<Record<string, unknown>>({});
+  // For tools without `inputSchema.properties`, allow free-form JSON editing (including temporarily invalid JSON while typing).
+  const [rawJsonText, setRawJsonText] = useState("{}");
   const [executionResult, setExecutionResult] = useState<Record<
     string,
     unknown
@@ -64,27 +111,6 @@ export function ToolDetailsView({
     cost?: string;
   } | null>(null);
   const [viewMode, setViewMode] = useState<"json" | "view">("json");
-
-  const mcpOriginalUrl = connection?.connection_url
-    ? normalizeUrl(connection.connection_url)
-    : "";
-  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
-
-  const isMCPAuthenticated = useIsMCPAuthenticated({
-    url: mcpOriginalUrl,
-    token: connection?.connection_token ?? null,
-  });
-
-  if (!isMCPAuthenticated) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <OAuthAuthenticationState
-          onAuthenticate={() => onBack()}
-          buttonText="Go back"
-        />
-      </div>
-    );
-  }
 
   const mcp = useMcp({
     url: mcpProxyUrl.href,
@@ -103,24 +129,21 @@ export function ToolDetailsView({
   // Find the tool definition
   const tool = mcp.tools?.find((t) => t.name === toolName);
 
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (
-      tool?.inputSchema?.properties &&
-      Object.keys(inputParams).length === 0
-    ) {
-      const initialParams: Record<string, unknown> = {};
-      // Simple initialization for now
-      Object.keys(tool.inputSchema.properties).forEach((key) => {
-        if (tool.inputSchema.required?.includes(key)) {
-          initialParams[key] = "";
-        } else {
-          initialParams[key] = undefined;
-        }
-      });
-      setInputParams(initialParams);
+  const toolProperties = tool?.inputSchema?.properties;
+  const toolPropertyKeys = toolProperties ? Object.keys(toolProperties) : [];
+  const hasToolProperties = toolPropertyKeys.length > 0;
+
+  const defaultParams: Record<string, unknown> = {};
+  if (hasToolProperties && tool?.inputSchema?.properties) {
+    for (const key of toolPropertyKeys) {
+      defaultParams[key] = tool.inputSchema.required?.includes(key)
+        ? ""
+        : undefined;
     }
-  }, [tool, inputParams]);
+  }
+
+  const hasEditedKey = (key: string) =>
+    Object.prototype.hasOwnProperty.call(editedParams, key);
 
   const handleExecute = async () => {
     setIsExecuting(true);
@@ -132,9 +155,22 @@ export function ToolDetailsView({
     const toolCaller = createToolCaller(connectionId);
 
     try {
-      // Prepare arguments: try to parse JSON for object/array types
-      const args = { ...inputParams };
-      if (tool?.inputSchema?.properties) {
+      // Prepare arguments:
+      // - If we have properties, merge derived defaults with user edits and parse object/array fields when provided as strings.
+      // - Otherwise, parse the raw JSON input as the full args payload.
+      const args: Record<string, unknown> = hasToolProperties
+        ? { ...defaultParams, ...editedParams }
+        : (() => {
+            const trimmed = rawJsonText.trim();
+            if (!trimmed) return {};
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === "object") {
+              return parsed as Record<string, unknown>;
+            }
+            throw new Error("Raw JSON input must be an object.");
+          })();
+
+      if (hasToolProperties && tool?.inputSchema?.properties) {
         Object.entries(tool.inputSchema.properties).forEach(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ([key, prop]: [string, any]) => {
@@ -183,16 +219,8 @@ export function ToolDetailsView({
   };
 
   const handleInputChange = (key: string, value: string) => {
-    setInputParams((prev) => ({ ...prev, [key]: value }));
+    setEditedParams((prev) => ({ ...prev, [key]: value }));
   };
-
-  if (!connection) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
     <ViewLayout onBack={onBack}>
@@ -220,7 +248,11 @@ export function ToolDetailsView({
             {mcp.state === "ready" ? (
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
             ) : mcp.state === "connecting" || mcp.state === "authenticating" ? (
-              <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
+              <Icon
+                name="progress_activity"
+                size={12}
+                className="animate-spin text-yellow-500"
+              />
             ) : (
               <div className="h-2 w-2 rounded-full bg-red-500" />
             )}
@@ -278,7 +310,11 @@ export function ToolDetailsView({
                 disabled={isExecuting}
               >
                 {isExecuting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Icon
+                    name="progress_activity"
+                    size={14}
+                    className="animate-spin"
+                  />
                 ) : (
                   <Play className="h-3.5 w-3.5 fill-current" />
                 )}
@@ -291,7 +327,7 @@ export function ToolDetailsView({
                 Arguments
               </div>
 
-              {tool?.inputSchema?.properties ? (
+              {hasToolProperties && tool?.inputSchema?.properties ? (
                 Object.entries(tool.inputSchema.properties).map(
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   ([key, prop]: [string, any]) => (
@@ -316,9 +352,9 @@ export function ToolDetailsView({
                         <Textarea
                           className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
                           value={
-                            typeof inputParams[key] === "object"
-                              ? JSON.stringify(inputParams[key], null, 2)
-                              : (inputParams[key] as string) || ""
+                            hasEditedKey(key)
+                              ? ((editedParams[key] as string) ?? "")
+                              : ((defaultParams[key] as string) ?? "")
                           }
                           onChange={(e) =>
                             handleInputChange(key, e.target.value)
@@ -327,7 +363,11 @@ export function ToolDetailsView({
                         />
                       ) : (
                         <Input
-                          value={(inputParams[key] as string) || ""}
+                          value={
+                            hasEditedKey(key)
+                              ? ((editedParams[key] as string) ?? "")
+                              : ((defaultParams[key] as string) ?? "")
+                          }
                           onChange={(e) =>
                             handleInputChange(key, e.target.value)
                           }
@@ -344,24 +384,14 @@ export function ToolDetailsView({
               )}
 
               {/* Fallback for no properties but valid schema */}
-              {tool?.inputSchema && !tool.inputSchema.properties && (
+              {tool?.inputSchema && !hasToolProperties && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Raw JSON Input</label>
                   <textarea
                     className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={
-                      typeof inputParams === "string"
-                        ? inputParams
-                        : JSON.stringify(inputParams, null, 2)
-                    }
-                    onChange={(e) => {
-                      try {
-                        setInputParams(JSON.parse(e.target.value));
-                      } catch {
-                        // Allow typing invalid JSON momentarily, but maybe store as string in a separate state if we want robust editing
-                        // For now, just let it be assuming user pastes valid JSON
-                      }
-                    }}
+                    value={rawJsonText}
+                    onChange={(e) => setRawJsonText(e.target.value)}
+                    placeholder='e.g. { "foo": "bar" }'
                   />
                 </div>
               )}
@@ -437,5 +467,49 @@ export function ToolDetailsView({
         </div>
       </div>
     </ViewLayout>
+  );
+}
+
+export function ToolDetailsView({
+  itemId: toolName,
+  onBack,
+}: ToolDetailsViewProps) {
+  const params = useParams({ strict: false });
+  const connectionId = params.connectionId ?? UNKNOWN_CONNECTION_ID;
+
+  const connection = useConnection(connectionId);
+
+  if (!connection) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h3 className="text-lg font-semibold">Connection not found</h3>
+          <p className="text-sm text-muted-foreground">
+            This connection may have been deleted or you may not have access.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <Icon
+            name="progress_activity"
+            size={32}
+            className="animate-spin text-muted-foreground"
+          />
+        </div>
+      }
+    >
+      <ToolDetailsContent
+        toolName={toolName}
+        connectionId={connectionId}
+        connection={connection}
+        onBack={onBack}
+      />
+    </Suspense>
   );
 }

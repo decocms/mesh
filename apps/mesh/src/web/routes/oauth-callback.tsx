@@ -6,7 +6,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@deco/ui/components/card.tsx";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Icon } from "@deco/ui/components/icon.tsx";
+import { CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function OAuthCallback() {
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +110,11 @@ export default function OAuthCallback() {
           ) : (
             <>
               <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <Icon
+                  name="progress_activity"
+                  size={32}
+                  className="animate-spin text-primary"
+                />
               </div>
               <p className="text-sm text-muted-foreground text-center">
                 Authentication complete. This window will close automatically.

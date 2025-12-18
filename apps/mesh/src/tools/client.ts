@@ -83,7 +83,10 @@ export function createToolCaller<TArgs = unknown, TOutput = unknown>(
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const json = await parseSSEResponseAsJson(response);
+    const json =
+      response.headers.get("Content-Type") === "application/json"
+        ? await response.json()
+        : await parseSSEResponseAsJson(response);
 
     if (json.result?.isError) {
       throw new Error(json.result.content?.[0]?.text || "Tool call failed");

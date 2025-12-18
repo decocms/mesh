@@ -1,11 +1,11 @@
 /**
  * useToolCall Hook
  *
- * Generic hook for calling MCP tools with React Query.
- * Provides caching, loading states, and error handling out of the box.
+ * Generic hook for calling MCP tools with React Query Suspense.
+ * Uses Suspense for loading states - wrap components in <Suspense> and <ErrorBoundary>.
  */
 
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import type { ToolCaller } from "../../tools/client";
 import { KEYS } from "../lib/query-keys";
 
@@ -21,8 +21,6 @@ export interface UseToolCallOptions<TInput, _TOutput> {
   toolInputParams: TInput;
   /** Connection ID to scope the cache (optional) */
   connectionId?: string;
-  /** Whether the query is enabled */
-  enabled?: boolean;
   /** Cache time in milliseconds */
   staleTime?: number;
   /** Refetch interval in milliseconds (false to disable) */
@@ -30,34 +28,27 @@ export interface UseToolCallOptions<TInput, _TOutput> {
 }
 
 /**
- * Options for useSuspenseToolCall hook (no enabled option)
- */
-export interface UseSuspenseToolCallOptions<TInput, _TOutput> {
-  /** The tool caller function to use */
-  toolCaller: ToolCaller;
-  /** The name of the tool to call */
-  toolName: string;
-  /** The input parameters for the tool */
-  toolInputParams: TInput;
-  /** Cache time in milliseconds */
-  staleTime?: number;
-  /** Refetch interval in milliseconds (false to disable) */
-  refetchInterval?: number | false;
-}
-
-/**
- * Generic hook for calling MCP tools with React Query
+ * Generic hook for calling MCP tools with React Query Suspense
  *
  * @param options - Configuration for the tool call
- * @returns Query result with data, loading state, and error
+ * @returns Query result with data (uses Suspense for loading, ErrorBoundary for errors)
  *
  * @example
  * ```tsx
- * const { data, isLoading, error } = useToolCall({
- *   toolCaller: createToolCaller(),
- *   toolName: "COLLECTION_LLM_LIST",
- *   toolInputParams: { limit: 10 },
- * });
+ * <Suspense fallback={<Loader />}>
+ *   <ErrorBoundary>
+ *     <MyComponent />
+ *   </ErrorBoundary>
+ * </Suspense>
+ *
+ * function MyComponent() {
+ *   const { data } = useToolCall({
+ *     toolCaller: createToolCaller(),
+ *     toolName: "COLLECTION_LLM_LIST",
+ *     toolInputParams: { limit: 10 },
+ *   });
+ *   return <div>{data}</div>;
+ * }
  * ```
  */
 export function useToolCall<TInput, TOutput>(
@@ -68,7 +59,6 @@ export function useToolCall<TInput, TOutput>(
     toolName,
     toolInputParams,
     connectionId,
-    enabled = true,
     staleTime = 60_000,
     refetchInterval,
   } = options;
@@ -76,54 +66,13 @@ export function useToolCall<TInput, TOutput>(
   // Serialize the input params for the query key
   const paramsKey = JSON.stringify(toolInputParams);
 
-  return useQuery({
+  return useSuspenseQuery<TOutput, Error, TOutput>({
+    staleTime,
+    refetchInterval,
     queryKey: KEYS.toolCall(toolName, paramsKey, connectionId),
     queryFn: async () => {
       const result = await toolCaller(toolName, toolInputParams);
       return result as TOutput;
     },
-    enabled,
-    staleTime,
-    refetchInterval,
-  });
-}
-
-/**
- * Generic hook for calling MCP tools with React Query Suspense mode
- *
- * @param options - Configuration for the tool call
- * @returns Query result with data (no loading state, uses Suspense)
- *
- * @example
- * ```tsx
- * const { data } = useSuspenseToolCall({
- *   toolCaller: createToolCaller(),
- *   toolName: "COLLECTION_LLM_LIST",
- *   toolInputParams: { limit: 10 },
- * });
- * ```
- */
-export function useSuspenseToolCall<TInput, TOutput>(
-  options: UseSuspenseToolCallOptions<TInput, TOutput>,
-) {
-  const {
-    toolCaller,
-    toolName,
-    toolInputParams,
-    staleTime = 60_000,
-    refetchInterval,
-  } = options;
-
-  // Serialize the input params for the query key
-  const paramsKey = JSON.stringify(toolInputParams);
-
-  return useSuspenseQuery({
-    queryKey: KEYS.toolCall(toolName, paramsKey),
-    queryFn: async () => {
-      const result = await toolCaller(toolName, toolInputParams);
-      return result as TOutput;
-    },
-    staleTime,
-    refetchInterval,
   });
 }

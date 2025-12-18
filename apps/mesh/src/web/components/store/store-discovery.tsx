@@ -2,7 +2,7 @@ import { useConnection } from "@/web/hooks/collections/use-connection";
 import { createToolCaller } from "@/tools/client";
 import { StoreDiscoveryUI } from "./store-discovery-ui";
 import type { RegistryItem } from "./registry-items-section";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
 import {
   findListToolName,
@@ -20,51 +20,47 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
 
   // Find the LIST tool from the registry connection
   const listToolName = findListToolName(registryConnection?.tools);
+  if (!listToolName) {
+    throw new Error("This registry does not support listing store items.");
+  }
 
   const toolCaller = createToolCaller(registryId);
 
-  const {
-    data,
-    isLoading,
-    error,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: KEYS.toolCall(
-      listToolName,
-      JSON.stringify({ limit: PAGE_SIZE }),
-      registryId,
-    ),
-    queryFn: async ({ pageParam }) => {
-      // Use cursor if available, otherwise fallback to offset for backward compatibility
-      const params = pageParam
-        ? { cursor: pageParam, limit: PAGE_SIZE }
-        : { limit: PAGE_SIZE };
-      const result = await toolCaller(listToolName, params);
-      return result;
-    },
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => {
-      // Only proceed with pagination if API provides a cursor
-      // If no cursor is available, return undefined to stop pagination
-      if (typeof lastPage === "object" && lastPage !== null) {
-        const nextCursor =
-          (lastPage as { nextCursor?: string; cursor?: string }).nextCursor ||
-          (lastPage as { nextCursor?: string; cursor?: string }).cursor;
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useSuspenseInfiniteQuery({
+      queryKey: KEYS.toolCall(
+        listToolName,
+        JSON.stringify({ limit: PAGE_SIZE }),
+        registryId,
+      ),
+      queryFn: async ({ pageParam }) => {
+        // Use cursor if available, otherwise fallback to offset for backward compatibility
+        const params = pageParam
+          ? { cursor: pageParam, limit: PAGE_SIZE }
+          : { limit: PAGE_SIZE };
+        const result = await toolCaller(listToolName, params);
+        return result;
+      },
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: (lastPage) => {
+        // Only proceed with pagination if API provides a cursor
+        // If no cursor is available, return undefined to stop pagination
+        if (typeof lastPage === "object" && lastPage !== null) {
+          const nextCursor =
+            (lastPage as { nextCursor?: string; cursor?: string }).nextCursor ||
+            (lastPage as { nextCursor?: string; cursor?: string }).cursor;
 
-        // Only return cursor if API explicitly provides one
-        if (nextCursor) {
-          return nextCursor;
+          // Only return cursor if API explicitly provides one
+          if (nextCursor) {
+            return nextCursor;
+          }
         }
-      }
 
-      // No cursor available - stop pagination
-      return undefined;
-    },
-    enabled: !!listToolName,
-    staleTime: 60 * 60 * 1000, // 1 hour - keep data fresh longer
-  });
+        // No cursor available - stop pagination
+        return undefined;
+      },
+      staleTime: 60 * 60 * 1000, // 1 hour - keep data fresh longer
+    });
 
   // Extract totalCount from first page if available
   const totalCount = (() => {
@@ -93,9 +89,7 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
   return (
     <StoreDiscoveryUI
       items={flattenedItems}
-      isLoading={isLoading}
       isLoadingMore={isFetchingNextPage}
-      error={error}
       registryId={registryId}
       hasMore={hasNextPage ?? false}
       onLoadMore={handleLoadMore}

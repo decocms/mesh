@@ -4,12 +4,13 @@ import { CollectionHeader } from "@/web/components/collections/collection-header
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
+import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   useConnections,
-  useConnectionsCollection,
+  useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -25,7 +26,6 @@ import {
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
 import { type TableColumn } from "@deco/ui/components/collection-table.tsx";
 import {
   Dialog,
@@ -61,10 +61,8 @@ import {
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { Suspense, useEffect, useReducer } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { z } from "zod";
 import { authClient } from "@/web/lib/auth-client";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
@@ -118,7 +116,7 @@ function OrgMcpsContent() {
     resource: "connections",
   });
 
-  const connectionsCollection = useConnectionsCollection();
+  const actions = useConnectionActions();
   const connections = useConnections(listState);
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
@@ -182,76 +180,64 @@ function OrgMcpsContent() {
     dispatch({ type: "close" });
 
     try {
-      await connectionsCollection.delete(id).isPersisted.promise;
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete connection",
-      );
+      await actions.delete.mutateAsync(id);
+    } catch {
+      // Error toast is handled by the mutation's onError
     }
   };
 
   const onSubmit = async (data: ConnectionFormData) => {
-    try {
-      // Close dialog based on mode
-      if (isCreating) {
-        closeCreateDialog();
-      } else {
-        dispatch({ type: "close" });
-      }
-      form.reset();
-
-      if (editingConnection) {
-        // Update existing connection
-        const tx = connectionsCollection.update(
-          editingConnection.id,
-          (draft) => {
-            draft.title = data.title;
-            draft.description = data.description || null;
-            draft.connection_type = data.connection_type;
-            draft.connection_url = data.connection_url;
-            if (data.connection_token) {
-              draft.connection_token = data.connection_token;
-            }
-          },
-        );
-        await tx.isPersisted.promise;
-      } else {
-        const newId = generatePrefixedId("conn");
-        // Create new connection
-        const tx = connectionsCollection.insert({
-          id: newId,
+    if (editingConnection) {
+      // Update existing connection
+      await actions.update.mutateAsync({
+        id: editingConnection.id,
+        data: {
           title: data.title,
           description: data.description || null,
           connection_type: data.connection_type,
           connection_url: data.connection_url,
-          connection_token: data.connection_token || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          created_by: session?.user?.id || "system",
-          organization_id: org.id,
-          icon: null,
-          app_name: null,
-          app_id: null,
-          connection_headers: null,
-          oauth_config: null,
-          configuration_state: null,
-          metadata: null,
-          tools: null,
-          bindings: null,
-          status: "inactive",
-        });
-        await tx.isPersisted.promise;
+          ...(data.connection_token && {
+            connection_token: data.connection_token,
+          }),
+        },
+      });
 
-        navigate({
-          to: "/$org/mcps/$connectionId",
-          params: { org: org.slug, connectionId: newId },
-        });
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to save connection",
-      );
+      dispatch({ type: "close" });
+      form.reset();
+      return;
     }
+
+    const newId = generatePrefixedId("conn");
+    // Create new connection
+    await actions.create.mutateAsync({
+      id: newId,
+      title: data.title,
+      description: data.description || null,
+      connection_type: data.connection_type,
+      connection_url: data.connection_url,
+      connection_token: data.connection_token || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      created_by: session?.user?.id || "system",
+      organization_id: org.id,
+      icon: null,
+      app_name: null,
+      app_id: null,
+      connection_headers: null,
+      oauth_config: null,
+      configuration_state: null,
+      metadata: null,
+      tools: null,
+      bindings: null,
+      status: "inactive",
+    });
+
+    closeCreateDialog();
+    form.reset();
+    navigate({
+      to: "/$org/mcps/$connectionId",
+      params: { org: org.slug, connectionId: newId },
+    });
   };
 
   const handleDialogClose = (open: boolean) => {
@@ -295,7 +281,7 @@ function OrgMcpsContent() {
       id: "description",
       header: "Description",
       render: (connection) => (
-        <span className="text-sm text-foreground line-clamp-2 max-w-sm break-words whitespace-normal">
+        <span className="text-sm text-foreground line-clamp-2 max-w-sm wrap-break-word whitespace-normal">
           {connection.description || "—"}
         </span>
       ),
@@ -514,10 +500,16 @@ function OrgMcpsContent() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {editingConnection
-                    ? "Update Connection"
-                    : "Create Connection"}
+                <Button
+                  type="submit"
+                  disabled={form.formState.isSubmitting}
+                  className="min-w-40"
+                >
+                  {form.formState.isSubmitting
+                    ? "Saving..."
+                    : editingConnection
+                      ? "Update Connection"
+                      : "Create Connection"}
                 </Button>
               </DialogFooter>
             </form>
@@ -608,23 +600,22 @@ function OrgMcpsContent() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {connections.map((connection) => (
-                <Card
+                <ConnectionCard
                   key={connection.id}
-                  className="cursor-pointer transition-colors group"
+                  connection={connection}
                   onClick={() =>
                     navigate({
                       to: "/$org/mcps/$connectionId",
                       params: { org: org.slug, connectionId: connection.id },
                     })
                   }
-                >
-                  <div className="flex flex-col gap-4 p-6 relative">
+                  headerActions={
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 absolute top-5 right-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="h-8 w-8 p-0"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <Icon name="more_vert" size={20} />
@@ -661,22 +652,8 @@ function OrgMcpsContent() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <IntegrationIcon
-                      icon={connection.icon}
-                      name={connection.title}
-                      size="md"
-                      className="shrink-0 shadow-sm"
-                    />
-                    <div className="flex flex-col gap-0">
-                      <h3 className="text-base font-medium text-foreground truncate">
-                        {connection.title}
-                      </h3>
-                      <p className="text-base text-muted-foreground line-clamp-2">
-                        {connection.description || "No description"}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
+                  }
+                />
               ))}
             </div>
           )}
@@ -738,7 +715,11 @@ export default function OrgMcps() {
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Icon
+              name="progress_activity"
+              size={32}
+              className="animate-spin text-muted-foreground"
+            />
           </div>
         }
       >
