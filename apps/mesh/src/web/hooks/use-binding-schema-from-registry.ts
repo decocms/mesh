@@ -90,7 +90,7 @@ function parseAppName(appName: string): string {
 function extractBindingTools(
   item: RegistryItemWithBinding,
 ): BindingDefinition[] | undefined {
-  const tools = item.server._meta?.[MCP_REGISTRY_PUBLISHER_KEY]?.tools;
+  const tools = item.server?._meta?.[MCP_REGISTRY_PUBLISHER_KEY]?.tools;
 
   if (!tools || tools.length === 0) {
     return undefined;
