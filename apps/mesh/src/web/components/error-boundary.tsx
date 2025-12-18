@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
+        <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
           <div className="bg-destructive/10 p-3 rounded-full">
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>

@@ -1,6 +1,7 @@
 import { useChat as useAiChat } from "@ai-sdk/react";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import { useQueryClient } from "@tanstack/react-query";
+import { DefaultChatTransport, type ChatInit, type UIMessage } from "ai";
 import {
   createContext,
   PropsWithChildren,
@@ -8,7 +9,6 @@ import {
   useRef,
   type RefObject,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useMessageActions,
   useThreadActions,
@@ -135,54 +135,58 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Create transport (stable, doesn't depend on selected model)
   const transport = createModelsTransport(org.slug);
 
+  const onFinish: ChatInit<UIMessage<Metadata>>["onFinish"] = (result) => {
+    const { finishReason, messages, isAbort, isDisconnect, isError } = result;
+
+    if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
+      return;
+    }
+
+    // Grab the last 2 messages, one for user another for assistant
+    const newMessages = messages.slice(-2).filter(Boolean) as Message[];
+
+    if (newMessages.length === 2) {
+      // 1. Insert all messages at once (batch insertion)
+      messageActions.insertMany.mutate(newMessages);
+
+      const title =
+        newMessages
+          .find((m) => m.parts?.find((part) => part.type === "text"))
+          ?.parts?.find((part) => part.type === "text")
+          ?.text.slice(0, 100) || "";
+
+      // Check if thread exists in cache
+      const existingThread = queryClient.getQueryData<Thread | null>([
+        "thread",
+        locator,
+        activeThreadId,
+      ]);
+
+      if (!existingThread) {
+        createThread({ id: activeThreadId, title });
+      } else {
+        threadActions.update.mutate({
+          id: activeThreadId,
+          updates: {
+            title: existingThread.title || title,
+            updated_at: new Date().toISOString(),
+          },
+        });
+      }
+    }
+  };
+
+  const onError = (error: Error) => {
+    console.error("[deco-chat] Chat error:", error);
+  };
+
   // Use AI SDK's useChat hook
-  const chat = useAiChat({
+  const chat = useAiChat<UIMessage<Metadata>>({
     id: activeThreadId,
-    messages: messages,
-    transport: transport,
-    onFinish: (result) => {
-      const { finishReason, messages, isAbort, isDisconnect, isError } = result;
-
-      if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
-        return;
-      }
-
-      // Grab the last 2 messages, one for user another for assistant
-      const newMessages = messages.slice(-2).filter(Boolean) as Message[];
-
-      if (newMessages.length === 2) {
-        // 1. Insert all messages at once (batch insertion)
-        messageActions.insertMany.mutate(newMessages);
-
-        const title =
-          newMessages
-            .find((m) => m.parts?.find((part) => part.type === "text"))
-            ?.parts?.find((part) => part.type === "text")
-            ?.text.slice(0, 100) || "";
-
-        // Check if thread exists in cache
-        const existingThread = queryClient.getQueryData<Thread | null>([
-          "thread",
-          locator,
-          activeThreadId,
-        ]);
-
-        if (!existingThread) {
-          createThread({ id: activeThreadId, title });
-        } else {
-          threadActions.update.mutate({
-            id: activeThreadId,
-            updates: {
-              title: existingThread.title || title,
-              updated_at: new Date().toISOString(),
-            },
-          });
-        }
-      }
-    },
-    onError: (error: Error) => {
-      console.error("[deco-chat] Chat error:", error);
-    },
+    messages,
+    transport,
+    onFinish,
+    onError,
   });
 
   const value = {

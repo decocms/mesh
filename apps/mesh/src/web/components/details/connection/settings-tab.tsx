@@ -3,6 +3,7 @@ import type { ConnectionEntity } from "@/tools/connection/schema";
 import { ConnectionEntitySchema } from "@/tools/connection/schema";
 import { AddToCursorButton } from "@/web/components/add-to-cursor-button.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
+import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   useConnectionActions,
@@ -675,7 +676,6 @@ function SettingsRightPanel({
   stateSchema?: Record<string, unknown>;
   formState?: Record<string, unknown>;
   onFormStateChange: (state: Record<string, unknown>) => void;
-
   onAuthenticate: () => void | Promise<void>;
   isMCPAuthenticated: boolean;
 }) {
@@ -798,26 +798,28 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
         </div>
 
         {/* Right panel - MCP Configuration (3/5) */}
-        <Suspense
-          fallback={
-            <div className="w-3/5 min-w-0 flex items-center justify-center">
-              <Icon
-                name="progress_activity"
-                size={32}
-                className="animate-spin text-muted-foreground"
-              />
-            </div>
-          }
-        >
-          <SettingsRightPanel
-            hasMcpBinding={hasMcpBinding}
-            stateSchema={stateSchema}
-            formState={formState ?? undefined}
-            onFormStateChange={handleFormStateChange}
-            onAuthenticate={handleAuthenticate}
-            isMCPAuthenticated={props.isMCPAuthenticated}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense
+            fallback={
+              <div className="w-3/5 min-w-0 flex items-center justify-center">
+                <Icon
+                  name="progress_activity"
+                  size={32}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            }
+          >
+            <SettingsRightPanel
+              hasMcpBinding={hasMcpBinding}
+              stateSchema={stateSchema}
+              formState={formState ?? undefined}
+              onFormStateChange={handleFormStateChange}
+              onAuthenticate={handleAuthenticate}
+              isMCPAuthenticated={props.isMCPAuthenticated}
+            />
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </>
   );
