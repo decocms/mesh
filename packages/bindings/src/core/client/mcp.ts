@@ -59,6 +59,16 @@ export type MCPClientStub<TDefinition extends readonly ToolBinder[]> = {
 };
 
 export type MCPClientFetchStub<TDefinition extends readonly ToolBinder[]> = {
+  listTools: () => Promise<
+    {
+      id: string;
+      inputSchema: z.ZodType;
+      outputSchema: z.ZodType;
+      description: string;
+      execute: (params: any) => Promise<any>;
+    }[]
+  >;
+} & {
   [K in TDefinition[number] as K["name"]]: K["streamable"] extends true
     ? K extends ToolBinder<string, infer TInput, any, true>
       ? (params: TInput, init?: RequestInit) => Promise<Response>

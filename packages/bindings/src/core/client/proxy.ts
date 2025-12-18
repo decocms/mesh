@@ -59,7 +59,7 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
       if (typeof name !== "string") {
         throw new Error("Name must be a string");
       }
-      if (name === "$listTools") {
+      if (name === "listTools") {
         return asCallableTools;
       }
       async function callToolFn(args: Record<string, unknown>) {
