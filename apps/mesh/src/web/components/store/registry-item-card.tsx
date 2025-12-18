@@ -7,6 +7,7 @@ import { Icon } from "@deco/ui/components/icon.tsx";
 import { Card } from "@deco/ui/components/card.js";
 import { IntegrationIcon } from "../integration-icon.tsx";
 import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
+import { extractDisplayNameFromDomain } from "@/web/utils/app-name";
 import type { RegistryItem } from "./registry-items-section";
 
 /**
@@ -111,7 +112,8 @@ export function extractCardDisplayData(
     const parts = rawTitle.split("/");
     if (parts.length >= 2) {
       scopeName = parts[0] || null;
-      displayName = parts.slice(1).join("/");
+      // Usa a função para extrair o nome correto
+      displayName = extractDisplayNameFromDomain(rawTitle);
     }
   }
 
