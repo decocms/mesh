@@ -1,7 +1,13 @@
 import type { RegistryItem } from "@/web/components/store/registry-items-section";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { useRef, useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
+import { useState } from "react";
 import type { AppData } from "./types";
 
 interface AppHeroSectionProps {
@@ -19,32 +25,15 @@ export function AppHeroSection({
   canInstall = true,
   isInstalling = false,
 }: AppHeroSectionProps) {
-  const [showVersions, setShowVersions] = useState(false);
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
-  const versionDropdownRef = useRef<HTMLDivElement>(null);
 
   const handleInstallVersion = (index: number) => {
     setSelectedVersionIndex(index);
     onInstall(index);
-    setShowVersions(false);
-  };
-
-  const handleDocumentClick = (event: React.MouseEvent) => {
-    // Close dropdown if clicking outside of it
-    if (
-      showVersions &&
-      versionDropdownRef.current &&
-      !versionDropdownRef.current.contains(event.target as Node)
-    ) {
-      setShowVersions(false);
-    }
   };
 
   return (
-    <div
-      className="pl-10 flex items-start gap-6 pb-12 pr-10 border-b border-border"
-      onClick={handleDocumentClick}
-    >
+    <div className="pl-10 flex items-start gap-6 pb-12 pr-10 border-b border-border">
       {/* App Icon */}
       <div className="shrink-0 w-16 h-16 rounded-2xl bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center text-3xl font-bold text-primary overflow-hidden">
         {data.icon ? (
@@ -90,64 +79,67 @@ export function AppHeroSection({
 
         {/* Install Button */}
         {canInstall ? (
-          <div className="shrink-0 relative" ref={versionDropdownRef}>
+          <div className="shrink-0">
             {itemVersions.length > 1 ? (
-              <>
+              <div className="flex">
                 <Button
                   variant="brand"
-                  onClick={() => setShowVersions(!showVersions)}
+                  onClick={() => handleInstallVersion(0)}
                   disabled={isInstalling}
-                  className="shrink-0"
+                  className="shrink-0 rounded-r-none cursor-pointer"
                 >
                   <Icon name="add" size={20} />
                   {isInstalling ? "Installing..." : "Install App"}
-                  <Icon
-                    name={showVersions ? "expand_less" : "expand_more"}
-                    size={16}
-                  />
                 </Button>
 
-                {showVersions && (
-                  <div className="absolute right-0 mt-1 w-56 bg-background border border-border rounded-lg shadow-lg z-50">
-                    <div className="max-h-64 overflow-y-auto">
-                      {itemVersions.map((version, index) => {
-                        const versionMeta = version._meta?.[
-                          "io.modelcontextprotocol.registry/official"
-                        ] as { isLatest?: boolean } | undefined;
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="brand"
+                      disabled={isInstalling}
+                      className="shrink-0 rounded-l-none px-2 border-l-2 border-l-white/50 cursor-pointer"
+                    >
+                      <Icon name="expand_more" size={20} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    {itemVersions.map((version, index) => {
+                      const versionMeta = version._meta?.[
+                        "io.modelcontextprotocol.registry/official"
+                      ] as { isLatest?: boolean } | undefined;
 
-                        return (
-                          <button
-                            key={index}
-                            onClick={() => handleInstallVersion(index)}
-                            disabled={isInstalling}
-                            className="w-full text-left px-4 py-3 hover:bg-muted border-b border-border last:border-b-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1">
-                                <div className="font-medium text-sm">
-                                  v{version.server?.version || "unknown"}
-                                </div>
-                                {versionMeta?.isLatest && (
-                                  <div className="text-xs text-primary font-semibold mt-1">
-                                    LATEST
-                                  </div>
-                                )}
+                      return (
+                        <DropdownMenuItem
+                          key={index}
+                          onClick={() => handleInstallVersion(index)}
+                          disabled={isInstalling}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-start justify-between gap-2 w-full">
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">
+                                v{version.server?.version || "unknown"}
                               </div>
-                              {index === selectedVersionIndex && (
-                                <Icon
-                                  name="check_circle"
-                                  size={16}
-                                  className="text-primary shrink-0 mt-1"
-                                />
+                              {versionMeta?.isLatest && (
+                                <div className="text-xs text-primary font-semibold mt-1">
+                                  LATEST
+                                </div>
                               )}
                             </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </>
+                            {index === selectedVersionIndex && (
+                              <Icon
+                                name="check_circle"
+                                size={16}
+                                className="text-primary shrink-0 mt-1"
+                              />
+                            )}
+                          </div>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ) : (
               <Button
                 variant="brand"
