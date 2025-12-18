@@ -1,5 +1,6 @@
 import { createToolCaller } from "@/tools/client";
 import { useToolCall } from "@/web/hooks/use-tool-call";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import {
   ChartContainer,
@@ -50,6 +51,7 @@ function truncateToolName(name: string, max = 22) {
 }
 
 function TopToolsContent() {
+  const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
 
@@ -60,6 +62,7 @@ function TopToolsContent() {
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
     toolInputParams: { ...dateRange, limit: 750, offset: 0 },
+    scope: locator,
     staleTime: 30_000,
   });
 

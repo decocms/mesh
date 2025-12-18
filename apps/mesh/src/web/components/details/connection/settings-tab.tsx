@@ -99,7 +99,7 @@ function useMcpConfiguration(connectionId: string) {
     toolCaller,
     toolName: "MCP_CONFIGURATION",
     toolInputParams: {},
-    connectionId,
+    scope: connectionId,
   });
 
   const stateSchema = configResult.stateSchema ?? {

@@ -54,11 +54,9 @@ export const KEYS = {
     [connectionId, "collections", "discovery"] as const,
 
   // Tool call results (generic caching for MCP tool calls)
-  // connectionId is optional - if provided, scopes the cache to that connection
-  toolCall: (toolName: string, paramsKey: string, connectionId?: string) =>
-    connectionId
-      ? (["tool-call", connectionId, toolName, paramsKey] as const)
-      : (["tool-call", toolName, paramsKey] as const),
+  // scope is required - scopes the cache (connectionId for connection-scoped, locator for org/project-scoped)
+  toolCall: (scope: string, toolName: string, paramsKey: string) =>
+    ["tool-call", scope, toolName, paramsKey] as const,
 
   // Collection items (scoped by connection and collection name)
   collectionItems: (connectionId: string, collectionName: string) =>

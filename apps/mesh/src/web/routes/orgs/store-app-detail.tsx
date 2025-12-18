@@ -253,7 +253,7 @@ function StoreAppDetailContent() {
     toolCaller,
     toolName: toolName,
     toolInputParams: toolInputParams,
-    connectionId: effectiveRegistryId,
+    scope: effectiveRegistryId,
   });
 
   // Extract items and totalCount from results
