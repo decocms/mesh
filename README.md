@@ -1,84 +1,89 @@
-<img alt="deco CMS" src="https://github.com/user-attachments/assets/d3e36c98-4609-46d3-b39f-7ee1c6d77432" />
+<img alt="MCP Mesh" src="https://github.com/user-attachments/assets/d3e36c98-4609-46d3-b39f-7ee1c6d77432" />
 
-<h1 align="center">DecoCMS: The Context Management System</h1>
-
+<h1 align="center">MCP Mesh</h1>
 
 <p align="center">
 <em>MCP-native · TypeScript-first · Deploy anywhere</em><br/><br/>
-<b>Declare and Compose MCPs for your AI Agents and Workflows.</b><br/>
+<b>One secure endpoint for every MCP server.</b>
 </p>
 
 <p align="center">
-<a href="https://docs.deco.page">📘 Docs</a> ·
+<a href="https://docs.deco.page/">📘 Docs</a> ·
 <a href="https://decocms.com/discord">💬 Discord</a> ·
-<a href="https://decocms.com">🌐 decocms.com</a>
+<a href="https://decocms.com/mesh">🌐 decocms.com/mesh</a>
 </p>
 
 > **TL;DR:**
-> - Centralize your company context in a private MCP mesh.<br />
-> - Generate full-stack TypeScript AI Apps and publish them as internal MCPs.<br />
-> - Have full control over usage, costs, monitoring and sharing. <br/>
-
-## 🚀 What is a Context Management System?
-
-**DecoCMS** is an open‑source Context Management System — the **MCP Mesh** for AI. It centralizes MCP connections, tools, data access, and policies to aggregate organization‑wide context in one secure place. Compose and expose virtual MCPs ("AI Apps") for any client (Claude Desktop, VS Code, custom UIs) with governance, observability, and cost control.
-
-> Think **Lovable + n8n + LangGraph**, running on your AWS/GCP with a single deploy command.  
-> Full-stack AI, production-ready.
+> - Route all MCP traffic through a single governed endpoint
+> - Enforce RBAC, policies, and audit trails at the control plane
+> - Full observability with OpenTelemetry — traces, costs, errors
+> - Self-host with Docker, Bun, or run locally
 
 ---
 
-## ✨ Why DecoCMS?
+## What is MCP Mesh?
 
-AI teams are stuck between low-code prototypes and enterprise production chaos.  
-Backends live in n8n or LangGraph. Frontends in Lovable or React.  
-Deployments are separate. Auth is inconsistent. Costs spiral. Debugging is guesswork.
+**MCP Mesh** is an open-source control plane for MCP traffic. It sits between your MCP clients (Cursor, Claude, VS Code, custom agents) and your MCP servers, providing a unified layer for auth, policy, and observability.
 
-**DecoCMS fixes that:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         MCP Clients                             │
+│         Cursor · Claude · VS Code · Custom Agents               │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         MCP MESH                                │
+│       Gateway · Policy Engine · Observability · Token Vault     │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       MCP Servers                               │
+│      Salesforce · Slack · GitHub · Postgres · Your APIs         │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-- 🧠 **MCP-native** — Compose Model Context Protocol servers with built-in policy, auth, and observability.
-- ⚙️ **Full-stack in TypeScript** — Agents, workflows, and UIs share the same repo and types.
-- 🌍 **Deploy anywhere** — Cloudflare Workers, AWS, or local Bun/Deno runtimes.
-- 🔐 **Governance built-in** — RBAC, audit trails, and spend caps from day one.
-- 🔭 **Unified observability** — Trace UI clicks → agent calls → model responses.
-- 🧩 **Open & modular** — Install integrations, MCP tools, or full-stack modules from the Deco marketplace.
-
----
-
-## 🧭 Architecture at a Glance
-
-- MCP Mesh (kernel): 
-  - Compose and secure MCPs across your org; 
-  - Connect and proxy external MCPs with secure tokens; 
-  - Expose governed Virtual MCPs ("AI Apps") to any MCP client;
-  - Enforce auth/RBAC/audit/FinOps; 
-  - Get full observability.
-- AI App Framework (Virtual MCPs in the Mesh): 
-  - Build AI‑native web software (admin, workflows, custom views) that calls Tools; 
-  - Fullstack, From database to UI with React 19 + Tailwind v4;
-  - Generative Admin interface: _decopilot_ helps you write the PRD and implement.
+Stop wiring every client to every MCP. Stop rebuilding auth for every agent.
 
 ---
 
-## 🕸️ The MCP Mesh
+## Quick Start
 
-The **MCP Mesh** is the backbone of Deco — a distributed runtime that manages context, connections, and observability for every agent in your system.
+```bash
+# Clone and install
+git clone https://github.com/decocms/mesh.git
+cd mesh
+bun install
 
-> Declare and compose context — aggregate connections, authorize access, and compose tools into governed, reusable capabilities.
+# Run locally
+bun run dev
+```
 
-**Core capabilities**
+→ runs at [http://localhost:4000](http://localhost:4000) (client) + API server
+
+Or use `npm create deco` to scaffold a new project with the CLI.
+
+---
+
+## Core Capabilities
 
 | Layer | Description |
-|-------|--------------|
-| 🧩 **MeshContext** | Unified runtime interface providing auth, storage, observability, and policy control. |
-| ⚙️ **defineTool()** | Declarative API for typed, auditable, observable MCP tools. |
-| 🧱 **AccessControl** | Fine-grained RBAC via Better Auth — OAuth 2.1 + API keys per workspace/project. |
-| 📊 **OpenTelemetry** | Full tracing and metrics for tools, workflows, and UI interactions. |
-| 💾 **Storage Adapters** | Kysely ORM → SQLite / Postgres, easily swapped. |
-| ☁️ **Proxy Layer** | Secure bridge to remote MCP servers with token vault + OAuth. |
-| 🧰 **Virtual MCPs** | Compose and expose governed toolsets as new MCP servers ("AI Apps"). |
+|-------|-------------|
+| 🧩 **MeshContext** | Unified runtime interface providing auth, storage, observability, and policy control |
+| ⚙️ **defineTool()** | Declarative API for typed, auditable, observable MCP tools |
+| 🧱 **AccessControl** | Fine-grained RBAC via Better Auth — OAuth 2.1 + API keys per workspace/project |
+| 📊 **OpenTelemetry** | Full tracing and metrics for tools, workflows, and UI interactions |
+| 💾 **Storage Adapters** | Kysely ORM → SQLite / Postgres, easily swapped |
+| ☁️ **Proxy Layer** | Secure bridge to remote MCP servers with token vault + OAuth |
+| 🧰 **Virtual MCPs** | Compose and expose governed toolsets as new MCP servers |
+| 📬 **Event Bus** | Pub/sub between connections with scheduled/cron delivery and at-least-once guarantees |
 
-_On the hosted platform, usage is metered by MCP calls._
+---
+
+## Define Tools
+
+Tools are first-class citizens. Type-safe, audited, observable, and callable via MCP.
 
 ```ts
 import { z } from "zod";
@@ -109,179 +114,183 @@ export const CONNECTION_CREATE = defineTool({
     return { id: conn.id, scope: conn.projectId ? "project" : "workspace" };
   },
 });
-````
-
-✅ **Type-safe**<br/>
-✅ **Audited**<br/>
-✅ **Observable**<br/>
-✅ **Callable via MCP**<br/>
-
----
-
-## 🧱 Core Architecture
-*(Mesh)*
-
-```
-apps/mesh/
-├── api/               # Hono HTTP + MCP proxy
-├── core/              # MeshContext, AccessControl, defineTool
-├── tools/             # Built-in MCP management tools
-├── storage/           # Kysely DB adapters
-├── auth/              # Better Auth (OAuth + API keys)
-├── observability/     # OpenTelemetry tracing & metrics
-└── encryption/        # Token vault & credential management
 ```
 
-**Built for scale** — runs thousands of concurrent MCP connections with predictable cost and zero vendor lock-in.
+Every tool call gets: type validation, access control checks, audit logging, and OpenTelemetry traces — automatically.
 
 ---
 
-## ⚙️ Developer Workflow
+## Project Structure
 
-1. **Create your project**
-
-   ```bash
-   npm create deco
-   cd my-app
-   npm run dev
-   ```
-
-   → runs locally at [http://localhost:8787](http://localhost:8787)
-
-2. **Build your stack**
-
-   * Define tools and workflows in `/server`
-   * Add React + Tailwind UIs in `/view`
-   * Generate typed RPC bindings with `deco gen`
-
-3. **Deploy anywhere**
-
-   ```bash
-   deco deploy
-   ```
-
-   → edge-deployed via Cloudflare Workers or self-host with Bun/Deno.
-
----
-
-## 🧩 Feature Highlights
-
-* 🧠 **Model Context Protocol (MCP)** — Connect AI models to data/tools through governed context.
-* 🪄 **Durable Workflows** — Orchestrate long-running tasks with access to any MCP.
-* 🪶 **Unified TypeScript Stack** — One runtime for backend + frontend with typed RPC.
-* 🔒 **Governance & FinOps** — Auth, RBAC, audit, spend caps, and policy enforcement.
-* 🔭 **Observability by Design** — Logs, traces, and cost per step; debug entire flows visually.
-* ⚡ **Edge-native Deployments** — Ultra-low-latency global infra via Cloudflare.
-* 🧰 **Deco MCP Store** — Reuse full-stack modules: agents + workflows + UIs.
-* 🧬 **Extensible Runtime** — Add your own adapters, schemas, and MCP connectors.
+```
+├── apps/
+│   ├── mesh/                # Full-stack MCP Mesh (Hono API + Vite/React)
+│   │   ├── src/
+│   │   │   ├── api/         # Hono HTTP + MCP proxy routes
+│   │   │   ├── auth/        # Better Auth (OAuth + API keys)
+│   │   │   ├── core/        # MeshContext, AccessControl, defineTool
+│   │   │   ├── tools/       # Built-in MCP management tools
+│   │   │   ├── storage/     # Kysely DB adapters
+│   │   │   ├── event-bus/   # Pub/sub event delivery system
+│   │   │   ├── encryption/  # Token vault & credential management
+│   │   │   ├── observability/  # OpenTelemetry tracing & metrics
+│   │   │   └── web/         # React 19 admin UI
+│   │   └── migrations/      # Kysely database migrations
+│   └── docs/                # Astro documentation site
+│
+└── packages/
+    ├── bindings/            # Core MCP bindings and connection abstractions
+    ├── runtime/             # MCP proxy, OAuth, and runtime utilities
+    ├── ui/                  # Shared React components (shadcn-based)
+    ├── cli/                 # CLI tooling (deco commands)
+    ├── create-deco/         # Project scaffolding (npm create deco)
+    └── vite-plugin-deco/    # Vite plugin for Deco projects
+```
 
 ---
 
-## 🧱 AI App Framework
+## Development
 
-Build AI‑native web software on top of the Mesh:
+```bash
+# Install dependencies
+bun install
 
-- React 19 + Tailwind v4 + shadcn components; design‑system powered Views.
-- callTool() to invoke governed Mesh tools with types and policies applied.
-- Admin, dashboards, and workflow UIs that run anywhere (edge/self‑host).
+# Run dev server (client + API)
+bun run dev
 
-## 🧩 Comparison
+# Run tests
+bun test
+
+# Type check
+bun run check
+
+# Lint
+bun run lint
+
+# Format
+bun run fmt
+```
+
+### Mesh-specific commands (from `apps/mesh/`)
+
+```bash
+bun run dev:client     # Vite dev server (port 4000)
+bun run dev:server     # Hono server with hot reload
+bun run migrate        # Run database migrations
+```
+
+---
+
+## Deploy Anywhere
+
+```bash
+# Docker Compose (SQLite)
+docker compose -f deploy/docker-compose.yml up
+
+# Docker Compose (PostgreSQL)
+docker compose -f deploy/docker-compose.postgres.yml up
+
+# Self-host with Bun
+bun run build:client && bun run build:server
+bun run start
+
+# Kubernetes
+kubectl apply -f k8s/
+```
+
+Runs on any infrastructure — Docker, Kubernetes, AWS, GCP, or local Bun/Node runtimes. No vendor lock-in.
+
+---
+
+## Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Runtime | Bun / Node |
+| Language | TypeScript + Zod |
+| Framework | Hono (API) + Vite + React 19 |
+| Database | Kysely → SQLite / PostgreSQL |
+| Auth | Better Auth (OAuth 2.1 + API keys) |
+| Observability | OpenTelemetry |
+| UI | React 19 + Tailwind v4 + shadcn |
+| Protocol | Model Context Protocol (MCP) |
+
+---
+
+## Comparison
 
 ### vs Mastra
 
-|               | **Mastra**                                | **DecoCMS**                                                       |
-| ------------- | ----------------------------------------- | ----------------------------------------------------------------- |
-| Category      | TypeScript agent/workflow framework       | Full-stack MCP runtime + admin for AI apps                        |
-| Focus         | Build agent primitives, RAG, workflows    | Ship governed agents, workflows, and UIs with RBAC, audit, FinOps |
-| Protocol      | Model/provider-agnostic (LLMs, tools)     | MCP‑native runtime + proxy + policy                               |
-| UI            | Code-first (framework)                    | React/Tailwind admin shell, marketplace, settings                 |
-| Observability | Tracing/evals at framework level          | End‑to‑end traces UI → tools → models + spend analytics           |
-| Deployment    | Node.js / serverless                      | Edge‑native (Cloudflare) + self‑host (Bun/Deno/AWS/GCP)           |
-
+| | **Mastra** | **MCP Mesh** |
+|---|---|---|
+| Category | TypeScript agent/workflow framework | MCP control plane + runtime |
+| Focus | Build agent primitives, RAG, workflows | Route, govern, and observe MCP traffic |
+| Protocol | Model/provider-agnostic | MCP-native |
+| Auth | Framework-level | OAuth 2.1 + RBAC + API keys |
+| Observability | Tracing/evals at framework level | End-to-end OpenTelemetry |
+| Deployment | Node.js / serverless | Docker / Bun / Self-host |
 
 ### vs Metorial
 
-|               | **Metorial**       | **DecoCMS**                     |
-| ------------- | ------------------ | ------------------------------- |
-| Focus         | Connect AI to APIs | Build full-stack AI apps        |
-| Language      | Go + TS            | 100 % TypeScript                |
-| Infra         | Docker             | Edge / Cloudflare / Self-host   |
-| Protocol      | MCP clients        | MCP-native runtime + admin      |
-| Auth          | API keys           | OAuth 2.1 + RBAC + spend caps   |
-| Observability | Dashboard          | Full OpenTelemetry              |
-| UI            | Separate           | Shared React/Tailwind workspace |
-| Goal          | Integrate          | Deploy governed AI apps fast    |
-
-### vs Refine
-
-|               | **Refine**                    | **DecoCMS**                               |
-| ------------- | ----------------------------- | ----------------------------------------- |
-| Category      | React meta-framework for CRUD | Full-stack framework for AI apps          |
-| Focus         | Admin panels & dashboards     | Agents + Workflows + UIs                  |
-| Architecture  | Headless UI                   | Unified backend + frontend runtime        |
-| Protocol      | HTTP / REST                   | Model Context Protocol (MCP)              |
-| Stack         | React + Data Providers        | TypeScript runtime + MCP Mesh             |
-| Auth          | Basic auth / ACL              | Better Auth (OAuth 2.1 + API keys + RBAC) |
-| Observability | Minimal                       | OpenTelemetry tracing + cost analytics    |
-| Deployment    | Any React env                 | Cloudflare edge + self-host               |
-| Use case      | CRUD apps / admin dashboards  | Agentic systems / governed AI apps        |
-
-> 🧭 If you’re building internal dashboards with CRUD, use Refine.
-> If you’re building production-scale AI apps with agents, workflows, custom UIs, and governance — use DecoCMS.
+| | **Metorial** | **MCP Mesh** |
+|---|---|---|
+| Focus | Connect AI to APIs | Control plane for MCP traffic |
+| Language | Go + TS | 100% TypeScript |
+| Infra | Docker | Docker / Bun / Self-host |
+| Auth | API keys | OAuth 2.1 + RBAC + spend caps |
+| Observability | Dashboard | Full OpenTelemetry |
 
 ---
 
-## 🧠 Tech Stack
+## Roadmap
 
-| Layer         | Tech                                      |
-| ------------- | ----------------------------------------- |
-| Runtime       | Cloudflare Workers / Bun / Node / Deno    |
-| Language      | TypeScript (React 19 + Tailwind v4 + Zod) |
-| Framework     | Hono + Mastra + Vite                      |
-| Database      | Kysely → SQLite / Postgres                |
-| Auth          | Better Auth (OAuth 2.1 + API keys)        |
-| Observability | OpenTelemetry + Datadog / Cloudflare Logs |
-| Protocol      | Model Context Protocol (MCP)              |
+- [ ] Multi-tenant admin dashboard
+- [ ] Runtime strategies (smart routing, code execution)
+- [ ] MCP bindings (swap providers without rewrites)
+- [ ] Edge debugger / live tracing
+- [ ] Cost analytics and spend caps
+- [ ] MCP Store — discover and install pre-built MCP apps
 
 ---
 
-## 🪪 License & Partners
+## Part of decoCMS
 
-DecoCMS ships with a Sustainable Use License (SUL). Read the full terms in [LICENSE.md](./LICENSE.md).
+MCP Mesh is the core infrastructure layer of [decoCMS](https://decocms.com).
 
-### For Partners (Service Providers, Software Houses, SIs, Digital Agencies)
-
-- Free to self‑host and use to deliver client projects, as long as each deployment is for the client’s internal use (see SUL §3.3).
-- Build, implement, and charge for your services — go make money, no questions asked.
-- Keep your workspace private — bring your own models and data.
-
-**Do you implement Agentic Software?** We have customers for you. [Email us](mailto:builders@decocms.com).
-
-### For Enterprises (Mission‑Critical or Revenue‑Generating)
-
-- These cases require a commercial self‑hosted Enterprise license per the SUL.
-- We help you deploy at scale in your cloud (AWS or GCP), with governance, observability, and performance tuned for large workloads.
-- Get production support and reliability.
-
-Questions? Contact us at [contact@decocms.com](mailto:contact@decocms.com) or visit [decocms.com](https://decocms.com).
+| Layer | What it does |
+|-------|--------------|
+| **MCP Mesh** | Connect, govern, and observe MCP traffic |
+| **MCP Studio** | Build MCP capabilities (no-code admin + SDK) |
+| **MCP Store** | Discover and install pre-built MCP apps |
 
 ---
 
-## 🤝 Contributing
+## License
 
-We welcome contributions from vibecoders, agentic engineers, and builders of the next internet.
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for setup, coding standards, and roadmap.
+MCP Mesh ships with a **Sustainable Use License (SUL)**. See [LICENSE.md](./LICENSE.md).
 
-> 🧭 Upcoming milestones
->
-> * Multi-tenant admin dashboard
-> * MCP store
-> * Edge debugger / live tracing
-> * Native view components as tools
+- ✅ Free to self-host for internal use
+- ✅ Free for client projects (agencies, consultancies, SIs)
+- ⚠️ Commercial license required for SaaS or revenue-generating production systems
+
+Questions? [contact@decocms.com](mailto:contact@decocms.com)
+
+---
+
+## Contributing
+
+We welcome contributions! Run the following before submitting a PR:
+
+```bash
+bun run fmt      # Format code
+bun run lint     # Check linting
+bun test         # Run tests
+```
+
+See `AGENTS.md` for detailed coding guidelines and conventions.
 
 ---
 
 <div align="center">
-  <sub>Made with ❤️ by the <a href="https://decocms.com">deco</a> community.<br/>
-  Building the open-source operating system for AI-native apps — secure, scalable, and governed by context.</sub>
+  <sub>Made with ❤️ by the <a href="https://decocms.com">deco</a> community</sub>
 </div>
