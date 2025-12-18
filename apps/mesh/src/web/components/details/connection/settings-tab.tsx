@@ -380,7 +380,7 @@ function BindingSelector({
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to install connection: ${message}`);
+        toast.error(`Failed to connect MCP: ${message}`);
       } finally {
         setIsLocalInstalling(false);
       }

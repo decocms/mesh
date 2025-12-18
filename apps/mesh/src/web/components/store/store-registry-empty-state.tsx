@@ -28,7 +28,7 @@ export function StoreRegistryEmptyState({
         />
       }
       title="Connect to a store"
-      description="Choose a registry to discover and install MCPs from the community."
+      description="Choose a registry to discover and connect MCPs from the community."
       descriptionClassName="max-w-[500px]"
       actionsClassName="w-full max-w-2xl"
       actions={
