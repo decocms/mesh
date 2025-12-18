@@ -82,7 +82,7 @@ export const COLLECTION_GATEWAY_CREATE = defineTool({
         created_at: gateway.createdAt as string,
         updated_at: gateway.updatedAt as string,
         created_by: gateway.createdBy,
-        updated_by: gateway.updatedBy,
+        updated_by: gateway.updatedBy ?? undefined,
       },
     };
   },

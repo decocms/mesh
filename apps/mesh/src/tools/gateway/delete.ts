@@ -66,7 +66,7 @@ export const COLLECTION_GATEWAY_DELETE = defineTool({
         created_at: existing.createdAt as string,
         updated_at: existing.updatedAt as string,
         created_by: existing.createdBy,
-        updated_by: existing.updatedBy,
+        updated_by: existing.updatedBy ?? undefined,
       },
     };
   },

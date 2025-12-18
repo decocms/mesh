@@ -52,7 +52,7 @@ export const GatewayEntitySchema = z.object({
   created_by: z.string().describe("User ID who created the gateway"),
   updated_by: z
     .string()
-    .nullable()
+    .optional()
     .describe("User ID who last updated the gateway"),
 
   // Gateway-specific fields

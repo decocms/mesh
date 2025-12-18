@@ -1,7 +1,6 @@
 import { createToolCaller } from "@/tools/client";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { ConnectionEntitySchema } from "@/tools/connection/schema";
-import { AddToCursorButton } from "@/web/components/add-to-cursor-button.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -974,44 +973,7 @@ function ConnectionSettingsFormUI({
           </span>
         </div>
       </div>
-      <CursorIDEIntegration connection={connection} />
     </Form>
-  );
-}
-
-function CursorIDEIntegration({
-  connection,
-}: {
-  connection: ConnectionEntity;
-}) {
-  // Generate MCP config for Cursor - uses Mesh proxy URL
-  // Get the base URL (current window origin)
-  const baseUrl = window.location.origin;
-
-  // Build the Mesh proxy URL: {baseUrl}/mcp/{connectionId}
-  const proxyUrl = `${baseUrl}/mcp/${connection.id}`;
-
-  const mcpConfig = {
-    url: proxyUrl,
-  };
-
-  return (
-    <div className="space-y-4 p-5">
-      <div>
-        <h4 className="text-sm font-medium text-foreground mb-1">
-          Install in Cursor IDE
-        </h4>
-        <p className="text-sm text-muted-foreground">
-          Add this MCP Server to Cursor via the Mesh HTTP proxy. Authentication
-          and permissions are handled automatically through Mesh.
-        </p>
-      </div>
-      <AddToCursorButton
-        serverName={connection.title || `mcp-${connection.id.slice(0, 8)}`}
-        config={mcpConfig}
-        variant="default"
-      />
-    </div>
   );
 }
 

@@ -1,0 +1,588 @@
+import type { GatewayEntity } from "@/tools/gateway/schema";
+import { EmptyState } from "@/web/components/empty-state.tsx";
+import { ErrorBoundary } from "@/web/components/error-boundary";
+import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
+import {
+  useGateway,
+  useGatewayActions,
+} from "@/web/hooks/collections/use-gateway";
+import { useConnections } from "@/web/hooks/collections/use-connection";
+import { Button } from "@deco/ui/components/button.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
+import { Badge } from "@deco/ui/components/badge.tsx";
+import { Switch } from "@deco/ui/components/switch.tsx";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@deco/ui/components/form.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useNavigate, useParams, useRouter } from "@tanstack/react-router";
+import { Suspense, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { ViewLayout, ViewActions } from "../layout";
+
+/**
+ * Unicode-safe base64 encoding for browser environments
+ */
+function utf8ToBase64(str: string): string {
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(str);
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
+  return btoa(binary);
+}
+
+interface IDEIntegrationProps {
+  serverName: string;
+  gatewayUrl: string;
+}
+
+function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
+
+  const mcpConfig = { url: gatewayUrl };
+
+  // Generate Cursor deeplink
+  const cursorDeeplink = (() => {
+    const configJson = JSON.stringify(mcpConfig);
+    const base64Config = utf8ToBase64(configJson);
+    return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
+  })();
+
+  // Generate Windsurf deeplink (similar to Cursor)
+  const windsurfDeeplink = (() => {
+    const configJson = JSON.stringify(mcpConfig);
+    const base64Config = utf8ToBase64(configJson);
+    return `windsurf://codeium.windsurf/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
+  })();
+
+  // Claude Code CLI command
+  const claudeCommand = `claude mcp add ${serverName} --url "${gatewayUrl}"`;
+
+  const handleCopyUrl = async () => {
+    await navigator.clipboard.writeText(gatewayUrl);
+    setCopiedUrl(true);
+    toast.success("URL copied to clipboard");
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  const handleCopyCommand = async (command: string, label: string) => {
+    await navigator.clipboard.writeText(command);
+    setCopiedCommand(label);
+    toast.success(`${label} command copied`);
+    setTimeout(() => setCopiedCommand(null), 2000);
+  };
+
+  const handleOpenDeeplink = (url: string) => {
+    window.open(url, "_blank");
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h4 className="text-sm font-medium text-foreground mb-1">
+          Install in your IDE
+        </h4>
+        <p className="text-sm text-muted-foreground">
+          Add this gateway to your IDE. All configured connections and tools
+          will be available through a single MCP endpoint.
+        </p>
+      </div>
+
+      {/* Gateway URL with copy button */}
+      <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+        <code className="flex-1 text-xs font-mono text-foreground truncate">
+          {gatewayUrl}
+        </code>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 shrink-0"
+                onClick={handleCopyUrl}
+              >
+                <Icon name={copiedUrl ? "check" : "content_copy"} size={16} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Copy URL</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
+      {/* IDE buttons grid */}
+      <div className="grid grid-cols-2 gap-2">
+        {/* Cursor */}
+        <Button
+          variant="outline"
+          className="h-auto py-3 px-4 justify-start gap-3"
+          onClick={() => handleOpenDeeplink(cursorDeeplink)}
+        >
+          <img src="/logos/cursor.svg" alt="Cursor" className="h-5 w-5" />
+          <span className="text-sm font-medium">Cursor</span>
+        </Button>
+
+        {/* Claude Code */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-auto py-3 px-4 justify-start gap-3"
+                onClick={() => handleCopyCommand(claudeCommand, "Claude")}
+              >
+                <Icon name="terminal" size={20} className="text-muted-foreground" />
+                <span className="text-sm font-medium">Claude Code</span>
+                {copiedCommand === "Claude" && (
+                  <Icon name="check" size={14} className="ml-auto text-green-500" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              <p className="text-xs">Copies CLI command:</p>
+              <code className="text-xs block mt-1 break-all">{claudeCommand}</code>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        {/* Windsurf */}
+        <Button
+          variant="outline"
+          className="h-auto py-3 px-4 justify-start gap-3"
+          onClick={() => handleOpenDeeplink(windsurfDeeplink)}
+        >
+          <Icon name="air" size={20} className="text-muted-foreground" />
+          <span className="text-sm font-medium">Windsurf</span>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Form validation schema
+const gatewayFormSchema = z.object({
+  title: z.string().min(1, "Name is required").max(255),
+  description: z.string().nullable(),
+  status: z.enum(["active", "inactive"]),
+  mode: z.enum(["deduplicate", "prefix_all", "custom"]),
+});
+
+type GatewayFormData = z.infer<typeof gatewayFormSchema>;
+
+/**
+ * Convert gateway connections to ToolSetSelector format.
+ * When selected_tools is null, it means "all tools" - we need to expand this
+ * using the actual connection's tools.
+ */
+function gatewayToToolSet(
+  gateway: GatewayEntity,
+  connectionToolsMap: Map<string, string[]>,
+): Record<string, string[]> {
+  const toolSet: Record<string, string[]> = {};
+
+  for (const conn of gateway.connections) {
+    if (conn.selected_tools === null) {
+      // null means all tools - get from connection
+      const allTools = connectionToolsMap.get(conn.connection_id) ?? [];
+      if (allTools.length > 0) {
+        toolSet[conn.connection_id] = allTools;
+      }
+    } else if (conn.selected_tools.length > 0) {
+      toolSet[conn.connection_id] = conn.selected_tools;
+    }
+  }
+
+  return toolSet;
+}
+
+/**
+ * Convert ToolSetSelector format back to gateway connections format.
+ * When all tools for a connection are selected, we store null (meaning "all").
+ */
+function toolSetToGatewayConnections(
+  toolSet: Record<string, string[]>,
+  connectionToolsMap: Map<string, string[]>,
+): Array<{ connection_id: string; selected_tools: string[] | null }> {
+  return Object.entries(toolSet).map(([connectionId, selectedTools]) => {
+    const allTools = connectionToolsMap.get(connectionId) ?? [];
+    
+    // If all tools are selected, store null (meaning "all")
+    const hasAllTools =
+      allTools.length > 0 &&
+      allTools.every((tool) => selectedTools.includes(tool));
+    
+    return {
+      connection_id: connectionId,
+      selected_tools: hasAllTools ? null : selectedTools,
+    };
+  });
+}
+
+function GatewaySettingsForm({
+  form,
+  gateway,
+}: {
+  form: ReturnType<typeof useForm<GatewayFormData>>;
+  gateway: GatewayEntity;
+}) {
+  // Generate gateway URL for IDE integrations
+  const baseUrl = window.location.origin;
+  const gatewayUrl = `${baseUrl}/mcp/gateway/${gateway.id}`;
+
+  return (
+    <Form {...form}>
+      <div className="flex flex-col h-full">
+        {/* Header section - Title, Description */}
+        <div className="flex flex-col gap-4 p-5 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Icon name="hub" size={24} className="text-primary" />
+            </div>
+            <Badge variant={gateway.status === "active" ? "default" : "outline"}>
+              {gateway.status}
+            </Badge>
+          </div>
+          
+          <div className="flex flex-col">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem className="w-full space-y-0">
+                  <FormControl>
+                    <Input
+                      {...field}
+                      className="h-auto text-xl font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                      placeholder="Gateway Name"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem className="w-full space-y-0">
+                  <FormControl>
+                    <Input
+                      {...field}
+                      value={field.value || ""}
+                      className="h-auto text-base text-muted-foreground leading-6 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                      placeholder="Add a description..."
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </div>
+
+        {/* Settings section */}
+        <div className="flex flex-col gap-4 p-5 border-b border-border">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between gap-3">
+                    <FormLabel>Status</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormControl>
+                        <Switch
+                          checked={field.value === "active"}
+                          onCheckedChange={(checked) =>
+                            field.onChange(checked ? "active" : "inactive")
+                          }
+                        />
+                      </FormControl>
+                      <span className="text-sm text-muted-foreground">
+                        {field.value === "active" ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="mode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Mode</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="deduplicate">Deduplicate</SelectItem>
+                      <SelectItem value="prefix_all">Prefix All</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            <strong>Deduplicate:</strong> Keep first occurrence of each tool name.
+            <br />
+            <strong>Prefix All:</strong> Prefix all tools with connection ID.
+            <br />
+            <strong>Custom:</strong> Smart prefixing for conflicting names only.
+          </div>
+        </div>
+
+        {/* Connections summary */}
+        <div className="flex flex-col gap-2 p-5 border-b border-border">
+          <div className="text-sm font-medium text-foreground">
+            Connections & Tools
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {gateway.connections.length} connection{gateway.connections.length !== 1 ? "s" : ""} configured.
+            Use the panel on the right to select which tools to expose.
+          </div>
+        </div>
+
+        {/* IDE Integration section */}
+        <div className="p-5">
+          <IDEIntegration
+            serverName={gateway.title || `gateway-${gateway.id.slice(0, 8)}`}
+            gatewayUrl={gatewayUrl}
+          />
+        </div>
+      </div>
+    </Form>
+  );
+}
+
+function GatewayInspectorViewWithGateway({
+  gateway,
+  gatewayId,
+}: {
+  gateway: GatewayEntity;
+  gatewayId: string;
+}) {
+  const router = useRouter();
+  const actions = useGatewayActions();
+  
+  // Fetch all connections to get tool names for "all tools" expansion
+  const connections = useConnections({});
+  
+  // Build a map of connectionId -> all tool names
+  const connectionToolsMap = new Map<string, string[]>();
+  for (const conn of connections) {
+    if (conn.tools && conn.tools.length > 0) {
+      connectionToolsMap.set(
+        conn.id,
+        conn.tools.map((t: { name: string }) => t.name),
+      );
+    }
+  }
+  
+  // Initialize toolSet from gateway connections
+  const [toolSet, setToolSet] = useState<Record<string, string[]>>(() =>
+    gatewayToToolSet(gateway, connectionToolsMap),
+  );
+  
+  // Track if toolSet has changed
+  const [toolSetDirty, setToolSetDirty] = useState(false);
+  
+  const handleToolSetChange = (newToolSet: Record<string, string[]>) => {
+    setToolSet(newToolSet);
+    setToolSetDirty(true);
+  };
+
+  // Form setup
+  const form = useForm<GatewayFormData>({
+    resolver: zodResolver(gatewayFormSchema),
+    defaultValues: {
+      title: gateway.title,
+      description: gateway.description,
+      status: gateway.status,
+      mode: gateway.mode.type,
+    },
+  });
+
+  const hasFormChanges = form.formState.isDirty;
+  const hasAnyChanges = hasFormChanges || toolSetDirty;
+
+  const handleSave = async () => {
+    const formData = form.getValues();
+    
+    // Convert toolSet back to gateway connections format
+    const newConnections = toolSetToGatewayConnections(toolSet, connectionToolsMap);
+    
+    await actions.update.mutateAsync({
+      id: gatewayId,
+      data: {
+        title: formData.title,
+        description: formData.description,
+        status: formData.status,
+        mode: { type: formData.mode },
+        connections: newConnections,
+      },
+    });
+
+    // Reset dirty states
+    form.reset(formData);
+    setToolSetDirty(false);
+  };
+
+  return (
+    <ViewLayout onBack={() => router.history.back()}>
+      <ViewActions>
+        {hasAnyChanges && (
+          <Button
+            onClick={handleSave}
+            disabled={actions.update.isPending}
+            size="sm"
+          >
+            {actions.update.isPending && (
+              <Icon
+                name="progress_activity"
+                size={16}
+                className="mr-2 animate-spin"
+              />
+            )}
+            Save Changes
+          </Button>
+        )}
+      </ViewActions>
+
+      <div className="flex h-full">
+        {/* Left sidebar - Gateway Settings (2/5) */}
+        <div className="w-2/5 shrink-0 border-r border-border overflow-auto">
+          <GatewaySettingsForm form={form} gateway={gateway} />
+        </div>
+
+        {/* Right panel - Tool Selection (3/5) */}
+        <div className="w-3/5 min-w-0 flex flex-col">
+          <ErrorBoundary>
+            <Suspense
+              fallback={
+                <div className="flex-1 flex items-center justify-center">
+                  <Icon
+                    name="progress_activity"
+                    size={32}
+                    className="animate-spin text-muted-foreground"
+                  />
+                </div>
+              }
+            >
+              <ToolSetSelector
+                toolSet={toolSet}
+                onToolSetChange={handleToolSetChange}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+      </div>
+    </ViewLayout>
+  );
+}
+
+function GatewayInspectorViewContent() {
+  const navigate = useNavigate({ from: "/$org/gateways/$gatewayId" });
+  const { gatewayId, org } = useParams({
+    from: "/shell/$org/gateways/$gatewayId",
+  });
+
+  const gateway = useGateway(gatewayId);
+
+  if (!gateway) {
+    return (
+      <div className="flex h-full w-full bg-background">
+        <EmptyState
+          title="Gateway not found"
+          description="This gateway may have been deleted or you may not have access."
+          actions={
+            <Button
+              variant="outline"
+              onClick={() =>
+                navigate({
+                  to: "/$org/gateways",
+                  params: { org: org as string },
+                })
+              }
+            >
+              Back to gateways
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  return (
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center bg-background">
+            <Icon
+              name="progress_activity"
+              size={32}
+              className="animate-spin text-muted-foreground"
+            />
+          </div>
+        }
+      >
+        <GatewayInspectorViewWithGateway
+          gateway={gateway}
+          gatewayId={gatewayId}
+        />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+export default function GatewayInspectorView() {
+  return (
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center bg-background">
+            <Icon
+              name="progress_activity"
+              size={32}
+              className="animate-spin text-muted-foreground"
+            />
+          </div>
+        }
+      >
+        <GatewayInspectorViewContent />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+

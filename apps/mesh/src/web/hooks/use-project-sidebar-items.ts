@@ -25,8 +25,14 @@ export function useProjectSidebarItems() {
     {
       key: "mcps",
       label: "MCP Servers",
-      icon: "grid_view",
+      icon: "output",
       onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
+    },
+    {
+      key: "gateways",
+      label: "MCP Gateways",
+      icon: "input",
+      onClick: () => navigate({ to: "/$org/gateways", params: { org } }),
     },
     {
       key: "monitoring",
