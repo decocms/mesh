@@ -8,6 +8,8 @@ import {
   findListToolName,
   flattenPaginatedItems,
 } from "@/web/utils/registry-utils";
+import { buildWhereExpression } from "@/web/hooks/use-collections";
+import { useState, useDeferredValue } from "react";
 
 interface StoreDiscoveryProps {
   registryId: string;
@@ -16,6 +18,11 @@ interface StoreDiscoveryProps {
 const PAGE_SIZE = 80;
 
 export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
+  // Local search term (updates immediately with user input)
+  const [searchTerm, setSearchTerm] = useState("");
+  // Debounced search term (deferred value, updates after user stops typing)
+  const debouncedSearchTerm = useDeferredValue(searchTerm);
+
   const registryConnection = useConnection(registryId);
 
   // Find the LIST tool from the registry connection
@@ -26,18 +33,27 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
 
   const toolCaller = createToolCaller(registryId);
 
+  // Build where expression for search (using DEBOUNCED term)
+  const where = buildWhereExpression<any>(debouncedSearchTerm, undefined, [
+    "name",
+    "title",
+    "description",
+  ]);
+
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useSuspenseInfiniteQuery({
       queryKey: KEYS.toolCall(
         registryId,
         listToolName,
-        JSON.stringify({ limit: PAGE_SIZE }),
+        JSON.stringify({ limit: PAGE_SIZE, search: debouncedSearchTerm }),
       ),
       queryFn: async ({ pageParam }) => {
         // Use cursor if available, otherwise fallback to offset for backward compatibility
-        const params = pageParam
-          ? { cursor: pageParam, limit: PAGE_SIZE }
-          : { limit: PAGE_SIZE };
+        const params = {
+          ...(pageParam && { cursor: pageParam }),
+          limit: PAGE_SIZE,
+          ...(where && { where }),
+        };
         const result = await toolCaller(listToolName, params);
         return result;
       },
@@ -86,6 +102,9 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
     }
   };
 
+  // Check if we're waiting for debounce to complete
+  const isSearchPending = searchTerm !== debouncedSearchTerm;
+
   return (
     <StoreDiscoveryUI
       items={flattenedItems}
@@ -94,6 +113,9 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
       hasMore={hasNextPage ?? false}
       onLoadMore={handleLoadMore}
       totalCount={totalCount}
+      searchTerm={searchTerm}
+      onSearchChange={setSearchTerm}
+      isSearchPending={isSearchPending}
     />
   );
 }
