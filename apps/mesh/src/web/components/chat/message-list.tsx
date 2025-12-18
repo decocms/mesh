@@ -119,7 +119,7 @@ export function MessageList({
                 }
               >
                 {/* Sticky overlay to prevent scrolling content from appearing above the user message */}
-                <div className="sticky top-0 z-50 bg-background w-full h-2"/>
+                <div className="sticky top-0 z-50 bg-background w-full h-2" />
                 <div className="sticky top-2 z-50">
                   {pair.user && isValidElement(pair.user)
                     ? cloneElement(pair.user, { pairIndex: index } as any)
