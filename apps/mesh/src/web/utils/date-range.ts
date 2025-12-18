@@ -20,3 +20,4 @@ export function getLast24HoursDateRange(): {
     endDate: endDate.toISOString(),
   };
 }
+

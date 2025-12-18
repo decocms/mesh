@@ -1,7 +1,7 @@
 import { useChat as useAiChat } from "@ai-sdk/react";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useQueryClient } from "@tanstack/react-query";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import { DefaultChatTransport, type ChatInit, type UIMessage } from "ai";
 import {
   createContext,
   PropsWithChildren,
@@ -136,9 +136,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const transport = createModelsTransport(org.slug);
 
   // Memoize onFinish callback to prevent infinite loops
-  const onFinish = (
-    result: Parameters<Parameters<typeof useAiChat>[0]["onFinish"]>[0],
-  ) => {
+  const onFinish: ChatInit<UIMessage<Metadata>>["onFinish"] = (result) => {
     const { finishReason, messages, isAbort, isDisconnect, isError } = result;
 
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
@@ -184,7 +182,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   };
 
   // Use AI SDK's useChat hook
-  const chat = useAiChat({
+  const chat = useAiChat<UIMessage<Metadata>>({
     id: activeThreadId,
     messages,
     transport,
