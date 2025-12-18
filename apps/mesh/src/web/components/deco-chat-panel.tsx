@@ -6,6 +6,7 @@ import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useChat as useAiChat } from "@ai-sdk/react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { DecoChatAgentSelector } from "@deco/ui/components/deco-chat-agent-selector.tsx";
 import { DecoChatAside } from "@deco/ui/components/deco-chat-aside.tsx";
@@ -15,10 +16,19 @@ import { DecoChatModelSelectorRich } from "@deco/ui/components/deco-chat-model-s
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate } from "@tanstack/react-router";
-import { type UIMessage } from "ai";
+import { DefaultChatTransport, type ChatInit, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  getThreadFromIndexedDB,
+  useMessageActions,
+  useThreadActions,
+  useThreadMessages,
+} from "../hooks/use-chat-store";
+import { useLocalStorage } from "../hooks/use-local-storage";
+import { LOCALSTORAGE_KEYS } from "../lib/localstorage-keys";
 import { useChat } from "../providers/chat-provider";
+import type { Message } from "../types/chat-threads";
 import { MessageAssistant } from "./chat/message-assistant.tsx";
 import { MessageFooter, MessageList } from "./chat/message-list.tsx";
 import { MessageUser } from "./chat/message-user.tsx";
@@ -26,6 +36,22 @@ import { MessageUser } from "./chat/message-user.tsx";
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
   "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
+
+// Create transport for models stream API (stable across model changes)
+const createModelsTransport = (
+  org: string,
+): DefaultChatTransport<UIMessage<Metadata>> =>
+  new DefaultChatTransport<UIMessage<Metadata>>({
+    api: `/api/${org}/models/stream`,
+    credentials: "include",
+    prepareSendMessagesRequest: ({ messages, requestMetadata }) => ({
+      body: {
+        messages,
+        stream: true,
+        ...(requestMetadata as Metadata | undefined),
+      },
+    }),
+  });
 
 function ChatInput({
   onSubmit,
@@ -79,21 +105,92 @@ function ChatInput({
 export function DecoChatPanel() {
   const { data: session } = authClient.useSession();
   const user = session?.user;
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const [, setOpen] = useDecoChatOpen();
   const navigate = useNavigate();
 
-  // Use chat management from ChatProvider
-  const {
-    createThread,
-    chat,
-    sentinelRef,
-    activeThreadId,
-    selectedModelState,
-    setSelectedModelState,
-    selectedAgentState,
-    setSelectedAgentState,
-  } = useChat();
+  // Use thread management from ChatProvider
+  const { createThread, sentinelRef, activeThreadId } = useChat();
+
+  // Get mutation actions for persistence
+  const threadActions = useThreadActions();
+  const messageActions = useMessageActions();
+
+  // Messages for active thread
+  const messages = useThreadMessages(activeThreadId);
+
+  // Persist selected model (including connectionId) per organization in localStorage
+  const [selectedModelState, setSelectedModelState] = useLocalStorage<{
+    id: string;
+    connectionId: string;
+  } | null>(
+    LOCALSTORAGE_KEYS.chatSelectedModel(locator),
+    (existing) => existing ?? null,
+  );
+
+  // Persist selected agent per organization in localStorage
+  const [selectedAgentState, setSelectedAgentState] = useLocalStorage<{
+    agentId: string;
+    connectionId: string;
+  } | null>(`${locator}:selected-agent`, () => null);
+
+  // Create transport (stable, doesn't depend on selected model)
+  const transport = createModelsTransport(org.slug);
+
+  const onFinish: ChatInit<UIMessage<Metadata>>["onFinish"] = async (
+    result,
+  ) => {
+    const { finishReason, messages, isAbort, isDisconnect, isError } = result;
+
+    if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
+      return;
+    }
+
+    // Grab the last 2 messages, one for user another for assistant
+    const newMessages = messages.slice(-2).filter(Boolean) as Message[];
+
+    if (newMessages.length === 2) {
+      // 1. Insert all messages at once (batch insertion)
+      messageActions.insertMany.mutate(newMessages);
+
+      const title =
+        newMessages
+          .find((m) => m.parts?.find((part) => part.type === "text"))
+          ?.parts?.find((part) => part.type === "text")
+          ?.text.slice(0, 100) || "";
+
+      // Check if thread exists in IndexedDB
+      const existingThread = await getThreadFromIndexedDB(
+        locator,
+        activeThreadId,
+      );
+
+      if (!existingThread) {
+        createThread({ id: activeThreadId, title });
+      } else {
+        threadActions.update.mutate({
+          id: activeThreadId,
+          updates: {
+            title: existingThread.title || title,
+            updated_at: new Date().toISOString(),
+          },
+        });
+      }
+    }
+  };
+
+  const onError = (error: Error) => {
+    console.error("[deco-chat] Chat error:", error);
+  };
+
+  // Use AI SDK's useChat hook
+  const chat = useAiChat<UIMessage<Metadata>>({
+    id: activeThreadId,
+    messages,
+    transport,
+    onFinish,
+    onError,
+  });
 
   const { status } = chat;
 
@@ -219,8 +316,11 @@ export function DecoChatPanel() {
     description: agent.description,
   }));
 
-  // Wrapped send message - enriches request with metadata (similar to provider.tsx)
-  const wrappedSendMessage = async (message: UIMessage<Metadata>) => {
+  const handleSendMessage = async (text: string) => {
+    if (!text?.trim() || status === "submitted" || status === "streaming") {
+      return;
+    }
+
     if (!selectedModelState || !selectedModel) {
       // Console error kept for critical missing configuration
       console.error("No model configured");
@@ -229,39 +329,22 @@ export function DecoChatPanel() {
 
     // Prepare metadata with model and agent configuration
     const metadata: Metadata = {
+      created_at: new Date().toISOString(),
+      thread_id: activeThreadId,
       model: selectedModelState ?? undefined,
       agent: selectedAgent ?? undefined,
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
       },
-      created_at: new Date().toISOString(),
-      thread_id: activeThreadId,
     };
 
-    // Set user message's thread_id
-    message.metadata = {
-      ...metadata,
-      thread_id: activeThreadId,
-    };
-
-    return await chat.sendMessage(message, { metadata });
-  };
-
-  const handleSendMessage = async (text: string) => {
-    if (!text?.trim() || status === "submitted" || status === "streaming") {
-      return;
-    }
-
-    // Create and send message with metadata
-    const userMessage: UIMessage<Metadata> = {
+    await chat.sendMessage({
       id: crypto.randomUUID(),
       role: "user",
       parts: [{ type: "text", text }],
-    };
-
-    // Use the wrapped send message function
-    await wrappedSendMessage(userMessage);
+      metadata,
+    });
   };
 
   const handleStop = () => {

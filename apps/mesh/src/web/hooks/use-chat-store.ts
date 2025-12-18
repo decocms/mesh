@@ -33,6 +33,13 @@ function getThreadsFromIndexedDB(locator: string): Promise<Thread[]> {
 /**
  * Get a single thread by ID from IndexedDB
  */
+export async function getThreadFromIndexedDB(
+  locator: string,
+  threadId: string,
+): Promise<Thread | null> {
+  const key = `${locator}:threads:${threadId}`;
+  return (await get<Thread>(key)) ?? null;
+}
 
 /**
  * Get messages for a specific thread from IndexedDB
