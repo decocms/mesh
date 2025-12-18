@@ -374,7 +374,7 @@ function BindingSelector({
       try {
         const result = await installByBinding(bindingType);
         if (result) {
-          // Automatically select the newly installed connection
+          // Automatically select the newly connected MCP
           // The connection will appear in the list via allConnections
           onValueChange(result.id);
         }
