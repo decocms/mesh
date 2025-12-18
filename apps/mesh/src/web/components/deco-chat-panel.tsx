@@ -16,7 +16,7 @@ import { Icon } from "@deco/ui/components/icon.tsx";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate } from "@tanstack/react-router";
 import { type UIMessage } from "ai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useChat } from "../providers/chat-provider";
 import { MessageAssistant } from "./chat/message-assistant.tsx";
@@ -190,16 +190,26 @@ export function DecoChatPanel() {
 
   const isEmpty = chat.messages.length === 0;
 
-  // Auto-scroll to bottom when messages change
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (sentinelRef.current && chat.messages.length > 0) {
-      sentinelRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "end",
-      });
-    }
-  }, [chat.messages, sentinelRef]);
+  // Track the last message count to detect when assistant starts responding
+  const lastMessageCountRef = useRef(chat.messages.length);
+  const lastScrolledCountRef = useRef(0);
+
+  // Scroll when a new message appears (assistant starts responding)
+  if (
+    chat.messages.length > lastMessageCountRef.current &&
+    lastScrolledCountRef.current !== chat.messages.length
+  ) {
+    queueMicrotask(() => {
+      if (sentinelRef.current) {
+        sentinelRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+        lastScrolledCountRef.current = chat.messages.length;
+      }
+    });
+  }
+  lastMessageCountRef.current = chat.messages.length;
 
   // Transform agents to selector options
   const agentSelectorOptions = agents.map((agent) => ({
@@ -390,7 +400,7 @@ export function DecoChatPanel() {
             }
           />
         ) : (
-          <MessageList minHeightOffset={264}>
+          <MessageList minHeightOffset={240}>
             {chat.messages.map((message, index) =>
               message.role === "user" ? (
                 <MessageUser
