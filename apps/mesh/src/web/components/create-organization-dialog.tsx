@@ -20,10 +20,11 @@ import {
 } from "@deco/ui/components/form.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
-import * as z from "zod";
+import { z } from "zod";
 
 // Simple slugify function for client-side use
 function slugify(input: string): string {
@@ -51,60 +52,48 @@ export function CreateOrganizationDialog({
   onOpenChange,
 }: CreateOrganizationDialogProps) {
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, setIsPending] = useState(false);
 
   const form = useForm<CreateOrgFormData>({
-    defaultValues: {
-      name: "",
-    },
-    mode: "onChange",
+    resolver: zodResolver(createOrgSchema),
+    defaultValues: { name: "" },
   });
 
-  // Compute slug from name
-  const nameValue = form.watch("name");
-  const slug = slugify(nameValue || "");
+  const createOrgMutation = useMutation({
+    mutationFn: async (data: CreateOrgFormData) => {
+      const computedSlug = slugify(data.name);
+      if (!computedSlug) {
+        throw new Error("Organization slug is invalid");
+      }
 
-  async function onSubmit(data: CreateOrgFormData) {
-    setError(null);
-    setIsPending(true);
-
-    // Validate with zod
-    const validation = createOrgSchema.safeParse(data);
-    if (!validation.success) {
-      setError(validation.error.issues[0]?.message || "Invalid form data");
-      setIsPending(false);
-      return;
-    }
-
-    try {
       const result = await authClient.organization.create({
         name: data.name,
-        slug,
+        slug: computedSlug,
       });
 
-      if (result?.data?.slug) {
-        const orgSlug = result.data.slug;
+      if (result?.error) {
+        throw new Error(
+          result.error.message || "Failed to create organization",
+        );
+      }
 
-        // Navigate to the new organization
-        navigate({ to: "/$org", params: { org: orgSlug } });
-        onOpenChange(false);
-        form.reset();
-      } else {
+      const orgSlug = result?.data?.slug ?? computedSlug;
+      if (!orgSlug) {
         throw new Error("Failed to create organization");
       }
-    } catch (err) {
-      setError(
-        typeof err === "string"
-          ? err
-          : err instanceof Error
-            ? err.message
-            : "Failed to create organization.",
-      );
-    } finally {
-      setIsPending(false);
-    }
-  }
+
+      return { orgSlug };
+    },
+    onSuccess: ({ orgSlug }) => {
+      navigate({ to: "/$org", params: { org: orgSlug } });
+    },
+  });
+
+  const errorMessage =
+    createOrgMutation.error instanceof Error
+      ? createOrgMutation.error.message
+      : createOrgMutation.error
+        ? "Failed to create organization."
+        : null;
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -118,7 +107,9 @@ export function CreateOrganizationDialog({
         <Form {...form}>
           <form
             className="space-y-6"
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={form.handleSubmit((data) =>
+              createOrgMutation.mutateAsync(data),
+            )}
             autoComplete="off"
           >
             <FormField
@@ -131,21 +122,21 @@ export function CreateOrganizationDialog({
                     <Input
                       {...field}
                       placeholder="Acme Inc."
-                      disabled={isPending}
+                      disabled={form.formState.isSubmitting}
                     />
                   </FormControl>
                   <FormDescription>
                     The name of your company or organization
                   </FormDescription>
                   {/* Slug preview */}
-                  {slug && (
+                  {field.value && (
                     <div className="text-xs text-muted-foreground mt-1">
                       Organization URL:{" "}
                       <span className="font-mono">
                         {typeof window !== "undefined"
                           ? globalThis.location.origin
                           : ""}
-                        /{slug}
+                        /{slugify(field.value)}
                       </span>
                     </div>
                   )}
@@ -153,17 +144,29 @@ export function CreateOrganizationDialog({
                 </FormItem>
               )}
             />
-            {error && (
-              <div className="text-destructive text-sm mt-2">{error}</div>
+            {errorMessage && (
+              <div className="text-destructive text-sm mt-2">
+                {errorMessage}
+              </div>
             )}
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel
+                disabled={form.formState.isSubmitting}
+                onClick={() => {
+                  createOrgMutation.reset();
+                  form.reset();
+                }}
+              >
+                Cancel
+              </AlertDialogCancel>
               <Button
                 type="submit"
                 variant="default"
-                disabled={!form.formState.isValid || isPending || !slug}
+                disabled={
+                  !form.formState.isValid || form.formState.isSubmitting
+                }
               >
-                {isPending ? (
+                {form.formState.isSubmitting ? (
                   <span className="flex items-center gap-2">
                     <Spinner size="xs" /> Creating...
                   </span>

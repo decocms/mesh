@@ -7,7 +7,7 @@ import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
-import { BentoTile } from "./bento-tile";
+import { HomeGridCell } from "./home-grid-cell.tsx";
 
 interface MonitoringLog {
   id: string;
@@ -26,7 +26,7 @@ interface MonitoringLogsResponse {
 }
 
 function RecentActivityContent() {
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const navigate = useNavigate();
   const toolCaller = createToolCaller();
 
@@ -45,6 +45,7 @@ function RecentActivityContent() {
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
     toolInputParams,
+    scope: locator,
     staleTime: 30_000,
   });
 
@@ -70,7 +71,7 @@ function RecentActivityContent() {
 
   if (logs.length === 0) {
     return (
-      <BentoTile
+      <HomeGridCell
         title={
           <div className="flex items-center gap-2">
             <span className="inline-flex size-7 items-center justify-center rounded-lg">
@@ -80,7 +81,6 @@ function RecentActivityContent() {
           </div>
         }
         description="Latest tool calls across your connections"
-        className="lg:col-span-3"
       >
         <EmptyState
           image={null}
@@ -100,12 +100,12 @@ function RecentActivityContent() {
             </button>
           }
         />
-      </BentoTile>
+      </HomeGridCell>
     );
   }
 
   return (
-    <BentoTile
+    <HomeGridCell
       title={
         <div className="flex items-center gap-2">
           <span className="inline-flex size-7 items-center justify-center rounded-lg">
@@ -115,7 +115,6 @@ function RecentActivityContent() {
         </div>
       }
       description="Latest tool calls across your connections"
-      className="lg:col-span-3"
       action={
         logsData && logsData.total > logs.length ? (
           <Button variant="ghost" size="sm" onClick={handleViewAll}>
@@ -175,16 +174,15 @@ function RecentActivityContent() {
           );
         })}
       </div>
-    </BentoTile>
+    </HomeGridCell>
   );
 }
 
 function RecentActivitySkeleton() {
   return (
-    <BentoTile
+    <HomeGridCell
       title="Recent Activity"
       description="Latest tool calls across your connections"
-      className="lg:col-span-3"
       action={<div className="h-7 w-20 rounded bg-muted animate-pulse" />}
     >
       <div className="space-y-2">
@@ -192,7 +190,7 @@ function RecentActivitySkeleton() {
           <div key={i} className="h-12 rounded-xl bg-muted animate-pulse" />
         ))}
       </div>
-    </BentoTile>
+    </HomeGridCell>
   );
 }
 

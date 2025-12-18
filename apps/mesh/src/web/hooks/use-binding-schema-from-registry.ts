@@ -95,15 +95,15 @@ function extractBindingTools(
 /**
  * Hook to fetch binding schema from registry for an app name.
  *
- * Queries the registry with `where: { appName }` to get the app directly
- * and returns its tools as the binding schema.
+ * Queries the registry using a WhereExpression filter on `_meta.io.decocms.appName`
+ * and returns the matching app's tools as the binding schema.
  *
  * @param appName - The app name to fetch (e.g., "@deco/database")
- * @returns Object with bindingSchema, isLoading, and error
+ * @returns Object with bindingSchema
  *
  * @example
  * ```tsx
- * const { bindingSchema, isLoading } = useBindingSchemaFromRegistry("@deco/database");
+ * const { bindingSchema } = useBindingSchemaFromRegistry("@deco/database");
  * // bindingSchema will be the tools from the app
  * ```
  */
@@ -124,9 +124,18 @@ export function useBindingSchemaFromRegistry(
   // Parse the app name for the query - must be in "scope/appName" format
   const parsedAppName = appName ? parseAppName(appName) : "";
 
-  // Build the tool input params - query by appName directly
-  // When disabled, we still pass a stable, type-safe shape.
-  const toolInputParams = { where: { appName: parsedAppName || "" } };
+  // Build the tool input params - query by appName using proper WhereExpression format
+  // The appName is nested at _meta.io.decocms.appName in the registry schema
+  // When no appName, omit the where clause entirely to avoid validation errors
+  const toolInputParams = parsedAppName
+    ? {
+        where: {
+          field: ["_meta", "io.decocms", "appName"],
+          operator: "eq" as const,
+          value: parsedAppName,
+        },
+      }
+    : {};
 
   // Create tool caller only when we have a valid registry ID
   const toolCaller = createToolCaller(registryId || undefined);
@@ -135,13 +144,13 @@ export function useBindingSchemaFromRegistry(
   const {
     data: { items: [app] = [] },
   } = useToolCall<
-    { where: { appName: string } },
+    { where?: { field: string[]; operator: string; value: string } },
     { items: RegistryItemWithBinding[] }
   >({
     toolCaller,
     toolName: listToolName,
     toolInputParams,
-    connectionId: registryId,
+    scope: registryId,
     staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 
