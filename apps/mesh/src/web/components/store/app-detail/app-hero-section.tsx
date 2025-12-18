@@ -84,7 +84,7 @@ export function AppHeroSection({
               <div className="flex">
                 <Button
                   variant="brand"
-                  onClick={() => onInstall(0)}
+                  onClick={() => handleInstallVersion(0)}
                   disabled={isInstalling}
                   className="shrink-0 rounded-r-none cursor-pointer"
                 >
