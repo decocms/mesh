@@ -24,7 +24,7 @@ async function getProjectSidebarItems({
     },
     {
       key: "mcps",
-      label: "MCPs",
+      label: "MCP servers",
       icon: "grid_view",
       onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
     },
