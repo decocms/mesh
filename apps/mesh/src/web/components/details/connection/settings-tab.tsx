@@ -439,13 +439,13 @@ function BindingSelector({
                     size={16}
                     className="animate-spin"
                   />
-                  <span>Installing...</span>
+                  <span>Connecting...</span>
                 </>
               ) : (
                 <>
                   <Icon name="add" size={16} />
                   <span>
-                    {canInstallInline ? "Install MCP" : "Create connection"}
+                    {canInstallInline ? "Connect MCP" : "Create connection"}
                   </span>
                 </>
               )}

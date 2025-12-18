@@ -372,7 +372,7 @@ function OrgMcpsContent() {
       size="sm"
       className="h-7 px-3 rounded-lg text-sm font-medium"
     >
-      Add MCP
+      Connect MCP
     </Button>
   );
 

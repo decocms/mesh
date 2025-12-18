@@ -64,7 +64,7 @@ export default function OrgHomePage() {
             </Button>
             <Button size="sm" className="h-7 px-3" onClick={handleAddMcp}>
               <Icon name="add" size={16} />
-              Add MCP
+              Connect MCP
             </Button>
           </div>
         }

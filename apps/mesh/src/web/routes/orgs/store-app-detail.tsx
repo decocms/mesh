@@ -429,7 +429,7 @@ function StoreAppDetailContent() {
       });
     } catch (error) {
       toast.error(
-        `Failed to install app: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to connect MCP: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   };
