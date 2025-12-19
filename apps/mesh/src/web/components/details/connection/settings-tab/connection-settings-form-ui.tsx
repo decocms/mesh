@@ -1,7 +1,14 @@
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@deco/ui/components/form.tsx";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@deco/ui/components/form.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
   Select,
@@ -176,5 +183,3 @@ export function ConnectionSettingsFormUI({
     </Form>
   );
 }
-
-

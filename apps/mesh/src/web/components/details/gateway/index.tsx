@@ -235,7 +235,12 @@ const gatewayFormSchema = z.object({
   title: z.string().min(1, "Name is required").max(255),
   description: z.string().nullable(),
   status: z.enum(["active", "inactive"]),
-  tool_selection_strategy: z.enum(["include", "exclusion"]),
+  tool_selection_mode: z.enum(["inclusion", "exclusion"]),
+  tool_selection_strategy: z.enum([
+    "passthrough",
+    "smart_tool_selection",
+    "code_execution",
+  ]),
 });
 
 type GatewayFormData = z.infer<typeof gatewayFormSchema>;
@@ -379,14 +384,15 @@ function GatewaySettingsForm({
 
         {/* Settings section */}
         <div className="flex flex-col gap-4 p-5 border-b border-border">
+          {/* Tool Selection Mode */}
           <FormField
             control={form.control}
-            name="tool_selection_strategy"
+            name="tool_selection_mode"
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-1.5">
-                    <FormLabel className="mb-0">Tool Selection</FormLabel>
+                    <FormLabel className="mb-0">Tool Selection Mode</FormLabel>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -423,9 +429,75 @@ function GatewaySettingsForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="include">Include Selected</SelectItem>
+                      <SelectItem value="inclusion">
+                        Include Selected
+                      </SelectItem>
                       <SelectItem value="exclusion">
                         Exclude Selected
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Gateway Strategy */}
+          <FormField
+            control={form.control}
+            name="tool_selection_strategy"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <FormLabel className="mb-0">Gateway Strategy</FormLabel>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="cursor-help flex items-center"
+                          >
+                            <Icon
+                              name="info"
+                              size={14}
+                              className="text-muted-foreground"
+                            />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-sm">
+                          <div className="text-xs space-y-1">
+                            <div>
+                              <strong>Passthrough:</strong> Pass tools through
+                              as-is (default).
+                            </div>
+                            <div>
+                              <strong>Smart Tool Selection:</strong> Intelligent
+                              tool selection behavior.
+                            </div>
+                            <div>
+                              <strong>Code Execution:</strong> Code execution
+                              behavior.
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="passthrough">Passthrough</SelectItem>
+                      <SelectItem value="smart_tool_selection">
+                        Smart Tool Selection
+                      </SelectItem>
+                      <SelectItem value="code_execution">
+                        Code Execution
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -506,10 +578,8 @@ function GatewayInspectorViewWithGateway({
       title: gateway.title,
       description: gateway.description,
       status: gateway.status,
-      tool_selection_strategy:
-        gateway.tool_selection_strategy === "exclusion"
-          ? "exclusion"
-          : "include",
+      tool_selection_mode: gateway.tool_selection_mode ?? "inclusion",
+      tool_selection_strategy: gateway.tool_selection_strategy ?? "passthrough",
     },
   });
 
@@ -531,8 +601,8 @@ function GatewayInspectorViewWithGateway({
         title: formData.title,
         description: formData.description,
         status: formData.status,
-        tool_selection_strategy:
-          formData.tool_selection_strategy === "exclusion" ? "exclusion" : null,
+        tool_selection_mode: formData.tool_selection_mode,
+        tool_selection_strategy: formData.tool_selection_strategy,
         connections: newConnections,
       },
     });

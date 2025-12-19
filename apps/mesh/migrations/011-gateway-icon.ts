@@ -8,16 +8,9 @@
 import type { Kysely } from "kysely";
 
 export async function up(db: Kysely<unknown>): Promise<void> {
-  await db.schema
-    .alterTable("gateways")
-    .addColumn("icon", "text")
-    .execute();
+  await db.schema.alterTable("gateways").addColumn("icon", "text").execute();
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
-  await db.schema
-    .alterTable("gateways")
-    .dropColumn("icon")
-    .execute();
+  await db.schema.alterTable("gateways").dropColumn("icon").execute();
 }
-

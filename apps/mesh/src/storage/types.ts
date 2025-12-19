@@ -525,11 +525,22 @@ export interface EventDelivery {
 // ============================================================================
 
 /**
- * Tool selection strategy for gateways
- * - null: Include selected tools/connections (default behavior, always deduplicates)
+ * Tool selection mode for gateways
+ * - "inclusion": Include selected tools/connections (default behavior)
  * - "exclusion": Exclude selected tools/connections (inverse filter)
  */
-export type ToolSelectionStrategy = "exclusion" | null;
+export type ToolSelectionMode = "inclusion" | "exclusion";
+
+/**
+ * Gateway tool selection strategy (metadata, not used for runtime behavior yet)
+ * - "passthrough": Pass tools through as-is (default)
+ * - "smart_tool_selection": Smart tool selection behavior
+ * - "code_execution": Code execution behavior
+ */
+export type GatewayToolSelectionStrategy =
+  | "passthrough"
+  | "smart_tool_selection"
+  | "code_execution";
 
 /**
  * Gateway table definition
@@ -540,7 +551,8 @@ export interface GatewayTable {
   organization_id: string;
   title: string;
   description: string | null;
-  tool_selection_strategy: ToolSelectionStrategy;
+  tool_selection_strategy: GatewayToolSelectionStrategy;
+  tool_selection_mode: ToolSelectionMode;
   icon: string | null;
   status: "active" | "inactive";
   is_default: number; // SQLite uses INTEGER for boolean (0 = false, 1 = true)
@@ -558,7 +570,8 @@ export interface Gateway {
   organizationId: string;
   title: string;
   description: string | null;
-  toolSelectionStrategy: ToolSelectionStrategy;
+  toolSelectionStrategy: GatewayToolSelectionStrategy;
+  toolSelectionMode: ToolSelectionMode;
   icon: string | null;
   status: "active" | "inactive";
   isDefault: boolean;

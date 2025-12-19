@@ -50,7 +50,10 @@ interface McpConfigurationResult {
 function useMcpConfiguration(connectionId: string) {
   const toolCaller = createToolCaller(connectionId);
 
-  const { data: configResult } = useToolCall<Record<string, never>, McpConfigurationResult>({
+  const { data: configResult } = useToolCall<
+    Record<string, never>,
+    McpConfigurationResult
+  >({
     toolCaller,
     toolName: "MCP_CONFIGURATION",
     toolInputParams: {},
@@ -93,7 +96,9 @@ export function OAuthAuthenticationState({
   );
 }
 
-function SettingsTabContentWithMcpBinding(props: SettingsTabWithMcpBindingProps) {
+function SettingsTabContentWithMcpBinding(
+  props: SettingsTabWithMcpBindingProps,
+) {
   const config = useMcpConfiguration(props.connection.id);
   return <SettingsTabContentImpl {...props} {...config} />;
 }

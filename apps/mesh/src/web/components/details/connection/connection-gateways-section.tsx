@@ -122,7 +122,7 @@ function CreateGatewayButton({
       ) : (
         <Icon name="network_node" size={20} />
       )}
-      Expose via MCP Gateway
+      Expose via Gateway
     </Button>
   );
 }
