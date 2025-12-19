@@ -58,33 +58,39 @@ interface IDEIntegrationProps {
 }
 
 function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
-  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedConfig, setCopiedConfig] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
 
-  const mcpConfig = { url: gatewayUrl };
+  // Full MCP configuration object
+  const mcpConfig = {
+    [serverName]: {
+      type: "http",
+      url: gatewayUrl,
+    },
+  };
+
+  const configJson = JSON.stringify(mcpConfig, null, 2);
 
   // Generate Cursor deeplink
   const cursorDeeplink = (() => {
-    const configJson = JSON.stringify(mcpConfig);
     const base64Config = utf8ToBase64(configJson);
     return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
   })();
 
   // Generate Windsurf deeplink (similar to Cursor)
   const windsurfDeeplink = (() => {
-    const configJson = JSON.stringify(mcpConfig);
     const base64Config = utf8ToBase64(configJson);
     return `windsurf://codeium.windsurf/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
   })();
 
-  // Claude Code CLI command
-  const claudeCommand = `claude mcp add ${serverName} --url "${gatewayUrl}"`;
+  // Claude Code CLI command - uses JSON format
+  const claudeCommand = `claude mcp add "${serverName}" --config '${configJson.replace(/'/g, "'\\''")}'`;
 
-  const handleCopyUrl = async () => {
-    await navigator.clipboard.writeText(gatewayUrl);
-    setCopiedUrl(true);
-    toast.success("URL copied to clipboard");
-    setTimeout(() => setCopiedUrl(false), 2000);
+  const handleCopyConfig = async () => {
+    await navigator.clipboard.writeText(configJson);
+    setCopiedConfig(true);
+    toast.success("Configuration copied to clipboard");
+    setTimeout(() => setCopiedConfig(false), 2000);
   };
 
   const handleCopyCommand = async (command: string, label: string) => {
@@ -106,26 +112,34 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
         </h4>
       </div>
 
-      {/* Gateway URL with copy button */}
-      <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-        <code className="flex-1 text-xs font-mono text-foreground overflow-hidden mask-alpha mask-r-from-black mask-r-from-85% mask-r-to-transparent">
-          {gatewayUrl}
-        </code>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 shrink-0"
-                onClick={handleCopyUrl}
-              >
-                <Icon name={copiedUrl ? "check" : "content_copy"} size={16} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Copy URL</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+      {/* MCP Configuration with copy button */}
+      <div className="relative flex flex-col gap-2 p-3 bg-muted/50 rounded-lg">
+        <div className="absolute top-2 right-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 shrink-0"
+                  onClick={handleCopyConfig}
+                >
+                  <Icon
+                    name={copiedConfig ? "check" : "content_copy"}
+                    size={14}
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Copy configuration</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <pre
+          className="text-xs font-mono text-foreground overflow-auto max-h-40 whitespace-pre-wrap wrap-break-word cursor-pointer"
+          onClick={handleCopyConfig}
+        >
+          {configJson}
+        </pre>
       </div>
 
       {/* IDE buttons grid */}
@@ -277,15 +291,13 @@ function toolSetToGatewayConnections(
 
 function GatewaySettingsForm({
   form,
-  gateway,
+  toolSet,
+  onToolSetChange,
 }: {
   form: ReturnType<typeof useForm<GatewayFormData>>;
-  gateway: GatewayEntity;
+  toolSet: Record<string, string[]>;
+  onToolSetChange: (newToolSet: Record<string, string[]>) => void;
 }) {
-  // Generate gateway URL for IDE integrations
-  const baseUrl = window.location.origin;
-  const gatewayUrl = `${baseUrl}/mcp/gateway/${gateway.id}`;
-
   return (
     <Form {...form}>
       <div className="flex flex-col h-full">
@@ -327,7 +339,7 @@ function GatewaySettingsForm({
                   <FormControl>
                     <Input
                       {...field}
-                      className="h-auto !text-lg font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                      className="h-auto text-lg! font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
                       placeholder="Gateway Name"
                     />
                   </FormControl>
@@ -417,12 +429,26 @@ function GatewaySettingsForm({
           />
         </div>
 
-        {/* IDE Integration section */}
-        <div className="p-5">
-          <IDEIntegration
-            serverName={gateway.title || `gateway-${gateway.id.slice(0, 8)}`}
-            gatewayUrl={gatewayUrl}
-          />
+        {/* Tool Selection section */}
+        <div className="flex-1 min-h-0 overflow-auto">
+          <ErrorBoundary>
+            <Suspense
+              fallback={
+                <div className="flex-1 flex items-center justify-center p-5">
+                  <Icon
+                    name="progress_activity"
+                    size={32}
+                    className="animate-spin text-muted-foreground"
+                  />
+                </div>
+              }
+            >
+              <ToolSetSelector
+                toolSet={toolSet}
+                onToolSetChange={onToolSetChange}
+              />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </div>
     </Form>
@@ -527,32 +553,24 @@ function GatewayInspectorViewWithGateway({
         )}
       </ViewActions>
 
-      <div className="flex h-full">
-        {/* Left sidebar - Gateway Settings (1/2) */}
-        <div className="w-1/2 shrink-0 border-r border-border overflow-auto">
-          <GatewaySettingsForm form={form} gateway={gateway} />
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] h-full">
+        {/* Left sidebar - Gateway Settings with Tool Selection (2/3 on desktop, full on mobile) */}
+        <div className="lg:border-r border-b lg:border-b-0 border-border overflow-auto">
+          <GatewaySettingsForm
+            form={form}
+            toolSet={toolSet}
+            onToolSetChange={handleToolSetChange}
+          />
         </div>
 
-        {/* Right panel - Tool Selection (1/2) */}
-        <div className="w-1/2 min-w-0 flex flex-col">
-          <ErrorBoundary>
-            <Suspense
-              fallback={
-                <div className="flex-1 flex items-center justify-center">
-                  <Icon
-                    name="progress_activity"
-                    size={32}
-                    className="animate-spin text-muted-foreground"
-                  />
-                </div>
-              }
-            >
-              <ToolSetSelector
-                toolSet={toolSet}
-                onToolSetChange={handleToolSetChange}
-              />
-            </Suspense>
-          </ErrorBoundary>
+        {/* Right panel - IDE Integration (1/3 on desktop, full on mobile) */}
+        <div className="flex flex-col overflow-auto">
+          <div className="p-5">
+            <IDEIntegration
+              serverName={gateway.title || `gateway-${gateway.id.slice(0, 8)}`}
+              gatewayUrl={`${window.location.origin}/mcp/gateway/${gateway.id}`}
+            />
+          </div>
         </div>
       </div>
     </ViewLayout>
@@ -592,24 +610,7 @@ function GatewayInspectorViewContent() {
   }
 
   return (
-    <ErrorBoundary>
-      <Suspense
-        fallback={
-          <div className="flex h-full items-center justify-center bg-background">
-            <Icon
-              name="progress_activity"
-              size={32}
-              className="animate-spin text-muted-foreground"
-            />
-          </div>
-        }
-      >
-        <GatewayInspectorViewWithGateway
-          gateway={gateway}
-          gatewayId={gatewayId}
-        />
-      </Suspense>
-    </ErrorBoundary>
+    <GatewayInspectorViewWithGateway gateway={gateway} gatewayId={gatewayId} />
   );
 }
 
