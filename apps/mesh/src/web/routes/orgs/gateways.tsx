@@ -80,22 +80,19 @@ function OrgGatewaysContent() {
     // Auto-create gateway with all connections
     const result = await actions.create.mutateAsync({
       title: "New Gateway",
-      description: null,
+      description:
+        "Gateways let you securely expose integrated tools to the outside world.",
       status: "active",
       mode: { type: "deduplicate" },
-      connections: connections.map((connection) => ({
-        connection_id: connection.id,
-        selected_tools: null, // Default to all tools
-      })),
+      connections: [],
     });
 
     // Navigate to the created gateway settings
-    if (result?.id) {
-      navigate({
-        to: "/$org/gateways/$gatewayId",
-        params: { org: org.slug, gatewayId: result.id },
-      });
-    }
+
+    navigate({
+      to: "/$org/gateways/$gatewayId",
+      params: { org: org.slug, gatewayId: result.id },
+    });
   };
 
   const confirmDelete = async () => {
