@@ -422,17 +422,17 @@ function MonitoringLogsTableContent({
   };
 
   const { data: membersData } = useMembers();
-const members = membersData?.data?.members ?? [];
-const userMap = new Map(members.map(m => [m.userId, m.user]));
+  const members = membersData?.data?.members ?? [];
+  const userMap = new Map(members.map((m) => [m.userId, m.user]));
 
-const enrichedLogs: EnrichedMonitoringLog[] = logs.map((log) => {
-  const user = userMap.get(log.userId ?? "");
-  return {
-    ...log,
-    userName: user?.name ?? log.userId ?? "Unknown",
-    userImage: user?.image,
-  };
-});
+  const enrichedLogs: EnrichedMonitoringLog[] = logs.map((log) => {
+    const user = userMap.get(log.userId ?? "");
+    return {
+      ...log,
+      userName: user?.name ?? log.userId ?? "Unknown",
+      userImage: user?.image,
+    };
+  });
 
   // Filter logs by search query and multiple connections (client-side)
   let filteredLogs = enrichedLogs;
@@ -524,8 +524,8 @@ const enrichedLogs: EnrichedMonitoringLog[] = logs.map((log) => {
             </div>
           </div>
 
-           {/* User Name */}
-           <div className="w-20 md:w-24 px-2 md:px-3 text-xs text-muted-foreground">
+          {/* User Name */}
+          <div className="w-20 md:w-24 px-2 md:px-3 text-xs text-muted-foreground">
             {log.userName}
           </div>
 
