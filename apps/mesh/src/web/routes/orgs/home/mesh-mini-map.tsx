@@ -2,20 +2,15 @@
  * MeshMiniMap - A compact React Flow diagram showing gateways → MCP Mesh → servers
  *
  * Displays up to 3 gateways on the left, the central MCP Mesh node, and up to 3 MCP servers
- * on the right with arrow edges connecting them. Includes "+" buttons to create new items.
+ * on the right with arrow edges connecting them.
  */
 
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { GatewayEntity } from "@/tools/gateway/schema";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
-import {
-  useGatewayActions,
-  useGateways,
-} from "@/web/hooks/collections/use-gateway";
+import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   Handle,
@@ -27,10 +22,12 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
 
 const MAX_ITEMS = 3;
+const GATEWAY_NODE_HEIGHT = 40;
+const SERVER_NODE_HEIGHT = 40;
+const NODE_WIDTH = 160; // tailwind w-40
+const MESH_NODE_SIZE = 56; // tailwind w-14 / h-14
 
 // ---------- Custom Node Types ----------
 
@@ -40,19 +37,9 @@ interface GatewayNodeData extends Record<string, unknown> {
 }
 
 function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
-  const navigate = useNavigate();
-
-  const handleClick = () => {
-    navigate({
-      to: "/$org/gateways/$gatewayId",
-      params: { org: data.org, gatewayId: data.gateway.id },
-    });
-  };
-
   return (
     <div
-      onClick={handleClick}
-      className="flex items-center gap-2 px-3 py-2 bg-background border border-border rounded-lg shadow-sm cursor-pointer hover:bg-muted/50 transition-colors min-w-[140px] nodrag nopan"
+      className="flex h-10 w-40 shrink-0 items-center justify-start gap-2 px-3 py-2 bg-background border border-border rounded-md shadow-sm nodrag nopan"
     >
       <IntegrationIcon
         icon={data.gateway.icon}
@@ -60,13 +47,13 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
         size="xs"
         fallbackIcon="network_node"
       />
-      <span className="text-xs font-medium text-foreground truncate max-w-[100px]">
+      <span className="text-xs font-normal text-foreground truncate max-w-[100px]">
         {data.gateway.title}
       </span>
       <Handle
         type="source"
         position={Position.Right}
-        className="w-2! h-2! bg-border! border-0!"
+        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
       />
     </div>
   );
@@ -78,24 +65,14 @@ interface ServerNodeData extends Record<string, unknown> {
 }
 
 function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
-  const navigate = useNavigate();
-
-  const handleClick = () => {
-    navigate({
-      to: "/$org/mcps/$connectionId",
-      params: { org: data.org, connectionId: data.connection.id },
-    });
-  };
-
   return (
     <div
-      onClick={handleClick}
-      className="flex items-center gap-2 px-3 py-2 bg-background border border-border rounded-lg shadow-sm cursor-pointer hover:bg-muted/50 transition-colors min-w-[140px] nodrag nopan"
+      className="flex h-10 w-40 shrink-0 items-center justify-start gap-2 px-3 py-2 bg-background border border-border rounded-md shadow-sm nodrag nopan"
     >
       <Handle
         type="target"
         position={Position.Left}
-        className="w-2! h-2! bg-border! border-0!"
+        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
       />
       <IntegrationIcon
         icon={data.connection.icon}
@@ -103,7 +80,7 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
         size="xs"
         fallbackIcon="extension"
       />
-      <span className="text-xs font-medium text-foreground truncate max-w-[100px]">
+      <span className="text-xs font-normal text-foreground truncate max-w-[100px]">
         {data.connection.title}
       </span>
     </div>
@@ -112,62 +89,18 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
 
 function MeshNode() {
   return (
-    <div className="flex items-center justify-center px-6 py-4 bg-primary/5 border-2 border-primary/20 rounded-xl shadow-sm min-w-[120px]">
+    <div className="flex h-14 w-14 items-center justify-center p-2 bg-primary/5 border border-primary/20 rounded-lg shadow-sm">
       <Handle
         type="target"
         position={Position.Left}
-        className="w-2! h-2! bg-primary/40! border-0!"
+        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
       />
-      <span className="text-sm font-semibold text-foreground">MCP Mesh</span>
+      <img src="/logos/deco logo.svg" alt="Deco" className="h-8 w-8" />
       <Handle
         type="source"
         position={Position.Right}
-        className="w-2! h-2! bg-primary/40! border-0!"
+        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
       />
-    </div>
-  );
-}
-
-interface AddNodeData extends Record<string, unknown> {
-  side: "left" | "right";
-  onAdd: () => void;
-  isPending?: boolean;
-}
-
-function AddNode({ data }: NodeProps<Node<AddNodeData>>) {
-  return (
-    <div className="flex items-center justify-center nodrag nopan">
-      {data.side === "left" && (
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="w-0! h-0! opacity-0!"
-        />
-      )}
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-8 w-8 rounded-md cursor-pointer"
-        onClick={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          data.onAdd();
-        }}
-        disabled={data.isPending}
-      >
-        {data.isPending ? (
-          <Icon name="progress_activity" size={16} className="animate-spin" />
-        ) : (
-          <Icon name="add" size={16} />
-        )}
-      </Button>
-      {data.side === "right" && (
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="w-0! h-0! opacity-0!"
-        />
-      )}
     </div>
   );
 }
@@ -176,74 +109,51 @@ const nodeTypes = {
   gateway: GatewayNode,
   server: ServerNode,
   mesh: MeshNode,
-  add: AddNode,
 };
 
 // ---------- Main Component ----------
 
 function MeshMiniMapContent() {
   const { org } = useProjectContext();
-  const navigate = useNavigate();
-  const gatewayActions = useGatewayActions();
 
   // Fetch first 3 of each
-  const gateways = useGateways({ pageSize: MAX_ITEMS });
-  const connections = useConnections({ pageSize: MAX_ITEMS });
-
-  const handleCreateGateway = async () => {
-    if (connections.length === 0) {
-      toast.error("Create at least one MCP connection first");
-      return;
-    }
-
-    const result = await gatewayActions.create.mutateAsync({
-      title: "New Gateway",
-      description:
-        "Gateways let you securely expose integrated tools to the outside world.",
-      status: "active",
-      tool_selection_strategy: "passthrough",
-      tool_selection_mode: "inclusion",
-      connections: [],
-    });
-
-    navigate({
-      to: "/$org/gateways/$gatewayId",
-      params: { org: org.slug, gatewayId: result.id },
-    });
-  };
-
-  const handleCreateServer = () => {
-    navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
-      search: { action: "create" },
-    });
-  };
+  const gateways: GatewayEntity[] = useGateways({ pageSize: MAX_ITEMS });
+  const connections: ConnectionEntity[] = useConnections({ pageSize: MAX_ITEMS });
 
   // Build nodes
   const nodes: Node[] = [];
   const edges: Edge[] = [];
+  const animatedDottedEdgeStyle = {
+    stroke: "var(--chart-1)",
+    strokeWidth: 1.5,
+    // Dotted look: short dash + larger gap, with rounded caps to make "dots"
+    strokeDasharray: "1 6",
+    strokeLinecap: "round",
+  } as const;
 
   // Layout constants
   const leftX = 0;
-  const meshX = 280;
-  const rightX = 560;
+  const gapX = 100;
+  const meshX = leftX + NODE_WIDTH + gapX;
+  const rightX = meshX + MESH_NODE_SIZE + gapX;
   const nodeSpacing = 60;
 
   // Calculate vertical centering
-  const leftCount = gateways.length + 1; // +1 for add button
-  const rightCount = connections.length + 1;
+  const leftCount = gateways.length;
+  const rightCount = connections.length;
   const maxCount = Math.max(leftCount, rightCount, 1);
   const totalHeight = (maxCount - 1) * nodeSpacing;
-  const startY = -totalHeight / 2;
+  const centerStartY = -totalHeight / 2;
 
   // Gateway nodes (left side)
   gateways.forEach((gateway, i) => {
-    const leftStartY = startY + ((maxCount - leftCount) * nodeSpacing) / 2;
+    const leftCenterStartY =
+      centerStartY + ((maxCount - leftCount) * nodeSpacing) / 2;
+    const centerY = leftCenterStartY + i * nodeSpacing;
     nodes.push({
       id: `gateway-${gateway.id}`,
       type: "gateway",
-      position: { x: leftX, y: leftStartY + i * nodeSpacing },
+      position: { x: leftX, y: centerY - GATEWAY_NODE_HEIGHT / 2 },
       data: { gateway, org: org.slug },
       draggable: false,
       selectable: false,
@@ -252,34 +162,18 @@ function MeshMiniMapContent() {
       id: `e-gateway-${gateway.id}-mesh`,
       source: `gateway-${gateway.id}`,
       target: "mesh",
-      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--border)" },
-      style: { stroke: "var(--border)", strokeWidth: 1.5 },
+      type: "smoothstep",
+      animated: true,
+      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--chart-1)" },
+      style: animatedDottedEdgeStyle,
     });
-  });
-
-  // Add gateway button
-  const leftAddY =
-    startY +
-    ((maxCount - leftCount) * nodeSpacing) / 2 +
-    gateways.length * nodeSpacing;
-  nodes.push({
-    id: "add-gateway",
-    type: "add",
-    position: { x: leftX + 50, y: leftAddY },
-    data: {
-      side: "left",
-      onAdd: handleCreateGateway,
-      isPending: gatewayActions.create.isPending,
-    },
-    draggable: false,
-    selectable: false,
   });
 
   // Mesh node (center)
   nodes.push({
     id: "mesh",
     type: "mesh",
-    position: { x: meshX, y: 0 },
+    position: { x: meshX, y: -MESH_NODE_SIZE / 2 },
     data: {},
     draggable: false,
     selectable: false,
@@ -287,11 +181,13 @@ function MeshMiniMapContent() {
 
   // Server nodes (right side)
   connections.forEach((connection, i) => {
-    const rightStartY = startY + ((maxCount - rightCount) * nodeSpacing) / 2;
+    const rightCenterStartY =
+      centerStartY + ((maxCount - rightCount) * nodeSpacing) / 2;
+    const centerY = rightCenterStartY + i * nodeSpacing;
     nodes.push({
       id: `server-${connection.id}`,
       type: "server",
-      position: { x: rightX, y: rightStartY + i * nodeSpacing },
+      position: { x: rightX, y: centerY - SERVER_NODE_HEIGHT / 2 },
       data: { connection, org: org.slug },
       draggable: false,
       selectable: false,
@@ -300,26 +196,11 @@ function MeshMiniMapContent() {
       id: `e-mesh-server-${connection.id}`,
       source: "mesh",
       target: `server-${connection.id}`,
-      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--border)" },
-      style: { stroke: "var(--border)", strokeWidth: 1.5 },
+      type: "smoothstep",
+      animated: true,
+      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--chart-1)" },
+      style: animatedDottedEdgeStyle,
     });
-  });
-
-  // Add server button
-  const rightAddY =
-    startY +
-    ((maxCount - rightCount) * nodeSpacing) / 2 +
-    connections.length * nodeSpacing;
-  nodes.push({
-    id: "add-server",
-    type: "add",
-    position: { x: rightX + 50, y: rightAddY },
-    data: {
-      side: "right",
-      onAdd: handleCreateServer,
-    },
-    draggable: false,
-    selectable: false,
   });
 
   return (
@@ -340,7 +221,7 @@ function MeshMiniMapContent() {
         panOnDrag={false}
         preventScrolling={false}
         proOptions={{ hideAttribution: true }}
-        className="bg-transparent"
+        className="bg-transparent pointer-events-none"
       />
     </div>
   );
@@ -360,7 +241,6 @@ export function MeshMiniMapSkeleton() {
               className="h-10 w-36 bg-muted animate-pulse rounded-lg"
             />
           ))}
-          <div className="h-8 w-8 bg-muted animate-pulse rounded-md mx-auto" />
         </div>
 
         {/* Center mesh skeleton */}
@@ -374,7 +254,6 @@ export function MeshMiniMapSkeleton() {
               className="h-10 w-36 bg-muted animate-pulse rounded-lg"
             />
           ))}
-          <div className="h-8 w-8 bg-muted animate-pulse rounded-md mx-auto" />
         </div>
       </div>
     </div>
