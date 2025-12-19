@@ -279,7 +279,9 @@ const getEventBus = (
   env: DefaultEnv,
 ): EventBusBindingClient | undefined => {
   const bus = env as unknown as { [prop]: EventBusBindingClient };
-  return typeof bus[prop] !== "undefined" ? bus[prop] : undefined;
+  return typeof bus[prop] !== "undefined"
+    ? bus[prop]
+    : env?.MESH_REQUEST_CONTEXT.state[prop];
 };
 
 const toolsFor = <TSchema extends z.ZodTypeAny = never>({
@@ -291,7 +293,7 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
     : { type: "object", properties: {} };
   const busProp = String(events?.bus ?? "EVENT_BUS");
   return [
-    ...(onChange
+    ...(onChange || events
       ? [
           createTool({
             id: "ON_MCP_CONFIGURATION",
@@ -307,7 +309,7 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
             outputSchema: z.object({}),
             execute: async (input) => {
               const state = input.context.state as z.infer<TSchema>;
-              await onChange(input.runtimeContext.env, {
+              await onChange?.(input.runtimeContext.env, {
                 state,
                 scopes: input.context.scopes,
               });
