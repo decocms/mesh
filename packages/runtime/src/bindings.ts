@@ -31,11 +31,14 @@ export type BindingRegistry = Record<string, readonly ToolBinder[]>;
 /**
  * Function that returns Zod Schema
  */
-export const BindingOf = <TRegistry extends BindingRegistry>(
-  name: keyof TRegistry | "*",
+export const BindingOf = <
+  TRegistry extends BindingRegistry,
+  TName extends keyof TRegistry | "*",
+>(
+  name: TName,
 ) => {
   return z.object({
-    __type: z.literal(name).default(name as any),
+    __type: z.literal<TName>(name).default(name),
     value: z.string(),
   });
 };
