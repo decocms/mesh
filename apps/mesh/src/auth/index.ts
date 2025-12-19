@@ -32,7 +32,7 @@ import { createAccessControl, Role } from "@decocms/better-auth/plugins/access";
 import { getDatabaseUrl, getDbDialect } from "../database";
 import { createEmailSender, findEmailProvider } from "./email-providers";
 import { createMagicLinkConfig } from "./magic-link";
-import { createDefaultOrgConnections } from "./org";
+import { seedOrgDb } from "./org";
 import { ADMIN_ROLES } from "./roles";
 import { createSSOConfig } from "./sso";
 
@@ -103,10 +103,7 @@ const plugins = [
   organization({
     organizationCreation: {
       afterCreate: async (data) => {
-        await createDefaultOrgConnections(
-          data.organization.id,
-          data.member.userId,
-        );
+        await seedOrgDb(data.organization.id, data.member.userId);
       },
     },
     ac,
