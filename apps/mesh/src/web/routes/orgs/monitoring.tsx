@@ -467,9 +467,12 @@ function MonitoringLogsTableContent({
 
   // Reset when filters change (action during render pattern)
   const prevFilterKeyRef = useRef(filterKey);
-  const prevLogsRef = useRef(logs);
+  // Initialize with null to ensure first comparison triggers update (fixes Suspense issue)
+  const prevLogsRef = useRef<MonitoringLogsResponse | null>(null);
+
   if (prevFilterKeyRef.current !== filterKey) {
     prevFilterKeyRef.current = filterKey;
+    prevLogsRef.current = null; // Reset so new data triggers update
     setCurrentPage(0);
     setAllLogs([]);
     setHasMore(true);
@@ -477,9 +480,9 @@ function MonitoringLogsTableContent({
   }
 
   // Update allLogs when new data comes in (action during render pattern)
-  if (logs !== prevLogsRef.current) {
+  if (logs && logs !== prevLogsRef.current) {
     prevLogsRef.current = logs;
-    if (logs?.logs) {
+    if (logs.logs) {
       setAllLogs((prev) => {
         // If it's page 0, replace; otherwise append
         if (currentPage === 0) {
