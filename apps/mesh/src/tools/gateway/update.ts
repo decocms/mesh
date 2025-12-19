@@ -69,6 +69,9 @@ export const COLLECTION_GATEWAY_UPDATE = defineTool({
     if (input.data.tool_selection_strategy !== undefined) {
       updateData.toolSelectionStrategy = input.data.tool_selection_strategy;
     }
+    if (input.data.icon !== undefined) {
+      updateData.icon = input.data.icon;
+    }
     if (input.data.status !== undefined) {
       updateData.status = input.data.status;
     }
@@ -95,6 +98,7 @@ export const COLLECTION_GATEWAY_UPDATE = defineTool({
         id: gateway.id,
         title: gateway.title,
         description: gateway.description,
+        icon: gateway.icon,
         organization_id: gateway.organizationId,
         tool_selection_strategy: gateway.toolSelectionStrategy,
         status: gateway.status,

@@ -83,6 +83,7 @@ export interface GatewayCreateData {
   title: string;
   description?: string | null;
   toolSelectionStrategy?: Gateway["toolSelectionStrategy"];
+  icon?: string | null;
   status?: Gateway["status"];
   isDefault?: boolean;
   connections: Array<{
@@ -98,6 +99,7 @@ export interface GatewayUpdateData {
   title?: string;
   description?: string | null;
   toolSelectionStrategy?: Gateway["toolSelectionStrategy"];
+  icon?: string | null;
   status?: Gateway["status"];
   isDefault?: boolean;
   connections?: Array<{
@@ -114,6 +116,10 @@ export interface GatewayStoragePort {
   ): Promise<GatewayWithConnections>;
   findById(id: string): Promise<GatewayWithConnections | null>;
   list(organizationId: string): Promise<GatewayWithConnections[]>;
+  listByConnectionId(
+    organizationId: string,
+    connectionId: string,
+  ): Promise<GatewayWithConnections[]>;
   update(
     id: string,
     userId: string,

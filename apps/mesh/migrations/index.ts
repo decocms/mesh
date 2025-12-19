@@ -9,6 +9,7 @@ import * as migration007monitoringlogs from "./007-monitoring-logs.ts";
 import * as migration008eventbus from "./008-event-bus.ts";
 import * as migration009dropauditlogs from "./009-drop-audit-logs.ts";
 import * as migration010gateways from "./010-gateways.ts";
+import * as migration011gatewayicon from "./011-gateway-icon.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -21,6 +22,7 @@ const migrations = {
   "008-event-bus": migration008eventbus,
   "009-drop-audit-logs": migration009dropauditlogs,
   "010-gateways": migration010gateways,
+  "011-gateway-icon": migration011gatewayicon,
 } satisfies Record<string, Migration>;
 
 export default migrations;

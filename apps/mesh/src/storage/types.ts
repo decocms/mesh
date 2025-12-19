@@ -541,6 +541,7 @@ export interface GatewayTable {
   title: string;
   description: string | null;
   tool_selection_strategy: ToolSelectionStrategy;
+  icon: string | null;
   status: "active" | "inactive";
   is_default: number; // SQLite uses INTEGER for boolean (0 = false, 1 = true)
   created_at: ColumnType<Date, Date | string, never>;
@@ -558,6 +559,7 @@ export interface Gateway {
   title: string;
   description: string | null;
   toolSelectionStrategy: ToolSelectionStrategy;
+  icon: string | null;
   status: "active" | "inactive";
   isDefault: boolean;
   createdAt: Date | string;

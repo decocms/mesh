@@ -45,6 +45,7 @@ export const GatewayEntitySchema = z.object({
   id: z.string().describe("Unique identifier for the gateway"),
   title: z.string().describe("Human-readable name for the gateway"),
   description: z.string().nullable().describe("Description of the gateway"),
+  icon: z.string().nullable().optional().describe("Icon URL for the gateway"),
   created_at: z.string().describe("When the gateway was created"),
   updated_at: z.string().describe("When the gateway was last updated"),
   created_by: z.string().describe("User ID who created the gateway"),
@@ -91,6 +92,7 @@ export const GatewayCreateDataSchema = z.object({
   tool_selection_strategy: ToolSelectionStrategySchema.optional()
     .default(null)
     .describe("Tool selection strategy (defaults to null = include)"),
+  icon: z.string().nullable().optional().describe("Optional icon URL"),
   status: z
     .enum(["active", "inactive"])
     .optional()
@@ -134,6 +136,7 @@ export const GatewayUpdateDataSchema = z.object({
   tool_selection_strategy: ToolSelectionStrategySchema.optional().describe(
     "New tool selection strategy",
   ),
+  icon: z.string().nullable().optional().describe("New icon URL (null to clear)"),
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
   is_default: z
     .boolean()
