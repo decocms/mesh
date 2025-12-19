@@ -854,7 +854,7 @@ function ConnectionSettingsFormUI({
                     <FormControl>
                       <Input
                         {...field}
-                        className="h-auto text-xl font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                        className="h-auto !text-lg font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
                         placeholder="Connection Name"
                       />
                     </FormControl>
