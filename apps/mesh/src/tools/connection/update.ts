@@ -69,7 +69,7 @@ async function validateConfiguration(
     const value = prop(key, state);
 
     // Check if this key exists in state
-    if (!value) {
+    if (value === undefined || value === null) {
       throw new Error(
         `Scope references key "${key}" but it's not present in state`,
       );

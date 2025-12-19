@@ -73,8 +73,14 @@ export const COLLECTION_GATEWAY_DELETE = defineTool({
           connection_id: conn.connectionId,
           selected_tools: conn.selectedTools,
         })),
-        created_at: existing.createdAt as string,
-        updated_at: existing.updatedAt as string,
+        created_at:
+          existing.createdAt instanceof Date
+            ? existing.createdAt.toISOString()
+            : existing.createdAt,
+        updated_at:
+          existing.updatedAt instanceof Date
+            ? existing.updatedAt.toISOString()
+            : existing.updatedAt,
         created_by: existing.createdBy,
         updated_by: existing.updatedBy ?? undefined,
       },

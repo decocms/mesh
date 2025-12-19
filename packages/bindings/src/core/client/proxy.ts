@@ -20,7 +20,10 @@ type Tool = {
 
 const toolsMap = new Map<string, Promise<Array<Tool>>>();
 
-const mapTool = (tool: Tool, callToolFn: (input: any) => Promise<any>) => {
+const mapTool = (
+  tool: Tool,
+  callToolFn: (input: any, toolName?: string) => Promise<any>,
+) => {
   return {
     ...tool,
     id: tool.name,
@@ -31,7 +34,7 @@ const mapTool = (tool: Tool, callToolFn: (input: any) => Promise<any>) => {
       ? convertJsonSchemaToZod(tool.outputSchema)
       : undefined,
     execute: (input: any) => {
-      return callToolFn(input.context);
+      return callToolFn(input.context, tool.name);
     },
   };
 };
@@ -62,7 +65,10 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
       if (name === "listTools") {
         return asCallableTools;
       }
-      async function callToolFn(args: Record<string, unknown>) {
+      async function callToolFn(
+        args: Record<string, unknown>,
+        toolName = name,
+      ) {
         const debugId = options?.debugId?.();
         const extraHeaders = debugId
           ? { "x-trace-debug-id": debugId }
@@ -70,12 +76,12 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
 
         const { client, callStreamableTool } = await createClient(extraHeaders);
 
-        if (options?.streamable?.[String(name)]) {
-          return callStreamableTool(String(name), args);
+        if (options?.streamable?.[String(toolName)]) {
+          return callStreamableTool(String(toolName), args);
         }
 
         const { structuredContent, isError, content } = await client.callTool({
-          name: String(name),
+          name: String(toolName),
           arguments: args as Record<string, unknown>,
         });
 
@@ -100,7 +106,7 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
           }
 
           throw new Error(
-            `Tool ${String(name)} returned an error: ${JSON.stringify(
+            `Tool ${String(toolName)} returned an error: ${JSON.stringify(
               structuredContent ?? content,
             )}`,
           );

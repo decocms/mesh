@@ -36,6 +36,7 @@ import {
   ProxyMonitoringMiddlewareParams,
 } from "./proxy-monitoring";
 import { prop } from "@/tools/connection/json-path";
+import { once } from "@/common";
 
 // Define Hono variables type
 type Variables = {
@@ -185,18 +186,15 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Lazy token issuance - only issue when buildRequestHeaders is called
   let configurationToken: string | undefined;
-  let tokenIssued = false;
 
   const callerConnectionId = ctx.auth.user?.connectionId;
 
   /**
    * Issue configuration JWT lazily (only when needed)
-   * This avoids issuing tokens when creating proxies that may never be used
+   * This avoids issuing tokens when creating proxies that may never be used.
+   * Uses `once` to prevent race conditions - concurrent calls share the same promise.
    */
-  const ensureConfigurationToken = async (): Promise<void> => {
-    if (tokenIssued) return;
-    tokenIssued = true;
-
+  const ensureConfigurationToken = once(async (): Promise<void> => {
     // Parse scopes to build permissions object
     // Format: "KEY::SCOPE" where KEY is in state and state[KEY].value is a connection ID
     // Result: { [connectionId]: [scopes...] }
@@ -251,7 +249,7 @@ async function createMCPProxyDoNotUseDirectly(
       console.error("Failed to issue configuration token:", error);
       // Continue without configuration token - downstream will fail if it requires it
     }
-  };
+  });
 
   // Build request headers - reusable for both client and direct fetch
   // Now issues token lazily on first call

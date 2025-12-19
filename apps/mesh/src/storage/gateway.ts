@@ -63,7 +63,7 @@ export class GatewayStorage implements GatewayStoragePort {
         // Unset any existing default for this org
         await trx
           .updateTable("gateways")
-          .set({ is_default: 0 })
+          .set({ is_default: 0, updated_at: now, updated_by: userId })
           .where("organization_id", "=", organizationId)
           .where("is_default", "=", 1)
           .execute();
@@ -288,11 +288,6 @@ export class GatewayStorage implements GatewayStoragePort {
   ): Promise<GatewayWithConnections> {
     const now = new Date().toISOString();
 
-    // If setting as default, handle transactionally
-    if (data.isDefault === true) {
-      return await this.setDefault(id);
-    }
-
     // Build update object for gateway table
     const updateData: Record<string, unknown> = {
       updated_at: now,
@@ -320,37 +315,89 @@ export class GatewayStorage implements GatewayStoragePort {
     if (data.isDefault === false) {
       updateData.is_default = 0;
     }
+    if (data.isDefault === true) {
+      updateData.is_default = 1;
+    }
 
-    await this.db
-      .updateTable("gateways")
-      .set(updateData)
-      .where("id", "=", id)
-      .execute();
+    // If setting as default, handle transactionally to unset old default
+    if (data.isDefault === true) {
+      const gateway = await this.findById(id);
+      if (!gateway) {
+        throw new Error(`Gateway not found: ${id}`);
+      }
 
-    // Update connections if provided
-    if (data.connections !== undefined) {
-      // Delete existing connections
+      await this.db.transaction().execute(async (trx) => {
+        // Unset current default for this org
+        await trx
+          .updateTable("gateways")
+          .set({ is_default: 0, updated_at: now, updated_by: userId })
+          .where("organization_id", "=", gateway.organizationId)
+          .where("is_default", "=", 1)
+          .execute();
+
+        // Apply all updates including setting as default
+        await trx
+          .updateTable("gateways")
+          .set(updateData)
+          .where("id", "=", id)
+          .execute();
+
+        // Update connections if provided
+        if (data.connections !== undefined) {
+          await trx
+            .deleteFrom("gateway_connections")
+            .where("gateway_id", "=", id)
+            .execute();
+
+          if (data.connections.length > 0) {
+            await trx
+              .insertInto("gateway_connections")
+              .values(
+                data.connections.map((conn) => ({
+                  id: generatePrefixedId("gwc"),
+                  gateway_id: id,
+                  connection_id: conn.connectionId,
+                  selected_tools: conn.selectedTools
+                    ? JSON.stringify(conn.selectedTools)
+                    : null,
+                  created_at: now,
+                })),
+              )
+              .execute();
+          }
+        }
+      });
+    } else {
+      // Non-default update - simple update
       await this.db
-        .deleteFrom("gateway_connections")
-        .where("gateway_id", "=", id)
+        .updateTable("gateways")
+        .set(updateData)
+        .where("id", "=", id)
         .execute();
 
-      // Insert new connections
-      if (data.connections.length > 0) {
+      // Update connections if provided
+      if (data.connections !== undefined) {
         await this.db
-          .insertInto("gateway_connections")
-          .values(
-            data.connections.map((conn) => ({
-              id: generatePrefixedId("gwc"),
-              gateway_id: id,
-              connection_id: conn.connectionId,
-              selected_tools: conn.selectedTools
-                ? JSON.stringify(conn.selectedTools)
-                : null,
-              created_at: now,
-            })),
-          )
+          .deleteFrom("gateway_connections")
+          .where("gateway_id", "=", id)
           .execute();
+
+        if (data.connections.length > 0) {
+          await this.db
+            .insertInto("gateway_connections")
+            .values(
+              data.connections.map((conn) => ({
+                id: generatePrefixedId("gwc"),
+                gateway_id: id,
+                connection_id: conn.connectionId,
+                selected_tools: conn.selectedTools
+                  ? JSON.stringify(conn.selectedTools)
+                  : null,
+                created_at: now,
+              })),
+            )
+            .execute();
+        }
       }
     }
 
@@ -410,19 +457,24 @@ export class GatewayStorage implements GatewayStoragePort {
     return this.getDefaultByOrgId(org.id);
   }
 
-  async setDefault(gatewayId: string): Promise<GatewayWithConnections> {
+  async setDefault(
+    gatewayId: string,
+    userId: string,
+  ): Promise<GatewayWithConnections> {
     // Get the gateway to find its organization
     const gateway = await this.findById(gatewayId);
     if (!gateway) {
       throw new Error(`Gateway not found: ${gatewayId}`);
     }
 
+    const now = new Date().toISOString();
+
     // Transactionally unset old default and set new one
     await this.db.transaction().execute(async (trx) => {
       // Unset current default for this org
       await trx
         .updateTable("gateways")
-        .set({ is_default: 0 })
+        .set({ is_default: 0, updated_at: now, updated_by: userId })
         .where("organization_id", "=", gateway.organizationId)
         .where("is_default", "=", 1)
         .execute();
@@ -430,7 +482,7 @@ export class GatewayStorage implements GatewayStoragePort {
       // Set new default
       await trx
         .updateTable("gateways")
-        .set({ is_default: 1 })
+        .set({ is_default: 1, updated_at: now, updated_by: userId })
         .where("id", "=", gatewayId)
         .execute();
     });

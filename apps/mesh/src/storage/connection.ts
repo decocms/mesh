@@ -90,13 +90,13 @@ export class ConnectionStorage implements ConnectionStoragePort {
     id: string,
     organizationId?: string,
   ): Promise<ConnectionEntity | null> {
-    const query = this.db
+    let query = this.db
       .selectFrom("connections")
       .selectAll()
       .where("id", "=", id);
 
     if (organizationId) {
-      query.where("organization_id", "=", organizationId);
+      query = query.where("organization_id", "=", organizationId);
     }
 
     const row = await query.executeTakeFirst();

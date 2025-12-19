@@ -132,5 +132,8 @@ export interface GatewayStoragePort {
     organizationId: string,
   ): Promise<GatewayWithConnections | null>;
   getDefaultByOrgSlug(orgSlug: string): Promise<GatewayWithConnections | null>;
-  setDefault(gatewayId: string): Promise<GatewayWithConnections>;
+  setDefault(
+    gatewayId: string,
+    userId: string,
+  ): Promise<GatewayWithConnections>;
 }

@@ -169,8 +169,9 @@ export const initializeBindings = <
   TBindings extends BindingRegistry = BindingRegistry,
 >(
   ctx: RequestContext,
-): ResolvedBindings<T, TBindings> => {
-  return traverseAndReplace(ctx.state, ctx) as ResolvedBindings<T, TBindings>;
+): void => {
+  // resolves the state in-place
+  traverseAndReplace(ctx.state, ctx) as ResolvedBindings<T, TBindings>;
 };
 
 interface DefaultRegistry extends BindingRegistry {
