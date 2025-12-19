@@ -116,21 +116,23 @@ function OrgGatewaysContent() {
       id: "title",
       header: "Name",
       render: (gateway) => (
-        <span className="text-sm font-medium text-foreground">
+        <span className="text-sm font-medium text-foreground truncate">
           {gateway.title}
         </span>
       ),
+      cellClassName: "w-48 min-w-0 shrink-0",
       sortable: true,
     },
     {
       id: "description",
       header: "Description",
       render: (gateway) => (
-        <span className="text-sm text-foreground line-clamp-2 max-w-sm wrap-break-word whitespace-normal">
+        <span className="text-sm text-foreground line-clamp-2">
           {gateway.description || "—"}
         </span>
       ),
-      cellClassName: "flex-1",
+      cellClassName: "flex-1 min-w-0",
+      wrap: true,
       sortable: true,
     },
     {
@@ -141,7 +143,7 @@ function OrgGatewaysContent() {
           {gateway.mode.type}
         </Badge>
       ),
-      cellClassName: "w-[120px]",
+      cellClassName: "w-24 shrink-0",
     },
     {
       id: "connections",
@@ -151,7 +153,7 @@ function OrgGatewaysContent() {
           {gateway.connections.length}
         </span>
       ),
-      cellClassName: "w-[100px]",
+      cellClassName: "w-24 shrink-0",
     },
     {
       id: "status",
@@ -161,7 +163,7 @@ function OrgGatewaysContent() {
           {gateway.status}
         </Badge>
       ),
-      cellClassName: "w-[120px]",
+      cellClassName: "w-24 shrink-0",
       sortable: true,
     },
     {
@@ -205,7 +207,7 @@ function OrgGatewaysContent() {
           </DropdownMenuContent>
         </DropdownMenu>
       ),
-      cellClassName: "w-[60px]",
+      cellClassName: "w-12 shrink-0",
     },
   ];
 
@@ -285,7 +287,11 @@ function OrgGatewaysContent() {
           {gateways.length === 0 ? (
             <EmptyState
               image={
-                <Icon name="hub" size={48} className="text-muted-foreground" />
+                <Icon
+                  name="network_node"
+                  size={48}
+                  className="text-muted-foreground"
+                />
               }
               title={listState.search ? "No gateways found" : "No gateways yet"}
               description={
@@ -303,7 +309,7 @@ function OrgGatewaysContent() {
                     id: gateway.id,
                     title: gateway.title,
                     description: gateway.description,
-                    icon: "hub",
+                    icon: "network_node",
                     status: gateway.status,
                   }}
                   onClick={() =>
@@ -390,7 +396,7 @@ function OrgGatewaysContent() {
               <EmptyState
                 image={
                   <Icon
-                    name="hub"
+                    name="network_node"
                     size={48}
                     className="text-muted-foreground"
                   />
@@ -402,7 +408,7 @@ function OrgGatewaysContent() {
               <EmptyState
                 image={
                   <Icon
-                    name="hub"
+                    name="network_node"
                     size={48}
                     className="text-muted-foreground"
                   />

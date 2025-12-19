@@ -293,7 +293,7 @@ function GatewaySettingsForm({
         <div className="flex flex-col gap-4 p-5 border-b border-border">
           <div className="flex items-start justify-between">
             <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 shadow-sm border border-border">
-              <Icon name="hub" size={32} className="text-primary" />
+              <Icon name="network_node" size={32} className="text-primary" />
             </div>
             <FormField
               control={form.control}
@@ -513,6 +513,7 @@ function GatewayInspectorViewWithGateway({
             onClick={handleSave}
             disabled={actions.update.isPending}
             size="sm"
+            className="h-7"
           >
             {actions.update.isPending && (
               <Icon

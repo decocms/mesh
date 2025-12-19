@@ -232,7 +232,7 @@ export function AgentDetailsView({
           icon={item.avatar ?? "smart_toy"}
         />
         <Button
-          className="bg-[#d0ec1a] text-[#07401a] hover:bg-[#d0ec1a]/90 h-8 text-xs font-medium"
+          className="bg-[#d0ec1a] text-[#07401a] hover:bg-[#d0ec1a]/90 h-7 text-xs font-medium"
           onClick={handleSubmit(onSubmit)}
           disabled={!isDirty || isSaving}
         >

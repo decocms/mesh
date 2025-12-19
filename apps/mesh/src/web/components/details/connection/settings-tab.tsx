@@ -779,7 +779,12 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
     <>
       <ViewActions>
         {hasAnyChanges && (
-          <Button onClick={handleSave} disabled={isUpdating} size="sm">
+          <Button
+            onClick={handleSave}
+            disabled={isUpdating}
+            size="sm"
+            className="h-7"
+          >
             {isUpdating && (
               <Icon
                 name="progress_activity"

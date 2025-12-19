@@ -25,13 +25,13 @@ export function useProjectSidebarItems() {
     {
       key: "mcps",
       label: "MCP Servers",
-      icon: "output",
+      icon: "extension",
       onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
     },
     {
       key: "gateways",
       label: "MCP Gateways",
-      icon: "input",
+      icon: "network_node",
       onClick: () => navigate({ to: "/$org/gateways", params: { org } }),
     },
     {
