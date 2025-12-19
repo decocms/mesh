@@ -215,6 +215,6 @@ export function getTimeRangeDisplayText(from: string, to: string): string {
     return quickRange.label;
   }
 
-  // Otherwise show the expressions
-  return `${from} to ${to}`;
+  // Otherwise format both expressions nicely
+  return `${getExpressionLabel(from)} to ${getExpressionLabel(to)}`;
 }
