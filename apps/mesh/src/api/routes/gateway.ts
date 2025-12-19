@@ -9,7 +9,8 @@
  * - Lists connections for the gateway (from database or organization)
  * - Creates proxies for each connection using createMCPProxy
  * - Composes them into a single ServerClient interface
- * - Applies mode transformations (deduplicate, prefix_all, etc.)
+ * - Always deduplicates tools by name (first occurrence wins)
+ * - Supports exclusion strategy for inverse tool selection
  */
 
 import type { ServerClient } from "@decocms/bindings/mcp";
@@ -25,17 +26,17 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
-import type { GatewayMode, GatewayWithConnections } from "../../storage/types";
+import type {
+  GatewayWithConnections,
+  ToolSelectionStrategy,
+} from "../../storage/types";
 import type { ConnectionEntity } from "../../tools/connection/schema";
+import type { Env } from "../env";
 import { HttpServerTransport } from "../http-server-transport";
 import { createMCPProxy } from "./proxy";
 
 // Define Hono variables type
-type Variables = {
-  meshContext: MeshContext;
-};
-
-const app = new Hono<{ Variables: Variables }>();
+const app = new Hono<Env>();
 
 // ============================================================================
 // Types
@@ -56,127 +57,45 @@ interface ConnectionToolsResult {
 }
 
 /** Gateway configuration for createMCPGateway */
-export interface GatewayOptions {
+interface GatewayOptions {
   connections: Array<{
     connection: ConnectionEntity;
-    selectedTools: string[] | null; // null = all tools
+    selectedTools: string[] | null; // null = all tools (or full exclusion if strategy is "exclusion")
   }>;
-  mode: GatewayMode;
+  toolSelectionStrategy: ToolSelectionStrategy;
 }
 
 // ============================================================================
-// Mode Transformers
+// Tool Deduplication
 // ============================================================================
 
 /**
- * Apply gateway mode transformation to tools
- * @param tools - All tools from connections with their mappings
- * @param mode - Gateway mode configuration
- * @returns Transformed tools and mappings
+ * Deduplicate tools by name (first occurrence wins)
+ * @param allConnectionTools - All tools from connections
+ * @returns Deduplicated tools and mappings
  */
-function applyModeTransformation(
-  allConnectionTools: ConnectionToolsResult[],
-  mode: GatewayMode,
-): { tools: Tool[]; mappings: Map<string, ToolMapping> } {
+function deduplicateTools(allConnectionTools: ConnectionToolsResult[]): {
+  tools: Tool[];
+  mappings: Map<string, ToolMapping>;
+} {
   const mappings = new Map<string, ToolMapping>();
+  const finalTools: Tool[] = [];
+  const seenNames = new Set<string>();
 
-  switch (mode.type) {
-    case "deduplicate": {
-      // Keep first occurrence of each tool name
-      const finalTools: Tool[] = [];
-      const seenNames = new Set<string>();
-
-      for (const { connectionId, tools } of allConnectionTools) {
-        for (const tool of tools) {
-          if (!seenNames.has(tool.name)) {
-            seenNames.add(tool.name);
-            finalTools.push(tool);
-            mappings.set(tool.name, {
-              connectionId,
-              originalName: tool.name,
-            });
-          }
-        }
+  for (const { connectionId, tools } of allConnectionTools) {
+    for (const tool of tools) {
+      if (!seenNames.has(tool.name)) {
+        seenNames.add(tool.name);
+        finalTools.push(tool);
+        mappings.set(tool.name, {
+          connectionId,
+          originalName: tool.name,
+        });
       }
-
-      return { tools: finalTools, mappings };
-    }
-
-    case "prefix_all": {
-      // Prefix all tools with connectionId::
-      const finalTools: Tool[] = [];
-
-      for (const {
-        connectionId,
-        connectionTitle,
-        tools,
-      } of allConnectionTools) {
-        for (const tool of tools) {
-          const finalName = `${connectionId}::${tool.name}`;
-          const description = `[${connectionTitle}] ${tool.description || ""}`;
-
-          finalTools.push({
-            ...tool,
-            name: finalName,
-            description,
-          });
-
-          mappings.set(finalName, {
-            connectionId,
-            originalName: tool.name,
-          });
-        }
-      }
-
-      return { tools: finalTools, mappings };
-    }
-
-    case "custom":
-    default: {
-      // Smart prefixing: only conflicting tool names get prefixed
-      const toolNameCounts = new Map<string, number>();
-      for (const { tools } of allConnectionTools) {
-        for (const tool of tools) {
-          toolNameCounts.set(
-            tool.name,
-            (toolNameCounts.get(tool.name) || 0) + 1,
-          );
-        }
-      }
-
-      const finalTools: Tool[] = [];
-
-      for (const {
-        connectionId,
-        connectionTitle,
-        tools,
-      } of allConnectionTools) {
-        for (const tool of tools) {
-          const isConflict = (toolNameCounts.get(tool.name) ?? 0) > 1;
-          const finalName = isConflict
-            ? `${connectionId}::${tool.name}`
-            : tool.name;
-
-          const description = isConflict
-            ? `[${connectionTitle}] ${tool.description || ""}`
-            : tool.description;
-
-          finalTools.push({
-            ...tool,
-            name: finalName,
-            description,
-          });
-
-          mappings.set(finalName, {
-            connectionId,
-            originalName: tool.name,
-          });
-        }
-      }
-
-      return { tools: finalTools, mappings };
     }
   }
+
+  return { tools: finalTools, mappings };
 }
 
 // ============================================================================
@@ -186,7 +105,7 @@ function applyModeTransformation(
 /**
  * Create an MCP gateway that aggregates tools from multiple connections
  *
- * @param options - Gateway configuration (connections with selected tools and mode)
+ * @param options - Gateway configuration (connections with selected tools and strategy)
  * @param ctx - Mesh context for creating proxies
  * @returns ServerClient interface with aggregated tools
  */
@@ -229,7 +148,7 @@ async function createMCPGateway(
   let toolMappings: Map<string, ToolMapping> | null = null;
 
   /**
-   * List tools from all proxies, filter by selectedTools, and apply mode transformation
+   * List tools from all proxies, apply selection strategy, and deduplicate
    */
   const listTools = async (): Promise<ListToolsResult> => {
     // Fetch tools from all proxies in parallel
@@ -239,11 +158,24 @@ async function createMCPGateway(
           try {
             const result = await proxy.client.listTools();
 
-            // Filter tools if selectedTools is specified
+            // Apply selection based on strategy
             let tools = result.tools;
-            if (selectedTools && selectedTools.length > 0) {
-              const selectedSet = new Set(selectedTools);
-              tools = tools.filter((t) => selectedSet.has(t.name));
+
+            if (options.toolSelectionStrategy === "exclusion") {
+              // Exclusion mode: remove selected tools (or all if selectedTools is null/empty)
+              if (selectedTools && selectedTools.length > 0) {
+                const excludeSet = new Set(selectedTools);
+                tools = tools.filter((t) => !excludeSet.has(t.name));
+              }
+              // If selectedTools is null/empty in exclusion mode, all tools are removed
+              // (this connection is fully excluded - handled by not including it)
+            } else {
+              // Include mode (default): keep only selected tools (or all if null)
+              if (selectedTools && selectedTools.length > 0) {
+                const selectedSet = new Set(selectedTools);
+                tools = tools.filter((t) => selectedSet.has(t.name));
+              }
+              // If selectedTools is null, all tools are included
             }
 
             return {
@@ -271,11 +203,9 @@ async function createMCPGateway(
       }
     }
 
-    // Apply mode transformation
-    const { tools: finalTools, mappings } = applyModeTransformation(
-      allConnectionTools,
-      options.mode,
-    );
+    // Always deduplicate (first occurrence wins)
+    const { tools: finalTools, mappings } =
+      deduplicateTools(allConnectionTools);
 
     // Cache the mappings for subsequent callTool requests
     toolMappings = mappings;
@@ -385,25 +315,60 @@ async function createMCPGateway(
 
 /**
  * Load gateway entity and create MCP gateway
+ * Handles both include and exclusion strategies
  */
 async function createMCPGatewayFromEntity(
   gateway: GatewayWithConnections,
   ctx: MeshContext,
 ): Promise<ServerClient> {
-  // Load all referenced connections
-  const connectionIds = gateway.connections.map((c) => c.connectionId);
-  const connections: ConnectionEntity[] = [];
+  let connections: Array<{
+    connection: ConnectionEntity;
+    selectedTools: string[] | null;
+  }>;
 
-  for (const connId of connectionIds) {
-    const conn = await ctx.storage.connections.findById(connId);
-    if (conn && conn.status === "active") {
-      connections.push(conn);
+  if (gateway.toolSelectionStrategy === "exclusion") {
+    // Exclusion mode: list ALL org connections, then apply exclusion filter
+    const allConnections = await ctx.storage.connections.list(
+      gateway.organizationId,
+    );
+    const activeConnections = allConnections.filter(
+      (c) => c.status === "active",
+    );
+
+    // Build a map of connection exclusions
+    const exclusionMap = new Map<string, string[] | null>();
+    for (const gwConn of gateway.connections) {
+      exclusionMap.set(gwConn.connectionId, gwConn.selectedTools);
     }
-  }
 
-  // Build gateway options
-  const options: GatewayOptions = {
-    connections: connections.map((conn) => {
+    connections = [];
+    for (const conn of activeConnections) {
+      const exclusionEntry = exclusionMap.get(conn.id);
+
+      if (exclusionEntry === undefined) {
+        // Connection NOT in gateway.connections -> include all tools
+        connections.push({ connection: conn, selectedTools: null });
+      } else if (exclusionEntry === null || exclusionEntry.length === 0) {
+        // Connection in gateway.connections with null/empty selectedTools -> exclude entire connection
+        // Skip this connection
+      } else {
+        // Connection in gateway.connections with specific tools -> exclude those tools
+        connections.push({ connection: conn, selectedTools: exclusionEntry });
+      }
+    }
+  } else {
+    // Include mode (default): use only the connections specified in gateway
+    const connectionIds = gateway.connections.map((c) => c.connectionId);
+    const loadedConnections: ConnectionEntity[] = [];
+
+    for (const connId of connectionIds) {
+      const conn = await ctx.storage.connections.findById(connId);
+      if (conn && conn.status === "active") {
+        loadedConnections.push(conn);
+      }
+    }
+
+    connections = loadedConnections.map((conn) => {
       const gwConn = gateway.connections.find(
         (c) => c.connectionId === conn.id,
       );
@@ -411,8 +376,13 @@ async function createMCPGatewayFromEntity(
         connection: conn,
         selectedTools: gwConn?.selectedTools ?? null,
       };
-    }),
-    mode: gateway.mode,
+    });
+  }
+
+  // Build gateway options
+  const options: GatewayOptions = {
+    connections,
+    toolSelectionStrategy: gateway.toolSelectionStrategy,
   };
 
   return createMCPGateway(options, ctx);
@@ -426,22 +396,51 @@ async function createMCPGatewayFromEntity(
  * Virtual Gateway endpoint - uses gateway entity from database
  *
  * Route: POST /mcp/gateway/:gatewayId
- * Exposes tools from the gateway configuration
+ * - If gatewayId is provided: use that specific gateway
+ * - If gatewayId is omitted: use default gateway for org (from x-org-id or x-org-slug header)
  */
-app.all("/gateway/:gatewayId", async (c) => {
+app.all("/gateway/:gatewayId?", async (c) => {
   const gatewayId = c.req.param("gatewayId");
   const ctx = c.get("meshContext");
 
   try {
-    // Load gateway from database
-    const gateway = await ctx.storage.gateways.findById(gatewayId);
+    let gateway: GatewayWithConnections | null = null;
+
+    if (gatewayId) {
+      // Load gateway by ID
+      gateway = await ctx.storage.gateways.findById(gatewayId);
+    } else {
+      // Load default gateway for org from headers
+      const orgId = c.req.header("x-org-id");
+      const orgSlug = c.req.header("x-org-slug");
+
+      if (orgId) {
+        gateway = await ctx.storage.gateways.getDefaultByOrgId(orgId);
+      } else if (orgSlug) {
+        gateway = await ctx.storage.gateways.getDefaultByOrgSlug(orgSlug);
+      } else {
+        return c.json(
+          {
+            error:
+              "Gateway ID required, or provide x-org-id or x-org-slug header for default gateway",
+          },
+          400,
+        );
+      }
+    }
 
     if (!gateway) {
-      return c.json({ error: `Gateway not found: ${gatewayId}` }, 404);
+      if (gatewayId) {
+        return c.json({ error: `Gateway not found: ${gatewayId}` }, 404);
+      }
+      return c.json(
+        { error: "No default gateway configured for this organization" },
+        404,
+      );
     }
 
     if (gateway.status !== "active") {
-      return c.json({ error: `Gateway is inactive: ${gatewayId}` }, 503);
+      return c.json({ error: `Gateway is inactive: ${gateway.id}` }, 503);
     }
 
     // Set organization context
@@ -587,13 +586,13 @@ app.all("/mesh/:organizationSlug", async (c) => {
       return await transport.handleMessage(c.req.raw);
     }
 
-    // Create gateway with all connections and smart prefixing mode
+    // Create gateway with all connections (include mode, null strategy = include all)
     const gatewayOptions: GatewayOptions = {
       connections: activeConnections.map((conn) => ({
         connection: conn,
         selectedTools: null, // All tools
       })),
-      mode: { type: "custom" }, // Smart prefixing for backward compatibility
+      toolSelectionStrategy: null, // Include mode
     };
 
     const gatewayClient = await createMCPGateway(gatewayOptions, ctx);

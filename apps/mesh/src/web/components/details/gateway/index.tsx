@@ -235,7 +235,7 @@ const gatewayFormSchema = z.object({
   title: z.string().min(1, "Name is required").max(255),
   description: z.string().nullable(),
   status: z.enum(["active", "inactive"]),
-  mode: z.enum(["deduplicate", "prefix_all", "custom"]),
+  tool_selection_strategy: z.enum(["include", "exclusion"]),
 });
 
 type GatewayFormData = z.infer<typeof gatewayFormSchema>;
@@ -371,12 +371,12 @@ function GatewaySettingsForm({
         <div className="flex flex-col gap-4 p-5 border-b border-border">
           <FormField
             control={form.control}
-            name="mode"
+            name="tool_selection_strategy"
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-1.5">
-                    <FormLabel className="mb-0">Mode</FormLabel>
+                    <FormLabel className="mb-0">Tool Selection</FormLabel>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -394,16 +394,12 @@ function GatewaySettingsForm({
                         <TooltipContent side="right" className="max-w-sm">
                           <div className="text-xs space-y-1">
                             <div>
-                              <strong>Deduplicate:</strong> Keep first
-                              occurrence of each tool name.
+                              <strong>Include:</strong> Only selected
+                              connections/tools are exposed.
                             </div>
                             <div>
-                              <strong>Prefix All:</strong> Prefix all tools with
-                              connection ID.
-                            </div>
-                            <div>
-                              <strong>Custom:</strong> Smart prefixing for
-                              conflicting names only.
+                              <strong>Exclude:</strong> All connections/tools
+                              except selected ones are exposed.
                             </div>
                           </div>
                         </TooltipContent>
@@ -417,9 +413,10 @@ function GatewaySettingsForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="deduplicate">Deduplicate</SelectItem>
-                      <SelectItem value="prefix_all">Prefix All</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
+                      <SelectItem value="include">Include Selected</SelectItem>
+                      <SelectItem value="exclusion">
+                        Exclude Selected
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -499,7 +496,10 @@ function GatewayInspectorViewWithGateway({
       title: gateway.title,
       description: gateway.description,
       status: gateway.status,
-      mode: gateway.mode.type,
+      tool_selection_strategy:
+        gateway.tool_selection_strategy === "exclusion"
+          ? "exclusion"
+          : "include",
     },
   });
 
@@ -521,7 +521,8 @@ function GatewayInspectorViewWithGateway({
         title: formData.title,
         description: formData.description,
         status: formData.status,
-        mode: { type: formData.mode },
+        tool_selection_strategy:
+          formData.tool_selection_strategy === "exclusion" ? "exclusion" : null,
         connections: newConnections,
       },
     });

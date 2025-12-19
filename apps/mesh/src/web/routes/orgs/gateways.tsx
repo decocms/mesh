@@ -83,7 +83,7 @@ function OrgGatewaysContent() {
       description:
         "Gateways let you securely expose integrated tools to the outside world.",
       status: "active",
-      mode: { type: "deduplicate" },
+      tool_selection_strategy: null, // Include mode
       connections: [],
     });
 
@@ -134,13 +134,15 @@ function OrgGatewaysContent() {
     },
     {
       id: "mode",
-      header: "Mode",
+      header: "Strategy",
       accessor: (gateway) => (
         <Badge variant="outline" className="text-xs">
-          {gateway.mode.type}
+          {gateway.tool_selection_strategy === "exclusion"
+            ? "Exclude"
+            : "Include"}
         </Badge>
       ),
-      cellClassName: "w-24 shrink-0",
+      cellClassName: "w-[100px]",
     },
     {
       id: "connections",
@@ -322,7 +324,11 @@ function OrgGatewaysContent() {
                         {gateway.connections.length !== 1 ? "s" : ""}
                       </span>
                       <span>•</span>
-                      <span>{gateway.mode.type}</span>
+                      <span>
+                        {gateway.tool_selection_strategy === "exclusion"
+                          ? "Exclude"
+                          : "Include"}
+                      </span>
                     </div>
                   }
                   headerActions={

@@ -72,8 +72,9 @@ export const COLLECTION_GATEWAY_LIST = defineTool({
         title: gateway.title,
         description: gateway.description,
         organization_id: gateway.organizationId,
-        mode: gateway.mode,
+        tool_selection_strategy: gateway.toolSelectionStrategy,
         status: gateway.status,
+        is_default: gateway.isDefault,
         connections: gateway.connections.map((conn) => ({
           connection_id: conn.connectionId,
           selected_tools: conn.selectedTools,

@@ -8,32 +8,30 @@
 import { z } from "zod";
 
 /**
- * Gateway mode schema
- * Defines how tools are transformed/filtered when exposed through the gateway
+ * Tool selection strategy schema
+ * - null: Include selected tools/connections (default behavior, always deduplicates)
+ * - "exclusion": Exclude selected tools/connections (inverse filter)
  */
-const GatewayModeSchema = z.object({
-  type: z
-    .enum(["deduplicate", "prefix_all", "custom"])
-    .describe(
-      "Mode type: deduplicate (remove duplicate tool names), prefix_all (prefix all tools with connectionId::), custom (custom transformation)",
-    ),
-  config: z
-    .record(z.unknown())
-    .optional()
-    .describe("Optional configuration for the mode"),
-});
+const ToolSelectionStrategySchema = z
+  .enum(["exclusion"])
+  .nullable()
+  .describe(
+    "Tool selection strategy: null = include selected (default), 'exclusion' = exclude selected",
+  );
 
-export type GatewayMode = z.infer<typeof GatewayModeSchema>;
+export type ToolSelectionStrategy = z.infer<typeof ToolSelectionStrategySchema>;
 
 /**
- * Gateway connection schema - defines which connection and tools are included
+ * Gateway connection schema - defines which connection and tools are included/excluded
  */
 const GatewayConnectionSchema = z.object({
-  connection_id: z.string().describe("Connection ID to include in gateway"),
+  connection_id: z.string().describe("Connection ID"),
   selected_tools: z
     .array(z.string())
     .nullable()
-    .describe("Selected tool names (null = all tools)"),
+    .describe(
+      "Selected tool names. With null strategy: null = all tools included. With 'exclusion' strategy: null = entire connection excluded",
+    ),
 });
 
 export type GatewayConnection = z.infer<typeof GatewayConnectionSchema>;
@@ -59,15 +57,20 @@ export const GatewayEntitySchema = z.object({
   organization_id: z
     .string()
     .describe("Organization ID this gateway belongs to"),
-  mode: GatewayModeSchema.describe(
-    "Mode configuration for tool transformation",
+  tool_selection_strategy: ToolSelectionStrategySchema.describe(
+    "Strategy for tool selection: null = include selected, 'exclusion' = exclude selected",
   ),
   status: z.enum(["active", "inactive"]).describe("Current status"),
+  is_default: z
+    .boolean()
+    .describe("Whether this is the default gateway for the organization"),
 
   // Nested connections
   connections: z
     .array(GatewayConnectionSchema)
-    .describe("Connections included in this gateway with their selected tools"),
+    .describe(
+      "Connections with their selected tools (behavior depends on tool_selection_strategy)",
+    ),
 });
 
 /**
@@ -85,26 +88,35 @@ export const GatewayCreateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("Optional description"),
-  mode: GatewayModeSchema.optional()
-    .default({ type: "deduplicate" })
-    .describe("Mode configuration (defaults to deduplicate)"),
+  tool_selection_strategy: ToolSelectionStrategySchema.optional()
+    .default(null)
+    .describe("Tool selection strategy (defaults to null = include)"),
   status: z
     .enum(["active", "inactive"])
     .optional()
     .default("active")
     .describe("Initial status"),
+  is_default: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Whether this is the default gateway for the organization"),
   connections: z
     .array(
       z.object({
-        connection_id: z.string().describe("Connection ID to include"),
+        connection_id: z.string().describe("Connection ID"),
         selected_tools: z
           .array(z.string())
           .nullable()
           .optional()
-          .describe("Selected tool names (null/undefined = all tools)"),
+          .describe(
+            "Selected tool names (null/undefined = all tools or full exclusion)",
+          ),
       }),
     )
-    .describe("At least one connection is required"),
+    .describe(
+      "Connections to include/exclude (can be empty for exclusion strategy)",
+    ),
 });
 
 export type GatewayCreateData = z.infer<typeof GatewayCreateDataSchema>;
@@ -119,17 +131,25 @@ export const GatewayUpdateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("New description (null to clear)"),
-  mode: GatewayModeSchema.optional().describe("New mode configuration"),
+  tool_selection_strategy: ToolSelectionStrategySchema.optional().describe(
+    "New tool selection strategy",
+  ),
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
+  is_default: z
+    .boolean()
+    .optional()
+    .describe("Set as default gateway for the organization"),
   connections: z
     .array(
       z.object({
-        connection_id: z.string().describe("Connection ID to include"),
+        connection_id: z.string().describe("Connection ID"),
         selected_tools: z
           .array(z.string())
           .nullable()
           .optional()
-          .describe("Selected tool names (null/undefined = all tools)"),
+          .describe(
+            "Selected tool names (null/undefined = all tools or full exclusion)",
+          ),
       }),
     )
     .optional()
