@@ -182,14 +182,16 @@ export function createApp(options: CreateAppOptions = {}) {
       return Response.json(data, res);
     },
   );
+  const authorizationServerHandler: MiddlewareHandler<Env> = async (c) => {
+    const handleOAuthDiscoveryMetadata = getHandleOAuthDiscoveryMetadata();
+    const res = await handleOAuthDiscoveryMetadata(c.req.raw);
+    const data = await res.json();
+    return Response.json(data, res);
+  };
+
   app.get(
-    "/.well-known/oauth-authorization-server/*/:gateway?/:connectionId",
-    async (c) => {
-      const handleOAuthDiscoveryMetadata = getHandleOAuthDiscoveryMetadata();
-      const res = await handleOAuthDiscoveryMetadata(c.req.raw);
-      const data = await res.json();
-      return Response.json(data, res);
-    },
+    "/.well-known/oauth-authorization-server/*/:gateway?/:connectionId?",
+    authorizationServerHandler,
   );
 
   // ============================================================================
@@ -260,7 +262,7 @@ export function createApp(options: CreateAppOptions = {}) {
       return (c.res = new Response(null, {
         status: 401,
         headers: {
-          "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${url.origin}/${url.pathname}/.well-known/oauth-protected-resource"`,
+          "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${url.origin}${url.pathname}/.well-known/oauth-protected-resource"`,
         },
       }));
     }
