@@ -19,6 +19,10 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
+import { useNavigate } from "@tanstack/react-router";
+import { Suspense } from "react";
+import { MeshMiniMap } from "./mesh-mini-map.tsx";
+import { MonitoringKPIs } from "./monitoring-kpis.tsx";
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -764,17 +768,69 @@ export default function OrgHomePage() {
       />
 
       <div className="flex-1 overflow-auto relative">
-        <ErrorBoundary
-          fallback={
-            <div className="bg-background p-5 text-sm text-muted-foreground h-full flex items-center justify-center">
-              Failed to load mesh visualization
+        <div className="min-h-full">
+          {/* Grid with internal dividers only */}
+          <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-[420px_auto_1fr] gap-[0.5px] bg-border">
+            {/* Row 0: Mesh Mini Map */}
+            <div className="lg:col-span-6">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load mesh visualization
+                  </div>
+                }
+              >
+                <Suspense fallback={<MeshMiniMap.Skeleton />}>
+                  <MeshMiniMap />
+                </Suspense>
+              </ErrorBoundary>
             </div>
-          }
-        >
-          <Suspense fallback={<MeshVisualizationSkeleton />}>
-            <MeshVisualization />
-          </Suspense>
-        </ErrorBoundary>
+
+            {/* Row 2: 3 KPI bar charts */}
+            <div className="lg:col-span-2">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load monitoring stats
+                  </div>
+                }
+              >
+                <Suspense fallback={<MonitoringKPIs.Skeleton />}>
+                  <MonitoringKPIs.Content />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+
+            {/* Row 3: Recent Activity + Top Tools */}
+            <div className="lg:col-span-3 min-h-0 overflow-hidden">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load recent activity
+                  </div>
+                }
+              >
+                <Suspense fallback={<RecentActivity.Skeleton />}>
+                  <RecentActivity />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+
+            <div className="lg:col-span-3 min-h-0 overflow-hidden">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load top tools
+                  </div>
+                }
+              >
+                <Suspense fallback={<TopTools.Skeleton />}>
+                  <TopTools />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+          </div>
+        </div>
       </div>
     </CollectionPage>
   );
