@@ -104,7 +104,6 @@ export const GatewayCreateDataSchema = z.object({
           .describe("Selected tool names (null/undefined = all tools)"),
       }),
     )
-    .min(1)
     .describe("At least one connection is required"),
 });
 
