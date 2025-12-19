@@ -26,6 +26,7 @@ type RawGatewayRow = {
   title: string;
   description: string | null;
   tool_selection_strategy: ToolSelectionStrategy | string;
+  icon: string | null;
   status: "active" | "inactive";
   is_default: number;
   created_at: Date | string;
@@ -118,6 +119,7 @@ export class GatewayStorage implements GatewayStoragePort {
         title: data.title,
         description: data.description ?? null,
         tool_selection_strategy: data.toolSelectionStrategy ?? null,
+        icon: data.icon ?? null,
         status: data.status ?? "active",
         is_default: 0,
         created_at: now,
@@ -219,6 +221,60 @@ export class GatewayStorage implements GatewayStoragePort {
     );
   }
 
+  async listByConnectionId(
+    organizationId: string,
+    connectionId: string,
+  ): Promise<GatewayWithConnections[]> {
+    // Find gateway IDs that include this connection
+    const gatewayConnectionRows = await this.db
+      .selectFrom("gateway_connections")
+      .select("gateway_id")
+      .where("connection_id", "=", connectionId)
+      .execute();
+
+    const gatewayIds = gatewayConnectionRows.map((r) => r.gateway_id);
+
+    if (gatewayIds.length === 0) {
+      return [];
+    }
+
+    // Fetch the gateways (filtered by organization)
+    const rows = await this.db
+      .selectFrom("gateways")
+      .selectAll()
+      .where("id", "in", gatewayIds)
+      .where("organization_id", "=", organizationId)
+      .execute();
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const resultGatewayIds = rows.map((r) => r.id);
+
+    // Fetch all connections for these gateways
+    const connectionRows = await this.db
+      .selectFrom("gateway_connections")
+      .selectAll()
+      .where("gateway_id", "in", resultGatewayIds)
+      .execute();
+
+    // Group connections by gateway_id
+    const connectionsByGateway = new Map<string, RawGatewayConnectionRow[]>();
+    for (const conn of connectionRows as RawGatewayConnectionRow[]) {
+      const existing = connectionsByGateway.get(conn.gateway_id) ?? [];
+      existing.push(conn);
+      connectionsByGateway.set(conn.gateway_id, existing);
+    }
+
+    return rows.map((row) =>
+      this.deserializeGatewayWithConnections(
+        row as RawGatewayRow,
+        connectionsByGateway.get(row.id) ?? [],
+      ),
+    );
+  }
+
   async update(
     id: string,
     userId: string,
@@ -245,6 +301,9 @@ export class GatewayStorage implements GatewayStoragePort {
     }
     if (data.toolSelectionStrategy !== undefined) {
       updateData.tool_selection_strategy = data.toolSelectionStrategy;
+    }
+    if (data.icon !== undefined) {
+      updateData.icon = data.icon;
     }
     if (data.status !== undefined) {
       updateData.status = data.status;
@@ -406,6 +465,7 @@ export class GatewayStorage implements GatewayStoragePort {
       toolSelectionStrategy: this.parseToolSelectionStrategy(
         row.tool_selection_strategy,
       ),
+      icon: row.icon,
       status: row.status,
       isDefault: row.is_default === 1,
       createdAt: row.created_at as string,

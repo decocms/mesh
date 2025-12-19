@@ -6,6 +6,7 @@ import { CollectionTableWrapper } from "@/web/components/collections/collection-
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   useGateways,
   useGatewayActions,
@@ -109,6 +110,21 @@ function OrgGatewaysContent() {
   };
 
   const columns: TableColumn<GatewayEntity>[] = [
+    {
+      id: "icon",
+      header: "",
+      render: (gateway) => (
+        <div className="flex items-center justify-center">
+          <IntegrationIcon
+            icon={gateway.icon}
+            name={gateway.title}
+            size="sm"
+            className="shrink-0 shadow-sm"
+          />
+        </div>
+      ),
+      cellClassName: "w-16 shrink-0",
+    },
     {
       id: "title",
       header: "Name",
@@ -217,7 +233,7 @@ function OrgGatewaysContent() {
       className="h-7 px-3 rounded-lg text-sm font-medium"
       disabled={actions.create.isPending}
     >
-      {actions.create.isPending ? "Creating..." : "Create Gateway"}
+      {actions.create.isPending ? "Creating..." : "Create MCP Gateway"}
     </Button>
   );
 
@@ -308,7 +324,7 @@ function OrgGatewaysContent() {
                     id: gateway.id,
                     title: gateway.title,
                     description: gateway.description,
-                    icon: "network_node",
+                    icon: gateway.icon,
                     status: gateway.status,
                   }}
                   onClick={() =>

@@ -34,6 +34,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useParams, useRouter } from "@tanstack/react-router";
+import { formatDistanceToNow } from "date-fns";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -61,30 +62,29 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
   const [copiedConfig, setCopiedConfig] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
 
-  // Full MCP configuration object
-  const mcpConfig = {
-    [serverName]: {
-      type: "http",
-      url: gatewayUrl,
-    },
-  };
+  // MCP connection configuration (For Cursor, Claude Code, and Windsurf)
+  const connectionConfig = { type: "streamableHttp", url: gatewayUrl };
 
+  // Full MCP configuration object
+  const mcpConfig = { [serverName]: connectionConfig };
+
+  const connectionConfigJson = JSON.stringify(connectionConfig, null, 2);
   const configJson = JSON.stringify(mcpConfig, null, 2);
 
   // Generate Cursor deeplink
   const cursorDeeplink = (() => {
-    const base64Config = utf8ToBase64(configJson);
+    const base64Config = utf8ToBase64(connectionConfigJson);
     return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
   })();
 
   // Generate Windsurf deeplink (similar to Cursor)
   const windsurfDeeplink = (() => {
-    const base64Config = utf8ToBase64(configJson);
+    const base64Config = utf8ToBase64(connectionConfigJson);
     return `windsurf://codeium.windsurf/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
   })();
 
   // Claude Code CLI command - uses JSON format
-  const claudeCommand = `claude mcp add "${serverName}" --config '${configJson.replace(/'/g, "'\\''")}'`;
+  const claudeCommand = `claude mcp add "${serverName}" --config '${connectionConfigJson.replace(/'/g, "'\\''")}'`;
 
   const handleCopyConfig = async () => {
     await navigator.clipboard.writeText(configJson);
@@ -293,10 +293,12 @@ function GatewaySettingsForm({
   form,
   toolSet,
   onToolSetChange,
+  icon,
 }: {
   form: ReturnType<typeof useForm<GatewayFormData>>;
   toolSet: Record<string, string[]>;
   onToolSetChange: (newToolSet: Record<string, string[]>) => void;
+  icon?: string | null;
 }) {
   return (
     <Form {...form}>
@@ -304,9 +306,17 @@ function GatewaySettingsForm({
         {/* Header section - Icon, Title, Description */}
         <div className="flex flex-col gap-4 p-5 border-b border-border">
           <div className="flex items-start justify-between">
-            <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 shadow-sm border border-border">
-              <Icon name="network_node" size={32} className="text-primary" />
-            </div>
+            {icon ? (
+              <img
+                src={icon}
+                alt="Gateway icon"
+                className="w-16 h-16 rounded-lg object-cover shrink-0 shadow-sm border border-border"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 shadow-sm border border-border">
+                <Icon name="network_node" size={32} className="text-primary" />
+              </div>
+            )}
             <FormField
               control={form.control}
               name="status"
@@ -561,6 +571,7 @@ function GatewayInspectorViewWithGateway({
             form={form}
             toolSet={toolSet}
             onToolSetChange={handleToolSetChange}
+            icon={gateway.icon}
           />
         </div>
 
@@ -571,6 +582,18 @@ function GatewayInspectorViewWithGateway({
               serverName={gateway.title || `gateway-${gateway.id.slice(0, 8)}`}
               gatewayUrl={`${window.location.origin}/mcp/gateway/${gateway.id}`}
             />
+          </div>
+
+          {/* Last Updated section */}
+          <div className="flex items-center gap-4 p-5 border-t border-border">
+            <span className="flex-1 text-sm text-foreground">Last Updated</span>
+            <span className="font-mono text-sm uppercase text-muted-foreground">
+              {gateway.updated_at
+                ? formatDistanceToNow(new Date(gateway.updated_at), {
+                    addSuffix: false,
+                  })
+                : "Unknown"}
+            </span>
           </div>
         </div>
       </div>
