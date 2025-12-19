@@ -3,22 +3,25 @@ import {
   getWellKnownRegistryConnection,
 } from "@/core/well-known-mcp";
 import { CollectionHeader } from "@/web/components/collections/collection-header";
+import { SelectMCPsModal } from "@/web/components/select-mcp-modal";
 import { StoreDiscovery } from "@/web/components/store";
 import { StoreRegistrySelect } from "@/web/components/store-registry-select";
 import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-empty-state";
-import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useConnections, useConnectionActions } from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Icon } from "@deco/ui/components/icon.js";
-import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Suspense } from "react";
+import { Outlet, useRouterState } from "@tanstack/react-router";
+import { Suspense, useState } from "react";
+import { toast } from "sonner";
 
 export default function StorePage() {
+  const [isSelectMcpModalOpen, setIsSelectMcpModalOpen] = useState(false);
   const { org } = useProjectContext();
-  const navigate = useNavigate();
   const allConnections = useConnections();
+  const connectionActions = useConnectionActions();
 
   // Check if we're viewing a child route (app detail)
   const routerState = useRouterState();
@@ -50,15 +53,8 @@ export default function StorePage() {
   const effectiveRegistry =
     selectedRegistry?.id || registryConnections[0]?.id || "";
 
-  // Only show selector when there are multiple registries
-  const showRegistrySelector = registryConnections.length > 1;
-
   const handleAddNewRegistry = () => {
-    navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
-      search: { action: "create" },
-    });
+    setIsSelectMcpModalOpen(!isSelectMcpModalOpen);
   };
 
   // Well-known registries to show in empty state
@@ -66,6 +62,43 @@ export default function StorePage() {
     getWellKnownRegistryConnection(),
     getWellKnownCommunityRegistryConnection(),
   ];
+
+  const confirmRegistrySelection = async (selectedIds: string[]) => {
+    if (selectedIds.length === 0) {
+      setIsSelectMcpModalOpen(false);
+      return;
+    }
+
+    // Find which registries need to be created (not already in connections)
+    const existingRegistryIds = new Set(registryConnections.map((c) => c.id));
+    const registriesToCreate = wellKnownRegistries.filter(
+      (registry) => registry.id && selectedIds.includes(registry.id) && !existingRegistryIds.has(registry.id),
+    );
+
+    // Create connections for registries that don't exist yet
+    const createdIds: string[] = [];
+    for (const registry of registriesToCreate) {
+      try {
+        const created = await connectionActions.create.mutateAsync(registry);
+        createdIds.push(created.id);
+      } catch (error) {
+        console.error(`Failed to create registry ${registry.id}:`, error);
+        toast.error(`Failed to create registry ${registry.title}: ${error instanceof Error ? error.message : String(error)}`);
+        // Continue with other registries even if one fails
+      }
+    }
+
+    // Select the first successfully created registry, or the first selected ID if it already existed
+    const firstCreatedId = createdIds[0];
+    const firstSelectedId = selectedIds.find((id) => existingRegistryIds.has(id)) || selectedIds[0];
+    const registryToSelect = firstCreatedId || firstSelectedId;
+
+    if (registryToSelect) {
+      setSelectedRegistryId(registryToSelect);
+    }
+
+    setIsSelectMcpModalOpen(false);
+  };
 
   // If we're viewing an app detail (child route), render the Outlet
   if (isViewingAppDetail) {
@@ -77,7 +110,6 @@ export default function StorePage() {
       <CollectionHeader
         title="Store"
         ctaButton={
-          showRegistrySelector ? (
             <StoreRegistrySelect
               registries={registryOptions}
               value={effectiveRegistry}
@@ -85,7 +117,6 @@ export default function StorePage() {
               onAddNew={handleAddNewRegistry}
               placeholder="Select store..."
             />
-          ) : undefined
         }
       />
 
@@ -120,6 +151,17 @@ export default function StorePage() {
           )}
         </Suspense>
       </div>
+      <SelectMCPsModal
+        open={isSelectMcpModalOpen}
+        onOpenChange={setIsSelectMcpModalOpen}
+        connections={wellKnownRegistries.map((r) => ({
+          id: r.id!,
+          title: r.title,
+          description: r.description,
+          icon: r.icon,
+        }))}
+        onConfirm={confirmRegistrySelection}
+      />
     </div>
   );
 }
