@@ -47,6 +47,13 @@ export const COLLECTION_GATEWAY_DELETE = defineTool({
       throw new Error(`Gateway not found: ${input.id}`);
     }
 
+    // Prevent deletion of default gateways
+    if (existing.isDefault) {
+      throw new Error(
+        "Cannot delete the default gateway. Set another gateway as default first.",
+      );
+    }
+
     // Delete the gateway (connections are deleted via CASCADE)
     await ctx.storage.gateways.delete(input.id);
 
@@ -57,8 +64,9 @@ export const COLLECTION_GATEWAY_DELETE = defineTool({
         title: existing.title,
         description: existing.description,
         organization_id: existing.organizationId,
-        mode: existing.mode,
+        tool_selection_strategy: existing.toolSelectionStrategy,
         status: existing.status,
+        is_default: existing.isDefault,
         connections: existing.connections.map((conn) => ({
           connection_id: conn.connectionId,
           selected_tools: conn.selectedTools,

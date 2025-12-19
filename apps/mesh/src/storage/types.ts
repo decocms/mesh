@@ -525,15 +525,11 @@ export interface EventDelivery {
 // ============================================================================
 
 /**
- * Gateway mode configuration
- * - deduplicate: Remove duplicate tool names, keeping first occurrence
- * - prefix_all: Prefix all tools with connectionId::toolName
- * - custom: Custom mode with configuration in config field
+ * Tool selection strategy for gateways
+ * - null: Include selected tools/connections (default behavior, always deduplicates)
+ * - "exclusion": Exclude selected tools/connections (inverse filter)
  */
-export interface GatewayMode {
-  type: "deduplicate" | "prefix_all" | "custom";
-  config?: Record<string, unknown>;
-}
+export type ToolSelectionStrategy = "exclusion" | null;
 
 /**
  * Gateway table definition
@@ -544,8 +540,9 @@ export interface GatewayTable {
   organization_id: string;
   title: string;
   description: string | null;
-  mode: JsonObject<GatewayMode>;
+  tool_selection_strategy: ToolSelectionStrategy;
   status: "active" | "inactive";
+  is_default: number; // SQLite uses INTEGER for boolean (0 = false, 1 = true)
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string;
@@ -560,8 +557,9 @@ export interface Gateway {
   organizationId: string;
   title: string;
   description: string | null;
-  mode: GatewayMode;
+  toolSelectionStrategy: ToolSelectionStrategy;
   status: "active" | "inactive";
+  isDefault: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
   createdBy: string;

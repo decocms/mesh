@@ -13,7 +13,7 @@ export { COLLECTION_GATEWAY_DELETE } from "./delete";
 
 // Re-export schema types (only types, not runtime schemas)
 export type {
-  GatewayMode,
+  ToolSelectionStrategy,
   GatewayConnection,
   GatewayEntity,
   GatewayCreateData,

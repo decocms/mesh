@@ -66,11 +66,14 @@ export const COLLECTION_GATEWAY_UPDATE = defineTool({
     if (input.data.description !== undefined) {
       updateData.description = input.data.description;
     }
-    if (input.data.mode !== undefined) {
-      updateData.mode = input.data.mode;
+    if (input.data.tool_selection_strategy !== undefined) {
+      updateData.toolSelectionStrategy = input.data.tool_selection_strategy;
     }
     if (input.data.status !== undefined) {
       updateData.status = input.data.status;
+    }
+    if (input.data.is_default !== undefined) {
+      updateData.isDefault = input.data.is_default;
     }
     if (input.data.connections !== undefined) {
       updateData.connections = input.data.connections.map((conn) => ({
@@ -93,8 +96,9 @@ export const COLLECTION_GATEWAY_UPDATE = defineTool({
         title: gateway.title,
         description: gateway.description,
         organization_id: gateway.organizationId,
-        mode: gateway.mode,
+        tool_selection_strategy: gateway.toolSelectionStrategy,
         status: gateway.status,
+        is_default: gateway.isDefault,
         connections: gateway.connections.map((conn) => ({
           connection_id: conn.connectionId,
           selected_tools: conn.selectedTools,

@@ -82,8 +82,9 @@ export interface MonitoringStorage {
 export interface GatewayCreateData {
   title: string;
   description?: string | null;
-  mode?: Gateway["mode"];
+  toolSelectionStrategy?: Gateway["toolSelectionStrategy"];
   status?: Gateway["status"];
+  isDefault?: boolean;
   connections: Array<{
     connectionId: string;
     selectedTools?: string[] | null;
@@ -96,8 +97,9 @@ export interface GatewayCreateData {
 export interface GatewayUpdateData {
   title?: string;
   description?: string | null;
-  mode?: Gateway["mode"];
+  toolSelectionStrategy?: Gateway["toolSelectionStrategy"];
   status?: Gateway["status"];
+  isDefault?: boolean;
   connections?: Array<{
     connectionId: string;
     selectedTools?: string[] | null;
@@ -118,4 +120,9 @@ export interface GatewayStoragePort {
     data: GatewayUpdateData,
   ): Promise<GatewayWithConnections>;
   delete(id: string): Promise<void>;
+  getDefaultByOrgId(
+    organizationId: string,
+  ): Promise<GatewayWithConnections | null>;
+  getDefaultByOrgSlug(orgSlug: string): Promise<GatewayWithConnections | null>;
+  setDefault(gatewayId: string): Promise<GatewayWithConnections>;
 }

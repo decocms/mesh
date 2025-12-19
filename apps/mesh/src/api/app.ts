@@ -18,7 +18,6 @@ import {
   ContextFactory,
   createMeshContextFactory,
 } from "../core/context-factory";
-import type { MeshContext } from "../core/mesh-context";
 import { getDb, type MeshDatabase } from "../database";
 import { createEventBus, type EventBus } from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
@@ -28,11 +27,6 @@ import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
 import proxyRoutes from "./routes/proxy";
 
-// Define Hono variables type
-type Variables = {
-  meshContext: MeshContext;
-};
-
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
 
@@ -40,13 +34,13 @@ let currentEventBus: EventBus | null = null;
 const prometheusSerializer = new PrometheusSerializer();
 
 // Mount OAuth discovery metadata endpoints (shared across instances)
-import { WellKnownOrgMCPId } from "@/core/well-known-mcp";
 import {
   oAuthDiscoveryMetadata,
   oAuthProtectedResourceMetadata,
 } from "better-auth/plugins";
 import { MiddlewareHandler } from "hono/types";
 import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
+import { Env } from "./env";
 const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
 const getHandleOAuthDiscoveryMetadata = () => oAuthDiscoveryMetadata(auth);
@@ -107,7 +101,7 @@ export function createApp(options: CreateAppOptions = {}) {
   // Track for cleanup during HMR
   currentEventBus = eventBus;
 
-  const app = new Hono<{ Variables: Variables }>();
+  const app = new Hono<Env>();
 
   // ============================================================================
   // Middleware
@@ -179,36 +173,22 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // Mount OAuth discovery metadata endpoints
   app.get(
-    "/mcp/:connectionId/.well-known/oauth-protected-resource/*",
+    "/mcp/:gateway?/:connectionId/.well-known/oauth-protected-resource/*",
     async (c) => {
       const handleOAuthProtectedResourceMetadata =
         getHandleOAuthProtectedResourceMetadata();
       const res = await handleOAuthProtectedResourceMetadata(c.req.raw);
       const data = (await res.json()) as ResourceServerMetadata;
-      return Response.json(
-        {
-          ...data,
-          scopes_supported: [
-            ...data.scopes_supported,
-            `${c.req.param("connectionId")}:*`,
-          ],
-        },
-        res,
-      );
+      return Response.json(data, res);
     },
   );
   app.get(
-    "/.well-known/oauth-authorization-server/*/:connectionId?",
+    "/.well-known/oauth-authorization-server/*/:gateway?/:connectionId",
     async (c) => {
-      const connectionId =
-        c.req.param("connectionId") ?? WellKnownOrgMCPId.SELF;
       const handleOAuthDiscoveryMetadata = getHandleOAuthDiscoveryMetadata();
       const res = await handleOAuthDiscoveryMetadata(c.req.raw);
       const data = await res.json();
-      return Response.json(
-        { ...data, scopes_supported: [`${connectionId}:*`] },
-        res,
-      );
+      return Response.json(data, res);
     },
   );
 
@@ -272,23 +252,22 @@ export function createApp(options: CreateAppOptions = {}) {
   // API Routes
   // ============================================================================
 
-  const mcpAuth: MiddlewareHandler = async (c, next) => {
+  const mcpAuth: MiddlewareHandler<Env> = async (c, next) => {
     const meshContext = c.var.meshContext;
-    const connectionId = c.req.param("connectionId") ?? WellKnownOrgMCPId.SELF;
     // Require either user or API key authentication
     if (!meshContext.auth.user?.id && !meshContext.auth.apiKey?.id) {
-      const origin = new URL(c.req.url).origin;
+      const url = new URL(c.req.url);
       return (c.res = new Response(null, {
         status: 401,
         headers: {
-          "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
+          "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${url.origin}/${url.pathname}/.well-known/oauth-protected-resource"`,
         },
       }));
     }
     return await next();
   };
   app.use("/mcp/:connectionId?", mcpAuth);
-  app.use("/mcp/gateway/:connectionId", mcpAuth);
+  app.use("/mcp/gateway/:gatewayId?", mcpAuth);
 
   // MCP Gateway routes (must be before proxy to match /mcp/gateway and /mcp/mesh before /mcp/:connectionId)
   // Virtual gateway: /mcp/gateway/:gatewayId
