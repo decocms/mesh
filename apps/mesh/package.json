@@ -72,7 +72,6 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.17",
-    "use-mcp": "^0.0.21",
     "zod": "^3.25.76",
     "zod-from-json-schema": "0.0.5",
     "zod-to-json-schema": "3.25.0"
