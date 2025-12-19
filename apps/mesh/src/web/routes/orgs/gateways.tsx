@@ -115,14 +115,13 @@ function OrgGatewaysContent() {
       id: "icon",
       header: "",
       render: (gateway) => (
-        <div className="flex items-center justify-center">
-          <IntegrationIcon
-            icon={gateway.icon}
-            name={gateway.title}
-            size="sm"
-            className="shrink-0 shadow-sm"
-          />
-        </div>
+        <IntegrationIcon
+          icon={gateway.icon}
+          name={gateway.title}
+          size="sm"
+          className="shrink-0 shadow-sm"
+          fallbackIcon="network_node"
+        />
       ),
       cellClassName: "w-16 shrink-0",
     },
@@ -326,6 +325,7 @@ function OrgGatewaysContent() {
                     icon: gateway.icon,
                     status: gateway.status,
                   }}
+                  fallbackIcon="network_node"
                   onClick={() =>
                     navigate({
                       to: "/$org/gateways/$gatewayId",

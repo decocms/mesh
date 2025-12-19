@@ -7,6 +7,7 @@ interface IntegrationIconProps {
   name: string;
   size?: "xs" | "sm" | "md" | "lg";
   className?: string;
+  fallbackIcon?: string;
 }
 
 export function IntegrationIcon({
@@ -14,6 +15,7 @@ export function IntegrationIcon({
   name,
   size = "md",
   className,
+  fallbackIcon = "extension",
 }: IntegrationIconProps) {
   const [imageError, setImageError] = useState(icon ? false : true);
 
@@ -31,7 +33,7 @@ export function IntegrationIcon({
     lg: 32,
   };
 
-  const fallbackIcon = (
+  const fallbackIconElement = (
     <div
       className={cn(
         "rounded-lg flex items-center justify-center bg-muted border border-border",
@@ -40,7 +42,7 @@ export function IntegrationIcon({
       )}
     >
       <Icon
-        name="cable"
+        name={fallbackIcon}
         size={iconSizes[size]}
         className="text-muted-foreground"
       />
@@ -63,5 +65,5 @@ export function IntegrationIcon({
   }
 
   // Fallback: muted icon with connection symbol
-  return fallbackIcon;
+  return fallbackIconElement;
 }
