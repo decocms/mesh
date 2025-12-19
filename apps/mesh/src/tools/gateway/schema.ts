@@ -8,18 +8,33 @@
 import { z } from "zod";
 
 /**
- * Tool selection strategy schema
- * - null: Include selected tools/connections (default behavior, always deduplicates)
+ * Tool selection mode schema
+ * - "inclusion": Include selected tools/connections (default behavior)
  * - "exclusion": Exclude selected tools/connections (inverse filter)
  */
-const ToolSelectionStrategySchema = z
-  .enum(["exclusion"])
-  .nullable()
+const ToolSelectionModeSchema = z
+  .enum(["inclusion", "exclusion"])
   .describe(
-    "Tool selection strategy: null = include selected (default), 'exclusion' = exclude selected",
+    "Tool selection mode: 'inclusion' = include selected (default), 'exclusion' = exclude selected",
   );
 
-export type ToolSelectionStrategy = z.infer<typeof ToolSelectionStrategySchema>;
+export type ToolSelectionMode = z.infer<typeof ToolSelectionModeSchema>;
+
+/**
+ * Gateway tool selection strategy schema (metadata, not used for runtime behavior yet)
+ * - "passthrough": Pass tools through as-is (default)
+ * - "smart_tool_selection": Smart tool selection behavior
+ * - "code_execution": Code execution behavior
+ */
+const GatewayToolSelectionStrategySchema = z
+  .enum(["passthrough", "smart_tool_selection", "code_execution"])
+  .describe(
+    "Gateway tool selection strategy: 'passthrough' (default), 'smart_tool_selection', or 'code_execution'",
+  );
+
+export type GatewayToolSelectionStrategy = z.infer<
+  typeof GatewayToolSelectionStrategySchema
+>;
 
 /**
  * Gateway connection schema - defines which connection and tools are included/excluded
@@ -30,7 +45,7 @@ const GatewayConnectionSchema = z.object({
     .array(z.string())
     .nullable()
     .describe(
-      "Selected tool names. With null strategy: null = all tools included. With 'exclusion' strategy: null = entire connection excluded",
+      "Selected tool names. With 'inclusion' mode: null = all tools included. With 'exclusion' mode: null = entire connection excluded",
     ),
 });
 
@@ -58,8 +73,11 @@ export const GatewayEntitySchema = z.object({
   organization_id: z
     .string()
     .describe("Organization ID this gateway belongs to"),
-  tool_selection_strategy: ToolSelectionStrategySchema.describe(
-    "Strategy for tool selection: null = include selected, 'exclusion' = exclude selected",
+  tool_selection_strategy: GatewayToolSelectionStrategySchema.describe(
+    "Gateway behavior strategy (metadata for now): 'passthrough', 'smart_tool_selection', or 'code_execution'",
+  ),
+  tool_selection_mode: ToolSelectionModeSchema.describe(
+    "Tool selection mode: 'inclusion' = include selected, 'exclusion' = exclude selected",
   ),
   status: z.enum(["active", "inactive"]).describe("Current status"),
   is_default: z
@@ -70,7 +88,7 @@ export const GatewayEntitySchema = z.object({
   connections: z
     .array(GatewayConnectionSchema)
     .describe(
-      "Connections with their selected tools (behavior depends on tool_selection_strategy)",
+      "Connections with their selected tools (behavior depends on tool_selection_mode)",
     ),
 });
 
@@ -89,9 +107,12 @@ export const GatewayCreateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("Optional description"),
-  tool_selection_strategy: ToolSelectionStrategySchema.optional()
-    .default(null)
-    .describe("Tool selection strategy (defaults to null = include)"),
+  tool_selection_strategy: GatewayToolSelectionStrategySchema.optional()
+    .default("passthrough")
+    .describe("Gateway behavior strategy (defaults to 'passthrough')"),
+  tool_selection_mode: ToolSelectionModeSchema.optional()
+    .default("inclusion")
+    .describe("Tool selection mode (defaults to 'inclusion')"),
   icon: z.string().nullable().optional().describe("Optional icon URL"),
   status: z
     .enum(["active", "inactive"])
@@ -117,7 +138,7 @@ export const GatewayCreateDataSchema = z.object({
       }),
     )
     .describe(
-      "Connections to include/exclude (can be empty for exclusion strategy)",
+      "Connections to include/exclude (can be empty for exclusion mode)",
     ),
 });
 
@@ -133,10 +154,18 @@ export const GatewayUpdateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("New description (null to clear)"),
-  tool_selection_strategy: ToolSelectionStrategySchema.optional().describe(
-    "New tool selection strategy",
+  tool_selection_strategy:
+    GatewayToolSelectionStrategySchema.optional().describe(
+      "New gateway behavior strategy",
+    ),
+  tool_selection_mode: ToolSelectionModeSchema.optional().describe(
+    "New tool selection mode",
   ),
-  icon: z.string().nullable().optional().describe("New icon URL (null to clear)"),
+  icon: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("New icon URL (null to clear)"),
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
   is_default: z
     .boolean()

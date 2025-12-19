@@ -83,6 +83,7 @@ export interface GatewayCreateData {
   title: string;
   description?: string | null;
   toolSelectionStrategy?: Gateway["toolSelectionStrategy"];
+  toolSelectionMode?: Gateway["toolSelectionMode"];
   icon?: string | null;
   status?: Gateway["status"];
   isDefault?: boolean;
@@ -99,6 +100,7 @@ export interface GatewayUpdateData {
   title?: string;
   description?: string | null;
   toolSelectionStrategy?: Gateway["toolSelectionStrategy"];
+  toolSelectionMode?: Gateway["toolSelectionMode"];
   icon?: string | null;
   status?: Gateway["status"];
   isDefault?: boolean;

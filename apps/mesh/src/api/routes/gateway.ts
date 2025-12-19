@@ -28,7 +28,7 @@ import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import type {
   GatewayWithConnections,
-  ToolSelectionStrategy,
+  ToolSelectionMode,
 } from "../../storage/types";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { Env } from "../env";
@@ -60,9 +60,9 @@ interface ConnectionToolsResult {
 interface GatewayOptions {
   connections: Array<{
     connection: ConnectionEntity;
-    selectedTools: string[] | null; // null = all tools (or full exclusion if strategy is "exclusion")
+    selectedTools: string[] | null; // null = all tools (or full exclusion if mode is "exclusion")
   }>;
-  toolSelectionStrategy: ToolSelectionStrategy;
+  toolSelectionMode: ToolSelectionMode;
 }
 
 // ============================================================================
@@ -148,7 +148,7 @@ async function createMCPGateway(
   let toolMappings: Map<string, ToolMapping> | null = null;
 
   /**
-   * List tools from all proxies, apply selection strategy, and deduplicate
+   * List tools from all proxies, apply selection mode, and deduplicate
    */
   const listTools = async (): Promise<ListToolsResult> => {
     // Fetch tools from all proxies in parallel
@@ -158,10 +158,10 @@ async function createMCPGateway(
           try {
             const result = await proxy.client.listTools();
 
-            // Apply selection based on strategy
+            // Apply selection based on mode
             let tools = result.tools;
 
-            if (options.toolSelectionStrategy === "exclusion") {
+            if (options.toolSelectionMode === "exclusion") {
               // Exclusion mode: remove selected tools (or all if selectedTools is null/empty)
               if (selectedTools && selectedTools.length > 0) {
                 const excludeSet = new Set(selectedTools);
@@ -170,7 +170,7 @@ async function createMCPGateway(
               // If selectedTools is null/empty in exclusion mode, all tools are removed
               // (this connection is fully excluded - handled by not including it)
             } else {
-              // Include mode (default): keep only selected tools (or all if null)
+              // Inclusion mode (default): keep only selected tools (or all if null)
               if (selectedTools && selectedTools.length > 0) {
                 const selectedSet = new Set(selectedTools);
                 tools = tools.filter((t) => selectedSet.has(t.name));
@@ -315,7 +315,7 @@ async function createMCPGateway(
 
 /**
  * Load gateway entity and create MCP gateway
- * Handles both include and exclusion strategies
+ * Handles both inclusion and exclusion modes
  */
 async function createMCPGatewayFromEntity(
   gateway: GatewayWithConnections,
@@ -326,7 +326,7 @@ async function createMCPGatewayFromEntity(
     selectedTools: string[] | null;
   }>;
 
-  if (gateway.toolSelectionStrategy === "exclusion") {
+  if (gateway.toolSelectionMode === "exclusion") {
     // Exclusion mode: list ALL org connections, then apply exclusion filter
     const allConnections = await ctx.storage.connections.list(
       gateway.organizationId,
@@ -357,7 +357,7 @@ async function createMCPGatewayFromEntity(
       }
     }
   } else {
-    // Include mode (default): use only the connections specified in gateway
+    // Inclusion mode (default): use only the connections specified in gateway
     const connectionIds = gateway.connections.map((c) => c.connectionId);
     const loadedConnections: ConnectionEntity[] = [];
 
@@ -382,7 +382,7 @@ async function createMCPGatewayFromEntity(
   // Build gateway options
   const options: GatewayOptions = {
     connections,
-    toolSelectionStrategy: gateway.toolSelectionStrategy,
+    toolSelectionMode: gateway.toolSelectionMode,
   };
 
   return createMCPGateway(options, ctx);
@@ -586,13 +586,13 @@ app.all("/mesh/:organizationSlug", async (c) => {
       return await transport.handleMessage(c.req.raw);
     }
 
-    // Create gateway with all connections (include mode, null strategy = include all)
+    // Create gateway with all connections (inclusion mode = include all)
     const gatewayOptions: GatewayOptions = {
       connections: activeConnections.map((conn) => ({
         connection: conn,
         selectedTools: null, // All tools
       })),
-      toolSelectionStrategy: null, // Include mode
+      toolSelectionMode: "inclusion", // Inclusion mode
     };
 
     const gatewayClient = await createMCPGateway(gatewayOptions, ctx);

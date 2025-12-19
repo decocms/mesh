@@ -81,7 +81,9 @@ function extractFieldName(childId: string): string {
  * Check if a binding schema value represents an app name that needs dynamic resolution.
  * @example "@deco/database" -> true, "deco/database" -> true, [{name: "TOOL"}] -> false
  */
-function isDynamicBindingSchema(bindingSchema: unknown): bindingSchema is string {
+function isDynamicBindingSchema(
+  bindingSchema: unknown,
+): bindingSchema is string {
   if (typeof bindingSchema !== "string") return false;
   const normalized = bindingSchema.startsWith("@")
     ? bindingSchema.slice(1)
@@ -400,7 +402,9 @@ function CustomFieldTemplate(props: FieldTemplateProps) {
           </label>
         )}
         {description && (
-          <p className="text-xs text-muted-foreground truncate">{description}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {description}
+          </p>
         )}
       </div>
       <div className="w-[200px] shrink-0">{children}</div>
@@ -464,5 +468,3 @@ export function McpConfigurationForm({
     </div>
   );
 }
-
-

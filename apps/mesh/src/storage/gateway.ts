@@ -15,8 +15,9 @@ import type {
 import type {
   Database,
   Gateway,
+  GatewayToolSelectionStrategy,
   GatewayWithConnections,
-  ToolSelectionStrategy,
+  ToolSelectionMode,
 } from "./types";
 
 /** Raw database row type for gateways */
@@ -25,7 +26,8 @@ type RawGatewayRow = {
   organization_id: string;
   title: string;
   description: string | null;
-  tool_selection_strategy: ToolSelectionStrategy | string;
+  tool_selection_strategy: GatewayToolSelectionStrategy | string;
+  tool_selection_mode: ToolSelectionMode | string;
   icon: string | null;
   status: "active" | "inactive";
   is_default: number;
@@ -74,7 +76,10 @@ export class GatewayStorage implements GatewayStoragePort {
             organization_id: organizationId,
             title: data.title,
             description: data.description ?? null,
-            tool_selection_strategy: data.toolSelectionStrategy ?? null,
+            tool_selection_strategy:
+              data.toolSelectionStrategy ?? "passthrough",
+            tool_selection_mode: data.toolSelectionMode ?? "inclusion",
+            icon: data.icon ?? null,
             status: data.status ?? "active",
             is_default: 1,
             created_at: now,
@@ -118,7 +123,8 @@ export class GatewayStorage implements GatewayStoragePort {
         organization_id: organizationId,
         title: data.title,
         description: data.description ?? null,
-        tool_selection_strategy: data.toolSelectionStrategy ?? null,
+        tool_selection_strategy: data.toolSelectionStrategy ?? "passthrough",
+        tool_selection_mode: data.toolSelectionMode ?? "inclusion",
         icon: data.icon ?? null,
         status: data.status ?? "active",
         is_default: 0,
@@ -302,6 +308,9 @@ export class GatewayStorage implements GatewayStoragePort {
     if (data.toolSelectionStrategy !== undefined) {
       updateData.tool_selection_strategy = data.toolSelectionStrategy;
     }
+    if (data.toolSelectionMode !== undefined) {
+      updateData.tool_selection_mode = data.toolSelectionMode;
+    }
     if (data.icon !== undefined) {
       updateData.icon = data.icon;
     }
@@ -465,6 +474,7 @@ export class GatewayStorage implements GatewayStoragePort {
       toolSelectionStrategy: this.parseToolSelectionStrategy(
         row.tool_selection_strategy,
       ),
+      toolSelectionMode: this.parseToolSelectionMode(row.tool_selection_mode),
       icon: row.icon,
       status: row.status,
       isDefault: row.is_default === 1,
@@ -476,19 +486,26 @@ export class GatewayStorage implements GatewayStoragePort {
   }
 
   /**
-   * Parse tool selection strategy value
+   * Parse tool selection strategy value (new: passthrough/smart_tool_selection/code_execution)
    */
   private parseToolSelectionStrategy(
-    value: ToolSelectionStrategy | string | null,
-  ): ToolSelectionStrategy {
-    if (value === null || value === "null") return null;
+    value: GatewayToolSelectionStrategy | string | null,
+  ): GatewayToolSelectionStrategy {
+    if (value === "smart_tool_selection") return "smart_tool_selection";
+    if (value === "code_execution") return "code_execution";
+    // Default to passthrough for any other value
+    return "passthrough";
+  }
+
+  /**
+   * Parse tool selection mode value (inclusion/exclusion)
+   */
+  private parseToolSelectionMode(
+    value: ToolSelectionMode | string | null,
+  ): ToolSelectionMode {
     if (value === "exclusion") return "exclusion";
-    // Handle legacy JSON format
-    if (typeof value === "string" && value.startsWith("{")) {
-      // Old mode format - treat as null (include mode)
-      return null;
-    }
-    return null;
+    // Default to inclusion for any other value (including null, "null", legacy JSON)
+    return "inclusion";
   }
 
   /**

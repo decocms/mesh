@@ -84,7 +84,8 @@ function OrgGatewaysContent() {
       description:
         "Gateways let you securely expose integrated tools to the outside world.",
       status: "active",
-      tool_selection_strategy: null, // Include mode
+      tool_selection_strategy: "passthrough",
+      tool_selection_mode: "inclusion",
       connections: [],
     });
 
@@ -150,12 +151,10 @@ function OrgGatewaysContent() {
     },
     {
       id: "mode",
-      header: "Strategy",
+      header: "Mode",
       accessor: (gateway) => (
         <Badge variant="outline" className="text-xs">
-          {gateway.tool_selection_strategy === "exclusion"
-            ? "Exclude"
-            : "Include"}
+          {gateway.tool_selection_mode === "exclusion" ? "Exclude" : "Include"}
         </Badge>
       ),
       cellClassName: "w-[100px]",
@@ -341,7 +340,7 @@ function OrgGatewaysContent() {
                       </span>
                       <span>•</span>
                       <span>
-                        {gateway.tool_selection_strategy === "exclusion"
+                        {gateway.tool_selection_mode === "exclusion"
                           ? "Exclude"
                           : "Include"}
                       </span>

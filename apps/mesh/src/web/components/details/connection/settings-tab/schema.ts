@@ -15,5 +15,3 @@ export const connectionFormSchema = ConnectionEntitySchema.pick({
 });
 
 export type ConnectionFormData = z.infer<typeof connectionFormSchema>;
-
-

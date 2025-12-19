@@ -127,15 +127,16 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
       }),
     );
 
-    // Create default gateway with exclusion strategy
+    // Create default gateway with exclusion mode
     // This gateway excludes nothing by default (empty connections list with exclusion = include all)
     await gatewayStorage.create(organizationId, createdBy, {
       title: "Default Gateway",
       description: "Auto-created gateway that includes all connections",
-      toolSelectionStrategy: "exclusion",
+      toolSelectionStrategy: "passthrough",
+      toolSelectionMode: "exclusion",
       status: "active",
       isDefault: true,
-      connections: createdConnectionIds.map((c) => ({ connectionId: c })), // Empty with exclusion strategy = include all org connections
+      connections: createdConnectionIds.map((c) => ({ connectionId: c })), // Empty with exclusion mode = include all org connections
     });
   } catch (err) {
     console.error("Error creating default MCP connections:", err);
