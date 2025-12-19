@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "link": "deco link -p 3000 -e MESH_URL -- bun run dev",
     "dev": "bun run --cwd=apps/mesh dev",
     "fmt": "biome format --write",
     "lint": "oxlint",

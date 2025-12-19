@@ -22,8 +22,14 @@ const monitoringLogSchema = z.object({
   timestamp: z.string().describe("ISO 8601 timestamp of the call"),
   userId: z.string().nullish().describe("User who triggered the call"),
   requestId: z.string().describe("Unique request identifier"),
-  userAgent: z.string().nullish().describe("Client identifier (x-mesh-client header)"),
-  gatewayId: z.string().nullish().describe("Gateway ID if routed through a gateway"),
+  userAgent: z
+    .string()
+    .nullish()
+    .describe("Client identifier (x-mesh-client header)"),
+  gatewayId: z
+    .string()
+    .nullish()
+    .describe("Gateway ID if routed through a gateway"),
 });
 
 export const MONITORING_LOGS_LIST = defineTool({

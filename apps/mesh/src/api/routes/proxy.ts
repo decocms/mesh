@@ -239,7 +239,7 @@ async function createMCPProxyDoNotUseDirectly(
         user: { id: userId },
         metadata: {
           state: connection.configuration_state ?? undefined,
-          meshUrl: ctx.baseUrl,
+          meshUrl: process.env.MESH_URL ?? ctx.baseUrl,
           connectionId,
           organizationId: ctx.organization?.id,
         },

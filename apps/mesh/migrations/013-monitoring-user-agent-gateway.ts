@@ -39,4 +39,3 @@ export async function down(db: Kysely<unknown>): Promise<void> {
     .dropColumn("user_agent")
     .execute();
 }
-
