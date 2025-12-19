@@ -153,7 +153,7 @@ export default function OrgHomePage() {
             </div>
 
             {/* Row 2: 3 KPI bar charts */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-6">
               <ErrorBoundary
                 fallback={
                   <div className="bg-background p-5 text-sm text-muted-foreground">
