@@ -7,7 +7,10 @@ import { SelectMCPsModal } from "@/web/components/select-mcp-modal";
 import { StoreDiscovery } from "@/web/components/store";
 import { StoreRegistrySelect } from "@/web/components/store-registry-select";
 import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-empty-state";
-import { useConnections, useConnectionActions } from "@/web/hooks/collections/use-connection";
+import {
+  useConnections,
+  useConnectionActions,
+} from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
@@ -72,7 +75,10 @@ export default function StorePage() {
     // Find which registries need to be created (not already in connections)
     const existingRegistryIds = new Set(registryConnections.map((c) => c.id));
     const registriesToCreate = wellKnownRegistries.filter(
-      (registry) => registry.id && selectedIds.includes(registry.id) && !existingRegistryIds.has(registry.id),
+      (registry) =>
+        registry.id &&
+        selectedIds.includes(registry.id) &&
+        !existingRegistryIds.has(registry.id),
     );
 
     // Create connections for registries that don't exist yet
@@ -83,14 +89,17 @@ export default function StorePage() {
         createdIds.push(created.id);
       } catch (error) {
         console.error(`Failed to create registry ${registry.id}:`, error);
-        toast.error(`Failed to create registry ${registry.title}: ${error instanceof Error ? error.message : String(error)}`);
+        toast.error(
+          `Failed to create registry ${registry.title}: ${error instanceof Error ? error.message : String(error)}`,
+        );
         // Continue with other registries even if one fails
       }
     }
 
     // Select the first successfully created registry, or the first selected ID if it already existed
     const firstCreatedId = createdIds[0];
-    const firstSelectedId = selectedIds.find((id) => existingRegistryIds.has(id)) || selectedIds[0];
+    const firstSelectedId =
+      selectedIds.find((id) => existingRegistryIds.has(id)) || selectedIds[0];
     const registryToSelect = firstCreatedId || firstSelectedId;
 
     if (registryToSelect) {
@@ -110,13 +119,13 @@ export default function StorePage() {
       <CollectionHeader
         title="Store"
         ctaButton={
-            <StoreRegistrySelect
-              registries={registryOptions}
-              value={effectiveRegistry}
-              onValueChange={setSelectedRegistryId}
-              onAddNew={handleAddNewRegistry}
-              placeholder="Select store..."
-            />
+          <StoreRegistrySelect
+            registries={registryOptions}
+            value={effectiveRegistry}
+            onValueChange={setSelectedRegistryId}
+            onAddNew={handleAddNewRegistry}
+            placeholder="Select store..."
+          />
         }
       />
 

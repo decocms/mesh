@@ -7,7 +7,7 @@ import {
 } from "@deco/ui/components/dialog.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ArrowLeft, Building2, Check, Search } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 type BaseConnection = {
   id: string;
@@ -41,26 +41,23 @@ export function SelectMCPsModal({
   const [search, setSearch] = useState("");
 
   // Reset state when modal opens
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (open) {
       setSelectedIds(new Set(initialSelected));
       setSearch("");
     }
-  }, [open]);
+  }, [open, initialSelected]);
 
-  const filteredConnections = useMemo(() => {
-    if (!search.trim()) return connections;
-    const searchLower = search.toLowerCase();
-    return connections.filter(
+  const filteredConnections =
+    !search.trim() ? connections : connections.filter(
       (c) =>
-        c.title.toLowerCase().includes(searchLower) ||
-        c.description?.toLowerCase().includes(searchLower),
+        c.title.toLowerCase().includes(search.toLowerCase()) ||
+        c.description?.toLowerCase().includes(search.toLowerCase()),
     );
-  }, [connections, search]);
 
-  const selectedConnections = useMemo(() => {
-    return connections.filter((c) => selectedIds.has(c.id));
-  }, [connections, selectedIds]);
+  const selectedConnections =
+    connections.filter((c) => selectedIds.has(c.id));
 
   const toggleSelection = (id: string) => {
     setSelectedIds((prev) => {
@@ -204,14 +201,10 @@ interface SelectedMCPItemProps {
 
 function SelectedMCPItem({ connection }: SelectedMCPItemProps) {
   return (
-      <div className="flex items-center gap-4 p-2 rounded-lg border border-border bg-white">
+    <div className="flex items-center gap-4 p-2 rounded-lg border border-border bg-white">
       <div className="size-8 rounded-lg border border-border/10 bg-white flex items-center justify-center shrink-0 overflow-hidden">
         {connection.icon ? (
-          <img
-            src={connection.icon}
-            alt=""
-            className="size-5 object-contain"
-          />
+          <img src={connection.icon} alt="" className="size-5 object-contain" />
         ) : (
           <div className="size-5 rounded bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">
             {connection.title.charAt(0).toUpperCase()}
@@ -262,11 +255,7 @@ function MCPCard({ connection, selected, onClick }: MCPCardProps) {
       {/* Icon */}
       <div className="size-12 rounded-lg border border-border/10 bg-white flex items-center justify-center mb-4 overflow-hidden">
         {connection.icon ? (
-          <img
-            src={connection.icon}
-            alt=""
-            className="size-8 object-contain"
-          />
+          <img src={connection.icon} alt="" className="size-8 object-contain" />
         ) : (
           <div className="size-8 rounded bg-muted flex items-center justify-center text-lg font-medium text-muted-foreground">
             {connection.title.charAt(0).toUpperCase()}
