@@ -308,7 +308,7 @@ export function MonitoringStatsRow({
   );
 
   return (
-    <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0 border-b">
+    <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
       {KPI_CONFIG.map(({ label, dataKey, colorNum, getValue }) => (
         <HomeGridCell
           key={dataKey}
@@ -340,7 +340,7 @@ export function MonitoringStatsRow({
 
 export function MonitoringStatsRowSkeleton() {
   return (
-    <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0 border-b">
+    <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
       {[...Array(3)].map((_, i) => (
         <HomeGridCell
           key={i}

@@ -874,6 +874,7 @@ export default function MonitoringDashboard() {
           value={searchQuery}
           onChange={(value) => updateFilters({ search: value })}
           placeholder="Search by tool name, connection, or error..."
+          className="border-t"
           onKeyDown={(event) => {
             if (event.key === "Escape") {
               updateFilters({ search: "" });
