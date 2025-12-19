@@ -21,7 +21,7 @@ function filterItemsBySearch(
   return items.filter(
     (item) =>
       (item.name || item.title || "").toLowerCase().includes(searchLower) ||
-      (item.description || item.server?.description || "")
+      (item.description || item.server.description || "")
         .toLowerCase()
         .includes(searchLower),
   );
@@ -34,8 +34,16 @@ function isItemVerified(item: RegistryItem): boolean {
   return (
     item.verified === true ||
     item._meta?.["mcp.mesh"]?.verified === true ||
-    item.server?._meta?.["mcp.mesh"]?.verified === true
+    item.server._meta?.["mcp.mesh"]?.verified === true
   );
+}
+
+/**
+ * Search params for store app detail route
+ */
+interface StoreAppDetailSearchParams {
+  registryId: string;
+  serverName: string;
 }
 
 interface StoreDiscoveryUIProps {
@@ -72,16 +80,18 @@ export function StoreDiscoveryUI({
   );
 
   const handleItemClick = (item: RegistryItem) => {
-    const itemName = item.name || item.title || item.server?.title || "";
-    const appNameSlug = slugify(itemName);
+    const appNameSlug = slugify(
+      item.name || item.title || item.server.title || "",
+    );
+    const serverName = item.server.name;
+
     navigate({
       to: "/$org/store/$appName",
       params: { org: org.slug, appName: appNameSlug },
       search: {
         registryId,
-        serverName: item.server?.name || itemName,
-        itemId: item.id,
-      } as any,
+        serverName,
+      } satisfies StoreAppDetailSearchParams,
     });
   };
 
@@ -105,7 +115,7 @@ export function StoreDiscoveryUI({
       <CollectionSearch
         value={search}
         onChange={setSearch}
-        placeholder="Search for a MCP..."
+        placeholder="Search for an MCP Server..."
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             setSearch(e.currentTarget.value);

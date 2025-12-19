@@ -92,16 +92,15 @@ interface RegistryItemCardProps {
 export function extractCardDisplayData(
   item: RegistryItem,
 ): Omit<RegistryItemCardProps, "onClick"> {
-  const rawTitle =
-    item.title || item.server?.title || item.id || "Unnamed Item";
-  const description = item.server?.description || null;
+  const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
+  const description = item.server.description || null;
   const icon =
-    item.server?.icons?.[0]?.src ||
-    getGitHubAvatarUrl(item.server?.repository) ||
+    item.server.icons?.[0]?.src ||
+    getGitHubAvatarUrl(item.server.repository) ||
     null;
   const isVerified = item._meta?.["mcp.mesh"]?.verified ?? false;
-  const version = item.server?.version;
-  const hasRemotes = ((item.server as any)?.remotes?.length ?? 0) > 0;
+  const version = item.server.version;
+  const hasRemotes = (item.server.remotes?.length ?? 0) > 0;
   const canInstall = hasRemotes;
 
   // Extract scopeName and displayName from title if it contains "/"
@@ -180,7 +179,7 @@ export function RegistryItemCard({
                         name="lock"
                         size={16}
                         className="text-muted-foreground shrink-0"
-                        title="This app cannot be installed"
+                        title="This MCP Server cannot be connected"
                       />
                     )}
                   </div>
@@ -188,7 +187,7 @@ export function RegistryItemCard({
                 <TooltipContent>
                   <p>{displayName}</p>
                   {!canInstall && (
-                    <p className="text-xs mt-1">No installation available</p>
+                    <p className="text-xs mt-1">No connection available</p>
                   )}
                 </TooltipContent>
               </Tooltip>

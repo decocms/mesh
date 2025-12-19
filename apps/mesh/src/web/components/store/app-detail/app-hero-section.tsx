@@ -89,7 +89,7 @@ export function AppHeroSection({
                   className="shrink-0 rounded-r-none cursor-pointer"
                 >
                   <Icon name="add" size={20} />
-                  {isInstalling ? "Installing..." : "Install App"}
+                  {isInstalling ? "Connecting..." : "Connect MCP Server"}
                 </Button>
 
                 <DropdownMenu>
@@ -148,13 +148,13 @@ export function AppHeroSection({
                 className="shrink-0"
               >
                 <Icon name="add" size={20} />
-                {isInstalling ? "Installing..." : "Install App"}
+                {isInstalling ? "Connecting..." : "Connect MCP Server"}
               </Button>
             )}
           </div>
         ) : (
           <div className="shrink-0 px-4 py-2 text-sm text-muted-foreground bg-muted rounded-lg">
-            Cannot be installed
+            Cannot be connected
           </div>
         )}
       </div>

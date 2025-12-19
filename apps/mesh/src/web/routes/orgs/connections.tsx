@@ -372,7 +372,7 @@ function OrgMcpsContent() {
       size="sm"
       className="h-7 px-3 rounded-lg text-sm font-medium"
     >
-      Add MCP
+      Connect MCP Server
     </Button>
   );
 
@@ -548,7 +548,7 @@ function OrgMcpsContent() {
 
       {/* Collection Header */}
       <CollectionHeader
-        title="MCPs"
+        title="MCP Servers"
         viewMode={listState.viewMode}
         onViewModeChange={listState.setViewMode}
         sortKey={listState.sortKey}
@@ -567,7 +567,7 @@ function OrgMcpsContent() {
       <CollectionSearch
         value={listState.search}
         onChange={listState.setSearch}
-        placeholder="Search for a MCP..."
+        placeholder="Search for an MCP Server..."
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             listState.setSearch("");
@@ -590,10 +590,14 @@ function OrgMcpsContent() {
                   aria-hidden="true"
                 />
               }
-              title={listState.search ? "No MCPs found" : "No MCPs found"}
+              title={
+                listState.search
+                  ? "No MCP Servers found"
+                  : "No MCP Servers found"
+              }
               description={
                 listState.search
-                  ? `No MCPs match "${listState.search}"`
+                  ? `No MCP Servers match "${listState.search}"`
                   : "Create a connection to get started."
               }
             />
@@ -684,8 +688,8 @@ function OrgMcpsContent() {
                     aria-hidden="true"
                   />
                 }
-                title="No MCPs found"
-                description={`No MCPs match "${listState.search}"`}
+                title="No MCP Servers found"
+                description={`No MCP Servers match "${listState.search}"`}
               />
             ) : (
               <EmptyState
@@ -698,7 +702,7 @@ function OrgMcpsContent() {
                     aria-hidden="true"
                   />
                 }
-                title="No MCPs found"
+                title="No MCP Servers found"
                 description="Create a connection to get started."
               />
             )

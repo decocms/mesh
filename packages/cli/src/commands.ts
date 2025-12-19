@@ -280,7 +280,7 @@ const linkCmd = new Command("link")
 
       await link({
         port: options.port,
-        onBeforeRegister: () => {
+        onBeforeRegister: (server) => {
           if (runCommand.length === 0) {
             console.log(
               "⚠️  No command provided. Tunnel will connect to existing service on port.",
@@ -294,6 +294,7 @@ const linkCmd = new Command("link")
           const childProcess = spawn(command, args, {
             stdio: "inherit",
             shell: true,
+            env: { ...process.env, BASE_URL: server },
           });
 
           childProcess.on("error", (error: Error) => {

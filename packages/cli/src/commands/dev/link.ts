@@ -11,7 +11,7 @@ import process from "node:process";
 
 interface LinkOptions {
   port?: number;
-  onBeforeRegister?: () => void | ChildProcess;
+  onBeforeRegister?: (server: string) => void | ChildProcess;
 }
 
 function copyToClipboard(text: string): Promise<boolean> {
@@ -110,9 +110,10 @@ async function monitorPortAvailability(port: number) {
 async function register(
   port: number,
   domain: string,
-  onBeforeRegister?: () => void,
+  onBeforeRegister?: (server: string) => void,
 ) {
   const server = `wss://${domain}`;
+  const serverUrl = `https://${domain}`;
 
   try {
     // Start port monitoring in the background
@@ -120,7 +121,7 @@ async function register(
       console.error("Port monitoring error:", err);
     });
 
-    onBeforeRegister?.();
+    onBeforeRegister?.(serverUrl);
 
     // Wait for port to become available before connecting
     const host = await waitForPort(port);
@@ -136,7 +137,6 @@ async function register(
     });
 
     await tunnel.registered;
-    const serverUrl = `https://${domain}`;
     const copied = await copyToClipboard(serverUrl);
 
     console.log(

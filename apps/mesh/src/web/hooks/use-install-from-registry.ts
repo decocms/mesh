@@ -1,5 +1,5 @@
 /**
- * Hook to install a MCP from registry by binding type.
+ * Hook to install an MCP Server from registry by binding type.
  * Provides inline installation without navigation.
  */
 
@@ -31,7 +31,7 @@ interface InstallResult {
 
 interface UseInstallFromRegistryResult {
   /**
-   * Install a MCP by binding type (e.g., "@deco/database").
+   * Install an MCP Server by binding type (e.g., "@deco/database").
    * Returns the new connection data if successful, undefined otherwise.
    */
   installByBinding: (bindingType: string) => Promise<InstallResult | undefined>;
@@ -46,8 +46,8 @@ interface UseInstallFromRegistryResult {
 }
 
 /**
- * Hook that provides inline MCP installation from registry.
- * Use this when you want to install a specific MCP without navigating away.
+ * Hook that provides inline MCP Server installation from registry.
+ * Use this when you want to install a specific MCP Server without navigating away.
  */
 export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const { org } = useProjectContext();
@@ -92,7 +92,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
     const registryItem = findRegistryItemByBinding(registryItems, bindingType);
 
     if (!registryItem) {
-      toast.error(`MCP not found in registry: ${bindingType}`);
+      toast.error(`MCP Server not found in registry: ${bindingType}`);
       return undefined;
     }
 
@@ -104,7 +104,9 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
     );
 
     if (!connectionData.connection_url) {
-      toast.error("This MCP cannot be installed: no connection URL available");
+      toast.error(
+        "This MCP Server cannot be connected: no connection URL available",
+      );
       return undefined;
     }
 

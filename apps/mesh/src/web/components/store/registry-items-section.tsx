@@ -51,10 +51,10 @@ export interface RegistryItem {
     verified?: boolean;
     [key: string]: unknown;
   };
-  /** Nested server object (used by MCPRegistryServer format) */
-  server?: {
+  /** Nested server object (used by MCPRegistryServer format) - always present */
+  server: {
     $schema?: string;
-    name?: string;
+    name: string;
     title?: string;
     description?: string;
     version?: string;

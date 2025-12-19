@@ -13,7 +13,7 @@ interface StoreDiscoveryProps {
   registryId: string;
 }
 
-const PAGE_SIZE = 80;
+const PAGE_SIZE = 24;
 
 export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
   const registryConnection = useConnection(registryId);

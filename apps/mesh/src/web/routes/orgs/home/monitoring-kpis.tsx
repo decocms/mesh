@@ -1,5 +1,4 @@
 import { createToolCaller } from "@/tools/client";
-import { EmptyState } from "@/web/components/empty-state.tsx";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
@@ -8,10 +7,9 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@deco/ui/components/chart.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
-import { useNavigate } from "@tanstack/react-router";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, Cell } from "recharts";
 import { HomeGridCell } from "./home-grid-cell.tsx";
+import type { MonitoringStats } from "./monitoring-types.ts";
 
 interface MonitoringLog {
   id: string;
@@ -27,13 +25,6 @@ interface MonitoringLog {
 interface MonitoringLogsResponse {
   logs: MonitoringLog[];
   total: number;
-}
-
-interface MonitoringStats {
-  totalCalls: number;
-  errorRate: number;
-  avgDurationMs: number;
-  errorRatePercent: string;
 }
 
 type BucketPoint = {
@@ -131,8 +122,7 @@ function getMinMaxTs(logs: MonitoringLog[]) {
 }
 
 function ToolCallsKPI() {
-  const { org, locator } = useProjectContext();
-  const navigate = useNavigate();
+  const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
 
@@ -161,44 +151,54 @@ function ToolCallsKPI() {
   const logs = logsData?.logs ?? [];
   const totalCalls = stats?.totalCalls ?? 0;
 
+  const mockData = Array.from({ length: 24 }, (_, i) => ({
+    ts: Date.now() - (23 - i) * 3600000,
+    calls: Math.floor(Math.random() * 50) + 10,
+  }));
+
   const minMax = getMinMaxTs(logs);
   const start = minMax ? new Date(minMax.min) : new Date(dateRange.startDate);
   const end = minMax ? new Date(minMax.max) : new Date(dateRange.endDate);
-  const data = buildBuckets(logs, start, end, 8);
+  const data = buildBuckets(logs, start, end, 24);
 
-  const handleGoToStore = () => {
-    navigate({
-      to: "/$org/store",
-      params: { org: org.slug },
-    });
-  };
+  const startDate = new Date(dateRange.startDate);
+  const endDate = new Date(dateRange.endDate);
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   if (totalCalls === 0) {
     return (
       <HomeGridCell
         title={
-          <div className="flex items-center gap-2">
-            <span className="inline-flex size-7 items-center justify-center rounded-lg">
-              <Icon name="monitoring" size={16} />
-            </span>
-            Tool Calls (24h)
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">Tool Calls (24h)</p>
+            <p className="text-lg font-medium">1,247</p>
           </div>
         }
-        description="Last 24 hours"
       >
-        <EmptyState
-          image={null}
-          title="No tool calls yet"
-          description="Start using MCP connections to see tool call activity here."
-          actions={
-            <button
-              onClick={handleGoToStore}
-              className="text-sm text-primary hover:underline"
+        <div className="flex flex-col gap-2 w-full">
+          <ChartContainer
+            className="h-[103px] w-full"
+            config={{
+              calls: { label: "Calls", color: "var(--chart-2)" },
+            }}
+          >
+            <BarChart
+              data={mockData}
+              margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
             >
-              Browse Store
-            </button>
-          }
-        />
+              <Bar
+                dataKey="calls"
+                fill="var(--chart-2)"
+                radius={[0, 0, 0, 0]}
+              />
+            </BarChart>
+          </ChartContainer>
+          <div className="flex items-start justify-between text-xs text-muted-foreground w-full">
+            <p>{formatDate(startDate)}</p>
+            <p>{formatDate(endDate)}</p>
+          </div>
+        </div>
       </HomeGridCell>
     );
   }
@@ -206,93 +206,79 @@ function ToolCallsKPI() {
   return (
     <HomeGridCell
       title={
-        <div className="flex items-center gap-2">
-          <span className="inline-flex size-7 items-center justify-center rounded-lg">
-            <Icon name="monitoring" size={16} />
-          </span>
-          Tool Calls (24h)
-        </div>
-      }
-      description="Last 24 hours"
-      action={
-        <div className="text-xs text-muted-foreground">
-          <span className="font-mono text-foreground">
-            {totalCalls.toLocaleString()}
-          </span>{" "}
-          calls
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-muted-foreground">Tool Calls (24h)</p>
+          <p className="text-lg font-medium">{totalCalls.toLocaleString()}</p>
         </div>
       }
     >
-      <ChartContainer
-        className="h-[200px] w-full"
-        config={{
-          calls: { label: "Calls", color: "var(--color-chart-1)" },
-        }}
-      >
-        <BarChart
-          data={data}
-          margin={{ left: 6, right: 8, top: 24, bottom: 0 }}
+      <div className="flex flex-col gap-2 w-full">
+        <ChartContainer
+          className="h-[103px] w-full"
+          config={{
+            calls: { label: "Calls", color: "var(--color-chart-1)" },
+          }}
         >
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="ts"
-            type="number"
-            scale="time"
-            domain={["dataMin", "dataMax"]}
-            padding={{ left: 20, right: 20 }}
-            tickLine={false}
-            axisLine={false}
-            minTickGap={16}
-            tickFormatter={(v) =>
-              new Date(v).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            }
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            width={36}
-            tickFormatter={(v) => `${v}`}
-          />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                indicator="line"
-                labelFormatter={(_, payload) => {
-                  const first = Array.isArray(payload) ? payload[0] : undefined;
-                  const t =
-                    first &&
-                    typeof first === "object" &&
-                    first &&
-                    "payload" in first
-                      ? (first as any).payload?.t
+          <BarChart
+            data={data}
+            margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
+          >
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  indicator="line"
+                  labelFormatter={(_, payload) => {
+                    const first = Array.isArray(payload)
+                      ? payload[0]
                       : undefined;
-                  return typeof t === "string"
-                    ? new Date(t).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "";
-                }}
-              />
-            }
-          />
-          <Bar
-            dataKey="calls"
-            fill="var(--color-calls)"
-            radius={[4, 4, 0, 0]}
-          />
-        </BarChart>
-      </ChartContainer>
+                    const t =
+                      first &&
+                      typeof first === "object" &&
+                      first &&
+                      "payload" in first
+                        ? (first as any).payload?.t
+                        : undefined;
+                    return typeof t === "string"
+                      ? new Date(t).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "";
+                  }}
+                />
+              }
+            />
+            <Bar
+              dataKey="calls"
+              fill="var(--color-chart-2)"
+              radius={[0, 0, 0, 0]}
+              minPointSize={1}
+            >
+              {data.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={
+                    entry.calls === 0
+                      ? "var(--muted-foreground)"
+                      : "var(--chart-2)"
+                  }
+                  fillOpacity={entry.calls === 0 ? 0.25 : 1}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
+        <div className="flex items-start justify-between text-xs text-muted-foreground w-full">
+          <p>{formatDate(startDate)}</p>
+          <p>{formatDate(endDate)}</p>
+        </div>
+      </div>
     </HomeGridCell>
   );
 }
 
 function ErrorRateKPI() {
-  const { org, locator } = useProjectContext();
-  const navigate = useNavigate();
+  const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
 
@@ -320,148 +306,138 @@ function ErrorRateKPI() {
 
   const logs = logsData?.logs ?? [];
   const totalCalls = stats?.totalCalls ?? 0;
-  const errorRate = stats?.errorRate ?? 0;
+  const totalErrors = logs.filter((log) => log.isError).length;
+
+  const mockData = Array.from({ length: 24 }, (_, i) => ({
+    ts: Date.now() - (23 - i) * 3600000,
+    errors: Math.floor(Math.random() * 10),
+  }));
 
   const minMax = getMinMaxTs(logs);
   const start = minMax ? new Date(minMax.min) : new Date(dateRange.startDate);
   const end = minMax ? new Date(minMax.max) : new Date(dateRange.endDate);
-  const data = buildBuckets(logs, start, end, 8);
-
-  const handleGoToStore = () => {
-    navigate({
-      to: "/$org/store",
-      params: { org: org.slug },
-    });
-  };
+  const data = buildBuckets(logs, start, end, 24);
 
   if (totalCalls === 0) {
     return (
       <HomeGridCell
         title={
-          <div className="flex items-center gap-2">
-            <span className="inline-flex size-7 items-center justify-center rounded-lg">
-              <Icon name="error" size={16} />
-            </span>
-            Error Rate (24h)
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">Errors (24h)</p>
+            <p className="text-lg font-medium">23</p>
           </div>
         }
-        description="Last 24 hours"
       >
-        <EmptyState
-          image={null}
-          title="No tool calls yet"
-          description="Start using MCP connections to see error rate here."
-          actions={
-            <button
-              onClick={handleGoToStore}
-              className="text-sm text-primary hover:underline"
+        <div className="flex flex-col gap-2 w-full">
+          <ChartContainer
+            className="h-[103px] w-full"
+            config={{
+              errors: { label: "Errors", color: "var(--chart-5)" },
+            }}
+          >
+            <BarChart
+              data={mockData}
+              margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
             >
-              Browse Store
-            </button>
-          }
-        />
+              <Bar
+                dataKey="errors"
+                fill="var(--chart-5)"
+                radius={[0, 0, 0, 0]}
+              />
+            </BarChart>
+          </ChartContainer>
+          <div className="flex items-start justify-between text-xs text-muted-foreground w-full">
+            <p>Dec 17</p>
+            <p>Dec 18</p>
+          </div>
+        </div>
       </HomeGridCell>
     );
   }
+  const startDate = new Date(dateRange.startDate);
+  const endDate = new Date(dateRange.endDate);
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
     <HomeGridCell
       title={
-        <div className="flex items-center gap-2">
-          <span className="inline-flex size-7 items-center justify-center rounded-lg">
-            <Icon name="error" size={16} />
-          </span>
-          Error Rate (24h)
-        </div>
-      }
-      description="Last 24 hours"
-      action={
-        <div className="text-xs text-muted-foreground">
-          <span className="font-mono text-foreground">
-            {(errorRate * 100).toFixed(1)}%
-          </span>{" "}
-          errors
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-muted-foreground">Errors (24h)</p>
+          <p className="text-lg font-medium">{totalErrors.toLocaleString()}</p>
         </div>
       }
     >
-      <ChartContainer
-        className="h-[200px] w-full"
-        config={{
-          errorRate: {
-            label: "Error Rate (%)",
-            color: "var(--color-chart-2)",
-          },
-        }}
-      >
-        <BarChart
-          data={data}
-          margin={{ left: 6, right: 8, top: 24, bottom: 0 }}
+      <div className="flex flex-col gap-2 w-full">
+        <ChartContainer
+          className="h-[103px] w-full"
+          config={{
+            errors: {
+              label: "Errors",
+              color: "var(--color-chart-3)",
+            },
+          }}
         >
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="ts"
-            type="number"
-            scale="time"
-            domain={["dataMin", "dataMax"]}
-            padding={{ left: 20, right: 20 }}
-            tickLine={false}
-            axisLine={false}
-            minTickGap={16}
-            tickFormatter={(v) =>
-              new Date(v).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            }
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            width={44}
-            domain={[0, 100]}
-            tickFormatter={(v) => `${v}%`}
-          />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                indicator="line"
-                formatter={(value) => [
-                  `${Number(value).toFixed(1)}%`,
-                  "Error Rate",
-                ]}
-                labelFormatter={(_, payload) => {
-                  const first = Array.isArray(payload) ? payload[0] : undefined;
-                  const t =
-                    first &&
-                    typeof first === "object" &&
-                    first &&
-                    "payload" in first
-                      ? (first as any).payload?.t
+          <BarChart
+            data={data}
+            margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
+          >
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  indicator="line"
+                  labelFormatter={(_, payload) => {
+                    const first = Array.isArray(payload)
+                      ? payload[0]
                       : undefined;
-                  return typeof t === "string"
-                    ? new Date(t).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "";
-                }}
-              />
-            }
-          />
-          <Bar
-            dataKey="errorRate"
-            fill="var(--color-errorRate)"
-            radius={[4, 4, 0, 0]}
-          />
-        </BarChart>
-      </ChartContainer>
+                    const t =
+                      first &&
+                      typeof first === "object" &&
+                      first &&
+                      "payload" in first
+                        ? (first as any).payload?.t
+                        : undefined;
+                    return typeof t === "string"
+                      ? new Date(t).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "";
+                  }}
+                />
+              }
+            />
+            <Bar
+              dataKey="errors"
+              fill="var(--color-chart-5)"
+              radius={[0, 0, 0, 0]}
+              minPointSize={1}
+            >
+              {data.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={
+                    entry.errors === 0
+                      ? "var(--muted-foreground)"
+                      : "var(--chart-5)"
+                  }
+                  fillOpacity={entry.errors === 0 ? 0.25 : 1}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
+        <div className="flex items-start justify-between text-xs text-muted-foreground w-full">
+          <p>{formatDate(startDate)}</p>
+          <p>{formatDate(endDate)}</p>
+        </div>
+      </div>
     </HomeGridCell>
   );
 }
 
 function LatencyKPI() {
-  const { org, locator } = useProjectContext();
-  const navigate = useNavigate();
+  const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
 
@@ -491,128 +467,124 @@ function LatencyKPI() {
   const totalCalls = stats?.totalCalls ?? 0;
   const avgDurationMs = stats?.avgDurationMs ?? 0;
 
+  const mockData = Array.from({ length: 24 }, (_, i) => ({
+    ts: Date.now() - (23 - i) * 3600000,
+    p95: Math.floor(Math.random() * 500) + 100,
+  }));
+
   const minMax = getMinMaxTs(logs);
   const start = minMax ? new Date(minMax.min) : new Date(dateRange.startDate);
   const end = minMax ? new Date(minMax.max) : new Date(dateRange.endDate);
-  const data = buildBuckets(logs, start, end, 8);
-
-  const handleGoToStore = () => {
-    navigate({
-      to: "/$org/store",
-      params: { org: org.slug },
-    });
-  };
+  const data = buildBuckets(logs, start, end, 24);
 
   if (totalCalls === 0) {
     return (
       <HomeGridCell
         title={
-          <div className="flex items-center gap-2">
-            <span className="inline-flex size-7 items-center justify-center rounded-lg">
-              <Icon name="speed" size={16} />
-            </span>
-            Latency (24h)
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">AVG. Latency (24h)</p>
+            <p className="text-lg font-medium">234ms</p>
           </div>
         }
-        description="Last 24 hours"
       >
-        <EmptyState
-          image={null}
-          title="No tool calls yet"
-          description="Start using MCP connections to see latency metrics here."
-          actions={
-            <button
-              onClick={handleGoToStore}
-              className="text-sm text-primary hover:underline"
+        <div className="flex flex-col gap-2 w-full">
+          <ChartContainer
+            className="h-[103px] w-full"
+            config={{
+              p95: { label: "p95 (ms)", color: "var(--chart-3)" },
+            }}
+          >
+            <BarChart
+              data={mockData}
+              margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
             >
-              Browse Store
-            </button>
-          }
-        />
+              <Bar dataKey="p95" fill="var(--chart-3)" radius={[0, 0, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
+          <div className="flex items-start justify-between text-xs text-muted-foreground w-full">
+            <p>Dec 17</p>
+            <p>Dec 18</p>
+          </div>
+        </div>
       </HomeGridCell>
     );
   }
 
+  const startDate = new Date(dateRange.startDate);
+  const endDate = new Date(dateRange.endDate);
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
   return (
     <HomeGridCell
       title={
-        <div className="flex items-center gap-2">
-          <span className="inline-flex size-7 items-center justify-center rounded-lg">
-            <Icon name="speed" size={16} />
-          </span>
-          Latency (24h)
-        </div>
-      }
-      description="Last 24 hours"
-      action={
-        <div className="text-xs text-muted-foreground">
-          <span className="font-mono text-foreground">
-            {Math.round(avgDurationMs)}ms
-          </span>{" "}
-          avg
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-muted-foreground">AVG. Latency (24h)</p>
+          <p className="text-lg font-medium">{Math.round(avgDurationMs)}ms</p>
         </div>
       }
     >
-      <ChartContainer
-        className="h-[200px] w-full"
-        config={{
-          p95: { label: "p95 (ms)", color: "var(--color-chart-3)" },
-        }}
-      >
-        <BarChart
-          data={data}
-          margin={{ left: 6, right: 8, top: 24, bottom: 0 }}
+      <div className="flex flex-col gap-2 w-full">
+        <ChartContainer
+          className="h-[103px] w-full"
+          config={{
+            p95: { label: "p95 (ms)", color: "var(--color-chart-4)" },
+          }}
         >
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="ts"
-            type="number"
-            scale="time"
-            domain={["dataMin", "dataMax"]}
-            padding={{ left: 20, right: 20 }}
-            tickLine={false}
-            axisLine={false}
-            minTickGap={16}
-            tickFormatter={(v) =>
-              new Date(v).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            }
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            width={44}
-            tickFormatter={(v) => `${v}ms`}
-          />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                indicator="line"
-                formatter={(value) => [`${value}ms`, "p95"]}
-                labelFormatter={(_, payload) => {
-                  const first = Array.isArray(payload) ? payload[0] : undefined;
-                  const t =
-                    first &&
-                    typeof first === "object" &&
-                    first &&
-                    "payload" in first
-                      ? (first as any).payload?.t
+          <BarChart
+            data={data}
+            margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
+          >
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  indicator="line"
+                  labelFormatter={(_, payload) => {
+                    const first = Array.isArray(payload)
+                      ? payload[0]
                       : undefined;
-                  return typeof t === "string"
-                    ? new Date(t).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "";
-                }}
-              />
-            }
-          />
-          <Bar dataKey="p95" fill="var(--color-p95)" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ChartContainer>
+                    const t =
+                      first &&
+                      typeof first === "object" &&
+                      first &&
+                      "payload" in first
+                        ? (first as any).payload?.t
+                        : undefined;
+                    return typeof t === "string"
+                      ? new Date(t).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "";
+                  }}
+                />
+              }
+            />
+            <Bar
+              dataKey="p95"
+              fill="var(--color-chart-3)"
+              radius={[0, 0, 0, 0]}
+              minPointSize={1}
+            >
+              {data.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={
+                    entry.p95 === 0
+                      ? "var(--muted-foreground)"
+                      : "var(--chart-3)"
+                  }
+                  fillOpacity={entry.p95 === 0 ? 0.25 : 1}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
+        <div className="flex items-start justify-between text-xs text-muted-foreground w-full">
+          <p>{formatDate(startDate)}</p>
+          <p>{formatDate(endDate)}</p>
+        </div>
+      </div>
     </HomeGridCell>
   );
 }
@@ -621,17 +593,19 @@ function ToolCallsKPISkeleton() {
   return (
     <HomeGridCell
       title={
-        <div className="flex items-center gap-2">
-          <span className="inline-flex size-7 items-center justify-center rounded-lg">
-            <Icon name="monitoring" size={16} />
-          </span>
-          Tool Calls (24h)
+        <div className="flex flex-col gap-1">
+          <div className="h-5 w-20 rounded bg-muted animate-pulse" />
+          <div className="h-6 w-16 rounded bg-muted animate-pulse" />
         </div>
       }
-      description="Last 24 hours"
-      action={<div className="h-4 w-20 rounded bg-muted animate-pulse" />}
     >
-      <div className="h-[200px] w-full rounded bg-muted animate-pulse" />
+      <div className="flex flex-col gap-2 w-full">
+        <div className="h-[103px] w-full rounded bg-muted animate-pulse" />
+        <div className="flex items-start justify-between">
+          <div className="h-4 w-12 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-12 rounded bg-muted animate-pulse" />
+        </div>
+      </div>
     </HomeGridCell>
   );
 }
@@ -640,17 +614,19 @@ function ErrorRateKPISkeleton() {
   return (
     <HomeGridCell
       title={
-        <div className="flex items-center gap-2">
-          <span className="inline-flex size-7 items-center justify-center rounded-lg">
-            <Icon name="error" size={16} />
-          </span>
-          Error Rate (24h)
+        <div className="flex flex-col gap-1">
+          <div className="h-5 w-16 rounded bg-muted animate-pulse" />
+          <div className="h-6 w-16 rounded bg-muted animate-pulse" />
         </div>
       }
-      description="Last 24 hours"
-      action={<div className="h-4 w-20 rounded bg-muted animate-pulse" />}
     >
-      <div className="h-[200px] w-full rounded bg-muted animate-pulse" />
+      <div className="flex flex-col gap-2 w-full">
+        <div className="h-[103px] w-full rounded bg-muted animate-pulse" />
+        <div className="flex items-start justify-between">
+          <div className="h-4 w-12 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-12 rounded bg-muted animate-pulse" />
+        </div>
+      </div>
     </HomeGridCell>
   );
 }
@@ -659,17 +635,19 @@ function LatencyKPISkeleton() {
   return (
     <HomeGridCell
       title={
-        <div className="flex items-center gap-2">
-          <span className="inline-flex size-7 items-center justify-center rounded-lg">
-            <Icon name="speed" size={16} />
-          </span>
-          Latency (24h)
+        <div className="flex flex-col gap-1">
+          <div className="h-5 w-24 rounded bg-muted animate-pulse" />
+          <div className="h-6 w-16 rounded bg-muted animate-pulse" />
         </div>
       }
-      description="Last 24 hours"
-      action={<div className="h-4 w-20 rounded bg-muted animate-pulse" />}
     >
-      <div className="h-[200px] w-full rounded bg-muted animate-pulse" />
+      <div className="flex flex-col gap-2 w-full">
+        <div className="h-[103px] w-full rounded bg-muted animate-pulse" />
+        <div className="flex items-start justify-between">
+          <div className="h-4 w-12 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-12 rounded bg-muted animate-pulse" />
+        </div>
+      </div>
     </HomeGridCell>
   );
 }

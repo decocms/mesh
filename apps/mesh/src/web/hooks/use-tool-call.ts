@@ -10,6 +10,7 @@ import {
   useMutation,
   useQuery,
   useSuspenseQuery,
+  UseSuspenseQueryOptions,
 } from "@tanstack/react-query";
 import type { ToolCaller } from "../../tools/client";
 import { KEYS } from "../lib/query-keys";
@@ -17,7 +18,8 @@ import { KEYS } from "../lib/query-keys";
 /**
  * Options for useToolCall hook
  */
-export interface UseToolCallOptions<TInput, _TOutput> {
+export interface UseToolCallOptions<TInput, TOutput>
+  extends Omit<UseSuspenseQueryOptions<TOutput>, "queryKey" | "queryFn"> {
   /** The tool caller function to use */
   toolCaller: ToolCaller;
   /** The name of the tool to call */
@@ -32,7 +34,7 @@ export interface UseToolCallOptions<TInput, _TOutput> {
   refetchInterval?:
     | number
     | ((
-        query: Query<_TOutput, Error, _TOutput, readonly unknown[]>,
+        query: Query<TOutput, Error, TOutput, readonly unknown[]>,
       ) => number | false)
     | false;
   /** Whether to enable the tool call */
@@ -65,24 +67,19 @@ export interface UseToolCallOptions<TInput, _TOutput> {
  * }
  * ```
  */
-export function useToolCall<TInput, TOutput>(
-  options: UseToolCallOptions<TInput, TOutput>,
-) {
-  const {
-    toolCaller,
-    toolName,
-    toolInputParams,
-    scope,
-    staleTime = 60_000,
-    refetchInterval,
-  } = options;
-
+export function useToolCall<TInput, TOutput>({
+  toolCaller,
+  toolName,
+  toolInputParams,
+  scope,
+  ...queryOptions
+}: UseToolCallOptions<TInput, TOutput>) {
   // Serialize the input params for the query key
   const paramsKey = JSON.stringify(toolInputParams);
 
   return useSuspenseQuery<TOutput, Error, TOutput>({
-    staleTime,
-    refetchInterval,
+    ...queryOptions,
+    staleTime: queryOptions.staleTime ?? 60_000,
     queryKey: KEYS.toolCall(scope, toolName, paramsKey),
     queryFn: async () => {
       const result = await toolCaller(toolName, toolInputParams);
@@ -121,7 +118,7 @@ export function useToolCallQuery<TInput, TOutput>(
     toolCaller,
     toolName,
     toolInputParams,
-    connectionId,
+    scope,
     staleTime = 60_000,
     refetchInterval,
     enabled,
@@ -129,9 +126,9 @@ export function useToolCallQuery<TInput, TOutput>(
 
   return useQuery({
     queryKey: KEYS.toolCall(
+      scope,
       toolName,
       JSON.stringify(toolInputParams ?? {}),
-      connectionId,
     ),
     queryFn: async () => {
       const result = await toolCaller(toolName, toolInputParams ?? {});
