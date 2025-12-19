@@ -24,7 +24,7 @@
     "packages/*"
   ],
   "devDependencies": {
-    "deco": "npm:deco-cli@^0.28.5",
+    "deco-cli": "workspace:*",
     "@biomejs/biome": "2.2.5",
     "@types/node": "^24.9.1",
     "knip": "^5.73.4",
