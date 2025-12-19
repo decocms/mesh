@@ -49,15 +49,15 @@ export function SelectMCPsModal({
     }
   }, [open, initialSelected]);
 
-  const filteredConnections =
-    !search.trim() ? connections : connections.filter(
-      (c) =>
-        c.title.toLowerCase().includes(search.toLowerCase()) ||
-        c.description?.toLowerCase().includes(search.toLowerCase()),
-    );
+  const filteredConnections = !search.trim()
+    ? connections
+    : connections.filter(
+        (c) =>
+          c.title.toLowerCase().includes(search.toLowerCase()) ||
+          c.description?.toLowerCase().includes(search.toLowerCase()),
+      );
 
-  const selectedConnections =
-    connections.filter((c) => selectedIds.has(c.id));
+  const selectedConnections = connections.filter((c) => selectedIds.has(c.id));
 
   const toggleSelection = (id: string) => {
     setSelectedIds((prev) => {
