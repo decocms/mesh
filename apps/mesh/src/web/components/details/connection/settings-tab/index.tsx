@@ -202,7 +202,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   };
 
   const handleAuthenticate = async () => {
-    const { token, error } = await authenticateMcp(connection.connection_url);
+    const { token, error } = await authenticateMcp(connection.id);
     if (error || !token) {
       toast.error(`Authentication failed: ${error}`);
       return;

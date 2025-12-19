@@ -580,6 +580,130 @@ export async function dangerouslyCreateSuperUserMCPProxy(
 }
 
 // ============================================================================
+// Passthrough Proxy (for origin OAuth)
+// ============================================================================
+
+/**
+ * Create MCP passthrough proxy for a downstream connection.
+ * This proxy does NOT inject stored connection tokens - instead it passes through
+ * the client's Authorization header to the origin MCP server.
+ *
+ * Used for /mcp2 endpoints where OAuth is handled by the origin MCP server.
+ * Does raw HTTP proxying to preserve status codes (like 401 for OAuth).
+ *
+ * @param connectionId - The connection ID
+ * @param ctx - The mesh context
+ * @param incomingRequest - The incoming request (to extract Authorization header)
+ * @returns The MCP proxy with passthrough authentication
+ */
+export async function createMCPProxyPassthrough(
+  connectionId: string,
+  ctx: MeshContext,
+  incomingRequest: Request,
+) {
+  // Get connection details (without organization check since no mesh auth)
+  const connection = await ctx.storage.connections.findById(connectionId);
+  if (!connection) {
+    throw new Error("Connection not found");
+  }
+
+  if (connection.status !== "active") {
+    throw new Error(`Connection inactive: ${connection.status}`);
+  }
+
+  // Extract the client's Authorization header to pass through
+  const clientAuthHeader = incomingRequest.headers.get("Authorization");
+
+  // Create fetch function that does raw HTTP proxying
+  // This preserves status codes (like 401) for OAuth passthrough
+  const handleMcpRequest = async (req: Request) => {
+    // Build proxy headers
+    const proxyHeaders: Record<string, string> = {};
+
+    // Pass through client's Authorization header (from origin OAuth)
+    if (clientAuthHeader) {
+      proxyHeaders["Authorization"] = clientAuthHeader;
+    }
+
+    // Add custom headers from connection (these may still be needed)
+    if (connection.connection_headers) {
+      Object.assign(proxyHeaders, connection.connection_headers);
+    }
+
+    // Copy content-type and accept from original request
+    const contentType = req.headers.get("Content-Type");
+    if (contentType) {
+      proxyHeaders["Content-Type"] = contentType;
+    }
+    const accept = req.headers.get("Accept");
+    if (accept) {
+      proxyHeaders["Accept"] = accept;
+    }
+    const mcpProtocolVersion = req.headers.get("mcp-protocol-version");
+    if (mcpProtocolVersion) {
+      proxyHeaders["mcp-protocol-version"] = mcpProtocolVersion;
+    }
+
+    // Proxy the request to the origin MCP
+    const response = await fetch(connection.connection_url, {
+      method: req.method,
+      headers: proxyHeaders,
+      body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
+      // @ts-expect-error - duplex is needed for streaming body
+      duplex: "half",
+    });
+
+    // Proxy the response back with original status code
+    const responseHeaders = new Headers();
+
+    // Copy relevant response headers
+    for (const [key, value] of response.headers.entries()) {
+      // Skip hop-by-hop headers
+      if (
+        ![
+          "connection",
+          "keep-alive",
+          "transfer-encoding",
+          "te",
+          "trailer",
+          "upgrade",
+        ].includes(key.toLowerCase())
+      ) {
+        responseHeaders.set(key, value);
+      }
+    }
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+    });
+  };
+
+  return {
+    fetch: handleMcpRequest,
+    connectionUrl: connection.connection_url,
+  };
+}
+
+/**
+ * Get connection URL for OAuth well-known proxy
+ * @param connectionId - The connection ID
+ * @param ctx - The mesh context
+ * @returns The connection URL
+ */
+export async function getConnectionUrl(
+  connectionId: string,
+  ctx: MeshContext,
+): Promise<string | null> {
+  const connection = await ctx.storage.connections.findById(connectionId);
+  if (!connection || connection.status !== "active") {
+    return null;
+  }
+  return connection.connection_url;
+}
+
+// ============================================================================
 // Route Handler
 // ============================================================================
 
@@ -618,3 +742,49 @@ app.all("/:connectionId", async (c) => {
 });
 
 export default app;
+
+// ============================================================================
+// MCP2 Passthrough Routes (Origin OAuth)
+// ============================================================================
+
+/**
+ * Separate Hono app for /mcp2 routes
+ * These routes do NOT use mesh OAuth - they pass through to origin MCP OAuth
+ */
+const mcp2App = new Hono<{ Variables: Variables }>();
+
+/**
+ * Passthrough proxy MCP request to a downstream connection
+ *
+ * Route: POST /mcp2/:connectionId
+ * No mesh OAuth - passes through client's Authorization header to origin
+ */
+mcp2App.all("/:connectionId", async (c) => {
+  const connectionId = c.req.param("connectionId");
+  const ctx = c.get("meshContext");
+
+  try {
+    const proxy = await createMCPProxyPassthrough(
+      connectionId,
+      ctx,
+      c.req.raw,
+    );
+    return await proxy.fetch(c.req.raw);
+  } catch (error) {
+    const err = error as Error;
+
+    if (err.message.includes("not found")) {
+      return c.json({ error: err.message }, 404);
+    }
+    if (err.message.includes("inactive")) {
+      return c.json({ error: err.message }, 503);
+    }
+
+    return c.json(
+      { error: "Internal server error", message: err.message },
+      500,
+    );
+  }
+});
+
+export { mcp2App };

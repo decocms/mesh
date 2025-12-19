@@ -18,6 +18,7 @@ import {
   ContextFactory,
   createMeshContextFactory,
 } from "../core/context-factory";
+import type { MeshContext } from "../core/mesh-context";
 import { getDb, type MeshDatabase } from "../database";
 import { createEventBus, type EventBus } from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
@@ -25,7 +26,10 @@ import authRoutes from "./routes/auth";
 import gatewayRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
-import proxyRoutes from "./routes/proxy";
+import proxyRoutes, {
+  mcp2App as mcp2ProxyRoutes,
+  getConnectionUrl,
+} from "./routes/proxy";
 
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
@@ -189,9 +193,336 @@ export function createApp(options: CreateAppOptions = {}) {
     return Response.json(data, res);
   };
 
+  // ============================================================================
+  // MCP2 OAuth Proxy (passthrough to origin)
+  // These routes MUST be defined BEFORE the wildcard mesh OAuth routes
+  // ============================================================================
+
+  // Helper to get the original authorization server URL from connection
+  const getOriginAuthServer = async (
+    connectionId: string,
+    ctx: MeshContext,
+  ): Promise<string | null> => {
+    const connectionUrl = await getConnectionUrl(connectionId, ctx);
+    if (!connectionUrl) return null;
+
+    try {
+      const originUrl = new URL(connectionUrl);
+      originUrl.pathname = "/.well-known/oauth-protected-resource";
+
+      const response = await fetch(originUrl.toString(), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      if (!response.ok) return null;
+
+      const data = (await response.json()) as {
+        authorization_servers?: string[];
+      };
+      return data.authorization_servers?.[0] ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Route: /.well-known/oauth-authorization-server/mcp2-oauth/:connectionId
+  // Proxy authorization server metadata to avoid CORS issues
+  // MUST be before the wildcard route below
+  app.get("/.well-known/oauth-authorization-server/mcp2-oauth/:connectionId", async (c) => {
+    const connectionId = c.req.param("connectionId");
+    let ctx = c.get("meshContext");
+
+    if (!ctx) {
+      const meshCtx = await ContextFactory.create(c.req.raw);
+      c.set("meshContext", meshCtx);
+      ctx = meshCtx;
+    }
+
+    const originAuthServer = await getOriginAuthServer(connectionId, ctx);
+    if (!originAuthServer) {
+      return c.json({ error: "Connection not found or no auth server" }, 404);
+    }
+
+    try {
+      // Build the origin's well-known URL for auth server metadata
+      const originUrl = new URL(originAuthServer);
+      const authServerPath = originUrl.pathname;
+      originUrl.pathname = `/.well-known/oauth-authorization-server${authServerPath}`;
+
+      const response = await fetch(originUrl.toString(), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      if (!response.ok) {
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // Parse and rewrite URLs to point to our proxy
+      const data = (await response.json()) as Record<string, unknown>;
+      const requestUrl = new URL(c.req.url);
+      const proxyBase = `${requestUrl.origin}/mcp2-oauth/${connectionId}`;
+
+      // Rewrite OAuth endpoint URLs to go through our proxy
+      const rewrittenData = {
+        ...data,
+        authorization_endpoint: data.authorization_endpoint
+          ? `${proxyBase}/authorize`
+          : undefined,
+        token_endpoint: data.token_endpoint
+          ? `${proxyBase}/token`
+          : undefined,
+        registration_endpoint: data.registration_endpoint
+          ? `${proxyBase}/register`
+          : undefined,
+      };
+
+      return new Response(JSON.stringify(rewrittenData), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      const err = error as Error;
+      console.error("[mcp2-oauth] Failed to proxy auth server metadata:", err);
+      return c.json(
+        { error: "Failed to proxy auth server metadata", message: err.message },
+        502,
+      );
+    }
+  });
+
+  // Helper to get OAuth endpoint URLs from auth server metadata
+  const getOriginOAuthEndpoints = async (
+    connectionId: string,
+    ctx: MeshContext,
+  ): Promise<{
+    authorization_endpoint?: string;
+    token_endpoint?: string;
+    registration_endpoint?: string;
+  } | null> => {
+    const originAuthServer = await getOriginAuthServer(connectionId, ctx);
+    if (!originAuthServer) return null;
+
+    try {
+      const originUrl = new URL(originAuthServer);
+      const authServerPath = originUrl.pathname;
+      originUrl.pathname = `/.well-known/oauth-authorization-server${authServerPath}`;
+
+      const response = await fetch(originUrl.toString(), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      if (!response.ok) return null;
+
+      const data = (await response.json()) as {
+        authorization_endpoint?: string;
+        token_endpoint?: string;
+        registration_endpoint?: string;
+      };
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  // Route: /mcp2-oauth/:connectionId/* - Proxy OAuth endpoints (authorize, token, register)
+  app.all("/mcp2-oauth/:connectionId/:endpoint{.+}", async (c) => {
+    const connectionId = c.req.param("connectionId");
+    const endpoint = c.req.param("endpoint");
+    let ctx = c.get("meshContext");
+
+    if (!ctx) {
+      const meshCtx = await ContextFactory.create(c.req.raw);
+      c.set("meshContext", meshCtx);
+      ctx = meshCtx;
+    }
+
+    const endpoints = await getOriginOAuthEndpoints(connectionId, ctx);
+    if (!endpoints) {
+      return c.json({ error: "Connection not found or no auth server" }, 404);
+    }
+
+    try {
+      // Map our endpoint name to the actual origin endpoint URL
+      let originEndpointUrl: string | undefined;
+      if (endpoint === "authorize") {
+        originEndpointUrl = endpoints.authorization_endpoint;
+      } else if (endpoint === "token") {
+        originEndpointUrl = endpoints.token_endpoint;
+      } else if (endpoint === "register") {
+        originEndpointUrl = endpoints.registration_endpoint;
+      }
+
+      if (!originEndpointUrl) {
+        return c.json({ error: `Unknown OAuth endpoint: ${endpoint}` }, 404);
+      }
+
+      // Build the full URL with query string
+      const originUrl = new URL(originEndpointUrl);
+      const reqUrl = new URL(c.req.url);
+      originUrl.search = reqUrl.search;
+
+      // Build headers to forward
+      const headers: Record<string, string> = {
+        Accept: c.req.header("Accept") || "application/json",
+      };
+      const contentType = c.req.header("Content-Type");
+      if (contentType) {
+        headers["Content-Type"] = contentType;
+      }
+      const authorization = c.req.header("Authorization");
+      if (authorization) {
+        headers["Authorization"] = authorization;
+      }
+
+      // Proxy the request
+      const response = await fetch(originUrl.toString(), {
+        method: c.req.method,
+        headers,
+        body: c.req.method !== "GET" && c.req.method !== "HEAD" 
+          ? c.req.raw.body 
+          : undefined,
+        // @ts-expect-error - duplex needed for streaming
+        duplex: "half",
+        redirect: "manual",
+      });
+
+      // Copy response headers
+      const responseHeaders = new Headers();
+      for (const [key, value] of response.headers.entries()) {
+        if (!["connection", "keep-alive", "transfer-encoding"].includes(key.toLowerCase())) {
+          responseHeaders.set(key, value);
+        }
+      }
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      });
+    } catch (error) {
+      const err = error as Error;
+      console.error(`[mcp2-oauth] Failed to proxy ${endpoint}:`, err);
+      return c.json(
+        { error: `Failed to proxy ${endpoint}`, message: err.message },
+        502,
+      );
+    }
+  });
+
+  // Mesh OAuth authorization server metadata (wildcard - catches everything else)
   app.get(
     "/.well-known/oauth-authorization-server/*/:gateway?/:connectionId?",
     authorizationServerHandler,
+  );
+
+  // ============================================================================
+  // MCP2 Protected Resource Metadata Proxy
+  // ============================================================================
+
+  // Proxy OAuth protected resource metadata to origin MCP server
+  // This allows clients to discover the origin's authorization server
+  // MCP clients request: /.well-known/oauth-protected-resource/{resource-path}
+  const mcp2OAuthProxyHandler = async (c: {
+    req: { param: (key: string) => string; raw: Request; url: string };
+    get: (key: "meshContext") => MeshContext | undefined;
+    set: (key: "meshContext", value: MeshContext) => void;
+    json: (data: unknown, status?: number) => Response;
+  }) => {
+    const connectionId = c.req.param("connectionId");
+    let ctx = c.get("meshContext");
+
+    if (!ctx) {
+      // Need to create context for this request
+      const meshCtx = await ContextFactory.create(c.req.raw);
+      c.set("meshContext", meshCtx);
+      ctx = meshCtx;
+    }
+
+    const connectionUrl = await getConnectionUrl(connectionId, ctx);
+
+    if (!connectionUrl) {
+      return c.json({ error: "Connection not found" }, 404);
+    }
+
+    try {
+      // Build the origin's well-known URL
+      const originUrl = new URL(connectionUrl);
+      originUrl.pathname = "/.well-known/oauth-protected-resource";
+
+      // Fetch from origin and proxy response
+      const response = await fetch(originUrl.toString(), {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // Parse the response and rewrite URLs to point to our proxy
+      // The MCP client expects the resource to match the proxy URL, not the origin
+      const data = (await response.json()) as Record<string, unknown>;
+
+      // Build our proxy resource URL
+      const requestUrl = new URL(c.req.url);
+      const proxyResourceUrl = `${requestUrl.origin}/mcp2/${connectionId}`;
+
+      // Rewrite authorization_servers to point to our proxy
+      // We'll proxy the auth server metadata through our server to avoid CORS issues
+      const proxyAuthServer = `${requestUrl.origin}/mcp2-oauth/${connectionId}`;
+
+      // Rewrite the resource and authorization_servers fields
+      const rewrittenData = {
+        ...data,
+        resource: proxyResourceUrl,
+        authorization_servers: [proxyAuthServer],
+      };
+
+      return new Response(JSON.stringify(rewrittenData), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      const err = error as Error;
+      console.error(
+        "[mcp2] Failed to proxy OAuth protected resource metadata:",
+        err,
+      );
+      return c.json(
+        { error: "Failed to proxy OAuth metadata", message: err.message },
+        502,
+      );
+    }
+  };
+
+  // Route 1: /.well-known/oauth-protected-resource/mcp2/:connectionId
+  // This is the URL pattern MCP clients use when discovering OAuth metadata
+  app.get(
+    "/.well-known/oauth-protected-resource/mcp2/:connectionId",
+    // @ts-expect-error - Hono context typing
+    mcp2OAuthProxyHandler,
+  );
+
+  // Route 2: /mcp2/:connectionId/.well-known/oauth-protected-resource
+  // Alternative pattern (resource-relative)
+  app.get(
+    "/mcp2/:connectionId/.well-known/oauth-protected-resource",
+    // @ts-expect-error - Hono context typing
+    mcp2OAuthProxyHandler,
   );
 
   // ============================================================================
@@ -280,6 +611,10 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // MCP Proxy routes (connection-specific)
   app.route("/mcp", proxyRoutes);
+
+  // MCP2 Passthrough Proxy routes (origin OAuth - no mesh auth)
+  // These routes do NOT have mcpAuth middleware applied
+  app.route("/mcp2", mcp2ProxyRoutes);
 
   // LLM API routes (OpenAI-compatible)
   app.route("/api", modelsRoutes);

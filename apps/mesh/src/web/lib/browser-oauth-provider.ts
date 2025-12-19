@@ -2,7 +2,7 @@ import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { BrowserOAuthClientProvider } from "use-mcp";
 
 export async function authenticateMcp(
-  serverUrl: string,
+  connectionId: string,
   options?: {
     clientName?: string;
     clientUri?: string;
@@ -11,6 +11,7 @@ export async function authenticateMcp(
   },
 ): Promise<{ token: string | null; error: string | null }> {
   try {
+    const serverUrl = `${window.location.origin}/mcp2/${connectionId}`;
     const authProvider = new BrowserOAuthClientProvider(serverUrl, {
       clientName: options?.clientName || "@decocms/mesh MCP inspector",
       clientUri: options?.clientUri || window.location.origin,
