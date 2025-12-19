@@ -91,6 +91,18 @@ const orgMonitoringRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/monitoring",
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
+  validateSearch: z.lazy(() =>
+    z.object({
+      from: z.string().default("now-24h"),
+      to: z.string().default("now"),
+      connections: z.string().optional(),
+      tool: z.string().default(""),
+      status: z.enum(["all", "success", "errors"]).default("all"),
+      search: z.string().default(""),
+      page: z.number().optional(),
+      streaming: z.boolean().default(true),
+    }),
+  ),
 });
 
 const orgStoreRoute = createRoute({

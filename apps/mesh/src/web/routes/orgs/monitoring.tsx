@@ -4,12 +4,34 @@
  * Displays tool call monitoring logs and statistics for the organization.
  */
 
-import { Button } from "@deco/ui/components/button.tsx";
+import { createToolCaller } from "@/tools/client";
+import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
+import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
+import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { EmptyState } from "@/web/components/empty-state.tsx";
+import { ErrorBoundary } from "@/web/components/error-boundary";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
-  TimeRangePicker,
-  type TimeRange as TimeRangeValue,
-} from "@deco/ui/components/time-range-picker.tsx";
-import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
+  MonitoringStatsRow,
+  MonitoringStatsRowSkeleton,
+  calculateStats,
+  type DateRange,
+  type MonitoringLog as SharedMonitoringLog,
+  type MonitoringLogsResponse as SharedMonitoringLogsResponse,
+} from "@/web/components/monitoring/monitoring-stats-row.tsx";
+import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useToolCall } from "@/web/hooks/use-tool-call";
+import { useProjectContext } from "@/web/providers/project-context-provider";
+import { Badge } from "@deco/ui/components/badge.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
+import { MultiSelect } from "@deco/ui/components/multi-select.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
 import {
   Select,
   SelectContent,
@@ -17,38 +39,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
-import { MultiSelect } from "@deco/ui/components/multi-select.tsx";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
-import { Fragment, Suspense, useState, useRef } from "react";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
-import { EmptyState } from "@/web/components/empty-state.tsx";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+  TimeRangePicker,
+  type TimeRange as TimeRangeValue,
+} from "@deco/ui/components/time-range-picker.tsx";
+import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Fragment, Suspense, useRef, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+
 // @ts-ignore - correct
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
-import { createToolCaller } from "@/tools/client";
-import { useToolCall } from "@/web/hooks/use-tool-call";
-import { useSearch, useNavigate } from "@tanstack/react-router";
-import { useProjectContext } from "@/web/providers/project-context-provider";
-import { useConnections } from "@/web/hooks/collections/use-connection";
-import { ErrorBoundary } from "@/web/components/error-boundary";
-import {
-  MonitoringStatsRow,
-  MonitoringStatsRowSkeleton,
-  calculateStats,
-  type MonitoringLog as SharedMonitoringLog,
-  type MonitoringLogsResponse as SharedMonitoringLogsResponse,
-  type DateRange,
-} from "@/web/components/monitoring/monitoring-stats-row.tsx";
 
 // ============================================================================
 // Types
@@ -76,6 +77,7 @@ interface MonitoringSearchParams {
   status?: "all" | "success" | "errors";
   search?: string;
   page?: number;
+  streaming?: boolean;
 }
 
 // ============================================================================
@@ -83,60 +85,23 @@ interface MonitoringSearchParams {
 // ============================================================================
 
 interface MonitoringStatsProps {
-  dateRange: DateRange;
   displayDateRange: DateRange;
-  isStreaming: boolean;
   connectionIds: string[];
-  toolFilter: string;
-  statusFilter: string;
+  logsData: MonitoringLogsResponse;
 }
 
 function MonitoringStatsContent({
-  dateRange,
   displayDateRange,
-  isStreaming,
   connectionIds,
-  toolFilter,
-  statusFilter,
+  logsData,
 }: MonitoringStatsProps) {
-  const { locator } = useProjectContext();
-  const toolCaller = createToolCaller();
-
-  const logsParams = {
-    startDate: dateRange.startDate.toISOString(),
-    endDate: dateRange.endDate.toISOString(),
-    // Only pass single connection to API; multi-connection is filtered client-side
-    connectionId: connectionIds.length === 1 ? connectionIds[0] : undefined,
-    toolName: toolFilter || undefined,
-    isError:
-      statusFilter === "errors"
-        ? true
-        : statusFilter === "success"
-          ? false
-          : undefined,
-    limit: 750,
-    offset: 0,
-  };
-
-  const { data: logsData } = useToolCall<
-    typeof logsParams,
-    MonitoringLogsResponse
-  >({
-    toolCaller,
-    toolName: "MONITORING_LOGS_LIST",
-    toolInputParams: logsParams,
-    scope: locator,
-    staleTime: 0,
-    refetchInterval: isStreaming ? 3000 : false,
-  });
-
   // Filter logs by multiple connection IDs (client-side if more than one selected)
   let logs = logsData?.logs ?? [];
   if (connectionIds.length > 1) {
     logs = logs.filter((log) => connectionIds.includes(log.connectionId));
   }
 
-  // Use server total only when not doing client-side filtering
+  // Use server total for stats calculation (logs are paginated, so we need the total)
   const totalCalls = connectionIds.length > 1 ? undefined : logsData?.total;
   const stats = calculateStats(logs, displayDateRange, undefined, totalCalls);
 
@@ -159,8 +124,8 @@ const MonitoringStats = Object.assign(MonitoringStatsContent, {
 
 interface FiltersPopoverProps {
   connectionIds: string[];
-  toolFilter: string;
-  statusFilter: string;
+  tool: string;
+  status: string;
   connectionOptions: Array<{ value: string; label: string }>;
   activeFiltersCount: number;
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
@@ -168,8 +133,8 @@ interface FiltersPopoverProps {
 
 function FiltersPopover({
   connectionIds,
-  toolFilter,
-  statusFilter,
+  tool,
+  status,
   connectionOptions,
   activeFiltersCount,
   onUpdateFilters,
@@ -222,7 +187,7 @@ function FiltersPopover({
               </label>
               <Input
                 placeholder="Filter by tool..."
-                value={toolFilter}
+                value={tool}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   onUpdateFilters({ tool: e.target.value })
                 }
@@ -235,7 +200,7 @@ function FiltersPopover({
                 Status
               </label>
               <Select
-                value={statusFilter}
+                value={status}
                 onValueChange={(value: string) =>
                   onUpdateFilters({
                     status: value as MonitoringSearchParams["status"],
@@ -278,6 +243,44 @@ function FiltersPopover({
 }
 
 // ============================================================================
+// JSON Syntax Highlighter Component
+// ============================================================================
+
+const SYNTAX_HIGHLIGHTER_CUSTOM_STYLE = {
+  margin: 0,
+  padding: "1rem",
+  fontSize: "0.75rem",
+  height: "100%",
+} as const;
+
+const SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS = {
+  className: "font-mono",
+  style: {
+    wordBreak: "break-word",
+    overflowWrap: "break-word",
+    whiteSpace: "pre-wrap",
+  },
+} as const;
+
+interface JsonSyntaxHighlighterProps {
+  jsonString: string;
+}
+
+function JsonSyntaxHighlighter({ jsonString }: JsonSyntaxHighlighterProps) {
+  return (
+    <SyntaxHighlighter
+      language="json"
+      style={oneLight}
+      customStyle={SYNTAX_HIGHLIGHTER_CUSTOM_STYLE}
+      codeTagProps={SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS}
+      wrapLongLines
+    >
+      {jsonString}
+    </SyntaxHighlighter>
+  );
+}
+
+// ============================================================================
 // Expanded Row Content Component
 // ============================================================================
 
@@ -288,6 +291,9 @@ interface ExpandedLogContentProps {
 function ExpandedLogContent({ log }: ExpandedLogContentProps) {
   const [copiedInput, setCopiedInput] = useState(false);
   const [copiedOutput, setCopiedOutput] = useState(false);
+
+  const inputJsonString = JSON.stringify(log.input, null, 2);
+  const outputJsonString = JSON.stringify(log.output, null, 2);
 
   const handleCopy = async (text: string, type: "input" | "output") => {
     await navigator.clipboard.writeText(text);
@@ -320,9 +326,7 @@ function ExpandedLogContent({ log }: ExpandedLogContentProps) {
               <Button
                 size="icon"
                 variant="ghost"
-                onClick={() =>
-                  handleCopy(JSON.stringify(log.input, null, 2), "input")
-                }
+                onClick={() => handleCopy(inputJsonString, "input")}
                 aria-label="Copy input"
                 className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
               >
@@ -330,27 +334,7 @@ function ExpandedLogContent({ log }: ExpandedLogContentProps) {
               </Button>
             </div>
             <div className="h-[200px] md:h-[300px] overflow-auto">
-              <SyntaxHighlighter
-                language="json"
-                style={oneLight}
-                customStyle={{
-                  margin: 0,
-                  padding: "1rem",
-                  fontSize: "0.75rem",
-                  height: "100%",
-                }}
-                codeTagProps={{
-                  className: "font-mono",
-                  style: {
-                    wordBreak: "break-word",
-                    overflowWrap: "break-word",
-                    whiteSpace: "pre-wrap",
-                  },
-                }}
-                wrapLongLines
-              >
-                {JSON.stringify(log.input, null, 2)}
-              </SyntaxHighlighter>
+              <JsonSyntaxHighlighter jsonString={inputJsonString} />
             </div>
           </div>
         </div>
@@ -363,9 +347,7 @@ function ExpandedLogContent({ log }: ExpandedLogContentProps) {
               <Button
                 size="icon"
                 variant="ghost"
-                onClick={() =>
-                  handleCopy(JSON.stringify(log.output, null, 2), "output")
-                }
+                onClick={() => handleCopy(outputJsonString, "output")}
                 aria-label="Copy output"
                 className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
               >
@@ -376,27 +358,7 @@ function ExpandedLogContent({ log }: ExpandedLogContentProps) {
               </Button>
             </div>
             <div className="h-[200px] md:h-[300px] overflow-auto">
-              <SyntaxHighlighter
-                language="json"
-                style={oneLight}
-                customStyle={{
-                  margin: 0,
-                  padding: "1rem",
-                  fontSize: "0.75rem",
-                  height: "100%",
-                }}
-                codeTagProps={{
-                  className: "font-mono",
-                  style: {
-                    wordBreak: "break-word",
-                    overflowWrap: "break-word",
-                    whiteSpace: "pre-wrap",
-                  },
-                }}
-                wrapLongLines
-              >
-                {JSON.stringify(log.output, null, 2)}
-              </SyntaxHighlighter>
+              <JsonSyntaxHighlighter jsonString={outputJsonString} />
             </div>
           </div>
         </div>
@@ -410,106 +372,43 @@ function ExpandedLogContent({ log }: ExpandedLogContentProps) {
 // ============================================================================
 
 interface MonitoringLogsTableProps {
-  dateRange: DateRange;
   connectionIds: string[];
-  toolFilter: string;
-  statusFilter: string;
-  searchQuery: string;
+  tool: string;
+  status: string;
+  search: string;
   pageSize: number;
-  isStreaming: boolean;
+  page: number;
+  logsData: MonitoringLogsResponse;
+  onPageChange: (page: number) => void;
 }
 
 function MonitoringLogsTableContent({
-  dateRange,
   connectionIds,
-  toolFilter,
-  statusFilter,
-  searchQuery,
+  tool,
+  status,
+  search: searchQuery,
   pageSize,
-  isStreaming,
+  page,
+  logsData,
+  onPageChange,
 }: MonitoringLogsTableProps) {
-  const { locator } = useProjectContext();
-  const toolCaller = createToolCaller();
   const connections = useConnections() ?? [];
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [allLogs, setAllLogs] = useState<MonitoringLog[]>([]);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Create a stable key for detecting filter changes
-  const filterKey = `${connectionIds.join(",")}-${toolFilter}-${statusFilter}-${searchQuery}-${dateRange.startDate.toISOString()}-${dateRange.endDate.toISOString()}`;
+  // Get logs from the current page
+  const logs = logsData?.logs ?? [];
 
-  const logsParams = {
-    connectionId: connectionIds.length > 0 ? connectionIds[0] : undefined,
-    toolName: toolFilter || undefined,
-    isError:
-      statusFilter === "errors"
-        ? true
-        : statusFilter === "success"
-          ? false
-          : undefined,
-    startDate: dateRange.startDate.toISOString(),
-    endDate: dateRange.endDate.toISOString(),
-    limit: pageSize,
-    offset: currentPage * pageSize,
-  };
-
-  const { data: logs } = useToolCall<typeof logsParams, MonitoringLogsResponse>(
-    {
-      toolCaller,
-      toolName: "MONITORING_LOGS_LIST",
-      toolInputParams: logsParams,
-      scope: locator,
-      staleTime: 0,
-      refetchInterval: isStreaming ? 3000 : false,
-    },
-  );
-
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-
-  // Reset when filters change (action during render pattern)
-  const prevFilterKeyRef = useRef(filterKey);
-  // Initialize with null to ensure first comparison triggers update (fixes Suspense issue)
-  const prevLogsRef = useRef<MonitoringLogsResponse | null>(null);
-
-  if (prevFilterKeyRef.current !== filterKey) {
-    prevFilterKeyRef.current = filterKey;
-    prevLogsRef.current = null; // Reset so new data triggers update
-    setCurrentPage(0);
-    setAllLogs([]);
-    setHasMore(true);
-    setIsLoadingMore(false);
-  }
-
-  // Update allLogs when new data comes in (action during render pattern)
-  if (logs && logs !== prevLogsRef.current) {
-    prevLogsRef.current = logs;
-    if (logs.logs) {
-      setAllLogs((prev) => {
-        // If it's page 0, replace; otherwise append
-        if (currentPage === 0) {
-          return logs.logs;
-        }
-        // Check if we already have these logs to avoid duplicates
-        const existingIds = new Set(prev.map((log) => log.id));
-        const newLogs = logs.logs.filter((log) => !existingIds.has(log.id));
-        return [...prev, ...newLogs];
-      });
-      setHasMore(logs.logs.length >= pageSize);
-      setIsLoadingMore(false);
-    }
-  }
+  // Check if there are more pages available
+  const hasMore = logs.length >= pageSize;
 
   // Setup intersection observer for infinite scroll
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const lastLogRef = (node: HTMLDivElement | null) => {
-    if (isLoadingMore) return;
     if (observerRef.current) observerRef.current.disconnect();
 
     observerRef.current = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && hasMore && !isLoadingMore) {
-        setIsLoadingMore(true);
-        setCurrentPage((prev) => prev + 1);
+      if (entries[0]?.isIntersecting && hasMore) {
+        onPageChange(page + 1);
       }
     });
 
@@ -517,7 +416,7 @@ function MonitoringLogsTableContent({
   };
 
   // Filter logs by search query and multiple connections (client-side)
-  let filteredLogs = allLogs;
+  let filteredLogs = logs;
 
   // Filter by multiple connection IDs (if more than one selected)
   if (connectionIds.length > 1) {
@@ -646,10 +545,7 @@ function MonitoringLogsTableContent({
         <EmptyState
           title="No logs found"
           description={
-            searchQuery ||
-            connectionIds.length > 0 ||
-            toolFilter ||
-            statusFilter !== "all"
+            searchQuery || connectionIds.length > 0 || tool || status !== "all"
               ? "No logs match your filters"
               : "No logs found in this time range"
           }
@@ -698,15 +594,6 @@ function MonitoringLogsTableContent({
 
           {/* Table Body */}
           {filteredLogs.map((log, index) => renderLogRow(log, index))}
-
-          {/* Loading indicator */}
-          {isLoadingMore && hasMore && (
-            <div className="flex items-center justify-center h-16 border-t border-border/60">
-              <span className="text-sm text-muted-foreground">
-                Loading more...
-              </span>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -721,91 +608,91 @@ function MonitoringLogsTableSkeleton() {
   );
 }
 
-function MonitoringLogsTableError() {
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <EmptyState
-        title="Failed to load logs"
-        description="There was an error loading the monitoring logs. Please try again."
-      />
-    </div>
-  );
-}
-
 const MonitoringLogsTable = Object.assign(MonitoringLogsTableContent, {
   Skeleton: MonitoringLogsTableSkeleton,
-  Error: MonitoringLogsTableError,
 });
 
 // ============================================================================
 // Main Dashboard Component
 // ============================================================================
 
-export default function MonitoringDashboard() {
-  const { org } = useProjectContext();
-  const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as MonitoringSearchParams;
+interface MonitoringDashboardContentProps {
+  dateRange: DateRange;
+  displayDateRange: DateRange;
+  connectionIds: string[];
+  tool: string;
+  status: string;
+  search: string;
+  streaming: boolean;
+  activeFiltersCount: number;
+  from: string;
+  to: string;
+  page: number;
+  onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
+  onTimeRangeChange: (range: TimeRangeValue) => void;
+  onStreamingToggle: () => void;
+}
 
-  // Get all connections for the multi-select
+function MonitoringDashboardContent({
+  dateRange,
+  displayDateRange,
+  connectionIds,
+  tool,
+  status,
+  search: searchQuery,
+  streaming: isStreaming,
+  activeFiltersCount,
+  from,
+  to,
+  page,
+  onUpdateFilters,
+  onTimeRangeChange,
+  onStreamingToggle,
+}: MonitoringDashboardContentProps) {
+  // Get all connections for the multi-select - moved here because useConnections suspends
   const allConnections = useConnections() ?? [];
-
-  // Get filters from URL or use defaults
-  const fromExpression = search.from || "now-24h";
-  const toExpression = search.to || "now";
-  const connectionIds = search.connections ? search.connections.split(",") : [];
-  const toolFilter = search.tool || "";
-  const searchQuery = search.search || "";
-  const statusFilter = search.status || "all";
-
-  // Build connection options for MultiSelect
   const connectionOptions = allConnections.map((conn) => ({
     value: conn.id,
     label: conn.title || conn.id,
   }));
 
-  // Streaming state
-  const [isStreaming, setIsStreaming] = useState(true);
+  const pageSize = 50;
+  const offset = page * pageSize;
 
-  // Update URL with new filter values
-  const updateFilters = (updates: Partial<MonitoringSearchParams>) => {
-    navigate({
-      to: "/$org/monitoring",
-      params: { org: org.slug },
-      search: { ...search, ...updates },
-    });
+  // Single fetch for current page logs
+  const { locator } = useProjectContext();
+  const toolCaller = createToolCaller();
+
+  const logsParams = {
+    startDate: dateRange.startDate.toISOString(),
+    endDate: dateRange.endDate.toISOString(),
+    // Only pass single connection to API; multi-connection is filtered client-side
+    connectionId: connectionIds.length === 1 ? connectionIds[0] : undefined,
+    toolName: tool || undefined,
+    isError:
+      status === "errors" ? true : status === "success" ? false : undefined,
+    limit: pageSize,
+    offset,
   };
 
-  // Handle time range change
-  const handleTimeRangeChange = (range: TimeRangeValue) => {
-    updateFilters({ from: range.from, to: range.to });
+  const { data: logsData } = useToolCall<
+    typeof logsParams,
+    MonitoringLogsResponse
+  >({
+    toolCaller,
+    toolName: "MONITORING_LOGS_LIST",
+    toolInputParams: logsParams,
+    scope: locator,
+    staleTime: 0,
+    refetchInterval: isStreaming ? 3000 : false,
+  });
+
+  const handlePageChange = (newPage: number) => {
+    onUpdateFilters({ page: newPage });
   };
-
-  // Calculate date range from expressions
-  const fromResult = expressionToDate(fromExpression);
-  const toResult = expressionToDate(toExpression);
-
-  const startDate =
-    fromResult.date || new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const originalEndDate = toResult.date || new Date();
-
-  // Original range for bucket calculations (what user selected)
-  const displayDateRange = { startDate, endDate: originalEndDate };
-
-  // Extended range for fetching logs when streaming
-  let fetchEndDate = originalEndDate;
-  if (isStreaming && toExpression === "now") {
-    fetchEndDate = new Date(originalEndDate);
-    fetchEndDate.setHours(fetchEndDate.getHours() + 1);
-  }
-  const dateRange = { startDate, endDate: fetchEndDate };
-
-  let activeFiltersCount = 0;
-  if (connectionIds.length > 0) activeFiltersCount++;
-  if (toolFilter) activeFiltersCount++;
-  if (statusFilter !== "all") activeFiltersCount++;
 
   return (
-    <CollectionPage>
+    <>
       <CollectionHeader
         title="Monitoring"
         ctaButton={
@@ -813,11 +700,11 @@ export default function MonitoringDashboard() {
             {/* Filters Button */}
             <FiltersPopover
               connectionIds={connectionIds}
-              toolFilter={toolFilter}
-              statusFilter={statusFilter}
+              tool={tool}
+              status={status}
               connectionOptions={connectionOptions}
               activeFiltersCount={activeFiltersCount}
-              onUpdateFilters={updateFilters}
+              onUpdateFilters={onUpdateFilters}
             />
 
             {/* Streaming Toggle */}
@@ -825,7 +712,7 @@ export default function MonitoringDashboard() {
               variant={isStreaming ? "secondary" : "outline"}
               size="sm"
               className={`h-7 px-2 sm:px-3 gap-1.5 ${isStreaming ? "bg-muted hover:bg-muted/80" : ""}`}
-              onClick={() => setIsStreaming(!isStreaming)}
+              onClick={onStreamingToggle}
             >
               <Icon
                 name={isStreaming ? "pause" : "play_arrow"}
@@ -839,8 +726,8 @@ export default function MonitoringDashboard() {
 
             {/* Time Range Picker */}
             <TimeRangePicker
-              value={{ from: fromExpression, to: toExpression }}
-              onChange={handleTimeRangeChange}
+              value={{ from, to }}
+              onChange={onTimeRangeChange}
             />
           </div>
         }
@@ -848,36 +735,21 @@ export default function MonitoringDashboard() {
 
       <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
         {/* Stats Banner */}
-        <ErrorBoundary
-          fallback={
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-[0.5px] bg-border flex-shrink-0 border-b">
-              <div className="bg-background p-5 text-sm text-muted-foreground">
-                Failed to load stats
-              </div>
-            </div>
-          }
-        >
-          <Suspense fallback={<MonitoringStats.Skeleton />}>
-            <MonitoringStats
-              dateRange={dateRange}
-              displayDateRange={displayDateRange}
-              isStreaming={isStreaming}
-              connectionIds={connectionIds}
-              toolFilter={toolFilter}
-              statusFilter={statusFilter}
-            />
-          </Suspense>
-        </ErrorBoundary>
+        <MonitoringStats
+          displayDateRange={displayDateRange}
+          connectionIds={connectionIds}
+          logsData={logsData}
+        />
 
         {/* Search Bar */}
         <CollectionSearch
           value={searchQuery}
-          onChange={(value) => updateFilters({ search: value })}
+          onChange={(value) => onUpdateFilters({ search: value })}
           placeholder="Search by tool name, connection, or error..."
           className="border-t"
           onKeyDown={(event) => {
             if (event.key === "Escape") {
-              updateFilters({ search: "" });
+              onUpdateFilters({ search: "" });
               (event.target as HTMLInputElement).blur();
             }
           }}
@@ -885,21 +757,146 @@ export default function MonitoringDashboard() {
 
         {/* Logs Table */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <ErrorBoundary fallback={<MonitoringLogsTable.Error />}>
-            <Suspense fallback={<MonitoringLogsTable.Skeleton />}>
-              <MonitoringLogsTable
-                dateRange={dateRange}
-                connectionIds={connectionIds}
-                toolFilter={toolFilter}
-                statusFilter={statusFilter}
-                searchQuery={searchQuery}
-                pageSize={50}
-                isStreaming={isStreaming}
-              />
-            </Suspense>
-          </ErrorBoundary>
+          <MonitoringLogsTable
+            connectionIds={connectionIds}
+            tool={tool}
+            status={status}
+            search={searchQuery}
+            pageSize={pageSize}
+            page={page}
+            logsData={logsData}
+            onPageChange={handlePageChange}
+          />
         </div>
       </div>
+    </>
+  );
+}
+
+export default function MonitoringDashboard() {
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
+  const search = useSearch({
+    from: "/shell/$org/monitoring",
+  });
+
+  const {
+    from,
+    to,
+    connections,
+    tool,
+    search: searchQuery,
+    status,
+    page = 0,
+    streaming = true,
+  } = search;
+
+  // Get filters from URL - defaults are handled by router schema
+  const connectionIds = connections ? connections.split(",") : [];
+
+  // Update URL with new filter values
+  const updateFilters = (updates: Partial<MonitoringSearchParams>) => {
+    // Reset page to 0 when filters change (unless page is explicitly updated)
+    const shouldResetPage =
+      !("page" in updates) &&
+      ("from" in updates ||
+        "to" in updates ||
+        "connections" in updates ||
+        "tool" in updates ||
+        "status" in updates ||
+        "search" in updates);
+
+    navigate({
+      to: "/$org/monitoring",
+      params: { org: org.slug },
+      search: {
+        ...search,
+        ...updates,
+        ...(shouldResetPage && { page: 0 }),
+      },
+    });
+  };
+
+  // Handle time range change
+  const handleTimeRangeChange = (range: TimeRangeValue) => {
+    updateFilters({ from: range.from, to: range.to });
+  };
+
+  // Calculate date range from expressions
+  const fromResult = expressionToDate(from);
+  const toResult = expressionToDate(to);
+
+  const startDate =
+    fromResult.date || new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const originalEndDate = toResult.date || new Date();
+
+  // Original range for bucket calculations (what user selected)
+  const displayDateRange = { startDate, endDate: originalEndDate };
+
+  // Extended range for fetching logs when streaming
+  let fetchEndDate = originalEndDate;
+  if (streaming && to === "now") {
+    fetchEndDate = new Date(originalEndDate);
+    fetchEndDate.setHours(fetchEndDate.getHours() + 1);
+  }
+  const dateRange = { startDate, endDate: fetchEndDate };
+
+  let activeFiltersCount = 0;
+  if (connectionIds.length > 0) activeFiltersCount++;
+  if (tool) activeFiltersCount++;
+  if (status !== "all") activeFiltersCount++;
+
+  return (
+    <CollectionPage>
+      <ErrorBoundary
+        fallback={
+          <>
+            <CollectionHeader title="Monitoring" />
+            <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-[0.5px] bg-border shrink-0 border-b">
+                <div className="bg-background p-5 text-sm text-muted-foreground">
+                  Failed to load monitoring data
+                </div>
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                <EmptyState
+                  title="Failed to load logs"
+                  description="There was an error loading the monitoring data. Please try again."
+                />
+              </div>
+            </div>
+          </>
+        }
+      >
+        <Suspense
+          fallback={
+            <>
+              <CollectionHeader title="Monitoring" />
+              <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
+                <MonitoringStats.Skeleton />
+                <MonitoringLogsTable.Skeleton />
+              </div>
+            </>
+          }
+        >
+          <MonitoringDashboardContent
+            dateRange={dateRange}
+            displayDateRange={displayDateRange}
+            connectionIds={connectionIds}
+            tool={tool}
+            status={status}
+            search={searchQuery}
+            streaming={streaming}
+            activeFiltersCount={activeFiltersCount}
+            from={from}
+            to={to}
+            page={page}
+            onUpdateFilters={updateFilters}
+            onTimeRangeChange={handleTimeRangeChange}
+            onStreamingToggle={() => updateFilters({ streaming: !streaming })}
+          />
+        </Suspense>
+      </ErrorBoundary>
     </CollectionPage>
   );
 }
