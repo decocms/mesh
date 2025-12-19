@@ -76,7 +76,7 @@ export function CollectionDisplayButton({
               <Button
                 variant="outline"
                 size="icon"
-                className="size-8 border border-input"
+                className="size-7 border border-input"
               >
                 <Icon name="tune" size={16} />
               </Button>

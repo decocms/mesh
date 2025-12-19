@@ -322,16 +322,17 @@ function OrgMembersContent() {
             shape="circle"
             size="sm"
           />
-          <div>
-            <div className="text-sm font-medium text-foreground">
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-foreground truncate">
               {member.user?.name || "Unknown"}
             </div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground truncate">
               {member.user?.email}
             </div>
           </div>
         </div>
       ),
+      cellClassName: "flex-1 min-w-0",
       sortable: true,
     },
     {
@@ -340,7 +341,7 @@ function OrgMembersContent() {
       render: (member) => (
         <Badge variant={getRoleBadgeVariant(member.role)}>{member.role}</Badge>
       ),
-      cellClassName: "w-[120px]",
+      cellClassName: "w-24 shrink-0",
       sortable: true,
     },
     {
@@ -353,7 +354,7 @@ function OrgMembersContent() {
             : "N/A"}
         </span>
       ),
-      cellClassName: "w-[150px]",
+      cellClassName: "w-32 shrink-0",
       sortable: true,
     },
     {
@@ -369,7 +370,7 @@ function OrgMembersContent() {
           isUpdating={updateRoleMutation.isPending}
         />
       ),
-      cellClassName: "w-[60px]",
+      cellClassName: "w-12 shrink-0",
     },
   ];
 

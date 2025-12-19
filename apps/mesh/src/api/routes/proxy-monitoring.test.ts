@@ -5,14 +5,22 @@ import {
   createProxyStreamableMonitoringMiddleware,
 } from "./proxy-monitoring";
 
-function createMockCtx() {
+function createMockCtx(overrides?: { gatewayId?: string; userAgent?: string }) {
   const log = vi.fn(async (_event: unknown) => {});
+
+  // Use defaults unless explicitly overridden (including with undefined)
+  const hasGatewayOverride = overrides && "gatewayId" in overrides;
+  const hasUserAgentOverride = overrides && "userAgent" in overrides;
 
   const ctx = {
     organization: { id: "org_1" },
     auth: { user: { id: "user_1" } },
     storage: { monitoring: { log } },
-    metadata: { requestId: "req_1" },
+    metadata: {
+      requestId: "req_1",
+      userAgent: hasUserAgentOverride ? overrides.userAgent : "test-client/1.0",
+    },
+    gatewayId: hasGatewayOverride ? overrides.gatewayId : "gw_123",
   } as unknown as MeshContext;
 
   return { ctx, log };
@@ -55,6 +63,9 @@ describe("proxy monitoring middleware", () => {
     expect(event.input).toEqual({ a: 1 });
     // If structuredContent is present, we only store that to avoid duplication.
     expect(event.output).toEqual({ reason: "nope" });
+    // Verify new fields are logged
+    expect(event.userAgent).toBe("test-client/1.0");
+    expect(event.gatewayId).toBe("gw_123");
   });
 
   it("logs auth-denied streamable Response (403) without consuming the body", async () => {
@@ -104,5 +115,36 @@ describe("proxy monitoring middleware", () => {
     expect(event.isError).toBe(true);
     // If structuredContent is present, we only store that to avoid duplication.
     expect(event.output).toEqual({ error: "nope" });
+    // Verify new fields are logged
+    expect(event.userAgent).toBe("test-client/1.0");
+    expect(event.gatewayId).toBe("gw_123");
+  });
+
+  it("logs without userAgent and gatewayId when not provided", async () => {
+    const { ctx, log } = createMockCtx({
+      userAgent: undefined,
+      gatewayId: undefined,
+    });
+
+    const middleware = createProxyMonitoringMiddleware({
+      ctx,
+      enabled: true,
+      connectionId: "conn_1",
+      connectionTitle: "Test Connection",
+    });
+
+    const request = {
+      method: "tools/call",
+      params: { name: "bar", arguments: {} },
+    } as any;
+
+    await middleware(request, async () => {
+      return { content: [], isError: false } as any;
+    });
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const event = log.mock.calls.at(0)![0] as any;
+    expect(event.userAgent).toBeUndefined();
+    expect(event.gatewayId).toBeUndefined();
   });
 });

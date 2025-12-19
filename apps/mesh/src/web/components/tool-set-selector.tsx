@@ -1,25 +1,138 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Checkbox } from "@deco/ui/components/checkbox.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Search } from "lucide-react";
-import { useRef, useState } from "react";
+import { memo, useDeferredValue, useRef, useState } from "react";
 import { useConnections } from "@/web/hooks/collections/use-connection";
+import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 
 export interface ToolSetSelectorProps {
   toolSet: Record<string, string[]>;
   onToolSetChange: (toolSet: Record<string, string[]>) => void;
 }
 
+interface ConnectionItemProps {
+  connection: {
+    id: string;
+    title: string;
+    description?: string | null;
+    icon?: string | null;
+    tools?: Array<{ name: string }> | null;
+  };
+  isSelected: boolean;
+  hasToolsEnabled: boolean;
+  activeToolsCount: number;
+  totalToolsCount: number;
+  onSelect: () => void;
+  onToggle: () => void;
+}
+
+const ConnectionItem = memo(function ConnectionItem({
+  connection,
+  isSelected,
+  hasToolsEnabled,
+  activeToolsCount,
+  totalToolsCount,
+  onSelect,
+  onToggle,
+}: ConnectionItemProps) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 p-2 rounded-lg transition-colors will-change-auto",
+        isSelected ? "bg-accent/50" : "hover:bg-muted/50",
+      )}
+    >
+      <div
+        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+        onClick={onSelect}
+      >
+        <IntegrationIcon
+          icon={connection.icon}
+          name={connection.title}
+          size="sm"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">
+            {connection.title}
+          </p>
+        </div>
+      </div>
+      {connection.tools && connection.tools.length > 0 && (
+        <>
+          <span className="text-xs text-muted-foreground shrink-0">
+            {activeToolsCount}/{totalToolsCount}
+          </span>
+          <Checkbox
+            checked={hasToolsEnabled}
+            onCheckedChange={onToggle}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </>
+      )}
+    </div>
+  );
+});
+
+interface ToolItemProps {
+  connectionId: string;
+  tool: { name: string; description?: string };
+  isSelected: boolean;
+  onToggle: () => void;
+}
+
+const ToolItem = memo(function ToolItem({
+  connectionId,
+  tool,
+  isSelected,
+  onToggle,
+}: ToolItemProps) {
+  return (
+    <label
+      className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer group will-change-auto"
+      htmlFor={`tool-${connectionId}-${tool.name}`}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span
+            className={cn(
+              "text-sm font-medium",
+              isSelected ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {tool.name}
+          </span>
+        </div>
+        {tool.description && (
+          <p className="text-xs text-muted-foreground line-clamp-2">
+            {tool.description}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center shrink-0">
+        <Checkbox
+          id={`tool-${connectionId}-${tool.name}`}
+          checked={isSelected}
+          onCheckedChange={onToggle}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    </label>
+  );
+});
+
+type FilterMode = "all" | "selected" | "unselected";
+
 export function ToolSetSelector({
   toolSet,
   onToolSetChange,
 }: ToolSetSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const initialOrder = useRef<Set<string>>(new Set(Object.keys(toolSet)));
 
   const connections = useConnections({
-    searchTerm: searchQuery.trim() || undefined,
+    searchTerm: deferredSearchQuery.trim() || undefined,
   });
 
   const initialOrderSet = initialOrder.current;
@@ -34,6 +147,21 @@ export function ToolSetSelector({
 
   const sortedConnections = [...selected, ...notSelected];
 
+  // Check if connection has any tools enabled
+  const isConnectionSelected = (connectionId: string): boolean => {
+    const enabledTools = toolSet[connectionId];
+    return enabledTools !== undefined && enabledTools.length > 0;
+  };
+
+  // Apply filter
+  const filteredConnections = sortedConnections.filter((connection) => {
+    if (filterMode === "all") return true;
+    const hasTools = isConnectionSelected(connection.id);
+    if (filterMode === "selected") return hasTools;
+    if (filterMode === "unselected") return !hasTools;
+    return true;
+  });
+
   const [selectedConnectionId, setSelectedConnectionId] = useState<
     string | null
   >(sortedConnections[0]?.id ?? null);
@@ -45,12 +173,6 @@ export function ToolSetSelector({
 
   // Get tools for selected connection
   const connectionTools = selectedConnection?.tools ?? [];
-
-  // Check if connection has any tools enabled
-  const isConnectionSelected = (connectionId: string): boolean => {
-    const enabledTools = toolSet[connectionId];
-    return enabledTools !== undefined && enabledTools.length > 0;
-  };
 
   // Check if specific tool is enabled
   const isToolSelected = (connectionId: string, toolName: string): boolean => {
@@ -108,75 +230,82 @@ export function ToolSetSelector({
   };
 
   return (
-    <div className="flex h-full border-t border-border">
+    <div className="flex h-full">
       {/* Left Column - Connections List */}
       <div className="w-80 border-r border-border flex flex-col">
         {/* Search Input */}
-        <div className="p-4 border-b border-border">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search connections..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+        <CollectionSearch
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search MCP Servers..."
+        />
+
+        {/* Filter Buttons */}
+        <div className="flex gap-1 p-2 border-b border-border">
+          <button
+            onClick={() => setFilterMode("all")}
+            className={cn(
+              "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors border cursor-pointer",
+              filterMode === "all"
+                ? "bg-muted border-border"
+                : "border-border opacity-75 hover:opacity-100",
+            )}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setFilterMode("selected")}
+            className={cn(
+              "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors border cursor-pointer",
+              filterMode === "selected"
+                ? "bg-muted border-border"
+                : "border-border opacity-75 hover:opacity-100",
+            )}
+          >
+            Selected
+          </button>
+          <button
+            onClick={() => setFilterMode("unselected")}
+            className={cn(
+              "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors border cursor-pointer",
+              filterMode === "unselected"
+                ? "bg-muted border-border"
+                : "border-border opacity-75 hover:opacity-100",
+            )}
+          >
+            Unselected
+          </button>
         </div>
 
         {/* Connections List */}
         <div className="flex-1 overflow-auto">
-          {sortedConnections.length === 0 ? (
+          {filteredConnections.length === 0 ? (
             <div className="p-4 text-sm text-muted-foreground text-center">
               {searchQuery
                 ? "No connections found"
-                : "No connections available"}
+                : filterMode === "selected"
+                  ? "No servers selected"
+                  : filterMode === "unselected"
+                    ? "No unselected servers"
+                    : "No connections available"}
             </div>
           ) : (
             <div className="p-2 space-y-1">
-              {sortedConnections.map((connection) => {
-                const isSelected = selectedConnectionId === connection.id;
-                const hasToolsEnabled = isConnectionSelected(connection.id);
+              {filteredConnections.map((connection) => {
+                const totalTools = connection.tools?.length ?? 0;
+                const activeTools = toolSet[connection.id]?.length ?? 0;
 
                 return (
-                  <div
+                  <ConnectionItem
                     key={connection.id}
-                    className={cn(
-                      "flex items-center gap-3 p-2 rounded-lg transition-colors",
-                      isSelected ? "bg-accent" : "hover:bg-muted/50",
-                    )}
-                  >
-                    <div
-                      className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-                      onClick={() => setSelectedConnectionId(connection.id)}
-                    >
-                      <IntegrationIcon
-                        icon={connection.icon}
-                        name={connection.title}
-                        size="sm"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {connection.title}
-                          </p>
-                        </div>
-                        {connection.description && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {connection.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {connection.tools && connection.tools.length > 0 && (
-                      <Checkbox
-                        checked={hasToolsEnabled}
-                        onCheckedChange={() => toggleConnection(connection.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    )}
-                  </div>
+                    connection={connection}
+                    isSelected={selectedConnectionId === connection.id}
+                    hasToolsEnabled={isConnectionSelected(connection.id)}
+                    activeToolsCount={activeTools}
+                    totalToolsCount={totalTools}
+                    onSelect={() => setSelectedConnectionId(connection.id)}
+                    onToggle={() => toggleConnection(connection.id)}
+                  />
                 );
               })}
             </div>
@@ -201,7 +330,7 @@ export function ToolSetSelector({
                     {selectedConnection.title}
                   </h3>
                   {selectedConnection.description && (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
                       {selectedConnection.description}
                     </p>
                   )}
@@ -227,50 +356,20 @@ export function ToolSetSelector({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {connectionTools.map((tool) => {
-                    const isSelected = isToolSelected(
-                      selectedConnection.id,
-                      tool.name,
-                    );
-
-                    return (
-                      <label
-                        key={tool.name}
-                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer group"
-                        htmlFor={`tool-${selectedConnection.id}-${tool.name}`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span
-                              className={cn(
-                                "text-sm font-medium",
-                                isSelected
-                                  ? "text-foreground"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              {tool.name}
-                            </span>
-                          </div>
-                          {tool.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {tool.description}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center shrink-0">
-                          <Checkbox
-                            id={`tool-${selectedConnection.id}-${tool.name}`}
-                            checked={isSelected}
-                            onCheckedChange={() =>
-                              toggleTool(selectedConnection.id, tool.name)
-                            }
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                      </label>
-                    );
-                  })}
+                  {connectionTools.map((tool) => (
+                    <ToolItem
+                      key={tool.name}
+                      connectionId={selectedConnection.id}
+                      tool={tool}
+                      isSelected={isToolSelected(
+                        selectedConnection.id,
+                        tool.name,
+                      )}
+                      onToggle={() =>
+                        toggleTool(selectedConnection.id, tool.name)
+                      }
+                    />
+                  ))}
                 </div>
               )}
             </div>

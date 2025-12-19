@@ -9,10 +9,10 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { BindingRegistry } from "./bindings.ts";
 import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
-import { Binding } from "./wrangler.ts";
 
 // Re-export EventHandlers type for external use
 export type { EventHandlers } from "./events.ts";
@@ -154,8 +154,8 @@ export function isStreamableTool(
   return tool && "streamable" in tool && tool.streamable === true;
 }
 
-export interface OnChangeCallback<TSchema extends z.ZodTypeAny = never> {
-  state: z.infer<TSchema>;
+export interface OnChangeCallback<TState> {
+  state: TState;
   scopes: string[];
 }
 
@@ -232,35 +232,34 @@ type PickByType<T, Value> = {
 export interface CreateMCPServerOptions<
   Env = unknown,
   TSchema extends z.ZodTypeAny = never,
+  TBindings extends BindingRegistry = BindingRegistry,
+  TEnv extends Env & DefaultEnv<TSchema, TBindings> = Env &
+    DefaultEnv<TSchema, TBindings>,
+  State extends
+    TEnv["MESH_REQUEST_CONTEXT"]["state"] = TEnv["MESH_REQUEST_CONTEXT"]["state"],
 > {
-  before?: (env: Env & DefaultEnv<TSchema>) => Promise<void> | void;
+  before?: (env: TEnv) => Promise<void> | void;
   oauth?: OAuthConfig;
   events?: {
-    bus?: keyof PickByType<Env & DefaultEnv<TSchema>, EventBusBindingClient>;
-    handlers?: EventHandlers<Env & DefaultEnv<TSchema>, TSchema>;
+    bus?: keyof PickByType<TEnv, EventBusBindingClient>;
+    handlers?: EventHandlers<TEnv, TSchema>;
   };
   configuration?: {
-    onChange?: (
-      env: Env & DefaultEnv<TSchema>,
-      cb: OnChangeCallback<TSchema>,
-    ) => Promise<void>;
+    onChange?: (env: TEnv, cb: OnChangeCallback<State>) => Promise<void>;
     state?: TSchema;
     scopes?: string[];
   };
-  bindings?: Binding[];
   tools?:
     | Array<
         (
-          env: Env & DefaultEnv<TSchema>,
+          env: TEnv,
         ) =>
           | Promise<CreatedTool>
           | CreatedTool
           | CreatedTool[]
           | Promise<CreatedTool[]>
       >
-    | ((
-        env: Env & DefaultEnv<TSchema>,
-      ) => CreatedTool[] | Promise<CreatedTool[]>);
+    | ((env: TEnv) => CreatedTool[] | Promise<CreatedTool[]>);
 }
 
 export type Fetch<TEnv = unknown> = (
@@ -361,9 +360,9 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
         return Promise.resolve({
           stateSchema: jsonSchema,
           scopes: [
-            ...(scopes ?? []),
+            ...((scopes as string[]) ?? []),
             ...Event.scopes(events?.handlers ?? {}),
-            ...(busProp ? [`${busProp}::EVENT_SYNC_SUBSCRIPTIONS`] : []),
+            ...(events ? [`${busProp}::EVENT_SYNC_SUBSCRIPTIONS`] : []),
           ],
         });
       },
@@ -376,18 +375,25 @@ type CallTool = (opts: {
   toolCallInput: unknown;
 }) => Promise<unknown>;
 
-export type MCPServer<TEnv = unknown, TSchema extends z.ZodTypeAny = never> = {
-  fetch: Fetch<TEnv & DefaultEnv<TSchema>>;
+export type MCPServer<
+  TEnv = unknown,
+  TSchema extends z.ZodTypeAny = never,
+  TBindings extends BindingRegistry = BindingRegistry,
+> = {
+  fetch: Fetch<TEnv & DefaultEnv<TSchema, TBindings>>;
   callTool: CallTool;
 };
 
 export const createMCPServer = <
-  TEnv = unknown,
+  Env = unknown,
   TSchema extends z.ZodTypeAny = never,
+  TBindings extends BindingRegistry = BindingRegistry,
+  TEnv extends Env & DefaultEnv<TSchema, TBindings> = Env &
+    DefaultEnv<TSchema, TBindings>,
 >(
-  options: CreateMCPServerOptions<TEnv, TSchema>,
-): MCPServer<TEnv, TSchema> => {
-  const createServer = async (bindings: TEnv & DefaultEnv<TSchema>) => {
+  options: CreateMCPServerOptions<TEnv, TSchema, TBindings>,
+): MCPServer<TEnv, TSchema, TBindings> => {
+  const createServer = async (bindings: TEnv) => {
     await options.before?.(bindings);
 
     const server = new McpServer(
@@ -398,7 +404,7 @@ export const createMCPServer = <
     const toolsFn =
       typeof options.tools === "function"
         ? options.tools
-        : async (bindings: TEnv & DefaultEnv<TSchema>) => {
+        : async (bindings: TEnv) => {
             if (typeof options.tools === "function") {
               return await options.tools(bindings);
             }
@@ -462,7 +468,7 @@ export const createMCPServer = <
     return { server, tools };
   };
 
-  const fetch = async (req: Request, env: TEnv & DefaultEnv<TSchema>) => {
+  const fetch = async (req: Request, env: TEnv) => {
     const { server } = await createServer(env);
     const transport = new HttpServerTransport();
 

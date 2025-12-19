@@ -4,6 +4,7 @@ import type {
   OnEventsOutput,
 } from "@decocms/bindings";
 import z from "zod";
+import { isBinding } from "./bindings.ts";
 
 // ============================================================================
 // Types
@@ -12,11 +13,6 @@ import z from "zod";
 export interface EventSubscription {
   eventType: string;
   publisher: string;
-}
-
-interface Binding {
-  __type: string;
-  value: string;
 }
 
 /**
@@ -117,17 +113,6 @@ export type BindingKeysOf<T> = {
 // ============================================================================
 // Type Guards
 // ============================================================================
-
-const isBinding = (v: unknown): v is Binding => {
-  return (
-    typeof v === "object" &&
-    v !== null &&
-    "__type" in v &&
-    typeof v.__type === "string" &&
-    "value" in v &&
-    typeof v.value === "string"
-  );
-};
 
 /**
  * Check if handlers is a global batch handler (has handler + events at top level)

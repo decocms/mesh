@@ -1,0 +1,89 @@
+/**
+ * COLLECTION_GATEWAY_DELETE Tool
+ *
+ * Delete a gateway with collection binding compliance.
+ */
+
+import { z } from "zod";
+import { defineTool } from "../../core/define-tool";
+import { requireAuth, requireOrganization } from "../../core/mesh-context";
+import { GatewayEntitySchema } from "./schema";
+
+/**
+ * Input schema for deleting a gateway
+ */
+const DeleteInputSchema = z.object({
+  id: z.string().describe("ID of the gateway to delete"),
+});
+
+export type DeleteGatewayInput = z.infer<typeof DeleteInputSchema>;
+
+/**
+ * Output schema for gateway delete
+ */
+const DeleteOutputSchema = z.object({
+  item: GatewayEntitySchema.describe("The deleted gateway entity"),
+});
+
+export const COLLECTION_GATEWAY_DELETE = defineTool({
+  name: "COLLECTION_GATEWAY_DELETE",
+  description: "Delete an MCP gateway",
+
+  inputSchema: DeleteInputSchema,
+  outputSchema: DeleteOutputSchema,
+
+  handler: async (input, ctx) => {
+    requireAuth(ctx);
+    const organization = requireOrganization(ctx);
+
+    await ctx.access.check();
+
+    // Get the gateway before deleting (to return it)
+    const existing = await ctx.storage.gateways.findById(input.id);
+    if (!existing) {
+      throw new Error(`Gateway not found: ${input.id}`);
+    }
+    if (existing.organizationId !== organization.id) {
+      throw new Error(`Gateway not found: ${input.id}`);
+    }
+
+    // Prevent deletion of default gateways
+    if (existing.isDefault) {
+      throw new Error(
+        "Cannot delete the default gateway. Set another gateway as default first.",
+      );
+    }
+
+    // Delete the gateway (connections are deleted via CASCADE)
+    await ctx.storage.gateways.delete(input.id);
+
+    // Transform to entity format
+    return {
+      item: {
+        id: existing.id,
+        title: existing.title,
+        description: existing.description,
+        icon: existing.icon,
+        organization_id: existing.organizationId,
+        tool_selection_strategy: existing.toolSelectionStrategy,
+        tool_selection_mode: existing.toolSelectionMode,
+        status: existing.status,
+        is_default: existing.isDefault,
+        connections: existing.connections.map((conn) => ({
+          connection_id: conn.connectionId,
+          selected_tools: conn.selectedTools,
+        })),
+        created_at:
+          existing.createdAt instanceof Date
+            ? existing.createdAt.toISOString()
+            : existing.createdAt,
+        updated_at:
+          existing.updatedAt instanceof Date
+            ? existing.updatedAt.toISOString()
+            : existing.updatedAt,
+        created_by: existing.createdBy,
+        updated_by: existing.updatedBy ?? undefined,
+      },
+    };
+  },
+});

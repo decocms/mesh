@@ -11,6 +11,7 @@ import * as ApiKeyTools from "./apiKeys";
 import * as ConnectionTools from "./connection";
 import * as DatabaseTools from "./database";
 import * as EventBusTools from "./eventbus";
+import * as GatewayTools from "./gateway";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
 import { ToolName } from "./registry";
@@ -38,6 +39,13 @@ export const ALL_TOOLS = [
   ConnectionTools.COLLECTION_CONNECTIONS_UPDATE,
   ConnectionTools.COLLECTION_CONNECTIONS_DELETE,
   ConnectionTools.CONNECTION_TEST,
+
+  // Gateway collection tools
+  GatewayTools.COLLECTION_GATEWAY_CREATE,
+  GatewayTools.COLLECTION_GATEWAY_LIST,
+  GatewayTools.COLLECTION_GATEWAY_GET,
+  GatewayTools.COLLECTION_GATEWAY_UPDATE,
+  GatewayTools.COLLECTION_GATEWAY_DELETE,
 
   // Database tools
   DatabaseTools.DATABASES_RUN_SQL,

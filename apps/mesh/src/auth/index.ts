@@ -32,7 +32,7 @@ import { createAccessControl, Role } from "@decocms/better-auth/plugins/access";
 import { getDatabaseUrl, getDbDialect } from "../database";
 import { createEmailSender, findEmailProvider } from "./email-providers";
 import { createMagicLinkConfig } from "./magic-link";
-import { createDefaultOrgConnections } from "./org";
+import { seedOrgDb } from "./org";
 import { ADMIN_ROLES } from "./roles";
 import { createSSOConfig } from "./sso";
 
@@ -103,10 +103,7 @@ const plugins = [
   organization({
     organizationCreation: {
       afterCreate: async (data) => {
-        await createDefaultOrgConnections(
-          data.organization.id,
-          data.member.userId,
-        );
+        await seedOrgDb(data.organization.id, data.member.userId);
       },
     },
     ac,
@@ -135,13 +132,13 @@ const plugins = [
   // MCP plugin for OAuth 2.1 server
   // https://www.better-auth.com/docs/plugins/mcp
   mcp({
-    loginPage: "/auth/sign-in",
+    loginPage: "/login",
     // Note: Authorization page (/authorize) is served as static HTML
     // Better Auth will redirect there based on loginPage flow
     oidcConfig: {
       scopes: scopes,
       metadata: { scopes_supported: scopes },
-      loginPage: "/auth/sign-in",
+      loginPage: "/login",
     },
   }),
 
@@ -155,6 +152,13 @@ const plugins = [
     },
     enableSessionForAPIKeys: true,
     customAPIKeyGetter: (ctx) => {
+      // Skip API key validation when MCP OAuth session auth is being used
+      // The Bearer token in this case is an OAuth access token, not an API key
+      const isMcpSessionAuth = ctx.headers?.get("X-MCP-Session-Auth");
+      if (isMcpSessionAuth === "true") {
+        return null;
+      }
+
       const header = ctx.headers?.get("Authorization");
       if (header?.startsWith("Bearer ")) {
         return header.replace("Bearer ", "").trim();
