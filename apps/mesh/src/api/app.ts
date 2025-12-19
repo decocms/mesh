@@ -10,7 +10,7 @@
 
 import { applyAssetServerRoutes } from "@decocms/runtime/asset-server";
 import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
-import { Hono } from "hono";
+import { Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { auth } from "../auth";
@@ -198,6 +198,21 @@ export function createApp(options: CreateAppOptions = {}) {
     10 * 60 * 1000,
   );
 
+  /**
+   * Helper: Intercepts redirects to custom URI schemes (cursor://, vscode://)
+   * and returns an intermediate HTML page instead of redirecting directly
+   */
+  const interceptCustomUriRedirect = (response: Response, c: Context) => {
+    if (response.status === 302) {
+      const location = response.headers.get("location");
+      if (location && isCustomUriScheme(location)) {
+        console.log("[OAuth] Intercepting custom URI redirect:", location);
+        return c.html(getCursorRedirectTemplate(location));
+      }
+    }
+    return response;
+  };
+
   // Fix for Better Auth MCP plugin: Generate state if client doesn't provide one
   // This is important for CSRF protection in OAuth 2.0
   app.get("/api/auth/mcp/authorize", async (c) => {
@@ -230,32 +245,12 @@ export function createApp(options: CreateAppOptions = {}) {
       });
 
       const response = await auth.handler(modifiedRequest);
-
-      // Intercept redirects to custom URI schemes (cursor://, vscode://, etc.)
-      if (response.status === 302) {
-        const location = response.headers.get("location");
-        if (location && isCustomUriScheme(location)) {
-          console.log("[OAuth] Intercepting custom URI redirect:", location);
-          return c.html(getCursorRedirectTemplate(location));
-        }
-      }
-
-      return response;
+      return interceptCustomUriRedirect(response, c);
     }
 
     // Client sent state, pass through normally
     const response = await auth.handler(c.req.raw);
-
-    // Also intercept custom URI redirects for clients that sent state
-    if (response.status === 302) {
-      const location = response.headers.get("location");
-      if (location && isCustomUriScheme(location)) {
-        console.log("[OAuth] Intercepting custom URI redirect:", location);
-        return c.html(getCursorRedirectTemplate(location));
-      }
-    }
-
-    return response;
+    return interceptCustomUriRedirect(response, c);
   });
 
   // Validate state in token endpoint
@@ -382,12 +377,11 @@ export function createApp(options: CreateAppOptions = {}) {
     // Require either user or API key authentication
     if (!meshContext.auth.user?.id && !meshContext.auth.apiKey?.id) {
       const origin = new URL(c.req.url).origin;
-      return (c.res = new Response(null, {
-        status: 401,
-        headers: {
-          "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
-        },
-      }));
+      // Return 401 with proper WWW-Authenticate header pointing to resource metadata
+      // The resource_metadata URL should point to the well-known endpoint for this connection
+      return c.json({ error: "Unauthorized" }, 401, {
+        "WWW-Authenticate": `Bearer realm="mcp",resource="${origin}/mcp/${connectionId}"`,
+      });
     }
     return await next();
   });

@@ -136,8 +136,7 @@ const plugins = [
   // https://www.better-auth.com/docs/plugins/mcp
   mcp({
     loginPage: "/auth/sign-in",
-    // Note: Authorization page (/authorize) is served as static HTML
-    // Better Auth will redirect there based on loginPage flow
+    // authorizePage: "/oauth/authorize", // Disabled for now - causing loops
     oidcConfig: {
       scopes: scopes,
       metadata: { scopes_supported: scopes },
