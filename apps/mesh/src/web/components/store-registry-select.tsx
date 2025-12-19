@@ -9,9 +9,9 @@ import {
 import { Icon } from "@deco/ui/components/icon.tsx";
 
 interface Registry {
-  id?: string;
+  id: string;
   name: string;
-  icon?: string | null;
+  icon?: string;
 }
 
 interface StoreRegistrySelectProps {
