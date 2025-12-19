@@ -10,7 +10,7 @@ import { Icon } from "@deco/ui/components/icon.tsx";
 
 interface Registry {
   id?: string;
-  title: string;
+  name: string;
   icon?: string | null;
 }
 
@@ -40,22 +40,22 @@ export function StoreRegistrySelect({
         {registries.map((registry) => (
           <SelectItem
             className="cursor-pointer"
-            key={registry.id ?? registry.title}
-            value={registry.id ?? registry.title}
+            key={registry.id ?? registry.name}
+            value={registry.id ?? registry.name}
           >
             <div className="flex items-center gap-2">
               {registry.icon ? (
                 <img
                   src={registry.icon}
-                  alt={registry.title}
+                  alt={registry.name}
                   className="w-4 h-4 rounded"
                 />
               ) : (
                 <div className="w-4 h-4 rounded from-primary/20 to-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
-                  {registry.title.slice(0, 1).toUpperCase()}
+                  {registry.name.slice(0, 1).toUpperCase()}
                 </div>
               )}
-              <span>{registry.title}</span>
+              <span>{registry.name}</span>
             </div>
           </SelectItem>
         ))}

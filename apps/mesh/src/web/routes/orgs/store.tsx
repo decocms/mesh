@@ -2,6 +2,7 @@ import {
   getWellKnownCommunityRegistryConnection,
   getWellKnownRegistryConnection,
 } from "@/core/well-known-mcp";
+import { ConnectionCreateData } from "@/tools/connection/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header";
 import { StoreDiscovery } from "@/web/components/store";
 import { StoreRegistrySelect } from "@/web/components/store-registry-select";
@@ -34,8 +35,8 @@ export default function StorePage() {
 
   const registryOptions = registryConnections.map((c) => ({
     id: c.id,
-    title: c.title,
-    icon: c.icon,
+    name: c.title,
+    icon: c.icon || undefined,
   }));
 
   // Persist selected registry in localStorage (scoped by org)
@@ -59,6 +60,11 @@ export default function StorePage() {
     getWellKnownCommunityRegistryConnection(),
   ];
 
+  const addNewKnownRegistry = async (registry: ConnectionCreateData) => {
+    const created = await connectionActions.create.mutateAsync(registry);
+    setSelectedRegistryId(created.id);
+  };
+
   // Filter out well-known registries that are already added
   const addedRegistryIds = new Set(registryConnections.map((c) => c.id));
   const availableWellKnownRegistries = wellKnownRegistries.filter(
@@ -80,11 +86,7 @@ export default function StorePage() {
             registries={registryOptions}
             value={effectiveRegistry}
             onValueChange={setSelectedRegistryId}
-            onAddWellKnown={async (registry) => {
-              const created =
-                await connectionActions.create.mutateAsync(registry);
-              setSelectedRegistryId(created.id);
-            }}
+            onAddWellKnown={async (registry) => addNewKnownRegistry(registry)}
             placeholder="Select store..."
           />
         }
