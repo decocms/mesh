@@ -12,10 +12,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { ViewActions } from "../../layout";
 import { ConnectionSettingsFormUI } from "./connection-settings-form-ui";
 import { McpConfigurationForm } from "./mcp-configuration-form";
 import { connectionFormSchema, type ConnectionFormData } from "./schema";
-import { ViewActions } from "../layout";
 
 interface SettingsTabProps {
   connection: ConnectionEntity;

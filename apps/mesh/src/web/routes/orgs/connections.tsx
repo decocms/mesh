@@ -256,14 +256,13 @@ function OrgMcpsContent() {
       id: "icon",
       header: "",
       render: (connection) => (
-        <div className="flex items-center justify-center">
-          <IntegrationIcon
-            icon={connection.icon}
-            name={connection.title}
-            size="sm"
-            className="shrink-0 shadow-sm"
-          />
-        </div>
+        <IntegrationIcon
+          icon={connection.icon}
+          name={connection.title}
+          size="sm"
+          className="shrink-0 shadow-sm"
+          fallbackIcon="extension"
+        />
       ),
       cellClassName: "w-16 shrink-0",
     },
@@ -609,6 +608,7 @@ function OrgMcpsContent() {
                 <ConnectionCard
                   key={connection.id}
                   connection={connection}
+                  fallbackIcon="extension"
                   onClick={() =>
                     navigate({
                       to: "/$org/mcps/$connectionId",

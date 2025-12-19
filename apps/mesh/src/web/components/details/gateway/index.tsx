@@ -1,6 +1,7 @@
 import type { GatewayEntity } from "@/tools/gateway/schema";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
 import {
   useGateway,
@@ -63,7 +64,7 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
 
   // MCP connection configuration (For Cursor, Claude Code, and Windsurf)
-  const connectionConfig = { type: "streamableHttp", url: gatewayUrl };
+  const connectionConfig = { type: "http", url: gatewayUrl };
 
   // Full MCP configuration object
   const mcpConfig = { [serverName]: connectionConfig };
@@ -311,17 +312,13 @@ function GatewaySettingsForm({
         {/* Header section - Icon, Title, Description */}
         <div className="flex flex-col gap-4 p-5 border-b border-border">
           <div className="flex items-start justify-between">
-            {icon ? (
-              <img
-                src={icon}
-                alt="Gateway icon"
-                className="w-16 h-16 rounded-lg object-cover shrink-0 shadow-sm border border-border"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 shadow-sm border border-border">
-                <Icon name="network_node" size={32} className="text-primary" />
-              </div>
-            )}
+            <IntegrationIcon
+              icon={icon}
+              name={form.watch("title") || "Gateway"}
+              size="lg"
+              className="shrink-0 shadow-sm"
+              fallbackIcon="network_node"
+            />
             <FormField
               control={form.control}
               name="status"

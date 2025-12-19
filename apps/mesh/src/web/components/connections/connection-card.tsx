@@ -18,6 +18,7 @@ export interface ConnectionCardProps {
   footer?: React.ReactNode;
   className?: string;
   size?: "sm" | "md";
+  fallbackIcon?: string;
 }
 
 export function ConnectionCard({
@@ -27,6 +28,7 @@ export function ConnectionCard({
   footer,
   className,
   size = "md",
+  fallbackIcon,
 }: ConnectionCardProps) {
   const paddingClass = size === "sm" ? "p-4" : "p-6";
   const titleSizeClass = size === "sm" ? "text-sm" : "text-base";
@@ -49,6 +51,7 @@ export function ConnectionCard({
             name={connection.title}
             size="md"
             className="shrink-0 shadow-sm"
+            fallbackIcon={fallbackIcon}
           />
           {/* Badge and Header Actions container - mutually exclusive on hover */}
           <div className="relative">
