@@ -32,7 +32,16 @@ const loginRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/login.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
+      // Regular login redirect
       next: z.string().optional(),
+      // OAuth flow params (passed by Better Auth MCP plugin)
+      client_id: z.string().optional(),
+      redirect_uri: z.string().optional(),
+      response_type: z.string().optional(),
+      state: z.string().optional(),
+      scope: z.string().optional(),
+      code_challenge: z.string().optional(),
+      code_challenge_method: z.string().optional(),
     }),
   ),
 });

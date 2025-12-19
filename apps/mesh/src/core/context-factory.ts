@@ -400,9 +400,14 @@ async function authenticateRequest(
   const authHeader = req.headers.get("Authorization");
 
   // Try OAuth session first (getMcpSession)
+  // Add X-MCP-Session-Auth header to tell the API key plugin this is an MCP OAuth session
+  // so it won't try to validate the Bearer token as an API key
   try {
+    const mcpHeaders = new Headers(req.headers);
+    mcpHeaders.set("X-MCP-Session-Auth", "true");
+
     const session = (await auth.api.getMcpSession({
-      headers: req.headers,
+      headers: mcpHeaders,
     })) as OAuthSession | null;
 
     if (session) {
@@ -455,7 +460,8 @@ async function authenticateRequest(
     console.error("[Auth] OAuth session check failed:", err);
   }
 
-  // Try API Key or Mesh JWT authentication
+  // Try Mesh JWT or API Key authentication (Bearer token)
+  // These use the same header but different validation
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.replace("Bearer ", "").trim();
 
