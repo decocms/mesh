@@ -62,7 +62,7 @@ export function CollectionTable<T = Record<string, unknown>>({
   }
 
   return (
-    <div className="w-full bg-background">
+    <div className="w-full bg-background min-w-0">
       <UITable className="w-full border-collapse">
         <TableHeader className="sticky top-0 z-10 border-b-0 bg-muted/30">
           <TableRow className="h-9 hover:bg-transparent border-b border-border">
