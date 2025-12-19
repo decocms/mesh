@@ -3,7 +3,6 @@ import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import {
   Select,
