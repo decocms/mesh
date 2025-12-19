@@ -559,7 +559,7 @@ function MonitoringLogsTableContent({
       <div className="flex-1 overflow-auto">
         <div className="min-w-[600px] md:min-w-0 bg-background">
           {/* Table Header */}
-          <div className="flex items-center h-9 border-b border-border sticky top-0 z-20 relative before:absolute before:inset-0 before:bg-background before:z-[-1] after:absolute after:inset-0 after:bg-muted/30 after:z-[-1]">
+          <div className="flex items-center h-9 border-b border-border sticky top-0 z-20 before:absolute before:inset-0 before:bg-background before:z-[-1] after:absolute after:inset-0 after:bg-muted/30 after:z-[-1]">
             {/* Expand Icon Column */}
             <div className="w-10 md:w-12 px-2 md:px-4" />
 
