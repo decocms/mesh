@@ -223,6 +223,7 @@ export const COLLECTION_GATEWAY_LIST = defineTool({
       title: gateway.title,
       description: gateway.description,
       icon: gateway.icon,
+      is_default: gateway.isDefault,
       organization_id: gateway.organizationId,
       tool_selection_strategy: gateway.toolSelectionStrategy,
       status: gateway.status,
@@ -238,7 +239,9 @@ export const COLLECTION_GATEWAY_LIST = defineTool({
 
     // Apply where filter if specified
     if (input.where) {
-      filtered = filtered.filter((gw) => evaluateWhereExpression(gw, input.where!));
+      filtered = filtered.filter((gw) =>
+        evaluateWhereExpression(gw, input.where!),
+      );
     }
 
     // Apply orderBy if specified
