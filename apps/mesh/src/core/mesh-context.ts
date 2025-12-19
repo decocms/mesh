@@ -257,6 +257,8 @@ export interface MeshStorage {
 export interface MeshContext {
   // Connection ID (from url)
   connectionId?: string;
+  // Current gateway ID (from url) - if applicable
+  gatewayId?: string;
 
   // Authentication (via Better Auth)
   auth: MeshAuth;

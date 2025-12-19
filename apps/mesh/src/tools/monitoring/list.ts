@@ -22,6 +22,8 @@ const monitoringLogSchema = z.object({
   timestamp: z.string().describe("ISO 8601 timestamp of the call"),
   userId: z.string().nullish().describe("User who triggered the call"),
   requestId: z.string().describe("Unique request identifier"),
+  userAgent: z.string().nullish().describe("Client identifier (x-mesh-client header)"),
+  gatewayId: z.string().nullish().describe("Gateway ID if routed through a gateway"),
 });
 
 export const MONITORING_LOGS_LIST = defineTool({
@@ -29,6 +31,7 @@ export const MONITORING_LOGS_LIST = defineTool({
   description: "List monitoring logs for tool calls in the organization",
   inputSchema: z.object({
     connectionId: z.string().optional().describe("Filter by connection ID"),
+    gatewayId: z.string().optional().describe("Filter by gateway ID"),
     toolName: z.string().optional().describe("Filter by tool name"),
     isError: z.boolean().optional().describe("Filter by error status"),
     startDate: z
@@ -56,6 +59,7 @@ export const MONITORING_LOGS_LIST = defineTool({
     const filters = {
       organizationId: org.id,
       connectionId: input.connectionId,
+      gatewayId: input.gatewayId,
       toolName: input.toolName,
       isError: input.isError,
       startDate: input.startDate ? new Date(input.startDate) : undefined,

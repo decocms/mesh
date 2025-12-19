@@ -439,6 +439,8 @@ app.all("/gateway/:gatewayId?", async (c) => {
       );
     }
 
+    ctx.gatewayId = gateway.id;
+
     if (gateway.status !== "active") {
       return c.json({ error: `Gateway is inactive: ${gateway.id}` }, 503);
     }

@@ -69,23 +69,34 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
   // Full MCP configuration object
   const mcpConfig = { [serverName]: connectionConfig };
 
-  const connectionConfigJson = JSON.stringify(connectionConfig, null, 2);
   const configJson = JSON.stringify(mcpConfig, null, 2);
+  const clientConnectionConfig = (client: string) =>
+    JSON.stringify(
+      {
+        ...connectionConfig,
+        headers: {
+          "x-mesh-client": client,
+        },
+      },
+      null,
+      2,
+    );
 
   // Generate Cursor deeplink
   const cursorDeeplink = (() => {
-    const base64Config = utf8ToBase64(connectionConfigJson);
+    const base64Config = utf8ToBase64(clientConnectionConfig("Cursor"));
     return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
   })();
 
   // Generate Windsurf deeplink (similar to Cursor)
   const windsurfDeeplink = (() => {
-    const base64Config = utf8ToBase64(connectionConfigJson);
+    const base64Config = utf8ToBase64(clientConnectionConfig("Windsurf"));
     return `windsurf://codeium.windsurf/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
   })();
 
   // Claude Code CLI command - uses JSON format
-  const claudeCommand = `claude mcp add "${serverName}" --config '${connectionConfigJson.replace(/'/g, "'\\''")}'`;
+  const claudeConfigJson = clientConnectionConfig("Claude Code");
+  const claudeCommand = `claude mcp add "${serverName}" --config '${claudeConfigJson.replace(/'/g, "'\\''")}'`;
 
   const handleCopyConfig = async () => {
     await navigator.clipboard.writeText(configJson);

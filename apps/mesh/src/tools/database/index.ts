@@ -40,7 +40,11 @@ export const DATABASES_RUN_SQL = defineTool({
         typeof param === "string" ? `'${param}'` : `${param}`,
       );
     }
-    const result = await sql.raw(sqlQuery).execute(ctx.db);
+    let db = ctx.db;
+    if (ctx.connectionId) {
+      db = db.withSchema(ctx.connectionId);
+    }
+    const result = await sql.raw(sqlQuery).execute(db);
     return {
       result: [{ results: result.rows, success: true }],
     };

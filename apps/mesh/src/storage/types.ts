@@ -372,6 +372,8 @@ export interface MonitoringLogTable {
   timestamp: ColumnType<Date, Date | string, never>;
   user_id: string | null;
   request_id: string;
+  user_agent: string | null; // x-mesh-client header
+  gateway_id: string | null; // Gateway ID if routed through gateway
 }
 
 /**
@@ -391,6 +393,8 @@ export interface MonitoringLog {
   timestamp: Date | string;
   userId: string | null;
   requestId: string;
+  userAgent?: string | null; // x-mesh-client header
+  gatewayId?: string | null; // Gateway ID if routed through gateway
 }
 
 // ============================================================================
