@@ -256,36 +256,37 @@ function OrgMcpsContent() {
       id: "icon",
       header: "",
       render: (connection) => (
-        <div className="flex items-center justify-center">
-          <IntegrationIcon
-            icon={connection.icon}
-            name={connection.title}
-            size="sm"
-            className="shrink-0 shadow-sm"
-          />
-        </div>
+        <IntegrationIcon
+          icon={connection.icon}
+          name={connection.title}
+          size="sm"
+          className="shrink-0 shadow-sm"
+          fallbackIcon="extension"
+        />
       ),
-      cellClassName: "w-[72px]",
+      cellClassName: "w-16 shrink-0",
     },
     {
       id: "title",
       header: "Name",
       render: (connection) => (
-        <span className="text-sm font-medium text-foreground">
+        <span className="text-sm font-medium text-foreground truncate">
           {connection.title}
         </span>
       ),
+      cellClassName: "w-48 min-w-0 shrink-0",
       sortable: true,
     },
     {
       id: "description",
       header: "Description",
       render: (connection) => (
-        <span className="text-sm text-foreground line-clamp-2 max-w-sm wrap-break-word whitespace-normal">
+        <span className="text-sm text-foreground line-clamp-2">
           {connection.description || "—"}
         </span>
       ),
-      cellClassName: "flex-1",
+      cellClassName: "flex-1 min-w-0",
+      wrap: true,
       sortable: true,
     },
     {
@@ -296,19 +297,19 @@ function OrgMcpsContent() {
           {connection.connection_type}
         </span>
       ),
-      cellClassName: "w-[120px]",
+      cellClassName: "w-24 shrink-0",
       sortable: true,
     },
     {
       id: "connection_url",
       header: "URL",
       render: (connection) => (
-        <span className="text-sm text-muted-foreground block truncate max-w-sm">
+        <span className="text-sm text-muted-foreground block truncate">
           {connection.connection_url}
         </span>
       ),
       wrap: true,
-      cellClassName: "max-w-sm",
+      cellClassName: "w-48 min-w-0 shrink-0",
     },
     {
       id: "status",
@@ -318,7 +319,7 @@ function OrgMcpsContent() {
           {connection.status}
         </Badge>
       ),
-      cellClassName: "w-[120px]",
+      cellClassName: "w-24 shrink-0",
       sortable: true,
     },
     {
@@ -362,7 +363,7 @@ function OrgMcpsContent() {
           </DropdownMenuContent>
         </DropdownMenu>
       ),
-      cellClassName: "w-[60px]",
+      cellClassName: "w-12 shrink-0",
     },
   ];
 
@@ -607,6 +608,7 @@ function OrgMcpsContent() {
                 <ConnectionCard
                   key={connection.id}
                   connection={connection}
+                  fallbackIcon="extension"
                   onClick={() =>
                     navigate({
                       to: "/$org/mcps/$connectionId",

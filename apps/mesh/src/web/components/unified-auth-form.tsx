@@ -6,7 +6,15 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 
-export function UnifiedAuthForm() {
+interface UnifiedAuthFormProps {
+  /**
+   * URL to redirect to after successful authentication.
+   * Used for OAuth flows to redirect back to the authorize endpoint.
+   */
+  redirectUrl?: string | null;
+}
+
+export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
   const { emailAndPassword } = useAuthConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,6 +54,14 @@ export function UnifiedAuthForm() {
         // Re-throw to ensure React Query catches it
         throw err instanceof Error ? err : new Error("Authentication failed");
       }
+    },
+    onSuccess: () => {
+      // If OAuth flow, redirect to authorize endpoint to complete the flow
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+      }
+      // Otherwise, the session change will trigger React to re-render
+      // and the login route will handle the redirect
     },
   });
 

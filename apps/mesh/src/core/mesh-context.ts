@@ -219,6 +219,7 @@ export interface RequestMetadata {
 // Forward declare storage types
 import type { BetterAuthInstance } from "@/auth";
 import type { ConnectionStorage } from "../storage/connection";
+import type { GatewayStorage } from "../storage/gateway";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { EventBus } from "../event-bus/interface";
@@ -240,6 +241,7 @@ export interface MeshStorage {
   connections: ConnectionStorage;
   organizationSettings: OrganizationSettingsStorage;
   monitoring: SqlMonitoringStorage;
+  gateways: GatewayStorage;
 }
 
 // ============================================================================
@@ -255,6 +257,8 @@ export interface MeshStorage {
 export interface MeshContext {
   // Connection ID (from url)
   connectionId?: string;
+  // Current gateway ID (from url) - if applicable
+  gatewayId?: string;
 
   // Authentication (via Better Auth)
   auth: MeshAuth;
