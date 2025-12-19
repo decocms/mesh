@@ -97,21 +97,16 @@ export function RegistryItemsSection({
   items,
   title,
   onItemClick,
-  totalCount,
 }: RegistryItemsSectionProps) {
   if (items.length === 0) return null;
 
-  const itemsText =
-    totalCount != null
-      ? `${items.length} of ${totalCount}`
-      : `${items.length} items`;
-
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between w-max gap-2">
-        <h2 className="text-lg font-medium">{title}</h2>
-        <span className="block text-xs text-muted-foreground">{itemsText}</span>
-      </div>
+      {title && (
+        <div className="flex items-center justify-between w-max gap-2">
+          <h2 className="text-lg font-medium">{title}</h2>
+        </div>
+      )}
       <div className="grid grid-cols-4 gap-4">
         {items.map((item) => {
           const displayData = extractCardDisplayData(item);
