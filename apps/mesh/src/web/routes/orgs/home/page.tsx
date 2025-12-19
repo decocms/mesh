@@ -9,6 +9,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense } from "react";
+import { MeshMiniMap } from "./mesh-mini-map.tsx";
 import { MonitoringKPIs } from "./monitoring-kpis.tsx";
 import {
   hasMonitoringActivity,
@@ -133,11 +134,26 @@ export default function OrgHomePage() {
       />
 
       <div className="flex-1 overflow-auto relative">
-        <div className="h-full">
+        <div className="min-h-full">
           {/* Grid with internal dividers only */}
-          <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-[auto_1fr] gap-[0.5px] bg-border h-full">
-            {/* Row 1: 3 KPI bar charts in a single row */}
+          <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-[420px_auto_1fr] gap-[0.5px] bg-border">
+            {/* Row 0: Mesh Mini Map */}
             <div className="lg:col-span-6">
+              <ErrorBoundary
+                fallback={
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load mesh visualization
+                  </div>
+                }
+              >
+                <Suspense fallback={<MeshMiniMap.Skeleton />}>
+                  <MeshMiniMap />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+
+            {/* Row 2: 3 KPI bar charts */}
+            <div className="lg:col-span-2">
               <ErrorBoundary
                 fallback={
                   <div className="bg-background p-5 text-sm text-muted-foreground">
@@ -151,7 +167,7 @@ export default function OrgHomePage() {
               </ErrorBoundary>
             </div>
 
-            {/* Row 2: Recent Activity + Top Tools */}
+            {/* Row 3: Recent Activity + Top Tools */}
             <div className="lg:col-span-3 min-h-0 overflow-hidden">
               <ErrorBoundary
                 fallback={
