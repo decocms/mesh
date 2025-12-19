@@ -172,8 +172,10 @@ export function calculateStats(
   logs: MonitoringLog[],
   dateRange: DateRange,
   bucketCount?: number,
+  /** Override total calls count (use when logs are truncated by limit) */
+  overrideTotalCalls?: number,
 ): MonitoringStatsData {
-  const totalCalls = logs.length;
+  const totalCalls = overrideTotalCalls ?? logs.length;
   const totalErrors = logs.filter((log) => log.isError).length;
   const avgDurationMs =
     logs.length > 0

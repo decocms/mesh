@@ -37,7 +37,12 @@ function MonitoringKPIsContent() {
 
   return (
     <MonitoringStatsRow
-      stats={calculateStats(logs, { startDate: start, endDate: end }, 24)}
+      stats={calculateStats(
+        logs,
+        { startDate: start, endDate: end },
+        24,
+        logsData?.total,
+      )}
       chartHeight="h-[103px]"
       showDateLabels
       dateRange={{ startDate: start, endDate: end }}

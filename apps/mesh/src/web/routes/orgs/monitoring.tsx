@@ -26,7 +26,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import { Suspense, useState, useRef } from "react";
+import { Fragment, Suspense, useState, useRef } from "react";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
@@ -105,7 +105,8 @@ function MonitoringStatsContent({
   const logsParams = {
     startDate: dateRange.startDate.toISOString(),
     endDate: dateRange.endDate.toISOString(),
-    connectionId: connectionIds.length > 0 ? connectionIds[0] : undefined,
+    // Only pass single connection to API; multi-connection is filtered client-side
+    connectionId: connectionIds.length === 1 ? connectionIds[0] : undefined,
     toolName: toolFilter || undefined,
     isError:
       statusFilter === "errors"
@@ -135,7 +136,9 @@ function MonitoringStatsContent({
     logs = logs.filter((log) => connectionIds.includes(log.connectionId));
   }
 
-  const stats = calculateStats(logs, displayDateRange);
+  // Use server total only when not doing client-side filtering
+  const totalCalls = connectionIds.length > 1 ? undefined : logsData?.total;
+  const stats = calculateStats(logs, displayDateRange, undefined, totalCalls);
 
   return (
     <MonitoringStatsRow
@@ -566,9 +569,8 @@ function MonitoringLogsTableContent({
     const isExpanded = expandedRows.has(log.id);
 
     return (
-      <>
+      <Fragment key={log.id}>
         <div
-          key={log.id}
           ref={isLastLog ? lastLogRef : null}
           className={`flex items-center h-14 md:h-16 ${isFirstLog ? "" : "border-t border-border/60"} transition-colors cursor-pointer ${
             isExpanded ? "bg-muted/30 hover:bg-accent/80" : "hover:bg-muted/40"
@@ -630,11 +632,11 @@ function MonitoringLogsTableContent({
           </div>
         </div>
         {isExpanded && (
-          <div key={`expanded-${log.id}`}>
+          <div>
             <ExpandedLogContent log={log} />
           </div>
         )}
-      </>
+      </Fragment>
     );
   };
 
