@@ -26,58 +26,16 @@ import {
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { type TableColumn } from "@deco/ui/components/collection-table.tsx";
-import { Checkbox } from "@deco/ui/components/checkbox.tsx";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@deco/ui/components/dialog.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@deco/ui/components/form.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@deco/ui/components/select.tsx";
-import { Textarea } from "@deco/ui/components/textarea.tsx";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useReducer } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-
-// Form validation schema for gateway creation
-const gatewayFormSchema = z.object({
-  title: z.string().min(1, "Name is required").max(255),
-  description: z.string().nullable().optional(),
-  status: z.enum(["active", "inactive"]),
-  mode: z.enum(["deduplicate", "prefix_all", "custom"]),
-  selectedConnectionIds: z
-    .array(z.string())
-    .min(1, "Select at least one connection"),
-});
-
-type GatewayFormData = z.infer<typeof gatewayFormSchema>;
+import { toast } from "sonner";
 
 type DialogState =
   | { mode: "idle" }
@@ -96,66 +54,9 @@ function dialogReducer(_state: DialogState, action: DialogAction): DialogState {
   }
 }
 
-function ConnectionSelector({
-  selectedIds,
-  onSelectionChange,
-}: {
-  selectedIds: string[];
-  onSelectionChange: (ids: string[]) => void;
-}) {
-  const connections = useConnections({});
-
-  const toggleConnection = (connectionId: string) => {
-    if (selectedIds.includes(connectionId)) {
-      onSelectionChange(selectedIds.filter((id) => id !== connectionId));
-    } else {
-      onSelectionChange([...selectedIds, connectionId]);
-    }
-  };
-
-  return (
-    <div className="border rounded-lg max-h-48 overflow-auto">
-      {connections.length === 0 ? (
-        <div className="p-4 text-sm text-muted-foreground text-center">
-          No connections available. Create an MCP connection first.
-        </div>
-      ) : (
-        <div className="p-2 space-y-1">
-          {connections.map((connection) => (
-            <label
-              key={connection.id}
-              className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer"
-            >
-              <Checkbox
-                checked={selectedIds.includes(connection.id)}
-                onCheckedChange={() => toggleConnection(connection.id)}
-              />
-              <IntegrationIcon
-                icon={connection.icon}
-                name={connection.title}
-                size="sm"
-              />
-              <span className="text-sm font-medium truncate flex-1">
-                {connection.title}
-              </span>
-              <Badge
-                variant={connection.status === "active" ? "default" : "outline"}
-                className="text-xs"
-              >
-                {connection.status}
-              </Badge>
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function OrgGatewaysContent() {
   const { org } = useProjectContext();
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { action?: "create" };
 
   // Consolidated list UI state (search, filters, sorting, view mode)
   const listState = useListState<GatewayEntity>({
@@ -165,35 +66,37 @@ function OrgGatewaysContent() {
 
   const actions = useGatewayActions();
   const gateways = useGateways(listState);
+  const connections = useConnections({});
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 
-  // Create dialog state is derived from search params
-  const isCreating = search.action === "create";
+  const handleCreateGateway = async () => {
+    // Check if there are any connections available
+    if (connections.length === 0) {
+      toast.error("Create at least one MCP connection first");
+      return;
+    }
 
-  const openCreateDialog = () => {
-    navigate({
-      to: "/$org/gateways",
-      params: { org: org.slug },
-      search: { action: "create" },
-    });
-  };
-
-  const closeCreateDialog = () => {
-    navigate({ to: "/$org/gateways", params: { org: org.slug }, search: {} });
-  };
-
-  // React Hook Form setup
-  const form = useForm<GatewayFormData>({
-    resolver: zodResolver(gatewayFormSchema),
-    defaultValues: {
-      title: "",
+    // Auto-create gateway with all connections
+    const result = await actions.create.mutateAsync({
+      title: "New Gateway",
       description: null,
       status: "active",
-      mode: "deduplicate",
-      selectedConnectionIds: [],
-    },
-  });
+      mode: { type: "deduplicate" },
+      connections: connections.map((connection) => ({
+        connection_id: connection.id,
+        selected_tools: null, // Default to all tools
+      })),
+    });
+
+    // Navigate to the created gateway settings
+    if (result?.id) {
+      navigate({
+        to: "/$org/gateways/$gatewayId",
+        params: { org: org.slug, gatewayId: result.id },
+      });
+    }
+  };
 
   const confirmDelete = async () => {
     if (dialogState.mode !== "deleting") return;
@@ -205,38 +108,6 @@ function OrgGatewaysContent() {
       await actions.delete.mutateAsync(id);
     } catch {
       // Error toast is handled by the mutation's onError
-    }
-  };
-
-  const onSubmit = async (data: GatewayFormData) => {
-    // Create new gateway
-    const result = await actions.create.mutateAsync({
-      title: data.title,
-      description: data.description || null,
-      status: data.status,
-      mode: { type: data.mode },
-      connections: data.selectedConnectionIds.map((connectionId) => ({
-        connection_id: connectionId,
-        selected_tools: null, // Default to all tools
-      })),
-    });
-
-    closeCreateDialog();
-    form.reset();
-
-    // Navigate to the created gateway detail
-    if (result?.id) {
-      navigate({
-        to: "/$org/gateways/$gatewayId",
-        params: { org: org.slug, gatewayId: result.id },
-      });
-    }
-  };
-
-  const handleDialogClose = (open: boolean) => {
-    if (!open) {
-      closeCreateDialog();
-      form.reset();
     }
   };
 
@@ -340,173 +211,17 @@ function OrgGatewaysContent() {
 
   const ctaButton = (
     <Button
-      onClick={openCreateDialog}
+      onClick={handleCreateGateway}
       size="sm"
       className="h-7 px-3 rounded-lg text-sm font-medium"
+      disabled={actions.create.isPending}
     >
-      Create Gateway
+      {actions.create.isPending ? "Creating..." : "Create Gateway"}
     </Button>
   );
 
   return (
     <CollectionPage>
-      {/* Create Gateway Dialog */}
-      <Dialog open={isCreating} onOpenChange={handleDialogClose}>
-        <DialogContent className="sm:max-w-[525px]">
-          <DialogHeader>
-            <DialogTitle>Create New Gateway</DialogTitle>
-            <DialogDescription>
-              Create a gateway to aggregate tools from multiple MCP connections.
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-              <div className="grid gap-4 py-4">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="My Gateway" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="A brief description of this gateway"
-                          rows={2}
-                          {...field}
-                          value={field.value ?? ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="inactive">Inactive</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="mode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mode</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="deduplicate">
-                              Deduplicate
-                            </SelectItem>
-                            <SelectItem value="prefix_all">
-                              Prefix All
-                            </SelectItem>
-                            <SelectItem value="custom">Custom</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="selectedConnectionIds"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Connections *</FormLabel>
-                      <FormControl>
-                        <ErrorBoundary>
-                          <Suspense
-                            fallback={
-                              <div className="border rounded-lg p-4 flex items-center justify-center">
-                                <Icon
-                                  name="progress_activity"
-                                  size={20}
-                                  className="animate-spin text-muted-foreground"
-                                />
-                              </div>
-                            }
-                          >
-                            <ConnectionSelector
-                              selectedIds={field.value}
-                              onSelectionChange={field.onChange}
-                            />
-                          </Suspense>
-                        </ErrorBoundary>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleDialogClose(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={form.formState.isSubmitting}
-                  className="min-w-40"
-                >
-                  {form.formState.isSubmitting
-                    ? "Creating..."
-                    : "Create Gateway"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={dialogState.mode === "deleting"}

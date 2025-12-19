@@ -10,7 +10,6 @@ import { useConnections } from "@/web/hooks/collections/use-connection";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
   Form,
@@ -105,15 +104,11 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
         <h4 className="text-sm font-medium text-foreground mb-1">
           Install in your IDE
         </h4>
-        <p className="text-sm text-muted-foreground">
-          Add this gateway to your IDE. All configured connections and tools
-          will be available through a single MCP endpoint.
-        </p>
       </div>
 
       {/* Gateway URL with copy button */}
       <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-        <code className="flex-1 text-xs font-mono text-foreground truncate">
+        <code className="flex-1 text-xs font-mono text-foreground overflow-hidden mask-alpha mask-r-from-black mask-r-from-85% mask-r-to-transparent">
           {gatewayUrl}
         </code>
         <TooltipProvider>
@@ -134,16 +129,31 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
       </div>
 
       {/* IDE buttons grid */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-wrap gap-2">
         {/* Cursor */}
-        <Button
-          variant="outline"
-          className="h-auto py-3 px-4 justify-start gap-3"
-          onClick={() => handleOpenDeeplink(cursorDeeplink)}
-        >
-          <img src="/logos/cursor.svg" alt="Cursor" className="h-5 w-5" />
-          <span className="text-sm font-medium">Cursor</span>
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-auto py-3 px-4 justify-center gap-2 flex-1 min-w-fit"
+                onClick={() => handleOpenDeeplink(cursorDeeplink)}
+              >
+                <img
+                  src="/logos/cursor.svg"
+                  alt="Cursor"
+                  className="h-6 w-6"
+                  style={{
+                    filter:
+                      "brightness(0) saturate(100%) invert(11%) sepia(8%) saturate(785%) hue-rotate(1deg) brightness(95%) contrast(89%)",
+                  }}
+                />
+                <span className="text-sm font-medium">Cursor</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add to Cursor</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
         {/* Claude Code */}
         <TooltipProvider>
@@ -151,42 +161,56 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                className="h-auto py-3 px-4 justify-start gap-3"
+                className="h-auto py-3 px-4 justify-center gap-2 flex-1 min-w-fit"
                 onClick={() => handleCopyCommand(claudeCommand, "Claude")}
               >
-                <Icon
-                  name="terminal"
-                  size={20}
-                  className="text-muted-foreground"
+                <img
+                  src="/logos/Claude Code.svg"
+                  alt="Claude Code"
+                  className="h-6 w-6"
+                  style={{
+                    filter:
+                      "brightness(0) saturate(100%) invert(55%) sepia(31%) saturate(1264%) hue-rotate(331deg) brightness(92%) contrast(86%)",
+                  }}
                 />
                 <span className="text-sm font-medium">Claude Code</span>
                 {copiedCommand === "Claude" && (
                   <Icon
                     name="check"
                     size={14}
-                    className="ml-auto text-green-500"
+                    className="ml-2 text-green-500"
                   />
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs">
-              <p className="text-xs">Copies CLI command:</p>
-              <code className="text-xs block mt-1 break-all">
-                {claudeCommand}
-              </code>
-            </TooltipContent>
+            <TooltipContent>Add to Claude Code</TooltipContent>
           </Tooltip>
         </TooltipProvider>
 
         {/* Windsurf */}
-        <Button
-          variant="outline"
-          className="h-auto py-3 px-4 justify-start gap-3"
-          onClick={() => handleOpenDeeplink(windsurfDeeplink)}
-        >
-          <Icon name="air" size={20} className="text-muted-foreground" />
-          <span className="text-sm font-medium">Windsurf</span>
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-auto py-3 px-4 justify-center gap-2 flex-1 min-w-fit"
+                onClick={() => handleOpenDeeplink(windsurfDeeplink)}
+              >
+                <img
+                  src="/logos/Windsurf.svg"
+                  alt="Windsurf"
+                  className="h-6 w-6"
+                  style={{
+                    filter:
+                      "brightness(0) saturate(100%) invert(6%) sepia(68%) saturate(3620%) hue-rotate(204deg) brightness(92%) contrast(103%)",
+                  }}
+                />
+                <span className="text-sm font-medium">Windsurf</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add to Windsurf</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </div>
   );
@@ -265,19 +289,35 @@ function GatewaySettingsForm({
   return (
     <Form {...form}>
       <div className="flex flex-col h-full">
-        {/* Header section - Title, Description */}
+        {/* Header section - Icon, Title, Description */}
         <div className="flex flex-col gap-4 p-5 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Icon name="hub" size={24} className="text-primary" />
+          <div className="flex items-start justify-between">
+            <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 shadow-sm border border-border">
+              <Icon name="hub" size={32} className="text-primary" />
             </div>
-            <Badge
-              variant={gateway.status === "active" ? "default" : "outline"}
-            >
-              {gateway.status}
-            </Badge>
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      {field.value === "active" ? "Active" : "Inactive"}
+                    </span>
+                    <FormControl>
+                      <Switch
+                        checked={field.value === "active"}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? "active" : "inactive")
+                        }
+                      />
+                    </FormControl>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
-
           <div className="flex flex-col">
             <FormField
               control={form.control}
@@ -287,7 +327,7 @@ function GatewaySettingsForm({
                   <FormControl>
                     <Input
                       {...field}
-                      className="h-auto text-xl font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                      className="h-auto !text-lg font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
                       placeholder="Gateway Name"
                     />
                   </FormControl>
@@ -317,42 +357,50 @@ function GatewaySettingsForm({
 
         {/* Settings section */}
         <div className="flex flex-col gap-4 p-5 border-b border-border">
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between gap-3">
-                    <FormLabel>Status</FormLabel>
-                    <div className="flex items-center gap-2">
-                      <FormControl>
-                        <Switch
-                          checked={field.value === "active"}
-                          onCheckedChange={(checked) =>
-                            field.onChange(checked ? "active" : "inactive")
-                          }
-                        />
-                      </FormControl>
-                      <span className="text-sm text-muted-foreground">
-                        {field.value === "active" ? "Active" : "Inactive"}
-                      </span>
-                    </div>
+          <FormField
+            control={form.control}
+            name="mode"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <FormLabel className="mb-0">Mode</FormLabel>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="cursor-help flex items-center"
+                          >
+                            <Icon
+                              name="info"
+                              size={14}
+                              className="text-muted-foreground"
+                            />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-sm">
+                          <div className="text-xs space-y-1">
+                            <div>
+                              <strong>Deduplicate:</strong> Keep first
+                              occurrence of each tool name.
+                            </div>
+                            <div>
+                              <strong>Prefix All:</strong> Prefix all tools with
+                              connection ID.
+                            </div>
+                            <div>
+                              <strong>Custom:</strong> Smart prefixing for
+                              conflicting names only.
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="mode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Mode</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-[180px]">
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
@@ -362,32 +410,11 @@ function GatewaySettingsForm({
                       <SelectItem value="custom">Custom</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="text-xs text-muted-foreground">
-            <strong>Deduplicate:</strong> Keep first occurrence of each tool
-            name.
-            <br />
-            <strong>Prefix All:</strong> Prefix all tools with connection ID.
-            <br />
-            <strong>Custom:</strong> Smart prefixing for conflicting names only.
-          </div>
-        </div>
-
-        {/* Connections summary */}
-        <div className="flex flex-col gap-2 p-5 border-b border-border">
-          <div className="text-sm font-medium text-foreground">
-            Connections & Tools
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {gateway.connections.length} connection
-            {gateway.connections.length !== 1 ? "s" : ""} configured. Use the
-            panel on the right to select which tools to expose.
-          </div>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         {/* IDE Integration section */}
@@ -500,13 +527,13 @@ function GatewayInspectorViewWithGateway({
       </ViewActions>
 
       <div className="flex h-full">
-        {/* Left sidebar - Gateway Settings (2/5) */}
-        <div className="w-2/5 shrink-0 border-r border-border overflow-auto">
+        {/* Left sidebar - Gateway Settings (1/2) */}
+        <div className="w-1/2 shrink-0 border-r border-border overflow-auto">
           <GatewaySettingsForm form={form} gateway={gateway} />
         </div>
 
-        {/* Right panel - Tool Selection (3/5) */}
-        <div className="w-3/5 min-w-0 flex flex-col">
+        {/* Right panel - Tool Selection (1/2) */}
+        <div className="w-1/2 min-w-0 flex flex-col">
           <ErrorBoundary>
             <Suspense
               fallback={
