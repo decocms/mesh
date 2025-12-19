@@ -399,60 +399,50 @@ async function authenticateRequest(
 }> {
   const authHeader = req.headers.get("Authorization");
 
-  // Try OAuth session first (getMcpSession)
-  try {
-    const session = (await auth.api.getMcpSession({
-      headers: req.headers,
-    })) as OAuthSession | null;
+  // Try OAuth access token (manual validation via database)
+  // Better Auth's getMcpSession() has issues, so we validate manually
+  if (authHeader?.startsWith("Bearer ")) {
+    const accessToken = authHeader.replace("Bearer ", "").trim();
 
-    if (session) {
-      const userId = session.userId;
+    try {
+      // Query the oauthAccessToken table to find a valid access token
+      const tokenData = (await db
+        .selectFrom("oauthAccessToken" as any)
+        .select(["userId", "accessTokenExpiresAt"] as any)
+        .where("accessToken" as any, "=", accessToken)
+        .executeTakeFirst()) as
+        | { userId: string; accessTokenExpiresAt: string }
+        | undefined;
 
-      // For MCP OAuth sessions, we need to query the database directly
-      // because getFullOrganization requires a browser session (cookies)
-      // Query user's first organization membership
-      const membership = await db
-        .selectFrom("member")
-        .innerJoin("organization", "organization.id", "member.organizationId")
-        .select([
-          "member.role",
-          "member.organizationId",
-          "organization.id as orgId",
-          "organization.slug as orgSlug",
-          "organization.name as orgName",
-        ])
-        .where("member.userId", "=", userId)
-        .executeTakeFirst();
+      if (tokenData) {
+        // Check if token is expired
+        const now = Date.now();
+        const expiresAt = tokenData.accessTokenExpiresAt
+          ? new Date(tokenData.accessTokenExpiresAt).getTime()
+          : now + 3600000; // Default 1 hour if no expiry
 
-      const role = membership?.role;
-      const organization = membership
-        ? {
-            id: membership.orgId,
-            slug: membership.orgSlug,
-            name: membership.orgName,
-          }
-        : undefined;
+        if (expiresAt > now) {
+          const userId = tokenData.userId;
 
-      // Fetch role permissions for MCP OAuth sessions (non-browser)
-      let permissions: Permission | undefined;
-      if (membership && role) {
-        permissions = await fetchRolePermissions(
-          db,
-          membership.organizationId,
-          role,
-        );
+          // For OAuth tokens, don't set organization here
+          // Let the proxy determine the correct organization based on the connection being accessed
+          // This allows users with multiple organizations to access connections across orgs
+
+          return {
+            user: { id: userId },
+            // No organization set - will be determined by the connection being accessed
+            // No permissions set - will be checked per-connection by AccessControl
+          };
+        } else {
+          console.log("[Auth Debug] OAuth token expired");
+        }
+      } else {
+        console.log("[Auth Debug] OAuth token not found in database");
       }
-
-      return {
-        user: { id: userId, role },
-        role,
-        permissions,
-        organization,
-      };
+    } catch (error) {
+      const err = error as Error;
+      console.error("[Auth Debug] OAuth token validation error:", err.message);
     }
-  } catch (error) {
-    const err = error as Error;
-    console.error("[Auth] OAuth session check failed:", err);
   }
 
   // Try API Key or Mesh JWT authentication
@@ -477,8 +467,9 @@ async function authenticateRequest(
             : undefined,
         };
       }
-    } catch {
+    } catch (error) {
       // Not a valid mesh JWT, continue to API key check
+      console.log("[Auth Debug] Not a Mesh JWT:", (error as Error).message);
     }
 
     // Try API Key authentication

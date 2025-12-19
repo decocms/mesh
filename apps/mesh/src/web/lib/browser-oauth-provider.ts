@@ -1,5 +1,6 @@
 import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { BrowserOAuthClientProvider } from "use-mcp";
+import { createOAuthMessageListener } from "./oauth-messaging";
 
 export async function authenticateMcp(
   serverUrl: string,
@@ -11,12 +12,28 @@ export async function authenticateMcp(
   },
 ): Promise<{ token: string | null; error: string | null }> {
   try {
-    const authProvider = new BrowserOAuthClientProvider(serverUrl, {
+    // Don't override callbackUrl if not provided - let use-mcp use its default
+    const providerOptions: {
+      clientName?: string;
+      clientUri?: string;
+      callbackUrl?: string;
+    } = {
       clientName: options?.clientName || "@decocms/mesh MCP inspector",
       clientUri: options?.clientUri || window.location.origin,
-      callbackUrl:
-        options?.callbackUrl || `${window.location.origin}/oauth/callback`,
-    });
+    };
+
+    // Only set callbackUrl if explicitly provided
+    if (options?.callbackUrl) {
+      providerOptions.callbackUrl = options.callbackUrl;
+    } else {
+      // Use default from use-mcp (which is /oauth/callback)
+      providerOptions.callbackUrl = `${window.location.origin}/oauth/callback`;
+    }
+
+    const authProvider = new BrowserOAuthClientProvider(
+      serverUrl,
+      providerOptions,
+    );
 
     const isAlreadyAuthenticated = await isConnectionAuthenticated({
       url: serverUrl,
@@ -32,34 +49,29 @@ export async function authenticateMcp(
     const oauthCompletePromise = new Promise<void>((resolve, reject) => {
       const timeout = options?.timeout || 120000;
 
-      const handleMessage = (event: MessageEvent) => {
-        if (event.origin !== window.location.origin) return;
-
-        if (
-          event.data?.type === "mcp:oauth:complete" ||
-          event.data?.type === "mcp_auth_callback"
-        ) {
-          window.removeEventListener("message", handleMessage);
-          if (event.data.success) {
+      // Use the centralized OAuth message listener
+      const cleanup = createOAuthMessageListener(
+        (message) => {
+          if (message.success) {
+            cleanup();
             resolve();
           } else {
-            reject(
-              new Error(event.data.error || "OAuth authentication failed"),
-            );
+            cleanup();
+            reject(new Error(message.error || "OAuth authentication failed"));
           }
-        }
-      };
-
-      window.addEventListener("message", handleMessage);
-
-      setTimeout(() => {
-        window.removeEventListener("message", handleMessage);
-        reject(new Error("OAuth authentication timeout"));
-      }, timeout);
+        },
+        {
+          strictOriginCheck: false, // Accept messages from any origin for Cursor compatibility
+          timeout,
+        },
+      );
     });
 
+    // This will open a popup with the authorization URL
+    console.log("[OAuth] Starting auth flow for:", serverUrl);
     await auth(authProvider, { serverUrl });
 
+    // Wait for the popup to complete the OAuth flow and send a message back
     await oauthCompletePromise;
 
     const tokens = await authProvider.tokens();
@@ -69,6 +81,7 @@ export async function authenticateMcp(
       error: null,
     };
   } catch (error) {
+    console.error("[OAuth] Authentication error:", error);
     return {
       token: null,
       error: error instanceof Error ? error.message : String(error),

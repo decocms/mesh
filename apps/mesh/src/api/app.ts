@@ -26,6 +26,10 @@ import authRoutes from "./routes/auth";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
 import proxyRoutes from "./routes/proxy";
+import {
+  getCursorRedirectTemplate,
+  isCustomUriScheme,
+} from "./cursor-redirect-template";
 
 // Define Hono variables type
 type Variables = {
@@ -170,6 +174,108 @@ export function createApp(options: CreateAppOptions = {}) {
   // Auth routes (API key management via web UI)
   app.route("/api/auth/custom", authRoutes);
 
+  // OAuth state store (in-memory for now, could be Redis/DB for production)
+  const oauthStateStore = new Map<
+    string,
+    { createdAt: number; clientId: string }
+  >();
+
+  // Cleanup expired states every 10 minutes
+  setInterval(
+    () => {
+      const now = Date.now();
+      const expiredStates: string[] = [];
+      for (const [state, data] of oauthStateStore.entries()) {
+        // States expire after 10 minutes
+        if (now - data.createdAt > 10 * 60 * 1000) {
+          expiredStates.push(state);
+        }
+      }
+      for (const state of expiredStates) {
+        oauthStateStore.delete(state);
+      }
+    },
+    10 * 60 * 1000,
+  );
+
+  // Fix for Better Auth MCP plugin: Generate state if client doesn't provide one
+  // This is important for CSRF protection in OAuth 2.0
+  app.get("/api/auth/mcp/authorize", async (c) => {
+    const url = new URL(c.req.url);
+    const params = url.searchParams;
+    const clientId = params.get("client_id");
+    const originalState = params.get("state");
+
+    // If client didn't send state (like Cursor), generate one
+    if (!originalState && clientId) {
+      const generatedState = crypto.randomUUID();
+      console.log(
+        "[OAuth] Client didn't provide state, generating:",
+        generatedState,
+      );
+
+      // Store the generated state for validation later
+      oauthStateStore.set(generatedState, {
+        createdAt: Date.now(),
+        clientId,
+      });
+
+      // Add state to the request URL
+      url.searchParams.set("state", generatedState);
+
+      // Create a new request with the modified URL
+      const modifiedRequest = new Request(url.toString(), {
+        method: c.req.method,
+        headers: c.req.raw.headers,
+      });
+
+      const response = await auth.handler(modifiedRequest);
+
+      // Intercept redirects to custom URI schemes (cursor://, vscode://, etc.)
+      if (response.status === 302) {
+        const location = response.headers.get("location");
+        if (location && isCustomUriScheme(location)) {
+          console.log("[OAuth] Intercepting custom URI redirect:", location);
+          return c.html(getCursorRedirectTemplate(location));
+        }
+      }
+
+      return response;
+    }
+
+    // Client sent state, pass through normally
+    const response = await auth.handler(c.req.raw);
+
+    // Also intercept custom URI redirects for clients that sent state
+    if (response.status === 302) {
+      const location = response.headers.get("location");
+      if (location && isCustomUriScheme(location)) {
+        console.log("[OAuth] Intercepting custom URI redirect:", location);
+        return c.html(getCursorRedirectTemplate(location));
+      }
+    }
+
+    return response;
+  });
+
+  // Validate state in token endpoint
+  app.post("/api/auth/mcp/token", async (c) => {
+    // Let Better Auth handle the token exchange
+    // We're just adding logging here for debugging
+    const body = await c.req.text();
+    console.log("[OAuth] Token exchange request");
+
+    const response = await auth.handler(
+      new Request(c.req.url, {
+        method: "POST",
+        headers: c.req.raw.headers,
+        body,
+      }),
+    );
+
+    return response;
+  });
+
   // All Better Auth routes (OAuth, session management, etc.)
   app.all("/api/auth/*", async (c) => {
     return await auth.handler(c.req.raw);
@@ -247,6 +353,7 @@ export function createApp(options: CreateAppOptions = {}) {
       path === "/health" ||
       path === "/metrics" ||
       path.startsWith("/.well-known") ||
+      path.startsWith("/oauth/callback") ||
       path.match(/\.(html|css|js|ico|svg|png|jpg|woff2?)$/)
     ) {
       return next();

@@ -12,6 +12,7 @@
  */
 
 import { getMonitoringConfig } from "@/core/config";
+import { resolveOrganizationFromConnection } from "@/core/organization-resolver";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -170,10 +171,44 @@ async function createMCPProxyDoNotUseDirectly(
   }
   const connectionId = connection?.id;
 
-  if (ctx.organization && connection.organization_id !== ctx.organization.id) {
+  // Resolve organization and user role from the connection
+  // Creates new objects instead of mutating the context
+  let effectiveOrganization = ctx.organization;
+  let effectiveUserRole = ctx.auth.user?.role;
+
+  if (!effectiveOrganization && connection.organization_id) {
+    const resolved = await resolveOrganizationFromConnection(
+      ctx.db,
+      connection.organization_id,
+      ctx.auth.user?.id,
+    );
+
+    effectiveOrganization = resolved.organization ?? undefined;
+    effectiveUserRole = resolved.role ?? effectiveUserRole;
+  }
+
+  // Verify connection belongs to the effective organization
+  if (
+    effectiveOrganization &&
+    connection.organization_id !== effectiveOrganization.id
+  ) {
     throw new Error("Connection does not belong to the active organization");
   }
-  ctx.organization ??= { id: connection.organization_id };
+
+  // For OAuth sessions, ensure we have the user role
+  if (
+    ctx.auth.user &&
+    !effectiveUserRole &&
+    effectiveOrganization &&
+    connection.organization_id
+  ) {
+    const resolved = await resolveOrganizationFromConnection(
+      ctx.db,
+      connection.organization_id,
+      ctx.auth.user.id,
+    );
+    effectiveUserRole = resolved.role ?? undefined;
+  }
 
   if (connection.status !== "active") {
     throw new Error(`Connection inactive: ${connection.status}`);
@@ -226,7 +261,7 @@ async function createMCPProxyDoNotUseDirectly(
         state: connection.configuration_state ?? undefined,
         meshUrl: ctx.baseUrl,
         connectionId,
-        organizationId: ctx.organization?.id,
+        organizationId: effectiveOrganization?.id,
       },
       permissions,
     });
@@ -280,20 +315,36 @@ async function createMCPProxyDoNotUseDirectly(
     return client;
   };
 
+  // Create enhanced context with resolved organization and role
+  // This avoids mutating the original context
+  const enhancedCtx: MeshContext = {
+    ...ctx,
+    organization: effectiveOrganization,
+    auth: {
+      ...ctx.auth,
+      user: ctx.auth.user
+        ? {
+            ...ctx.auth.user,
+            role: effectiveUserRole,
+          }
+        : undefined,
+    },
+  };
+
   // Create authorization middlewares
   // Uses boundAuth for permission checks (delegates to Better Auth)
   const authMiddleware: CallToolMiddleware = superUser
     ? async (_, next) => await next()
-    : withConnectionAuthorization(ctx, connectionId);
+    : withConnectionAuthorization(enhancedCtx, connectionId);
   const streamableAuthMiddleware: CallStreamableToolMiddleware = superUser
     ? async (_, next) => await next()
-    : withStreamableConnectionAuthorization(ctx, connectionId);
+    : withStreamableConnectionAuthorization(enhancedCtx, connectionId);
 
   const monitoringConfig: ProxyMonitoringMiddlewareParams = {
     enabled: getMonitoringConfig().enabled,
     connectionId,
     connectionTitle: connection.title,
-    ctx,
+    ctx: enhancedCtx,
   };
 
   const proxyMonitoringMiddleware =
@@ -317,7 +368,7 @@ async function createMCPProxyDoNotUseDirectly(
       const startTime = Date.now();
 
       // Start span for tracing
-      return await ctx.tracer.startActiveSpan(
+      return await enhancedCtx.tracer.startActiveSpan(
         "mcp.proxy.callTool",
         {
           attributes: {
@@ -331,7 +382,7 @@ async function createMCPProxyDoNotUseDirectly(
             const duration = Date.now() - startTime;
 
             // Record duration histogram
-            ctx.meter
+            enhancedCtx.meter
               .createHistogram("connection.proxy.duration")
               .record(duration, {
                 "connection.id": connectionId,
@@ -340,11 +391,13 @@ async function createMCPProxyDoNotUseDirectly(
               });
 
             // Record success counter
-            ctx.meter.createCounter("connection.proxy.requests").add(1, {
-              "connection.id": connectionId,
-              "tool.name": request.params.name,
-              status: "success",
-            });
+            enhancedCtx.meter
+              .createCounter("connection.proxy.requests")
+              .add(1, {
+                "connection.id": connectionId,
+                "tool.name": request.params.name,
+                status: "success",
+              });
 
             span.end();
             return result as CallToolResult;
@@ -353,7 +406,7 @@ async function createMCPProxyDoNotUseDirectly(
             const duration = Date.now() - startTime;
 
             // Record duration histogram even on error
-            ctx.meter
+            enhancedCtx.meter
               .createHistogram("connection.proxy.duration")
               .record(duration, {
                 "connection.id": connectionId,
@@ -362,7 +415,7 @@ async function createMCPProxyDoNotUseDirectly(
               });
 
             // Record error counter
-            ctx.meter.createCounter("connection.proxy.errors").add(1, {
+            enhancedCtx.meter.createCounter("connection.proxy.errors").add(1, {
               "connection.id": connectionId,
               "tool.name": request.params.name,
               error: err.message,
@@ -403,7 +456,7 @@ async function createMCPProxyDoNotUseDirectly(
       url.pathname =
         url.pathname.replace(/\/$/, "") + `/call-tool/${request.params.name}`;
 
-      return await ctx.tracer.startActiveSpan(
+      return await enhancedCtx.tracer.startActiveSpan(
         "mcp.proxy.callStreamableTool",
         {
           attributes: {
@@ -427,7 +480,7 @@ async function createMCPProxyDoNotUseDirectly(
             const duration = Date.now() - startTime;
 
             // Record metrics
-            ctx.meter
+            enhancedCtx.meter
               .createHistogram("connection.proxy.streamable.duration")
               .record(duration, {
                 "connection.id": connectionId,
@@ -435,7 +488,7 @@ async function createMCPProxyDoNotUseDirectly(
                 status: response.ok ? "success" : "error",
               });
 
-            ctx.meter
+            enhancedCtx.meter
               .createCounter("connection.proxy.streamable.requests")
               .add(1, {
                 "connection.id": connectionId,
@@ -449,7 +502,7 @@ async function createMCPProxyDoNotUseDirectly(
             const err = error as Error;
             const duration = Date.now() - startTime;
 
-            ctx.meter
+            enhancedCtx.meter
               .createHistogram("connection.proxy.streamable.duration")
               .record(duration, {
                 "connection.id": connectionId,
@@ -457,7 +510,7 @@ async function createMCPProxyDoNotUseDirectly(
                 status: "error",
               });
 
-            ctx.meter
+            enhancedCtx.meter
               .createCounter("connection.proxy.streamable.errors")
               .add(1, {
                 "connection.id": connectionId,
@@ -576,6 +629,7 @@ app.all("/:connectionId", async (c) => {
     return await proxy.fetch(c.req.raw);
   } catch (error) {
     const err = error as Error;
+    console.error("[Proxy] Error creating proxy:", err.message);
 
     if (err.message.includes("not found")) {
       return c.json({ error: err.message }, 404);
