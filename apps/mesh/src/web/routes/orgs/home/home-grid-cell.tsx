@@ -20,7 +20,7 @@ export function HomeGridCell({
 }: HomeGridCellProps) {
   return (
     <div className={cn("bg-background h-full flex flex-col", className)}>
-      <header className="flex items-center justify-between gap-4 p-5">
+      <header className="flex items-center justify-between gap-2 md:gap-4 p-3 md:p-5">
         <div className="min-w-0">
           {typeof title === "string" ? (
             <div className="text-sm font-medium text-foreground">{title}</div>
@@ -41,7 +41,7 @@ export function HomeGridCell({
           {children}
         </div>
       ) : (
-        <div className="px-5 pb-5 pt-4 flex-1 flex flex-col items-center justify-center min-h-0">
+        <div className="px-3 pb-3 pt-2 md:px-5 md:pb-5 md:pt-4 flex-1 flex flex-col items-center justify-center min-h-0">
           {children}
         </div>
       )}

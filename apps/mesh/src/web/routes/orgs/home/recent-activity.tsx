@@ -1,5 +1,9 @@
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import {
+  type MonitoringLog,
+  type MonitoringLogsResponse,
+} from "@/web/components/monitoring/monitoring-stats-row.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -9,22 +13,6 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "./home-grid-cell.tsx";
-
-interface MonitoringLog {
-  id: string;
-  connectionId: string;
-  connectionTitle: string;
-  toolName: string;
-  isError: boolean;
-  errorMessage: string | null;
-  durationMs: number;
-  timestamp: string;
-}
-
-interface MonitoringLogsResponse {
-  logs: MonitoringLog[];
-  total: number;
-}
 
 function RecentActivityContent() {
   const { org, locator } = useProjectContext();
