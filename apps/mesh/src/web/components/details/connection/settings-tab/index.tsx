@@ -174,9 +174,9 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
 
   const form = useForm<ConnectionFormData>({
     resolver: zodResolver(connectionFormSchema),
-    defaultValues: {
+    values: {
       title: connection.title,
-      description: connection.description,
+      description: connection.description ?? "",
       connection_type: connection.connection_type,
       connection_url: connection.connection_url,
       connection_token: connection.connection_token,
