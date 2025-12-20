@@ -2,7 +2,8 @@
  * MeshMiniMap - A compact React Flow diagram showing gateways → MCP Mesh → servers
  *
  * Displays up to 3 gateways on the left, the central MCP Mesh node, and up to 3 MCP servers
- * on the right with arrow edges connecting them.
+ * on the right with arrow edges connecting them. Includes integrated metrics display
+ * with a mode selector (Requests / Errors / Latency).
  */
 
 import type { ConnectionEntity } from "@/tools/connection/schema";
@@ -13,6 +14,10 @@ import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@deco/ui/components/toggle-group.tsx";
+import {
   Handle,
   MarkerType,
   Position,
@@ -22,34 +27,90 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useState } from "react";
+import {
+  formatMetricValue,
+  getMetricNumericValue,
+  type MetricsMode,
+  type NodeMetric,
+  useNodeMetrics,
+} from "./use-node-metrics";
 
-const MAX_ITEMS = 3;
-const GATEWAY_NODE_HEIGHT = 40;
-const SERVER_NODE_HEIGHT = 40;
-const NODE_WIDTH = 160; // tailwind w-40
-const MESH_NODE_SIZE = 56; // tailwind w-14 / h-14
+const MAX_ITEMS = 5;
+const GATEWAY_NODE_HEIGHT = 56;
+const SERVER_NODE_HEIGHT = 56;
+const NODE_WIDTH = 220;
+const MESH_NODE_SIZE = 56;
+
+// ---------- Color Schemes ----------
+
+interface ColorScheme {
+  edgeColor: string;
+  textClass: string;
+  borderClass: string;
+  bgClass: string;
+}
+
+const COLOR_SCHEMES: Record<MetricsMode, ColorScheme> = {
+  requests: {
+    edgeColor: "#10b981", // emerald-500
+    textClass: "text-emerald-600 dark:text-emerald-400",
+    borderClass: "border-emerald-500/40",
+    bgClass: "bg-emerald-500/[0.03] dark:bg-emerald-500/[0.03]",
+  },
+  errors: {
+    edgeColor: "#ef4444", // red-500
+    textClass: "text-red-600 dark:text-red-400",
+    borderClass: "border-red-500/40",
+    bgClass: "bg-red-500/[0.03] dark:bg-red-500/[0.03]",
+  },
+  latency: {
+    edgeColor: "#8b5cf6", // violet-500
+    textClass: "text-violet-600 dark:text-violet-400",
+    borderClass: "border-violet-500/40",
+    bgClass: "bg-violet-500/[0.03] dark:bg-violet-500/[0.03]",
+  },
+};
 
 // ---------- Custom Node Types ----------
 
 interface GatewayNodeData extends Record<string, unknown> {
   gateway: GatewayEntity;
   org: string;
+  metricsMode: MetricsMode;
+  metric: NodeMetric | undefined;
+  colorScheme: ColorScheme;
 }
 
 function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
+  const metricValue = formatMetricValue(data.metric, data.metricsMode);
+
   return (
     <div
-      className="flex h-10 w-40 shrink-0 items-center justify-start gap-2 px-3 py-2 bg-background border border-border rounded-md shadow-sm nodrag nopan"
+      className={cn(
+        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan",
+        data.colorScheme.borderClass,
+      )}
     >
       <IntegrationIcon
         icon={data.gateway.icon}
         name={data.gateway.title}
-        size="xs"
+        size="sm"
         fallbackIcon="network_node"
       />
-      <span className="text-xs font-normal text-foreground truncate max-w-[100px]">
-        {data.gateway.title}
-      </span>
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="text-[11px] text-muted-foreground truncate">
+          {data.gateway.title}
+        </span>
+        <span
+          className={cn(
+            "text-base font-semibold tabular-nums",
+            data.colorScheme.textClass,
+          )}
+        >
+          {metricValue}
+        </span>
+      </div>
       <Handle
         type="source"
         position={Position.Right}
@@ -62,12 +123,20 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
 interface ServerNodeData extends Record<string, unknown> {
   connection: ConnectionEntity;
   org: string;
+  metricsMode: MetricsMode;
+  metric: NodeMetric | undefined;
+  colorScheme: ColorScheme;
 }
 
 function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
+  const metricValue = formatMetricValue(data.metric, data.metricsMode);
+
   return (
     <div
-      className="flex h-10 w-40 shrink-0 items-center justify-start gap-2 px-3 py-2 bg-background border border-border rounded-md shadow-sm nodrag nopan"
+      className={cn(
+        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan",
+        data.colorScheme.borderClass,
+      )}
     >
       <Handle
         type="target"
@@ -77,12 +146,22 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
       <IntegrationIcon
         icon={data.connection.icon}
         name={data.connection.title}
-        size="xs"
+        size="sm"
         fallbackIcon="extension"
       />
-      <span className="text-xs font-normal text-foreground truncate max-w-[100px]">
-        {data.connection.title}
-      </span>
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="text-[11px] text-muted-foreground truncate">
+          {data.connection.title}
+        </span>
+        <span
+          className={cn(
+            "text-base font-semibold tabular-nums",
+            data.colorScheme.textClass,
+          )}
+        >
+          {metricValue}
+        </span>
+      </div>
     </div>
   );
 }
@@ -111,22 +190,83 @@ const nodeTypes = {
   mesh: MeshNode,
 };
 
+// ---------- Metrics Mode Selector ----------
+
+interface MetricsModeSelectorProps {
+  value: MetricsMode;
+  onChange: (mode: MetricsMode) => void;
+}
+
+function MetricsModeSelector({ value, onChange }: MetricsModeSelectorProps) {
+  return (
+    <ToggleGroup
+      type="single"
+      value={value}
+      onValueChange={(v) => v && onChange(v as MetricsMode)}
+      variant="outline"
+      size="sm"
+      className="bg-background/80 backdrop-blur-sm"
+    >
+      <ToggleGroupItem value="requests" className="text-xs px-3">
+        Requests
+      </ToggleGroupItem>
+      <ToggleGroupItem value="errors" className="text-xs px-3">
+        Errors
+      </ToggleGroupItem>
+      <ToggleGroupItem value="latency" className="text-xs px-3">
+        Latency
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
+
 // ---------- Main Component ----------
 
 function MeshMiniMapContent() {
   const { org } = useProjectContext();
+  const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
 
   // Fetch first 3 of each
-  const gateways: GatewayEntity[] = useGateways({ pageSize: MAX_ITEMS });
-  const connections: ConnectionEntity[] = useConnections({ pageSize: MAX_ITEMS });
+  const rawGateways: GatewayEntity[] = useGateways({ pageSize: MAX_ITEMS });
+  const rawConnections: ConnectionEntity[] = useConnections({
+    pageSize: MAX_ITEMS,
+  });
+
+  // Fetch metrics
+  const nodeMetrics = useNodeMetrics();
+
+  // Sort gateways and connections by metric value (descending - bigger on top)
+  const gateways = [...rawGateways].sort((a, b) => {
+    const aValue = getMetricNumericValue(
+      nodeMetrics.gateways.get(a.id),
+      metricsMode,
+    );
+    const bValue = getMetricNumericValue(
+      nodeMetrics.gateways.get(b.id),
+      metricsMode,
+    );
+    return bValue - aValue;
+  });
+
+  const connections = [...rawConnections].sort((a, b) => {
+    const aValue = getMetricNumericValue(
+      nodeMetrics.connections.get(a.id),
+      metricsMode,
+    );
+    const bValue = getMetricNumericValue(
+      nodeMetrics.connections.get(b.id),
+      metricsMode,
+    );
+    return bValue - aValue;
+  });
 
   // Build nodes
   const nodes: Node[] = [];
   const edges: Edge[] = [];
+  const colorScheme = COLOR_SCHEMES[metricsMode];
   const animatedDottedEdgeStyle = {
-    stroke: "var(--chart-1)",
+    stroke: colorScheme.edgeColor,
     strokeWidth: 1.5,
-    // Dotted look: short dash + larger gap, with rounded caps to make "dots"
     strokeDasharray: "1 6",
     strokeLinecap: "round",
   } as const;
@@ -136,7 +276,7 @@ function MeshMiniMapContent() {
   const gapX = 100;
   const meshX = leftX + NODE_WIDTH + gapX;
   const rightX = meshX + MESH_NODE_SIZE + gapX;
-  const nodeSpacing = 60;
+  const nodeSpacing = 70;
 
   // Calculate vertical centering
   const leftCount = gateways.length;
@@ -154,7 +294,13 @@ function MeshMiniMapContent() {
       id: `gateway-${gateway.id}`,
       type: "gateway",
       position: { x: leftX, y: centerY - GATEWAY_NODE_HEIGHT / 2 },
-      data: { gateway, org: org.slug },
+      data: {
+        gateway,
+        org: org.slug,
+        metricsMode,
+        metric: nodeMetrics.gateways.get(gateway.id),
+        colorScheme,
+      },
       draggable: false,
       selectable: false,
     });
@@ -164,7 +310,7 @@ function MeshMiniMapContent() {
       target: "mesh",
       type: "smoothstep",
       animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--chart-1)" },
+      markerEnd: { type: MarkerType.ArrowClosed, color: colorScheme.edgeColor },
       style: animatedDottedEdgeStyle,
     });
   });
@@ -188,7 +334,13 @@ function MeshMiniMapContent() {
       id: `server-${connection.id}`,
       type: "server",
       position: { x: rightX, y: centerY - SERVER_NODE_HEIGHT / 2 },
-      data: { connection, org: org.slug },
+      data: {
+        connection,
+        org: org.slug,
+        metricsMode,
+        metric: nodeMetrics.connections.get(connection.id),
+        colorScheme,
+      },
       draggable: false,
       selectable: false,
     });
@@ -198,13 +350,18 @@ function MeshMiniMapContent() {
       target: `server-${connection.id}`,
       type: "smoothstep",
       animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--chart-1)" },
+      markerEnd: { type: MarkerType.ArrowClosed, color: colorScheme.edgeColor },
       style: animatedDottedEdgeStyle,
     });
   });
 
   return (
-    <div className="w-full h-full">
+    <div className={cn("w-full h-full relative", colorScheme.bgClass)}>
+      {/* Metrics Mode Selector - Top Right */}
+      <div className="absolute top-4 right-4 z-10">
+        <MetricsModeSelector value={metricsMode} onChange={setMetricsMode} />
+      </div>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -235,10 +392,10 @@ export function MeshMiniMapSkeleton() {
       <div className="flex items-center gap-16">
         {/* Left side skeleton */}
         <div className="flex flex-col gap-3">
-          {[1, 2, 3].map((i) => (
+          {[1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
-              className="h-10 w-36 bg-muted animate-pulse rounded-lg"
+              className="h-14 w-[220px] bg-muted animate-pulse rounded-lg"
             />
           ))}
         </div>
@@ -248,10 +405,10 @@ export function MeshMiniMapSkeleton() {
 
         {/* Right side skeleton */}
         <div className="flex flex-col gap-3">
-          {[1, 2, 3].map((i) => (
+          {[1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
-              className="h-10 w-36 bg-muted animate-pulse rounded-lg"
+              className="h-14 w-[220px] bg-muted animate-pulse rounded-lg"
             />
           ))}
         </div>
@@ -264,7 +421,7 @@ export function MeshMiniMapSkeleton() {
 
 export function MeshMiniMap() {
   return (
-    <div className={cn("bg-background h-[420px]")}>
+    <div className={cn("bg-background h-full min-h-[420px]")}>
       <MeshMiniMapContent />
     </div>
   );
