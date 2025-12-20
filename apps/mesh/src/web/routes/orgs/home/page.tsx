@@ -1,19 +1,598 @@
+/**
+ * Organization Home Page
+ *
+ * Displays a mesh visualization showing gateways → MCP Mesh → servers
+ * with integrated metrics (Requests / Errors / Latency).
+ */
+
+import type { ConnectionEntity } from "@/tools/connection/schema";
+import type { GatewayEntity } from "@/tools/gateway/schema";
 import { createToolCaller } from "@/tools/client";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { useNavigate } from "@tanstack/react-router";
-import { Suspense } from "react";
-import { MeshMiniMap } from "./mesh-mini-map.tsx";
 import {
-  hasMonitoringActivity,
-  type MonitoringStats,
-} from "./monitoring-types.ts";
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@deco/ui/components/toggle-group.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  Handle,
+  MarkerType,
+  Position,
+  ReactFlow,
+  type Edge,
+  type Node,
+  type NodeProps,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { Suspense, useState } from "react";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+type MetricsMode = "requests" | "errors" | "latency";
+
+interface NodeMetric {
+  requests: number;
+  errors: number;
+  errorRate: number;
+  avgLatencyMs: number;
+}
+
+interface NodeMetricsMap {
+  gateways: Map<string, NodeMetric>;
+  connections: Map<string, NodeMetric>;
+}
+
+interface MonitoringStats {
+  totalCalls: number;
+  errorRate: number;
+  avgDurationMs: number;
+  errorRatePercent: string;
+}
+
+interface ColorScheme {
+  edgeColor: string;
+  textClass: string;
+  borderClass: string;
+  dotColor: string;
+}
+
+interface MonitoringLogWithGateway {
+  id: string;
+  connectionId: string;
+  connectionTitle: string;
+  toolName: string;
+  isError: boolean;
+  errorMessage: string | null;
+  durationMs: number;
+  timestamp: string;
+  gatewayId?: string | null;
+}
+
+interface MonitoringLogsResponse {
+  logs: MonitoringLogWithGateway[];
+  total: number;
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const MAX_ITEMS = 10;
+const GATEWAY_NODE_HEIGHT = 56;
+const SERVER_NODE_HEIGHT = 56;
+const NODE_WIDTH = 220;
+const MESH_NODE_SIZE = 56;
+
+const COLOR_SCHEMES: Record<MetricsMode, ColorScheme> = {
+  requests: {
+    edgeColor: "#10b981",
+    textClass: "text-emerald-600 dark:text-emerald-400",
+    borderClass: "border-emerald-500/40",
+    dotColor: "rgba(16, 185, 129, 0.3)",
+  },
+  errors: {
+    edgeColor: "#ef4444",
+    textClass: "text-red-600 dark:text-red-400",
+    borderClass: "border-red-500/40",
+    dotColor: "rgba(239, 68, 68, 0.3)",
+  },
+  latency: {
+    edgeColor: "#8b5cf6",
+    textClass: "text-violet-600 dark:text-violet-400",
+    borderClass: "border-violet-500/40",
+    dotColor: "rgba(139, 92, 246, 0.3)",
+  },
+};
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function hasMonitoringActivity(stats?: MonitoringStats | null): boolean {
+  return (stats?.totalCalls ?? 0) > 0;
+}
+
+function aggregateMetrics(logs: MonitoringLogWithGateway[]): NodeMetricsMap {
+  const gatewayMetrics = new Map<
+    string,
+    { requests: number; errors: number; totalLatency: number }
+  >();
+  const connectionMetrics = new Map<
+    string,
+    { requests: number; errors: number; totalLatency: number }
+  >();
+
+  for (const log of logs) {
+    const connId = log.connectionId;
+    if (connId) {
+      const existing = connectionMetrics.get(connId) ?? {
+        requests: 0,
+        errors: 0,
+        totalLatency: 0,
+      };
+      connectionMetrics.set(connId, {
+        requests: existing.requests + 1,
+        errors: existing.errors + (log.isError ? 1 : 0),
+        totalLatency: existing.totalLatency + log.durationMs,
+      });
+    }
+
+    const gatewayId = log.gatewayId;
+    if (gatewayId) {
+      const existing = gatewayMetrics.get(gatewayId) ?? {
+        requests: 0,
+        errors: 0,
+        totalLatency: 0,
+      };
+      gatewayMetrics.set(gatewayId, {
+        requests: existing.requests + 1,
+        errors: existing.errors + (log.isError ? 1 : 0),
+        totalLatency: existing.totalLatency + log.durationMs,
+      });
+    }
+  }
+
+  const gateways = new Map<string, NodeMetric>();
+  for (const [id, data] of gatewayMetrics) {
+    gateways.set(id, {
+      requests: data.requests,
+      errors: data.errors,
+      errorRate: data.requests > 0 ? (data.errors / data.requests) * 100 : 0,
+      avgLatencyMs: data.requests > 0 ? data.totalLatency / data.requests : 0,
+    });
+  }
+
+  const connections = new Map<string, NodeMetric>();
+  for (const [id, data] of connectionMetrics) {
+    connections.set(id, {
+      requests: data.requests,
+      errors: data.errors,
+      errorRate: data.requests > 0 ? (data.errors / data.requests) * 100 : 0,
+      avgLatencyMs: data.requests > 0 ? data.totalLatency / data.requests : 0,
+    });
+  }
+
+  return { gateways, connections };
+}
+
+function formatMetricValue(
+  metric: NodeMetric | undefined,
+  mode: MetricsMode,
+): string {
+  if (!metric) return "—";
+
+  switch (mode) {
+    case "requests":
+      return metric.requests === 0 ? "—" : metric.requests.toLocaleString();
+    case "errors":
+      return metric.errorRate === 0 ? "—" : `${metric.errorRate.toFixed(1)}%`;
+    case "latency":
+      return metric.avgLatencyMs === 0
+        ? "—"
+        : `${Math.round(metric.avgLatencyMs)}ms`;
+  }
+}
+
+function getMetricNumericValue(
+  metric: NodeMetric | undefined,
+  mode: MetricsMode,
+): number {
+  if (!metric) return 0;
+
+  switch (mode) {
+    case "requests":
+      return metric.requests;
+    case "errors":
+      return metric.errorRate;
+    case "latency":
+      return metric.avgLatencyMs;
+  }
+}
+
+// ============================================================================
+// Hooks
+// ============================================================================
+
+function useNodeMetrics(): NodeMetricsMap {
+  const { locator } = useProjectContext();
+  const toolCaller = createToolCaller();
+  const dateRange = getLast24HoursDateRange();
+
+  const { data: logsData } = useToolCall<
+    { startDate: string; endDate: string; limit: number; offset: number },
+    MonitoringLogsResponse
+  >({
+    toolCaller,
+    toolName: "MONITORING_LOGS_LIST",
+    toolInputParams: { ...dateRange, limit: 1000, offset: 0 },
+    scope: locator,
+    staleTime: 30_000,
+  });
+
+  const logs = logsData?.logs ?? [];
+  return aggregateMetrics(logs);
+}
+
+// ============================================================================
+// React Flow Node Components
+// ============================================================================
+
+interface GatewayNodeData extends Record<string, unknown> {
+  gateway: GatewayEntity;
+  metricsMode: MetricsMode;
+  metric: NodeMetric | undefined;
+  colorScheme: ColorScheme;
+}
+
+function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
+  const metricValue = formatMetricValue(data.metric, data.metricsMode);
+
+  return (
+    <div
+      className={cn(
+        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan",
+        data.colorScheme.borderClass,
+      )}
+    >
+      <IntegrationIcon
+        icon={data.gateway.icon}
+        name={data.gateway.title}
+        size="sm"
+        fallbackIcon="network_node"
+      />
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="text-[11px] text-muted-foreground truncate">
+          {data.gateway.title}
+        </span>
+        <span
+          className={cn(
+            "text-base font-semibold tabular-nums",
+            data.colorScheme.textClass,
+          )}
+        >
+          {metricValue}
+        </span>
+      </div>
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
+      />
+    </div>
+  );
+}
+
+interface ServerNodeData extends Record<string, unknown> {
+  connection: ConnectionEntity;
+  metricsMode: MetricsMode;
+  metric: NodeMetric | undefined;
+  colorScheme: ColorScheme;
+}
+
+function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
+  const metricValue = formatMetricValue(data.metric, data.metricsMode);
+
+  return (
+    <div
+      className={cn(
+        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan",
+        data.colorScheme.borderClass,
+      )}
+    >
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
+      />
+      <IntegrationIcon
+        icon={data.connection.icon}
+        name={data.connection.title}
+        size="sm"
+        fallbackIcon="extension"
+      />
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="text-[11px] text-muted-foreground truncate">
+          {data.connection.title}
+        </span>
+        <span
+          className={cn(
+            "text-base font-semibold tabular-nums",
+            data.colorScheme.textClass,
+          )}
+        >
+          {metricValue}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MeshNode() {
+  return (
+    <div className="flex h-14 w-14 items-center justify-center p-2 bg-background border border-border rounded-lg shadow-sm">
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
+      />
+      <img src="/logos/deco logo.svg" alt="Deco" className="h-8 w-8" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
+      />
+    </div>
+  );
+}
+
+const nodeTypes = {
+  gateway: GatewayNode,
+  server: ServerNode,
+  mesh: MeshNode,
+};
+
+// ============================================================================
+// Mesh Visualization Components
+// ============================================================================
+
+function MetricsModeSelector({
+  value,
+  onChange,
+}: {
+  value: MetricsMode;
+  onChange: (mode: MetricsMode) => void;
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      value={value}
+      onValueChange={(v) => v && onChange(v as MetricsMode)}
+      variant="outline"
+      size="sm"
+      className="bg-background/80 backdrop-blur-sm"
+    >
+      <ToggleGroupItem value="requests" className="text-xs px-3">
+        Requests
+      </ToggleGroupItem>
+      <ToggleGroupItem value="errors" className="text-xs px-3">
+        Errors
+      </ToggleGroupItem>
+      <ToggleGroupItem value="latency" className="text-xs px-3">
+        Latency
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
+
+function MeshVisualization() {
+  const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
+
+  const rawGateways: GatewayEntity[] = useGateways({ pageSize: MAX_ITEMS });
+  const rawConnections: ConnectionEntity[] = useConnections({
+    pageSize: MAX_ITEMS,
+  });
+  const nodeMetrics = useNodeMetrics();
+
+  // Sort by metric value (descending)
+  const sortedGateways = [...rawGateways].sort(
+    (a, b) =>
+      getMetricNumericValue(nodeMetrics.gateways.get(b.id), metricsMode) -
+      getMetricNumericValue(nodeMetrics.gateways.get(a.id), metricsMode),
+  );
+
+  const sortedConnections = [...rawConnections].sort(
+    (a, b) =>
+      getMetricNumericValue(nodeMetrics.connections.get(b.id), metricsMode) -
+      getMetricNumericValue(nodeMetrics.connections.get(a.id), metricsMode),
+  );
+
+  const colorScheme = COLOR_SCHEMES[metricsMode];
+
+  // Build position maps for consistent array order
+  const gatewayPositionMap = new Map<string, number>();
+  sortedGateways.forEach((g, i) => gatewayPositionMap.set(g.id, i));
+
+  const connectionPositionMap = new Map<string, number>();
+  sortedConnections.forEach((c, i) => connectionPositionMap.set(c.id, i));
+
+  // Layout
+  const leftX = 0;
+  const gapX = 100;
+  const meshX = leftX + NODE_WIDTH + gapX;
+  const rightX = meshX + MESH_NODE_SIZE + gapX;
+  const nodeSpacing = 70;
+
+  const leftCount = rawGateways.length;
+  const rightCount = rawConnections.length;
+  const maxCount = Math.max(leftCount, rightCount, 1);
+  const totalHeight = (maxCount - 1) * nodeSpacing;
+  const centerStartY = -totalHeight / 2;
+
+  const edgeStyle = {
+    stroke: colorScheme.edgeColor,
+    strokeWidth: 1.5,
+    strokeDasharray: "1 6",
+    strokeLinecap: "round",
+  } as const;
+
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+
+  // Gateway nodes
+  rawGateways.forEach((gateway) => {
+    const idx = gatewayPositionMap.get(gateway.id) ?? 0;
+    const offsetY = centerStartY + ((maxCount - leftCount) * nodeSpacing) / 2;
+    const y = offsetY + idx * nodeSpacing - GATEWAY_NODE_HEIGHT / 2;
+
+    nodes.push({
+      id: `gateway-${gateway.id}`,
+      type: "gateway",
+      position: { x: leftX, y },
+      data: {
+        gateway,
+        metricsMode,
+        metric: nodeMetrics.gateways.get(gateway.id),
+        colorScheme,
+      },
+      draggable: false,
+      selectable: false,
+    });
+
+    edges.push({
+      id: `e-gw-${gateway.id}`,
+      source: `gateway-${gateway.id}`,
+      target: "mesh",
+      type: "smoothstep",
+      animated: true,
+      markerEnd: { type: MarkerType.ArrowClosed, color: colorScheme.edgeColor },
+      style: edgeStyle,
+    });
+  });
+
+  // Mesh node
+  nodes.push({
+    id: "mesh",
+    type: "mesh",
+    position: { x: meshX, y: -MESH_NODE_SIZE / 2 },
+    data: {},
+    draggable: false,
+    selectable: false,
+  });
+
+  // Server nodes
+  rawConnections.forEach((connection) => {
+    const idx = connectionPositionMap.get(connection.id) ?? 0;
+    const offsetY = centerStartY + ((maxCount - rightCount) * nodeSpacing) / 2;
+    const y = offsetY + idx * nodeSpacing - SERVER_NODE_HEIGHT / 2;
+
+    nodes.push({
+      id: `server-${connection.id}`,
+      type: "server",
+      position: { x: rightX, y },
+      data: {
+        connection,
+        metricsMode,
+        metric: nodeMetrics.connections.get(connection.id),
+        colorScheme,
+      },
+      draggable: false,
+      selectable: false,
+    });
+
+    edges.push({
+      id: `e-srv-${connection.id}`,
+      source: "mesh",
+      target: `server-${connection.id}`,
+      type: "smoothstep",
+      animated: true,
+      markerEnd: { type: MarkerType.ArrowClosed, color: colorScheme.edgeColor },
+      style: edgeStyle,
+    });
+  });
+
+  const dotPattern = {
+    backgroundImage: `radial-gradient(circle, ${colorScheme.dotColor} 1px, transparent 1px)`,
+    backgroundSize: "16px 16px",
+  };
+
+  return (
+    <div
+      className="w-full h-full min-h-[420px] relative mesh-minimap bg-background"
+      style={dotPattern}
+    >
+      <style>{`
+        .mesh-minimap .react-flow__node { transition: transform 300ms ease-out; }
+        .mesh-minimap .react-flow__edge path { transition: d 300ms ease-out; }
+      `}</style>
+
+      <div className="absolute top-4 right-4 z-10">
+        <MetricsModeSelector value={metricsMode} onChange={setMetricsMode} />
+      </div>
+
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.3 }}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        zoomOnScroll={false}
+        zoomOnPinch={false}
+        zoomOnDoubleClick={false}
+        panOnScroll={false}
+        panOnDrag={false}
+        preventScrolling={false}
+        proOptions={{ hideAttribution: true }}
+        className="bg-transparent pointer-events-none"
+      />
+    </div>
+  );
+}
+
+function MeshVisualizationSkeleton() {
+  return (
+    <div className="bg-background p-5 h-full min-h-[420px] flex items-center justify-center">
+      <div className="flex items-center gap-16">
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="h-14 w-[220px] bg-muted animate-pulse rounded-lg"
+            />
+          ))}
+        </div>
+        <div className="h-14 w-28 bg-muted animate-pulse rounded-xl" />
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="h-14 w-[220px] bg-muted animate-pulse rounded-lg"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Welcome Overlay
+// ============================================================================
 
 function WelcomeOverlay() {
   const { org, locator } = useProjectContext();
@@ -34,7 +613,7 @@ function WelcomeOverlay() {
       hasMonitoringActivity(query.state.data) ? false : 1_000,
   });
 
-  const hasActivity = hasMonitoringActivity(stats);
+  if (hasMonitoringActivity(stats)) return null;
 
   const handleAddMcp = () => {
     navigate({
@@ -45,20 +624,14 @@ function WelcomeOverlay() {
   };
 
   const handleBrowseStore = () => {
-    navigate({
-      to: "/$org/store",
-      params: { org: org.slug },
-    });
+    navigate({ to: "/$org/store", params: { org: org.slug } });
   };
-
-  if (hasActivity) return null;
 
   return (
     <div className="absolute inset-0 flex items-center justify-center p-4 bg-background/80 backdrop-blur-[3px] z-10">
       <div className="max-w-md w-full bg-background rounded-xl border border-border shadow-lg pointer-events-auto overflow-hidden">
-        {/* Illustration Section */}
         <div className="p-2">
-          <div className="bg-muted border border-border rounded-lg h-[250px] overflow-hidden relative flex items-center justify-center">
+          <div className="bg-muted border border-border rounded-lg h-[250px] overflow-hidden flex items-center justify-center">
             <img
               src="/empty-state-home.png"
               alt="MCP Mesh illustration"
@@ -67,7 +640,6 @@ function WelcomeOverlay() {
           </div>
         </div>
 
-        {/* Content Section */}
         <div className="px-6 py-6 space-y-2">
           <h2 className="text-lg font-semibold text-foreground">
             Welcome to your MCP Mesh
@@ -78,7 +650,6 @@ function WelcomeOverlay() {
           </p>
         </div>
 
-        {/* Actions Section */}
         <div className="border-t border-border px-4 py-4 flex items-center justify-center gap-2">
           <Button onClick={handleBrowseStore} size="sm" className="h-9">
             <Icon name="shopping_bag" size={16} />
@@ -98,6 +669,10 @@ function WelcomeOverlay() {
     </div>
   );
 }
+
+// ============================================================================
+// Main Page Component
+// ============================================================================
 
 export default function OrgHomePage() {
   const { org } = useProjectContext();
@@ -138,8 +713,8 @@ export default function OrgHomePage() {
             </div>
           }
         >
-          <Suspense fallback={<MeshMiniMap.Skeleton />}>
-            <MeshMiniMap />
+          <Suspense fallback={<MeshVisualizationSkeleton />}>
+            <MeshVisualization />
           </Suspense>
         </ErrorBoundary>
       </div>
