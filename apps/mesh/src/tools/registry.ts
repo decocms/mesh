@@ -21,6 +21,7 @@
 export type ToolCategory =
   | "Organizations"
   | "Connections"
+  | "Gateways"
   | "Monitoring"
   | "API Keys"
   | "Event Bus";
@@ -48,7 +49,12 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_CONNECTIONS_UPDATE",
   "COLLECTION_CONNECTIONS_DELETE",
   "CONNECTION_TEST",
-  "CONNECTION_CALL_TOOL",
+  // Gateway tools
+  "COLLECTION_GATEWAY_CREATE",
+  "COLLECTION_GATEWAY_LIST",
+  "COLLECTION_GATEWAY_GET",
+  "COLLECTION_GATEWAY_UPDATE",
+  "COLLECTION_GATEWAY_DELETE",
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
@@ -204,6 +210,33 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Connections",
     dangerous: true,
   },
+  // Gateway tools
+  {
+    name: "COLLECTION_GATEWAY_CREATE",
+    description: "Create gateways",
+    category: "Gateways",
+  },
+  {
+    name: "COLLECTION_GATEWAY_LIST",
+    description: "List gateways",
+    category: "Gateways",
+  },
+  {
+    name: "COLLECTION_GATEWAY_GET",
+    description: "View gateway details",
+    category: "Gateways",
+  },
+  {
+    name: "COLLECTION_GATEWAY_UPDATE",
+    description: "Update gateways",
+    category: "Gateways",
+  },
+  {
+    name: "COLLECTION_GATEWAY_DELETE",
+    description: "Delete gateways",
+    category: "Gateways",
+    dangerous: true,
+  },
   // Monitoring tools
   {
     name: "MONITORING_LOGS_LIST",
@@ -296,8 +329,11 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_CONNECTIONS_DELETE: "Delete connections",
   CONNECTION_TEST: "Test connections",
   DATABASES_RUN_SQL: "Run SQL queries",
-  CONNECTION_CALL_TOOL:
-    "Allows other MCPs to call tools from any connection on this mesh",
+  COLLECTION_GATEWAY_CREATE: "Create gateways",
+  COLLECTION_GATEWAY_LIST: "List gateways",
+  COLLECTION_GATEWAY_GET: "View gateway details",
+  COLLECTION_GATEWAY_UPDATE: "Update gateways",
+  COLLECTION_GATEWAY_DELETE: "Delete gateways",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
   API_KEY_CREATE: "Create API key",
@@ -324,6 +360,7 @@ export function getToolsByCategory() {
   const grouped: Record<string, ToolMetadata[]> = {
     Organizations: [],
     Connections: [],
+    Gateways: [],
     Monitoring: [],
     "API Keys": [],
     "Event Bus": [],

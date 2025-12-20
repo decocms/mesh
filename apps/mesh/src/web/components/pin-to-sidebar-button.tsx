@@ -60,7 +60,7 @@ export function PinToSidebarButton({
             onClick={handleTogglePin}
             size="icon"
             variant={isPinned ? "secondary" : "outline"}
-            className="size-8 border border-input"
+            className="size-7 border border-input"
           >
             <Icon name="keep" size={16} />
           </Button>

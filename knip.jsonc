@@ -1,9 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreBinaries": ["deco"],
   "workspaces": {
     ".": {
       "entry": ["plugins/**/*"],
-      "project": []
+      "project": [],
+      "ignoreDependencies": ["deco-cli"]
     },
     "packages/runtime": {
       "entry": ["scripts/generate-json-schema.ts"]

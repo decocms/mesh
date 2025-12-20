@@ -61,7 +61,6 @@ export function StoreDiscoveryUI({
   registryId,
   hasMore = false,
   onLoadMore,
-  totalCount,
 }: StoreDiscoveryUIProps) {
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
@@ -168,9 +167,8 @@ export function StoreDiscoveryUI({
                 {allItems.length > 0 && (
                   <RegistryItemsSection
                     items={allItems}
-                    title="All"
+                    title={verifiedItems.length > 0 ? "All" : ""}
                     onItemClick={handleItemClick}
-                    totalCount={totalCount}
                   />
                 )}
 

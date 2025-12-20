@@ -14,6 +14,7 @@ import type { Kysely } from "kysely";
 import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
 import { ConnectionStorage } from "../storage/connection";
+import { GatewayStorage } from "../storage/gateway";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { Database, Permission } from "../storage/types";
 import { AccessControl } from "./access-control";
@@ -399,9 +400,14 @@ async function authenticateRequest(
   const authHeader = req.headers.get("Authorization");
 
   // Try OAuth session first (getMcpSession)
+  // Add X-MCP-Session-Auth header to tell the API key plugin this is an MCP OAuth session
+  // so it won't try to validate the Bearer token as an API key
   try {
+    const mcpHeaders = new Headers(req.headers);
+    mcpHeaders.set("X-MCP-Session-Auth", "true");
+
     const session = (await auth.api.getMcpSession({
-      headers: req.headers,
+      headers: mcpHeaders,
     })) as OAuthSession | null;
 
     if (session) {
@@ -454,7 +460,8 @@ async function authenticateRequest(
     console.error("[Auth] OAuth session check failed:", err);
   }
 
-  // Try API Key or Mesh JWT authentication
+  // Try Mesh JWT or API Key authentication (Bearer token)
+  // These use the same header but different validation
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.replace("Bearer ", "").trim();
 
@@ -605,6 +612,7 @@ export function createMeshContextFactory(
     connections: new ConnectionStorage(config.db, vault),
     organizationSettings: new OrganizationSettingsStorage(config.db),
     monitoring: new SqlMonitoringStorage(config.db),
+    gateways: new GatewayStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin

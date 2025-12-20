@@ -6,7 +6,7 @@
  * Subscriptions are identified by (eventType, publisher).
  */
 
-import { WellKnownMCPId } from "@/core/well-known-mcp";
+import { WellKnownOrgMCPId } from "@/core/well-known-mcp";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import {
@@ -35,20 +35,6 @@ export const EVENT_SYNC_SUBSCRIPTIONS = defineTool({
       );
     }
 
-    // Check permissions for each publisher
-    for (const sub of input.subscriptions) {
-      if (sub.publisher) {
-        const hasPermission = await ctx.boundAuth.hasPermission({
-          [sub.publisher]: [`event@${sub.eventType}`],
-        });
-        if (!hasPermission) {
-          throw new Error(
-            `Not authorized to subscribe to events from publisher '${sub.publisher}' for event type '${sub.eventType}'.`,
-          );
-        }
-      }
-    }
-
     // Sync the subscriptions
     const result = await ctx.eventBus.syncSubscriptions(organization.id, {
       connectionId,
@@ -57,18 +43,22 @@ export const EVENT_SYNC_SUBSCRIPTIONS = defineTool({
     const cronSubscriptions = result.subscriptions.filter(
       (sub) =>
         sub.eventType?.startsWith("cron/") &&
-        sub.publisher === WellKnownMCPId.SELF,
+        sub.publisher === WellKnownOrgMCPId.SELF(organization.id),
     );
 
     await Promise.all(
       cronSubscriptions.map(async (sub) => {
         const cron = sub.eventType.split("/")[1];
         cron &&
-          (await ctx.eventBus.publish(organization.id, WellKnownMCPId.SELF, {
-            type: sub.eventType,
-            cron,
-            data: {},
-          }));
+          (await ctx.eventBus.publish(
+            organization.id,
+            WellKnownOrgMCPId.SELF(organization.id),
+            {
+              type: sub.eventType,
+              cron,
+              data: {},
+            },
+          ));
       }),
     );
 

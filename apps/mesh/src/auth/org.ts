@@ -2,6 +2,7 @@ import { getWellKnownSelfConnection } from "@/core/well-known-mcp";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
 import { ConnectionStorage } from "@/storage/connection";
+import { GatewayStorage } from "@/storage/gateway";
 import { Permission } from "@/storage/types";
 import { fetchToolsFromMCP } from "@/tools/connection/fetch-tools";
 import {
@@ -69,15 +70,17 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
  * This is deferred to run after the Better Auth request completes
  * to avoid deadlocks when issuing tokens
  */
-export async function createDefaultOrgConnections(
-  organizationId: string,
-  createdBy: string,
-) {
+export async function seedOrgDb(organizationId: string, createdBy: string) {
   try {
     const database = getDb();
     const vault = new CredentialVault(process.env.ENCRYPTION_KEY || "");
     const connectionStorage = new ConnectionStorage(database.db, vault);
+    const gatewayStorage = new GatewayStorage(database.db);
     const defaultOrgMcps = getDefaultOrgMcps();
+
+    // Create default connections and collect their IDs
+    const createdConnectionIds: string[] = [];
+
     await Promise.all(
       defaultOrgMcps.map(async (mcpConfig) => {
         let connectionToken: string | null = null;
@@ -106,15 +109,35 @@ export async function createDefaultOrgConnections(
             connection_token: mcpConfig.data.connection_token,
             connection_headers: mcpConfig.data.connection_headers,
           }).catch(() => null));
-        await connectionStorage.create({
+
+        const connectionId = mcpConfig.data.id
+          ? `${organizationId}_${mcpConfig.data.id}`
+          : undefined;
+
+        const connection = await connectionStorage.create({
           ...mcpConfig.data,
+          id: connectionId,
           tools,
           organization_id: organizationId,
           created_by: createdBy,
           connection_token: mcpConfig.data.connection_token ?? connectionToken,
         });
+
+        createdConnectionIds.push(connection.id);
       }),
     );
+
+    // Create default gateway with exclusion mode
+    // This gateway excludes nothing by default (empty connections list with exclusion = include all)
+    await gatewayStorage.create(organizationId, createdBy, {
+      title: "Default Gateway",
+      description: "Auto-created gateway that includes all connections",
+      toolSelectionStrategy: "passthrough",
+      toolSelectionMode: "exclusion",
+      status: "active",
+      isDefault: true,
+      connections: createdConnectionIds.map((c) => ({ connectionId: c })),
+    });
   } catch (err) {
     console.error("Error creating default MCP connections:", err);
   }

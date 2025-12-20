@@ -11,7 +11,9 @@
  * - Supports StreamableHTTP transport
  */
 
+import { once } from "@/common";
 import { getMonitoringConfig } from "@/core/config";
+import { prop } from "@/tools/connection/json-path";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -163,7 +165,10 @@ async function createMCPProxyDoNotUseDirectly(
   // Get connection details
   const connection =
     typeof connectionIdOrConnection === "string"
-      ? await ctx.storage.connections.findById(connectionIdOrConnection)
+      ? await ctx.storage.connections.findById(
+          connectionIdOrConnection,
+          ctx.organization?.id,
+        )
       : connectionIdOrConnection;
   if (!connection) {
     throw new Error("Connection not found");
@@ -179,66 +184,79 @@ async function createMCPProxyDoNotUseDirectly(
     throw new Error(`Connection inactive: ${connection.status}`);
   }
 
-  // Issue configuration JWT if connection has configuration state
+  // Lazy token issuance - only issue when buildRequestHeaders is called
   let configurationToken: string | undefined;
-  // Parse scopes to build permissions object
-  // Format: "KEY::SCOPE" where KEY is in state and state[KEY].value is a connection ID
-  // Result: { [connectionId]: [scopes...] }
-  const permissions: Record<string, string[]> = {};
 
-  for (const scope of connection.configuration_scopes ?? [
-    "conn_YIQh1iif7j2RRNGU-PtIS::EVENT_PUBLISH",
-  ]) {
-    const parts = scope.split("::");
-    if (parts.length === 2) {
-      const [key, scopeName] = parts;
-      if (!key || !scopeName) continue; // Skip invalid parts
+  const callerConnectionId = ctx.auth.user?.connectionId;
 
-      const stateValue: unknown = connection.configuration_state?.[key];
+  /**
+   * Issue configuration JWT lazily (only when needed)
+   * This avoids issuing tokens when creating proxies that may never be used.
+   * Uses `once` to prevent race conditions - concurrent calls share the same promise.
+   */
+  const ensureConfigurationToken = once(async (): Promise<void> => {
+    // Parse scopes to build permissions object
+    // Format: "KEY::SCOPE" where KEY is in state and state[KEY].value is a connection ID
+    // Result: { [connectionId]: [scopes...] }
+    const permissions: Record<string, string[]> = {};
 
-      if (
-        typeof stateValue === "object" &&
-        stateValue !== null &&
-        "value" in stateValue
-      ) {
-        const connectionIdRef = (stateValue as { value: unknown }).value;
-        if (typeof connectionIdRef === "string") {
-          // Add scope to this connection's permissions
-          if (!permissions[connectionIdRef]) {
-            permissions[connectionIdRef] = [];
+    for (const scope of connection.configuration_scopes ?? []) {
+      const parts = scope.split("::");
+      if (parts.length === 2) {
+        const [key, scopeName] = parts;
+        if (!key || !scopeName) continue; // Skip invalid parts
+
+        const stateValue: unknown = prop(key, connection.configuration_state);
+
+        if (
+          typeof stateValue === "object" &&
+          stateValue !== null &&
+          "value" in stateValue
+        ) {
+          const connectionIdRef = (stateValue as { value: unknown }).value;
+          if (typeof connectionIdRef === "string") {
+            // Add scope to this connection's permissions
+            if (!permissions[connectionIdRef]) {
+              permissions[connectionIdRef] = [];
+            }
+            permissions[connectionIdRef].push(scopeName);
           }
-          permissions[connectionIdRef].push(scopeName);
         }
       }
     }
-  }
 
-  // Issue short-lived JWT with configuration permissions
-  // JWT can be decoded directly by downstream to access payload
-  const userId = ctx.auth.user?.id ?? ctx.auth.apiKey?.userId;
-  if (!userId) {
-    throw new Error("User ID required to issue configuration token");
-  }
-  const callerConnectionId = ctx.auth.user?.connectionId;
-  try {
-    configurationToken = await issueMeshToken({
-      sub: userId,
-      user: { id: userId },
-      metadata: {
-        state: connection.configuration_state ?? undefined,
-        meshUrl: ctx.baseUrl,
-        connectionId,
-        organizationId: ctx.organization?.id,
-      },
-      permissions,
-    });
-  } catch (error) {
-    console.error("Failed to issue configuration token:", error);
-    // Continue without configuration token - downstream will fail if it requires it
-  }
+    // Issue short-lived JWT with configuration permissions
+    // JWT can be decoded directly by downstream to access payload
+    const userId = ctx.auth.user?.id ?? ctx.auth.apiKey?.userId;
+    if (!userId) {
+      console.error("User ID required to issue configuration token");
+      return;
+    }
+
+    try {
+      configurationToken = await issueMeshToken({
+        sub: userId,
+        user: { id: userId },
+        metadata: {
+          state: connection.configuration_state ?? undefined,
+          meshUrl: process.env.MESH_URL ?? ctx.baseUrl,
+          connectionId,
+          organizationId: ctx.organization?.id,
+        },
+        permissions,
+      });
+    } catch (error) {
+      console.error("Failed to issue configuration token:", error);
+      // Continue without configuration token - downstream will fail if it requires it
+    }
+  });
 
   // Build request headers - reusable for both client and direct fetch
-  const buildRequestHeaders = (): Record<string, string> => {
+  // Now issues token lazily on first call
+  const buildRequestHeaders = async (): Promise<Record<string, string>> => {
+    // Ensure configuration token is issued (lazy)
+    await ensureConfigurationToken();
+
     const headers: Record<string, string> = {
       ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
     };
@@ -265,7 +283,7 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Create client factory for downstream MCP
   const createClient = async () => {
-    const headers = buildRequestHeaders();
+    const headers = await buildRequestHeaders();
 
     // Create transport to downstream MCP using StreamableHTTP
     const transport = new StreamableHTTPClientTransport(
@@ -399,7 +417,7 @@ async function createMCPProxyDoNotUseDirectly(
       params: { name, arguments: args },
     };
     return callStreamableToolPipeline(request, async (): Promise<Response> => {
-      const headers = buildRequestHeaders();
+      const headers = await buildRequestHeaders();
 
       // Use fetch directly to support streaming responses
       // Build URL with tool name appended for call-tool endpoint pattern

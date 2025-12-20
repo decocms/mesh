@@ -30,6 +30,7 @@ import {
   getConnectionTypeLabel,
   extractSchemaVersion,
 } from "@/web/utils/registry-utils";
+import { extractDisplayNameFromDomain } from "@/web/utils/app-name";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import {
@@ -116,9 +117,15 @@ function extractItemData(item: RegistryItem): AppData {
     githubIcon ||
     null;
 
+  // Extract raw name and apply display name formatting
+  const rawName =
+    item.name || item.title || item.server?.title || "Unnamed Item";
+  const displayName = extractDisplayNameFromDomain(rawName);
+
   return {
-    name: item.name || item.title || server.title || "Unnamed Item",
-    description: item.description || item.summary || server.description || "",
+    name: displayName,
+    description:
+      item.description || item.summary || item.server?.description || "",
     icon: icon,
     verified: item.verified || decoMeta?.verified,
     publisher: publisher,

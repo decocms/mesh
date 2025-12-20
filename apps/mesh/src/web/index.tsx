@@ -32,7 +32,16 @@ const loginRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/login.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
+      // Regular login redirect
       next: z.string().optional(),
+      // OAuth flow params (passed by Better Auth MCP plugin)
+      client_id: z.string().optional(),
+      redirect_uri: z.string().optional(),
+      response_type: z.string().optional(),
+      state: z.string().optional(),
+      scope: z.string().optional(),
+      code_challenge: z.string().optional(),
+      code_challenge_method: z.string().optional(),
     }),
   ),
 });
@@ -91,6 +100,18 @@ const orgMonitoringRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/monitoring",
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
+  validateSearch: z.lazy(() =>
+    z.object({
+      from: z.string().default("now-24h"),
+      to: z.string().default("now"),
+      connections: z.string().optional(),
+      tool: z.string().default(""),
+      status: z.enum(["all", "success", "errors"]).default("all"),
+      search: z.string().default(""),
+      page: z.number().optional(),
+      streaming: z.boolean().default(true),
+    }),
+  ),
 });
 
 const orgStoreRoute = createRoute({
@@ -135,6 +156,25 @@ const collectionDetailsRoute = createRoute({
   ),
 });
 
+const orgGatewaysRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/gateways",
+  component: lazyRouteComponent(() => import("./routes/orgs/gateways.tsx")),
+  validateSearch: z.lazy(() =>
+    z.object({
+      action: z.enum(["create"]).optional(),
+    }),
+  ),
+});
+
+const gatewayDetailRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/gateways/$gatewayId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/gateway-detail.tsx"),
+  ),
+});
+
 const oauthCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/oauth/callback",
@@ -150,6 +190,8 @@ const shellRouteTree = shellLayout.addChildren([
   orgHomeRoute,
   orgMembersRoute,
   orgConnectionsRoute,
+  orgGatewaysRoute,
+  gatewayDetailRoute,
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
   orgSettingsRoute,

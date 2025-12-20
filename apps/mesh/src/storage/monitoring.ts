@@ -48,6 +48,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   async query(filters: {
     organizationId?: string;
     connectionId?: string;
+    gatewayId?: string;
     toolName?: string;
     isError?: boolean;
     startDate?: Date;
@@ -72,6 +73,10 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     if (filters.connectionId) {
       query = query.where("connection_id", "=", filters.connectionId);
       countQuery = countQuery.where("connection_id", "=", filters.connectionId);
+    }
+    if (filters.gatewayId) {
+      query = query.where("gateway_id", "=", filters.gatewayId);
+      countQuery = countQuery.where("gateway_id", "=", filters.gatewayId);
     }
     if (filters.toolName) {
       query = query.where("tool_name", "=", filters.toolName);
@@ -201,6 +206,8 @@ export class SqlMonitoringStorage implements MonitoringStorage {
           : log.timestamp,
       user_id: log.userId || null,
       request_id: log.requestId,
+      user_agent: log.userAgent || null,
+      gateway_id: log.gatewayId || null,
     };
   }
 
@@ -218,6 +225,8 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     timestamp: string | Date;
     user_id: string | null;
     request_id: string;
+    user_agent: string | null;
+    gateway_id: string | null;
   }): MonitoringLog {
     const input =
       typeof row.input === "string" ? JSON.parse(row.input) : row.input;
@@ -242,6 +251,8 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       timestamp,
       userId: row.user_id,
       requestId: row.request_id,
+      userAgent: row.user_agent,
+      gatewayId: row.gateway_id,
     };
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@decocms/runtime",
-  "version": "1.0.0-alpha.37",
+  "version": "1.0.0-alpha.39",
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit"

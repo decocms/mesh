@@ -372,6 +372,8 @@ export interface MonitoringLogTable {
   timestamp: ColumnType<Date, Date | string, never>;
   user_id: string | null;
   request_id: string;
+  user_agent: string | null; // x-mesh-client header
+  gateway_id: string | null; // Gateway ID if routed through gateway
 }
 
 /**
@@ -391,6 +393,8 @@ export interface MonitoringLog {
   timestamp: Date | string;
   userId: string | null;
   requestId: string;
+  userAgent?: string | null; // x-mesh-client header
+  gatewayId?: string | null; // Gateway ID if routed through gateway
 }
 
 // ============================================================================
@@ -520,6 +524,100 @@ export interface EventDelivery {
   createdAt: Date | string;
 }
 
+// ============================================================================
+// Gateway Table Definitions
+// ============================================================================
+
+/**
+ * Tool selection mode for gateways
+ * - "inclusion": Include selected tools/connections (default behavior)
+ * - "exclusion": Exclude selected tools/connections (inverse filter)
+ */
+export type ToolSelectionMode = "inclusion" | "exclusion";
+
+/**
+ * Gateway tool selection strategy (metadata, not used for runtime behavior yet)
+ * - "passthrough": Pass tools through as-is (default)
+ * - "smart_tool_selection": Smart tool selection behavior
+ * - "code_execution": Code execution behavior
+ */
+export type GatewayToolSelectionStrategy =
+  | "passthrough"
+  | "smart_tool_selection"
+  | "code_execution";
+
+/**
+ * Gateway table definition
+ * Virtual gateway entities that aggregate tools from multiple connections
+ */
+export interface GatewayTable {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string | null;
+  tool_selection_strategy: GatewayToolSelectionStrategy;
+  tool_selection_mode: ToolSelectionMode;
+  icon: string | null;
+  status: "active" | "inactive";
+  is_default: number; // SQLite uses INTEGER for boolean (0 = false, 1 = true)
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+  created_by: string;
+  updated_by: string | null;
+}
+
+/**
+ * Gateway entity - Runtime representation
+ */
+export interface Gateway {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  toolSelectionStrategy: GatewayToolSelectionStrategy;
+  toolSelectionMode: ToolSelectionMode;
+  icon: string | null;
+  status: "active" | "inactive";
+  isDefault: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  createdBy: string;
+  updatedBy: string | null;
+}
+
+/**
+ * Gateway connection table definition
+ * Many-to-many relationship linking gateways to connections with selected tools
+ */
+export interface GatewayConnectionTable {
+  id: string;
+  gateway_id: string;
+  connection_id: string;
+  selected_tools: JsonArray<string[]> | null; // null = all tools
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+/**
+ * Gateway connection entity - Runtime representation
+ */
+export interface GatewayConnection {
+  id: string;
+  gatewayId: string;
+  connectionId: string;
+  selectedTools: string[] | null;
+  createdAt: Date | string;
+}
+
+/**
+ * Gateway with connections - Full entity for API responses
+ */
+export interface GatewayWithConnections extends Gateway {
+  connections: Array<{
+    connectionId: string;
+    selectedTools: string[] | null;
+  }>;
+}
+
 /**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
@@ -550,4 +648,8 @@ export interface Database {
   events: EventTable;
   event_subscriptions: EventSubscriptionTable;
   event_deliveries: EventDeliveryTable;
+
+  // Gateway tables
+  gateways: GatewayTable;
+  gateway_connections: GatewayConnectionTable;
 }

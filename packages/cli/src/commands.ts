@@ -273,6 +273,7 @@ const hostingPromote = new Command("promote")
 const linkCmd = new Command("link")
   .description("Link the project to be accessed through a remote domain.")
   .option("-p, --port <port>", "Port to link", parseInt)
+  .option("-e, --env <env>", "Environment variable to set")
   .allowUnknownOption()
   .action(async (options, cmd) => {
     try {
@@ -294,7 +295,7 @@ const linkCmd = new Command("link")
           const childProcess = spawn(command, args, {
             stdio: "inherit",
             shell: true,
-            env: { ...process.env, BASE_URL: server },
+            env: { ...process.env, [options.env ?? "BASE_URL"]: server },
           });
 
           childProcess.on("error", (error: Error) => {
