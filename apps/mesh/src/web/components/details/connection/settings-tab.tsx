@@ -773,6 +773,8 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
       data: { connection_token: token },
     });
 
+    form.setValue("connection_token", token, { shouldDirty: false });
+
     toast.success("Authentication successful");
   };
 
