@@ -153,17 +153,6 @@ export function getMetricNumericValue(
   }
 }
 
-export function getMetricLabel(mode: MetricsMode): string {
-  switch (mode) {
-    case "requests":
-      return "Requests";
-    case "errors":
-      return "Error Rate";
-    case "latency":
-      return "Latency";
-  }
-}
-
 // ============================================================================
 // Hook
 // ============================================================================
