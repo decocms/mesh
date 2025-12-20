@@ -10,7 +10,7 @@ export function AppDetailHeader({ onBack }: AppDetailHeaderProps) {
       <div className="max-w-7xl mx-auto">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <Icon name="arrow_back" size={20} />
           Back
