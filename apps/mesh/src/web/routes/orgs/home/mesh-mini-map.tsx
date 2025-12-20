@@ -48,7 +48,7 @@ interface ColorScheme {
   edgeColor: string;
   textClass: string;
   borderClass: string;
-  bgClass: string;
+  dotColor: string;
 }
 
 const COLOR_SCHEMES: Record<MetricsMode, ColorScheme> = {
@@ -56,19 +56,19 @@ const COLOR_SCHEMES: Record<MetricsMode, ColorScheme> = {
     edgeColor: "#10b981", // emerald-500
     textClass: "text-emerald-600 dark:text-emerald-400",
     borderClass: "border-emerald-500/40",
-    bgClass: "bg-emerald-500/[0.03] dark:bg-emerald-500/[0.03]",
+    dotColor: "rgba(16, 185, 129, 0.3)", // emerald-500 at 30%
   },
   errors: {
     edgeColor: "#ef4444", // red-500
     textClass: "text-red-600 dark:text-red-400",
     borderClass: "border-red-500/40",
-    bgClass: "bg-red-500/[0.03] dark:bg-red-500/[0.03]",
+    dotColor: "rgba(239, 68, 68, 0.3)", // red-500 at 30%
   },
   latency: {
     edgeColor: "#8b5cf6", // violet-500
     textClass: "text-violet-600 dark:text-violet-400",
     borderClass: "border-violet-500/40",
-    bgClass: "bg-violet-500/[0.03] dark:bg-violet-500/[0.03]",
+    dotColor: "rgba(139, 92, 246, 0.3)", // violet-500 at 30%
   },
 };
 
@@ -168,7 +168,7 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
 
 function MeshNode() {
   return (
-    <div className="flex h-14 w-14 items-center justify-center p-2 bg-primary/5 border border-primary/20 rounded-lg shadow-sm">
+    <div className="flex h-14 w-14 items-center justify-center p-2 bg-background border border-border rounded-lg shadow-sm">
       <Handle
         type="target"
         position={Position.Left}
@@ -355,8 +355,27 @@ function MeshMiniMapContent() {
     });
   });
 
+  // Dotted background pattern
+  const dotPattern = {
+    backgroundImage: `radial-gradient(circle, ${colorScheme.dotColor} 1px, transparent 1px)`,
+    backgroundSize: "16px 16px",
+  };
+
   return (
-    <div className={cn("w-full h-full relative", colorScheme.bgClass)}>
+    <div
+      className="w-full h-full relative mesh-minimap bg-background"
+      style={dotPattern}
+    >
+      {/* Animate node and edge position changes on sort */}
+      <style>{`
+        .mesh-minimap .react-flow__node {
+          transition: transform 300ms ease-out;
+        }
+        .mesh-minimap .react-flow__edge path {
+          transition: d 300ms ease-out;
+        }
+      `}</style>
+
       {/* Metrics Mode Selector - Top Right */}
       <div className="absolute top-4 right-4 z-10">
         <MetricsModeSelector value={metricsMode} onChange={setMetricsMode} />
