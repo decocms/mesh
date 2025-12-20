@@ -10,13 +10,10 @@ import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { MeshMiniMap } from "./mesh-mini-map.tsx";
-import { MonitoringKPIs } from "./monitoring-kpis.tsx";
 import {
   hasMonitoringActivity,
   type MonitoringStats,
 } from "./monitoring-types.ts";
-import { RecentActivity } from "./recent-activity.tsx";
-import { TopTools } from "./top-tools.tsx";
 
 function WelcomeOverlay() {
   const { org, locator } = useProjectContext();
@@ -134,69 +131,17 @@ export default function OrgHomePage() {
       />
 
       <div className="flex-1 overflow-auto relative">
-        <div className="min-h-full">
-          {/* Grid with internal dividers only */}
-          <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-[420px_auto_1fr] gap-[0.5px] bg-border">
-            {/* Row 0: Mesh Mini Map */}
-            <div className="lg:col-span-6">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load mesh visualization
-                  </div>
-                }
-              >
-                <Suspense fallback={<MeshMiniMap.Skeleton />}>
-                  <MeshMiniMap />
-                </Suspense>
-              </ErrorBoundary>
+        <ErrorBoundary
+          fallback={
+            <div className="bg-background p-5 text-sm text-muted-foreground h-full flex items-center justify-center">
+              Failed to load mesh visualization
             </div>
-
-            {/* Row 2: 3 KPI bar charts */}
-            <div className="lg:col-span-6">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load monitoring stats
-                  </div>
-                }
-              >
-                <Suspense fallback={<MonitoringKPIs.Skeleton />}>
-                  <MonitoringKPIs.Content />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-
-            {/* Row 3: Recent Activity + Top Tools */}
-            <div className="lg:col-span-3 min-h-0 overflow-hidden">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load recent activity
-                  </div>
-                }
-              >
-                <Suspense fallback={<RecentActivity.Skeleton />}>
-                  <RecentActivity />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-
-            <div className="lg:col-span-3 min-h-0 overflow-hidden">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load top tools
-                  </div>
-                }
-              >
-                <Suspense fallback={<TopTools.Skeleton />}>
-                  <TopTools />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-          </div>
-        </div>
+          }
+        >
+          <Suspense fallback={<MeshMiniMap.Skeleton />}>
+            <MeshMiniMap />
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </CollectionPage>
   );
