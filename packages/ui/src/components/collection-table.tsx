@@ -56,13 +56,13 @@ export function CollectionTable<T = Record<string, unknown>>({
 
   function getHeaderClass(idx: number, total: number) {
     let base =
-      "px-4 py-2 text-left font-mono font-normal text-muted-foreground text-xs h-9 uppercase tracking-wide";
+      "px-4 py-2 text-left font-mono font-normal text-muted-foreground text-xs h-9 uppercase tracking-wider";
     if (idx === total - 1) base += " w-8";
     return base;
   }
 
   return (
-    <div className="w-full bg-background">
+    <div className="w-full bg-background min-w-0">
       <UITable className="w-full border-collapse">
         <TableHeader className="sticky top-0 z-10 border-b-0 bg-muted/30">
           <TableRow className="h-9 hover:bg-transparent border-b border-border">

@@ -133,6 +133,8 @@ async function logProxyMonitoringEvent(args: {
     timestamp: new Date(),
     userId: ctx.auth.user?.id || ctx.auth.apiKey?.userId || null,
     requestId: ctx.metadata.requestId,
+    userAgent: ctx.metadata.userAgent,
+    gatewayId: ctx.gatewayId,
   });
 }
 

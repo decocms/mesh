@@ -88,7 +88,7 @@ export const bindingClient = <TDefinition extends readonly ToolBinder[]>(
   };
 };
 
-export type MCPBindingClient<T extends ReturnType<typeof bindingClient>> =
+export type MCPBindingClient<T extends ReturnType<typeof bindingClient<any>>> =
   ReturnType<T["forConnection"]>;
 
 export const ChannelBinding = bindingClient(CHANNEL_BINDING);

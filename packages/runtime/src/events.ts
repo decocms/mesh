@@ -4,6 +4,7 @@ import type {
   OnEventsOutput,
 } from "@decocms/bindings";
 import z from "zod";
+import { isBinding } from "./bindings.ts";
 
 // ============================================================================
 // Types
@@ -12,11 +13,6 @@ import z from "zod";
 export interface EventSubscription {
   eventType: string;
   publisher: string;
-}
-
-interface Binding {
-  __type: string;
-  value: string;
 }
 
 /**
@@ -118,17 +114,6 @@ export type BindingKeysOf<T> = {
 // Type Guards
 // ============================================================================
 
-const isBinding = (v: unknown): v is Binding => {
-  return (
-    typeof v === "object" &&
-    v !== null &&
-    "__type" in v &&
-    typeof v.__type === "string" &&
-    "value" in v &&
-    typeof v.value === "string"
-  );
-};
-
 /**
  * Check if handlers is a global batch handler (has handler + events at top level)
  */
@@ -197,28 +182,6 @@ const getEventTypesForBinding = <TEnv, TSchema extends z.ZodTypeAny>(
   }
   // Per-event handlers - event types are the keys
   return Object.keys(bindingHandler);
-};
-
-/**
- * Get scopes from event handlers for subscription
- */
-const scopesFromEvents = <TEnv, TSchema extends z.ZodTypeAny = never>(
-  handlers: EventHandlers<TEnv, TSchema>,
-): string[] => {
-  if (isGlobalHandler<TEnv>(handlers)) {
-    // Global handler - scopes are based on explicit events array
-    // Note: "*" binding means all bindings
-    return handlers.events.map((event) => `*::event@${event}`);
-  }
-
-  const scopes: string[] = [];
-  for (const binding of getBindingKeys(handlers)) {
-    const eventTypes = getEventTypesForBinding(handlers, binding);
-    for (const eventType of eventTypes) {
-      scopes.push(`${binding}::event@${eventType}`);
-    }
-  }
-  return scopes;
 };
 
 /**
@@ -505,6 +468,5 @@ const executeEventHandlers = async <TEnv, TSchema extends z.ZodTypeAny>(
  */
 export const Event = {
   subscriptions: eventsSubscriptions,
-  scopes: scopesFromEvents,
   execute: executeEventHandlers,
 };

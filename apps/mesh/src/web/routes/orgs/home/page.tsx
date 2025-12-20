@@ -136,45 +136,17 @@ export default function OrgHomePage() {
         <div className="h-full">
           {/* Grid with internal dividers only */}
           <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-[auto_1fr] gap-[0.5px] bg-border h-full">
-            {/* Row 1: 3 KPI bar charts */}
-            <div className="lg:col-span-2">
+            {/* Row 1: 3 KPI bar charts in a single row */}
+            <div className="lg:col-span-6">
               <ErrorBoundary
                 fallback={
                   <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load tool calls
+                    Failed to load monitoring stats
                   </div>
                 }
               >
-                <Suspense fallback={<MonitoringKPIs.ToolCalls.Skeleton />}>
-                  <MonitoringKPIs.ToolCalls />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-
-            <div className="lg:col-span-2">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load error rate
-                  </div>
-                }
-              >
-                <Suspense fallback={<MonitoringKPIs.ErrorRate.Skeleton />}>
-                  <MonitoringKPIs.ErrorRate />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-
-            <div className="lg:col-span-2">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load latency
-                  </div>
-                }
-              >
-                <Suspense fallback={<MonitoringKPIs.Latency.Skeleton />}>
-                  <MonitoringKPIs.Latency />
+                <Suspense fallback={<MonitoringKPIs.Skeleton />}>
+                  <MonitoringKPIs.Content />
                 </Suspense>
               </ErrorBoundary>
             </div>

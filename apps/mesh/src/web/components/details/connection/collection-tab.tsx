@@ -187,6 +187,7 @@ export function CollectionTab({
       onClick={handleCreate}
       size="sm"
       disabled={actions.create.isPending}
+      className="h-7"
     >
       <Plus className="mr-2 h-4 w-4" />
       {actions.create.isPending ? "Creating..." : "Create"}

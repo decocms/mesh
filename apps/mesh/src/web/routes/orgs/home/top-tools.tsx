@@ -1,5 +1,9 @@
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import {
+  type MonitoringLog,
+  type MonitoringLogsResponse,
+} from "@/web/components/monitoring/monitoring-stats-row.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -11,22 +15,6 @@ import {
 } from "@deco/ui/components/chart.tsx";
 import { Pie, PieChart, Cell } from "recharts";
 import { HomeGridCell } from "./home-grid-cell.tsx";
-
-interface MonitoringLog {
-  id: string;
-  connectionId: string;
-  connectionTitle: string;
-  toolName: string;
-  isError: boolean;
-  errorMessage: string | null;
-  durationMs: number;
-  timestamp: string;
-}
-
-interface MonitoringLogsResponse {
-  logs: MonitoringLog[];
-  total: number;
-}
 
 type ToolAgg = {
   tool: string;

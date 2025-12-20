@@ -1,7 +1,6 @@
 import { createToolCaller } from "@/tools/client";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { ConnectionEntitySchema } from "@/tools/connection/schema";
-import { AddToCursorButton } from "@/web/components/add-to-cursor-button.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -1008,11 +1007,6 @@ function CursorIDEIntegration({
           and permissions are handled automatically through Mesh.
         </p>
       </div>
-      <AddToCursorButton
-        serverName={connection.title || `mcp-${connection.id.slice(0, 8)}`}
-        config={mcpConfig}
-        variant="default"
-      />
     </div>
   );
 }
