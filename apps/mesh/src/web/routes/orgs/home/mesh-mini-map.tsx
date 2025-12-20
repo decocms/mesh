@@ -405,7 +405,7 @@ function MeshMiniMapContent() {
 
 // ---------- Skeleton ----------
 
-export function MeshMiniMapSkeleton() {
+function MeshMiniMapSkeleton() {
   return (
     <div className="bg-background p-5 h-full flex items-center justify-center">
       <div className="flex items-center gap-16">
