@@ -36,7 +36,7 @@ import {
   useNodeMetrics,
 } from "./use-node-metrics";
 
-const MAX_ITEMS = 5;
+const MAX_ITEMS = 10;
 const GATEWAY_NODE_HEIGHT = 56;
 const SERVER_NODE_HEIGHT = 56;
 const NODE_WIDTH = 220;
@@ -226,7 +226,7 @@ function MeshMiniMapContent() {
   const { org } = useProjectContext();
   const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
 
-  // Fetch first 3 of each
+  // Fetch first MAX_ITEMS of each
   const rawGateways: GatewayEntity[] = useGateways({ pageSize: MAX_ITEMS });
   const rawConnections: ConnectionEntity[] = useConnections({
     pageSize: MAX_ITEMS,
@@ -236,7 +236,7 @@ function MeshMiniMapContent() {
   const nodeMetrics = useNodeMetrics();
 
   // Sort gateways and connections by metric value (descending - bigger on top)
-  const gateways = [...rawGateways].sort((a, b) => {
+  const sortedGateways = [...rawGateways].sort((a, b) => {
     const aValue = getMetricNumericValue(
       nodeMetrics.gateways.get(a.id),
       metricsMode,
@@ -248,7 +248,7 @@ function MeshMiniMapContent() {
     return bValue - aValue;
   });
 
-  const connections = [...rawConnections].sort((a, b) => {
+  const sortedConnections = [...rawConnections].sort((a, b) => {
     const aValue = getMetricNumericValue(
       nodeMetrics.connections.get(a.id),
       metricsMode,
@@ -260,16 +260,19 @@ function MeshMiniMapContent() {
     return bValue - aValue;
   });
 
-  // Build nodes
-  const nodes: Node[] = [];
-  const edges: Edge[] = [];
   const colorScheme = COLOR_SCHEMES[metricsMode];
-  const animatedDottedEdgeStyle = {
-    stroke: colorScheme.edgeColor,
-    strokeWidth: 1.5,
-    strokeDasharray: "1 6",
-    strokeLinecap: "round",
-  } as const;
+
+  // Build position maps based on sorted order
+  // This allows us to maintain consistent array order while changing positions
+  const gatewayPositionMap = new Map<string, number>();
+  sortedGateways.forEach((gateway, sortedIndex) => {
+    gatewayPositionMap.set(gateway.id, sortedIndex);
+  });
+
+  const connectionPositionMap = new Map<string, number>();
+  sortedConnections.forEach((connection, sortedIndex) => {
+    connectionPositionMap.set(connection.id, sortedIndex);
+  });
 
   // Layout constants
   const leftX = 0;
@@ -279,17 +282,29 @@ function MeshMiniMapContent() {
   const nodeSpacing = 70;
 
   // Calculate vertical centering
-  const leftCount = gateways.length;
-  const rightCount = connections.length;
+  const leftCount = rawGateways.length;
+  const rightCount = rawConnections.length;
   const maxCount = Math.max(leftCount, rightCount, 1);
   const totalHeight = (maxCount - 1) * nodeSpacing;
   const centerStartY = -totalHeight / 2;
 
+  const animatedDottedEdgeStyle = {
+    stroke: colorScheme.edgeColor,
+    strokeWidth: 1.5,
+    strokeDasharray: "1 6",
+    strokeLinecap: "round",
+  } as const;
+
+  // Build nodes and edges - iterate in consistent order (rawGateways/rawConnections)
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+
   // Gateway nodes (left side)
-  gateways.forEach((gateway, i) => {
+  rawGateways.forEach((gateway) => {
+    const sortedIndex = gatewayPositionMap.get(gateway.id) ?? 0;
     const leftCenterStartY =
       centerStartY + ((maxCount - leftCount) * nodeSpacing) / 2;
-    const centerY = leftCenterStartY + i * nodeSpacing;
+    const centerY = leftCenterStartY + sortedIndex * nodeSpacing;
     nodes.push({
       id: `gateway-${gateway.id}`,
       type: "gateway",
@@ -310,7 +325,10 @@ function MeshMiniMapContent() {
       target: "mesh",
       type: "smoothstep",
       animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, color: colorScheme.edgeColor },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: colorScheme.edgeColor,
+      },
       style: animatedDottedEdgeStyle,
     });
   });
@@ -326,10 +344,11 @@ function MeshMiniMapContent() {
   });
 
   // Server nodes (right side)
-  connections.forEach((connection, i) => {
+  rawConnections.forEach((connection) => {
+    const sortedIndex = connectionPositionMap.get(connection.id) ?? 0;
     const rightCenterStartY =
       centerStartY + ((maxCount - rightCount) * nodeSpacing) / 2;
-    const centerY = rightCenterStartY + i * nodeSpacing;
+    const centerY = rightCenterStartY + sortedIndex * nodeSpacing;
     nodes.push({
       id: `server-${connection.id}`,
       type: "server",
@@ -350,7 +369,10 @@ function MeshMiniMapContent() {
       target: `server-${connection.id}`,
       type: "smoothstep",
       animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, color: colorScheme.edgeColor },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: colorScheme.edgeColor,
+      },
       style: animatedDottedEdgeStyle,
     });
   });
