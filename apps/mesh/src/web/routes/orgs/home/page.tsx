@@ -1,8 +1,8 @@
 /**
  * Organization Home Page
  *
- * Displays a mesh visualization showing gateways → MCP Mesh → servers
- * with integrated metrics (Requests / Errors / Latency).
+ * Displays either a mesh visualization (graph view) or dashboard view
+ * with KPIs, recent activity, and top tools.
  */
 
 import type { ConnectionEntity } from "@/tools/connection/schema";
@@ -27,6 +27,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@deco/ui/components/toggle-group.tsx";
+import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -39,11 +40,19 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Suspense, useState } from "react";
+import { MonitoringKPIs } from "./monitoring-kpis.tsx";
+import {
+  hasMonitoringActivity,
+  type MonitoringStats,
+} from "./monitoring-types.ts";
+import { RecentActivity } from "./recent-activity.tsx";
+import { TopTools } from "./top-tools.tsx";
 
 // ============================================================================
 // Types
 // ============================================================================
 
+type ViewMode = "graph" | "dashboard";
 type MetricsMode = "requests" | "errors" | "latency";
 
 interface NodeMetric {
@@ -56,13 +65,6 @@ interface NodeMetric {
 interface NodeMetricsMap {
   gateways: Map<string, NodeMetric>;
   connections: Map<string, NodeMetric>;
-}
-
-interface MonitoringStats {
-  totalCalls: number;
-  errorRate: number;
-  avgDurationMs: number;
-  errorRatePercent: string;
 }
 
 interface ColorScheme {
@@ -101,32 +103,28 @@ const MESH_NODE_SIZE = 56;
 
 const COLOR_SCHEMES: Record<MetricsMode, ColorScheme> = {
   requests: {
-    edgeColor: "#10b981",
-    textClass: "text-emerald-600 dark:text-emerald-400",
-    borderClass: "border-emerald-500/40",
-    dotColor: "rgba(16, 185, 129, 0.3)",
+    edgeColor: "var(--chart-2)",
+    textClass: "text-chart-2",
+    borderClass: "border-chart-2/40",
+    dotColor: "color-mix(in srgb, var(--chart-2) 30%, transparent)",
   },
   errors: {
-    edgeColor: "#ef4444",
-    textClass: "text-red-600 dark:text-red-400",
-    borderClass: "border-red-500/40",
-    dotColor: "rgba(239, 68, 68, 0.3)",
+    edgeColor: "var(--chart-5)",
+    textClass: "text-chart-5",
+    borderClass: "border-chart-5/40",
+    dotColor: "color-mix(in srgb, var(--chart-5) 30%, transparent)",
   },
   latency: {
-    edgeColor: "#8b5cf6",
-    textClass: "text-violet-600 dark:text-violet-400",
-    borderClass: "border-violet-500/40",
-    dotColor: "rgba(139, 92, 246, 0.3)",
+    edgeColor: "var(--chart-3)",
+    textClass: "text-chart-3",
+    borderClass: "border-chart-3/40",
+    dotColor: "color-mix(in srgb, var(--chart-3) 30%, transparent)",
   },
 };
 
 // ============================================================================
 // Helpers
 // ============================================================================
-
-function hasMonitoringActivity(stats?: MonitoringStats | null): boolean {
-  return (stats?.totalCalls ?? 0) > 0;
-}
 
 function aggregateMetrics(logs: MonitoringLogWithGateway[]): NodeMetricsMap {
   const gatewayMetrics = new Map<
@@ -733,12 +731,106 @@ function WelcomeOverlay() {
 }
 
 // ============================================================================
+// Dashboard View
+// ============================================================================
+
+function DashboardView() {
+  return (
+    <div className="h-full">
+      {/* Grid with internal dividers only */}
+      <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-[auto_1fr] gap-[0.5px] bg-border h-full">
+        {/* Row 1: 3 KPI bar charts */}
+        <div className="lg:col-span-2">
+          <ErrorBoundary
+            fallback={
+              <div className="bg-background p-5 text-sm text-muted-foreground">
+                Failed to load tool calls
+              </div>
+            }
+          >
+            <Suspense fallback={<MonitoringKPIs.ToolCalls.Skeleton />}>
+              <MonitoringKPIs.ToolCalls />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+
+        <div className="lg:col-span-2">
+          <ErrorBoundary
+            fallback={
+              <div className="bg-background p-5 text-sm text-muted-foreground">
+                Failed to load error rate
+              </div>
+            }
+          >
+            <Suspense fallback={<MonitoringKPIs.ErrorRate.Skeleton />}>
+              <MonitoringKPIs.ErrorRate />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+
+        <div className="lg:col-span-2">
+          <ErrorBoundary
+            fallback={
+              <div className="bg-background p-5 text-sm text-muted-foreground">
+                Failed to load latency
+              </div>
+            }
+          >
+            <Suspense fallback={<MonitoringKPIs.Latency.Skeleton />}>
+              <MonitoringKPIs.Latency />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+
+        {/* Row 2: Recent Activity + Top Tools */}
+        <div className="lg:col-span-3 min-h-0 overflow-hidden">
+          <ErrorBoundary
+            fallback={
+              <div className="bg-background p-5 text-sm text-muted-foreground">
+                Failed to load recent activity
+              </div>
+            }
+          >
+            <Suspense fallback={<RecentActivity.Skeleton />}>
+              <RecentActivity />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+
+        <div className="lg:col-span-3 min-h-0 overflow-hidden">
+          <ErrorBoundary
+            fallback={
+              <div className="bg-background p-5 text-sm text-muted-foreground">
+                Failed to load top tools
+              </div>
+            }
+          >
+            <Suspense fallback={<TopTools.Skeleton />}>
+              <TopTools />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // Main Page Component
 // ============================================================================
 
 export default function OrgHomePage() {
   const { org } = useProjectContext();
   const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const stored = localStorage.getItem("org-home-view-mode");
+    return stored === "dashboard" || stored === "graph" ? stored : "dashboard";
+  });
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem("org-home-view-mode", mode);
+  };
 
   const handleAddMcp = () => {
     navigate({
@@ -755,82 +847,45 @@ export default function OrgHomePage() {
       <CollectionHeader
         title={org.name}
         ctaButton={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-3"
-            onClick={handleAddMcp}
-          >
-            <Icon name="add" size={16} />
-            Connect MCP Server
-          </Button>
+          <div className="flex items-center gap-2">
+            <ViewModeToggle
+              value={viewMode}
+              onValueChange={handleViewModeChange}
+              size="sm"
+              options={[
+                { value: "dashboard", icon: "bar_chart" },
+                { value: "graph", icon: "account_tree" },
+              ]}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-3"
+              onClick={handleAddMcp}
+            >
+              <Icon name="add" size={16} />
+              Connect MCP Server
+            </Button>
+          </div>
         }
       />
 
       <div className="flex-1 overflow-auto relative">
-        <div className="min-h-full">
-          {/* Grid with internal dividers only */}
-          <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-[420px_auto_1fr] gap-[0.5px] bg-border">
-            {/* Row 0: Mesh Mini Map */}
-            <div className="lg:col-span-6">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load mesh visualization
-                  </div>
-                }
-              >
-                <Suspense fallback={<MeshMiniMap.Skeleton />}>
-                  <MeshMiniMap />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-
-            {/* Row 2: 3 KPI bar charts */}
-            <div className="lg:col-span-2">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load monitoring stats
-                  </div>
-                }
-              >
-                <Suspense fallback={<MonitoringKPIs.Skeleton />}>
-                  <MonitoringKPIs.Content />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-
-            {/* Row 3: Recent Activity + Top Tools */}
-            <div className="lg:col-span-3 min-h-0 overflow-hidden">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load recent activity
-                  </div>
-                }
-              >
-                <Suspense fallback={<RecentActivity.Skeleton />}>
-                  <RecentActivity />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-
-            <div className="lg:col-span-3 min-h-0 overflow-hidden">
-              <ErrorBoundary
-                fallback={
-                  <div className="bg-background p-5 text-sm text-muted-foreground">
-                    Failed to load top tools
-                  </div>
-                }
-              >
-                <Suspense fallback={<TopTools.Skeleton />}>
-                  <TopTools />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-          </div>
-        </div>
+        {viewMode === "graph" ? (
+          <ErrorBoundary
+            fallback={
+              <div className="bg-background p-5 text-sm text-muted-foreground h-full flex items-center justify-center">
+                Failed to load mesh visualization
+              </div>
+            }
+          >
+            <Suspense fallback={<MeshVisualizationSkeleton />}>
+              <MeshVisualization />
+            </Suspense>
+          </ErrorBoundary>
+        ) : (
+          <DashboardView />
+        )}
       </div>
     </CollectionPage>
   );
