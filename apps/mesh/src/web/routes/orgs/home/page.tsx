@@ -19,10 +19,6 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { useNavigate } from "@tanstack/react-router";
-import { Suspense } from "react";
-import { MeshMiniMap } from "./mesh-mini-map.tsx";
-import { MonitoringKPIs } from "./monitoring-kpis.tsx";
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -103,22 +99,22 @@ const MESH_NODE_SIZE = 56;
 
 const COLOR_SCHEMES: Record<MetricsMode, ColorScheme> = {
   requests: {
-    edgeColor: "var(--chart-2)",
-    textClass: "text-chart-2",
-    borderClass: "border-chart-2/40",
-    dotColor: "color-mix(in srgb, var(--chart-2) 30%, transparent)",
+    edgeColor: "var(--chart-1)",
+    textClass: "text-chart-1",
+    borderClass: "border-chart-1/40",
+    dotColor: "color-mix(in srgb, var(--chart-1) 30%, transparent)",
   },
   errors: {
-    edgeColor: "var(--chart-5)",
-    textClass: "text-chart-5",
-    borderClass: "border-chart-5/40",
-    dotColor: "color-mix(in srgb, var(--chart-5) 30%, transparent)",
-  },
-  latency: {
     edgeColor: "var(--chart-3)",
     textClass: "text-chart-3",
     borderClass: "border-chart-3/40",
     dotColor: "color-mix(in srgb, var(--chart-3) 30%, transparent)",
+  },
+  latency: {
+    edgeColor: "var(--chart-4)",
+    textClass: "text-chart-4",
+    borderClass: "border-chart-4/40",
+    dotColor: "color-mix(in srgb, var(--chart-4) 30%, transparent)",
   },
 };
 
@@ -307,7 +303,12 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
       <Handle
         type="source"
         position={Position.Right}
-        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
+        style={{
+          width: "8px",
+          height: "8px",
+          background: data.colorScheme.edgeColor,
+          border: "none",
+        }}
       />
     </button>
   );
@@ -350,7 +351,14 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
       <Handle
         type="target"
         position={Position.Left}
-        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
+        style={{
+          width: "8px",
+          height: "8px",
+          background: "var(--background)",
+          border: `1px solid ${data.colorScheme.edgeColor}`,
+          pointerEvents: "none",
+          cursor: "default",
+        }}
       />
       <IntegrationIcon
         icon={data.connection.icon}
@@ -377,6 +385,7 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
 
 interface MeshNodeData extends Record<string, unknown> {
   org: string;
+  colorScheme: ColorScheme;
 }
 
 function MeshNode({ data }: NodeProps<Node<MeshNodeData>>) {
@@ -398,13 +407,27 @@ function MeshNode({ data }: NodeProps<Node<MeshNodeData>>) {
       <Handle
         type="target"
         position={Position.Left}
-        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
+        style={{
+          width: "8px",
+          height: "8px",
+          background: "var(--background)",
+          border: `1px solid ${data.colorScheme.edgeColor}`,
+          pointerEvents: "none",
+          cursor: "default",
+        }}
       />
       <img src="/logos/deco logo.svg" alt="Deco" className="h-8 w-8" />
       <Handle
         type="source"
         position={Position.Right}
-        className="w-2! h-2! bg-transparent! border-0! opacity-0!"
+        style={{
+          width: "8px",
+          height: "8px",
+          background: "var(--background)",
+          border: `1px solid ${data.colorScheme.edgeColor}`,
+          pointerEvents: "none",
+          cursor: "default",
+        }}
       />
     </button>
   );
@@ -540,7 +563,7 @@ function MeshVisualization() {
     id: "mesh",
     type: "mesh",
     position: { x: meshX, y: -MESH_NODE_SIZE / 2 },
-    data: { org: org.slug },
+    data: { org: org.slug, colorScheme },
     draggable: false,
     selectable: false,
   });
