@@ -120,7 +120,8 @@ console.log("");
 if (!values["skip-migrations"]) {
   console.log(`${dim}Running database migrations...${reset}`);
   try {
-    await import("./database/migrate");
+    const { migrateToLatest } = await import("./database/migrate");
+    await migrateToLatest();
     console.log(`${dim}Migrations complete.${reset}`);
     console.log("");
   } catch (error) {

@@ -1,6 +1,6 @@
 {
   "name": "@decocms/mesh",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "description": "MCP Mesh - Self-hostable MCP Gateway for managing AI connections and tools",
   "license": "MIT",
   "author": "Deco team",
