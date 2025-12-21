@@ -20,6 +20,7 @@ import { $ } from "bun";
 const SCRIPT_DIR =
   import.meta.dir || dirname(new URL(import.meta.url).pathname);
 const SERVER_ENTRY_POINT = join(SCRIPT_DIR, "../src/index.ts");
+const CLI_ENTRY_POINT = join(SCRIPT_DIR, "../src/cli.ts");
 const MIGRATE_ENTRY_POINT = "kysely-bun-worker";
 
 // Parse command line arguments
@@ -132,9 +133,17 @@ async function pruneNodeModules(): Promise<Set<string>> {
   }
   console.log(`📦 Server entry point: ${serverEntryPointPath}`);
 
-  // Trace all file dependencies for both entry points
+  // Resolve CLI entry point to absolute path
+  const cliEntryPointPath = resolve(CLI_ENTRY_POINT);
+  if (!existsSync(cliEntryPointPath)) {
+    console.error(`❌ CLI entry point not found: ${cliEntryPointPath}`);
+    process.exit(1);
+  }
+  console.log(`📦 CLI entry point: ${cliEntryPointPath}`);
+
+  // Trace all file dependencies for all entry points
   const { fileList } = await nodeFileTrace(
-    [migrateEntryPointPath, serverEntryPointPath],
+    [migrateEntryPointPath, serverEntryPointPath, cliEntryPointPath],
     {
       base: WORKSPACE_ROOT,
     },
@@ -282,18 +291,59 @@ async function buildServerScript(packagesToExternalize: Set<string>) {
   console.log(`✅ server.js built successfully at ${serverOutputPath}`);
 }
 
+async function buildCliScript(packagesToExternalize: Set<string>) {
+  console.log("🔨 Building cli.js...");
+
+  const cliSourcePath = CLI_ENTRY_POINT;
+  const cliOutputPath = join(OUTPUT_DIR, "cli.js");
+
+  // Ensure output directory exists
+  await mkdir(OUTPUT_DIR, { recursive: true });
+
+  const commandsParts = [
+    "bun",
+    "build",
+    cliSourcePath,
+    "--target",
+    "bun",
+    "--minify",
+    "--production",
+    "--outfile",
+    cliOutputPath,
+    "--external",
+    "bun:sqlite",
+  ];
+
+  for (const pkg of packagesToExternalize) {
+    commandsParts.push("--external", pkg);
+  }
+
+  console.log(`🔨 Running command: ${commandsParts.join(" ")}`);
+  // Build cli.js
+  await $`${commandsParts}`.quiet();
+
+  if (!existsSync(cliOutputPath)) {
+    console.error("❌ Failed to build cli.js");
+    process.exit(1);
+  }
+
+  console.log(`✅ cli.js built successfully at ${cliOutputPath}`);
+}
+
 async function main() {
   // Prune node_modules to only include required dependencies for both scripts
   const packagesToExternalize = await pruneNodeModules();
 
-  // Build both migrate.js and server.js
+  // Build migrate.js, server.js, and cli.js
   await buildMigrateScript(packagesToExternalize);
   await buildServerScript(packagesToExternalize);
+  await buildCliScript(packagesToExternalize);
 
   console.log("\n🎉 Build completed successfully!");
   console.log(`📦 Output directory: ${OUTPUT_DIR}`);
   console.log(`   - migrate.js`);
   console.log(`   - server.js`);
+  console.log(`   - cli.js`);
   console.log(`   - node_modules/`);
 }
 
