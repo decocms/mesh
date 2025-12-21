@@ -151,7 +151,8 @@ if (!values["skip-migrations"]) {
   console.log(`${dim}Running database migrations...${reset}`);
   try {
     const { migrateToLatest } = await import("./database/migrate");
-    await migrateToLatest();
+    // Keep database connection open since server will use it
+    await migrateToLatest({ keepOpen: true });
     console.log(`${dim}Migrations complete.${reset}`);
     console.log("");
   } catch (error) {

@@ -12,17 +12,22 @@ import app from "./api";
 
 const port = parseInt(process.env.PORT || "3000", 10);
 
-// Log startup info
-const dim = "\x1b[2m";
+// ANSI color codes
 const reset = "\x1b[0m";
+const bold = "\x1b[1m";
+const dim = "\x1b[2m";
+const green = "\x1b[32m";
+const cyan = "\x1b[36m";
+const underline = "\x1b[4m";
 
-console.log("✅ MCP Mesh starting...");
+const url = `http://localhost:${port}`;
+
 console.log("");
-console.log(`${dim}📋 Health check:  http://0.0.0.0:${port}/health${reset}`);
+console.log(`${green}✓${reset} ${bold}Ready${reset}`);
+console.log("");
 console.log(
-  `${dim}🔐 Auth endpoints: http://0.0.0.0:${port}/api/auth/*${reset}`,
+  `  ${dim}Open in browser:${reset}  ${cyan}${underline}${url}${reset}`,
 );
-console.log(`${dim}🔧 MCP endpoint:   http://0.0.0.0:${port}/mcp${reset}`);
 console.log("");
 
 Bun.serve({
