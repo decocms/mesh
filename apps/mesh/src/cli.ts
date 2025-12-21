@@ -56,7 +56,7 @@ Environment Variables:
   PORT                  Port to listen on (default: 3000)
   DATABASE_URL          Database connection URL (default: file:./data/mesh.db)
   NODE_ENV              Set to 'production' for production mode
-  AUTH_SECRET           Secret for authentication (auto-generated if not set)
+  BETTER_AUTH_SECRET    Secret for authentication (auto-generated if not set)
   ENCRYPTION_KEY        Key for encrypting secrets (auto-generated if not set)
 
 Examples:
@@ -106,14 +106,44 @@ if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = "production";
 }
 
+// ANSI color codes
 const dim = "\x1b[2m";
 const reset = "\x1b[0m";
 const bold = "\x1b[1m";
 const cyan = "\x1b[36m";
+const yellow = "\x1b[33m";
+
+// Generate temporary secrets if not provided
+// This allows users to try the app without setting up environment variables
+const crypto = await import("crypto");
+let showSecretWarning = false;
+
+if (!process.env.BETTER_AUTH_SECRET) {
+  process.env.BETTER_AUTH_SECRET = crypto.randomBytes(32).toString("base64");
+  showSecretWarning = true;
+}
+
+if (!process.env.ENCRYPTION_KEY) {
+  process.env.ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+  showSecretWarning = true;
+}
 
 console.log("");
 console.log(`${bold}${cyan}MCP Mesh${reset}`);
 console.log(`${dim}Self-hostable MCP Gateway${reset}`);
+
+if (showSecretWarning) {
+  console.log("");
+  console.log(
+    `${yellow}⚠️  Using temporary secrets - sessions/credentials won't persist across restarts.${reset}`,
+  );
+  console.log(
+    `${dim}   For production, set these environment variables:${reset}`,
+  );
+  console.log(`${dim}   BETTER_AUTH_SECRET=$(openssl rand -base64 32)${reset}`);
+  console.log(`${dim}   ENCRYPTION_KEY=$(openssl rand -hex 32)${reset}`);
+}
+
 console.log("");
 
 // Run migrations unless skipped

@@ -16,6 +16,7 @@
     "apps/mesh": {
       "entry": [
         "src/index.ts",
+        "src/cli.ts",
         "src/web/index.tsx!",
         "migrations/**/*.ts",
         "scripts/**/*.ts"
