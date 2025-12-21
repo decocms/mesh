@@ -41,8 +41,6 @@ type OrganizationSettingsFormValues = z.infer<
   typeof organizationSettingsSchema
 >;
 
-type SettingsSection = "organization" | "connection";
-
 function LogoUpload({
   value,
   onChange,
@@ -170,8 +168,6 @@ export default function OrgSettings() {
   const { org } = useProjectContext();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
-  const [activeSection, setActiveSection] =
-    useState<SettingsSection>("organization");
 
   const form = useForm<OrganizationSettingsFormValues>({
     resolver: zodResolver(organizationSettingsSchema),
@@ -247,38 +243,9 @@ export default function OrgSettings() {
 
       <div className="flex-1 overflow-auto">
         <div className="flex h-full">
-          {/* Sidebar */}
-          <div className="w-64 border-r border-border bg-background">
-            <nav className="p-5 space-y-1">
-              <button
-                onClick={() => setActiveSection("organization")}
-                className={cn(
-                  "w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                  activeSection === "organization"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                )}
-              >
-                Organization
-              </button>
-              <button
-                onClick={() => setActiveSection("connection")}
-                className={cn(
-                  "w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                  activeSection === "connection"
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                )}
-              >
-                Connection
-              </button>
-            </nav>
-          </div>
-
           {/* Content */}
           <div className="flex-1 overflow-auto">
             <div className="p-5 max-w-2xl">
-              {activeSection === "organization" && (
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-lg font-semibold text-foreground">
@@ -381,34 +348,6 @@ export default function OrgSettings() {
                     </form>
                   </Form>
                 </div>
-              )}
-
-              {activeSection === "connection" && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">
-                      Connection
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Models and agents are automatically discovered from your
-                      MCP connections.
-                    </p>
-                  </div>
-
-                  <div>
-                    <Button
-                      onClick={() =>
-                        navigate({
-                          to: "/$org/mcps",
-                          params: { org: org.slug },
-                        })
-                      }
-                    >
-                      Manage Connections
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
