@@ -181,7 +181,8 @@ export function createApp(options: CreateAppOptions = {}) {
   app.all("/oauth-proxy/:connectionId/*", async (c) => {
     const connectionId = c.req.param("connectionId");
     // Extract endpoint from path: /oauth-proxy/conn_xxx/register -> register
-    const pathParts = c.req.path.split("/");
+    // Filter empty parts to handle trailing slashes
+    const pathParts = c.req.path.split("/").filter(Boolean);
     const endpoint = pathParts[pathParts.length - 1];
 
     // Get or create context

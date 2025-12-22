@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
 import { OAuthAuthenticationState } from "./connection/settings-tab";
-import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
+import { useIsMCPAuthenticated } from "@/web/hooks/use-is-mcp-authenticated";
 import { useMcp } from "@/web/hooks/use-mcp";
 
 export interface ToolDetailsViewProps {

@@ -6,7 +6,7 @@ import {
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
 import { useCollectionBindings } from "@/web/hooks/use-binding";
-import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
+import { useIsMCPAuthenticated } from "@/web/hooks/use-is-mcp-authenticated";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";

@@ -5,8 +5,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 /**
  * Hook to verify if an OAuth token is valid
  * Uses Suspense for loading states - wrap components in <Suspense> and <ErrorBoundary>.
- * @param connectionUrl - Connection URL
- * @param connectionToken - Connection token
+ * @param connectionId - Connection ID
  * @returns isMCPAuthenticated - true if authenticated, false otherwise
  */
 export function useIsMCPAuthenticated({
