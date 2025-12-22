@@ -49,7 +49,7 @@ const ConnectionItem = memo(function ConnectionItem({
         <IntegrationIcon
           icon={connection.icon}
           name={connection.title}
-          size="sm"
+          size="xs"
         />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">
@@ -317,37 +317,6 @@ export function ToolSetSelector({
       <div className="flex-1 flex flex-col">
         {selectedConnection ? (
           <>
-            {/* Connection Header */}
-            <div className="p-4 border-b border-border">
-              <div className="flex items-center gap-3">
-                <IntegrationIcon
-                  icon={selectedConnection.icon}
-                  name={selectedConnection.title}
-                  size="md"
-                />
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-medium text-foreground">
-                    {selectedConnection.title}
-                  </h3>
-                  {selectedConnection.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {selectedConnection.description}
-                    </p>
-                  )}
-                </div>
-                {connectionTools.length > 0 && (
-                  <div className="flex items-center shrink-0 pr-3">
-                    <Checkbox
-                      checked={isConnectionSelected(selectedConnection.id)}
-                      onCheckedChange={() =>
-                        toggleConnection(selectedConnection.id)
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Tools List */}
             <div className="flex-1 overflow-auto p-4">
               {connectionTools.length === 0 ? (

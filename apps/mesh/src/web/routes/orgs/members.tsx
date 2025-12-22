@@ -2,7 +2,7 @@ import { CollectionHeader } from "@/web/components/collections/collection-header
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
-import { CreateRoleDialog } from "@/web/components/create-role-dialog";
+import { ManageRolesDialog } from "@/web/components/manage-roles-dialog";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { InviteMemberDialog } from "@/web/components/invite-member-dialog";
@@ -22,7 +22,6 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import type { TableColumn } from "@deco/ui/components/collection-table.tsx";
@@ -37,9 +36,46 @@ import {
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+
+// Role colors matching manage-roles-dialog
+const ROLE_COLORS = [
+  "bg-neutral-400",
+  "bg-red-500",
+  "bg-orange-500",
+  "bg-amber-500",
+  "bg-yellow-500",
+  "bg-lime-500",
+  "bg-green-500",
+  "bg-emerald-500",
+  "bg-teal-500",
+  "bg-cyan-500",
+  "bg-sky-500",
+  "bg-blue-500",
+  "bg-indigo-500",
+  "bg-violet-500",
+  "bg-purple-500",
+  "bg-fuchsia-500",
+  "bg-pink-500",
+  "bg-rose-500",
+  "bg-slate-500",
+] as const;
+
+const BUILTIN_ROLE_COLORS: Record<string, string> = {
+  owner: "bg-red-500",
+  admin: "bg-blue-500",
+  user: "bg-green-500",
+};
 
 function getInitials(name?: string) {
   if (!name) return "?";
@@ -51,15 +87,96 @@ function getInitials(name?: string) {
     .slice(0, 2);
 }
 
-function getRoleBadgeVariant(role: string) {
-  switch (role) {
-    case "owner":
-      return "default";
-    case "admin":
-      return "secondary";
-    default:
-      return "outline";
+// Create a Map for O(1) role color lookups
+function createRoleColorMap(
+  customRoles: Array<{ role: string }>,
+): Map<string, string> {
+  const colorMap = new Map<string, string>();
+
+  // Add built-in role colors
+  for (const [role, color] of Object.entries(BUILTIN_ROLE_COLORS)) {
+    colorMap.set(role, color);
   }
+
+  // Add custom role colors
+  for (let i = 0; i < customRoles.length; i++) {
+    const role = customRoles[i];
+    if (role && !colorMap.has(role.role)) {
+      colorMap.set(
+        role.role,
+        ROLE_COLORS[i % ROLE_COLORS.length] ?? "bg-neutral-400",
+      );
+    }
+  }
+
+  return colorMap;
+}
+
+function formatJoinedDate(dateString: string | Date): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+interface RoleSelectorProps {
+  role: string;
+  memberId: string;
+  isOwner: boolean;
+  roleColorMap: Map<string, string>;
+  selectableRoles: Array<{
+    role: string;
+    label: string;
+    isBuiltin: boolean;
+  }>;
+  onRoleChange: (memberId: string, role: string) => void;
+  size?: "xs" | "sm";
+  className?: string;
+}
+
+function RoleSelector({
+  role,
+  memberId,
+  isOwner,
+  roleColorMap,
+  selectableRoles,
+  onRoleChange,
+  size = "xs",
+  className,
+}: RoleSelectorProps) {
+  const roleColor = roleColorMap.get(role) ?? "bg-neutral-400";
+
+  return (
+    <Select
+      value={role}
+      onValueChange={(newRole) => onRoleChange(memberId, newRole)}
+      disabled={isOwner}
+    >
+      <SelectTrigger size={size} className={className}>
+        <SelectValue>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={cn("size-2 rounded-full shrink-0", roleColor)} />
+            <span className="capitalize truncate">{role}</span>
+          </div>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {selectableRoles.map((r) => {
+          const color = roleColorMap.get(r.role) ?? "bg-neutral-400";
+          return (
+            <SelectItem key={r.role} value={r.role}>
+              <div className="flex items-center gap-2">
+                <div className={cn("size-3 rounded-full", color)} />
+                <span className="capitalize">{r.label}</span>
+              </div>
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
+  );
 }
 
 interface MemberActionsDropdownProps {
@@ -67,6 +184,17 @@ interface MemberActionsDropdownProps {
     id: string;
     role: string;
   };
+  roles: Array<{
+    role: string;
+    label: string;
+    isBuiltin: boolean;
+    allowsAllStaticPermissions?: boolean;
+    staticPermissionCount?: number;
+    allowsAllConnections?: boolean;
+    connectionCount?: number;
+    allowsAllTools?: boolean;
+    toolCount?: number;
+  }>;
   onChangeRole: (memberId: string, role: string) => void;
   onRemove: (memberId: string) => void;
   isUpdating?: boolean;
@@ -74,12 +202,12 @@ interface MemberActionsDropdownProps {
 
 function MemberActionsDropdown({
   member,
+  roles,
   onChangeRole,
   onRemove,
   isUpdating = false,
 }: MemberActionsDropdownProps) {
   const isOwner = member.role === "owner";
-  const { roles } = useOrganizationRoles();
 
   // Filter out the current role and owner role from options
   const availableRoles = roles.filter(
@@ -308,8 +436,18 @@ function OrgMembersContent() {
     },
   });
 
+  const { roles, customRoles } = useOrganizationRoles();
+
+  // Create role color map for O(1) lookups (instead of O(n) findIndex per render)
+  // React Compiler will handle memoization automatically
+  const roleColorMap = createRoleColorMap(customRoles);
+
+  // Filter selectable roles once (React Compiler will handle memoization)
+  const selectableRoles = roles.filter((role) => role.role !== "owner");
+
   type Member = NonNullable<typeof members>[number];
 
+  // React Compiler will handle memoization of this columns array
   const columns: TableColumn<Member>[] = [
     {
       id: "member",
@@ -339,22 +477,30 @@ function OrgMembersContent() {
       id: "role",
       header: "Role",
       render: (member) => (
-        <Badge variant={getRoleBadgeVariant(member.role)}>{member.role}</Badge>
+        <RoleSelector
+          role={member.role}
+          memberId={member.id}
+          isOwner={member.role === "owner"}
+          roleColorMap={roleColorMap}
+          selectableRoles={selectableRoles}
+          onRoleChange={(memberId, role) =>
+            updateRoleMutation.mutate({ memberId, role })
+          }
+          className="w-36"
+        />
       ),
-      cellClassName: "w-24 shrink-0",
+      cellClassName: "w-36 shrink-0",
       sortable: true,
     },
     {
       id: "joined",
       header: "Joined",
       render: (member) => (
-        <span className="text-sm text-muted-foreground">
-          {member.createdAt
-            ? new Date(member.createdAt).toLocaleDateString()
-            : "N/A"}
+        <span className="text-sm text-foreground">
+          {member.createdAt ? formatJoinedDate(member.createdAt) : "N/A"}
         </span>
       ),
-      cellClassName: "w-32 shrink-0",
+      cellClassName: "w-48 shrink-0",
       sortable: true,
     },
     {
@@ -363,6 +509,7 @@ function OrgMembersContent() {
       render: (member) => (
         <MemberActionsDropdown
           member={member}
+          roles={roles}
           onChangeRole={(memberId, role) =>
             updateRoleMutation.mutate({ memberId, role })
           }
@@ -376,15 +523,15 @@ function OrgMembersContent() {
 
   const ctaButton = (
     <div className="flex items-center gap-2">
-      <CreateRoleDialog
+      <ManageRolesDialog
         trigger={
           <Button
             variant="outline"
             size="sm"
             className="h-7 px-3 rounded-lg text-sm font-medium"
           >
-            <Icon name="add" size={16} />
-            Create Role
+            <Icon name="shield" size={16} />
+            Manage Roles
           </Button>
         }
       />
@@ -472,6 +619,7 @@ function OrgMembersContent() {
                   <div className="absolute top-4 right-4 z-10">
                     <MemberActionsDropdown
                       member={member}
+                      roles={roles}
                       onChangeRole={(memberId, role) =>
                         updateRoleMutation.mutate({ memberId, role })
                       }
@@ -494,12 +642,17 @@ function OrgMembersContent() {
                       <p className="text-sm text-muted-foreground truncate">
                         {member.user?.email}
                       </p>
-                      <Badge
-                        variant={getRoleBadgeVariant(member.role)}
+                      <RoleSelector
+                        role={member.role}
+                        memberId={member.id}
+                        isOwner={member.role === "owner"}
+                        roleColorMap={roleColorMap}
+                        selectableRoles={selectableRoles}
+                        onRoleChange={(memberId, role) =>
+                          updateRoleMutation.mutate({ memberId, role })
+                        }
                         className="w-fit"
-                      >
-                        {member.role}
-                      </Badge>
+                      />
                     </div>
                   </div>
                 </Card>
