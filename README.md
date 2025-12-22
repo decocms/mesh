@@ -1,4 +1,4 @@
-<img alt="MCP Mesh" src="https://github.com/user-attachments/assets/d3e36c98-4609-46d3-b39f-7ee1c6d77432" />
+<img alt="MCP Mesh Readme Banner" src="https://github.com/user-attachments/assets/e6283421-71ff-478d-8c45-9fb67d484888" />
 
 <h1 align="center">MCP Mesh</h1>
 
