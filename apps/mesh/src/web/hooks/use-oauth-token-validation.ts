@@ -1,4 +1,4 @@
-import { isConnectionAuthenticated } from "@/web/lib/browser-oauth-provider";
+import { isConnectionAuthenticated } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { useSuspenseQuery } from "@tanstack/react-query";
 

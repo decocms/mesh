@@ -5,7 +5,7 @@ import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { useConnectionActions } from "@/web/hooks/collections/use-connection";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useToolCall } from "@/web/hooks/use-tool-call";
-import { authenticateMcp } from "@/web/lib/browser-oauth-provider";
+import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";

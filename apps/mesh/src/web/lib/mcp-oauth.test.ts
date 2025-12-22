@@ -1,5 +1,5 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test";
-import { isConnectionAuthenticated } from "./browser-oauth-provider";
+import { isConnectionAuthenticated } from "./mcp-oauth";
 
 describe("isConnectionAuthenticated", () => {
   beforeEach(() => {
