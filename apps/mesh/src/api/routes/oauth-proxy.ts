@@ -128,6 +128,15 @@ async function ensureContext(c: {
 // Protected Resource Metadata Proxy
 // ============================================================================
 
+const forceHttps = (url: URL) => {
+  const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (!isLocal) {
+    // force http if not local
+    url.protocol = "https:";
+  }
+  return url;
+};
+
 /**
  * Handler for proxying OAuth protected resource metadata
  * Rewrites resource to /mcp/:connectionId and authorization_servers to /oauth-proxy/:connectionId
@@ -163,7 +172,7 @@ const protectedResourceMetadataHandler = async (c: {
     const data = (await response.json()) as Record<string, unknown>;
 
     // Build our proxy resource URL (matches the MCP proxy endpoint)
-    const requestUrl = new URL(c.req.url);
+    const requestUrl = forceHttps(new URL(c.req.url));
     const proxyResourceUrl = `${requestUrl.origin}/mcp/${connectionId}`;
 
     // Rewrite authorization_servers to point to our proxy
