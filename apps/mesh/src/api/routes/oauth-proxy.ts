@@ -46,13 +46,18 @@ async function getConnectionUrl(
  * Format 1: {resource}/.well-known/oauth-protected-resource (resource-relative)
  * Format 2: /.well-known/oauth-protected-resource{resource-path} (well-known prefix, e.g. Smithery)
  *
+ * Per RFC 9728: strip trailing slash before inserting /.well-known/
  * Returns the response (even if error) so caller can handle/pass-through error status
  */
 async function fetchProtectedResourceMetadata(
   connectionUrl: string,
 ): Promise<Response> {
   const connUrl = new URL(connectionUrl);
-  const resourcePath = connUrl.pathname;
+  // Normalize: strip trailing slash per RFC 9728
+  let resourcePath = connUrl.pathname;
+  if (resourcePath.endsWith("/")) {
+    resourcePath = resourcePath.slice(0, -1);
+  }
 
   // Try format 1 first (most common)
   const format1Url = new URL(connectionUrl);

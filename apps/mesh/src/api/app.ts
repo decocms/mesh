@@ -201,8 +201,12 @@ export function createApp(options: CreateAppOptions = {}) {
     // Get origin auth server - try both well-known URL formats
     // Format 1: {resource}/.well-known/oauth-protected-resource (resource-relative)
     // Format 2: /.well-known/oauth-protected-resource{resource-path} (well-known prefix)
+    // Per RFC 9728: strip trailing slash before inserting /.well-known/
     const connUrl = new URL(connection.connection_url);
-    const resourcePath = connUrl.pathname;
+    let resourcePath = connUrl.pathname;
+    if (resourcePath.endsWith("/")) {
+      resourcePath = resourcePath.slice(0, -1);
+    }
 
     // Try format 1 first (most common)
     const format1Url = new URL(connection.connection_url);

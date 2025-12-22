@@ -175,6 +175,62 @@ describe("OAuth Proxy Routes", () => {
       ]);
     });
 
+    test("normalizes trailing slash in resource path (RFC 9728)", async () => {
+      mockConnectionStorage({
+        connection_url: "https://origin.example.com/mcp/", // Trailing slash
+      });
+
+      global.fetch = mock((url: string) => {
+        // Should strip trailing slash before .well-known
+        expect(url).toBe(
+          "https://origin.example.com/mcp/.well-known/oauth-protected-resource",
+        );
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              resource: "https://origin.example.com/mcp",
+              authorization_servers: ["https://auth.example.com"],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }) as unknown as typeof fetch;
+
+      const res = await app.request(
+        "http://localhost:3000/.well-known/oauth-protected-resource/mcp/conn_123",
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    test("handles root path resource correctly", async () => {
+      mockConnectionStorage({
+        connection_url: "https://origin.example.com/", // Root path
+      });
+
+      global.fetch = mock((url: string) => {
+        // Should produce /.well-known/... not //.well-known/...
+        expect(url).toBe(
+          "https://origin.example.com/.well-known/oauth-protected-resource",
+        );
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              resource: "https://origin.example.com",
+              authorization_servers: ["https://auth.example.com"],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }) as unknown as typeof fetch;
+
+      const res = await app.request(
+        "http://localhost:3000/.well-known/oauth-protected-resource/mcp/conn_123",
+      );
+
+      expect(res.status).toBe(200);
+    });
+
     test("returns 502 when origin fetch fails", async () => {
       mockConnectionStorage({
         connection_url: "https://origin.example.com/mcp",
