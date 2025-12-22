@@ -25,6 +25,7 @@ import authRoutes from "./routes/auth";
 import gatewayRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
+import oauthProxyRoutes from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
 
 // Track current event bus instance for cleanup during HMR
@@ -167,6 +168,135 @@ export function createApp(options: CreateAppOptions = {}) {
   // All Better Auth routes (OAuth, session management, etc.)
   app.all("/api/auth/*", async (c) => {
     return await auth.handler(c.req.raw);
+  });
+
+  // ============================================================================
+  // OAuth Proxy Routes (for proxying OAuth to origin MCP servers)
+  // MUST be defined BEFORE the wildcard OAuth routes below
+  // ============================================================================
+  app.route("/", oauthProxyRoutes);
+
+  // OAuth endpoint proxy - defined directly here because app.route() doesn't work reliably
+  // for this route pattern. Using wildcard pattern to capture endpoint.
+  app.all("/oauth-proxy/:connectionId/*", async (c) => {
+    const connectionId = c.req.param("connectionId");
+    // Extract endpoint from path: /oauth-proxy/conn_xxx/register -> register
+    // Filter empty parts to handle trailing slashes
+    const pathParts = c.req.path.split("/").filter(Boolean);
+    const endpoint = pathParts[pathParts.length - 1];
+
+    // Get or create context
+    let ctx = c.get("meshContext");
+    if (!ctx) {
+      ctx = await ContextFactory.create(c.req.raw);
+      c.set("meshContext", ctx);
+    }
+
+    // Get connection URL
+    const connection = await ctx.storage.connections.findById(connectionId);
+    if (!connection?.connection_url) {
+      return c.json({ error: "Connection not found" }, 404);
+    }
+
+    // Get origin auth server
+    const originUrl = new URL(connection.connection_url);
+    originUrl.pathname = "/.well-known/oauth-protected-resource";
+    const resourceRes = await fetch(originUrl.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!resourceRes.ok) {
+      return c.json({ error: "Failed to get resource metadata" }, 502);
+    }
+    const resourceData = (await resourceRes.json()) as {
+      authorization_servers?: string[];
+    };
+    const originAuthServer = resourceData.authorization_servers?.[0];
+    if (!originAuthServer) {
+      return c.json({ error: "No authorization server found" }, 404);
+    }
+
+    // Get OAuth endpoints from auth server metadata
+    const authServerUrl = new URL(originAuthServer);
+    // If auth server is at root ("/"), don't append the path (avoid trailing slash)
+    const authServerPath =
+      authServerUrl.pathname === "/" ? "" : authServerUrl.pathname;
+    authServerUrl.pathname = `/.well-known/oauth-authorization-server${authServerPath}`;
+    const authServerRes = await fetch(authServerUrl.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!authServerRes.ok) {
+      return c.json({ error: "Failed to get auth server metadata" }, 502);
+    }
+    const endpoints = (await authServerRes.json()) as {
+      authorization_endpoint?: string;
+      token_endpoint?: string;
+      registration_endpoint?: string;
+    };
+
+    // Map endpoint name to URL
+    let originEndpointUrl: string | undefined;
+    if (endpoint === "authorize") {
+      originEndpointUrl = endpoints.authorization_endpoint;
+    } else if (endpoint === "token") {
+      originEndpointUrl = endpoints.token_endpoint;
+    } else if (endpoint === "register") {
+      originEndpointUrl = endpoints.registration_endpoint;
+    }
+
+    if (!originEndpointUrl) {
+      return c.json({ error: `Unknown OAuth endpoint: ${endpoint}` }, 404);
+    }
+
+    // Build URL with query string
+    const targetUrl = new URL(originEndpointUrl);
+    const reqUrl = new URL(c.req.url);
+    targetUrl.search = reqUrl.search;
+
+    // Forward headers
+    const headers: Record<string, string> = {
+      Accept: c.req.header("Accept") || "application/json",
+    };
+    const contentType = c.req.header("Content-Type");
+    if (contentType) headers["Content-Type"] = contentType;
+    const authorization = c.req.header("Authorization");
+    if (authorization) headers["Authorization"] = authorization;
+
+    // Proxy the request
+    const response = await fetch(targetUrl.toString(), {
+      method: c.req.method,
+      headers,
+      body:
+        c.req.method !== "GET" && c.req.method !== "HEAD"
+          ? c.req.raw.body
+          : undefined,
+      // @ts-expect-error - duplex needed for streaming
+      duplex: "half",
+      redirect: "manual",
+    });
+
+    // Copy response headers, excluding hop-by-hop and encoding headers
+    // Note: Node.js fetch auto-decompresses, so content-encoding/content-length would be wrong
+    const responseHeaders = new Headers();
+    const excludedHeaders = [
+      "connection",
+      "keep-alive",
+      "transfer-encoding",
+      "content-encoding",
+      "content-length",
+    ];
+    for (const [key, value] of response.headers.entries()) {
+      if (!excludedHeaders.includes(key.toLowerCase())) {
+        responseHeaders.set(key, value);
+      }
+    }
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+    });
   });
 
   // Mount OAuth discovery metadata endpoints

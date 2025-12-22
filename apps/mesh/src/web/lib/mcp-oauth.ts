@@ -34,6 +34,11 @@ function hashServerUrl(url: string): string {
 const activeOAuthSessions = new Map<string, McpOAuthProvider>();
 
 /**
+ * Storage key prefix for OAuth callback fallback
+ */
+const OAUTH_CALLBACK_STORAGE_KEY = "mcp:oauth:callback:";
+
+/**
  * Options for the MCP OAuth provider
  */
 export interface McpOAuthProviderOptions {
@@ -167,88 +172,139 @@ export interface AuthenticateMcpResult {
  * Authenticate with an MCP server using OAuth
  * @param serverUrl - Full MCP server URL to authenticate with
  */
-export async function authenticateMcp(
-  serverUrl: string,
-  options?: {
-    clientName?: string;
-    clientUri?: string;
-    callbackUrl?: string;
-    timeout?: number;
-  },
-): Promise<AuthenticateMcpResult> {
+export async function authenticateMcp(params: {
+  connectionId: string;
+  clientName?: string;
+  clientUri?: string;
+  callbackUrl?: string;
+  timeout?: number;
+}): Promise<AuthenticateMcpResult> {
+  const serverUrl = new URL(
+    `/mcp/${params.connectionId}`,
+    window.location.origin,
+  );
   const provider = new McpOAuthProvider({
-    serverUrl,
-    clientName: options?.clientName,
-    clientUri: options?.clientUri,
-    callbackUrl: options?.callbackUrl,
+    serverUrl: serverUrl.href,
+    clientName: params.clientName,
+    clientUri: params.clientUri,
+    callbackUrl: params.callbackUrl,
   });
 
   try {
     // Wait for OAuth callback message from popup and handle token exchange
+    // Uses both postMessage (primary) and localStorage (fallback for when opener is lost)
     const oauthCompletePromise = new Promise<OAuthTokens>((resolve, reject) => {
-      const timeout = options?.timeout || 120000;
+      const timeout = params.timeout || 120000;
       let timeoutId: ReturnType<typeof setTimeout>;
+      let resolved = false;
+      // Use the OAuth state as the storage key - it's already unique per flow
+      // and will be available to the callback page via URL params
+      const oauthState = provider.state();
+      const storageKey = `${OAUTH_CALLBACK_STORAGE_KEY}${oauthState}`;
 
+      const cleanup = () => {
+        if (resolved) return;
+        resolved = true;
+        window.removeEventListener("message", handleMessage);
+        window.removeEventListener("storage", handleStorageEvent);
+        clearTimeout(timeoutId);
+        // Clean up storage key
+        try {
+          localStorage.removeItem(storageKey);
+        } catch {
+          // Ignore storage errors
+        }
+      };
+
+      const processCallback = async (data: {
+        success: boolean;
+        code?: string;
+        state?: string;
+        error?: string;
+      }) => {
+        if (resolved) return;
+
+        if (!data.success) {
+          cleanup();
+          reject(new Error(data.error || "OAuth authentication failed"));
+          return;
+        }
+
+        const { code, state } = data;
+
+        if (!code) {
+          cleanup();
+          reject(new Error("Missing authorization code"));
+          return;
+        }
+
+        // Verify state matches
+        const storedState = provider.getStoredState();
+        if (storedState !== state) {
+          cleanup();
+          reject(new Error("OAuth state mismatch - possible CSRF attack"));
+          return;
+        }
+
+        try {
+          // Do token exchange in parent window (we have provider in memory)
+          const resourceMetadata =
+            await discoverOAuthProtectedResourceMetadata(serverUrl);
+          const authServerUrl =
+            resourceMetadata?.authorization_servers?.[0] || serverUrl;
+          const authServerMetadata =
+            await discoverAuthorizationServerMetadata(authServerUrl);
+
+          const clientInfo = provider.clientInformation();
+          if (!clientInfo) {
+            cleanup();
+            reject(new Error("Client information not found"));
+            return;
+          }
+
+          const codeVerifier = provider.codeVerifier();
+
+          const tokens = await exchangeAuthorization(authServerUrl, {
+            metadata: authServerMetadata,
+            clientInformation: clientInfo,
+            authorizationCode: code,
+            codeVerifier,
+            redirectUri: provider.redirectUrl,
+            resource: new URL(serverUrl),
+          });
+
+          cleanup();
+          resolve(tokens);
+        } catch (err) {
+          cleanup();
+          reject(err);
+        }
+      };
+
+      // Primary: Listen for postMessage from popup
       const handleMessage = async (event: MessageEvent) => {
         if (event.origin !== window.location.origin) return;
-
         if (event.data?.type === "mcp:oauth:callback") {
-          window.removeEventListener("message", handleMessage);
-          clearTimeout(timeoutId);
+          await processCallback(event.data);
+        }
+      };
 
-          if (!event.data.success) {
-            reject(
-              new Error(event.data.error || "OAuth authentication failed"),
-            );
-            return;
-          }
-
-          const { code, state } = event.data;
-
-          // Verify state matches
-          const storedState = provider.getStoredState();
-          if (storedState !== state) {
-            reject(new Error("OAuth state mismatch - possible CSRF attack"));
-            return;
-          }
-
-          try {
-            // Do token exchange in parent window (we have provider in memory)
-            const resourceMetadata =
-              await discoverOAuthProtectedResourceMetadata(serverUrl);
-            const authServerUrl =
-              resourceMetadata?.authorization_servers?.[0] || serverUrl;
-            const authServerMetadata =
-              await discoverAuthorizationServerMetadata(authServerUrl);
-
-            const clientInfo = provider.clientInformation();
-            if (!clientInfo) {
-              reject(new Error("Client information not found"));
-              return;
-            }
-
-            const codeVerifier = provider.codeVerifier();
-
-            const tokens = await exchangeAuthorization(authServerUrl, {
-              metadata: authServerMetadata,
-              clientInformation: clientInfo,
-              authorizationCode: code,
-              codeVerifier,
-              redirectUri: provider.redirectUrl,
-              resource: new URL(serverUrl),
-            });
-
-            resolve(tokens);
-          } catch (err) {
-            reject(err);
-          }
+      // Fallback: Listen for localStorage events (when window.opener is lost)
+      const handleStorageEvent = async (event: StorageEvent) => {
+        if (event.key !== storageKey || !event.newValue) return;
+        try {
+          const data = JSON.parse(event.newValue);
+          await processCallback(data);
+        } catch {
+          // Ignore parse errors
         }
       };
 
       window.addEventListener("message", handleMessage);
+      window.addEventListener("storage", handleStorageEvent);
 
       timeoutId = setTimeout(() => {
-        window.removeEventListener("message", handleMessage);
+        cleanup();
         reject(new Error("OAuth authentication timeout"));
       }, timeout);
     });
@@ -281,9 +337,47 @@ export async function authenticateMcp(
 }
 
 /**
+ * Send callback data via postMessage or localStorage fallback
+ * @param data - The callback data to send
+ * @param state - The OAuth state parameter (used as localStorage key for fallback)
+ */
+function sendCallbackData(
+  data: {
+    type: string;
+    success: boolean;
+    code?: string;
+    state?: string;
+    error?: string;
+  },
+  state: string | null,
+): boolean {
+  // Try postMessage first (primary method)
+  if (window.opener && !window.opener.closed) {
+    window.opener.postMessage(data, window.location.origin);
+    return true;
+  }
+
+  // Fallback: Use localStorage to communicate with parent window
+  // This works even when window.opener is lost due to redirects
+  // Use the OAuth state as the key since the parent window knows it
+  if (state) {
+    try {
+      const storageKey = `${OAUTH_CALLBACK_STORAGE_KEY}${state}`;
+      localStorage.setItem(storageKey, JSON.stringify(data));
+      return true;
+    } catch {
+      // Ignore storage errors
+    }
+  }
+
+  return false;
+}
+
+/**
  * Handle the OAuth callback (to be called from the callback page)
  *
  * Forwards the authorization code to the parent window via postMessage.
+ * Falls back to localStorage if window.opener is not available (common with OAuth redirects).
  * The parent window handles the token exchange.
  */
 export async function handleOAuthCallback(): Promise<{
@@ -296,63 +390,67 @@ export async function handleOAuthCallback(): Promise<{
   const errorParam = params.get("error");
   const errorDescription = params.get("error_description");
 
-  if (errorParam) {
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage(
-        {
-          type: "mcp:oauth:callback",
-          success: false,
-          error: errorDescription || errorParam,
-        },
-        window.location.origin,
-      );
+  // Try to decode wrapped state from deco.cx first (needed for localStorage key)
+  let decodedState = state;
+  if (state) {
+    try {
+      const decoded = atob(state);
+      const stateObj = JSON.parse(decoded);
+      if (stateObj.clientState) {
+        decodedState = stateObj.clientState;
+      }
+    } catch {
+      // Use state as-is
     }
+  }
+
+  if (errorParam) {
+    const errorMsg = errorDescription || errorParam;
+    sendCallbackData(
+      {
+        type: "mcp:oauth:callback",
+        success: false,
+        error: errorMsg,
+      },
+      decodedState,
+    );
     return {
       success: false,
-      error: errorDescription || errorParam,
+      error: errorMsg,
     };
   }
 
   if (!code || !state) {
     const error = "Missing code or state parameter";
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage(
-        {
-          type: "mcp:oauth:callback",
-          success: false,
-          error,
-        },
-        window.location.origin,
-      );
-    }
+    sendCallbackData(
+      {
+        type: "mcp:oauth:callback",
+        success: false,
+        error,
+      },
+      decodedState,
+    );
     return {
       success: false,
       error,
     };
   }
 
-  // Try to decode wrapped state from deco.cx
-  try {
-    const decodedState = atob(state);
-    const stateObj = JSON.parse(decodedState);
-    if (stateObj.clientState) {
-      state = stateObj.clientState;
-    }
-  } catch {
-    // Use state as-is
-  }
+  // Use the decoded state for the callback
+  state = decodedState || state;
 
   // Forward code and state to parent window for token exchange
-  if (window.opener && !window.opener.closed) {
-    window.opener.postMessage(
-      {
-        type: "mcp:oauth:callback",
-        success: true,
-        code,
-        state,
-      },
-      window.location.origin,
-    );
+  const sent = sendCallbackData(
+    {
+      type: "mcp:oauth:callback",
+      success: true,
+      code,
+      state,
+    },
+    state,
+  );
+
+  if (sent) {
     return { success: true };
   }
 
