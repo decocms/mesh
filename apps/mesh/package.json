@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.0",
+    "@xyflow/react": "^12.10.0",
     "kysely": "^0.28.8",
     "kysely-bun-worker": "^0.6.0"
   },
