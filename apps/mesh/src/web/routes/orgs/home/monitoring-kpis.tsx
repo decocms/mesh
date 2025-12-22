@@ -7,6 +7,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@deco/ui/components/chart.tsx";
+import { useNavigate } from "@tanstack/react-router";
 import { Bar, BarChart, Cell } from "recharts";
 import { HomeGridCell } from "./home-grid-cell.tsx";
 import type { MonitoringStats } from "./monitoring-types.ts";
@@ -122,9 +123,10 @@ function getMinMaxTs(logs: MonitoringLog[]) {
 }
 
 function ToolCallsKPI() {
-  const { locator } = useProjectContext();
+  const { locator, org } = useProjectContext();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
+  const navigate = useNavigate();
 
   const { data: stats } = useToolCall<
     { startDate: string; endDate: string },
@@ -176,11 +178,16 @@ function ToolCallsKPI() {
           </div>
         }
       >
-        <div className="flex flex-col gap-2 w-full">
+        <div
+          className="flex flex-col gap-2 w-full cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() =>
+            navigate({ to: "/$org/monitoring", params: { org: org.slug } })
+          }
+        >
           <ChartContainer
             className="h-[103px] w-full"
             config={{
-              calls: { label: "Calls", color: "var(--chart-2)" },
+              calls: { label: "Calls", color: "var(--chart-1)" },
             }}
           >
             <BarChart
@@ -189,7 +196,7 @@ function ToolCallsKPI() {
             >
               <Bar
                 dataKey="calls"
-                fill="var(--chart-2)"
+                fill="var(--chart-1)"
                 radius={[0, 0, 0, 0]}
               />
             </BarChart>
@@ -212,11 +219,16 @@ function ToolCallsKPI() {
         </div>
       }
     >
-      <div className="flex flex-col gap-2 w-full">
+      <div
+        className="flex flex-col gap-2 w-full cursor-pointer hover:opacity-80 transition-opacity"
+        onClick={() =>
+          navigate({ to: "/$org/monitoring", params: { org: org.slug } })
+        }
+      >
         <ChartContainer
           className="h-[103px] w-full"
           config={{
-            calls: { label: "Calls", color: "var(--color-chart-1)" },
+            calls: { label: "Calls", color: "var(--chart-1)" },
           }}
         >
           <BarChart
@@ -250,7 +262,7 @@ function ToolCallsKPI() {
             />
             <Bar
               dataKey="calls"
-              fill="var(--color-chart-2)"
+              fill="var(--chart-1)"
               radius={[0, 0, 0, 0]}
               minPointSize={1}
             >
@@ -260,7 +272,7 @@ function ToolCallsKPI() {
                   fill={
                     entry.calls === 0
                       ? "var(--muted-foreground)"
-                      : "var(--chart-2)"
+                      : "var(--chart-1)"
                   }
                   fillOpacity={entry.calls === 0 ? 0.25 : 1}
                 />
@@ -278,9 +290,10 @@ function ToolCallsKPI() {
 }
 
 function ErrorRateKPI() {
-  const { locator } = useProjectContext();
+  const { locator, org } = useProjectContext();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
+  const navigate = useNavigate();
 
   const { data: stats } = useToolCall<
     { startDate: string; endDate: string },
@@ -328,18 +341,31 @@ function ErrorRateKPI() {
           </div>
         }
       >
-        <div className="flex flex-col gap-2 w-full">
+        <div
+          className="flex flex-col gap-2 w-full cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() =>
+            navigate({
+              to: "/$org/monitoring",
+              params: { org: org.slug },
+              search: { status: "errors" },
+            })
+          }
+        >
           <ChartContainer
             className="h-[103px] w-full"
             config={{
-              errors: { label: "Errors", color: "#ef4444" },
+              errors: { label: "Errors", color: "var(--chart-3)" },
             }}
           >
             <BarChart
               data={mockData}
               margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
             >
-              <Bar dataKey="errors" fill="#ef4444" radius={[0, 0, 0, 0]} />
+              <Bar
+                dataKey="errors"
+                fill="var(--chart-3)"
+                radius={[0, 0, 0, 0]}
+              />
             </BarChart>
           </ChartContainer>
           <div className="flex items-start justify-between text-xs text-muted-foreground w-full">
@@ -364,13 +390,22 @@ function ErrorRateKPI() {
         </div>
       }
     >
-      <div className="flex flex-col gap-2 w-full">
+      <div
+        className="flex flex-col gap-2 w-full cursor-pointer hover:opacity-80 transition-opacity"
+        onClick={() =>
+          navigate({
+            to: "/$org/monitoring",
+            params: { org: org.slug },
+            search: { status: "errors" },
+          })
+        }
+      >
         <ChartContainer
           className="h-[103px] w-full"
           config={{
             errors: {
               label: "Errors",
-              color: "var(--color-chart-3)",
+              color: "var(--chart-3)",
             },
           }}
         >
@@ -405,7 +440,7 @@ function ErrorRateKPI() {
             />
             <Bar
               dataKey="errors"
-              fill="var(--color-chart-5)"
+              fill="var(--chart-3)"
               radius={[0, 0, 0, 0]}
               minPointSize={1}
             >
@@ -415,7 +450,7 @@ function ErrorRateKPI() {
                   fill={
                     entry.errors === 0
                       ? "var(--muted-foreground)"
-                      : "var(--chart-5)"
+                      : "var(--chart-3)"
                   }
                   fillOpacity={entry.errors === 0 ? 0.25 : 1}
                 />
@@ -433,9 +468,10 @@ function ErrorRateKPI() {
 }
 
 function LatencyKPI() {
-  const { locator } = useProjectContext();
+  const { locator, org } = useProjectContext();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
+  const navigate = useNavigate();
 
   const { data: stats } = useToolCall<
     { startDate: string; endDate: string },
@@ -483,18 +519,23 @@ function LatencyKPI() {
           </div>
         }
       >
-        <div className="flex flex-col gap-2 w-full">
+        <div
+          className="flex flex-col gap-2 w-full cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() =>
+            navigate({ to: "/$org/monitoring", params: { org: org.slug } })
+          }
+        >
           <ChartContainer
             className="h-[103px] w-full"
             config={{
-              p95: { label: "p95 (ms)", color: "var(--chart-3)" },
+              p95: { label: "p95 (ms)", color: "var(--chart-4)" },
             }}
           >
             <BarChart
               data={mockData}
               margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
             >
-              <Bar dataKey="p95" fill="var(--chart-3)" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="p95" fill="var(--chart-4)" radius={[0, 0, 0, 0]} />
             </BarChart>
           </ChartContainer>
           <div className="flex items-start justify-between text-xs text-muted-foreground w-full">
@@ -520,11 +561,16 @@ function LatencyKPI() {
         </div>
       }
     >
-      <div className="flex flex-col gap-2 w-full">
+      <div
+        className="flex flex-col gap-2 w-full cursor-pointer hover:opacity-80 transition-opacity"
+        onClick={() =>
+          navigate({ to: "/$org/monitoring", params: { org: org.slug } })
+        }
+      >
         <ChartContainer
           className="h-[103px] w-full"
           config={{
-            p95: { label: "p95 (ms)", color: "var(--color-chart-4)" },
+            p95: { label: "p95 (ms)", color: "var(--chart-4)" },
           }}
         >
           <BarChart
@@ -558,7 +604,7 @@ function LatencyKPI() {
             />
             <Bar
               dataKey="p95"
-              fill="var(--color-chart-3)"
+              fill="var(--chart-4)"
               radius={[0, 0, 0, 0]}
               minPointSize={1}
             >
@@ -568,7 +614,7 @@ function LatencyKPI() {
                   fill={
                     entry.p95 === 0
                       ? "var(--muted-foreground)"
-                      : "var(--chart-3)"
+                      : "var(--chart-4)"
                   }
                   fillOpacity={entry.p95 === 0 ? 0.25 : 1}
                 />

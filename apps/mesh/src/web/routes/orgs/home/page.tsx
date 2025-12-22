@@ -67,7 +67,6 @@ interface ColorScheme {
   edgeColor: string;
   textClass: string;
   borderClass: string;
-  dotColor: string;
 }
 
 interface MonitoringLogWithGateway {
@@ -102,19 +101,16 @@ const COLOR_SCHEMES: Record<MetricsMode, ColorScheme> = {
     edgeColor: "var(--chart-1)",
     textClass: "text-chart-1",
     borderClass: "border-chart-1/40",
-    dotColor: "color-mix(in srgb, var(--chart-1) 30%, transparent)",
   },
   errors: {
     edgeColor: "var(--chart-3)",
     textClass: "text-chart-3",
     borderClass: "border-chart-3/40",
-    dotColor: "color-mix(in srgb, var(--chart-3) 30%, transparent)",
   },
   latency: {
     edgeColor: "var(--chart-4)",
     textClass: "text-chart-4",
     borderClass: "border-chart-4/40",
-    dotColor: "color-mix(in srgb, var(--chart-4) 30%, transparent)",
   },
 };
 
@@ -273,27 +269,24 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
   };
 
   return (
-    <button
-      type="button"
+    <div
+      className="relative flex h-15 max-w-3xs shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
       onClick={handleClick}
-      className={cn(
-        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan cursor-pointer transition-opacity hover:opacity-80 pointer-events-auto",
-        data.colorScheme.borderClass,
-      )}
     >
       <IntegrationIcon
         icon={data.gateway.icon}
         name={data.gateway.title}
-        size="sm"
+        size="md"
         fallbackIcon="network_node"
+        className="relative z-10"
       />
-      <div className="flex flex-col min-w-0 flex-1 text-left">
-        <span className="text-[11px] text-muted-foreground truncate">
+      <div className="relative z-10 flex flex-col min-w-0 flex-1">
+        <span className="text-sm text-muted-foreground truncate">
           {data.gateway.title}
         </span>
         <span
           className={cn(
-            "text-base font-semibold tabular-nums",
+            "text-base leading-[1] font-semibold tabular-nums",
             data.colorScheme.textClass,
           )}
         >
@@ -310,7 +303,7 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
           border: "none",
         }}
       />
-    </button>
+    </div>
   );
 }
 
@@ -340,13 +333,9 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
   };
 
   return (
-    <button
-      type="button"
+    <div
+      className="relative flex h-15 max-w-3xs shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
       onClick={handleClick}
-      className={cn(
-        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan cursor-pointer transition-opacity hover:opacity-80 pointer-events-auto",
-        data.colorScheme.borderClass,
-      )}
     >
       <Handle
         type="target"
@@ -363,23 +352,24 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
       <IntegrationIcon
         icon={data.connection.icon}
         name={data.connection.title}
-        size="sm"
+        size="md"
         fallbackIcon="extension"
+        className="relative z-10"
       />
-      <div className="flex flex-col min-w-0 flex-1 text-left">
-        <span className="text-[11px] text-muted-foreground truncate">
+      <div className="relative z-10 flex flex-col min-w-0 flex-1">
+        <span className="text-sm text-muted-foreground truncate">
           {data.connection.title}
         </span>
         <span
           className={cn(
-            "text-base font-semibold tabular-nums",
+            "text-base leading-[1.35] font-semibold tabular-nums",
             data.colorScheme.textClass,
           )}
         >
           {metricValue}
         </span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -399,21 +389,16 @@ function MeshNode({ data }: NodeProps<Node<MeshNodeData>>) {
   };
 
   return (
-    <button
-      type="button"
+    <div
+      className="flex h-14 w-14 items-center justify-center p-2 bg-primary border border-primary-foreground/50 rounded-lg shadow-sm cursor-pointer"
       onClick={handleClick}
-      className="flex h-14 w-14 items-center justify-center p-2 bg-background border border-border rounded-lg shadow-sm nodrag nopan cursor-pointer transition-opacity hover:opacity-80 pointer-events-auto"
     >
       <Handle
         type="target"
         position={Position.Left}
         style={{
-          width: "8px",
-          height: "8px",
-          background: "var(--background)",
-          border: `1px solid ${data.colorScheme.edgeColor}`,
+          opacity: 0,
           pointerEvents: "none",
-          cursor: "default",
         }}
       />
       <img src="/logos/deco logo.svg" alt="Deco" className="h-8 w-8" />
@@ -421,15 +406,11 @@ function MeshNode({ data }: NodeProps<Node<MeshNodeData>>) {
         type="source"
         position={Position.Right}
         style={{
-          width: "8px",
-          height: "8px",
-          background: "var(--background)",
-          border: `1px solid ${data.colorScheme.edgeColor}`,
+          opacity: 0,
           pointerEvents: "none",
-          cursor: "default",
         }}
       />
-    </button>
+    </div>
   );
 }
 
@@ -460,7 +441,7 @@ function MetricsModeSelector({
       className="bg-background/80 backdrop-blur-sm"
     >
       <ToggleGroupItem value="requests" className="text-xs px-3 cursor-pointer">
-        Requests
+        Tool Calls
       </ToggleGroupItem>
       <ToggleGroupItem value="errors" className="text-xs px-3 cursor-pointer">
         Errors
@@ -472,7 +453,7 @@ function MetricsModeSelector({
   );
 }
 
-function MeshVisualization() {
+function MeshVisualization({ showControls }: { showControls: boolean }) {
   const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
   const { org } = useProjectContext();
 
@@ -512,16 +493,16 @@ function MeshVisualization() {
   const nodeSpacing = 70;
 
   const leftCount = rawGateways.length;
-  const rightCount = rawConnections.length;
+  const rightCount = sortedConnections.length;
   const maxCount = Math.max(leftCount, rightCount, 1);
   const totalHeight = (maxCount - 1) * nodeSpacing;
   const centerStartY = -totalHeight / 2;
 
   const edgeStyle = {
     stroke: colorScheme.edgeColor,
-    strokeWidth: 1.5,
-    strokeDasharray: "1 6",
-    strokeLinecap: "round",
+    strokeWidth: 1.25,
+    strokeDasharray: "8 6",
+    strokeLinecap: "square",
   } as const;
 
   const nodes: Node[] = [];
@@ -569,7 +550,7 @@ function MeshVisualization() {
   });
 
   // Server nodes
-  rawConnections.forEach((connection) => {
+  sortedConnections.forEach((connection) => {
     const idx = connectionPositionMap.get(connection.id) ?? 0;
     const offsetY = centerStartY + ((maxCount - rightCount) * nodeSpacing) / 2;
     const y = offsetY + idx * nodeSpacing - SERVER_NODE_HEIGHT / 2;
@@ -600,8 +581,8 @@ function MeshVisualization() {
   });
 
   const dotPattern = {
-    backgroundImage: `radial-gradient(circle, ${colorScheme.dotColor} 1px, transparent 1px)`,
-    backgroundSize: "16px 16px",
+    backgroundImage: `radial-gradient(circle, var(--border) 1px, transparent 1.5px)`,
+    backgroundSize: "32px 32px",
   };
 
   return (
@@ -612,18 +593,24 @@ function MeshVisualization() {
       <style>{`
         .mesh-minimap .react-flow__node { transition: transform 300ms ease-out; }
         .mesh-minimap .react-flow__edge path { transition: d 300ms ease-out; }
-        @keyframes mesh-edge-flow {
-          from { stroke-dashoffset: 7; }
-          to { stroke-dashoffset: 0; }
-        }
         .mesh-minimap .react-flow__edge.animated path {
-          animation: mesh-edge-flow 0.5s linear infinite;
+          animation: dashdraw 0.8s linear infinite;
+        }
+        @keyframes dashdraw {
+          from {
+            stroke-dashoffset: 0;
+          }
+          to {
+            stroke-dashoffset: -14;
+          }
         }
       `}</style>
 
-      <div className="absolute top-4 right-4 z-10">
-        <MetricsModeSelector value={metricsMode} onChange={setMetricsMode} />
-      </div>
+      {showControls && (
+        <div className="absolute top-4 right-4 z-10">
+          <MetricsModeSelector value={metricsMode} onChange={setMetricsMode} />
+        </div>
+      )}
 
       <ReactFlow
         nodes={nodes}
@@ -633,13 +620,13 @@ function MeshVisualization() {
         fitViewOptions={{ padding: 0.3 }}
         nodesDraggable={false}
         nodesConnectable={false}
-        elementsSelectable={false}
-        zoomOnScroll={false}
-        zoomOnPinch={false}
-        zoomOnDoubleClick={false}
+        elementsSelectable={true}
+        zoomOnScroll={true}
+        zoomOnPinch={true}
+        zoomOnDoubleClick={true}
         panOnScroll={false}
-        panOnDrag={false}
-        preventScrolling={false}
+        panOnDrag={true}
+        preventScrolling={true}
         proOptions={{ hideAttribution: true }}
         className="bg-transparent"
       />
@@ -843,12 +830,31 @@ function DashboardView() {
 // ============================================================================
 
 export default function OrgHomePage() {
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const navigate = useNavigate();
+  const toolCaller = createToolCaller();
+  const dateRange = getLast24HoursDateRange();
+
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const stored = localStorage.getItem("org-home-view-mode");
     return stored === "dashboard" || stored === "graph" ? stored : "dashboard";
   });
+
+  // Check if there's monitoring activity to show/hide controls
+  const { data: stats } = useToolCall<
+    { startDate: string; endDate: string },
+    MonitoringStats
+  >({
+    toolCaller,
+    toolName: "MONITORING_STATS",
+    toolInputParams: dateRange,
+    scope: locator,
+    staleTime: 60_000,
+    refetchInterval: (query) =>
+      hasMonitoringActivity(query.state.data) ? false : 1_000,
+  });
+
+  const showControls = hasMonitoringActivity(stats);
 
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
@@ -871,15 +877,17 @@ export default function OrgHomePage() {
         title={org.name}
         ctaButton={
           <div className="flex items-center gap-2">
-            <ViewModeToggle
-              value={viewMode}
-              onValueChange={handleViewModeChange}
-              size="sm"
-              options={[
-                { value: "dashboard", icon: "bar_chart" },
-                { value: "graph", icon: "account_tree" },
-              ]}
-            />
+            {showControls && (
+              <ViewModeToggle
+                value={viewMode}
+                onValueChange={handleViewModeChange}
+                size="sm"
+                options={[
+                  { value: "dashboard", icon: "bar_chart" },
+                  { value: "graph", icon: "account_tree" },
+                ]}
+              />
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -903,7 +911,7 @@ export default function OrgHomePage() {
             }
           >
             <Suspense fallback={<MeshVisualizationSkeleton />}>
-              <MeshVisualization />
+              <MeshVisualization showControls={showControls} />
             </Suspense>
           </ErrorBoundary>
         ) : (
