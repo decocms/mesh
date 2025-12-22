@@ -76,6 +76,10 @@ export default function OAuthCallback() {
               <p className="text-destructive">{error}</p>
               <p className="mt-4">This window will close automatically.</p>
             </div>
+          ) : success ? (
+            <p className="text-sm text-muted-foreground text-center">
+              Authentication complete. This window will close automatically.
+            </p>
           ) : (
             <>
               <div className="flex items-center justify-center py-4">
@@ -86,7 +90,7 @@ export default function OAuthCallback() {
                 />
               </div>
               <p className="text-sm text-muted-foreground text-center">
-                Authentication complete. This window will close automatically.
+                Processing authentication...
               </p>
             </>
           )}

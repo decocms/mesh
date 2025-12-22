@@ -15,6 +15,25 @@ export interface McpTool {
 }
 
 /**
+ * JSON-RPC 2.0 error object
+ */
+interface JsonRpcError {
+  code: number;
+  message: string;
+  data?: unknown;
+}
+
+/**
+ * JSON-RPC 2.0 response
+ */
+interface JsonRpcResponse<T = unknown> {
+  jsonrpc: "2.0";
+  id: number | string;
+  result?: T;
+  error?: JsonRpcError;
+}
+
+/**
  * MCP connection state
  */
 export type McpState = "disconnected" | "connecting" | "ready" | "error";
@@ -76,7 +95,7 @@ export function useMcp({
           id: 1,
           method: "initialize",
           params: {
-            protocolVersion: "2025-03-26",
+            protocolVersion: "2025-06-18",
             capabilities: {},
             clientInfo: {
               name: "mesh-mcp",
@@ -88,6 +107,13 @@ export function useMcp({
 
       if (!initResponse.ok) {
         throw new Error(`MCP initialization failed: ${initResponse.status}`);
+      }
+
+      const initData: JsonRpcResponse = await initResponse.json();
+      if (initData.error) {
+        throw new Error(
+          `MCP initialization error: ${initData.error.message} (code: ${initData.error.code})`,
+        );
       }
 
       // List tools
@@ -106,7 +132,14 @@ export function useMcp({
         throw new Error(`Failed to list tools: ${toolsResponse.status}`);
       }
 
-      const toolsData = await toolsResponse.json();
+      const toolsData: JsonRpcResponse<{ tools?: McpTool[] }> =
+        await toolsResponse.json();
+      if (toolsData.error) {
+        throw new Error(
+          `Failed to list tools: ${toolsData.error.message} (code: ${toolsData.error.code})`,
+        );
+      }
+
       return toolsData.result?.tools || [];
     },
     enabled: enabled && !!url,
