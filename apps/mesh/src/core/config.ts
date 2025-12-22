@@ -22,6 +22,11 @@ export interface Config {
     jwt?: { secret?: string };
   };
   monitoring?: Partial<MonitoringConfig>;
+  /**
+   * Whether to automatically create an organization when a new user signs up.
+   * @default true
+   */
+  autoCreateOrganizationOnSignup?: boolean;
 }
 
 const configPath = "./config.json";

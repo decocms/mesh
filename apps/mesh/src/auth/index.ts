@@ -296,6 +296,11 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
+          // Check if auto-creation is enabled (default: true)
+          if (config.autoCreateOrganizationOnSignup === false) {
+            return;
+          }
+
           const firstName = user.name
             ? user.name.split(" ")[0]
             : user.email.split("@")[0];
