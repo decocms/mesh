@@ -1,4 +1,7 @@
-import { getWellKnownSelfConnection } from "@/core/well-known-mcp";
+import {
+  getWellKnownCommunityRegistryConnection,
+  getWellKnownSelfConnection,
+} from "@/core/well-known-mcp";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
 import { ConnectionStorage } from "@/storage/connection";
@@ -61,6 +64,10 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
       data: getWellKnownSelfConnection(
         process.env.BASE_URL || "http://localhost:3000",
       ),
+    },
+    // MCP Registry (Community Registry) - public registry, no permissions required
+    {
+      data: getWellKnownCommunityRegistryConnection(),
     },
   ];
 }
