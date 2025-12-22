@@ -224,11 +224,11 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
                 : "max-h-0 opacity-0 -translate-y-2",
             )}
           >
-            <div className={cn(!canSubmit && "pointer-events-none")}>
+            <div className={cn("p-1", !canSubmit && "pointer-events-none")}>
               <Button
                 type="submit"
                 disabled={isLoading || !canSubmit}
-                className="w-full font-semibold"
+                className={cn("w-full font-semibold")}
                 size="lg"
                 aria-hidden={!canSubmit}
               >
