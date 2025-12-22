@@ -38,7 +38,8 @@ function isApiPath(path: string): boolean {
 
 /** Check if a path is an MCP route */
 function isMcpPath(path: string): boolean {
-  return path.startsWith(PATH_PREFIXES.MCP);
+  // Match both /mcp (exact) and /mcp/* (prefix)
+  return path === "/mcp" || path.startsWith(PATH_PREFIXES.MCP);
 }
 
 /** Check if a path is a static file based on extension */
@@ -61,8 +62,8 @@ export function isServerPath(path: string): boolean {
  */
 export function shouldSkipMeshContext(path: string): boolean {
   return (
-    path.startsWith(PATH_PREFIXES.API_AUTH) ||
     path === "/" ||
+    path.startsWith(PATH_PREFIXES.API_AUTH) ||
     isSystemPath(path) ||
     isStaticFilePath(path)
   );
