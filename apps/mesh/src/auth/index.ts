@@ -67,12 +67,9 @@ const ORG_NAME_TECH_SUFFIXES = [
 ];
 
 const ORG_NAME_BR_SUFFIXES = [
-  "jaguar",
   "capybara",
   "ipe",
   "guarana",
-  "macaw",
-  "ginga",
   "deco",
   "samba",
   "feijoada",
