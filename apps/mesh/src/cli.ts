@@ -113,29 +113,75 @@ const bold = "\x1b[1m";
 const cyan = "\x1b[36m";
 const yellow = "\x1b[33m";
 
-// Generate temporary secrets if not provided
+// Path for storing auto-generated secrets (relative to cwd, alongside database)
+const secretsFilePath = "./data/mesh-dev-only-secrets.json";
+
+// Generate or load secrets if not provided via environment variables
 // This allows users to try the app without setting up environment variables
+// while still persisting sessions across restarts
 const crypto = await import("crypto");
-let showSecretWarning = false;
+const { mkdir } = await import("fs/promises");
+
+interface SecretsFile {
+  BETTER_AUTH_SECRET?: string;
+  ENCRYPTION_KEY?: string;
+}
+
+// Try to load existing secrets from file
+let savedSecrets: SecretsFile = {};
+try {
+  const file = Bun.file(secretsFilePath);
+  if (await file.exists()) {
+    savedSecrets = await file.json();
+  }
+} catch {
+  // File doesn't exist or is invalid, will create new secrets
+}
+
+let usingSecretsFile = false;
+let secretsModified = false;
 
 if (!process.env.BETTER_AUTH_SECRET) {
-  process.env.BETTER_AUTH_SECRET = crypto.randomBytes(32).toString("base64");
-  showSecretWarning = true;
+  if (savedSecrets.BETTER_AUTH_SECRET) {
+    process.env.BETTER_AUTH_SECRET = savedSecrets.BETTER_AUTH_SECRET;
+  } else {
+    savedSecrets.BETTER_AUTH_SECRET = crypto.randomBytes(32).toString("base64");
+    process.env.BETTER_AUTH_SECRET = savedSecrets.BETTER_AUTH_SECRET;
+    secretsModified = true;
+  }
+  usingSecretsFile = true;
 }
 
 if (!process.env.ENCRYPTION_KEY) {
-  process.env.ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
-  showSecretWarning = true;
+  if (savedSecrets.ENCRYPTION_KEY) {
+    process.env.ENCRYPTION_KEY = savedSecrets.ENCRYPTION_KEY;
+  } else {
+    savedSecrets.ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+    process.env.ENCRYPTION_KEY = savedSecrets.ENCRYPTION_KEY;
+    secretsModified = true;
+  }
+  usingSecretsFile = true;
+}
+
+// Save secrets to file if we generated new ones
+if (secretsModified) {
+  try {
+    // Ensure data directory exists
+    await mkdir("./data", { recursive: true });
+    await Bun.write(secretsFilePath, JSON.stringify(savedSecrets, null, 2));
+  } catch (error) {
+    console.warn(`${yellow}⚠️  Could not save secrets file: ${error}${reset}`);
+  }
 }
 
 console.log("");
 console.log(`${bold}${cyan}MCP Mesh${reset}`);
 console.log(`${dim}Self-hostable MCP Gateway${reset}`);
 
-if (showSecretWarning) {
+if (usingSecretsFile) {
   console.log("");
   console.log(
-    `${yellow}⚠️  Using temporary secrets - sessions/credentials won't persist across restarts.${reset}`,
+    `${yellow}⚠️  Using generated dev-only secrets file: ${secretsFilePath}${reset}`,
   );
   console.log(
     `${dim}   For production, set these environment variables:${reset}`,
