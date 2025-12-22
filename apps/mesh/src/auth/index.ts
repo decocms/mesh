@@ -61,9 +61,6 @@ const ORG_NAME_TECH_SUFFIXES = [
   "core",
   "cloud",
   "works",
-  "forge",
-  "stack",
-  "base",
 ];
 
 const ORG_NAME_BR_SUFFIXES = [
