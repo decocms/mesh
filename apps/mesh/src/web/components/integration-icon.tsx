@@ -43,8 +43,9 @@ export function IntegrationIcon({
   const fallbackIconElement = (
     <div
       className={cn(
-        "rounded-lg flex items-center justify-center bg-muted border border-border",
+        "rounded-lg flex items-center justify-center bg-muted border border-border shrink-0",
         sizeClasses[size],
+        minWidthClasses[size],
         className,
       )}
     >
