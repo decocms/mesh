@@ -137,6 +137,11 @@ export function resolveClientDir(
 }
 
 /**
+ * TODO(@camudo): make "modes" so we can for example try to serve the asset then fallback to api on miss
+ * or try to serve the api call then fallback to asset or index.html on 404
+ */
+
+/**
  * Create an asset handler that works with Bun.serve.
  *
  * In development: Proxies requests to Vite dev server
