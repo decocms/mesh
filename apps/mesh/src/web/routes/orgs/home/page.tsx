@@ -27,7 +27,6 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Handle,
-  MarkerType,
   Position,
   ReactFlow,
   type Edge,
@@ -255,15 +254,32 @@ interface GatewayNodeData extends Record<string, unknown> {
   metricsMode: MetricsMode;
   metric: NodeMetric | undefined;
   colorScheme: ColorScheme;
+  org: string;
 }
 
 function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
+  const navigate = useNavigate();
   const metricValue = formatMetricValue(data.metric, data.metricsMode);
 
+  const handleClick = () => {
+    navigate({
+      to: "/$org/monitoring",
+      params: { org: data.org },
+      search: {
+        from: "now-24h",
+        to: "now",
+        gatewayId: [data.gateway.id],
+        ...(data.metricsMode === "errors" && { status: "errors" as const }),
+      },
+    });
+  };
+
   return (
-    <div
+    <button
+      type="button"
+      onClick={handleClick}
       className={cn(
-        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan",
+        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan cursor-pointer transition-opacity hover:opacity-80 pointer-events-auto",
         data.colorScheme.borderClass,
       )}
     >
@@ -273,7 +289,7 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
         size="sm"
         fallbackIcon="network_node"
       />
-      <div className="flex flex-col min-w-0 flex-1">
+      <div className="flex flex-col min-w-0 flex-1 text-left">
         <span className="text-[11px] text-muted-foreground truncate">
           {data.gateway.title}
         </span>
@@ -291,7 +307,7 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
         position={Position.Right}
         className="w-2! h-2! bg-transparent! border-0! opacity-0!"
       />
-    </div>
+    </button>
   );
 }
 
@@ -300,15 +316,32 @@ interface ServerNodeData extends Record<string, unknown> {
   metricsMode: MetricsMode;
   metric: NodeMetric | undefined;
   colorScheme: ColorScheme;
+  org: string;
 }
 
 function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
+  const navigate = useNavigate();
   const metricValue = formatMetricValue(data.metric, data.metricsMode);
 
+  const handleClick = () => {
+    navigate({
+      to: "/$org/monitoring",
+      params: { org: data.org },
+      search: {
+        from: "now-24h",
+        to: "now",
+        connectionId: [data.connection.id],
+        ...(data.metricsMode === "errors" && { status: "errors" as const }),
+      },
+    });
+  };
+
   return (
-    <div
+    <button
+      type="button"
+      onClick={handleClick}
       className={cn(
-        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan",
+        "flex h-14 w-[220px] shrink-0 items-center gap-3 px-4 py-3 bg-background border rounded-lg shadow-sm nodrag nopan cursor-pointer transition-opacity hover:opacity-80 pointer-events-auto",
         data.colorScheme.borderClass,
       )}
     >
@@ -323,7 +356,7 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
         size="sm"
         fallbackIcon="extension"
       />
-      <div className="flex flex-col min-w-0 flex-1">
+      <div className="flex flex-col min-w-0 flex-1 text-left">
         <span className="text-[11px] text-muted-foreground truncate">
           {data.connection.title}
         </span>
@@ -336,13 +369,30 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
           {metricValue}
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
-function MeshNode() {
+interface MeshNodeData extends Record<string, unknown> {
+  org: string;
+}
+
+function MeshNode({ data }: NodeProps<Node<MeshNodeData>>) {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    navigate({
+      to: "/$org/monitoring",
+      params: { org: data.org },
+    });
+  };
+
   return (
-    <div className="flex h-14 w-14 items-center justify-center p-2 bg-background border border-border rounded-lg shadow-sm">
+    <button
+      type="button"
+      onClick={handleClick}
+      className="flex h-14 w-14 items-center justify-center p-2 bg-background border border-border rounded-lg shadow-sm nodrag nopan cursor-pointer transition-opacity hover:opacity-80 pointer-events-auto"
+    >
       <Handle
         type="target"
         position={Position.Left}
@@ -354,7 +404,7 @@ function MeshNode() {
         position={Position.Right}
         className="w-2! h-2! bg-transparent! border-0! opacity-0!"
       />
-    </div>
+    </button>
   );
 }
 
@@ -384,13 +434,13 @@ function MetricsModeSelector({
       size="sm"
       className="bg-background/80 backdrop-blur-sm"
     >
-      <ToggleGroupItem value="requests" className="text-xs px-3">
+      <ToggleGroupItem value="requests" className="text-xs px-3 cursor-pointer">
         Requests
       </ToggleGroupItem>
-      <ToggleGroupItem value="errors" className="text-xs px-3">
+      <ToggleGroupItem value="errors" className="text-xs px-3 cursor-pointer">
         Errors
       </ToggleGroupItem>
-      <ToggleGroupItem value="latency" className="text-xs px-3">
+      <ToggleGroupItem value="latency" className="text-xs px-3 cursor-pointer">
         Latency
       </ToggleGroupItem>
     </ToggleGroup>
@@ -399,6 +449,7 @@ function MetricsModeSelector({
 
 function MeshVisualization() {
   const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
+  const { org } = useProjectContext();
 
   const rawGateways: GatewayEntity[] = useGateways({ pageSize: MAX_ITEMS });
   const rawConnections: ConnectionEntity[] = useConnections({
@@ -466,6 +517,7 @@ function MeshVisualization() {
         metricsMode,
         metric: nodeMetrics.gateways.get(gateway.id),
         colorScheme,
+        org: org.slug,
       },
       draggable: false,
       selectable: false,
@@ -477,7 +529,6 @@ function MeshVisualization() {
       target: "mesh",
       type: "smoothstep",
       animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, color: colorScheme.edgeColor },
       style: edgeStyle,
     });
   });
@@ -487,7 +538,7 @@ function MeshVisualization() {
     id: "mesh",
     type: "mesh",
     position: { x: meshX, y: -MESH_NODE_SIZE / 2 },
-    data: {},
+    data: { org: org.slug },
     draggable: false,
     selectable: false,
   });
@@ -507,6 +558,7 @@ function MeshVisualization() {
         metricsMode,
         metric: nodeMetrics.connections.get(connection.id),
         colorScheme,
+        org: org.slug,
       },
       draggable: false,
       selectable: false,
@@ -518,7 +570,6 @@ function MeshVisualization() {
       target: `server-${connection.id}`,
       type: "smoothstep",
       animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, color: colorScheme.edgeColor },
       style: edgeStyle,
     });
   });
@@ -558,7 +609,7 @@ function MeshVisualization() {
         panOnDrag={false}
         preventScrolling={false}
         proOptions={{ hideAttribution: true }}
-        className="bg-transparent pointer-events-none"
+        className="bg-transparent"
       />
     </div>
   );
