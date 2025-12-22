@@ -130,7 +130,9 @@ function TreeItem({
         }`}
       >
         {/* Indentation spacer for nested items */}
-        {node.depth > 1 && <div className="w-6 shrink-0" />}
+        {node.depth > 0 && (
+          <div className="shrink-0" style={{ width: `${node.depth * 24}px` }} />
+        )}
 
         {/* Icon */}
         {node.type === "folder" ? (
@@ -243,9 +245,6 @@ function TreeList({
           needsSeparator = true;
         }
 
-        // Add section title for root folders
-        const needsSectionTitle = node.type === "folder" && node.depth === 0; // All root folders get section titles
-
         return (
           <React.Fragment key={node.id}>
             {needsSeparator && (
@@ -253,16 +252,6 @@ function TreeList({
                 <div className="h-px bg-border/50" />
               </li>
             )}
-            {needsSectionTitle && (
-              <li className="mt-3 first:mt-0">
-                <div className="px-3 py-2">
-                  <h3 className="text-sm font-medium text-foreground">
-                    {translations[`sidebar.section.${node.name}`] || node.name}
-                  </h3>
-                </div>
-              </li>
-            )}
-            {!needsSectionTitle && (
               <TreeItem
                 node={node}
                 isVisible={isVisible}
@@ -271,7 +260,6 @@ function TreeList({
                 locale={locale}
                 translations={translations}
               />
-            )}
           </React.Fragment>
         );
       })}
@@ -289,10 +277,35 @@ export default function Sidebar({ tree, locale, translations }: SidebarProps) {
     );
     const initialState = new Map();
 
-    // Initialize tree state - default to expanded
+    // If the current page is inside a folder, ensure its ancestor folders are expanded
+    // so the active item is visible (even if the default is collapsed).
+    const currentPath = globalThis.location.pathname;
+    const relativePath = currentPath.replace(`/${locale}/`, "");
+    const parts = relativePath.split("/").filter(Boolean);
+    const expandedAncestors = new Set<string>();
+    for (let i = 1; i <= parts.length - 1; i++) {
+      expandedAncestors.add(parts.slice(0, i).join("/"));
+    }
+
+    // Initialize tree state - default to expanded (with a few collapsed-by-default sections)
     tree.forEach((node) => {
       if (node.type === "folder") {
-        initialState.set(node.id, savedState[node.id] !== false);
+        const saved = savedState[node.id];
+        // Default: show "Legacy Admin" open, but keep its sections closed (as a compact TOC).
+        const collapsedByDefault = new Set<string>([
+          "admin-decocms-com/getting-started",
+          "admin-decocms-com/no-code-guides",
+          "admin-decocms-com/full-code-guides",
+        ]);
+        const defaultExpanded = collapsedByDefault.has(node.id) ? false : true;
+
+        const shouldExpand =
+          typeof saved === "boolean" ? saved : defaultExpanded;
+
+        initialState.set(
+          node.id,
+          expandedAncestors.has(node.id) ? true : shouldExpand,
+        );
       }
     });
 
