@@ -1,9 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test, beforeAll, afterAll } from "bun:test";
 import {
   isPathWithinDirectory,
   resolveAssetPathWithTraversalCheck,
+  createAssetHandler,
 } from "./index";
 import { resolve } from "path";
+import { mkdirSync, writeFileSync, rmSync } from "fs";
 
 describe("isPathWithinDirectory", () => {
   const baseDir = "/app/client";
@@ -71,189 +73,234 @@ describe("isPathWithinDirectory", () => {
   });
 });
 
-describe("resolveAssetPath", () => {
+describe("resolveAssetPathWithTraversalCheck", () => {
   const clientDir = "/app/dist/client";
-  const indexPath = "/app/dist/client/index.html"; // Expected default
 
   // Helper to reduce boilerplate
-  const resolve = (requestPath: string) =>
+  const resolvePath = (requestPath: string) =>
     resolveAssetPathWithTraversalCheck({ requestPath, clientDir });
 
-  describe("SPA routes - serve index.html", () => {
-    test("root path serves index.html", () => {
-      const result = resolve("/");
-      expect(result).toEqual({ filePath: indexPath, isSPA: true });
+  describe("valid paths", () => {
+    test("resolves root to clientDir", () => {
+      expect(resolvePath("/")).toBe(clientDir);
     });
 
-    test("path without extension serves index.html", () => {
-      const result = resolve("/dashboard");
-      expect(result).toEqual({ filePath: indexPath, isSPA: true });
+    test("resolves CSS file", () => {
+      expect(resolvePath("/style.css")).toBe("/app/dist/client/style.css");
     });
 
-    test("nested path without extension serves index.html", () => {
-      const result = resolve("/org/my-org/settings");
-      expect(result).toEqual({ filePath: indexPath, isSPA: true });
+    test("resolves nested path", () => {
+      expect(resolvePath("/assets/app.js")).toBe(
+        "/app/dist/client/assets/app.js",
+      );
     });
 
-    test("path with query params but no extension serves index.html", () => {
-      // Note: query params should be stripped before calling this function
-      const result = resolve("/dashboard");
-      expect(result).toEqual({ filePath: indexPath, isSPA: true });
-    });
-  });
-
-  describe("static assets - serve file", () => {
-    test("CSS file resolves correctly", () => {
-      const result = resolve("/style.css");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/style.css",
-        isSPA: false,
-      });
+    test("resolves path without extension", () => {
+      expect(resolvePath("/dashboard")).toBe("/app/dist/client/dashboard");
     });
 
-    test("JS file resolves correctly", () => {
-      const result = resolve("/assets/app.js");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/assets/app.js",
-        isSPA: false,
-      });
+    test("resolves path with dots (SPA route)", () => {
+      expect(resolvePath("/user/john.doe")).toBe(
+        "/app/dist/client/user/john.doe",
+      );
     });
 
-    test("image file resolves correctly", () => {
-      const result = resolve("/logo.png");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/logo.png",
-        isSPA: false,
-      });
-    });
-
-    test("SVG file resolves correctly", () => {
-      const result = resolve("/icons/icon.svg");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/icons/icon.svg",
-        isSPA: false,
-      });
-    });
-
-    test("file with spaces in name resolves correctly", () => {
-      const result = resolve("/logos/deco logo.svg");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/logos/deco logo.svg",
-        isSPA: false,
-      });
-    });
-
-    test("deeply nested file resolves correctly", () => {
-      const result = resolve("/assets/images/icons/arrow.svg");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/assets/images/icons/arrow.svg",
-        isSPA: false,
-      });
+    test("resolves file with spaces", () => {
+      expect(resolvePath("/logos/deco logo.svg")).toBe(
+        "/app/dist/client/logos/deco logo.svg",
+      );
     });
   });
 
   describe("path traversal attacks - BLOCKED", () => {
     test("blocks /../../../etc/passwd", () => {
-      const result = resolve("/../../../etc/passwd");
-      expect(result).toBeNull();
-    });
-
-    test("blocks /..%2F..%2F..%2Fetc%2Fpasswd (decoded)", () => {
-      // This simulates what happens after decodeURIComponent
-      const result = resolve("/../../../etc/passwd");
-      expect(result).toBeNull();
+      expect(resolvePath("/../../../etc/passwd")).toBeNull();
     });
 
     test("blocks /assets/../../../etc/passwd", () => {
-      const result = resolve("/assets/../../../etc/passwd");
-      expect(result).toBeNull();
+      expect(resolvePath("/assets/../../../etc/passwd")).toBeNull();
     });
 
     test("blocks /./../../etc/passwd", () => {
-      const result = resolve("/./../../etc/passwd");
-      expect(result).toBeNull();
+      expect(resolvePath("/./../../etc/passwd")).toBeNull();
     });
 
-    test("blocks /../etc/passwd (encoded dots decoded)", () => {
-      // %2e%2e decoded is ..
-      const result = resolve("/../etc/passwd");
-      expect(result).toBeNull();
+    test("blocks /../etc/passwd", () => {
+      expect(resolvePath("/../etc/passwd")).toBeNull();
     });
 
-    test("blocks /..\\..\\etc\\passwd (backslash variant)", () => {
-      const result = resolve("/..\\..\\etc\\passwd");
-      // On Unix, backslashes are treated as literal characters in filenames
-      // The resolve() function handles this, but the path still shouldn't escape
-      expect(result).not.toBeNull(); // Treated as literal filename, stays in clientDir
+    test("allows backslash paths (treated as literal on Unix)", () => {
+      // On Unix, backslashes are literal characters - path stays in clientDir
+      expect(resolvePath("/..\\..\\etc\\passwd")).not.toBeNull();
     });
 
     test("blocks /assets/../../package.json", () => {
-      const result = resolve("/assets/../../package.json");
+      expect(resolvePath("/assets/../../package.json")).toBeNull();
+    });
+
+    test("blocks //etc/passwd (resolves to absolute path)", () => {
+      // Double slash after stripping leading / becomes /etc/passwd (absolute)
+      expect(resolvePath("//etc/passwd")).toBeNull();
+    });
+
+    test("blocks /valid/../../../etc/passwd", () => {
+      expect(resolvePath("/valid/../../../etc/passwd")).toBeNull();
+    });
+  });
+});
+
+describe("createAssetHandler", () => {
+  // Temp directory for tests that need real files
+  const tempDir = resolve(import.meta.dir, ".test-temp-client");
+  const indexContent = "<!DOCTYPE html><html><body>SPA</body></html>";
+  const cssContent = "body { color: red; }";
+
+  beforeAll(() => {
+    // Create temp directory with test files
+    mkdirSync(resolve(tempDir, "assets"), { recursive: true });
+    writeFileSync(resolve(tempDir, "index.html"), indexContent);
+    writeFileSync(resolve(tempDir, "assets/style.css"), cssContent);
+  });
+
+  afterAll(() => {
+    // Clean up temp directory
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe("malformed URL encoding", () => {
+    test("handles malformed percent-encoded sequences gracefully", async () => {
+      // Create handler in production mode to test the decodeURIComponent path
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: "/app/dist/client",
+      });
+
+      // %E0%A4%A is an incomplete UTF-8 sequence that causes decodeURIComponent to throw
+      const malformedUrl = "http://localhost:3000/%E0%A4%A";
+      const request = new Request(malformedUrl);
+
+      // Should return null (graceful fallback) instead of throwing
+      const result = await handler(request);
       expect(result).toBeNull();
     });
 
-    test("handles //etc/passwd (double slash) - treated as SPA route, safe", () => {
-      const result = resolve("//etc/passwd");
-      // "//etc/passwd" doesn't include a "." so it's treated as an SPA route
-      // This is safe because it serves index.html, not /etc/passwd
-      expect(result).not.toBeNull();
-      expect(result?.filePath).toBe(indexPath);
-      expect(result?.isSPA).toBe(true);
+    test("handles %FF (invalid UTF-8 byte) gracefully", async () => {
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: "/app/dist/client",
+      });
+
+      // %FF is not valid in UTF-8
+      const malformedUrl = "http://localhost:3000/%FF";
+      const request = new Request(malformedUrl);
+
+      const result = await handler(request);
+      expect(result).toBeNull();
     });
 
-    test("blocks attempt to access sibling with ../ after valid start", () => {
-      const result = resolve("/valid/../../../etc/passwd");
+    test("handles truncated multi-byte sequence gracefully", async () => {
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: "/app/dist/client",
+      });
+
+      // %C2 expects a continuation byte but is truncated
+      const malformedUrl = "http://localhost:3000/file%C2.txt";
+      const request = new Request(malformedUrl);
+
+      const result = await handler(request);
       expect(result).toBeNull();
     });
   });
 
-  describe("edge cases", () => {
-    test("handles file with multiple dots", () => {
-      const result = resolve("/file.test.spec.js");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/file.test.spec.js",
-        isSPA: false,
+  describe("SPA fallback for routes with dots", () => {
+    test("serves index.html for /user/john.doe (non-existent path with dot)", async () => {
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: tempDir,
       });
+
+      const request = new Request("http://localhost:3000/user/john.doe");
+      const result = await handler(request);
+
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe(200);
+      const text = await result?.text();
+      expect(text).toBe(indexContent);
     });
 
-    test("handles hidden files (dotfiles)", () => {
-      const result = resolve("/.htaccess");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/.htaccess",
-        isSPA: false,
+    test("serves index.html for /page/v2.0 (version-like route)", async () => {
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: tempDir,
       });
+
+      const request = new Request("http://localhost:3000/page/v2.0");
+      const result = await handler(request);
+
+      expect(result).not.toBeNull();
+      const text = await result?.text();
+      expect(text).toBe(indexContent);
     });
 
-    test("handles path without leading slash", () => {
-      const result = resolve("style.css");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/style.css",
-        isSPA: false,
+    test("serves index.html for /files/report.2024 (date-like route)", async () => {
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: tempDir,
       });
+
+      const request = new Request("http://localhost:3000/files/report.2024");
+      const result = await handler(request);
+
+      expect(result).not.toBeNull();
+      const text = await result?.text();
+      expect(text).toBe(indexContent);
     });
 
-    test("handles favicon.ico", () => {
-      const result = resolve("/favicon.ico");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/favicon.ico",
-        isSPA: false,
+    test("serves actual file when it exists", async () => {
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: tempDir,
       });
+
+      const request = new Request("http://localhost:3000/assets/style.css");
+      const result = await handler(request);
+
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe(200);
+      const text = await result?.text();
+      expect(text).toBe(cssContent);
     });
 
-    test("handles robots.txt", () => {
-      const result = resolve("/robots.txt");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/robots.txt",
-        isSPA: false,
+    test("serves index.html for non-existent .css file", async () => {
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: tempDir,
       });
+
+      // This CSS file doesn't exist, so it should fall back to index.html
+      const request = new Request(
+        "http://localhost:3000/assets/nonexistent.css",
+      );
+      const result = await handler(request);
+
+      expect(result).not.toBeNull();
+      const text = await result?.text();
+      expect(text).toBe(indexContent);
     });
 
-    test("handles manifest.json", () => {
-      const result = resolve("/manifest.json");
-      expect(result).toEqual({
-        filePath: "/app/dist/client/manifest.json",
-        isSPA: false,
+    test("serves index.html for route without dots", async () => {
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: tempDir,
       });
+
+      const request = new Request("http://localhost:3000/dashboard");
+      const result = await handler(request);
+
+      expect(result).not.toBeNull();
+      const text = await result?.text();
+      expect(text).toBe(indexContent);
     });
   });
 });

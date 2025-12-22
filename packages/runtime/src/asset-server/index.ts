@@ -29,13 +29,6 @@ export interface AssetServerConfig {
   isServerPath?: (path: string) => boolean;
 }
 
-export interface ResolvedAssetPath {
-  /** Absolute file path to serve */
-  filePath: string;
-  /** True if this is an SPA route (serves index.html) */
-  isSPA: boolean;
-}
-
 const DEFAULT_DEV_SERVER_URL = "http://localhost:4000";
 const DEFAULT_CLIENT_DIR = "./dist/client";
 
@@ -72,35 +65,24 @@ export interface ResolveAssetPathOptions {
 }
 
 /**
- * Resolve a URL pathname to a file path for serving static assets.
- * Returns null if the path is a traversal attempt or should not be served.
+ * Resolve a URL pathname to a file path, with path traversal protection.
+ * Returns null if the path is a traversal attempt.
  *
- * @returns Resolved path info, or null if unsafe/invalid
+ * @returns File path, or null if unsafe
  *
  * @example
  * ```ts
- * resolveAssetPath({ requestPath: "/style.css", clientDir: "/app/client" })
- * // { filePath: "/app/client/style.css", isSPA: false }
+ * resolveAssetPathWithTraversalCheck({ requestPath: "/style.css", clientDir: "/app/client" })
+ * // "/app/client/style.css"
  *
- * resolveAssetPath({ requestPath: "/dashboard", clientDir: "/app/client" })
- * // { filePath: "/app/client/index.html", isSPA: true }
- *
- * resolveAssetPath({ requestPath: "/../../../etc/passwd", clientDir: "/app/client" })
+ * resolveAssetPathWithTraversalCheck({ requestPath: "/../../../etc/passwd", clientDir: "/app/client" })
  * // null (blocked)
  * ```
  */
 export function resolveAssetPathWithTraversalCheck({
   requestPath,
   clientDir,
-}: ResolveAssetPathOptions): ResolvedAssetPath | null {
-  const indexPath = resolve(clientDir, "index.html");
-
-  // SPA routes: paths without file extensions serve index.html
-  if (requestPath === "/" || !requestPath.includes(".")) {
-    return { filePath: indexPath, isSPA: true };
-  }
-
-  // Static assets: resolve path within client directory
+}: ResolveAssetPathOptions): string | null {
   const relativePath = requestPath.startsWith("/")
     ? requestPath.slice(1)
     : requestPath;
@@ -111,7 +93,7 @@ export function resolveAssetPathWithTraversalCheck({
     return null;
   }
 
-  return { filePath, isSPA: false };
+  return filePath;
 }
 
 /**
@@ -202,31 +184,42 @@ export function createAssetHandler(config: AssetServerConfig = {}) {
     }
 
     const requestUrl = new URL(request.url);
+
     // Decode the pathname to handle URL-encoded characters (e.g., %20 -> space)
-    const path = decodeURIComponent(requestUrl.pathname);
+    // decodeURIComponent can throw URIError for malformed sequences (e.g., %E0%A4%A)
+    let path: string;
+    try {
+      path = decodeURIComponent(requestUrl.pathname);
+    } catch {
+      // Malformed URL encoding - return null to let API server handle or return 400
+      return null;
+    }
 
     // Let API server handle its routes
     if (isServerPath(path)) {
       return null;
     }
 
-    // Resolve the asset path (handles SPA fallback and security checks)
-    const resolved = resolveAssetPathWithTraversalCheck({
+    // Resolve path with traversal check
+    const filePath = resolveAssetPathWithTraversalCheck({
       requestPath: path,
       clientDir,
     });
-    if (!resolved) {
+    if (!filePath) {
       return null; // Path traversal attempt blocked
     }
 
-    // Try to serve the file
-    try {
-      const file = Bun.file(resolved.filePath);
-      if (await file.exists()) {
-        return new Response(file);
+    // Try to serve the requested file, fall back to index.html for SPA routing
+    const indexPath = resolve(clientDir, "index.html");
+    for (const pathToTry of [filePath, indexPath]) {
+      try {
+        const file = Bun.file(pathToTry);
+        if (await file.exists()) {
+          return new Response(file);
+        }
+      } catch {
+        // Continue to next path
       }
-    } catch {
-      // File not found or error, fall through
     }
 
     return null;
