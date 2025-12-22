@@ -17,13 +17,16 @@
 > - Route all MCP traffic through a single governed endpoint
 > - Enforce RBAC, policies, and audit trails at the control plane
 > - Full observability with OpenTelemetry — traces, costs, errors
-> - Self-host with Docker, Bun, or run locally
+> - Runtime strategies as gateways for optimal tool selection 
+> - Self-host with Docker, Bun/Node, Kubernetes, or run locally
 
 ---
 
-## What is MCP Mesh?
+## What is an MCP Mesh?
 
-**MCP Mesh** is an open-source control plane for MCP traffic. It sits between your MCP clients (Cursor, Claude, VS Code, custom agents) and your MCP servers, providing a unified layer for auth, policy, and observability.
+**MCP Mesh** is an open-source control plane for MCP traffic. It sits between your MCP clients (Cursor, Claude, Windsurf, VS Code, custom agents) and your MCP servers, providing a unified layer for auth, routing and observability.
+
+It replaces M×N integrations (M MCP servers × N clients) with one production endpoint, so you stop maintaining separate configs in every client. Built for multi-tenant orgs: workspace/project scoping for policies, credentials, and logs.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -43,9 +46,6 @@
 │      Salesforce · Slack · GitHub · Postgres · Your APIs         │
 └─────────────────────────────────────────────────────────────────┘
 ```
-
-Stop wiring every client to every MCP. Stop rebuilding auth for every agent.
-
 ---
 
 ## Quick Start
@@ -56,7 +56,7 @@ git clone https://github.com/decocms/mesh.git
 cd mesh
 bun install
 
-# Run locally
+# Run locally (client + API server)
 bun run dev
 ```
 
@@ -66,18 +66,34 @@ Or use `npm create deco` to scaffold a new project with the CLI.
 
 ---
 
+## Runtime strategies as gateways
+
+As tool surfaces grow, “send every tool definition to the model on every call” gets expensive and slow.
+The mesh models runtime strategies as gateways: one endpoint, different ways of exposing tools.
+
+Examples:
+- Full-context: expose everything (simple and deterministic for small toolsets)
+- Smart selection: narrow the toolset before execution
+- Code execution: load tools on demand and run code in a sandbox
+
+Gateways are configurable and extensible. You can add new strategies and also curate toolsets (see Virtual MCPs).
+
+---
+
 ## Core Capabilities
 
-| Layer | Description |
+| Capability | What it does |
 |-------|-------------|
-| 🧩 **MeshContext** | Unified runtime interface providing auth, storage, observability, and policy control |
-| ⚙️ **defineTool()** | Declarative API for typed, auditable, observable MCP tools |
-| 🧱 **AccessControl** | Fine-grained RBAC via Better Auth — OAuth 2.1 + API keys per workspace/project |
-| 📊 **OpenTelemetry** | Full tracing and metrics for tools, workflows, and UI interactions |
-| 💾 **Storage Adapters** | Kysely ORM → SQLite / Postgres, easily swapped |
-| ☁️ **Proxy Layer** | Secure bridge to remote MCP servers with token vault + OAuth |
-| 🧰 **Virtual MCPs** | Compose and expose governed toolsets as new MCP servers |
-| 📬 **Event Bus** | Pub/sub between connections with scheduled/cron delivery and at-least-once guarantees |
+| **MeshContext** | Unified runtime interface providing auth, storage, observability, and policy control |
+| **defineTool()** | Declarative API for typed, auditable, observable MCP tools |
+| **AccessControl** | Fine-grained RBAC via Better Auth — OAuth 2.1 + API keys per workspace/project |
+| **Multi-tenancy** | Workspace/project isolation for config, credentials, policies, and audit logs |
+| **OpenTelemetry** | Full tracing and metrics for tools, workflows, and UI interactions |
+| **Storage Adapters** | Kysely ORM → SQLite / Postgres, easily swapped |
+| **Proxy Layer** | Secure bridge to remote MCP servers with token vault + OAuth |
+| **Virtual MCPs** | Compose and expose governed toolsets as new MCP servers |
+| **Event Bus** | Pub/sub between connections with scheduled/cron delivery and at-least-once guarantees |
+| **Bindings** | Capability contracts (ex.: agents, workflows, views) so apps target interfaces instead of specific MCP implementations |
 
 ---
 
@@ -116,7 +132,7 @@ export const CONNECTION_CREATE = defineTool({
 });
 ```
 
-Every tool call gets: type validation, access control checks, audit logging, and OpenTelemetry traces — automatically.
+Every tool call automatically gets: input/output validation, access control checks, audit logging, and OpenTelemetry traces.
 
 ---
 
@@ -217,60 +233,36 @@ Runs on any infrastructure — Docker, Kubernetes, AWS, GCP, or local Bun/Node r
 
 ---
 
-## Comparison
-
-### vs Mastra
-
-| | **Mastra** | **MCP Mesh** |
-|---|---|---|
-| Category | TypeScript agent/workflow framework | MCP control plane + runtime |
-| Focus | Build agent primitives, RAG, workflows | Route, govern, and observe MCP traffic |
-| Protocol | Model/provider-agnostic | MCP-native |
-| Auth | Framework-level | OAuth 2.1 + RBAC + API keys |
-| Observability | Tracing/evals at framework level | End-to-end OpenTelemetry |
-| Deployment | Node.js / serverless | Docker / Bun / Self-host |
-
-### vs Metorial
-
-| | **Metorial** | **MCP Mesh** |
-|---|---|---|
-| Focus | Connect AI to APIs | Control plane for MCP traffic |
-| Language | Go + TS | 100% TypeScript |
-| Infra | Docker | Docker / Bun / Self-host |
-| Auth | API keys | OAuth 2.1 + RBAC + spend caps |
-| Observability | Dashboard | Full OpenTelemetry |
-
----
-
 ## Roadmap
 
 - [ ] Multi-tenant admin dashboard
-- [ ] Runtime strategies (smart routing, code execution)
 - [ ] MCP bindings (swap providers without rewrites)
+- [ ] Version history for mesh configs
+- [ ] NPM package runtime
 - [ ] Edge debugger / live tracing
 - [ ] Cost analytics and spend caps
 - [ ] MCP Store — discover and install pre-built MCP apps
 
 ---
 
-## Part of decoCMS
+## Part of deco CMS
 
-MCP Mesh is the core infrastructure layer of [decoCMS](https://decocms.com).
+The MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com).
 
 | Layer | What it does |
 |-------|--------------|
 | **MCP Mesh** | Connect, govern, and observe MCP traffic |
-| **MCP Studio** | Build MCP capabilities (no-code admin + SDK) |
-| **MCP Store** | Discover and install pre-built MCP apps |
+| **MCP Studio** (coming soon) | Package durable MCP capabilities into shareable apps (SDK + no-code admin) |
+| **MCP Store** (coming soon) | Discover, install (and eventually monetize) pre-built MCP apps. |
 
 ---
 
 ## License
 
-MCP Mesh ships with a **Sustainable Use License (SUL)**. See [LICENSE.md](./LICENSE.md).
+The MCP Mesh ships with a **Sustainable Use License (SUL)**. See [LICENSE.md](./LICENSE.md).
 
 - ✅ Free to self-host for internal use
-- ✅ Free for client projects (agencies, consultancies, SIs)
+- ✅ Free for client projects (agencies, SIs)
 - ⚠️ Commercial license required for SaaS or revenue-generating production systems
 
 Questions? [contact@decocms.com](mailto:contact@decocms.com)
