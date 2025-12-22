@@ -14,7 +14,6 @@ import {
   FormMessage,
 } from "@deco/ui/components/form.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -246,108 +245,108 @@ export default function OrgSettings() {
           {/* Content */}
           <div className="flex-1 overflow-auto">
             <div className="p-5 max-w-2xl">
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">
-                      Organization
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Update your organization's name, slug, and logo.
-                    </p>
-                  </div>
-
-                  <Form {...form}>
-                    <form
-                      onSubmit={form.handleSubmit(onSubmit)}
-                      className="space-y-6"
-                    >
-                      <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Organization Name</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="My Organization"
-                                {...field}
-                                disabled={isSaving}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="slug"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Organization Slug</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="my-organization"
-                                {...field}
-                                disabled={isSaving}
-                                onChange={(e) => {
-                                  // Convert to lowercase and remove invalid chars
-                                  const sanitized = e.target.value
-                                    .toLowerCase()
-                                    .replace(/[^a-z0-9-]/g, "");
-                                  field.onChange(sanitized);
-                                }}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Used in URLs. Only lowercase letters, numbers, and
-                              hyphens are allowed.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="logo"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Logo</FormLabel>
-                            <FormControl>
-                              <LogoUpload
-                                value={field.value}
-                                onChange={field.onChange}
-                                name={form.watch("name")}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="flex items-center gap-3 pt-4">
-                        <Button
-                          type="submit"
-                          disabled={!hasChanges || isSaving}
-                          className="min-w-24"
-                        >
-                          {isSaving ? "Saving..." : "Save Changes"}
-                        </Button>
-                        {hasChanges && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => form.reset()}
-                            disabled={isSaving}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                    </form>
-                  </Form>
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Organization
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Update your organization's name, slug, and logo.
+                  </p>
                 </div>
+
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="space-y-6"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Organization Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="My Organization"
+                              {...field}
+                              disabled={isSaving}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="slug"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Organization Slug</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="my-organization"
+                              {...field}
+                              disabled={isSaving}
+                              onChange={(e) => {
+                                // Convert to lowercase and remove invalid chars
+                                const sanitized = e.target.value
+                                  .toLowerCase()
+                                  .replace(/[^a-z0-9-]/g, "");
+                                field.onChange(sanitized);
+                              }}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Used in URLs. Only lowercase letters, numbers, and
+                            hyphens are allowed.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="logo"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Logo</FormLabel>
+                          <FormControl>
+                            <LogoUpload
+                              value={field.value}
+                              onChange={field.onChange}
+                              name={form.watch("name")}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex items-center gap-3 pt-4">
+                      <Button
+                        type="submit"
+                        disabled={!hasChanges || isSaving}
+                        className="min-w-24"
+                      >
+                        {isSaving ? "Saving..." : "Save Changes"}
+                      </Button>
+                      {hasChanges && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => form.reset()}
+                          disabled={isSaving}
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
+                  </form>
+                </Form>
+              </div>
             </div>
           </div>
         </div>
