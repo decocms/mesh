@@ -8,7 +8,6 @@
  * - CORS support
  */
 
-import { applyAssetServerRoutes } from "@decocms/runtime/asset-server";
 import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -285,7 +284,17 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/api", modelsRoutes);
 
   // ============================================================================
-  // 404 Handler
+  // Static Asset Server (development only - production handled in index.ts)
+  // ============================================================================
+
+  if (!options.skipAssetServer && process.env.NODE_ENV === "development") {
+    // In development, proxy to Vite dev server
+    const { devServerProxy } = require("@decocms/runtime/asset-server/dev-server-proxy");
+    app.use("*", devServerProxy("http://localhost:4000"));
+  }
+
+  // ============================================================================
+  // 404 Handler (must be after all routes including static assets)
   // ============================================================================
 
   app.notFound((c) => {
@@ -310,16 +319,6 @@ export function createApp(options: CreateAppOptions = {}) {
       500,
     );
   });
-
-  // ============================================================================
-  // Static Asset Server
-  // ============================================================================
-
-  if (!options.skipAssetServer) {
-    applyAssetServerRoutes(app, {
-      env: process.env.NODE_ENV as "development" | "production" | "test",
-    });
-  }
 
   return app;
 }
