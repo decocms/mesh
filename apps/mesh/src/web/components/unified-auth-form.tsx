@@ -249,8 +249,6 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
           variant="link"
           onClick={() => {
             setIsSignUp(!isSignUp);
-            setEmail("");
-            setPassword("");
             setName("");
             setEmailError("");
             emailPasswordMutation.reset();
