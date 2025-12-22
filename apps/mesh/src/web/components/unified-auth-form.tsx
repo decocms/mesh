@@ -20,7 +20,7 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isSignUp, setIsSignUp] = useState(() => {
-    const hasLoggedIn = localStorage.getItem("hasLoggedIn");
+    const hasLoggedIn = globalThis.localStorage?.getItem("hasLoggedIn");
     return hasLoggedIn !== "true";
   });
   const [emailError, setEmailError] = useState("");
@@ -59,7 +59,7 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
       }
     },
     onSuccess: () => {
-      localStorage.setItem("hasLoggedIn", "true");
+      globalThis.localStorage?.setItem("hasLoggedIn", "true");
       // If OAuth flow, redirect to authorize endpoint to complete the flow
       if (redirectUrl) {
         window.location.href = redirectUrl;
