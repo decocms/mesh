@@ -162,13 +162,14 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
       {emailAndPassword.enabled && (
         <form onSubmit={handleEmailPassword} className="grid gap-4">
           <div
-            className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)] ${
+            className={cn(
+              "overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)]",
               isSignUp
                 ? "max-h-[200px] opacity-100 translate-y-0"
-                : "max-h-0 opacity-0 -translate-y-2"
-            }`}
+                : "max-h-0 opacity-0 -translate-y-2",
+            )}
           >
-            <div className={isSignUp ? "" : "pointer-events-none"}>
+            <div className={cn("p-1", !isSignUp && "pointer-events-none")}>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Name
               </label>
@@ -217,13 +218,13 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
 
           <div
             className={cn(
-              `overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)]`,
+              "overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)]",
               canSubmit
                 ? "max-h-[100px] opacity-100 translate-y-0"
                 : "max-h-0 opacity-0 -translate-y-2",
             )}
           >
-            <div className={canSubmit ? "" : "pointer-events-none"}>
+            <div className={cn(!canSubmit && "pointer-events-none")}>
               <Button
                 type="submit"
                 disabled={isLoading || !canSubmit}
