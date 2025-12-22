@@ -9,6 +9,7 @@
 // Import observability module early to initialize OpenTelemetry SDK
 import "./observability";
 import { createApp } from "./api/app";
+import { isServerPath } from "./api/utils/paths";
 import { resolve, dirname } from "path";
 
 const port = parseInt(process.env.PORT || "3000", 10);
@@ -49,14 +50,8 @@ async function handleRequest(request: Request): Promise<Response> {
 
   // In production, serve static files for GET requests
   if (request.method === "GET" && process.env.NODE_ENV === "production") {
-    // Skip API routes - let Hono handle them
-    if (
-      !path.startsWith("/api/") &&
-      !path.startsWith("/mcp/") &&
-      path !== "/health" &&
-      path !== "/metrics" &&
-      !path.startsWith("/.well-known")
-    ) {
+    // Skip server routes (API, MCP, health, metrics, etc.) - let Hono handle them
+    if (!isServerPath(path)) {
       // Determine file path
       let filePath: string;
 

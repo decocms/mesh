@@ -18,6 +18,7 @@ import {
   createMeshContextFactory,
 } from "../core/context-factory";
 import { getDb, type MeshDatabase } from "../database";
+import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import { createEventBus, type EventBus } from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
 import authRoutes from "./routes/auth";
@@ -132,7 +133,7 @@ export function createApp(options: CreateAppOptions = {}) {
   // ============================================================================
 
   // Health check endpoint (no auth required)
-  app.get("/health", (c) => {
+  app.get(SYSTEM_PATHS.HEALTH, (c) => {
     return c.json({
       status: "ok",
       timestamp: new Date().toISOString(),
@@ -141,7 +142,7 @@ export function createApp(options: CreateAppOptions = {}) {
   });
 
   // Prometheus metrics endpoint
-  app.get("/metrics", async (c) => {
+  app.get(SYSTEM_PATHS.METRICS, async (c) => {
     try {
       // Force collection of metrics (optional, metrics are usually auto-collected)
       const result = await prometheusExporter.collect();
@@ -222,17 +223,7 @@ export function createApp(options: CreateAppOptions = {}) {
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext
   app.use("*", async (c, next) => {
-    const path = c.req.path;
-
-    // Skip MeshContext for auth endpoints, static pages, health check, and metrics
-    if (
-      path.startsWith("/api/auth/") ||
-      path === "/" ||
-      path === "/health" ||
-      path === "/metrics" ||
-      path.startsWith("/.well-known") ||
-      path.match(/\.(html|css|js|ico|svg|png|jpg|woff2?)$/)
-    ) {
+    if (shouldSkipMeshContext(c.req.path)) {
       return next();
     }
 
