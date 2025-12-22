@@ -9,22 +9,10 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "./home-grid-cell.tsx";
-
-interface MonitoringLog {
-  id: string;
-  connectionId: string;
-  connectionTitle: string;
-  toolName: string;
-  isError: boolean;
-  errorMessage: string | null;
-  durationMs: number;
-  timestamp: string;
-}
-
-interface MonitoringLogsResponse {
-  logs: MonitoringLog[];
-  total: number;
-}
+import type {
+  MonitoringLog,
+  MonitoringLogsResponse,
+} from "./monitoring-types.ts";
 
 function RecentActivityContent() {
   const { org, locator } = useProjectContext();

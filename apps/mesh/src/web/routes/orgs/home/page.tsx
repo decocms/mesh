@@ -39,6 +39,8 @@ import { Suspense, useState } from "react";
 import { MonitoringKPIs } from "./monitoring-kpis.tsx";
 import {
   hasMonitoringActivity,
+  type MonitoringLogWithGateway,
+  type MonitoringLogsWithGatewayResponse,
   type MonitoringStats,
 } from "./monitoring-types.ts";
 import { RecentActivity } from "./recent-activity.tsx";
@@ -66,24 +68,6 @@ interface NodeMetricsMap {
 interface ColorScheme {
   edgeColor: string;
   textClass: string;
-  borderClass: string;
-}
-
-interface MonitoringLogWithGateway {
-  id: string;
-  connectionId: string;
-  connectionTitle: string;
-  toolName: string;
-  isError: boolean;
-  errorMessage: string | null;
-  durationMs: number;
-  timestamp: string;
-  gatewayId?: string | null;
-}
-
-interface MonitoringLogsResponse {
-  logs: MonitoringLogWithGateway[];
-  total: number;
 }
 
 // ============================================================================
@@ -100,17 +84,14 @@ const COLOR_SCHEMES: Record<MetricsMode, ColorScheme> = {
   requests: {
     edgeColor: "var(--chart-1)",
     textClass: "text-chart-1",
-    borderClass: "border-chart-1/40",
   },
   errors: {
     edgeColor: "var(--chart-3)",
     textClass: "text-chart-3",
-    borderClass: "border-chart-3/40",
   },
   latency: {
     edgeColor: "var(--chart-4)",
     textClass: "text-chart-4",
-    borderClass: "border-chart-4/40",
   },
 };
 
@@ -226,7 +207,7 @@ function useNodeMetrics(): NodeMetricsMap {
 
   const { data: logsData } = useToolCall<
     { startDate: string; endDate: string; limit: number; offset: number },
-    MonitoringLogsResponse
+    MonitoringLogsWithGatewayResponse
   >({
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",

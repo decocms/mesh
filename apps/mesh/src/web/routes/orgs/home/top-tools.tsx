@@ -11,22 +11,10 @@ import {
 } from "@deco/ui/components/chart.tsx";
 import { Pie, PieChart, Cell } from "recharts";
 import { HomeGridCell } from "./home-grid-cell.tsx";
-
-interface MonitoringLog {
-  id: string;
-  connectionId: string;
-  connectionTitle: string;
-  toolName: string;
-  isError: boolean;
-  errorMessage: string | null;
-  durationMs: number;
-  timestamp: string;
-}
-
-interface MonitoringLogsResponse {
-  logs: MonitoringLog[];
-  total: number;
-}
+import type {
+  MonitoringLog,
+  MonitoringLogsResponse,
+} from "./monitoring-types.ts";
 
 type ToolAgg = {
   tool: string;
