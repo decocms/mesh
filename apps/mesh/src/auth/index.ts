@@ -68,7 +68,6 @@ const ORG_NAME_TECH_SUFFIXES = [
 
 const ORG_NAME_BR_SUFFIXES = [
   "capybara",
-  "ipe",
   "guarana",
   "deco",
   "samba",
