@@ -19,7 +19,7 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(true);
   const [emailError, setEmailError] = useState("");
 
   const emailPasswordMutation = useMutation({
