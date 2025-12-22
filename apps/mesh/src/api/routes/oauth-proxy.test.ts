@@ -125,6 +125,56 @@ describe("OAuth Proxy Routes", () => {
       expect(body.resource).toBe("http://localhost:3000/mcp/conn_123");
     });
 
+    test("falls back to format 2 (Smithery-style) when format 1 returns 404", async () => {
+      mockConnectionStorage({
+        connection_url: "https://server.smithery.ai/@exa-labs/exa-code-mcp/mcp",
+      });
+
+      let fetchCallCount = 0;
+      global.fetch = mock((url: string) => {
+        fetchCallCount++;
+        if (fetchCallCount === 1) {
+          // Format 1: {resource}/.well-known/... - returns 404
+          expect(url).toBe(
+            "https://server.smithery.ai/@exa-labs/exa-code-mcp/mcp/.well-known/oauth-protected-resource",
+          );
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: "Not found" }), {
+              status: 404,
+            }),
+          );
+        }
+        // Format 2: /.well-known/...{resource-path} - Smithery style
+        expect(url).toBe(
+          "https://server.smithery.ai/.well-known/oauth-protected-resource/@exa-labs/exa-code-mcp/mcp",
+        );
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              resource: "https://server.smithery.ai/@exa-labs/exa-code-mcp/mcp",
+              authorization_servers: [
+                "https://auth.smithery.ai/@exa-labs/exa-code-mcp",
+              ],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }) as unknown as typeof fetch;
+
+      const res = await app.request(
+        "http://localhost:3000/.well-known/oauth-protected-resource/mcp/conn_123",
+      );
+
+      expect(res.status).toBe(200);
+      expect(fetchCallCount).toBe(2);
+
+      const body = await res.json();
+      expect(body.resource).toBe("http://localhost:3000/mcp/conn_123");
+      expect(body.authorization_servers).toEqual([
+        "http://localhost:3000/oauth-proxy/conn_123",
+      ]);
+    });
+
     test("returns 502 when origin fetch fails", async () => {
       mockConnectionStorage({
         connection_url: "https://origin.example.com/mcp",

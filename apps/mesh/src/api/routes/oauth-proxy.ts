@@ -42,6 +42,45 @@ async function getConnectionUrl(
 }
 
 /**
+ * Fetch protected resource metadata, trying both well-known URL formats
+ * Format 1: {resource}/.well-known/oauth-protected-resource (resource-relative)
+ * Format 2: /.well-known/oauth-protected-resource{resource-path} (well-known prefix, e.g. Smithery)
+ *
+ * Returns the response (even if error) so caller can handle/pass-through error status
+ */
+async function fetchProtectedResourceMetadata(
+  connectionUrl: string,
+): Promise<Response> {
+  const connUrl = new URL(connectionUrl);
+  const resourcePath = connUrl.pathname;
+
+  // Try format 1 first (most common)
+  const format1Url = new URL(connectionUrl);
+  format1Url.pathname = `${resourcePath}/.well-known/oauth-protected-resource`;
+
+  let response = await fetch(format1Url.toString(), {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  if (response.ok) return response;
+
+  // If format 1 returns 404, try format 2 (Smithery-style: well-known prefix)
+  // For other errors (401, 500, etc.), return immediately to preserve error info
+  if (response.status !== 404) return response;
+
+  const format2Url = new URL(connectionUrl);
+  format2Url.pathname = `/.well-known/oauth-protected-resource${resourcePath}`;
+
+  response = await fetch(format2Url.toString(), {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  return response;
+}
+
+/**
  * Get the origin authorization server URL from connection's protected resource metadata
  */
 async function getOriginAuthServer(
@@ -52,14 +91,7 @@ async function getOriginAuthServer(
   if (!connectionUrl) return null;
 
   try {
-    const originUrl = new URL(connectionUrl);
-    originUrl.pathname = "/.well-known/oauth-protected-resource";
-
-    const response = await fetch(originUrl.toString(), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-
+    const response = await fetchProtectedResourceMetadata(connectionUrl);
     if (!response.ok) return null;
 
     const data = (await response.json()) as {
@@ -110,16 +142,10 @@ const protectedResourceMetadataHandler = async (c: {
   }
 
   try {
-    // Build the origin's well-known URL
-    const originUrl = new URL(connectionUrl);
-    originUrl.pathname = "/.well-known/oauth-protected-resource";
+    // Fetch from origin, trying both well-known URL formats
+    const response = await fetchProtectedResourceMetadata(connectionUrl);
 
-    // Fetch from origin and proxy response
-    const response = await fetch(originUrl.toString(), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-
+    // Pass through error responses from origin (e.g., 401, 500)
     if (!response.ok) {
       return new Response(response.body, {
         status: response.status,
