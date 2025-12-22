@@ -30,10 +30,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@deco/ui/components/dialog.tsx";
 import {
@@ -44,16 +40,14 @@ import {
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Suspense, useDeferredValue, useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 import { CollectionSearch } from "./collections/collection-search.tsx";
 
 interface ManageRolesDialogProps {
@@ -61,17 +55,27 @@ interface ManageRolesDialogProps {
   onSuccess?: () => void;
 }
 
-type RoleFormData = {
-  roleName: string;
-  roleColor: string;
+// ============================================================================
+// Zod Schema - Single role form
+// ============================================================================
+
+const roleFormSchema = z.object({
+  // Role identity fields
+  role: z.object({
+    id: z.string().optional(),
+    slug: z.string().optional(),
+    label: z.string(),
+  }),
   // Static permissions (organization-level)
-  allowAllStaticPermissions: boolean;
-  staticPermissions: ToolName[];
+  allowAllStaticPermissions: z.boolean(),
+  staticPermissions: z.array(z.string()),
   // Connection-specific permissions (MCP permissions)
-  toolSet: Record<string, string[]>; // connectionId -> toolNames[]
+  toolSet: z.record(z.array(z.string())),
   // Members
-  memberIds: string[];
-};
+  memberIds: z.array(z.string()),
+});
+
+type RoleFormData = z.infer<typeof roleFormSchema>;
 
 // Helper to get initials from name
 function getInitials(name: string | undefined | null): string {
@@ -93,7 +97,6 @@ const BUILTIN_ROLES = [
 
 // Available colors for custom roles
 const ROLE_COLORS = [
-  "bg-neutral-400",
   "bg-red-500",
   "bg-orange-500",
   "bg-amber-500",
@@ -111,10 +114,35 @@ const ROLE_COLORS = [
   "bg-fuchsia-500",
   "bg-pink-500",
   "bg-rose-500",
-  "bg-slate-500",
 ] as const;
 
-// MCP Permissions Tab is now handled by ToolSetSelector component
+// Deterministic color based on role name using simple hash
+function getRoleColor(roleName: string): string {
+  if (!roleName) return "bg-neutral-400";
+  let hash = 0;
+  for (let i = 0; i < roleName.length; i++) {
+    const char = roleName.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  const index = Math.abs(hash) % ROLE_COLORS.length;
+  return ROLE_COLORS[index] ?? ROLE_COLORS[0];
+}
+
+// Create empty role
+function createEmptyRole(): RoleFormData {
+  return {
+    role: {
+      id: undefined,
+      slug: undefined,
+      label: "",
+    },
+    allowAllStaticPermissions: false,
+    staticPermissions: [],
+    toolSet: {},
+    memberIds: [],
+  };
+}
 
 // ============================================================================
 // Organization Permissions Tab
@@ -122,9 +150,9 @@ const ROLE_COLORS = [
 
 interface OrgPermissionsTabProps {
   allowAllStaticPermissions: boolean;
-  staticPermissions: ToolName[];
+  staticPermissions: string[];
   onAllowAllChange: (allowAll: boolean) => void;
-  onPermissionsChange: (permissions: ToolName[]) => void;
+  onPermissionsChange: (permissions: string[]) => void;
 }
 
 function OrgPermissionsTab({
@@ -322,14 +350,14 @@ function AddMemberDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-6">
-          <DialogTitle>Add Members to Role</DialogTitle>
-          <DialogDescription>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent className="sm:max-w-md p-0 overflow-hidden">
+        <AlertDialogHeader className="px-6 pt-6">
+          <AlertDialogTitle>Add Members to Role</AlertDialogTitle>
+          <AlertDialogDescription>
             Select members to add to this role.
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
 
         <div className="flex flex-col h-80">
           <CollectionSearch
@@ -404,16 +432,17 @@ function AddMemberDialog({
           </div>
         </div>
 
-        <DialogFooter className="px-6 pb-6">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleAdd} disabled={pendingMemberIds.length === 0}>
+        <AlertDialogFooter className="px-6 pb-6">
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleAdd}
+            disabled={pendingMemberIds.length === 0}
+          >
             Add {pendingMemberIds.length > 0 && `(${pendingMemberIds.length})`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -567,7 +596,6 @@ export function ManageRolesDialog({
   onSuccess,
 }: ManageRolesDialogProps) {
   const [open, setOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState<OrganizationRole | null>(null);
   const [activeTab, setActiveTab] = useState<"mcp" | "org" | "members">("mcp");
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
@@ -578,48 +606,40 @@ export function ManageRolesDialog({
   // Get existing custom roles
   const { customRoles, refetch: refetchRoles } = useOrganizationRoles();
 
-  // Get members (using regular useQuery since we're not using Suspense here)
+  // Get members
   const { data: membersData } = useQuery({
     queryKey: KEYS.members(locator),
     queryFn: () => authClient.organization.listMembers(),
   });
 
-  // Form state
-  const [formData, setFormData] = useState<RoleFormData>({
-    roleName: "",
-    roleColor: ROLE_COLORS[0],
-    allowAllStaticPermissions: false,
-    staticPermissions: [],
-    toolSet: {},
-    memberIds: [],
+  // React Hook Form setup - single role at a time
+  const form = useForm<RoleFormData>({
+    resolver: zodResolver(roleFormSchema),
+    defaultValues: createEmptyRole(),
   });
 
-  // Track initial state for unsaved changes detection
-  const [initialFormData, setInitialFormData] =
-    useState<RoleFormData>(formData);
+  // Form validity from Zod schema (requires roleName)
+  const isFormValid = form.formState.isValid;
+  const isFormDirty = form.formState.isDirty;
 
-  // Check if there are unsaved changes
-  const hasUnsavedChanges =
-    JSON.stringify(formData) !== JSON.stringify(initialFormData);
+  // Check if editing a new role (not yet saved)
+  const isNewRole = !form.watch("role.id");
 
-  // Popover and hover state for all roles (lifted out of map to follow Rules of Hooks)
-  const [colorPickerOpenRoleId, setColorPickerOpenRoleId] = useState<
-    string | null
-  >(null);
-  const [hoveredRoleId, setHoveredRoleId] = useState<string | null>(null);
-  const [newRoleColorPickerOpen, setNewRoleColorPickerOpen] = useState(false);
+  // Track which role is selected (by ID for existing, null for new)
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 
   // Delete confirmation dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<{
     id: string;
     label: string;
   } | null>(null);
 
-  // Load role data into form when editing
-  const loadRoleForEditing = (role: OrganizationRole) => {
-    setEditingRole(role);
+  // Discard changes confirmation dialog state
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
+  // Convert existing OrganizationRole to form data
+  const convertRoleToFormData = (role: OrganizationRole): RoleFormData => {
     const permission = role.permission || {};
 
     // Check for static permissions under "self"
@@ -627,7 +647,7 @@ export function ManageRolesDialog({
     const hasAllStaticPerms = selfPerms.includes("*");
     const staticPerms = hasAllStaticPerms
       ? []
-      : (selfPerms.filter((p) => p !== "*") as ToolName[]);
+      : selfPerms.filter((p) => p !== "*");
 
     // Build toolSet from connection permissions
     const toolSet: Record<string, string[]> = {};
@@ -655,66 +675,105 @@ export function ManageRolesDialog({
       }
     }
 
-    // Get color for this role based on its position in the list
-    const roleIndex = customRoles.findIndex((r) => r.id === role.id);
-    const roleColor =
-      ROLE_COLORS[roleIndex >= 0 ? roleIndex % ROLE_COLORS.length : 0] ??
-      ROLE_COLORS[0];
-
     // Get members with this role
     const members = membersData?.data?.members ?? [];
     const roleMemberIds = members
       .filter((m) => m.role === role.role)
       .map((m) => m.id);
 
-    const newFormData = {
-      roleName: role.label,
-      roleColor,
+    return {
+      role: {
+        id: role.id,
+        slug: role.role,
+        label: role.label,
+      },
       allowAllStaticPermissions: hasAllStaticPerms,
       staticPermissions: staticPerms,
       toolSet,
       memberIds: roleMemberIds,
     };
-    setFormData(newFormData);
-    setInitialFormData(newFormData);
+  };
+
+  // Load a role into the form
+  const loadRole = (role: OrganizationRole) => {
+    const formData = convertRoleToFormData(role);
+    form.reset(formData);
+    setSelectedRoleId(role.id ?? null);
+  };
+
+  // Start editing a new role
+  const startNewRole = () => {
+    form.reset(createEmptyRole());
+    setSelectedRoleId(null);
+  };
+
+  // Handle switching roles - only prompt if there are valid unsaved changes
+  const handleSelectRole = (role: OrganizationRole) => {
+    if (isFormDirty && isFormValid) {
+      // Has valid unsaved changes - ask what to do
+      setPendingAction(() => () => loadRole(role));
+      setDiscardDialogOpen(true);
+    } else {
+      // Form is either clean OR invalid - just switch
+      loadRole(role);
+    }
+  };
+
+  // Handle creating a new role - save current if valid, then start new
+  const handleCreateNewRole = async () => {
+    if (isFormDirty && isFormValid) {
+      await saveCurrentRole();
+    }
+    startNewRole();
   };
 
   // Handle dialog open/close
   const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen && hasUnsavedChanges) {
-      if (
-        !confirm(
-          "You have unsaved changes. Are you sure you want to discard them?",
-        )
-      ) {
-        return;
-      }
+    // Only prompt to discard if there are valid unsaved changes
+    if (!isOpen && form.formState.isDirty && isFormValid) {
+      setPendingAction(() => () => {
+        setOpen(false);
+        form.reset(createEmptyRole());
+      });
+      setDiscardDialogOpen(true);
+      return;
     }
     setOpen(isOpen);
+
     if (!isOpen) {
-      resetForm();
+      form.reset(createEmptyRole());
     } else {
-      // When opening, load the first custom role if one exists
       const firstRole = customRoles[0];
-      if (firstRole && !editingRole) {
-        loadRoleForEditing(firstRole);
+      if (firstRole) {
+        loadRole(firstRole);
+      } else {
+        startNewRole();
       }
     }
   };
 
-  // Build permission object from form data
-  const buildPermission = (): Record<string, string[]> => {
+  // Confirm discard changes
+  const handleConfirmDiscard = () => {
+    setDiscardDialogOpen(false);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  };
+
+  // Build permission object from role form data
+  const buildPermission = (role: RoleFormData): Record<string, string[]> => {
     const permission: Record<string, string[]> = {};
 
     // Add static/organization-level permissions under "self"
-    if (formData.allowAllStaticPermissions) {
+    if (role.allowAllStaticPermissions) {
       permission["self"] = ["*"];
-    } else if (formData.staticPermissions.length > 0) {
-      permission["self"] = formData.staticPermissions;
+    } else if (role.staticPermissions.length > 0) {
+      permission["self"] = role.staticPermissions;
     }
 
     // Add connection/tool permissions
-    for (const [connectionId, tools] of Object.entries(formData.toolSet)) {
+    for (const [connectionId, tools] of Object.entries(role.toolSet)) {
       if (tools.length > 0) {
         const conn = connections.find((c) => c.id === connectionId);
         const allTools = conn?.tools?.map((t) => t.name) ?? [];
@@ -730,78 +789,27 @@ export function ManageRolesDialog({
     return permission;
   };
 
-  const createRoleMutation = useMutation({
-    mutationFn: async () => {
-      const permission = buildPermission();
-      const roleSlug = formData.roleName.toLowerCase().replace(/\s+/g, "-");
+  // Save mutation for single role
+  const saveMutation = useMutation({
+    mutationFn: async (formData: RoleFormData) => {
+      const permission = buildPermission(formData);
+      const roleSlug = formData.role.label.toLowerCase().replace(/\s+/g, "-");
 
-      const result = await authClient.organization.createRole({
-        role: roleSlug,
-        permission,
-      });
+      if (formData.role.id) {
+        // Update existing role
+        const result = await authClient.organization.updateRole({
+          roleId: formData.role.id,
+          data: { permission },
+        });
 
-      if (result?.error) {
-        throw new Error(result.error.message);
-      }
-
-      // Assign members to the new role
-      if (formData.memberIds.length > 0) {
-        const memberResults = await Promise.allSettled(
-          formData.memberIds.map((memberId) =>
-            authClient.organization.updateMemberRole({
-              memberId,
-              role: [roleSlug],
-            }),
-          ),
-        );
-
-        // Check for errors
-        const errors = memberResults.filter((r) => r.status === "rejected");
-        if (errors.length > 0) {
-          console.error("Some member assignments failed:", errors);
+        if (result?.error) {
+          throw new Error(result.error.message);
         }
-      }
 
-      return result?.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.members(locator) });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.organizationRoles(locator),
-      });
-      toast.success("Role created successfully!");
-      resetForm();
-      setOpen(false);
-      onSuccess?.();
-    },
-    onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to create role",
-      );
-    },
-  });
-
-  const updateRoleMutation = useMutation({
-    mutationFn: async (roleId: string) => {
-      const permission = buildPermission();
-
-      const result = await authClient.organization.updateRole({
-        roleId,
-        data: {
-          permission,
-        },
-      });
-
-      if (result?.error) {
-        throw new Error(result.error.message);
-      }
-
-      // Update member assignments if changed
-      if (editingRole?.role) {
-        const roleSlug = editingRole.role;
+        // Update member assignments
         const members = membersData?.data?.members ?? [];
         const currentMemberIds = members
-          .filter((m) => m.role === roleSlug)
+          .filter((m) => m.role === formData.role.slug)
           .map((m) => m.id);
 
         // Find members to add
@@ -809,51 +817,85 @@ export function ManageRolesDialog({
           (id) => !currentMemberIds.includes(id),
         );
 
-        // Find members to remove (change to default "user" role)
+        // Find members to remove
         const membersToRemove = currentMemberIds.filter(
           (id) => !formData.memberIds.includes(id),
         );
 
         // Add new members to this role
-        if (membersToAdd.length > 0) {
-          await Promise.allSettled(
-            membersToAdd.map((memberId) =>
-              authClient.organization.updateMemberRole({
-                memberId,
-                role: [roleSlug],
-              }),
-            ),
-          );
+        for (const memberId of membersToAdd) {
+          const memberResult = await authClient.organization.updateMemberRole({
+            memberId,
+            role: [formData.role.slug!],
+          });
+          if (memberResult?.error) {
+            throw new Error(memberResult.error.message);
+          }
         }
 
-        // Remove members from this role (set to default "user" role)
-        if (membersToRemove.length > 0) {
-          await Promise.allSettled(
-            membersToRemove.map((memberId) =>
-              authClient.organization.updateMemberRole({
-                memberId,
-                role: ["user"],
-              }),
-            ),
-          );
+        // Remove members from this role
+        for (const memberId of membersToRemove) {
+          const memberResult = await authClient.organization.updateMemberRole({
+            memberId,
+            role: ["user"],
+          });
+          if (memberResult?.error) {
+            throw new Error(memberResult.error.message);
+          }
         }
+
+        return formData;
+      } else {
+        // Create new role
+        const result = await authClient.organization.createRole({
+          role: roleSlug,
+          permission,
+        });
+
+        if (result?.error) {
+          throw new Error(result.error.message);
+        }
+
+        // Assign members to the new role
+        for (const memberId of formData.memberIds) {
+          const memberResult = await authClient.organization.updateMemberRole({
+            memberId,
+            role: [roleSlug],
+          });
+          if (memberResult?.error) {
+            throw new Error(memberResult.error.message);
+          }
+        }
+
+        return {
+          ...formData,
+          role: {
+            ...formData.role,
+            id: result.data?.roleData?.id,
+            slug: roleSlug,
+          },
+        };
       }
-
-      return result?.data;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: KEYS.members(locator) });
       queryClient.invalidateQueries({
         queryKey: KEYS.organizationRoles(locator),
       });
-      toast.success("Role updated successfully!");
-      resetForm();
-      setOpen(false);
+      const isNew = !variables.role.id;
+      toast.success(
+        isNew ? "Role created successfully!" : "Role updated successfully!",
+      );
+      refetchRoles();
+      form.reset(data);
+      if (data.role.id) {
+        setSelectedRoleId(data.role.id);
+      }
       onSuccess?.();
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error ? error.message : "Failed to update role",
+        error instanceof Error ? error.message : "Failed to save role",
       );
     },
   });
@@ -874,8 +916,18 @@ export function ManageRolesDialog({
         queryKey: KEYS.organizationRoles(locator),
       });
       toast.success("Role deleted successfully!");
-      resetForm();
       refetchRoles();
+      // If the deleted role was the one being edited, start a new role
+      if (roleToDelete?.id === selectedRoleId) {
+        const remainingRoles = customRoles.filter(
+          (r) => r.id !== roleToDelete?.id,
+        );
+        if (remainingRoles[0]) {
+          loadRole(remainingRoles[0]);
+        } else {
+          startNewRole();
+        }
+      }
     },
     onError: (error) => {
       toast.error(
@@ -884,55 +936,44 @@ export function ManageRolesDialog({
     },
   });
 
-  const resetForm = () => {
-    setEditingRole(null);
-    setActiveTab("mcp");
-    const newFormData = {
-      roleName: "",
-      roleColor: ROLE_COLORS[0],
-      allowAllStaticPermissions: false,
-      staticPermissions: [],
-      toolSet: {},
-      memberIds: [],
-    };
-    setFormData(newFormData);
-    setInitialFormData(newFormData);
-  };
+  const isPending = saveMutation.isPending || deleteRoleMutation.isPending;
 
-  const isPending =
-    createRoleMutation.isPending ||
-    updateRoleMutation.isPending ||
-    deleteRoleMutation.isPending;
+  // Save current role
+  const saveCurrentRole = async () => {
+    const data = form.getValues();
 
-  const handleSubmit = () => {
-    if (!formData.roleName.trim()) {
-      toast.error("Please enter a role name");
+    if (!data.role.label.trim()) {
+      toast.error("Role name is required");
+      form.setFocus("role.label");
       return;
     }
 
-    // Validate static permissions
-    if (
-      !formData.allowAllStaticPermissions &&
-      formData.staticPermissions.length === 0 &&
-      Object.keys(formData.toolSet).length === 0
-    ) {
-      toast.error("Please select at least one permission");
+    await saveMutation.mutateAsync(data);
+  };
+
+  const handleSubmit = form.handleSubmit((data) => {
+    if (!data.role.label.trim()) {
+      toast.error("Role name is required");
+      form.setFocus("role.label");
       return;
     }
+    saveMutation.mutate(data);
+  });
 
-    if (editingRole?.id) {
-      updateRoleMutation.mutate(editingRole.id);
-    } else {
-      createRoleMutation.mutate();
+  // Handle delete role
+  const handleDeleteRole = (role: OrganizationRole) => {
+    if (role.id) {
+      setRoleToDelete({ id: role.id, label: role.label });
     }
   };
 
-  // Check if form is valid
-  const hasStaticPerms =
-    formData.allowAllStaticPermissions || formData.staticPermissions.length > 0;
-  const hasMcpPerms = Object.keys(formData.toolSet).length > 0;
-  const isFormValid =
-    formData.roleName.trim().length > 0 && (hasStaticPerms || hasMcpPerms);
+  // Confirm delete
+  const handleConfirmDelete = () => {
+    if (roleToDelete?.id) {
+      deleteRoleMutation.mutate(roleToDelete.id);
+    }
+    setRoleToDelete(null);
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -967,184 +1008,80 @@ export function ManageRolesDialog({
                   </div>
                 ))}
 
-                {/* Custom Roles */}
-                {customRoles.map((role, index) => {
-                  const isSelected = editingRole?.id === role.id;
-                  const roleId = role.id || role.role;
-                  const colorClass = ROLE_COLORS[index % ROLE_COLORS.length];
-                  const isHovered = hoveredRoleId === roleId;
-                  const colorPickerOpen = colorPickerOpenRoleId === roleId;
+                {/* Custom Roles from Server */}
+                {customRoles.map((role) => {
+                  const isSelected = selectedRoleId === role.id;
 
                   return (
                     <div
-                      key={roleId}
+                      key={role.id}
                       className={cn(
-                        "group flex items-center gap-2 px-2 py-1.5 rounded-lg overflow-hidden transition-colors",
+                        "group flex items-center gap-2 px-2 py-1.5 rounded-lg overflow-hidden transition-colors cursor-pointer",
                         isSelected ? "bg-accent" : "hover:bg-muted/50",
                       )}
-                      onMouseEnter={() => setHoveredRoleId(roleId)}
-                      onMouseLeave={() => setHoveredRoleId(null)}
-                      onClick={() => {
-                        if (!isSelected) {
-                          loadRoleForEditing(role);
-                        }
-                      }}
+                      onClick={() => handleSelectRole(role)}
                     >
-                      <Popover
-                        open={colorPickerOpen}
-                        onOpenChange={(open) =>
-                          setColorPickerOpenRoleId(open ? roleId : null)
-                        }
-                      >
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className={cn(
-                              "shrink-0 size-3 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-2 hover:ring-muted-foreground transition-all",
-                              isSelected ? formData.roleColor : colorClass,
-                            )}
-                            onClick={(e) => e.stopPropagation()}
-                            title="Choose color"
-                          />
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-3" align="start">
-                          <div className="grid grid-cols-6 gap-2">
-                            {ROLE_COLORS.map((color) => (
-                              <button
-                                key={color}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    roleColor: color,
-                                  }));
-                                  setColorPickerOpenRoleId(null);
-                                }}
-                                className={cn(
-                                  "size-3 rounded-full transition-all hover:scale-110",
-                                  color,
-                                  formData.roleColor === color &&
-                                    "ring-2 ring-offset-2 ring-foreground",
-                                )}
-                                title={color}
-                              />
-                            ))}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                      <div
+                        className={cn(
+                          "shrink-0 size-3 rounded-full",
+                          getRoleColor(role.label),
+                        )}
+                      />
+                      <p className="text-sm font-medium truncate flex-1">
+                        {role.label}
+                      </p>
 
-                      {isSelected ? (
-                        <Input
-                          value={formData.roleName}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              roleName: e.target.value,
-                            }))
-                          }
-                          className="flex-1 text-sm font-medium border-0 shadow-none h-auto px-0 py-0 focus-visible:ring-0 bg-transparent"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <p className="text-sm font-medium truncate flex-1">
-                          {role.label}
-                        </p>
+                      {/* Only show delete if there's more than one role total */}
+                      {customRoles.length + (isNewRole ? 1 : 0) > 1 && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={cn(
+                                "size-5 shrink-0 transition-opacity opacity-0 pointer-events-none",
+                                "group-hover:opacity-100 group-hover:pointer-events-auto",
+                                isSelected && "opacity-100 pointer-events-auto",
+                              )}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Icon name="more_horiz" size={14} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteRole(role);
+                              }}
+                            >
+                              <Icon name="delete" size={16} />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={cn(
-                              "size-5 shrink-0 transition-opacity",
-                              isHovered || isSelected
-                                ? "opacity-100"
-                                : "opacity-0 pointer-events-none",
-                            )}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Icon name="more_horiz" size={14} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (role.id) {
-                                setRoleToDelete({
-                                  id: role.id,
-                                  label: role.label,
-                                });
-                                setDeleteDialogOpen(true);
-                              }
-                            }}
-                          >
-                            <Icon name="delete" size={16} />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </div>
                   );
                 })}
 
-                {/* Show "new role" item when creating */}
-                {!editingRole && (
+                {/* New Role being edited */}
+                {isNewRole && (
                   <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg overflow-hidden bg-accent">
-                    <Popover
-                      open={newRoleColorPickerOpen}
-                      onOpenChange={setNewRoleColorPickerOpen}
-                    >
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className={cn(
-                            "shrink-0 size-3 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-2 hover:ring-muted-foreground transition-all",
-                            formData.roleColor,
-                          )}
-                          title="Choose color"
-                        />
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3" align="start">
-                        <div className="grid grid-cols-6 gap-2">
-                          {ROLE_COLORS.map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              onClick={() => {
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  roleColor: color,
-                                }));
-                                setNewRoleColorPickerOpen(false);
-                              }}
-                              className={cn(
-                                "size-3 rounded-full transition-all hover:scale-110",
-                                color,
-                                formData.roleColor === color &&
-                                  "ring-2 ring-offset-2 ring-foreground",
-                              )}
-                              title={color}
-                            />
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                    <div className="shrink-0 size-3 rounded-full bg-neutral-400" />
                     <Input
-                      value={formData.roleName}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          roleName: e.target.value,
-                        }))
-                      }
-                      placeholder="new role"
+                      {...form.register("role.label")}
+                      placeholder="Enter role name"
                       className="flex-1 text-sm font-medium border-0 shadow-none h-auto px-0 py-0 focus-visible:ring-0 bg-transparent"
                       autoFocus
                     />
+                    <Badge
+                      variant="secondary"
+                      className="shrink-0 text-xs px-1.5 py-0"
+                    >
+                      New
+                    </Badge>
                   </div>
                 )}
               </div>
@@ -1153,12 +1090,10 @@ export function ManageRolesDialog({
             {/* Create New Role Button */}
             <div className="px-3.5 pb-3.5">
               <Button
-                variant="outline"
+                variant="outline" 
                 size="default"
-                onClick={() => {
-                  resetForm();
-                  // Auto-focus would go here if needed
-                }}
+                onClick={handleCreateNewRole}
+                disabled={isPending || isFormDirty}
                 className="w-full h-10"
               >
                 <Icon name="add" size={16} />
@@ -1216,35 +1151,37 @@ export function ManageRolesDialog({
             <div className="flex-1 overflow-hidden min-h-0">
               {activeTab === "mcp" && (
                 <ToolSetSelector
-                  toolSet={formData.toolSet}
-                  onToolSetChange={(toolSet) =>
-                    setFormData((prev) => ({ ...prev, toolSet }))
+                  toolSet={form.watch("toolSet")}
+                  onToolSetChange={(newToolSet) =>
+                    form.setValue("toolSet", newToolSet, { shouldDirty: true })
                   }
                 />
               )}
               {activeTab === "org" && (
                 <OrgPermissionsTab
-                  allowAllStaticPermissions={formData.allowAllStaticPermissions}
-                  staticPermissions={formData.staticPermissions}
+                  allowAllStaticPermissions={form.watch(
+                    "allowAllStaticPermissions",
+                  )}
+                  staticPermissions={form.watch("staticPermissions")}
                   onAllowAllChange={(allowAll) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      allowAllStaticPermissions: allowAll,
-                    }))
+                    form.setValue("allowAllStaticPermissions", allowAll, {
+                      shouldDirty: true,
+                    })
                   }
                   onPermissionsChange={(permissions) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      staticPermissions: permissions,
-                    }))
+                    form.setValue("staticPermissions", permissions, {
+                      shouldDirty: true,
+                    })
                   }
                 />
               )}
               {activeTab === "members" && (
                 <MembersTab
-                  memberIds={formData.memberIds}
-                  onMemberIdsChange={(memberIds) =>
-                    setFormData((prev) => ({ ...prev, memberIds }))
+                  memberIds={form.watch("memberIds")}
+                  onMemberIdsChange={(newMemberIds) =>
+                    form.setValue("memberIds", newMemberIds, {
+                      shouldDirty: true,
+                    })
                   }
                 />
               )}
@@ -1254,9 +1191,7 @@ export function ManageRolesDialog({
             <div className="border-t border-border px-5 py-5 flex items-center justify-end gap-2.5 shrink-0">
               <Button
                 variant="outline"
-                onClick={() => {
-                  handleOpenChange(false);
-                }}
+                onClick={() => handleOpenChange(false)}
                 disabled={isPending}
                 className="h-10"
               >
@@ -1264,20 +1199,14 @@ export function ManageRolesDialog({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={
-                  isPending ||
-                  !isFormValid ||
-                  (editingRole ? !hasUnsavedChanges : false)
-                }
+                disabled={isPending || !isFormValid || !form.formState.isDirty}
                 className="h-10"
               >
-                {editingRole
-                  ? updateRoleMutation.isPending
-                    ? "Saving..."
-                    : "Save changes"
-                  : createRoleMutation.isPending
-                    ? "Creating..."
-                    : "Create Role"}
+                {saveMutation.isPending
+                  ? "Saving..."
+                  : isNewRole
+                    ? "Create Role"
+                    : "Save Changes"}
               </Button>
             </div>
           </div>
@@ -1285,7 +1214,10 @@ export function ManageRolesDialog({
       </DialogContent>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog
+        open={roleToDelete !== null}
+        onOpenChange={(open) => !open && setRoleToDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Role</AlertDialogTitle>
@@ -1297,16 +1229,33 @@ export function ManageRolesDialog({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                if (roleToDelete?.id) {
-                  deleteRoleMutation.mutate(roleToDelete.id);
-                }
-                setDeleteDialogOpen(false);
-                setRoleToDelete(null);
-              }}
+              onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Discard Changes Confirmation Dialog */}
+      <AlertDialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingAction(null)}>
+              Keep Editing
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDiscard}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

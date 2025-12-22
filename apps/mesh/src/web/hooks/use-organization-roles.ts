@@ -17,6 +17,10 @@ const BUILTIN_ROLES = [
   { value: "user", label: "User", isBuiltin: true },
 ] as const;
 
+function formatRoleLabel(role: string): string {
+  return role.replace(/-/g, " ");
+}
+
 export interface OrganizationRole {
   id?: string;
   role: string;
@@ -195,9 +199,12 @@ export function useOrganizationRoles() {
     }
   }
 
+  // Custom roles reversed so oldest first, newest last
+  const customRoles = allRoles.filter((r) => !r.isBuiltin);
+
   return {
     roles: allRoles,
-    customRoles: allRoles.filter((r) => !r.isBuiltin),
+    customRoles,
     builtinRoles: allRoles.filter((r) => r.isBuiltin),
     isLoading,
     error,
@@ -205,12 +212,3 @@ export function useOrganizationRoles() {
   };
 }
 
-/**
- * Format a role name into a human-readable label
- */
-function formatRoleLabel(role: string): string {
-  return role
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
