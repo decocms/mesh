@@ -300,14 +300,13 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          const baseName = user.name
-            ? `${user.name}'s`
-            : `${user.email.split("@")[0]}'s`;
+          const firstName = user.name
+            ? user.name.split(" ")[0]
+            : user.email.split("@")[0];
 
           const maxAttempts = 3;
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            const suffix = attempt === 0 ? "" : ` ${getRandomSuffix()}`;
-            const orgName = `${baseName}${suffix}`;
+            const orgName = `${firstName} ${getRandomSuffix()}`;
             const orgSlug = slugify(orgName);
 
             try {
