@@ -58,6 +58,8 @@ Environment Variables:
   NODE_ENV              Set to 'production' for production mode
   BETTER_AUTH_SECRET    Secret for authentication (auto-generated if not set)
   ENCRYPTION_KEY        Key for encrypting secrets (auto-generated if not set)
+  AUTH_CONFIG_PATH      Path to auth config file (default: ./auth-config.json)
+  CONFIG_PATH           Path to full config file (default: ./config.json)
 
 Examples:
   bunx @decocms/mesh                    # Start on port 3000

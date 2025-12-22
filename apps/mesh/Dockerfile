@@ -8,11 +8,10 @@ ARG MESH_VERSION=latest
 RUN addgroup -g 1001 -S bunapp && \
     adduser -u 1001 -S -G bunapp bunuser
 
-# Create app and data directories
-RUN mkdir -p /app/data && \
+RUN mkdir -p /app/data /app/apps/mesh && \
     chown -R bunuser:bunapp /app
 
-WORKDIR /app
+WORKDIR /app/apps/mesh
 
 # Install the package locally during build (cached in image layer)
 RUN bun add @decocms/mesh@${MESH_VERSION}
