@@ -535,9 +535,8 @@ function MonitoringLogsTableContent({
     });
   };
 
-  // Get connection and gateway info
+  // Get connection info
   const connectionMap = new Map(connections.map((c) => [c.id, c]));
-  const gatewayMap = new Map(gateways.map((g) => [g.id, g]));
 
   const renderLogRow = (log: EnrichedMonitoringLog, index: number) => {
     const isLastLog = index === filteredLogs.length - 1;
@@ -603,11 +602,6 @@ function MonitoringLogsTableContent({
           {/* User Name */}
           <div className="w-20 md:w-24 px-2 md:px-3 text-xs text-muted-foreground">
             {log.userName}
-          </div>
-
-          {/* Gateway */}
-          <div className="w-20 md:w-28 px-2 md:px-3 text-xs text-muted-foreground truncate">
-            {log.gatewayName ?? "-"}
           </div>
 
           {/* Date */}
@@ -688,11 +682,6 @@ function MonitoringLogsTableContent({
             {/* User name Column */}
             <div className="w-20 md:w-24 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
               User Name
-            </div>
-
-            {/* Gateway Column */}
-            <div className="w-20 md:w-28 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              Gateway
             </div>
 
             {/* Date Column */}

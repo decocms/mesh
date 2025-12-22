@@ -182,7 +182,7 @@ function TopToolsContent(_props: TopToolsContentProps) {
                     name={tool.name}
                     size="xs"
                     fallbackIcon="extension"
-                    className="shrink-0 size-3.5 rounded-sm"
+                    className="shrink-0 !size-4 !min-w-4 aspect-square rounded-sm"
                   />
                   <span className="text-[10px] text-foreground truncate max-w-32">
                     {tool.name}
@@ -200,8 +200,11 @@ function TopToolsContent(_props: TopToolsContentProps) {
           No tool activity in the last 24 hours
         </div>
       ) : (
-        <div className="flex flex-col gap-2 w-full cursor-pointer hover:opacity-80 transition-opacity">
-          <ChartContainer className="h-[103px] w-full" config={chartConfig}>
+        <div className="flex flex-col gap-2 w-full h-full cursor-pointer hover:opacity-80 transition-opacity">
+          <ChartContainer
+            className="flex-1 min-h-0 max-h-[120px] w-full"
+            config={chartConfig}
+          >
             <LineChart
               data={buckets}
               margin={{ left: 0, right: 0, top: 5, bottom: 5 }}
@@ -293,7 +296,7 @@ function TopToolsSkeleton() {
           <div className="flex items-center gap-2">
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex items-center gap-1">
-                <div className="size-3.5 rounded-md bg-muted animate-pulse" />
+                <div className="size-4 aspect-square rounded-md bg-muted animate-pulse" />
                 <div className="h-2.5 w-16 rounded bg-muted animate-pulse" />
               </div>
             ))}
@@ -301,8 +304,8 @@ function TopToolsSkeleton() {
         </div>
       }
     >
-      <div className="flex flex-col gap-2 w-full">
-        <div className="h-[103px] w-full rounded bg-muted animate-pulse" />
+      <div className="flex flex-col gap-2 w-full h-full">
+        <div className="flex-1 min-h-0 max-h-[120px] w-full rounded bg-muted animate-pulse" />
         <div className="flex items-start justify-between w-full">
           <div className="h-4 w-16 rounded bg-muted animate-pulse" />
           <div className="h-4 w-16 rounded bg-muted animate-pulse" />
