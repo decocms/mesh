@@ -45,6 +45,8 @@ console.log(
 console.log("");
 
 Bun.serve({
+  // This was necessary because MCP has SSE endpoints (like notification) that disconnects after 10 seconds (default bun idle timeout)
+  idleTimeout: 0,
   port,
   hostname: "0.0.0.0", // Listen on all network interfaces (required for K8s)
   fetch: async (request) => {
