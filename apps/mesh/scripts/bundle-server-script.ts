@@ -185,8 +185,20 @@ async function pruneNodeModules(): Promise<Set<string>> {
   await mkdir(outputNodeModules, { recursive: true });
 
   // Copy entire package directories to ensure package.json and all metadata are included
-  let copiedCount = 0;
+  // Only externalize packages that are successfully copied (not workspace packages)
+  const successfullyCopied = new Set<string>();
+
   for (const [packageName, packagePath] of packagesToCopy.entries()) {
+    // Skip workspace packages - they should be bundled inline, not externalized
+    // Workspace packages use the @decocms/ scope (except @decocms/better-auth which is published)
+    if (
+      packageName.startsWith("@decocms/") &&
+      packageName !== "@decocms/better-auth"
+    ) {
+      console.log(`📦 Bundling inline (workspace): ${packageName}`);
+      continue;
+    }
+
     const destPackagePath = join(outputNodeModules, packageName);
 
     if (!existsSync(packagePath)) {
@@ -198,7 +210,7 @@ async function pruneNodeModules(): Promise<Set<string>> {
 
     try {
       await cp(packagePath, destPackagePath, { recursive: true });
-      copiedCount++;
+      successfullyCopied.add(packageName);
       console.log(`✅ Copied package: ${packageName}`);
     } catch (error) {
       console.warn(`⚠️  Failed to copy package ${packageName}: ${error}`);
@@ -206,11 +218,13 @@ async function pruneNodeModules(): Promise<Set<string>> {
   }
 
   console.log(
-    `\n✅ Successfully copied ${copiedCount} packages to ${OUTPUT_DIR}`,
+    `\n✅ Successfully copied ${successfullyCopied.size} packages to ${OUTPUT_DIR}`,
   );
   console.log(`📊 Output directory: ${OUTPUT_DIR}`);
 
-  return new Set(packagesToCopy.keys());
+  // Only return packages that were actually copied - these will be externalized
+  // Workspace packages are not returned, so they get bundled inline
+  return successfullyCopied;
 }
 
 async function buildMigrateScript(packagesToExternalize: Set<string>) {

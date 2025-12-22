@@ -8,7 +8,12 @@
 
 // Import observability module early to initialize OpenTelemetry SDK
 import "./observability";
-import app from "./api";
+import { createApp } from "./api/app";
+import { isServerPath } from "./api/utils/paths";
+import {
+  resolveClientDir,
+  createAssetHandler,
+} from "@decocms/runtime/asset-server";
 
 const port = parseInt(process.env.PORT || "3000", 10);
 
@@ -22,6 +27,15 @@ const underline = "\x1b[4m";
 
 const url = `http://localhost:${port}`;
 
+// Create asset handler - handles both dev proxy and production static files
+const handleAssets = createAssetHandler({
+  clientDir: resolveClientDir(import.meta.url, "../client"),
+  isServerPath,
+});
+
+// Create the Hono app
+const app = createApp();
+
 console.log("");
 console.log(`${green}✓${reset} ${bold}Ready${reset}`);
 console.log("");
@@ -33,6 +47,9 @@ console.log("");
 Bun.serve({
   port,
   hostname: "0.0.0.0", // Listen on all network interfaces (required for K8s)
-  fetch: app.fetch,
+  fetch: async (request) => {
+    // Try assets first (static files or dev proxy), then API
+    return (await handleAssets(request)) ?? app.fetch(request);
+  },
   development: process.env.NODE_ENV !== "production",
 });
