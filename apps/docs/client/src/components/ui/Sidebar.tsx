@@ -113,7 +113,10 @@ function TreeItem({
 
   const docId = node.doc?.id;
   const docPath = docId ? docId.split("/").slice(1).join("/") : null;
-  const href = node.type === "file" ? `/${locale}/${docPath ?? node.path.join("/")}` : null;
+  const href =
+    node.type === "file"
+      ? `/${locale}/${docPath ?? node.path.join("/")}`
+      : null;
 
   return (
     <li>
@@ -137,9 +140,9 @@ function TreeItem({
                 ? "Network"
                 : node.id === "mcp-studio"
                   ? "LayoutDashboard"
-                : node.id === "mcp-mesh/deploy"
-                  ? "Rocket"
-                  : "Folder"
+                  : node.id === "mcp-mesh/deploy"
+                    ? "Rocket"
+                    : "Folder"
             }
             size={16}
             className={`shrink-0 ${active ? "text-primary" : ""}`}
@@ -177,7 +180,10 @@ function TreeItem({
             )}
           </button>
         ) : (
-          <a href={href ?? `/${locale}/${node.path.join("/")}`} className="flex-1">
+          <a
+            href={href ?? `/${locale}/${node.path.join("/")}`}
+            className="flex-1"
+          >
             {node.doc?.data?.title || node.name}
           </a>
         )}

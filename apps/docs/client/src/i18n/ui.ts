@@ -8,8 +8,7 @@ export const defaultLang = "en";
 export const ui = {
   en: {
     "head.title": "Deco - Docs",
-    "sidebar.section.admin-decocms-com":
-      "Legacy Admin",
+    "sidebar.section.admin-decocms-com": "Legacy Admin",
     "sidebar.section.getting-started": "Getting Started",
     "sidebar.section.no-code-guides": "No-Code Guides",
     "sidebar.section.full-code-guides": "Full-Code Guides",
@@ -27,8 +26,7 @@ export const ui = {
   },
   "pt-br": {
     "head.title": "Deco - Documentação",
-    "sidebar.section.admin-decocms-com":
-      "Admin Legado",
+    "sidebar.section.admin-decocms-com": "Admin Legado",
     "sidebar.section.getting-started": "Primeiros Passos",
     "sidebar.section.no-code-guides": "Guias No-Code",
     "sidebar.section.full-code-guides": "Guias Full-Code",
