@@ -265,6 +265,7 @@ function OrgMcpsContent() {
         />
       ),
       cellClassName: "w-16 shrink-0",
+      wrap: true,
     },
     {
       id: "title",
