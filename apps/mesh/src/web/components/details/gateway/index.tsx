@@ -40,6 +40,7 @@ import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { slugify } from "@/web/utils/slugify";
 import { ViewLayout, ViewActions } from "../layout";
 
 /**
@@ -63,11 +64,14 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
   const [copiedConfig, setCopiedConfig] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
 
+  // Slugify the server name to ensure it's safe for MCP clients
+  const slugifiedServerName = slugify(serverName);
+
   // MCP connection configuration (For Cursor, Claude Code, and Windsurf)
   const connectionConfig = { type: "http", url: gatewayUrl };
 
   // Full MCP configuration object
-  const mcpConfig = { [serverName]: connectionConfig };
+  const mcpConfig = { [slugifiedServerName]: connectionConfig };
 
   const configJson = JSON.stringify(mcpConfig, null, 2);
   const clientConnectionConfig = (client: string) =>
@@ -85,18 +89,18 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
   // Generate Cursor deeplink
   const cursorDeeplink = (() => {
     const base64Config = utf8ToBase64(clientConnectionConfig("Cursor"));
-    return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
+    return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(slugifiedServerName)}&config=${encodeURIComponent(base64Config)}`;
   })();
 
   // Generate Windsurf deeplink (similar to Cursor)
   const windsurfDeeplink = (() => {
     const base64Config = utf8ToBase64(clientConnectionConfig("Windsurf"));
-    return `windsurf://codeium.windsurf/mcp/install?name=${encodeURIComponent(serverName)}&config=${encodeURIComponent(base64Config)}`;
+    return `windsurf://codeium.windsurf/mcp/install?name=${encodeURIComponent(slugifiedServerName)}&config=${encodeURIComponent(base64Config)}`;
   })();
 
   // Claude Code CLI command - uses JSON format
   const claudeConfigJson = clientConnectionConfig("Claude Code");
-  const claudeCommand = `claude mcp add "${serverName}" --config '${claudeConfigJson.replace(/'/g, "'\\''")}'`;
+  const claudeCommand = `claude mcp add "${slugifiedServerName}" --config '${claudeConfigJson.replace(/'/g, "'\\''")}'`;
 
   const handleCopyConfig = async () => {
     await navigator.clipboard.writeText(configJson);
