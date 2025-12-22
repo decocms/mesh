@@ -10,7 +10,7 @@
 import "./observability";
 import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
-import { resolve, dirname } from "path";
+import { resolveClientDir, createAssetHandler } from "@decocms/runtime/asset-server";
 
 const port = parseInt(process.env.PORT || "3000", 10);
 
@@ -24,64 +24,29 @@ const underline = "\x1b[4m";
 
 const url = `http://localhost:${port}`;
 
-// Resolve client directory for static file serving
-const scriptUrl = new URL(import.meta.url);
-const scriptPath = scriptUrl.pathname;
-const scriptDir = dirname(scriptPath);
-const clientDir = resolve(scriptDir, "../client");
-const indexPath = resolve(clientDir, "index.html");
+// Create asset handler - handles both dev proxy and production static files
+const handleAssets = createAssetHandler({
+  clientDir: resolveClientDir(import.meta.url, "../client"),
+  isServerPath,
+});
 
-// Create the Hono app (skip built-in asset server since we handle it here)
-const app = createApp({ skipAssetServer: true });
+// Create the Hono app
+const app = createApp();
 
 console.log("");
 console.log(`${green}✓${reset} ${bold}Ready${reset}`);
 console.log("");
 console.log(
-  `  ${dim}Open in browser:${reset}  ${cyan}${underline}${url}${reset}`,
+  `  ${dim}Open in browser:${reset}  ${cyan}${underline}${url}${reset}`
 );
 console.log("");
-
-// Custom fetch handler that serves static files first, then falls back to Hono
-async function handleRequest(request: Request): Promise<Response> {
-  const requestUrl = new URL(request.url);
-  // Decode the pathname to handle URL-encoded characters (e.g., %20 -> space)
-  const path = decodeURIComponent(requestUrl.pathname);
-
-  // In production, serve static files for GET requests
-  if (request.method === "GET" && process.env.NODE_ENV === "production") {
-    // Skip server routes (API, MCP, health, metrics, etc.) - let Hono handle them
-    if (!isServerPath(path)) {
-      // Determine file path
-      let filePath: string;
-
-      if (path === "/" || !path.includes(".")) {
-        // SPA routes (including /) - serve index.html
-        filePath = indexPath;
-      } else {
-        // Static assets (css, js, images, etc.)
-        filePath = resolve(clientDir, path.slice(1)); // Remove leading /
-      }
-
-      // Try to serve the file
-      try {
-        const file = Bun.file(filePath);
-        if (await file.exists()) {
-          return new Response(file);
-        }
-      } catch {
-        // Fall through to Hono
-      }
-    }
-  }
-
-  // Fall back to Hono app for API routes and non-existent files
-  return app.fetch(request);
-}
 
 Bun.serve({
   port,
   hostname: "0.0.0.0", // Listen on all network interfaces (required for K8s)
-  fetch: handleRequest,
+  fetch: async (request) => {
+    // Try assets first (static files or dev proxy), then API
+    return (await handleAssets(request)) ?? app.fetch(request);
+  },
   development: process.env.NODE_ENV !== "production",
 });

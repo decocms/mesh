@@ -61,8 +61,6 @@ interface ResourceServerMetadata {
 export interface CreateAppOptions {
   /** Custom database instance (for testing) */
   database?: MeshDatabase;
-  /** Skip asset server routes (for testing) */
-  skipAssetServer?: boolean;
   /** Custom event bus instance (for testing) */
   eventBus?: EventBus;
 }
@@ -275,17 +273,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/api", modelsRoutes);
 
   // ============================================================================
-  // Static Asset Server (development only - production handled in index.ts)
-  // ============================================================================
-
-  if (!options.skipAssetServer && process.env.NODE_ENV === "development") {
-    // In development, proxy to Vite dev server
-    const { devServerProxy } = require("@decocms/runtime/asset-server/dev-server-proxy");
-    app.use("*", devServerProxy("http://localhost:4000"));
-  }
-
-  // ============================================================================
-  // 404 Handler (must be after all routes including static assets)
+  // 404 Handler
   // ============================================================================
 
   app.notFound((c) => {
