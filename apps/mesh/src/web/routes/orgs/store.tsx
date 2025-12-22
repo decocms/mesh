@@ -1,6 +1,5 @@
 import {
   getWellKnownCommunityRegistryConnection,
-  getWellKnownRegistryConnection,
 } from "@/core/well-known-mcp";
 import { ConnectionCreateData } from "@/tools/connection/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header";
@@ -56,7 +55,6 @@ export default function StorePage() {
 
   // Well-known registries to show in empty state
   const wellKnownRegistries = [
-    getWellKnownRegistryConnection(),
     getWellKnownCommunityRegistryConnection(),
   ];
 
