@@ -36,6 +36,47 @@ import { seedOrgDb } from "./org";
 import { ADMIN_ROLES } from "./roles";
 import { createSSOConfig } from "./sso";
 
+/**
+ * Convert a string to a URL-friendly slug
+ * Removes special characters, converts to lowercase, and replaces spaces with hyphens
+ */
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s_-]+/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Random words to use as suffix when organization name already exists
+ */
+const ORG_NAME_SUFFIXES = [
+  "alpha",
+  "beta",
+  "gamma",
+  "delta",
+  "omega",
+  "spark",
+  "wave",
+  "flux",
+  "core",
+  "hub",
+  "lab",
+  "studio",
+  "works",
+  "workspace",
+  "cloud",
+  "quantum",
+  "capybara",
+];
+
+function getRandomSuffix(): string {
+  const index = Math.floor(Math.random() * ORG_NAME_SUFFIXES.length);
+  return ORG_NAME_SUFFIXES[index] ?? "studio";
+}
+
 const allTools = Object.values(getToolsByCategory())
   .map((tool) => tool.map((t) => t.name))
   .flat();
@@ -242,6 +283,47 @@ export const auth = betterAuth({
   ...authConfig,
 
   plugins,
+
+  // Database hooks for automatic organization creation on signup
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          const baseName = user.name
+            ? `${user.name}'s Organization`
+            : `${user.email.split("@")[0]}'s Organization`;
+
+          const maxAttempts = 3;
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const suffix = attempt === 0 ? "" : ` ${getRandomSuffix()}`;
+            const orgName = `${baseName}${suffix}`;
+            const orgSlug = slugify(orgName);
+
+            try {
+              await auth.api.createOrganization({
+                body: {
+                  name: orgName,
+                  slug: orgSlug,
+                  userId: user.id,
+                },
+              });
+              return;
+            } catch (error) {
+              const isConflictError =
+                error instanceof Error &&
+                "body" in error &&
+                (error as { body?: { code?: string } }).body?.code === "ORGANIZATION_ALREADY_EXISTS";
+
+              if (!isConflictError || attempt === maxAttempts - 1) {
+                console.error("Failed to create default organization:", error);
+                return;
+              }
+            }
+          }
+        },
+      },
+    },
+  },
 });
 
 export type BetterAuthInstance = typeof auth;
