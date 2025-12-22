@@ -340,7 +340,7 @@ app.get(
 
       // Parse and rewrite URLs to point to our proxy
       const data = (await response.json()) as Record<string, unknown>;
-      const requestUrl = new URL(c.req.url);
+      const requestUrl = forceHttps(new URL(c.req.url));
       const proxyBase = `${requestUrl.origin}/oauth-proxy/${connectionId}`;
 
       // Rewrite OAuth endpoint URLs to go through our proxy
