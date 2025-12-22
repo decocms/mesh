@@ -117,7 +117,7 @@ async function createMCPGateway(
   const proxyResults = await Promise.allSettled(
     options.connections.map(async ({ connection, selectedTools }) => {
       try {
-        const proxy = await createMCPProxy(connection, ctx);
+        const proxy = await ctx.createMCPProxy(connection);
         return { connection, proxy, selectedTools };
       } catch (error) {
         console.error(

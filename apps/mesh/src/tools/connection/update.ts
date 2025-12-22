@@ -5,9 +5,12 @@
  * Also handles MCP configuration state and scopes validation.
  */
 
+import {
+  getReferencedConnectionIds,
+  parseScope,
+} from "@/auth/configuration-scopes";
 import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { z } from "zod";
-import { createMCPProxy } from "../../api/routes/proxy";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { fetchToolsFromMCP } from "./fetch-tools";
@@ -36,23 +39,6 @@ const UpdateOutputSchema = z.object({
 });
 
 /**
- * Parse scope string to extract key and scope parts
- */
-function parseScope(scope: string): [string, string] {
-  const parts = scope.split("::");
-  if (
-    parts.length !== 2 ||
-    typeof parts[0] !== "string" ||
-    typeof parts[1] !== "string"
-  ) {
-    throw new Error(
-      `Invalid scope format: ${scope}. Expected format: "KEY::SCOPE"`,
-    );
-  }
-  return parts as [string, string];
-}
-
-/**
  * Validate configuration state and scopes, checking referenced connections
  */
 async function validateConfiguration(
@@ -61,10 +47,9 @@ async function validateConfiguration(
   organizationId: string,
   ctx: Parameters<typeof COLLECTION_CONNECTIONS_UPDATE.execute>[1],
 ): Promise<void> {
-  const referencedConnections = new Set<string>();
-
+  // Validate scope format and state keys
   for (const scope of scopes) {
-    // Parse scope format: "KEY::SCOPE"
+    // Parse scope format: "KEY::SCOPE" (throws on invalid format)
     const [key] = parseScope(scope);
     const value = prop(key, state);
 
@@ -74,20 +59,10 @@ async function validateConfiguration(
         `Scope references key "${key}" but it's not present in state`,
       );
     }
-
-    // Extract connection ID from state
-    const stateValue = state[key];
-    if (
-      typeof stateValue === "object" &&
-      stateValue !== null &&
-      "value" in stateValue
-    ) {
-      const connectionIdRef = (stateValue as { value: unknown }).value;
-      if (typeof connectionIdRef === "string") {
-        referencedConnections.add(connectionIdRef);
-      }
-    }
   }
+
+  // Get all referenced connection IDs
+  const referencedConnections = getReferencedConnectionIds(state, scopes);
 
   // Validate all referenced connections
   for (const refConnectionId of referencedConnections) {
@@ -210,7 +185,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       finalScopes.length > 0
     ) {
       try {
-        const proxy = await createMCPProxy(id, ctx);
+        const proxy = await ctx.createMCPProxy(id);
         await proxy.client.callTool({
           name: "ON_MCP_CONFIGURATION",
           arguments: {

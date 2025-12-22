@@ -342,6 +342,8 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 import { SqlMonitoringStorage } from "@/storage/monitoring";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { WellKnownMCPId } from "./well-known-mcp";
+import { ConnectionEntity } from "@/tools/connection/schema";
+import { createMCPProxy } from "@/api/routes/proxy";
 
 /**
  * Fetch role permissions from the database
@@ -666,7 +668,7 @@ export function createMeshContextFactory(
       WellKnownMCPId.SELF, // Default connectionId for management APIs
     );
 
-    return {
+    const ctx: MeshContext = {
       auth: meshAuth,
       connectionId,
       organization,
@@ -682,13 +684,21 @@ export function createMeshContextFactory(
       metadata: {
         requestId: crypto.randomUUID(),
         timestamp: new Date(),
-        userAgent: req?.headers.get("User-Agent") ?? undefined,
+        userAgent:
+          req?.headers.get("x-mesh-client") ||
+          req?.headers.get("User-Agent") ||
+          undefined,
         ipAddress:
           (req?.headers.get("CF-Connecting-IP") ||
             req?.headers.get("X-Forwarded-For")) ??
           undefined,
       },
       eventBus: config.eventBus,
+      createMCPProxy: async (conn: string | ConnectionEntity) => {
+        return await createMCPProxy(conn, ctx);
+      },
     };
+
+    return ctx;
   };
 }

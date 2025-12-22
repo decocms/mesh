@@ -45,6 +45,7 @@ const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
     timestamp: new Date(),
   },
   eventBus: null as unknown as EventBus,
+  createMCPProxy: async () => ({}) as never,
   ...overrides,
 });
 
