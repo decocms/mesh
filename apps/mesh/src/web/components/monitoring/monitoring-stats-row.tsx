@@ -11,7 +11,7 @@ import {
   ChartTooltipContent,
 } from "@deco/ui/components/chart.tsx";
 import { Bar, BarChart, Cell } from "recharts";
-import { HomeGridCell } from "./home-grid-cell.tsx";
+import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
 
 // ============================================================================
 // Types
@@ -247,6 +247,8 @@ function KPIChart({ data, dataKey, colorNum, chartHeight }: KPIChartProps) {
 // Main Component
 // ============================================================================
 
+export type KPIType = "calls" | "errors" | "p95";
+
 export interface MonitoringStatsRowProps {
   stats: MonitoringStatsData;
   /** Chart height class, e.g., "h-[40px]" or "h-[103px]" */
@@ -257,6 +259,8 @@ export interface MonitoringStatsRowProps {
   dateRange?: DateRange;
   /** Whether this is a compact view (monitoring page) */
   compact?: boolean;
+  /** Optional click handler for KPI cards */
+  onKPIClick?: (kpiType: KPIType) => void;
 }
 
 const KPI_CONFIG = [
@@ -286,6 +290,7 @@ export function MonitoringStatsRow({
   showDateLabels = false,
   dateRange,
   compact = false,
+  onKPIClick,
 }: MonitoringStatsRowProps) {
   const formatDate = (date: Date) =>
     date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -307,6 +312,8 @@ export function MonitoringStatsRow({
     </div>
   );
 
+  const isClickable = !!onKPIClick;
+
   return (
     <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
       {KPI_CONFIG.map(({ label, dataKey, colorNum, getValue }) => (
@@ -319,7 +326,10 @@ export function MonitoringStatsRow({
             </div>
           }
         >
-          <div className="flex flex-col gap-2 w-full">
+          <div
+            className={`flex flex-col gap-2 w-full ${isClickable ? "cursor-pointer hover:opacity-80 transition-opacity" : ""}`}
+            onClick={onKPIClick ? () => onKPIClick(dataKey) : undefined}
+          >
             <KPIChart
               data={stats.data}
               dataKey={dataKey}
