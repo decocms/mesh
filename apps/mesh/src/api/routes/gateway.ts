@@ -22,17 +22,18 @@ import {
   type CallToolResult,
   type ListToolsRequest,
   type ListToolsResult,
-  type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import type {
+  GatewayToolSelectionStrategy,
   GatewayWithConnections,
   ToolSelectionMode,
 } from "../../storage/types";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { Env } from "../env";
 import { HttpServerTransport } from "../http-server-transport";
+import { getStrategy, type ToolWithConnection } from "./gateway-strategies";
 import { createMCPProxy } from "./proxy";
 
 // Define Hono variables type
@@ -48,14 +49,6 @@ interface ToolMapping {
   originalName: string;
 }
 
-/** Result from listing tools from a single connection */
-interface ConnectionToolsResult {
-  connectionId: string;
-  connectionTitle: string;
-  tools: Tool[];
-  proxy: Awaited<ReturnType<typeof createMCPProxy>>;
-}
-
 /** Gateway configuration for createMCPGateway */
 interface GatewayOptions {
   connections: Array<{
@@ -63,39 +56,7 @@ interface GatewayOptions {
     selectedTools: string[] | null; // null = all tools (or full exclusion if mode is "exclusion")
   }>;
   toolSelectionMode: ToolSelectionMode;
-}
-
-// ============================================================================
-// Tool Deduplication
-// ============================================================================
-
-/**
- * Deduplicate tools by name (first occurrence wins)
- * @param allConnectionTools - All tools from connections
- * @returns Deduplicated tools and mappings
- */
-function deduplicateTools(allConnectionTools: ConnectionToolsResult[]): {
-  tools: Tool[];
-  mappings: Map<string, ToolMapping>;
-} {
-  const mappings = new Map<string, ToolMapping>();
-  const finalTools: Tool[] = [];
-  const seenNames = new Set<string>();
-
-  for (const { connectionId, tools } of allConnectionTools) {
-    for (const tool of tools) {
-      if (!seenNames.has(tool.name)) {
-        seenNames.add(tool.name);
-        finalTools.push(tool);
-        mappings.set(tool.name, {
-          connectionId,
-          originalName: tool.name,
-        });
-      }
-    }
-  }
-
-  return { tools: finalTools, mappings };
+  toolSelectionStrategy: GatewayToolSelectionStrategy;
 }
 
 // ============================================================================
@@ -144,118 +105,87 @@ async function createMCPGateway(
     }
   }
 
-  // Tool mapping state - populated when listTools is called
-  let toolMappings: Map<string, ToolMapping> | null = null;
+  // Fetch and aggregate all tools from connections
+  const toolResults = await Promise.allSettled(
+    Array.from(proxies.entries()).map(
+      async ([connectionId, { proxy, connection, selectedTools }]) => {
+        try {
+          const result = await proxy.client.listTools();
+          let tools = result.tools;
 
-  /**
-   * List tools from all proxies, apply selection mode, and deduplicate
-   */
-  const listTools = async (): Promise<ListToolsResult> => {
-    // Fetch tools from all proxies in parallel
-    const toolResults = await Promise.allSettled(
-      Array.from(proxies.entries()).map(
-        async ([connectionId, { proxy, connection, selectedTools }]) => {
-          try {
-            const result = await proxy.client.listTools();
-
-            // Apply selection based on mode
-            let tools = result.tools;
-
-            if (options.toolSelectionMode === "exclusion") {
-              // Exclusion mode: remove selected tools (or all if selectedTools is null/empty)
-              if (selectedTools && selectedTools.length > 0) {
-                const excludeSet = new Set(selectedTools);
-                tools = tools.filter((t) => !excludeSet.has(t.name));
-              }
-              // If selectedTools is null/empty in exclusion mode, all tools are removed
-              // (this connection is fully excluded - handled by not including it)
-            } else {
-              // Inclusion mode (default): keep only selected tools (or all if null)
-              if (selectedTools && selectedTools.length > 0) {
-                const selectedSet = new Set(selectedTools);
-                tools = tools.filter((t) => selectedSet.has(t.name));
-              }
-              // If selectedTools is null, all tools are included
+          // Apply selection based on mode
+          if (options.toolSelectionMode === "exclusion") {
+            if (selectedTools && selectedTools.length > 0) {
+              const excludeSet = new Set(selectedTools);
+              tools = tools.filter((t) => !excludeSet.has(t.name));
             }
-
-            return {
-              connectionId,
-              connectionTitle: connection.title,
-              tools,
-              proxy,
-            } as ConnectionToolsResult;
-          } catch (error) {
-            console.error(
-              `[gateway] Failed to list tools for connection ${connectionId}:`,
-              error,
-            );
-            return null;
+          } else {
+            if (selectedTools && selectedTools.length > 0) {
+              const selectedSet = new Set(selectedTools);
+              tools = tools.filter((t) => selectedSet.has(t.name));
+            }
           }
-        },
-      ),
-    );
 
-    // Collect successful results
-    const allConnectionTools: ConnectionToolsResult[] = [];
-    for (const result of toolResults) {
-      if (result.status === "fulfilled" && result.value) {
-        allConnectionTools.push(result.value);
-      }
+          return { connectionId, connectionTitle: connection.title, tools };
+        } catch (error) {
+          console.error(
+            `[gateway] Failed to list tools for connection ${connectionId}:`,
+            error,
+          );
+          return null;
+        }
+      },
+    ),
+  );
+
+  // Deduplicate and build tools with connection metadata
+  const seenNames = new Set<string>();
+  const allTools: ToolWithConnection[] = [];
+  const toolMappings = new Map<string, ToolMapping>();
+  const categories = new Set<string>();
+
+  for (const result of toolResults) {
+    if (result.status !== "fulfilled" || !result.value) continue;
+
+    const { connectionId, connectionTitle, tools } = result.value;
+    categories.add(connectionTitle);
+
+    for (const tool of tools) {
+      if (seenNames.has(tool.name)) continue;
+      seenNames.add(tool.name);
+
+      allTools.push({
+        ...tool,
+        connectionId,
+        connectionTitle,
+      });
+      toolMappings.set(tool.name, { connectionId, originalName: tool.name });
     }
+  }
 
-    // Always deduplicate (first occurrence wins)
-    const { tools: finalTools, mappings } =
-      deduplicateTools(allConnectionTools);
-
-    // Cache the mappings for subsequent callTool requests
-    toolMappings = mappings;
-
-    return { tools: finalTools };
-  };
-
-  /**
-   * Call a tool, resolving the final name to the correct proxy and original name
-   */
-  const callTool = async (
-    params: CallToolRequest["params"],
+  // Base callTool that routes to the correct connection
+  const baseCallTool = async (
+    name: string,
+    args: Record<string, unknown>,
   ): Promise<CallToolResult> => {
-    const { name: toolName, arguments: args } = params;
-
-    // Ensure we have tool mappings (call listTools if not cached)
-    if (!toolMappings) {
-      await listTools();
-    }
-
-    // Look up the mapping for this tool
-    const mapping = toolMappings?.get(toolName);
+    const mapping = toolMappings.get(name);
     if (!mapping) {
       return {
-        content: [
-          {
-            type: "text",
-            text: `Tool not found: ${toolName}`,
-          },
-        ],
+        content: [{ type: "text", text: `Tool not found: ${name}` }],
         isError: true,
       };
     }
 
-    // Get the proxy for this connection
     const proxyEntry = proxies.get(mapping.connectionId);
     if (!proxyEntry) {
       return {
         content: [
-          {
-            type: "text",
-            text: `Connection not found for tool: ${toolName}`,
-          },
+          { type: "text", text: `Connection not found for tool: ${name}` },
         ],
         isError: true,
       };
     }
 
-    // Call the tool with the ORIGINAL name (unprefixed)
-    // The underlying proxy handles authorization
     const result = await proxyEntry.proxy.client.callTool({
       name: mapping.originalName,
       arguments: args,
@@ -264,47 +194,53 @@ async function createMCPGateway(
     return result as CallToolResult;
   };
 
-  /**
-   * Call a streamable tool, resolving to the correct proxy
-   */
+  // Apply the strategy to transform tools
+  const strategy = getStrategy(options.toolSelectionStrategy);
+  const strategyResult = strategy({
+    tools: allTools,
+    callTool: baseCallTool,
+    categories: Array.from(categories).sort(),
+  });
+
+  // Wrap callTool to accept MCP params format
+  const listTools = async (): Promise<ListToolsResult> => ({
+    tools: strategyResult.tools,
+  });
+
+  const callTool = async (
+    params: CallToolRequest["params"],
+  ): Promise<CallToolResult> => {
+    return strategyResult.callTool(
+      params.name,
+      params.arguments ?? {},
+    ) as Promise<CallToolResult>;
+  };
+
+  // Streamable calls go through strategy callTool then to base if needed
   const callStreamableTool = async (
     toolName: string,
     args: Record<string, unknown>,
   ): Promise<Response> => {
-    // Ensure we have tool mappings
-    if (!toolMappings) {
-      await listTools();
+    // For smart strategy, GATEWAY_CALL_TOOL handles delegation
+    // For passthrough, route directly to underlying proxy
+    const mapping = toolMappings.get(toolName);
+    if (mapping) {
+      // Direct tool - route to proxy
+      const proxyEntry = proxies.get(mapping.connectionId);
+      if (proxyEntry) {
+        return proxyEntry.proxy.callStreamableTool(mapping.originalName, args);
+      }
     }
 
-    // Look up the mapping
-    const mapping = toolMappings?.get(toolName);
-    if (!mapping) {
-      return new Response(
-        JSON.stringify({ error: `Tool not found: ${toolName}` }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    // Get the proxy
-    const proxyEntry = proxies.get(mapping.connectionId);
-    if (!proxyEntry) {
-      return new Response(
-        JSON.stringify({
-          error: `Connection not found for tool: ${toolName}`,
-        }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    // Call with ORIGINAL name (unprefixed)
-    return proxyEntry.proxy.callStreamableTool(mapping.originalName, args);
+    // Meta-tool or not found - execute through strategy and return JSON
+    const result = await strategyResult.callTool(toolName, args);
+    return new Response(JSON.stringify(result), {
+      headers: { "Content-Type": "application/json" },
+    });
   };
 
   return {
-    client: {
-      listTools,
-      callTool,
-    },
+    client: { listTools, callTool },
     callStreamableTool,
   };
 }
@@ -315,7 +251,7 @@ async function createMCPGateway(
 
 /**
  * Load gateway entity and create MCP gateway
- * Handles both inclusion and exclusion modes
+ * Handles inclusion/exclusion modes and smart_tool_selection strategy
  */
 async function createMCPGatewayFromEntity(
   gateway: GatewayWithConnections,
@@ -379,10 +315,11 @@ async function createMCPGatewayFromEntity(
     });
   }
 
-  // Build gateway options
+  // Build gateway options with strategy
   const options: GatewayOptions = {
     connections,
     toolSelectionMode: gateway.toolSelectionMode,
+    toolSelectionStrategy: gateway.toolSelectionStrategy,
   };
 
   return createMCPGateway(options, ctx);
