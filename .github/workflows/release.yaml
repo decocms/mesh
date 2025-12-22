@@ -1,0 +1,171 @@
+name: Release Mesh
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mesh/**"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/mesh
+
+jobs:
+  release:
+    name: Release npm + Docker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build package
+        run: |
+          bun run build:client
+          bun run build:server
+        working-directory: apps/mesh
+
+      - name: Check if version changed
+        id: version-check
+        run: |
+          # Get the current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+
+          # Try to get the published version from npm (will fail if package doesn't exist)
+          PUBLISHED_VERSION=$(npm view @decocms/mesh version 2>/dev/null || echo "0.0.0")
+
+          echo "Current version: $CURRENT_VERSION"
+          echo "Published version: $PUBLISHED_VERSION"
+          echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          if [ "$CURRENT_VERSION" != "$PUBLISHED_VERSION" ]; then
+            echo "version-changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Version changed ($PUBLISHED_VERSION → $CURRENT_VERSION), will publish"
+          else
+            echo "version-changed=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Version unchanged ($CURRENT_VERSION), skipping publish"
+          fi
+        working-directory: apps/mesh
+
+      # ==================== NPM PUBLISH ====================
+      - name: Publish to NPM
+        if: steps.version-check.outputs.version-changed == 'true'
+        run: npm publish --access public
+        working-directory: apps/mesh
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Wait for npm propagation
+        if: steps.version-check.outputs.version-changed == 'true'
+        run: |
+          echo "Waiting 30s for npm registry propagation..."
+          sleep 30
+
+      # ==================== DOCKER BUILD & PUSH ====================
+      - name: Set up Docker Buildx
+        if: steps.version-check.outputs.version-changed == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: steps.version-check.outputs.version-changed == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        if: steps.version-check.outputs.version-changed == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version-check.outputs.current-version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version-check.outputs.current-version }}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        if: steps.version-check.outputs.version-changed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/mesh
+          file: ./apps/mesh/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            MESH_VERSION=${{ steps.version-check.outputs.current-version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      # ==================== GITHUB RELEASE ====================
+      - name: Create GitHub Release
+        if: steps.version-check.outputs.version-changed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version-check.outputs.current-version }}
+          name: "@decocms/mesh v${{ steps.version-check.outputs.current-version }}"
+          body: |
+            ## MCP Mesh v${{ steps.version-check.outputs.current-version }}
+
+            Self-hostable MCP Gateway for managing AI connections and tools.
+
+            ### Install via npm
+            ```bash
+            bunx @decocms/mesh@${{ steps.version-check.outputs.current-version }}
+            ```
+
+            ### Install via Docker
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}
+
+            docker run -d \
+              -p 3000:3000 \
+              -v mesh-data:/app/data \
+              --name mesh \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}
+            ```
+
+            ### Documentation
+            https://github.com/decocms/mesh
+          draft: false
+          prerelease: ${{ contains(steps.version-check.outputs.current-version, 'alpha') || contains(steps.version-check.outputs.current-version, 'beta') || contains(steps.version-check.outputs.current-version, 'rc') }}
+
+      - name: Generate release summary
+        if: steps.version-check.outputs.version-changed == 'true'
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **@decocms/mesh v${{ steps.version-check.outputs.current-version }} Released**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### npm" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "bunx @decocms/mesh@${{ steps.version-check.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
