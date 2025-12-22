@@ -217,12 +217,13 @@ export interface RequestMetadata {
 // ============================================================================
 
 // Forward declare storage types
+import { createMCPProxy } from "@/api/routes/proxy";
 import type { BetterAuthInstance } from "@/auth";
+import type { EventBus } from "../event-bus/interface";
 import type { ConnectionStorage } from "../storage/connection";
 import type { GatewayStorage } from "../storage/gateway";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
-import type { EventBus } from "../event-bus/interface";
 
 // Better Auth instance type - flexible for testing
 // In production, this is the actual Better Auth instance
@@ -295,6 +296,11 @@ export interface MeshContext {
 
   // Event bus for publishing and subscribing to events
   eventBus: EventBus;
+
+  // Utility for creating MCP Proxies
+  createMCPProxy: (
+    conn: Parameters<typeof createMCPProxy>[0],
+  ) => ReturnType<typeof createMCPProxy>;
 }
 
 // ============================================================================

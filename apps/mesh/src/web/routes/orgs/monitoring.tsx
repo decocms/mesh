@@ -20,6 +20,7 @@ import {
   type MonitoringLogsResponse as SharedMonitoringLogsResponse,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useMembers } from "@/web/hooks/use-members";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -62,11 +63,14 @@ interface MonitoringLog extends SharedMonitoringLog {
   requestId: string;
   input: Record<string, unknown> | null;
   output: Record<string, unknown> | null;
+  userAgent: string | null;
+  gatewayId: string | null;
 }
 
 interface EnrichedMonitoringLog extends MonitoringLog {
   userName: string;
   userImage: string | undefined;
+  gatewayName: string | null;
 }
 
 interface MonitoringLogsResponse
@@ -291,7 +295,7 @@ function JsonSyntaxHighlighter({ jsonString }: JsonSyntaxHighlighterProps) {
 // ============================================================================
 
 interface ExpandedLogContentProps {
-  log: MonitoringLog;
+  log: EnrichedMonitoringLog;
 }
 
 function ExpandedLogContent({ log }: ExpandedLogContentProps) {
@@ -314,6 +318,27 @@ function ExpandedLogContent({ log }: ExpandedLogContentProps) {
 
   return (
     <div className="space-y-3 text-sm px-3 md:px-5 py-4 bg-muted/30">
+      {/* Metadata Row: User Agent and Gateway */}
+      {(log.userAgent || log.gatewayName) && (
+        <div className="flex flex-wrap gap-4 text-xs">
+          {log.userAgent && (
+            <div>
+              <span className="font-medium text-muted-foreground">
+                Client:{" "}
+              </span>
+              <span className="font-mono text-foreground">{log.userAgent}</span>
+            </div>
+          )}
+          {log.gatewayName && (
+            <div>
+              <span className="font-medium text-muted-foreground">
+                Gateway:{" "}
+              </span>
+              <span className="text-foreground">{log.gatewayName}</span>
+            </div>
+          )}
+        </div>
+      )}
       {log.errorMessage && (
         <div>
           <div className="font-medium text-destructive mb-1">Error Message</div>
@@ -386,6 +411,9 @@ interface MonitoringLogsTableProps {
   page: number;
   logsData: MonitoringLogsResponse;
   onPageChange: (page: number) => void;
+  connections: ReturnType<typeof useConnections>;
+  gateways: ReturnType<typeof useGateways>;
+  membersData: ReturnType<typeof useMembers>["data"];
 }
 
 function MonitoringLogsTableContent({
@@ -397,8 +425,12 @@ function MonitoringLogsTableContent({
   page,
   logsData,
   onPageChange,
+  connections: connectionsData,
+  gateways: gatewaysData,
+  membersData,
 }: MonitoringLogsTableProps) {
-  const connections = useConnections() ?? [];
+  const connections = connectionsData ?? [];
+  const gateways = gatewaysData ?? [];
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Get logs from the current page
@@ -421,16 +453,20 @@ function MonitoringLogsTableContent({
     if (node) observerRef.current.observe(node);
   };
 
-  const { data: membersData } = useMembers();
   const members = membersData?.data?.members ?? [];
   const userMap = new Map(members.map((m) => [m.userId, m.user]));
 
+  // Create gateway lookup map
+  const gatewayMap = new Map(gateways.map((g) => [g.id, g]));
+
   const enrichedLogs: EnrichedMonitoringLog[] = logs.map((log) => {
     const user = userMap.get(log.userId ?? "");
+    const gateway = log.gatewayId ? gatewayMap.get(log.gatewayId) : null;
     return {
       ...log,
       userName: user?.name ?? log.userId ?? "Unknown",
       userImage: user?.image,
+      gatewayName: gateway?.title ?? null,
     };
   });
 
@@ -529,6 +565,11 @@ function MonitoringLogsTableContent({
             {log.userName}
           </div>
 
+          {/* Gateway */}
+          <div className="w-20 md:w-28 px-2 md:px-3 text-xs text-muted-foreground truncate">
+            {log.gatewayName ?? "-"}
+          </div>
+
           {/* Date */}
           <div className="w-20 md:w-24 px-2 md:px-3 text-xs text-muted-foreground">
             {dateStr}
@@ -598,6 +639,11 @@ function MonitoringLogsTableContent({
             {/* User name Column */}
             <div className="w-20 md:w-24 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
               User Name
+            </div>
+
+            {/* Gateway Column */}
+            <div className="w-20 md:w-28 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+              Gateway
             </div>
 
             {/* Date Column */}
@@ -678,9 +724,11 @@ function MonitoringDashboardContent({
   onTimeRangeChange,
   onStreamingToggle,
 }: MonitoringDashboardContentProps) {
-  // Get all connections for the multi-select - moved here because useConnections suspends
-  const allConnections = useConnections() ?? [];
-  const connectionOptions = allConnections.map((conn) => ({
+  // Get all connections, gateways, and members - moved here because these hooks suspend
+  const allConnections = useConnections();
+  const allGateways = useGateways();
+  const { data: membersData } = useMembers();
+  const connectionOptions = (allConnections ?? []).map((conn) => ({
     value: conn.id,
     label: conn.title || conn.id,
   }));
@@ -795,6 +843,9 @@ function MonitoringDashboardContent({
             page={page}
             logsData={logsData}
             onPageChange={handlePageChange}
+            connections={allConnections}
+            gateways={allGateways}
+            membersData={membersData}
           />
         </div>
       </div>

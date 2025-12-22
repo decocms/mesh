@@ -15,7 +15,6 @@ import type { MeshContext } from "../../core/mesh-context";
 import { ConnectionTools } from "../../tools";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import { createLLMProvider } from "../llm-provider";
-import { createMCPProxy } from "./proxy";
 
 // Default values
 const DEFAULT_MAX_TOKENS = 4096;
@@ -449,7 +448,7 @@ app.post("/:org/models/stream", async (c) => {
     }).slice(-maxWindowSize);
 
     // Create provider using the LanguageModelBinding
-    const proxy = await createMCPProxy(connection, ctx);
+    const proxy = await ctx.createMCPProxy(connection);
     const llmBinding = LanguageModelBinding.forClient(proxy);
     const provider = createLLMProvider(llmBinding).languageModel(
       modelConfig.id,
