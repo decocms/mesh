@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { onMcpAuthorization } from "use-mcp";
 import {
   Card,
   CardContent,
@@ -7,70 +6,35 @@ import {
   CardTitle,
 } from "@deco/ui/components/card.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { handleOAuthCallback } from "@/web/lib/mcp-oauth";
 
 export default function OAuthCallback() {
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<boolean>(false);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    const handleCallback = async () => {
+    const processCallback = async () => {
       try {
-        // Handle the OAuth callback
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get("code");
-        let state = params.get("state");
-        const errorParam = params.get("error");
-        const errorDescription = params.get("error_description");
+        // handleOAuthCallback forwards the code/state to parent window via postMessage
+        // The parent window handles the token exchange (it has the provider in memory)
+        const result = await handleOAuthCallback();
 
-        if (errorParam) {
-          console.error("OAuth error:", errorParam, errorDescription);
-          setError(errorDescription || errorParam);
-          // Show error and close window after delay
+        if (!result.success) {
+          setError(result.error || "MCP authentication failed");
           setTimeout(() => {
             window.close();
           }, 3000);
           return;
         }
 
-        if (code && state) {
-          // Check if the state is a base64-encoded JSON object from deco.cx
-          // deco.cx wraps the original state in additional metadata
-          try {
-            const decodedState = atob(state);
-            const stateObj = JSON.parse(decodedState);
+        setSuccess(true);
 
-            // If the state contains a nested clientState, extract it
-            if (stateObj.clientState) {
-              // Replace the state parameter with the actual client state
-              const url = new URL(window.location.href);
-              url.searchParams.set("state", stateObj.clientState);
-
-              // Update the browser URL without reloading
-              window.history.replaceState({}, "", url.toString());
-
-              // Update state for the authorization call
-              state = stateObj.clientState;
-            }
-          } catch {
-            // If decoding/parsing fails, use the state as-is
-          }
-
-          // Let use-mcp handle the authorization with the unwrapped state
-          await onMcpAuthorization();
-
-          // Notify parent window that OAuth is complete
-          // The parent window will handle saving the token to the database
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage(
-              {
-                type: "mcp:oauth:complete",
-                success: true,
-              },
-              window.location.origin,
-            );
-          }
-        }
+        // Close after a brief delay to show success message
+        setTimeout(() => {
+          window.close();
+        }, 1500);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setTimeout(() => {
@@ -79,7 +43,7 @@ export default function OAuthCallback() {
       }
     };
 
-    handleCallback();
+    processCallback();
   }, []);
 
   return (
@@ -92,10 +56,15 @@ export default function OAuthCallback() {
                 <AlertCircle className="h-5 w-5 text-destructive" />
                 Authentication Failed
               </>
-            ) : (
+            ) : success ? (
               <>
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
                 Authentication Successful
+              </>
+            ) : (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Authentication in progress...
               </>
             )}
           </CardTitle>

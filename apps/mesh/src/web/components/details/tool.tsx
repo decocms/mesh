@@ -23,12 +23,11 @@ import {
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useMcp } from "use-mcp/react";
-import { normalizeUrl } from "@/web/utils/normalize-url";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
 import { OAuthAuthenticationState } from "./connection/settings-tab";
 import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
+import { useSimpleMcp } from "@/web/hooks/use-simple-mcp";
 
 export interface ToolDetailsViewProps {
   itemId: string;
@@ -45,20 +44,17 @@ const beautifyToolName = (toolName: string) => {
 function ToolDetailsContent({
   toolName,
   connectionId,
-  connection,
   onBack,
 }: {
   toolName: string;
   connectionId: string;
-  connection: NonNullable<ReturnType<typeof useConnection>>;
   onBack: () => void;
 }) {
-  const mcpOriginalUrl = normalizeUrl(connection.connection_url);
   const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
 
   const isMCPAuthenticated = useIsMCPAuthenticated({
-    url: mcpOriginalUrl,
-    token: connection.connection_token ?? null,
+    url: mcpProxyUrl.href,
+    token: null,
   });
 
   if (!isMCPAuthenticated) {
@@ -112,11 +108,8 @@ function ToolDetailsAuthenticated({
   } | null>(null);
   const [viewMode, setViewMode] = useState<"json" | "view">("json");
 
-  const mcp = useMcp({
+  const mcp = useSimpleMcp({
     url: mcpProxyUrl.href,
-    clientName: "MCP Tool Inspector",
-    clientUri: window.location.origin,
-    autoReconnect: false,
   });
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -227,7 +220,7 @@ function ToolDetailsAuthenticated({
       <ViewActions>
         <PinToSidebarButton
           connectionId={connectionId}
-          title={tool?.title ?? beautifyToolName(toolName)}
+          title={tool?.name ?? beautifyToolName(toolName)}
           icon="build"
         />
       </ViewActions>
@@ -247,7 +240,7 @@ function ToolDetailsAuthenticated({
           <div className="flex items-center gap-2">
             {mcp.state === "ready" ? (
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-            ) : mcp.state === "connecting" || mcp.state === "authenticating" ? (
+            ) : mcp.state === "connecting" ? (
               <Icon
                 name="progress_activity"
                 size={12}
@@ -507,7 +500,6 @@ export function ToolDetailsView({
       <ToolDetailsContent
         toolName={toolName}
         connectionId={connectionId}
-        connection={connection}
         onBack={onBack}
       />
     </Suspense>

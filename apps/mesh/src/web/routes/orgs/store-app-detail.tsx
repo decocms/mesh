@@ -19,7 +19,7 @@ import {
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
-import { useMcp } from "use-mcp/react";
+import { useSimpleMcp } from "@/web/hooks/use-simple-mcp";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
@@ -344,18 +344,12 @@ function StoreAppDetailContent() {
   const shouldFetchRemote = !hasLocalTools && !!remoteUrl;
 
   // Fetch tools from remote MCP server if no local tools are available
-  const remoteMcp = useMcp({
+  const remoteMcp = useSimpleMcp({
     url: shouldFetchRemote ? remoteUrl : "",
-    clientName: "MCP Store Preview",
-    clientUri: typeof window !== "undefined" ? window.location.origin : "",
-    autoReconnect: false,
-    autoRetry: false,
-    preventAutoAuth: true,
   });
 
   const isLoadingRemoteTools =
-    shouldFetchRemote &&
-    (remoteMcp.state === "connecting" || remoteMcp.state === "authenticating");
+    shouldFetchRemote && remoteMcp.state === "connecting";
 
   const remoteTools =
     shouldFetchRemote && remoteMcp.state === "ready"
