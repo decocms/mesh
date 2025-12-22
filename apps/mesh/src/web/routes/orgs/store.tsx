@@ -1,4 +1,7 @@
-import { getWellKnownCommunityRegistryConnection } from "@/core/well-known-mcp";
+import {
+  getWellKnownCommunityRegistryConnection,
+  getWellKnownRegistryConnection,
+} from "@/core/well-known-mcp";
 import { ConnectionCreateData } from "@/tools/connection/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header";
 import { StoreDiscovery } from "@/web/components/store";
@@ -51,8 +54,13 @@ export default function StorePage() {
   const effectiveRegistry =
     selectedRegistry?.id || registryConnections[0]?.id || "";
 
-  // Well-known registries to show in empty state
-  const wellKnownRegistries = [getWellKnownCommunityRegistryConnection()];
+  // Well-known registries to show in select (hidden/less prominent)
+  const wellKnownRegistriesForSelect = [getWellKnownRegistryConnection()];
+
+  // Well-known registries to show in empty state (only Community Registry)
+  const wellKnownRegistriesForEmptyState = [
+    getWellKnownCommunityRegistryConnection(),
+  ];
 
   const addNewKnownRegistry = async (registry: ConnectionCreateData) => {
     const created = await connectionActions.create.mutateAsync(registry);
@@ -61,9 +69,13 @@ export default function StorePage() {
 
   // Filter out well-known registries that are already added
   const addedRegistryIds = new Set(registryConnections.map((c) => c.id));
-  const availableWellKnownRegistries = wellKnownRegistries.filter(
+  const availableWellKnownRegistries = wellKnownRegistriesForSelect.filter(
     (r) => r.id && !addedRegistryIds.has(r.id),
   );
+  const availableWellKnownRegistriesForEmptyState =
+    wellKnownRegistriesForEmptyState.filter(
+      (r) => r.id && !addedRegistryIds.has(r.id),
+    );
 
   // If we're viewing an app detail (child route), render the Outlet
   if (isViewingAppDetail) {
@@ -107,7 +119,7 @@ export default function StorePage() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full">
               <StoreRegistryEmptyState
-                registries={wellKnownRegistries}
+                registries={availableWellKnownRegistriesForEmptyState}
                 onConnected={(createdRegistryId) => {
                   // Auto-select the newly created registry
                   setSelectedRegistryId(createdRegistryId);
