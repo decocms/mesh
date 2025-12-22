@@ -5,8 +5,6 @@ import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { Badge } from "@deco/ui/components/badge.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "./home-grid-cell.tsx";
 import type {
@@ -198,14 +196,7 @@ function RecentActivityContent() {
   return (
     <HomeGridCell
       title={<p className="text-sm text-muted-foreground">Recent Activity</p>}
-      action={
-        logsData && logsData.total > logs.length ? (
-          <Button variant="ghost" size="sm" onClick={handleViewAll}>
-            See all
-            <Icon name="chevron_right" size={16} />
-          </Button>
-        ) : null
-      }
+      onTitleClick={handleViewAll}
       noPadding
     >
       <div className={`w-full h-full overflow-auto ${""}`}>
@@ -219,7 +210,6 @@ function RecentActivitySkeleton() {
   return (
     <HomeGridCell
       title={<p className="text-sm text-muted-foreground">Recent Activity</p>}
-      action={<div className="h-7 w-20 rounded bg-muted animate-pulse" />}
     >
       <div className="space-y-2">
         {[...Array(6)].map((_, i) => (
@@ -230,6 +220,7 @@ function RecentActivitySkeleton() {
   );
 }
 
-export const RecentActivity = Object.assign(RecentActivityContent, {
+export const RecentActivity = {
+  Content: RecentActivityContent,
   Skeleton: RecentActivitySkeleton,
-});
+};

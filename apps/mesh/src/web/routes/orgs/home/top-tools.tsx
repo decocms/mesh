@@ -4,17 +4,14 @@ import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@deco/ui/components/chart.tsx";
-import { Pie, PieChart, Cell } from "recharts";
+import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "./home-grid-cell.tsx";
 import type {
   MonitoringLog,
   MonitoringLogsResponse,
 } from "./monitoring-types.ts";
+
+type MetricsMode = "requests" | "errors" | "latency";
 
 type ToolAgg = {
   tool: string;
@@ -43,8 +40,13 @@ function buildTopTools(logs: MonitoringLog[], limit: number): ToolAgg[] {
     .slice(0, limit);
 }
 
-function TopToolsContent() {
-  const { locator } = useProjectContext();
+interface TopToolsContentProps {
+  metricsMode: MetricsMode;
+}
+
+function TopToolsContent({ metricsMode }: TopToolsContentProps) {
+  const { org, locator } = useProjectContext();
+  const navigate = useNavigate();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
   const connections = useConnections() ?? [];
@@ -55,154 +57,82 @@ function TopToolsContent() {
   >({
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
-    toolInputParams: { ...dateRange, limit: 750, offset: 0 },
+    toolInputParams: { ...dateRange, limit: 2000, offset: 0 },
     scope: locator,
     staleTime: 30_000,
   });
 
   const logs = logsData?.logs ?? [];
-  const rawTop = buildTopTools(logs, 6);
-  let top = rawTop.map((t, idx) => ({
-    key: `t${idx + 1}`,
-    tool: t.tool,
-    calls: t.calls,
-    connectionId: t.connectionId,
-  }));
-
-  // Use mock data if no logs
-  if (logs.length === 0) {
-    top = [
-      {
-        key: "t1",
-        tool: "COLLECTION_AGENT_LIST",
-        calls: 210,
-        connectionId: "mock1",
-      },
-      {
-        key: "t2",
-        tool: "COLLECTION_LLM_LIST",
-        calls: 82,
-        connectionId: "mock2",
-      },
-      {
-        key: "t3",
-        tool: "COLLECTION_REGISTRY_APPS_LIST",
-        calls: 15,
-        connectionId: "mock3",
-      },
-      {
-        key: "t4",
-        tool: "COLLECTION_REGISTRY_TOOLS_LIST",
-        calls: 15,
-        connectionId: "mock4",
-      },
-      {
-        key: "t5",
-        tool: "MCP_CONFIGURATION",
-        calls: 8,
-        connectionId: "mock5",
-      },
-      {
-        key: "t6",
-        tool: "LLM_DO_STREAM",
-        calls: 1,
-        connectionId: "mock6",
-      },
-    ];
-  }
-
-  const config = Object.fromEntries(
-    top.map((t, idx) => [
-      t.key,
-      {
-        label: t.tool,
-        color: `var(--chart-${(idx % 5) + 1})`,
-      },
-    ]),
-  ) as Record<string, { label: string; color: string }>;
+  const top = buildTopTools(logs, 6);
 
   const connectionMap = new Map(connections.map((c) => [c.id, c]));
 
+  const handleTitleClick = () => {
+    navigate({
+      to: "/$org/monitoring",
+      params: { org: org.slug },
+    });
+  };
+
+  const maxValue = top.length > 0 ? top[0].calls : 1;
+
+  const barColor =
+    metricsMode === "requests"
+      ? "bg-chart-1"
+      : metricsMode === "errors"
+        ? "bg-chart-3"
+        : "bg-chart-4";
+
   return (
     <HomeGridCell
-      title={<p className="text-sm text-muted-foreground">Top Tools (24h)</p>}
-      noPadding
+      title={<p className="text-sm text-muted-foreground">Top Tools</p>}
+      onTitleClick={handleTitleClick}
     >
-      <div className="w-full">
-        {/* Chart on top */}
-        <div className="flex items-center justify-center py-4 shrink-0">
-          <ChartContainer
-            className="h-[200px] w-[200px] aspect-auto"
-            config={config}
-          >
-            <PieChart>
-              <ChartTooltip
-                content={<ChartTooltipContent indicator="dot" nameKey="key" />}
-              />
-              <Pie
-                data={top}
-                dataKey="calls"
-                nameKey="key"
-                cx="50%"
-                cy="50%"
-                innerRadius={52}
-                outerRadius={82}
-                paddingAngle={2}
-                stroke="var(--color-border)"
-                strokeWidth={1}
-              >
-                {top.map((t) => (
-                  <Cell key={t.key} fill={`var(--color-${t.key})`} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ChartContainer>
+      {top.length === 0 ? (
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+          No tool activity in the last 24 hours
         </div>
-
-        {/* Table below */}
-        <div className="w-full">
-          {top.map((t) => {
+      ) : (
+        <div className="space-y-4 w-full">
+          {top.map((t, idx) => {
             const connection = connectionMap.get(t.connectionId || "");
+            const percentage = maxValue > 0 ? (t.calls / maxValue) * 100 : 0;
             return (
               <div
-                key={t.key}
-                className="flex items-center h-16 border-t border-border/60 hover:bg-muted/40 transition-colors"
+                key={`${t.tool}-${idx}`}
+                className="group cursor-pointer flex items-center gap-2"
               >
-                {/* Icon with Color */}
-                <div className="flex items-center w-20 pl-4 gap-2">
-                  <span
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: config[t.key]?.color }}
-                    aria-hidden="true"
+                <span
+                  className="size-3 shrink-0 rounded-full"
+                  style={{
+                    backgroundColor: `hsl(var(--chart-${(idx % 5) + 1}))`,
+                  }}
+                  aria-hidden="true"
+                />
+                <IntegrationIcon
+                  icon={connection?.icon || null}
+                  name={t.tool}
+                  size="xs"
+                  fallbackIcon="extension"
+                  className="shrink-0"
+                />
+                <span className="text-xs font-medium text-foreground truncate min-w-0 w-32">
+                  {t.tool}
+                </span>
+                <div className="relative h-2 bg-muted/50 overflow-hidden flex-1">
+                  <div
+                    className={`h-full transition-all duration-500 ease-out group-hover:opacity-80 ${barColor}`}
+                    style={{ width: `${percentage}%` }}
                   />
-                  <div className="w-6 h-6 shrink-0 flex items-center justify-center">
-                    <IntegrationIcon
-                      icon={connection?.icon || null}
-                      name={t.tool}
-                      size="xs"
-                      className="shadow-sm"
-                    />
-                  </div>
                 </div>
-
-                {/* Tool Name */}
-                <div className="flex-1 min-w-0 px-4">
-                  <span className="text-xs font-medium text-foreground truncate block">
-                    {t.tool}
-                  </span>
-                </div>
-
-                {/* Call count */}
-                <div className="flex items-center pr-5">
-                  <span className="font-mono text-xs text-foreground tabular-nums">
-                    {t.calls}
-                  </span>
-                </div>
+                <span className="text-xs tabular-nums shrink-0 text-foreground font-normal">
+                  {t.calls}
+                </span>
               </div>
             );
           })}
         </div>
-      </div>
+      )}
     </HomeGridCell>
   );
 }
@@ -210,13 +140,23 @@ function TopToolsContent() {
 function TopToolsSkeleton() {
   return (
     <HomeGridCell
-      title={<p className="text-sm text-muted-foreground">Top Tools (24h)</p>}
+      title={<p className="text-sm text-muted-foreground">Top Tools</p>}
     >
-      <div className="h-[260px] w-full rounded-xl bg-muted animate-pulse" />
+      <div className="space-y-4 w-full">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <div className="h-6 w-6 bg-muted animate-pulse rounded-md shrink-0" />
+            <div className="h-3 w-32 bg-muted animate-pulse rounded shrink-0" />
+            <div className="h-2 bg-muted animate-pulse flex-1" />
+            <div className="h-3 w-12 bg-muted animate-pulse rounded shrink-0" />
+          </div>
+        ))}
+      </div>
     </HomeGridCell>
   );
 }
 
-export const TopTools = Object.assign(TopToolsContent, {
+export const TopTools = {
+  Content: TopToolsContent,
   Skeleton: TopToolsSkeleton,
-});
+};

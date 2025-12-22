@@ -44,6 +44,8 @@ import {
   type MonitoringStats,
 } from "./monitoring-types.ts";
 import { RecentActivity } from "./recent-activity.tsx";
+import { TopGateways } from "./top-gateways.tsx";
+import { TopServers } from "./top-servers.tsx";
 import { TopTools } from "./top-tools.tsx";
 
 // ============================================================================
@@ -251,7 +253,7 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
 
   return (
     <div
-      className="relative flex h-15 max-w-3xs shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
+      className="relative flex h-15 max-w-3xs shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer pointer-events-auto before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
       onClick={handleClick}
     >
       <IntegrationIcon
@@ -315,7 +317,7 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
 
   return (
     <div
-      className="relative flex h-15 max-w-3xs shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
+      className="relative flex h-15 max-w-3xs shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer pointer-events-auto before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
       onClick={handleClick}
     >
       <Handle
@@ -371,7 +373,7 @@ function MeshNode({ data }: NodeProps<Node<MeshNodeData>>) {
 
   return (
     <div
-      className="flex h-14 w-14 items-center justify-center p-2 bg-primary border border-primary-foreground/50 rounded-lg shadow-sm cursor-pointer"
+      className="flex h-14 w-14 items-center justify-center p-2 bg-primary border border-primary-foreground/50 rounded-lg shadow-sm cursor-pointer pointer-events-auto"
       onClick={handleClick}
     >
       <Handle
@@ -725,13 +727,19 @@ function WelcomeOverlay() {
 // Dashboard View
 // ============================================================================
 
-function DashboardView() {
+function DashboardView({
+  metricsMode,
+  onMetricsModeChange,
+}: {
+  metricsMode: MetricsMode;
+  onMetricsModeChange: (mode: MetricsMode) => void;
+}) {
   return (
-    <div className="h-full">
+    <div className="w-full">
       {/* Grid with internal dividers only */}
-      <div className="grid grid-cols-1 lg:grid-cols-6 lg:grid-rows-[auto_1fr] gap-[0.5px] bg-border h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[0.5px] bg-border">
         {/* Row 1: 3 KPI bar charts */}
-        <div className="lg:col-span-6">
+        <div className="lg:col-span-2">
           <ErrorBoundary
             fallback={
               <div className="bg-background p-5 text-sm text-muted-foreground">
@@ -745,8 +753,8 @@ function DashboardView() {
           </ErrorBoundary>
         </div>
 
-        {/* Row 2: Recent Activity + Top Tools */}
-        <div className="lg:col-span-3 min-h-0 overflow-hidden">
+        {/* Left: Recent Activity */}
+        <div className="lg:col-span-1">
           <ErrorBoundary
             fallback={
               <div className="bg-background p-5 text-sm text-muted-foreground">
@@ -755,23 +763,62 @@ function DashboardView() {
             }
           >
             <Suspense fallback={<RecentActivity.Skeleton />}>
-              <RecentActivity />
+              <RecentActivity.Content />
             </Suspense>
           </ErrorBoundary>
         </div>
 
-        <div className="lg:col-span-3 min-h-0 overflow-hidden">
-          <ErrorBoundary
-            fallback={
-              <div className="bg-background p-5 text-sm text-muted-foreground">
-                Failed to load top tools
-              </div>
-            }
-          >
-            <Suspense fallback={<TopTools.Skeleton />}>
-              <TopTools />
-            </Suspense>
-          </ErrorBoundary>
+        {/* Right: Stacked components */}
+        <div className="lg:col-span-1 grid grid-cols-1 gap-[0.5px] bg-border">
+          {/* Top Tools */}
+          <div>
+            <ErrorBoundary
+              fallback={
+                <div className="bg-background p-5 text-sm text-muted-foreground">
+                  Failed to load top tools
+                </div>
+              }
+            >
+              <Suspense fallback={<TopTools.Skeleton />}>
+                <TopTools.Content metricsMode={metricsMode} />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+
+          {/* MCP Servers + Gateways (combined section) */}
+          <div className="bg-background">
+            {/* MCP Servers */}
+            <ErrorBoundary
+              fallback={
+                <div className="bg-background p-5 text-sm text-muted-foreground">
+                  Failed to load top servers
+                </div>
+              }
+            >
+              <Suspense fallback={<TopServers.Skeleton />}>
+                <TopServers.Content
+                  metricsMode={metricsMode}
+                  onMetricsModeChange={onMetricsModeChange}
+                />
+              </Suspense>
+            </ErrorBoundary>
+
+            {/* Divider line */}
+            <div className="border-t border-border/60" />
+
+            {/* MCP Gateways */}
+            <ErrorBoundary
+              fallback={
+                <div className="bg-background p-5 text-sm text-muted-foreground">
+                  Failed to load top gateways
+                </div>
+              }
+            >
+              <Suspense fallback={<TopGateways.Skeleton />}>
+                <TopGateways.Content metricsMode={metricsMode} />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
         </div>
       </div>
     </div>
@@ -792,6 +839,8 @@ export default function OrgHomePage() {
     const stored = localStorage.getItem("org-home-view-mode");
     return stored === "dashboard" || stored === "graph" ? stored : "dashboard";
   });
+
+  const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
 
   // Check if there's monitoring activity to show/hide controls
   const { data: stats } = useToolCall<
@@ -868,7 +917,10 @@ export default function OrgHomePage() {
             </Suspense>
           </ErrorBoundary>
         ) : (
-          <DashboardView />
+          <DashboardView
+            metricsMode={metricsMode}
+            onMetricsModeChange={setMetricsMode}
+          />
         )}
       </div>
     </CollectionPage>

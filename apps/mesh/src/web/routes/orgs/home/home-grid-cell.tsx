@@ -8,6 +8,8 @@ type HomeGridCellProps = {
   children: ReactNode;
   className?: string;
   noPadding?: boolean;
+  titleLink?: string;
+  onTitleClick?: () => void;
 };
 
 export function HomeGridCell({
@@ -17,15 +19,29 @@ export function HomeGridCell({
   children,
   className,
   noPadding = false,
+  titleLink,
+  onTitleClick,
 }: HomeGridCellProps) {
+  const titleContent =
+    typeof title === "string" ? (
+      <div className="text-sm font-medium text-foreground">{title}</div>
+    ) : (
+      title
+    );
+
   return (
     <div className={cn("bg-background h-full flex flex-col", className)}>
       <header className="flex items-center justify-between gap-4 p-5">
         <div className="min-w-0">
-          {typeof title === "string" ? (
-            <div className="text-sm font-medium text-foreground">{title}</div>
+          {onTitleClick ? (
+            <button
+              onClick={onTitleClick}
+              className="text-left hover:text-foreground transition-colors cursor-pointer"
+            >
+              {titleContent}
+            </button>
           ) : (
-            title
+            titleContent
           )}
           {description ? (
             <div className="text-xs text-muted-foreground mt-1">
