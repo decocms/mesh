@@ -1,5 +1,7 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Checkbox } from "@deco/ui/components/checkbox.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { memo, useDeferredValue, useRef, useState } from "react";
 import { useConnections } from "@/web/hooks/collections/use-connection";
@@ -129,6 +131,7 @@ export function ToolSetSelector({
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
   const initialOrder = useRef<Set<string>>(new Set(Object.keys(toolSet)));
 
   const connections = useConnections({
@@ -229,10 +232,26 @@ export function ToolSetSelector({
     onToolSetChange(newToolSet);
   };
 
+  // Handle connection selection (mobile opens detail view)
+  const handleConnectionSelect = (connectionId: string) => {
+    setSelectedConnectionId(connectionId);
+    setShowMobileDetail(true);
+  };
+
+  // Handle back button (mobile only)
+  const handleMobileBack = () => {
+    setShowMobileDetail(false);
+  };
+
   return (
     <div className="flex h-full">
-      {/* Left Column - Connections List */}
-      <div className="w-80 border-r border-border flex flex-col">
+      {/* Left Column - Connections List (hidden on mobile when detail view is shown) */}
+      <div
+        className={cn(
+          "w-full md:w-80 border-r border-border flex flex-col",
+          showMobileDetail && "hidden md:flex",
+        )}
+      >
         {/* Search Input */}
         <CollectionSearch
           value={searchQuery}
@@ -303,7 +322,7 @@ export function ToolSetSelector({
                     hasToolsEnabled={isConnectionSelected(connection.id)}
                     activeToolsCount={activeTools}
                     totalToolsCount={totalTools}
-                    onSelect={() => setSelectedConnectionId(connection.id)}
+                    onSelect={() => handleConnectionSelect(connection.id)}
                     onToggle={() => toggleConnection(connection.id)}
                   />
                 );
@@ -313,10 +332,44 @@ export function ToolSetSelector({
         </div>
       </div>
 
-      {/* Right Column - Tools List */}
-      <div className="flex-1 flex flex-col">
+      {/* Right Column - Tools List (full width on mobile when shown) */}
+      <div
+        className={cn(
+          "flex-1 flex-col",
+          showMobileDetail ? "flex" : "hidden md:flex",
+        )}
+      >
         {selectedConnection ? (
           <>
+            {/* Mobile Header with Back Button */}
+            <div className="md:hidden border-b border-border p-4 flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleMobileBack}
+                className="h-8 w-8 p-0 shrink-0"
+              >
+                <Icon name="arrow_back" size={20} />
+              </Button>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <IntegrationIcon
+                  icon={selectedConnection.icon}
+                  name={selectedConnection.title}
+                  size="sm"
+                />
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-medium text-foreground truncate">
+                    {selectedConnection.title}
+                  </h3>
+                  {selectedConnection.description && (
+                    <p className="text-sm text-muted-foreground truncate">
+                      {selectedConnection.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Tools List */}
             <div className="flex-1 overflow-auto p-4">
               {connectionTools.length === 0 ? (
