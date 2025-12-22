@@ -587,6 +587,13 @@ function MeshVisualization() {
       <style>{`
         .mesh-minimap .react-flow__node { transition: transform 300ms ease-out; }
         .mesh-minimap .react-flow__edge path { transition: d 300ms ease-out; }
+        @keyframes mesh-edge-flow {
+          from { stroke-dashoffset: 7; }
+          to { stroke-dashoffset: 0; }
+        }
+        .mesh-minimap .react-flow__edge.animated path {
+          animation: mesh-edge-flow 0.5s linear infinite;
+        }
       `}</style>
 
       <div className="absolute top-4 right-4 z-10">
