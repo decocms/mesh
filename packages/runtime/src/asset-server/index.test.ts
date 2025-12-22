@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { isPathWithinDirectory, resolveAssetPathWithTraversalCheck } from "./index";
+import {
+  isPathWithinDirectory,
+  resolveAssetPathWithTraversalCheck,
+} from "./index";
 import { resolve } from "path";
 
 describe("isPathWithinDirectory", () => {
@@ -8,19 +11,19 @@ describe("isPathWithinDirectory", () => {
   describe("safe paths", () => {
     test("allows file directly in base directory", () => {
       expect(isPathWithinDirectory("/app/client/index.html", baseDir)).toBe(
-        true
+        true,
       );
     });
 
     test("allows file in subdirectory", () => {
-      expect(isPathWithinDirectory("/app/client/assets/style.css", baseDir)).toBe(
-        true
-      );
+      expect(
+        isPathWithinDirectory("/app/client/assets/style.css", baseDir),
+      ).toBe(true);
     });
 
     test("allows deeply nested file", () => {
       expect(
-        isPathWithinDirectory("/app/client/assets/images/logo.png", baseDir)
+        isPathWithinDirectory("/app/client/assets/images/logo.png", baseDir),
       ).toBe(true);
     });
 
@@ -30,7 +33,7 @@ describe("isPathWithinDirectory", () => {
 
     test("allows file with spaces in name", () => {
       expect(
-        isPathWithinDirectory("/app/client/logos/deco logo.svg", baseDir)
+        isPathWithinDirectory("/app/client/logos/deco logo.svg", baseDir),
       ).toBe(true);
     });
   });
@@ -51,14 +54,14 @@ describe("isPathWithinDirectory", () => {
 
     test("blocks traversal to sibling directory", () => {
       expect(isPathWithinDirectory("/app/server/secrets.json", baseDir)).toBe(
-        false
+        false,
       );
     });
 
     test("blocks path that starts with baseDir but is actually sibling", () => {
       // /app/client-secrets is NOT within /app/client
       expect(isPathWithinDirectory("/app/client-secrets/key", baseDir)).toBe(
-        false
+        false,
       );
     });
 

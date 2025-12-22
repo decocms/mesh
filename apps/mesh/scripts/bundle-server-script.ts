@@ -187,11 +187,14 @@ async function pruneNodeModules(): Promise<Set<string>> {
   // Copy entire package directories to ensure package.json and all metadata are included
   // Only externalize packages that are successfully copied (not workspace packages)
   const successfullyCopied = new Set<string>();
-  
+
   for (const [packageName, packagePath] of packagesToCopy.entries()) {
     // Skip workspace packages - they should be bundled inline, not externalized
     // Workspace packages use the @decocms/ scope (except @decocms/better-auth which is published)
-    if (packageName.startsWith("@decocms/") && packageName !== "@decocms/better-auth") {
+    if (
+      packageName.startsWith("@decocms/") &&
+      packageName !== "@decocms/better-auth"
+    ) {
       console.log(`📦 Bundling inline (workspace): ${packageName}`);
       continue;
     }

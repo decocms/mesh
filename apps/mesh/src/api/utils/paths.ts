@@ -20,7 +20,8 @@ const PATH_PREFIXES = {
 } as const;
 
 /** Static file extensions that should be served as-is (internal use only) */
-const STATIC_FILE_PATTERN = /\.(html|css|js|ico|svg|png|jpg|jpeg|gif|webp|woff|woff2)$/;
+const STATIC_FILE_PATTERN =
+  /\.(html|css|js|ico|svg|png|jpg|jpeg|gif|webp|woff|woff2)$/;
 
 /** Check if a path is a system endpoint (health, metrics, well-known) */
 function isSystemPath(path: string): boolean {
@@ -68,4 +69,3 @@ export function shouldSkipMeshContext(path: string): boolean {
     isStaticFilePath(path)
   );
 }
-

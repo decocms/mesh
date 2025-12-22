@@ -1,10 +1,6 @@
 import { devServerProxy } from "./dev-server-proxy";
 import { resolve, dirname } from "path";
 
-// ============================================================================
-// Configuration Types
-// ============================================================================
-
 export interface AssetServerConfig {
   /**
    * Environment mode. Determines whether to proxy to dev server or serve static files.
@@ -40,16 +36,8 @@ export interface ResolvedAssetPath {
   isSPA: boolean;
 }
 
-// ============================================================================
-// Defaults
-// ============================================================================
-
 const DEFAULT_DEV_SERVER_URL = "http://localhost:4000";
 const DEFAULT_CLIENT_DIR = "./dist/client";
-
-// ============================================================================
-// Security Utilities
-// ============================================================================
 
 /**
  * Check if a resolved file path is safely within the allowed base directory.
@@ -67,13 +55,12 @@ const DEFAULT_CLIENT_DIR = "./dist/client";
  */
 export function isPathWithinDirectory(
   filePath: string,
-  baseDir: string
+  baseDir: string,
 ): boolean {
   const resolvedBase = resolve(baseDir);
   const resolvedPath = resolve(filePath);
   return (
-    resolvedPath === resolvedBase ||
-    resolvedPath.startsWith(resolvedBase + "/")
+    resolvedPath === resolvedBase || resolvedPath.startsWith(resolvedBase + "/")
   );
 }
 
@@ -127,10 +114,6 @@ export function resolveAssetPathWithTraversalCheck({
   return { filePath, isSPA: false };
 }
 
-// ============================================================================
-// Path Utilities
-// ============================================================================
-
 /**
  * Resolve the client directory path relative to the running script.
  * Use this for production bundles where the script location differs from CWD.
@@ -146,16 +129,12 @@ export function resolveAssetPathWithTraversalCheck({
  */
 export function resolveClientDir(
   importMetaUrl: string,
-  relativePath = "../client"
+  relativePath = "../client",
 ): string {
   const scriptUrl = new URL(importMetaUrl);
   const scriptDir = dirname(scriptUrl.pathname);
   return resolve(scriptDir, relativePath);
 }
-
-// ============================================================================
-// Asset Handler
-// ============================================================================
 
 /**
  * Create an asset handler that works with Bun.serve.
@@ -180,7 +159,8 @@ export function resolveClientDir(
  */
 export function createAssetHandler(config: AssetServerConfig = {}) {
   const {
-    env = (process.env.NODE_ENV as "development" | "production" | "test") || "development",
+    env = (process.env.NODE_ENV as "development" | "production" | "test") ||
+      "development",
     devServerUrl = DEFAULT_DEV_SERVER_URL,
     clientDir = DEFAULT_CLIENT_DIR,
     isServerPath = () => false,
@@ -190,7 +170,9 @@ export function createAssetHandler(config: AssetServerConfig = {}) {
   if (env === "development") {
     const proxyHandler = devServerProxy(devServerUrl);
 
-    return async function handleAssets(request: Request): Promise<Response | null> {
+    return async function handleAssets(
+      request: Request,
+    ): Promise<Response | null> {
       // In dev, proxy everything except server paths
       const url = new URL(request.url);
       if (isServerPath(url.pathname)) {
@@ -206,7 +188,9 @@ export function createAssetHandler(config: AssetServerConfig = {}) {
   }
 
   // Production: Serve static files
-  return async function handleAssets(request: Request): Promise<Response | null> {
+  return async function handleAssets(
+    request: Request,
+  ): Promise<Response | null> {
     // Only handle GET requests
     if (request.method !== "GET") {
       return null;
@@ -222,7 +206,10 @@ export function createAssetHandler(config: AssetServerConfig = {}) {
     }
 
     // Resolve the asset path (handles SPA fallback and security checks)
-    const resolved = resolveAssetPathWithTraversalCheck({ requestPath: path, clientDir });
+    const resolved = resolveAssetPathWithTraversalCheck({
+      requestPath: path,
+      clientDir,
+    });
     if (!resolved) {
       return null; // Path traversal attempt blocked
     }
@@ -240,4 +227,3 @@ export function createAssetHandler(config: AssetServerConfig = {}) {
     return null;
   };
 }
-

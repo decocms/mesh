@@ -10,7 +10,10 @@
 import "./observability";
 import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
-import { resolveClientDir, createAssetHandler } from "@decocms/runtime/asset-server";
+import {
+  resolveClientDir,
+  createAssetHandler,
+} from "@decocms/runtime/asset-server";
 
 const port = parseInt(process.env.PORT || "3000", 10);
 
@@ -37,7 +40,7 @@ console.log("");
 console.log(`${green}✓${reset} ${bold}Ready${reset}`);
 console.log("");
 console.log(
-  `  ${dim}Open in browser:${reset}  ${cyan}${underline}${url}${reset}`
+  `  ${dim}Open in browser:${reset}  ${cyan}${underline}${url}${reset}`,
 );
 console.log("");
 
