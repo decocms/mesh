@@ -1090,7 +1090,7 @@ export function ManageRolesDialog({
             {/* Create New Role Button */}
             <div className="px-3.5 pb-3.5">
               <Button
-                variant="outline" 
+                variant="outline"
                 size="default"
                 onClick={handleCreateNewRole}
                 disabled={isPending || isFormDirty}
