@@ -19,7 +19,6 @@ export function HomeGridCell({
   children,
   className,
   noPadding = false,
-  _titleLink,
   onTitleClick,
 }: HomeGridCellProps) {
   const titleContent =

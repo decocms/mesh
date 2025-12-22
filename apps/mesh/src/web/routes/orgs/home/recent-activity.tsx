@@ -47,7 +47,7 @@ function RecentActivityContent() {
       to: "/$org/monitoring",
       params: { org: org.slug },
       search: {
-        connections: log.connectionId,
+        connectionId: [log.connectionId],
         tool: log.toolName,
       },
     });
@@ -75,13 +75,22 @@ function RecentActivityContent() {
     "Linear",
   ];
 
-  const mockLogs = Array.from({ length: 10 }, (_, i) => {
+  const mockLogs: Array<{
+    id: string;
+    toolName: string;
+    connectionId: string;
+    connectionTitle: string;
+    timestamp: string;
+    durationMs: number;
+    isError: boolean;
+  }> = Array.from({ length: 10 }, (_, i) => {
     const timestamp = new Date(Date.now() - i * 60000); // 1 minute apart
+    const toolName = mockTools[i % mockTools.length] ?? "Unknown";
     return {
       id: `mock-${i}`,
-      toolName: mockTools[i % mockTools.length],
+      toolName,
       connectionId: `mock${i}`,
-      connectionTitle: mockTools[i % mockTools.length],
+      connectionTitle: toolName,
       timestamp: timestamp.toISOString(),
       durationMs: Math.floor(Math.random() * 500) + 100,
       isError: Math.random() > 0.9,
