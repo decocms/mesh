@@ -44,8 +44,7 @@ function ConnectionInspectorViewWithConnection({
   const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
 
   const isMCPAuthenticated = useIsMCPAuthenticated({
-    url: connection.connection_url,
-    token: connection.connection_token,
+    connectionId: connectionId,
   });
 
   // Check if connection has repository info for README tab (stored in metadata)

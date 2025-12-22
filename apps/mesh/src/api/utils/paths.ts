@@ -16,6 +16,7 @@ const PATH_PREFIXES = {
   API: "/api/",
   API_AUTH: "/api/auth/",
   MCP: "/mcp/",
+  OAUTH_PROXY: "/oauth-proxy/",
   WELL_KNOWN: "/.well-known",
 } as const;
 
@@ -43,6 +44,11 @@ function isMcpPath(path: string): boolean {
   return path === "/mcp" || path.startsWith(PATH_PREFIXES.MCP);
 }
 
+/** Check if a path is an OAuth proxy route */
+function isOAuthProxyPath(path: string): boolean {
+  return path.startsWith(PATH_PREFIXES.OAUTH_PROXY);
+}
+
 /** Check if a path is a static file based on extension */
 function isStaticFilePath(path: string): boolean {
   return STATIC_FILE_PATTERN.test(path);
@@ -50,10 +56,15 @@ function isStaticFilePath(path: string): boolean {
 
 /**
  * Check if a path should be handled by the API server (Hono routes)
- * Returns true for API routes, MCP routes, and system endpoints
+ * Returns true for API routes, MCP routes, OAuth proxy routes, and system endpoints
  */
 export function isServerPath(path: string): boolean {
-  return isApiPath(path) || isMcpPath(path) || isSystemPath(path);
+  return (
+    isApiPath(path) ||
+    isMcpPath(path) ||
+    isOAuthProxyPath(path) ||
+    isSystemPath(path)
+  );
 }
 
 /**

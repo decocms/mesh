@@ -10,18 +10,17 @@ import { useSuspenseQuery } from "@tanstack/react-query";
  * @returns isMCPAuthenticated - true if authenticated, false otherwise
  */
 export function useIsMCPAuthenticated({
-  url,
-  token,
+  connectionId,
 }: {
-  url: string;
-  token: string | null;
+  connectionId: string;
 }) {
+  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
   const { data: isMCPAuthenticated } = useSuspenseQuery({
-    queryKey: KEYS.isMCPAuthenticated(url, token),
+    queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
     queryFn: () =>
       isConnectionAuthenticated({
-        url,
-        token,
+        url: mcpProxyUrl.href,
+        token: null,
       }),
   });
 

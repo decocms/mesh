@@ -516,6 +516,34 @@ async function createMCPProxyDoNotUseDirectly(
     // Connect server to transport
     await server.connect(transport);
 
+    // Pre-check: Try connecting to origin MCP to detect if authentication is required
+    // If origin returns 401, we return our own 401 pointing to our OAuth proxy
+    try {
+      await createClient();
+    } catch (error) {
+      const err = error as Error & { status?: number };
+      // Check if this is an authentication error (401 from origin)
+      const isAuthError =
+        err.status === 401 ||
+        err.message?.includes("401") ||
+        err.message?.toLowerCase().includes("unauthorized");
+
+      if (isAuthError) {
+        // Return 401 with WWW-Authenticate pointing to our OAuth proxy resource metadata
+        const reqUrl = new URL(req.url);
+        return new Response(null, {
+          status: 401,
+          headers: {
+            "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${reqUrl.origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
+          },
+        });
+      }
+
+      // For other errors, log and re-throw to be handled by the route handler
+      console.error("[proxy] Failed to connect to origin MCP:", error);
+      throw error;
+    }
+
     // Manually implement list_tools - fetch from downstream and return
     server.server.setRequestHandler(
       ListToolsRequestSchema,

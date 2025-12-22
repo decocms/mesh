@@ -53,8 +53,7 @@ function ToolDetailsContent({
   const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
 
   const isMCPAuthenticated = useIsMCPAuthenticated({
-    url: mcpProxyUrl.href,
-    token: null,
+    connectionId: connectionId,
   });
 
   if (!isMCPAuthenticated) {
