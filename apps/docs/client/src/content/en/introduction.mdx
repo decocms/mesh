@@ -1,133 +1,98 @@
 ---
 title: Introduction
-description: Learn about deco CMS - the Context Management System for AI-native software
+description: Developer docs for the MCP Mesh and the deco CMS platform
 icon: Rocket
 ---
 
+import Callout from "../../components/ui/Callout.astro";
+
 ![deco](https://assets.decocache.com/mcp/9a3facd8-1199-4635-becc-bdc3f5ee7ab1/deco-banner-capy.png)
+
+## Welcome
+
+These docs are primarily **developer docs** for **MCP Mesh** and the broader **deco CMS** platform.
 
 ## What is deco CMS?
 
-**Deco CMS** is an open-source Context Management System, the MCP Mesh for AI. It enables teams to build, deploy, and manage AI-native applications through unique collaboration between business users and developers.
+**deco CMS** is an open-source **Context Management System** for AI-native operations.
 
-> Think **Lovable + n8n + LangGraph**, running on Cloudflare with a single deploy command. Full-stack AI, production-ready.
+If MCP is the standard interface for tool access, deco CMS is the **production layer around it**: connect MCP servers, enforce governance, and get observability as usage scales across teams and environments.
 
-## Value Proposition
+<Callout type="warning">
+  **Docs split (quick guide):**
 
-deco CMS bridges the gap between AI prototypes and production systems:
+  - **MCP Mesh** → Self-hosting, deploying, and operating the Mesh (recommended).
+  - **Legacy Admin** → If you’re using `admin.decocms.com` (still supported, **deprecated soon**).
 
-- **For AI Builders:** Natural-language builder for business users to prototype and deploy AI apps without code
-- **For Context Engineers:** Open-source TypeScript SDK for developers to extend, customize, and self-host
-- **Seamless Collaboration:** Both users work together in the same platform with shared context
+  We’re launching **MCP Studio** (on top of Mesh), which will bring the current SaaS admin capabilities to the Mesh (including a hosted option by us) and replace the legacy SaaS over time.
+</Callout>
 
-## Architecture at a Glance
+## Start here (most common paths)
 
-deco CMS is built on two foundational layers:
+- **[Deploy MCP Mesh locally (Docker Compose)](/en/mcp-mesh/deploy/local-docker-compose)**
+- **[Deploy MCP Mesh on Kubernetes (Helm)](/en/mcp-mesh/deploy/kubernetes-helm-chart)**
 
-### 1. MCP Mesh (The Kernel)
+## Problem (and what the Mesh fixes)
 
-The backbone that manages context, connections, and observability for everything in your system.
+When AI moves from demos to production, teams usually hit the same constraints:
 
-- **Compose and secure MCPs** across your organization
-- **Connect and proxy external MCPs** with secure tokens
-- **Expose governed Virtual MCPs** ("AI Apps") to any MCP client
-- **Enforce auth/RBAC/audit/FinOps** at every layer
-- **Get full observability** across the entire stack
+- **Governance gaps**: no single place to enforce SSO/RBAC, approvals, and audit trails
+- **Integration sprawl**: every client wires every tool with its own retries, auth, and config
+- **Operational blind spots**: debugging is slow; failures and costs are hard to trace end-to-end
+- **Context obesity**: bloated prompts and tool lists degrade quality and increase cost
 
-### 2. AI App Framework (Virtual MCPs in the Mesh)
+MCP Mesh centralizes those cross-cutting concerns **once** so you don’t rebuild them in every agent/app.
 
-Build AI-native web software that calls tools:
+## Platform structure: Mesh → Studio → Distribution
 
-- **Full-stack**: From database to UI with React 19 + Tailwind v4
-- **Generative Admin**: _deco chat_ helps you write PRDs and implement
-- **Admin, workflows and custom views** governed by the Mesh
+### MCP Mesh (foundation)
+An open-source **control plane for MCP traffic**. It sits between your MCP clients (Cursor, Claude, VS Code, custom agents) and your MCP servers, providing a unified layer for auth, policy, and observability.
 
-## Core Building Blocks
+### MCP Studio (development)
+A no-code admin + SDK to package MCP capabilities as reusable building blocks.
 
-### Tools
+<Callout type="info">
+  **Coming soon:** This is the successor to the current SaaS admin, built on top of MCP Mesh.
+</Callout>
 
-Functions that perform actions like API calls, database queries, or computations.
+### MCP Apps & Store (distribution)
+A path to distribute reusable MCP-native capabilities across teams (and eventually a store).
 
-```typescript
-createTool({
-  id: "CEP_SEARCH",
-  description: "Search Brazilian postal codes",
-  inputSchema: z.object({ cep: z.string() }),
-  outputSchema: z.object({ city: z.string(), state: z.string() }),
-  execute: async ({ context }) => { /* ... */ },
-});
+<Callout type="info">
+  **Coming soon.**
+</Callout>
+
+## Why MCP?
+
+We’re built on MCP because enterprises need interoperability at the tool layer — and a way to operate that tool access with the rigor of any production surface.
+
+MCP gives you a standard interface. deco CMS provides the **control plane** around it:
+
+- **Portable**: self-host on Docker/Kubernetes; cloud hosted option coming soon
+- **Composable**: swap models, swap MCP servers, adopt community tools, build your own
+- **Auditable**: centralized policies, logs, and traces across tool + model calls
+- **No lock-in**: your context, your infrastructure
+
+## Quick start
+
+### Option A: one-command local Mesh setup
+
+```bash
+npx @decocms/mesh init
 ```
 
-### Agents
+### Option B: run from source
 
-AI assistants that understand natural language and call tools. Customizable with:
-- Model selection (GPT-5, Claude, etc.)
-- System prompts
-- Tool access
-- Resource context
-
-### Workflows
-
-Deterministic tool sequences for automation. Unlike agents that decide, workflows follow predefined steps.
-
-```typescript
-createWorkflow({ id: "REGISTER_CUSTOMER" })
-  .then(validateInput)
-  .then(saveToDatabase) 
-  .then(sendWelcomeEmail)
-  .commit();
+```bash
+git clone https://github.com/decocms/mesh.git
+cd mesh
+bun install
+bun run dev
 ```
 
-### Views
+## Legacy Admin quick start (admin.decocms.com)
 
-Custom React interfaces for your tools and workflows. Built with React 19 + Tailwind v4.
+If you’re using the current SaaS admin at `admin.decocms.com` (still supported, deprecated soon), start here:
 
-### Documents
-
-Markdown content (PRDs, guides, notes) attachable to agents / any thread for context.
-
-### Resources
-
-Everything in deco CMS is a resource: tools, agents, workflows, views, and documents. Resources are:
-- Typed with Zod schemas
-- Stored in deconfig (git-like versioning)
-- Referenceable using `@` mentions in threads and agent system prompts
-
-### Database
-
-Built-in SQLite with Drizzle ORM for data persistence.
-
-### MCP Mesh
-
-Context aggregation layer that unifies integrations, tools, and policies:
-- External MCP proxy
-- Secure credential storage
-- RBAC and policy routing
-- OpenTelemetry tracing
-- Cost tracking
-
-## Who is deco CMS for?
-
-**AI Builders:** Product managers, ops teams, business analysts building apps without code
-
-**Context Engineers:** Developers extending with TypeScript, self-hosting, building custom integrations
-
-## Why deco CMS?
-
-AI teams are stuck between low-code prototypes and production chaos. Backends in n8n or LangGraph. Frontends in Lovable or React. Separate deployments. Inconsistent auth. Spiraling costs.
-
-**deco CMS unifies everything:**
-
-- 🧠 **MCP-native**, Compose servers with built-in policy, auth, observability
-- ⚙️ **Full-stack TypeScript**, Agents, workflows, UIs in one repo
-- 🌍 **Deploy anywhere**, Cloudflare Workers, AWS, or local runtimes
-- 🔐 **Governance built-in**, RBAC, audit trails, spend caps
-- 🔭 **Unified observability**, Trace UI → agents → models
-- 🧩 **Open & modular**, Install from deco store or build your own
-
----
-
-Ready to build your first AI app? Choose your path:
-
-- **[For AI Builders](/en/getting-started/ai-builders)** - Build without code
-- **[For Context Engineers](/en/getting-started/context-engineers)** - Develop with TypeScript
+- **[For AI Builders](/en/getting-started/ai-builders)**
+- **[For Context Engineers](/en/getting-started/context-engineers)**

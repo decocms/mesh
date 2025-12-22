@@ -1,0 +1,283 @@
+---
+title: "Kubernetes: Helm Chart"
+description: Deploy do MCP Mesh no Kubernetes usando o Helm chart
+icon: Rocket
+---
+
+import Callout from "../../../../components/ui/Callout.astro";
+
+Este guia explica como fazer deploy do MCP Mesh no Kubernetes usando o Helm chart.
+
+## Pré-requisitos
+
+- Kubernetes 1.32+
+- Helm 3.0+
+- kubectl configurado para acessar o cluster
+
+## Início Rápido
+
+Este conteúdo é adaptado do README do Helm chart.
+
+## Visão Geral
+
+Este Helm chart encapsula todos os recursos Kubernetes necessários para executar a aplicação:
+
+- **Deployment**: aplicação principal com configurações de segurança
+- **Service**: exposição interna da aplicação
+- **ConfigMap**: configurações não sensíveis
+- **Secret**: dados sensíveis (autenticação)
+- **PersistentVolumeClaim**: armazenamento persistente para o banco
+- **ServiceAccount**: service account para o pod
+- **HorizontalPodAutoscaler**: autoscaling automático (opcional)
+
+### Principais recursos
+
+- ✅ **Parametrizável**: todas as configurações via `values.yaml`
+- ✅ **Reutilizável**: deploy em múltiplos ambientes com valores diferentes
+- ✅ **Flexível**: suporte a volumes adicionais, tolerations e affinity
+- ✅ **Observável**: health checks e labels padronizadas
+- ✅ **Escalável**: HPA opcional para autoscaling
+
+## Pré-requisitos
+
+- Kubernetes 1.32+
+- Helm 3.0+
+- `kubectl` configurado para acessar o cluster
+- StorageClass configurado (para PVC)
+
+## Início Rápido
+
+A forma mais simples de colocar a aplicação no ar no k8s:
+
+```bash
+# 1. Gere um secret seguro para autenticação
+SECRET=$(openssl rand -base64 32)
+
+# 2. Instale o chart com o secret gerado
+helm install deco-mcp-mesh . \
+  --namespace deco-mcp-mesh \
+  --create-namespace \
+  --set secret.BETTER_AUTH_SECRET="$SECRET"
+
+# 3. Aguarde os pods ficarem prontos
+kubectl wait --for=condition=ready pod \
+  -l app.kubernetes.io/instance=deco-mcp-mesh \
+  -n deco-mcp-mesh \
+  --timeout=300s
+
+# 4. Acesse via port-forward
+kubectl port-forward svc/deco-mcp-mesh 8080:80 -n deco-mcp-mesh
+```
+
+A aplicação ficará disponível em `http://localhost:8080`.
+
+<Callout type="warning">
+  **Importante para Produção:** esta configuração usa SQLite e é adequada apenas para desenvolvimento/testes. Para produção, configure:
+
+  - **PostgreSQL** como engine do banco (`database.engine: postgresql`)
+  - **Autoscaling** habilitado (`autoscaling.enabled: true`) com valores apropriados
+  - **Persistência distribuída** (`persistence.distributed: true`) ou PostgreSQL para permitir múltiplas réplicas
+
+  Veja a seção de Configuração abaixo para mais detalhes de configuração de produção.
+</Callout>
+
+## Instalação
+
+### Instalação básica
+
+```bash
+# Preparando parâmetros necessários
+# Ajuste o values.yaml com as configurações desejadas para seu ambiente
+
+# Instale com valores padrão
+helm install deco-mcp-mesh . --namespace deco-mcp-mesh --create-namespace
+
+# Instale com valores customizados
+helm install deco-mcp-mesh . -f my-values.yaml -n deco-mcp-mesh --create-namespace
+```
+
+### Verificar instalação
+
+```bash
+# Ver status do release
+helm status deco-mcp-mesh -n deco-mcp-mesh
+
+# Ver recursos criados
+kubectl get all -l app.kubernetes.io/instance=deco-mcp-mesh -n deco-mcp-mesh
+
+# Ver logs
+kubectl logs -l app.kubernetes.io/instance=deco-mcp-mesh -n deco-mcp-mesh
+```
+
+### Usando External Secrets
+
+Para manter valores sensíveis fora do `values.yaml` (útil em GitOps como ArgoCD), você pode criar Secrets manualmente e referenciá-los no values.
+
+#### Passo 1: Criar Secrets manualmente
+
+Edite `examples/secrets-example.yaml` com seus valores reais e aplique:
+
+```bash
+# Edite o arquivo com seus valores reais
+# Depois aplique os Secrets
+kubectl apply -f examples/secrets-example.yaml -n deco-mcp-mesh
+```
+
+O arquivo de Secrets contém:
+- **Secret principal** (`deco-mcp-mesh-secrets`): contém `BETTER_AUTH_SECRET` e `DATABASE_URL`
+- **Secret de Auth Config** (`deco-mcp-mesh-auth-secrets`): contém client IDs/secrets de OAuth e API keys
+
+#### Passo 2: Configurar values.yaml para usar Secrets
+
+```yaml
+secret:
+  # Referencie o Secret existente criado manualmente
+  secretName: "deco-mcp-mesh-secrets"
+  
+  # Referencie o Secret de authConfig
+  authConfigSecretName: "deco-mcp-mesh-auth-secrets"
+
+database:
+  engine: postgresql
+  # Deixe url vazio quando usar Secret - o valor vem de DATABASE_URL no Secret
+  url: ""
+
+configMap:
+  authConfig:
+    socialProviders:
+      google:
+        # Deixe vazio quando usar Secret - valores vêm do Secret
+        clientId: ""
+        clientSecret: ""
+      github:
+        clientId: ""
+        clientSecret: ""
+    emailProviders:
+      - id: "resend-primary"
+        provider: "resend"
+        config:
+          apiKey: ""  # Deixe vazio quando usar Secret
+          fromEmail: "noreply@decocms.com"
+```
+
+#### Passo 3: Instalar/atualizar
+
+```bash
+# Instale com values que referenciam external Secrets
+helm install deco-mcp-mesh . -f values-custom.yaml -n deco-mcp-mesh --create-namespace
+
+# Ou atualize um release existente
+helm upgrade deco-mcp-mesh . -f values-custom.yaml -n deco-mcp-mesh
+```
+
+**Nota**: quando `secret.secretName` é definido, o chart usará o Secret existente em vez de criar um novo. Valores definidos em `values.yaml` têm precedência sobre valores do Secret (para compatibilidade retroativa).
+
+### Desinstalar
+
+```bash
+helm uninstall deco-mcp-mesh -n deco-mcp-mesh
+```
+
+## Configuração
+
+### Valores principais
+
+Os principais valores configuráveis estão em `values.yaml`.
+
+| Parâmetro | Descrição | Padrão |
+|-----------|-----------|--------|
+| `replicaCount` | Número de réplicas | `3` |
+| `image.repository` | Repositório da imagem | `ghcr.io/decocms/mesh/mesh` |
+| `image.tag` | Tag da imagem | `latest` |
+| `service.type` | Tipo do Service | `ClusterIP` |
+| `persistence.enabled` | Habilitar PVC | `true` |
+| `persistence.distributed` | PVC suporta ReadWriteMany | `true` |
+| `persistence.accessMode` | Modo de acesso do PVC | `ReadWriteMany` |
+| `persistence.storageClass` | StorageClass do PVC | `efs` |
+| `autoscaling.enabled` | Habilitar HPA | `false` |
+| `database.engine` | Banco (`sqlite`/`postgresql`) | `sqlite` |
+| `database.url` | URL do banco quando PostgreSQL | `""` |
+| `database.caCert` | Certificado CA para validação SSL (bancos gerenciados) | `""` |
+
+### Customizando valores
+
+Crie um arquivo `custom-values.yaml`:
+
+```yaml
+replicaCount: 2
+
+image:
+  tag: "v1.2.3" # Exemplo
+
+service:
+  type: LoadBalancer
+  port: 80
+
+database:
+  engine: postgresql
+  url: "postgresql://mesh_user:mesh_password@mesh.example.com:5432/mesh_db"  
+  caCert: |
+    -----BEGIN CERTIFICATE-----
+    aaaaaaaabbbbbbcccccccccddddddd
+    aaaaaaaabbbbbbcccccccccddddddd
+    -----END CERTIFICATE-----
+
+resources:
+  requests:
+    memory: "300Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+persistence:
+  size: 10Gi
+  storageClass: "gp3"
+```
+
+Instale com valores customizados:
+
+```bash
+helm install deco-mcp-mesh . -f custom-values.yaml -n deco-mcp-mesh --create-namespace
+```
+
+## Estrutura do chart
+
+```
+chart-deco-mcp-mesh/
+├── Chart.yaml              # Metadados do chart
+├── values.yaml             # Valores padrão
+├── templates/              # Templates Kubernetes
+│   ├── _helpers.tpl        # Funções auxiliares
+│   ├── deployment.yaml     # Deployment da aplicação
+│   ├── service.yaml        # Service
+│   ├── configmap.yaml      # ConfigMap principal
+│   ├── configmap-auth.yaml # ConfigMap de autenticação
+│   ├── secret.yaml         # Secret
+│   ├── pvc.yaml            # PersistentVolumeClaim
+│   ├── serviceaccount.yaml # ServiceAccount
+│   ├── hpa.yaml            # HorizontalPodAutoscaler
+│   └── NOTES.txt           # Mensagens pós-instalação
+└── README.md               # Este arquivo
+```
+
+## Manutenção e atualizações
+
+### Atualizar values
+
+```bash
+# Edite values.yaml ou crie um novo arquivo
+vim custom-values.yaml
+
+# Atualize o release
+helm upgrade deco-mcp-mesh . -f custom-values.yaml -n deco-mcp-mesh
+
+# Ver histórico
+helm history deco-mcp-mesh -n deco-mcp-mesh
+
+# Rollback
+helm rollback deco-mcp-mesh -n deco-mcp-mesh
+```
+
+
+

@@ -1,0 +1,283 @@
+---
+title: "Kubernetes: Helm Chart"
+description: Deploy MCP Mesh on Kubernetes using the Helm chart
+icon: Rocket
+---
+
+import Callout from "../../../../components/ui/Callout.astro";
+
+This guide explains how to deploy MCP Mesh on Kubernetes using the Helm chart.
+
+## Prerequisites
+
+- Kubernetes 1.32+
+- Helm 3.0+
+- kubectl configured to access the cluster
+
+## Quick Start
+
+This content is adapted from the Helm chart README.
+
+## Overview
+
+This Helm chart encapsulates all Kubernetes resources necessary to run the application:
+
+- **Deployment**: Main application with security configurations
+- **Service**: Internal application exposure
+- **ConfigMap**: Non-sensitive configurations
+- **Secret**: Sensitive data (authentication)
+- **PersistentVolumeClaim**: Persistent storage for database
+- **ServiceAccount**: Service account for the pod
+- **HorizontalPodAutoscaler**: Automatic autoscaling (optional)
+
+### Main Features
+
+- ✅ **Parameterizable**: All configurations via `values.yaml`
+- ✅ **Reusable**: Deploy to multiple environments with different values
+- ✅ **Flexible**: Support for additional volumes, tolerations, affinity
+- ✅ **Observable**: Health checks, standardized labels
+- ✅ **Scalable**: Optional HPA for autoscaling
+
+## Prerequisites
+
+- Kubernetes 1.32+
+- Helm 3.0+
+- `kubectl` configured to access the cluster
+- StorageClass configured (for PVC)
+
+## Quick Start
+
+The simplest way to get the application up and running on k8s:
+
+```bash
+# 1. Generate a secure secret for authentication
+SECRET=$(openssl rand -base64 32)
+
+# 2. Install the chart with the generated secret
+helm install deco-mcp-mesh . \
+  --namespace deco-mcp-mesh \
+  --create-namespace \
+  --set secret.BETTER_AUTH_SECRET="$SECRET"
+
+# 3. Wait for pods to be ready
+kubectl wait --for=condition=ready pod \
+  -l app.kubernetes.io/instance=deco-mcp-mesh \
+  -n deco-mcp-mesh \
+  --timeout=300s
+
+# 4. Access via port-forward
+kubectl port-forward svc/deco-mcp-mesh 8080:80 -n deco-mcp-mesh
+```
+
+The application will be available at `http://localhost:8080`.
+
+<Callout type="warning">
+  **Important for Production:** This configuration uses SQLite and is suitable only for development/testing. For production environments, configure:
+
+  - **PostgreSQL** as the database engine (`database.engine: postgresql`)
+  - **Autoscaling** enabled (`autoscaling.enabled: true`) with appropriate values
+  - **Distributed persistence** (`persistence.distributed: true`) or PostgreSQL to allow multiple replicas
+
+  See the Configuration section below for more details on production configuration.
+</Callout>
+
+## Installation
+
+### Basic Installation
+
+```bash
+# Preparing necessary parameters
+# Adjust values.yaml with desired configurations to run in your environment
+
+# Install with default values
+helm install deco-mcp-mesh . --namespace deco-mcp-mesh --create-namespace
+
+# Install with custom values
+helm install deco-mcp-mesh . -f my-values.yaml -n deco-mcp-mesh --create-namespace
+```
+
+### Verify Installation
+
+```bash
+# View release status
+helm status deco-mcp-mesh -n deco-mcp-mesh
+
+# View created resources
+kubectl get all -l app.kubernetes.io/instance=deco-mcp-mesh -n deco-mcp-mesh
+
+# View logs
+kubectl logs -l app.kubernetes.io/instance=deco-mcp-mesh -n deco-mcp-mesh
+```
+
+### Using External Secrets
+
+To keep sensitive values out of your `values.yaml` file (useful for GitOps workflows like ArgoCD), you can create Secrets manually and reference them in your values file.
+
+#### Step 1: Create Secrets Manually
+
+Edit `examples/secrets-example.yaml` with your actual values and apply it:
+
+```bash
+# Edit the file with your real values
+# Then apply the Secrets
+kubectl apply -f examples/secrets-example.yaml -n deco-mcp-mesh
+```
+
+The Secrets file contains:
+- **Main Secret** (`deco-mcp-mesh-secrets`): Contains `BETTER_AUTH_SECRET` and `DATABASE_URL`
+- **Auth Config Secret** (`deco-mcp-mesh-auth-secrets`): Contains OAuth client IDs/secrets and API keys
+
+#### Step 2: Configure values.yaml to Use Secrets
+
+```yaml
+secret:
+  # Reference the existing Secret created manually
+  secretName: "deco-mcp-mesh-secrets"
+  
+  # Reference the authConfig Secret
+  authConfigSecretName: "deco-mcp-mesh-auth-secrets"
+
+database:
+  engine: postgresql
+  # Leave url empty when using Secret - value comes from DATABASE_URL in Secret
+  url: ""
+
+configMap:
+  authConfig:
+    socialProviders:
+      google:
+        # Leave empty when using Secret - values come from Secret
+        clientId: ""
+        clientSecret: ""
+      github:
+        clientId: ""
+        clientSecret: ""
+    emailProviders:
+      - id: "resend-primary"
+        provider: "resend"
+        config:
+          apiKey: ""  # Leave empty when using Secret
+          fromEmail: "noreply@decocms.com"
+```
+
+#### Step 3: Install/Upgrade
+
+```bash
+# Install with values that reference external Secrets
+helm install deco-mcp-mesh . -f values-custom.yaml -n deco-mcp-mesh --create-namespace
+
+# Or upgrade existing release
+helm upgrade deco-mcp-mesh . -f values-custom.yaml -n deco-mcp-mesh
+```
+
+**Note**: When `secret.secretName` is defined, the chart will use the existing Secret instead of creating a new one. Values defined in `values.yaml` take precedence over Secret values (for backward compatibility).
+
+### Uninstall
+
+```bash
+helm uninstall deco-mcp-mesh -n deco-mcp-mesh
+```
+
+## Configuration
+
+### Main Values
+
+The main configurable values are in `values.yaml`.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `replicaCount` | Number of replicas | `3` |
+| `image.repository` | Image repository | `ghcr.io/decocms/mesh/mesh` |
+| `image.tag` | Image tag | `latest` |
+| `service.type` | Service type | `ClusterIP` |
+| `persistence.enabled` | Enable PVC | `true` |
+| `persistence.distributed` | PVC supports ReadWriteMany | `true` |
+| `persistence.accessMode` | PVC access mode | `ReadWriteMany` |
+| `persistence.storageClass` | PVC StorageClass | `efs` |
+| `autoscaling.enabled` | Enable HPA | `false` |
+| `database.engine` | Database (`sqlite`/`postgresql`) | `sqlite` |
+| `database.url` | Database URL when PostgreSQL | `""` |
+| `database.caCert` | CA certificate for SSL validation (managed databases) | `""` |
+
+### Customizing Values
+
+Create a `custom-values.yaml` file:
+
+```yaml
+replicaCount: 2
+
+image:
+  tag: "v1.2.3" # Example
+
+service:
+  type: LoadBalancer
+  port: 80
+
+database:
+  engine: postgresql
+  url: "postgresql://mesh_user:mesh_password@mesh.example.com:5432/mesh_db"  
+  caCert: |
+    -----BEGIN CERTIFICATE-----
+    aaaaaaaabbbbbbcccccccccddddddd
+    aaaaaaaabbbbbbcccccccccddddddd
+    -----END CERTIFICATE-----
+
+resources:
+  requests:
+    memory: "300Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+persistence:
+  size: 10Gi
+  storageClass: "gp3"
+```
+
+Install with custom values:
+
+```bash
+helm install deco-mcp-mesh . -f custom-values.yaml -n deco-mcp-mesh --create-namespace
+```
+
+## Chart Structure
+
+```
+chart-deco-mcp-mesh/
+├── Chart.yaml              # Chart metadata
+├── values.yaml             # Default values
+├── templates/              # Kubernetes templates
+│   ├── _helpers.tpl        # Helper functions
+│   ├── deployment.yaml     # Application deployment
+│   ├── service.yaml        # Service
+│   ├── configmap.yaml      # Main ConfigMap
+│   ├── configmap-auth.yaml # Authentication ConfigMap
+│   ├── secret.yaml         # Secret
+│   ├── pvc.yaml            # PersistentVolumeClaim
+│   ├── serviceaccount.yaml # ServiceAccount
+│   ├── hpa.yaml            # HorizontalPodAutoscaler
+│   └── NOTES.txt           # Post-installation messages
+└── README.md               # This file
+```
+
+## Maintenance and Updates
+
+### Update Values
+
+```bash
+# Edit values.yaml or create new file
+vim custom-values.yaml
+
+# Update release
+helm upgrade deco-mcp-mesh . -f custom-values.yaml -n deco-mcp-mesh
+
+# View history
+helm history deco-mcp-mesh -n deco-mcp-mesh
+
+# Rollback
+helm rollback deco-mcp-mesh -n deco-mcp-mesh
+```
+
+
+
