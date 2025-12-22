@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { KEYS } from "@/web/lib/query-keys";
 
 /**
  * Tool definition from MCP protocol
@@ -19,9 +20,9 @@ export interface McpTool {
 export type McpState = "disconnected" | "connecting" | "ready" | "error";
 
 /**
- * Options for useSimpleMcp hook
+ * Options for useMcp hook
  */
-export interface UseSimpleMcpOptions {
+export interface UseMcpOptions {
   /** MCP server URL */
   url: string;
   /** Optional authorization token */
@@ -31,9 +32,9 @@ export interface UseSimpleMcpOptions {
 }
 
 /**
- * Result from useSimpleMcp hook
+ * Result from useMcp hook
  */
-export interface UseSimpleMcpResult {
+export interface UseMcpResult {
   tools: McpTool[];
   state: McpState;
   error: Error | null;
@@ -42,18 +43,18 @@ export interface UseSimpleMcpResult {
 }
 
 /**
- * Simple MCP hook using React Query
+ * MCP hook using React Query
  *
- * Fetches tools from an MCP server without any OAuth complexity.
+ * Fetches tools from an MCP server.
  * Just provide the URL and optionally a token.
  */
-export function useSimpleMcp({
+export function useMcp({
   url,
   token,
   enabled = true,
-}: UseSimpleMcpOptions): UseSimpleMcpResult {
+}: UseMcpOptions): UseMcpResult {
   const query = useQuery({
-    queryKey: ["mcp", "tools", url, token],
+    queryKey: KEYS.mcpTools(url, token),
     queryFn: async (): Promise<McpTool[]> => {
       if (!url) return [];
 
@@ -78,7 +79,7 @@ export function useSimpleMcp({
             protocolVersion: "2025-03-26",
             capabilities: {},
             clientInfo: {
-              name: "mesh-simple-mcp",
+              name: "mesh-mcp",
               version: "1.0.0",
             },
           },

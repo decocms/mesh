@@ -27,7 +27,7 @@ import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
 import { OAuthAuthenticationState } from "./connection/settings-tab";
 import { useIsMCPAuthenticated } from "@/web/hooks/use-oauth-token-validation";
-import { useSimpleMcp } from "@/web/hooks/use-simple-mcp";
+import { useMcp } from "@/web/hooks/use-mcp";
 
 export interface ToolDetailsViewProps {
   itemId: string;
@@ -108,7 +108,7 @@ function ToolDetailsAuthenticated({
   } | null>(null);
   const [viewMode, setViewMode] = useState<"json" | "view">("json");
 
-  const mcp = useSimpleMcp({
+  const mcp = useMcp({
     url: mcpProxyUrl.href,
   });
 

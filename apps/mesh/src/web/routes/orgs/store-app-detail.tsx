@@ -19,7 +19,7 @@ import {
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
-import { useSimpleMcp } from "@/web/hooks/use-simple-mcp";
+import { useMcp } from "@/web/hooks/use-mcp";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
@@ -344,7 +344,7 @@ function StoreAppDetailContent() {
   const shouldFetchRemote = !hasLocalTools && !!remoteUrl;
 
   // Fetch tools from remote MCP server if no local tools are available
-  const remoteMcp = useSimpleMcp({
+  const remoteMcp = useMcp({
     url: shouldFetchRemote ? remoteUrl : "",
   });
 
