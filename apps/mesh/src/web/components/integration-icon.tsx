@@ -26,6 +26,13 @@ export function IntegrationIcon({
     lg: "h-16 w-16",
   };
 
+  const minWidthClasses = {
+    xs: "min-w-6",
+    sm: "min-w-8",
+    md: "min-w-12",
+    lg: "min-w-16",
+  };
+
   const iconSizes = {
     xs: 12,
     sm: 16,
@@ -56,8 +63,9 @@ export function IntegrationIcon({
         alt={name}
         onError={() => setImageError(true)}
         className={cn(
-          "rounded-lg object-cover border border-border",
+          "rounded-lg object-cover border border-border shrink-0",
           sizeClasses[size],
+          minWidthClasses[size],
           className,
         )}
       />
