@@ -53,17 +53,17 @@ function slugify(input: string): string {
  * Random words to use as suffix when organization name already exists
  */
 const ORG_NAME_TECH_SUFFIXES = [
-  "alpha",
-  "beta",
-  "gamma",
-  "delta",
-  "systems",
-  "core",
-  "hub",
   "labs",
+  "hub",
   "studio",
   "workspace",
+  "systems",
+  "core",
   "cloud",
+  "works",
+  "forge",
+  "stack",
+  "base",
 ];
 
 const ORG_NAME_BR_SUFFIXES = [
@@ -301,8 +301,8 @@ export const auth = betterAuth({
       create: {
         after: async (user) => {
           const baseName = user.name
-            ? `${user.name}'s Organization`
-            : `${user.email.split("@")[0]}'s Organization`;
+            ? `${user.name}'s`
+            : `${user.email.split("@")[0]}'s`;
 
           const maxAttempts = 3;
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
