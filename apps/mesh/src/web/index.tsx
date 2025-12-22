@@ -104,7 +104,8 @@ const orgMonitoringRoute = createRoute({
     z.object({
       from: z.string().default("now-24h"),
       to: z.string().default("now"),
-      connections: z.string().optional(),
+      connectionId: z.array(z.string()).optional().default([]),
+      gatewayId: z.array(z.string()).optional().default([]),
       tool: z.string().default(""),
       status: z.enum(["all", "success", "errors"]).default("all"),
       search: z.string().default(""),

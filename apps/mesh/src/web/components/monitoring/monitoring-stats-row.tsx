@@ -11,7 +11,7 @@ import {
   ChartTooltipContent,
 } from "@deco/ui/components/chart.tsx";
 import { Bar, BarChart, Cell } from "recharts";
-import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
+import { HomeGridCell } from "./home-grid-cell.tsx";
 
 // ============================================================================
 // Types

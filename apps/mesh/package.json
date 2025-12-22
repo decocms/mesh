@@ -35,6 +35,7 @@
     "prepublishOnly": "bun run build:client && bun run build:server"
   },
   "dependencies": {
+    "@xyflow/react": "^12.10.0",
     "kysely": "^0.28.8",
     "kysely-bun-worker": "^0.6.0"
   },
