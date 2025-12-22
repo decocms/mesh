@@ -19,7 +19,7 @@ export function HomeGridCell({
   children,
   className,
   noPadding = false,
-  titleLink,
+  _titleLink,
   onTitleClick,
 }: HomeGridCellProps) {
   const titleContent =
@@ -30,7 +30,7 @@ export function HomeGridCell({
     );
 
   return (
-    <div className={cn("bg-background h-full flex flex-col", className)}>
+    <div className={cn("bg-background flex flex-col", className)}>
       <header className="flex items-center justify-between gap-4 p-5">
         <div className="min-w-0">
           {onTitleClick ? (
@@ -57,9 +57,7 @@ export function HomeGridCell({
           {children}
         </div>
       ) : (
-        <div className="px-5 pb-5 pt-4 flex-1 flex flex-col items-center justify-center min-h-0">
-          {children}
-        </div>
+        <div className="px-5 pb-5 pt-2">{children}</div>
       )}
     </div>
   );

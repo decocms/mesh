@@ -253,7 +253,7 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
 
   return (
     <div
-      className="relative flex h-15 max-w-3xs shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer pointer-events-auto before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
+      className="relative flex h-15 w-[220px] shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer pointer-events-auto before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
       onClick={handleClick}
     >
       <IntegrationIcon
@@ -317,7 +317,7 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
 
   return (
     <div
-      className="relative flex h-15 max-w-3xs shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer pointer-events-auto before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
+      className="relative flex h-15 w-[220px] shrink-0 items-center gap-2 pl-1.5 pr-3 bg-background rounded-lg border-shadow nodrag nopan cursor-pointer pointer-events-auto before:absolute before:inset-0 before:rounded-lg before:bg-accent/25 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-800 before:pointer-events-none"
       onClick={handleClick}
     >
       <Handle
@@ -753,8 +753,8 @@ function DashboardView({
           </ErrorBoundary>
         </div>
 
-        {/* Left: Recent Activity */}
-        <div className="lg:col-span-1">
+        {/* Left: Recent Activity - uses CSS Grid subgrid to match right column height */}
+        <div className="lg:col-span-1 lg:row-span-3 bg-background grid">
           <ErrorBoundary
             fallback={
               <div className="bg-background p-5 text-sm text-muted-foreground">
@@ -768,57 +768,52 @@ function DashboardView({
           </ErrorBoundary>
         </div>
 
-        {/* Right: Stacked components */}
-        <div className="lg:col-span-1 grid grid-cols-1 gap-[0.5px] bg-border">
-          {/* Top Tools */}
-          <div>
-            <ErrorBoundary
-              fallback={
-                <div className="bg-background p-5 text-sm text-muted-foreground">
-                  Failed to load top tools
-                </div>
-              }
-            >
-              <Suspense fallback={<TopTools.Skeleton />}>
-                <TopTools.Content metricsMode={metricsMode} />
-              </Suspense>
-            </ErrorBoundary>
-          </div>
+        {/* Top Tools */}
+        <div className="lg:col-span-1 lg:row-span-1 bg-background">
+          <ErrorBoundary
+            fallback={
+              <div className="bg-background p-5 text-sm text-muted-foreground">
+                Failed to load top tools
+              </div>
+            }
+          >
+            <Suspense fallback={<TopTools.Skeleton />}>
+              <TopTools.Content metricsMode={metricsMode} />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
 
-          {/* MCP Servers + Gateways (combined section) */}
-          <div className="bg-background">
-            {/* MCP Servers */}
-            <ErrorBoundary
-              fallback={
-                <div className="bg-background p-5 text-sm text-muted-foreground">
-                  Failed to load top servers
-                </div>
-              }
-            >
-              <Suspense fallback={<TopServers.Skeleton />}>
-                <TopServers.Content
-                  metricsMode={metricsMode}
-                  onMetricsModeChange={onMetricsModeChange}
-                />
-              </Suspense>
-            </ErrorBoundary>
+        {/* MCP Servers */}
+        <div className="lg:col-span-1 lg:row-span-1 bg-background">
+          <ErrorBoundary
+            fallback={
+              <div className="bg-background p-5 text-sm text-muted-foreground">
+                Failed to load top servers
+              </div>
+            }
+          >
+            <Suspense fallback={<TopServers.Skeleton />}>
+              <TopServers.Content
+                metricsMode={metricsMode}
+                onMetricsModeChange={onMetricsModeChange}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
 
-            {/* Divider line */}
-            <div className="border-t border-border/60" />
-
-            {/* MCP Gateways */}
-            <ErrorBoundary
-              fallback={
-                <div className="bg-background p-5 text-sm text-muted-foreground">
-                  Failed to load top gateways
-                </div>
-              }
-            >
-              <Suspense fallback={<TopGateways.Skeleton />}>
-                <TopGateways.Content metricsMode={metricsMode} />
-              </Suspense>
-            </ErrorBoundary>
-          </div>
+        {/* MCP Gateways */}
+        <div className="lg:col-span-1 lg:row-span-1 bg-background">
+          <ErrorBoundary
+            fallback={
+              <div className="bg-background p-5 text-sm text-muted-foreground">
+                Failed to load top gateways
+              </div>
+            }
+          >
+            <Suspense fallback={<TopGateways.Skeleton />}>
+              <TopGateways.Content metricsMode={metricsMode} />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </div>
     </div>

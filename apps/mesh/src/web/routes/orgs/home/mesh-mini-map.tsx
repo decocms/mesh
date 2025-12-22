@@ -52,7 +52,7 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
   return (
     <div
       onClick={handleClick}
-      className="flex items-center gap-2 px-3 py-2 bg-background border border-border rounded-lg shadow-sm cursor-pointer hover:bg-muted/50 transition-colors min-w-[140px] nodrag nopan"
+      className="flex items-center gap-2 px-3 py-2 bg-background border border-border rounded-lg shadow-sm cursor-pointer hover:bg-muted/50 transition-colors w-[220px] nodrag nopan"
     >
       <IntegrationIcon
         icon={data.gateway.icon}
@@ -90,7 +90,7 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
   return (
     <div
       onClick={handleClick}
-      className="flex items-center gap-2 px-3 py-2 bg-background border border-border rounded-lg shadow-sm cursor-pointer hover:bg-muted/50 transition-colors min-w-[140px] nodrag nopan"
+      className="flex items-center gap-2 px-3 py-2 bg-background border border-border rounded-lg shadow-sm cursor-pointer hover:bg-muted/50 transition-colors w-[220px] nodrag nopan"
     >
       <Handle
         type="target"

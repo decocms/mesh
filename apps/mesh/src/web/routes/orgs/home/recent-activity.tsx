@@ -19,7 +19,7 @@ function RecentActivityContent() {
   const connections = useConnections() ?? [];
 
   const dateRange = getLast24HoursDateRange();
-  const toolInputParams = { ...dateRange, limit: 8, offset: 0 };
+  const toolInputParams = { ...dateRange, limit: 10, offset: 0 };
 
   const { data: logsData } = useToolCall<
     {
@@ -60,80 +60,33 @@ function RecentActivityContent() {
     });
   };
 
-  const mockLogs = [
-    {
-      id: "1",
-      toolName: "Google Drive",
-      connectionId: "mock1",
-      connectionTitle: "Google Drive",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: true,
-    },
-    {
-      id: "2",
-      toolName: "Google Sheets",
-      connectionId: "mock2",
-      connectionTitle: "Google Sheets",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "3",
-      toolName: "Google Slides",
-      connectionId: "mock3",
-      connectionTitle: "Google Slides",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "4",
-      toolName: "Gmail",
-      connectionId: "mock4",
-      connectionTitle: "Gmail",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "5",
-      toolName: "Google Calendar",
-      connectionId: "mock5",
-      connectionTitle: "Google Calendar",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "6",
-      toolName: "Discord",
-      connectionId: "mock6",
-      connectionTitle: "Discord",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "7",
-      toolName: "VTEX",
-      connectionId: "mock7",
-      connectionTitle: "VTEX",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "8",
-      toolName: "Google Docs",
-      connectionId: "mock8",
-      connectionTitle: "Google Docs",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
+  const mockTools = [
+    "Google Drive",
+    "Google Sheets",
+    "Google Slides",
+    "Gmail",
+    "Google Calendar",
+    "Discord",
+    "VTEX",
+    "Google Docs",
+    "Slack",
+    "Notion",
+    "GitHub",
+    "Linear",
   ];
+
+  const mockLogs = Array.from({ length: 10 }, (_, i) => {
+    const timestamp = new Date(Date.now() - i * 60000); // 1 minute apart
+    return {
+      id: `mock-${i}`,
+      toolName: mockTools[i % mockTools.length],
+      connectionId: `mock${i}`,
+      connectionTitle: mockTools[i % mockTools.length],
+      timestamp: timestamp.toISOString(),
+      durationMs: Math.floor(Math.random() * 500) + 100,
+      isError: Math.random() > 0.9,
+    };
+  });
 
   const displayLogs = logs.length === 0 ? mockLogs : logs;
   const isShowingMockData = logs.length === 0;
@@ -198,8 +151,9 @@ function RecentActivityContent() {
       title={<p className="text-sm text-muted-foreground">Recent Activity</p>}
       onTitleClick={handleViewAll}
       noPadding
+      className="min-h-0 overflow-hidden"
     >
-      <div className={`w-full h-full overflow-auto ${""}`}>
+      <div className="overflow-auto">
         {displayLogs.map((log) => renderLogRow(log))}
       </div>
     </HomeGridCell>
@@ -210,10 +164,29 @@ function RecentActivitySkeleton() {
   return (
     <HomeGridCell
       title={<p className="text-sm text-muted-foreground">Recent Activity</p>}
+      noPadding
+      className="min-h-0 overflow-hidden"
     >
-      <div className="space-y-2">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-12 rounded-xl bg-muted animate-pulse" />
+      <div className="overflow-auto">
+        {[...Array(10)].map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center h-16 border-t border-border/60"
+          >
+            <div className="flex items-center justify-center w-16 px-4">
+              <div className="h-6 w-6 bg-muted animate-pulse rounded-md" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+            </div>
+            <div className="flex items-center gap-2 px-5">
+              <div className="h-3 w-12 bg-muted animate-pulse rounded" />
+              <div className="h-3 w-40 bg-muted animate-pulse rounded" />
+            </div>
+            <div className="flex items-center pr-5">
+              <div className="h-6 w-12 bg-muted animate-pulse rounded-full" />
+            </div>
+          </div>
         ))}
       </div>
     </HomeGridCell>

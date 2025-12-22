@@ -133,7 +133,25 @@ function TopServersContent({
   });
 
   const logs = logsData?.logs ?? [];
-  const metricsMap = aggregateServerMetrics(logs);
+
+  // Generate mock logs if no real data
+  const mockLogs =
+    logs.length === 0
+      ? Array.from({ length: 100 }, (_, i) => ({
+          id: `mock-${i}`,
+          connectionId:
+            ["mock-1", "mock-2", "mock-3", "mock-4"][i % 4] || "mock-1",
+          connectionTitle: "",
+          toolName: "COLLECTION_LLM_LIST",
+          isError: Math.random() > 0.9,
+          errorMessage: null,
+          durationMs: Math.floor(Math.random() * 500) + 100,
+          timestamp: new Date().toISOString(),
+        }))
+      : [];
+
+  const displayLogs = logs.length === 0 ? mockLogs : logs;
+  const metricsMap = aggregateServerMetrics(displayLogs);
 
   // Filter connections that have metrics and sort them
   const connectionsWithMetrics = connections
@@ -221,7 +239,7 @@ function TopServersContent({
           No server activity in the last 24 hours
         </div>
       ) : (
-        <div className="space-y-4 w-full">
+        <div className="space-y-3 w-full">
           {connectionsWithMetrics.map(({ connection, metric }) => {
             const percentage = getMetricPercentage(
               metric!,
@@ -267,7 +285,7 @@ function TopServersSkeleton() {
     <HomeGridCell
       title={<p className="text-sm text-muted-foreground">MCP Servers</p>}
     >
-      <div className="space-y-4 w-full">
+      <div className="space-y-3 w-full">
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="flex items-center gap-2">
             <div className="h-6 w-6 bg-muted animate-pulse rounded-md shrink-0" />

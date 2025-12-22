@@ -125,7 +125,25 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
   });
 
   const logs = logsData?.logs ?? [];
-  const metricsMap = aggregateGatewayMetrics(logs);
+
+  // Generate mock logs if no real data
+  const mockLogs =
+    logs.length === 0
+      ? Array.from({ length: 50 }, (_, i) => ({
+          id: `mock-${i}`,
+          gatewayId: "mock-gateway-1",
+          connectionId: "",
+          connectionTitle: "",
+          toolName: "COLLECTION_LLM_LIST",
+          isError: Math.random() > 0.95,
+          errorMessage: null,
+          durationMs: Math.floor(Math.random() * 400) + 100,
+          timestamp: new Date().toISOString(),
+        }))
+      : [];
+
+  const displayLogs = logs.length === 0 ? mockLogs : logs;
+  const metricsMap = aggregateGatewayMetrics(displayLogs);
 
   // Filter gateways that have metrics and sort them
   const gatewaysWithMetrics = gateways
@@ -174,72 +192,78 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
         : "bg-chart-4";
 
   return (
-    <HomeGridCell
-      title={<p className="text-sm text-muted-foreground">MCP Gateways</p>}
-      onTitleClick={handleTitleClick}
-    >
-      {gatewaysWithMetrics.length === 0 ? (
-        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-          No gateway activity in the last 24 hours
-        </div>
-      ) : (
-        <div className="space-y-4 w-full">
-          {gatewaysWithMetrics.map(({ gateway, metric }) => {
-            const percentage = getMetricPercentage(
-              metric!,
-              maxValue,
-              metricsMode,
-            );
-            return (
-              <div
-                key={gateway.id}
-                className="group cursor-pointer flex items-center gap-2"
-                onClick={() => handleGatewayClick(gateway.id)}
-              >
-                <IntegrationIcon
-                  icon={gateway.icon}
-                  name={gateway.title}
-                  size="xs"
-                  fallbackIcon="network_node"
-                  className="shrink-0"
-                />
-                <span className="text-xs font-medium text-foreground truncate min-w-0 w-32">
-                  {gateway.title}
-                </span>
-                <div className="relative h-2 bg-muted/50 overflow-hidden flex-1">
-                  <div
-                    className={`h-full transition-all duration-500 ease-out group-hover:opacity-80 ${barColor}`}
-                    style={{ width: `${percentage}%` }}
+    <>
+      <div className="border-t border-border/60" />
+      <HomeGridCell
+        title={<p className="text-sm text-muted-foreground">MCP Gateways</p>}
+        onTitleClick={handleTitleClick}
+      >
+        {gatewaysWithMetrics.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+            No gateway activity in the last 24 hours
+          </div>
+        ) : (
+          <div className="space-y-3 w-full">
+            {gatewaysWithMetrics.map(({ gateway, metric }) => {
+              const percentage = getMetricPercentage(
+                metric!,
+                maxValue,
+                metricsMode,
+              );
+              return (
+                <div
+                  key={gateway.id}
+                  className="group cursor-pointer flex items-center gap-2"
+                  onClick={() => handleGatewayClick(gateway.id)}
+                >
+                  <IntegrationIcon
+                    icon={gateway.icon}
+                    name={gateway.title}
+                    size="xs"
+                    fallbackIcon="network_node"
+                    className="shrink-0"
                   />
+                  <span className="text-xs font-medium text-foreground truncate min-w-0 w-32">
+                    {gateway.title}
+                  </span>
+                  <div className="relative h-2 bg-muted/50 overflow-hidden flex-1">
+                    <div
+                      className={`h-full transition-all duration-500 ease-out group-hover:opacity-80 ${barColor}`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <span className="text-xs tabular-nums shrink-0 text-foreground font-normal">
+                    {formatMetricValue(metric!, metricsMode)}
+                  </span>
                 </div>
-                <span className="text-xs tabular-nums shrink-0 text-foreground font-normal">
-                  {formatMetricValue(metric!, metricsMode)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </HomeGridCell>
+              );
+            })}
+          </div>
+        )}
+      </HomeGridCell>
+    </>
   );
 }
 
 function TopGatewaysSkeleton() {
   return (
-    <HomeGridCell
-      title={<p className="text-sm text-muted-foreground">MCP Gateways</p>}
-    >
-      <div className="space-y-4 w-full">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <div className="h-6 w-6 bg-muted animate-pulse rounded-md shrink-0" />
-            <div className="h-3 w-32 bg-muted animate-pulse rounded shrink-0" />
-            <div className="h-2 bg-muted animate-pulse flex-1" />
-            <div className="h-3 w-12 bg-muted animate-pulse rounded shrink-0" />
-          </div>
-        ))}
-      </div>
-    </HomeGridCell>
+    <>
+      <div className="border-t border-border/60" />
+      <HomeGridCell
+        title={<p className="text-sm text-muted-foreground">MCP Gateways</p>}
+      >
+        <div className="space-y-3 w-full">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="h-6 w-6 bg-muted animate-pulse rounded-md shrink-0" />
+              <div className="h-3 w-32 bg-muted animate-pulse rounded shrink-0" />
+              <div className="h-2 bg-muted animate-pulse flex-1" />
+              <div className="h-3 w-12 bg-muted animate-pulse rounded shrink-0" />
+            </div>
+          ))}
+        </div>
+      </HomeGridCell>
+    </>
   );
 }
 
