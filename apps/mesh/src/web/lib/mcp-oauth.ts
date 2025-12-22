@@ -89,7 +89,9 @@ class McpOAuthProvider implements OAuthClientProvider {
   }
 
   state(): string {
-    this._state = crypto.randomUUID();
+    if (!this._state) {
+      this._state = crypto.randomUUID();
+    }
     return this._state;
   }
 
