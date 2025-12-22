@@ -19,11 +19,7 @@ import { prop } from "@/tools/connection/json-path";
  */
 export function parseScope(scope: string): [string, string] {
   const parts = scope.split("::");
-  if (
-    parts.length !== 2 ||
-    typeof parts[0] !== "string" ||
-    typeof parts[1] !== "string"
-  ) {
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
     throw new Error(
       `Invalid scope format: ${scope}. Expected format: "KEY::SCOPE"`,
     );
