@@ -52,29 +52,40 @@ function slugify(input: string): string {
 /**
  * Random words to use as suffix when organization name already exists
  */
-const ORG_NAME_SUFFIXES = [
+const ORG_NAME_TECH_SUFFIXES = [
   "alpha",
   "beta",
   "gamma",
   "delta",
-  "omega",
-  "spark",
-  "wave",
-  "flux",
+  "systems",
   "core",
   "hub",
-  "lab",
+  "labs",
   "studio",
-  "works",
   "workspace",
   "cloud",
-  "quantum",
+];
+
+const ORG_NAME_BR_SUFFIXES = [
+  "jaguar",
   "capybara",
+  "ipe",
+  "guarana",
+  "macaw",
+  "ginga",
+  "deco",
+  "samba",
+  "feijoada",
+  "capoeira",
+  "carnival",
 ];
 
 function getRandomSuffix(): string {
-  const index = Math.floor(Math.random() * ORG_NAME_SUFFIXES.length);
-  return ORG_NAME_SUFFIXES[index] ?? "studio";
+  const brIndex = Math.floor(Math.random() * ORG_NAME_BR_SUFFIXES.length);
+  const techIndex = Math.floor(Math.random() * ORG_NAME_TECH_SUFFIXES.length);
+  const brSuffix = ORG_NAME_BR_SUFFIXES[brIndex] ?? "deco";
+  const techSuffix = ORG_NAME_TECH_SUFFIXES[techIndex] ?? "studio";
+  return `${brSuffix}-${techSuffix}`;
 }
 
 const allTools = Object.values(getToolsByCategory())
@@ -312,7 +323,8 @@ export const auth = betterAuth({
               const isConflictError =
                 error instanceof Error &&
                 "body" in error &&
-                (error as { body?: { code?: string } }).body?.code === "ORGANIZATION_ALREADY_EXISTS";
+                (error as { body?: { code?: string } }).body?.code ===
+                  "ORGANIZATION_ALREADY_EXISTS";
 
               if (!isConflictError || attempt === maxAttempts - 1) {
                 console.error("Failed to create default organization:", error);
