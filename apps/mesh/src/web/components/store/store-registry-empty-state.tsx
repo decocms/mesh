@@ -32,7 +32,9 @@ export function StoreRegistryEmptyState({
       descriptionClassName="max-w-[500px]"
       actionsClassName="w-full max-w-2xl"
       actions={
-        <div className={`grid gap-4 w-full ${registries.length === 1 ? "grid-cols-1 justify-items-center" : "grid-cols-1 md:grid-cols-2"}`}>
+        <div
+          className={`grid gap-4 w-full ${registries.length === 1 ? "grid-cols-1 justify-items-center" : "grid-cols-1 md:grid-cols-2"}`}
+        >
           {registries.map((registry, index) => {
             const registryId = registry.id ?? `registry-${index}`;
 

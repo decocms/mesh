@@ -1,6 +1,4 @@
-import {
-  getWellKnownCommunityRegistryConnection,
-} from "@/core/well-known-mcp";
+import { getWellKnownCommunityRegistryConnection } from "@/core/well-known-mcp";
 import { ConnectionCreateData } from "@/tools/connection/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header";
 import { StoreDiscovery } from "@/web/components/store";
@@ -54,9 +52,7 @@ export default function StorePage() {
     selectedRegistry?.id || registryConnections[0]?.id || "";
 
   // Well-known registries to show in empty state
-  const wellKnownRegistries = [
-    getWellKnownCommunityRegistryConnection(),
-  ];
+  const wellKnownRegistries = [getWellKnownCommunityRegistryConnection()];
 
   const addNewKnownRegistry = async (registry: ConnectionCreateData) => {
     const created = await connectionActions.create.mutateAsync(registry);
