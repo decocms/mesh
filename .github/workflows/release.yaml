@@ -180,7 +180,7 @@ jobs:
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-      # ==================== DEPLOYMENT ====================
+      # ==================== ARGOCD DEPLOYMENT ====================
       - name: Trigger deployment update
         if: inputs.deploy_to_production == 'true' && steps.version-check.outputs.version-changed == 'true'
         uses: peter-evans/repository-dispatch@v3
@@ -188,12 +188,12 @@ jobs:
           token: ${{ secrets.DEPLOY_REPO_TOKEN }}
           repository: deco-cx/argo-deploy-mesh
           event-type: image-update
-          client-payload: '{"image_tag": "v${{ steps.version-check.outputs.current-version }}"}'
+          client-payload: '{"image_tag": "${{ steps.version-check.outputs.current-version }}"}'
 
       - name: Deployment summary
         if: inputs.deploy_to_production == 'true' && steps.version-check.outputs.version-changed == 'true'
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "🚀 Triggered ArgoCD deployment with image tag \`v${{ steps.version-check.outputs.current-version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "🚀 Triggered ArgoCD deployment with image tag \`${{ steps.version-check.outputs.current-version }}\`" >> $GITHUB_STEP_SUMMARY
 
