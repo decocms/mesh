@@ -1,6 +1,11 @@
 /* oxlint-disable no-explicit-any */
 /* oxlint-disable ban-types */
 import { HttpServerTransport } from "@deco/mcp/http";
+import {
+  OnEventsInputSchema,
+  OnEventsOutputSchema,
+  type EventBusBindingClient,
+} from "@decocms/bindings";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
@@ -8,11 +13,6 @@ import { BindingRegistry } from "./bindings.ts";
 import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
-import {
-  EventBusBindingClient,
-  OnEventsInputSchema,
-  OnEventsOutputSchema,
-} from "@decocms/bindings";
 
 // Re-export EventHandlers type for external use
 export type { EventHandlers } from "./events.ts";
