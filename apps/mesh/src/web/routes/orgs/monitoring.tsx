@@ -259,10 +259,7 @@ function MonitoringLogsTableContent({
   const hasMore = logs.length >= pageSize;
 
   // Use the infinite scroll hook
-  const lastLogRef = useInfiniteScroll(
-    () => onPageChange(page + 1),
-    hasMore,
-  );
+  const lastLogRef = useInfiniteScroll(() => onPageChange(page + 1), hasMore);
 
   const members = membersData?.data?.members ?? [];
   const userMap = new Map(members.map((m) => [m.userId, m.user]));

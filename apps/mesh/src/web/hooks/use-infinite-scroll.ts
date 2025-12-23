@@ -30,14 +30,20 @@ export function useInfiniteScroll(
 ): (node: HTMLElement | null) => void {
   const observerRef = useRef<IntersectionObserver | null>(null);
 
+  // Use refs to always access the latest values inside the observer callback
+  const onLoadMoreRef = useRef(onLoadMore);
+  const hasMoreRef = useRef(hasMore);
+  onLoadMoreRef.current = onLoadMore;
+  hasMoreRef.current = hasMore;
+
   const lastElementRef = (node: HTMLElement | null) => {
     if (observerRef.current) {
       observerRef.current.disconnect();
     }
 
     observerRef.current = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && hasMore) {
-        onLoadMore();
+      if (entries[0]?.isIntersecting && hasMoreRef.current) {
+        onLoadMoreRef.current();
       }
     });
 
@@ -48,4 +54,3 @@ export function useInfiniteScroll(
 
   return lastElementRef;
 }
-

@@ -8,6 +8,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { lazy, Suspense, useState } from "react";
 import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
+import { toast } from "sonner";
 import { MONITORING_CONFIG } from "./config.ts";
 
 // @ts-ignore - style module path
@@ -185,13 +186,17 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
   const handleCopy = async (type: "input" | "output") => {
     // Always copy full JSON, not truncated
     const fullJson = getFullJson(type === "input" ? log.input : log.output);
-    await navigator.clipboard.writeText(fullJson);
-    if (type === "input") {
-      setCopiedInput(true);
-      setTimeout(() => setCopiedInput(false), 2000);
-    } else {
-      setCopiedOutput(true);
-      setTimeout(() => setCopiedOutput(false), 2000);
+    try {
+      await navigator.clipboard.writeText(fullJson);
+      if (type === "input") {
+        setCopiedInput(true);
+        setTimeout(() => setCopiedInput(false), 2000);
+      } else {
+        setCopiedOutput(true);
+        setTimeout(() => setCopiedOutput(false), 2000);
+      }
+    } catch {
+      toast.error("Failed to copy to clipboard");
     }
   };
 
@@ -270,7 +275,10 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                   aria-label="Copy input"
                   className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
                 >
-                  <Icon name={copiedInput ? "check" : "content_copy"} size={14} />
+                  <Icon
+                    name={copiedInput ? "check" : "content_copy"}
+                    size={14}
+                  />
                 </Button>
               </div>
             </div>
@@ -327,4 +335,3 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
     </div>
   );
 }
-

@@ -23,4 +23,3 @@ export const MONITORING_CONFIG = {
 } as const;
 
 export type MonitoringConfig = typeof MONITORING_CONFIG;
-
