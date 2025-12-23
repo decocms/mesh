@@ -1,4 +1,6 @@
+import type { GatewayEntity } from "@/tools/gateway/schema";
 import { Icon } from "@deco/ui/components/icon.tsx";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   ResponsiveSelect,
   ResponsiveSelectContent,
@@ -6,26 +8,20 @@ import {
   ResponsiveSelectValue,
 } from "@deco/ui/components/responsive-select.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { memo, useState } from "react";
+import { useState } from "react";
 
-export interface GatewayInfo {
-  id: string;
-  name: string;
-  description?: string;
-  avatar?: string;
-  fallbackIcon?: string; // Material Symbol name to use when avatar is not available
+export interface GatewayInfo
+  extends Pick<GatewayEntity, "id" | "title" | "description" | "icon"> {
+  fallbackIcon?: string; // Material Symbol name to use when icon is not available
 }
 
-const GatewayItemContent = memo(function GatewayItemContent({
+function GatewayItemContent({
   gateway,
   isSelected,
 }: {
   gateway: GatewayInfo;
   isSelected?: boolean;
 }) {
-  const [imageError, setImageError] = useState(false);
-  const showAvatar = gateway.avatar && !imageError;
-
   return (
     <div
       className={cn(
@@ -33,29 +29,20 @@ const GatewayItemContent = memo(function GatewayItemContent({
         isSelected && "bg-accent",
       )}
     >
-      {/* Avatar */}
-      <div className="rounded-lg shrink-0 size-10 overflow-hidden bg-muted border border-border flex items-center justify-center">
-        {showAvatar ? (
-          <img
-            src={gateway.avatar}
-            alt={gateway.name}
-            onError={() => setImageError(true)}
-            className="size-full object-cover"
-          />
-        ) : (
-          <Icon
-            name={gateway.fallbackIcon || "network_node"}
-            size={24}
-            className="text-muted-foreground"
-          />
-        )}
-      </div>
+      {/* Icon */}
+      <IntegrationIcon
+        icon={gateway.icon}
+        name={gateway.title}
+        size="sm"
+        fallbackIcon={gateway.fallbackIcon || "network_node"}
+        className="size-10"
+      />
 
       {/* Text Content */}
       <div className="flex flex-col flex-1 min-w-0 gap-0.5">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-foreground truncate">
-            {gateway.name}
+            {gateway.title}
           </span>
           {isSelected && (
             <Icon name="check" size={16} className="text-foreground shrink-0" />
@@ -69,43 +56,30 @@ const GatewayItemContent = memo(function GatewayItemContent({
       </div>
     </div>
   );
-});
+}
 
 function SelectedGatewayDisplay({
   gateway,
 }: {
   gateway: GatewayInfo | undefined;
 }) {
-  const [imageError, setImageError] = useState(false);
-
   if (!gateway) {
     return (
       <span className="text-sm text-muted-foreground">Select gateway</span>
     );
   }
 
-  const showAvatar = gateway.avatar && !imageError;
-
   return (
     <div className="flex items-center gap-2">
-      {showAvatar ? (
-        <img
-          src={gateway.avatar}
-          alt={gateway.name}
-          onError={() => setImageError(true)}
-          className="size-5 rounded-md object-cover"
-        />
-      ) : (
-        <div className="size-5 rounded-md bg-muted border border-border flex items-center justify-center">
-          <Icon
-            name={gateway.fallbackIcon || "network_node"}
-            size={12}
-            className="text-muted-foreground"
-          />
-        </div>
-      )}
+      <IntegrationIcon
+        icon={gateway.icon}
+        name={gateway.title}
+        size="xs"
+        fallbackIcon={gateway.fallbackIcon || "network_node"}
+        className="size-5"
+      />
       <span className="text-sm font-medium text-foreground truncate">
-        {gateway.name}
+        {gateway.title}
       </span>
     </div>
   );

@@ -297,9 +297,9 @@ export function ChatPanel() {
   // Transform gateways to selector options
   const gatewaySelectorOptions = gateways.map((gateway) => ({
     id: gateway.id,
-    name: gateway.title,
-    avatar: gateway.icon ?? undefined,
-    description: gateway.description ?? undefined,
+    title: gateway.title,
+    icon: gateway.icon,
+    description: gateway.description,
     fallbackIcon: "network_node", // Consistent with gateways page
   }));
 
