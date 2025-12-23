@@ -116,14 +116,18 @@ function BindingFieldWithDynamicSchema({
   const bindingTypeIsDynamic = isDynamicBindingSchema(bindingType);
   const needsDynamicResolution = bindingSchemaIsDynamic || bindingTypeIsDynamic;
 
-  console.log({ bindingSchemaIsDynamic, bindingTypeIsDynamic, needsDynamicResolution });
+  console.log({
+    bindingSchemaIsDynamic,
+    bindingTypeIsDynamic,
+    needsDynamicResolution,
+  });
   const dynamicAppName = bindingSchemaIsDynamic
     ? (bindingSchema as string)
     : bindingTypeIsDynamic
       ? bindingType
       : undefined;
 
-      console.log({ dynamicAppName });
+  console.log({ dynamicAppName });
   const { bindingSchema: registrySchema } =
     useBindingSchemaFromRegistry(dynamicAppName);
 
@@ -144,7 +148,7 @@ function BindingFieldWithDynamicSchema({
       console.log({ bindingSchema });
       return bindingSchema;
     }
-    console.log('returning undefined');
+    console.log("returning undefined");
     return undefined;
   })();
 
@@ -206,11 +210,10 @@ function BindingSelector({
 
   const connections = (() => {
     let result = filteredConnections;
-    
 
     const hasBindingSchema = Array.isArray(binding) && binding.length > 0;
 
-    console.log({  hasBindingSchema, binding });
+    console.log({ hasBindingSchema, binding });
 
     if (parsedBindingType && !hasBindingSchema) {
       result = result.filter((conn) => {
