@@ -54,7 +54,8 @@ export class ResourceGateway {
       },
     );
 
-    // Build resource URI -> connection mapping (URIs are globally unique)
+    // Build resource URI -> connection mapping (first-wins deduplication)
+    const seenUris = new Set<string>();
     const allResources: Resource[] = [];
     const mappings = new Map<string, string>();
 
@@ -63,6 +64,9 @@ export class ResourceGateway {
 
       const { connectionId, resources } = result.value;
       for (const resource of resources) {
+        if (seenUris.has(resource.uri)) continue;
+        seenUris.add(resource.uri);
+
         allResources.push(resource);
         mappings.set(resource.uri, connectionId);
       }

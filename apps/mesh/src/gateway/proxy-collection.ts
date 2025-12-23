@@ -83,11 +83,11 @@ export class ProxyCollection {
   async mapAsync<T>(
     fn: (entry: ProxyEntry, connectionId: string) => Promise<T>,
   ): Promise<T[]> {
-    const results: T[] = [];
+    const results: Promise<T>[] = [];
     for (const [id, entry] of this.proxies.entries()) {
-      results.push(await fn(entry, id));
+      results.push(fn(entry, id));
     }
-    return results;
+    return await Promise.all(results);
   }
 
   /**
