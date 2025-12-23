@@ -25,19 +25,29 @@ import { createTestSchema } from "../../storage/test-helpers";
 import { createApp } from "../app";
 import type { EventBus } from "../../event-bus";
 import { auth } from "../../auth";
-import mcpServers from "./mcp-test-servers.json";
 
 // =============================================================================
-// Types
+// Test Data
 // =============================================================================
 
-interface McpServer {
-  url: string;
-  name: string;
-}
+/** MCP servers that support OAuth - all should pass OAuth discovery tests */
+const MCP_SERVERS = [
+  { url: "https://mcp.stripe.com/", name: "Stripe" },
+  { url: "https://sites-openrouter.decocache.com/mcp", name: "OpenRouter" },
+  { url: "https://api.decocms.com/apps/deco/github/mcp", name: "Deco GitHub" },
+  {
+    url: "https://server.smithery.ai/@exa-labs/exa-code-mcp/mcp",
+    name: "Smithery",
+  },
+  { url: "https://mcp.notion.com/mcp", name: "Notion" },
+  { url: "https://api.githubcopilot.com/mcp/", name: "GitHub Copilot" },
+  { url: "https://mcp.vercel.com", name: "Vercel" },
+  { url: "https://mcp.prisma.io/sse", name: "Prisma" },
+  { url: "https://mcp.supabase.com/mcp", name: "Supabase" },
+];
 
-// Servers that DON'T support OAuth - should return 401 without WWW-Authenticate
-const NO_OAUTH_SERVERS: McpServer[] = [
+/** MCP servers that DON'T support OAuth - should return 401 without WWW-Authenticate */
+const NO_OAUTH_SERVERS = [
   { url: "https://mcp.postman.com/mcp", name: "Postman" },
 ];
 
@@ -115,7 +125,7 @@ describe("MCP OAuth Proxy E2E", () => {
     } as never);
 
     // Create a connection for each MCP server (OAuth-supporting)
-    for (const server of mcpServers as McpServer[]) {
+    for (const server of MCP_SERVERS) {
       const connectionId = `conn_${server.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
       connectionMap.set(server.url, connectionId);
 
@@ -166,7 +176,7 @@ describe("MCP OAuth Proxy E2E", () => {
   // ===========================================================================
 
   describe("Protected Resource Metadata", () => {
-    for (const server of mcpServers as McpServer[]) {
+    for (const server of MCP_SERVERS) {
       test(`${server.name} - discovery and URL rewriting`, async () => {
         const connectionId = connectionMap.get(server.url)!;
         const res = await app.request(
@@ -192,7 +202,7 @@ describe("MCP OAuth Proxy E2E", () => {
   // ===========================================================================
 
   describe("Auth Server Metadata", () => {
-    for (const server of mcpServers as McpServer[]) {
+    for (const server of MCP_SERVERS) {
       test(`${server.name} - discovery and endpoint rewriting`, async () => {
         const connectionId = connectionMap.get(server.url)!;
         const res = await app.request(
@@ -223,7 +233,7 @@ describe("MCP OAuth Proxy E2E", () => {
   // ===========================================================================
 
   describe("Authorize Endpoint", () => {
-    for (const server of mcpServers as McpServer[]) {
+    for (const server of MCP_SERVERS) {
       test(`${server.name} - must redirect, not proxy HTML`, async () => {
         const connectionId = connectionMap.get(server.url)!;
         const res = await app.request(
