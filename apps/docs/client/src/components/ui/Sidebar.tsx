@@ -252,14 +252,14 @@ function TreeList({
                 <div className="h-px bg-border/50" />
               </li>
             )}
-              <TreeItem
-                node={node}
-                isVisible={isVisible}
-                isExpanded={isExpanded}
-                onToggle={onToggle}
-                locale={locale}
-                translations={translations}
-              />
+            <TreeItem
+              node={node}
+              isVisible={isVisible}
+              isExpanded={isExpanded}
+              onToggle={onToggle}
+              locale={locale}
+              translations={translations}
+            />
           </React.Fragment>
         );
       })}

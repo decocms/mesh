@@ -8,29 +8,50 @@ import Callout from "../../components/ui/Callout.astro";
 
 ![deco](https://assets.decocache.com/mcp/9a3facd8-1199-4635-becc-bdc3f5ee7ab1/deco-banner-capy.png)
 
-## Welcome
-
-These docs are primarily **developer docs** for **MCP Mesh** and the broader **deco CMS** platform.
-
 ## What is deco CMS?
 
 **deco CMS** is an open-source **Context Management System** for AI-native operations.
 
-If MCP is the standard interface for tool access, deco CMS is the **production layer around it**: connect MCP servers, enforce governance, and get observability as usage scales across teams and environments.
+If MCP is the standard interface for tool access, deco CMS is the **production layer around it**: connect MCP servers, enforce governance, and get observability as usage scales across teams and environments. The broader platform also includes a **builder framework** (MCP Studio — coming soon, replacing the legacy admin) and **distribution capabilities** (pre-built modules and store).
+
+**Official links:**
+
+- **deco CMS**: [decocms.com](https://www.decocms.com/)
+- **The MCP Mesh**: [decocms.com/mesh](https://www.decocms.com/mesh)
+- **MCP Studio**: [decocms.com/mcp-studio](https://www.decocms.com/mcp-studio)
+
+If you know us from before (as **deco.cx**) and you’re looking for **headless CMS + storefront** capabilities, visit [deco.cx](https://www.decocms.com/use-case/deco-cx). See the deco.cx docs at [docs.deco.cx](https://docs.deco.cx/en/getting-started/overview).
+
+## Quick start (Mesh)
+
+### Option A: one-command local Mesh setup
+
+```bash
+npx @decocms/mesh init
+```
+
+### Option B: run from source
+
+```bash
+git clone https://github.com/decocms/mesh.git
+cd mesh
+bun install
+bun run dev
+```
+
+## Deploy (Mesh)
+
+- **[Local: Docker Compose](/en/mcp-mesh/deploy/local-docker-compose)**
+- **[Kubernetes: Helm Chart](/en/mcp-mesh/deploy/kubernetes-helm-chart)**
 
 <Callout type="warning">
   **Docs split (quick guide):**
 
-  - **MCP Mesh** → Self-hosting, deploying, and operating the Mesh (recommended).
+  - **The MCP Mesh** → Self-hosting, deploying, and operating the Mesh (recommended).
   - **Legacy Admin** → If you’re using `admin.decocms.com` (still supported, **deprecated soon**).
 
   We’re launching **MCP Studio** (on top of Mesh), which will bring the current SaaS admin capabilities to the Mesh (including a hosted option by us) and replace the legacy SaaS over time.
 </Callout>
-
-## Start here (most common paths)
-
-- **[Deploy MCP Mesh locally (Docker Compose)](/en/mcp-mesh/deploy/local-docker-compose)**
-- **[Deploy MCP Mesh on Kubernetes (Helm)](/en/mcp-mesh/deploy/kubernetes-helm-chart)**
 
 ## Problem (and what the Mesh fixes)
 
@@ -41,18 +62,18 @@ When AI moves from demos to production, teams usually hit the same constraints:
 - **Operational blind spots**: debugging is slow; failures and costs are hard to trace end-to-end
 - **Context obesity**: bloated prompts and tool lists degrade quality and increase cost
 
-MCP Mesh centralizes those cross-cutting concerns **once** so you don’t rebuild them in every agent/app.
+The MCP Mesh centralizes those cross-cutting concerns **once** so you don’t rebuild them in every agent/app.
 
 ## Platform structure: Mesh → Studio → Distribution
 
-### MCP Mesh (foundation)
+### The MCP Mesh (foundation)
 An open-source **control plane for MCP traffic**. It sits between your MCP clients (Cursor, Claude, VS Code, custom agents) and your MCP servers, providing a unified layer for auth, policy, and observability.
 
 ### MCP Studio (development)
 A no-code admin + SDK to package MCP capabilities as reusable building blocks.
 
 <Callout type="info">
-  **Coming soon:** This is the successor to the current SaaS admin, built on top of MCP Mesh.
+  **Coming soon:** This is the successor to the current SaaS admin, built on top of the MCP Mesh.
 </Callout>
 
 ### MCP Apps & Store (distribution)
@@ -73,26 +94,9 @@ MCP gives you a standard interface. deco CMS provides the **control plane** arou
 - **Auditable**: centralized policies, logs, and traces across tool + model calls
 - **No lock-in**: your context, your infrastructure
 
-## Quick start
-
-### Option A: one-command local Mesh setup
-
-```bash
-npx @decocms/mesh init
-```
-
-### Option B: run from source
-
-```bash
-git clone https://github.com/decocms/mesh.git
-cd mesh
-bun install
-bun run dev
-```
-
 ## Legacy Admin quick start (admin.decocms.com)
 
 If you’re using the current SaaS admin at `admin.decocms.com` (still supported, deprecated soon), start here:
 
 - **[For AI Builders](/en/getting-started/ai-builders)**
-- **[For Context Engineers](/en/getting-started/context-engineers)**
+- **[For Developers](/en/getting-started/developers)**
