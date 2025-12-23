@@ -1,14 +1,10 @@
 import { Spinner } from "@deco/ui/components/spinner.tsx";
-import {
-  Workflow,
-  WorkflowExecutionWithStepResults,
-} from "@decocms/bindings/workflow";
+import { Workflow } from "@decocms/bindings/workflow";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 import { WorkflowSteps } from "./components/steps/index";
 import {
   useCurrentStepName,
   useCurrentTab,
-  useTrackingExecutionId,
   useWorkflow,
   useWorkflowActions,
   WorkflowStoreProvider,
@@ -16,34 +12,17 @@ import {
 import {
   useWorkflowCollectionItem,
   useWorkflowExecutionCollectionItem,
-  useWorkflowExecutionCollectionList,
 } from "./hooks/use-workflow-collection-item";
 import { WorkflowActions } from "./components/actions";
-import { StepTabs, WorkflowTabs } from "./components/tabs";
+import { ExecutionsTab, StepTabs, WorkflowTabs } from "./components/tabs";
 import { toast } from "@deco/ui/components/sonner.tsx";
 import { MonacoCodeEditor } from "./components/monaco-editor";
-import { Check, ChevronsUpDown, ClockIcon } from "lucide-react";
+import { ClockIcon } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.js";
-import {
-  Command,
-  CommandItem,
-  CommandGroup,
-  CommandList,
-  CommandInput,
-  CommandEmpty,
-} from "@deco/ui/components/command.js";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@deco/ui/components/popover.js";
-import { Button } from "@deco/ui/components/button.js";
-import { useState } from "react";
-import { cn } from "@deco/ui/lib/utils.js";
 export interface WorkflowDetailsViewProps {
   itemId: string;
   onBack: () => void;
@@ -137,11 +116,6 @@ interface WorkflowDetailsProps {
   onUpdate: (updates: Record<string, unknown>) => Promise<void>;
 }
 
-export interface StreamResponse {
-  item: WorkflowExecutionWithStepResults | null;
-  error?: string;
-}
-
 function WorkflowCode({
   workflow,
   onUpdate,
@@ -200,93 +174,6 @@ export function ExecutionScheduleTooltip({ id }: { id?: string }) {
   );
 }
 
-function ExecutionSelect() {
-  const [open, setOpen] = useState(false);
-  const workflow = useWorkflow();
-  const { list: executions } = useWorkflowExecutionCollectionList({
-    workflowId: workflow.id,
-  });
-  const trackingExecutionId = useTrackingExecutionId();
-  const { setTrackingExecutionId } = useWorkflowActions();
-
-  const currentIndex = executions.findIndex(
-    (execution) => execution.id === trackingExecutionId,
-  );
-
-  const handleKeyNavigation = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-      e.preventDefault();
-      const nextIndex =
-        currentIndex < executions.length - 1 ? currentIndex + 1 : 0;
-      setTrackingExecutionId(executions[nextIndex]?.id);
-    } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-      e.preventDefault();
-      const prevIndex =
-        currentIndex > 0 ? currentIndex - 1 : executions.length - 1;
-      setTrackingExecutionId(executions[prevIndex]?.id);
-    }
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-controls={`execution-select-${workflow.id}`}
-          aria-labelledby={`execution-select-${workflow.id}`}
-          aria-expanded={open}
-          className="w-[200px] justify-between"
-          onKeyDown={handleKeyNavigation}
-        >
-          {trackingExecutionId
-            ? new Date(
-                executions.find(
-                  (execution) => execution.id === trackingExecutionId,
-                )?.created_at ?? 0,
-              ).toLocaleString()
-            : "Select execution..."}
-          <ChevronsUpDown className="opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" onKeyDown={handleKeyNavigation}>
-        <Command shouldFilter={false}>
-          <CommandInput placeholder="Search execution..." className="h-9" />
-          <CommandList>
-            <CommandEmpty>No execution found.</CommandEmpty>
-            <CommandGroup>
-              {executions.map((execution) => (
-                <CommandItem
-                  key={execution.id}
-                  value={execution.id}
-                  onSelect={(currentValue) => {
-                    setTrackingExecutionId(
-                      currentValue === trackingExecutionId
-                        ? undefined
-                        : execution.id,
-                    );
-                    setOpen(false);
-                  }}
-                >
-                  {new Date(execution.created_at).toLocaleString()}-{" "}
-                  <Check
-                    className={cn(
-                      "ml-auto",
-                      trackingExecutionId === execution.id
-                        ? "opacity-100"
-                        : "opacity-0",
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 export function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   const currentTab = useCurrentTab();
   const currentStepName = useCurrentStepName();
@@ -305,7 +192,6 @@ export function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
       </ViewTabs>
 
       <ViewActions>
-        <ExecutionSelect />
         <WorkflowActions onUpdate={onUpdate} />
       </ViewActions>
 
@@ -315,15 +201,17 @@ export function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
           <WorkflowTabs />
         </div>
         <div className="flex-1 h-full">
-          {currentTab === "steps" ? (
-            <WorkflowSteps />
-          ) : (
+          {currentTab !== "code" && <WorkflowSteps />}
+          {currentTab === "code" && (
             <div className="h-[calc(100%-60px)]">
               <WorkflowCode workflow={workflow} onUpdate={onUpdate} />
             </div>
           )}
         </div>
-        {currentStepName && currentTab === "steps" && <StepTabs />}
+        <div className="w-1/3 h-full bg-sidebar border-l border-border gap-0">
+          {currentStepName && currentTab === "steps" && <StepTabs />}
+          {currentTab === "executions" && <ExecutionsTab />}
+        </div>
       </div>
     </ViewLayout>
   );

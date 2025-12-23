@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, BellIcon, ClockIcon, CodeXml, Wrench, X } from "lucide-react";
+import { Plus, BellIcon, CodeXml, Wrench, X } from "lucide-react";
 import { cn } from "@deco/ui/lib/utils.js";
 import type { StepType } from "@/web/components/details/workflow/stores/workflow";
 
@@ -71,12 +71,6 @@ export function AddFirstStepButton({ onAdd }: AddFirstStepButtonProps) {
                 className="w-5 h-5 p-px rounded-full bg-transparent transition-all ease-in-out cursor-pointer flex items-center justify-center"
               >
                 <X className="w-4 h-4 text-primary-foreground transition-all ease-in-out" />
-              </button>
-              <button
-                onClick={() => handleAdd("sleep")}
-                className="w-5 h-5 p-0.5 bg-background rounded-lg flex items-center justify-center hover:bg-primary/40 transition-all ease-in-out cursor-pointer"
-              >
-                <ClockIcon className="w-4 h-4" />
               </button>
               <button
                 onClick={() => handleAdd("wait_for_signal")}

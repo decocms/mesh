@@ -9,15 +9,7 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import {
-  BellIcon,
-  Check,
-  ClockIcon,
-  CodeXml,
-  Plus,
-  Wrench,
-  X,
-} from "lucide-react";
+import { BellIcon, CodeXml, Plus, Wrench, X } from "lucide-react";
 import { cn } from "@deco/ui/lib/utils.js";
 import {
   type StepType,
@@ -46,10 +38,9 @@ const nodeTypes: NodeTypes = {
 const defaultEdgeOptions: DefaultEdgeOptions = {
   style: {
     strokeWidth: 1.5,
-    // stroke: "hsl(var(--border))",
   },
   animated: false,
-  type: "smoothstep",
+  type: "default",
 };
 
 // ============================================
@@ -95,11 +86,6 @@ const stepButtons: StepButton[] = [
     label: "Tool Step",
   },
   {
-    type: "sleep",
-    icon: <ClockIcon className="w-4 h-4" />,
-    label: "Sleep Step",
-  },
-  {
     type: "wait_for_signal",
     icon: <BellIcon className="w-4 h-4" />,
     label: "Signal Step",
@@ -108,8 +94,7 @@ const stepButtons: StepButton[] = [
 
 const FloatingAddStepButton = memo(function FloatingAddStepButton() {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { startAddingStep, cancelAddingStep, completeAddingStep } =
-    useWorkflowActions();
+  const { startAddingStep, cancelAddingStep } = useWorkflowActions();
   const isAddingStep = useIsAddingStep();
   const { setCurrentStepTab, setTrackingExecutionId } = useWorkflowActions();
   const handleSelectType = (type: StepType) => {
@@ -124,44 +109,25 @@ const FloatingAddStepButton = memo(function FloatingAddStepButton() {
     setIsExpanded(false);
   };
 
-  const handleComplete = () => {
-    completeAddingStep();
-    setIsExpanded(false);
-  };
-
-  // If we're in "adding step" mode, show cancel button
+  // If we're in "adding step" mode, show cancel button and instructions
   if (isAddingStep) {
     return (
       <div className="flex flex-col items-center gap-2">
         <div className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-md backdrop-blur-sm">
-          Click a step to insert after
+          Click a highlighted step to add after it
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className={cn(
-              "w-8 h-8 rounded-full border-2 border-destructive bg-background",
-              "flex items-center justify-center cursor-pointer",
-              "hover:bg-destructive/10 transition-colors",
-              "shadow-lg",
-            )}
-          >
-            <X className="w-4 h-4 text-destructive" />
-          </button>
-          <button
-            type="button"
-            onClick={handleComplete}
-            className={cn(
-              "w-8 h-8 rounded-full border-2 border-success bg-background",
-              "flex items-center justify-center cursor-pointer",
-              "hover:bg-success/10 transition-colors",
-              "shadow-lg",
-            )}
-          >
-            <Check className="w-4 h-4 text-success" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleCancel}
+          className={cn(
+            "w-8 h-8 rounded-full border-2 border-destructive bg-background",
+            "flex items-center justify-center cursor-pointer",
+            "hover:bg-destructive/10 transition-colors",
+            "shadow-lg",
+          )}
+        >
+          <X className="w-4 h-4 text-destructive" />
+        </button>
       </div>
     );
   }

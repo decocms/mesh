@@ -1,7 +1,8 @@
 import type { Node, Edge, OnNodesChange, OnEdgesChange } from "@xyflow/react";
+import dagre from "@dagrejs/dagre";
 import {
   buildDagEdges,
-  computeStepLevels,
+  computeBranchMembership,
   type Step,
 } from "@decocms/bindings/workflow";
 import { useWorkflowSteps } from "@/web/components/details/workflow/stores/workflow";
@@ -32,6 +33,10 @@ export interface StepNodeData extends Record<string, unknown> {
   step: Step;
   stepResult: StepResult | null;
   isFetching: boolean;
+  /** The branch root step name if this step is part of a branch */
+  branchRoot: string | null;
+  /** Whether this step is a branch root (has an "if" condition) */
+  isBranchRoot: boolean;
 }
 
 export interface TriggerNodeData extends Record<string, unknown> {
@@ -50,48 +55,140 @@ export type WorkflowEdge = Edge;
 
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 48;
-const HORIZONTAL_GAP = 100;
-const VERTICAL_GAP = 80;
 const TRIGGER_NODE_ID = "__trigger__";
 
 // ============================================
-// Layout Computation
+// Dagre Layout Computation
 // ============================================
+
+/**
+ * Get the PRIMARY parent for each step.
+ * Priority:
+ * 1. Input dependency from another conditional step in same branch
+ * 2. First input dependency
+ * 3. If condition reference
+ */
+function getPrimaryParentMap(steps: Step[]): Map<string, string> {
+  const stepNames = new Set(steps.map((s) => s.name));
+  const primaryParent = new Map<string, string>();
+  const stepMap = new Map(steps.map((s) => [s.name, s]));
+
+  for (const step of steps) {
+    if (step.name === "Manual") continue;
+
+    // Get all input dependencies
+    const inputDeps: string[] = [];
+    function findDeps(value: unknown) {
+      if (typeof value === "string") {
+        const matches = value.match(/@(\w+)/g);
+        if (matches) {
+          for (const match of matches) {
+            const refName = match.substring(1);
+            if (stepNames.has(refName)) {
+              inputDeps.push(refName);
+            }
+          }
+        }
+      } else if (Array.isArray(value)) {
+        value.forEach(findDeps);
+      } else if (typeof value === "object" && value !== null) {
+        Object.values(value).forEach(findDeps);
+      }
+    }
+    findDeps(step.input);
+
+    // If this is a conditional step, check for input deps from same branch
+    if (step.if) {
+      const myConditionRef = step.if.ref.match(/@(\w+)/)?.[1];
+
+      // Find input dep that's also conditional with same condition
+      for (const depName of inputDeps) {
+        const depStep = stepMap.get(depName);
+        if (depStep?.if) {
+          const depConditionRef = depStep.if.ref.match(/@(\w+)/)?.[1];
+          if (depConditionRef === myConditionRef) {
+            // Same branch! Use this as primary parent
+            primaryParent.set(step.name, depName);
+            break;
+          }
+        }
+      }
+
+      // If no same-branch input dep, use condition ref
+      if (
+        !primaryParent.has(step.name) &&
+        myConditionRef &&
+        stepNames.has(myConditionRef)
+      ) {
+        primaryParent.set(step.name, myConditionRef);
+      }
+    } else {
+      // Regular step - use first input dependency
+      if (inputDeps[0]) {
+        primaryParent.set(step.name, inputDeps[0]);
+      }
+    }
+  }
+
+  return primaryParent;
+}
 
 function computeNodePositions(
   steps: Step[],
 ): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
-  const levels = computeStepLevels(steps);
 
-  // Group steps by level
-  const stepsByLevel = new Map<number, Step[]>();
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({
+    rankdir: "TB",
+    nodesep: 80,
+    ranksep: 80,
+    marginx: 20,
+    marginy: 20,
+  });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  g.setNode(TRIGGER_NODE_ID, { width: NODE_WIDTH, height: NODE_HEIGHT });
+
   for (const step of steps) {
-    const level = levels.get(step.name) ?? 0;
-    if (!stepsByLevel.has(level)) {
-      stepsByLevel.set(level, []);
-    }
-    stepsByLevel.get(level)!.push(step);
+    if (step.name === "Manual") continue;
+    g.setNode(step.name, { width: NODE_WIDTH, height: NODE_HEIGHT });
   }
 
-  // Trigger node at level -1
-  positions.set(TRIGGER_NODE_ID, { x: 0, y: 0 });
+  // Build LAYOUT edges: use primary parent only
+  const primaryParent = getPrimaryParentMap(steps);
+  const layoutEdges: [string, string][] = [];
 
-  // Position each level
-  const maxLevel = Math.max(...Array.from(levels.values()), -1);
-  for (let level = 0; level <= maxLevel; level++) {
-    const stepsAtLevel = stepsByLevel.get(level) ?? [];
-    const levelWidth =
-      stepsAtLevel.length * NODE_WIDTH +
-      (stepsAtLevel.length - 1) * HORIZONTAL_GAP;
-    const startX = -levelWidth / 2 + NODE_WIDTH / 2;
+  for (const [child, parent] of primaryParent) {
+    layoutEdges.push([parent, child]);
+  }
 
-    stepsAtLevel.forEach((step, index) => {
-      positions.set(step.name, {
-        x: startX + index * (NODE_WIDTH + HORIZONTAL_GAP),
-        y: (level + 1) * VERTICAL_GAP + NODE_HEIGHT,
+  const stepsWithDeps = new Set(layoutEdges.map(([, to]) => to));
+  const rootSteps = steps.filter(
+    (s) => s.name !== "Manual" && !stepsWithDeps.has(s.name),
+  );
+
+  for (const step of rootSteps) {
+    g.setEdge(TRIGGER_NODE_ID, step.name);
+  }
+
+  // Add layout edges
+  for (const [from, to] of layoutEdges) {
+    if (from === "Manual") continue;
+    g.setEdge(from, to);
+  }
+
+  dagre.layout(g);
+
+  // Extract positions
+  for (const nodeId of g.nodes()) {
+    const node = g.node(nodeId);
+    if (node) {
+      positions.set(nodeId, {
+        x: node.x - NODE_WIDTH / 2,
+        y: node.y - NODE_HEIGHT / 2,
       });
-    });
+    }
   }
 
   return positions;
@@ -108,6 +205,7 @@ function computeNodePositions(
 export function useWorkflowNodes(): WorkflowNode[] {
   const steps = useWorkflowSteps();
   const positions = computeNodePositions(steps);
+  const branchMembership = computeBranchMembership(steps);
 
   // Find manual trigger step
   const manualTriggerStep = steps.find((step) => step.name === "Manual");
@@ -130,6 +228,7 @@ export function useWorkflowNodes(): WorkflowNode[] {
   const stepNodes: WorkflowNode[] = steps
     .filter((step) => !!step && step.name !== "Manual")
     .map((step) => {
+      const branchRoot = branchMembership.get(step.name) ?? null;
       return {
         id: step.name,
         type: "step",
@@ -137,6 +236,8 @@ export function useWorkflowNodes(): WorkflowNode[] {
         data: {
           step,
           isFetching: false,
+          branchRoot,
+          isBranchRoot: step.if !== undefined,
         } as StepNodeData,
         draggable: true,
       };
@@ -145,13 +246,38 @@ export function useWorkflowNodes(): WorkflowNode[] {
   return [triggerNode, ...stepNodes];
 }
 
+// Colors for edges
+const BRANCH_COLOR = "#8b5cf6"; // violet-500
+
+/**
+ * Get only the PRIMARY parent for each step.
+ * This reduces visual clutter by showing only one edge per step.
+ */
+function getPrimaryEdges(steps: Step[]): Map<string, string> {
+  const dagEdges = buildDagEdges(steps);
+  const primaryParent = new Map<string, string>();
+
+  // For each step, pick ONE parent (the first one encountered)
+  for (const [from, to] of dagEdges) {
+    if (from === "Manual") continue;
+    // Only set if not already set (first parent wins)
+    if (!primaryParent.has(to)) {
+      primaryParent.set(to, from);
+    }
+  }
+
+  return primaryParent;
+}
+
 /**
  * Hook to get React Flow edges from workflow steps
- * React Compiler handles memoization automatically
+ * Shows only primary structural edges to reduce clutter
  */
 export function useWorkflowEdges(): WorkflowEdge[] {
   const steps = useWorkflowSteps();
   const dagEdges = buildDagEdges(steps);
+  const branchMembership = computeBranchMembership(steps);
+  const primaryParent = getPrimaryEdges(steps);
 
   // Find root steps (no dependencies) and connect them to trigger
   const stepsWithDeps = new Set(dagEdges.map(([, to]) => to));
@@ -167,20 +293,43 @@ export function useWorkflowEdges(): WorkflowEdge[] {
       id: `${TRIGGER_NODE_ID}-${step.name}`,
       source: TRIGGER_NODE_ID,
       target: step.name,
+      sourceHandle: "bottom",
+      targetHandle: "top",
       type: "default",
       animated: false,
     });
   }
 
-  // Add DAG edges
-  for (const [from, to] of dagEdges) {
-    if (from === "Manual") continue;
+  // Add only PRIMARY edges (one per step)
+  for (const [to, from] of primaryParent) {
+    const toStep = steps.find((s) => s.name === to);
+    const branchRoot = branchMembership.get(to);
+    const isInBranch = branchRoot !== null;
+    const isConditionEdge = toStep?.if !== undefined;
+
+    let edgeStyle: React.CSSProperties | undefined;
+    if (isConditionEdge) {
+      edgeStyle = {
+        stroke: BRANCH_COLOR,
+        strokeWidth: 1.5,
+        strokeDasharray: "5,5",
+      };
+    } else if (isInBranch) {
+      edgeStyle = {
+        stroke: BRANCH_COLOR,
+        strokeWidth: 1.5,
+      };
+    }
+
     edges.push({
       id: `${from}-${to}`,
       source: from,
       target: to,
+      sourceHandle: "bottom",
+      targetHandle: "top",
       type: "default",
       animated: false,
+      style: edgeStyle,
     });
   }
 

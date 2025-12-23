@@ -6,21 +6,22 @@ import {
   Workflow,
   DEFAULT_TOOL_STEP,
   DEFAULT_CODE_STEP,
-  DEFAULT_SLEEP_STEP,
   DEFAULT_WAIT_FOR_SIGNAL_STEP,
+  getBranchTerminalSteps,
 } from "@decocms/bindings/workflow";
 import { Step, ToolCallAction, CodeAction } from "@decocms/bindings/workflow";
 import { createContext, useContext, useState } from "react";
 import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
 
-type CurrentStepTab = "input" | "output" | "action";
-export type StepType = "tool" | "code" | "sleep" | "wait_for_signal";
-type CurrentTab = "steps" | "code";
+type CurrentStepTab = "input" | "output" | "action" | "executions";
+export type StepType = "tool" | "code" | "wait_for_signal";
+type CurrentTab = "steps" | "code" | "executions";
 
 interface State {
   originalWorkflow: Workflow;
-  draftStep: Step | null;
   isAddingStep: boolean;
+  /** The type of step being added (set when user clicks add button) */
+  addingStepType: StepType | null;
   workflow: Workflow;
   trackingExecutionId: string | undefined;
   currentStepTab: CurrentStepTab;
@@ -31,7 +32,6 @@ interface State {
 interface Actions {
   setToolAction: (toolAction: ToolCallAction) => void;
   appendStep: ({ step, type }: { step?: Step; type: StepType }) => void;
-  setDraftStep: (draftStep: Step | null) => void;
   setIsAddingStep: (isAddingStep: boolean) => void;
   deleteStep: (stepName: string) => void;
   setCurrentStepName: (stepName: string | undefined) => void;
@@ -44,9 +44,8 @@ interface Actions {
   startAddingStep: (type: StepType) => void;
   /** Cancel the add step flow */
   cancelAddingStep: () => void;
-  /** Complete add step by selecting parent step */
-  completeAddingStep: () => void;
-  addDependencyToDraftStep: (stepName: string) => void;
+  /** Add new step after the specified parent step */
+  addStepAfter: (parentStepName: string) => void;
   setOriginalWorkflow: (workflow: Workflow) => void;
   setWorkflow: (workflow: Workflow) => void;
 }
@@ -102,8 +101,6 @@ function createDefaultStep(type: StepType, index: number): Step {
       return { ...DEFAULT_TOOL_STEP, name: `Step_${index + 1}` };
     case "code":
       return { ...DEFAULT_CODE_STEP, name: `Step_${index + 1}` };
-    case "sleep":
-      return { ...DEFAULT_SLEEP_STEP, name: `Step_${index + 1}` };
     case "wait_for_signal":
       return { ...DEFAULT_WAIT_FOR_SIGNAL_STEP, name: `Step_${index + 1}` };
     default:
@@ -123,11 +120,7 @@ export const createWorkflowStore = (initialState: State) => {
               ...state,
               isAddingStep: isAddingStep,
             })),
-          setDraftStep: (draftStep) =>
-            set((state) => ({
-              ...state,
-              draftStep: draftStep,
-            })),
+
           setCurrentStepTab: (currentStepTab) =>
             set((state) => ({
               ...state,
@@ -209,73 +202,71 @@ export const createWorkflowStore = (initialState: State) => {
             set((state) => ({
               ...state,
               isAddingStep: true,
-              draftStep: createDefaultStep(
-                type,
-                Number((Math.random() * 1000000).toFixed(0)),
-              ),
+              addingStepType: type,
             })),
           cancelAddingStep: () =>
             set((state) => ({
               ...state,
-              draftStep: null,
               isAddingStep: false,
+              addingStepType: null,
             })),
-          addDependencyToDraftStep: (stepName: string) =>
+          addStepAfter: (parentStepName: string) =>
             set((state) => {
-              const draftStep = state.draftStep;
-              const referencedStep = state.workflow.steps.find(
-                (s) => s.name === stepName,
+              const addingStepType = state.addingStepType;
+              if (!addingStepType) return state;
+
+              const parentStep = state.workflow.steps.find(
+                (s) => s.name === parentStepName,
               );
-              if (!draftStep || !referencedStep) return state;
 
-              // Check if draft step is a code step and referenced step has outputSchema
-              const isCodeStep = draftStep.action && "code" in draftStep.action;
-              const hasOutputSchema = referencedStep.outputSchema;
+              // Create the new step
+              let newStep = createDefaultStep(
+                addingStepType,
+                Number((Math.random() * 1000000).toFixed(0)),
+              );
 
-              let updatedDraftStep = {
-                ...draftStep,
+              // Set input to reference parent step
+              newStep = {
+                ...newStep,
                 input: {
-                  ...draftStep.input,
-                  _dependsOn: `@${stepName}`,
+                  example: `@${parentStepName}`,
                 },
               };
 
               // If creating a code step after a step with outputSchema, inject the Input interface
+              const isCodeStep = newStep.action && "code" in newStep.action;
+              const hasOutputSchema = parentStep?.outputSchema;
+
               if (isCodeStep && hasOutputSchema) {
                 const inputInterface = jsonSchemaToTypeScript(
                   hasOutputSchema as Record<string, unknown>,
                   "Input",
                 );
-                const codeAction = draftStep.action as CodeAction;
+                const codeAction = newStep.action as CodeAction;
                 const updatedCode = replaceInputInterface(
                   codeAction.code,
                   inputInterface,
                 );
-                updatedDraftStep = {
-                  ...updatedDraftStep,
+                newStep = {
+                  ...newStep,
                   action: { ...codeAction, code: updatedCode },
                 };
               }
 
-              return { ...state, draftStep: updatedDraftStep };
-            }),
-          completeAddingStep: () =>
-            set((state) => {
-              const draftStep = state.draftStep;
-              if (!draftStep) return state;
               const newName = generateUniqueName(
-                draftStep.name,
+                newStep.name,
                 state.workflow.steps,
               );
+
               return {
                 ...state,
-                draftStep: null,
                 isAddingStep: false,
+                addingStepType: null,
                 workflow: {
                   ...state.workflow,
                   steps: [
                     ...state.workflow.steps,
-                    { ...draftStep, name: newName },
+                    { ...newStep, name: newName },
                   ],
                 },
                 currentStepName: newName,
@@ -307,10 +298,10 @@ export const createWorkflowStore = (initialState: State) => {
           workflow: state.workflow,
           trackingExecutionId: state.trackingExecutionId,
           currentStepName: state.currentStepName,
-          draftStep: state.draftStep,
           currentStepTab: state.currentStepTab,
           originalWorkflow: state.originalWorkflow,
           isAddingStep: state.isAddingStep,
+          addingStepType: state.addingStepType,
           currentTab: state.currentTab,
         }),
       },
@@ -332,10 +323,10 @@ export function WorkflowStoreProvider({
       originalWorkflow: workflow,
       workflow,
       isAddingStep: false,
+      addingStepType: null,
       currentStepName: undefined,
       trackingExecutionId,
       currentStepTab: "input",
-      draftStep: null,
       currentTab: "steps",
     }),
   );
@@ -378,8 +369,6 @@ export function useCurrentStepName() {
 export function useCurrentStep() {
   const currentStepName = useCurrentStepName();
   const workflow = useWorkflowStore((state) => state.workflow);
-  const draftStep = useDraftStep();
-  if (draftStep) return draftStep;
   const exact = workflow.steps.find((step) => step.name === currentStepName);
   if (exact) return exact;
   // Check for iteration match "stepName[index]"
@@ -406,13 +395,7 @@ export function useCurrentStepTab() {
 }
 
 export function useWorkflowSteps() {
-  return useWorkflowStore((state) => {
-    const { workflow, draftStep } = state;
-    if (draftStep) {
-      return [...workflow.steps, draftStep];
-    }
-    return workflow.steps;
-  });
+  return useWorkflow().steps;
 }
 
 export function useIsDirty() {
@@ -429,10 +412,24 @@ export function useIsAddingStep() {
   return useWorkflowStore((state) => state.isAddingStep);
 }
 
-export function useDraftStep() {
-  return useWorkflowStore((state) => state.draftStep);
+export function useAddingStepType() {
+  return useWorkflowStore((state) => state.addingStepType);
 }
 
-export function useIsDraftStep(stepName: string) {
-  return useWorkflowStore((state) => state.draftStep?.name === stepName);
+/**
+ * Hook to get the terminal (last) steps of each branch in the workflow.
+ * These are the steps that can have new steps added after them.
+ */
+export function useBranchTerminalSteps(): Set<string> {
+  const workflow = useWorkflow();
+  const terminalSteps = getBranchTerminalSteps(workflow.steps);
+  return new Set(terminalSteps);
+}
+
+/**
+ * Hook to check if a specific step is a terminal step (can have steps added after it)
+ */
+export function useIsTerminalStep(stepName: string): boolean {
+  const terminalSteps = useBranchTerminalSteps();
+  return terminalSteps.has(stepName);
 }

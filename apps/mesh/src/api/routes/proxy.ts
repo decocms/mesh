@@ -279,8 +279,6 @@ async function createMCPProxyDoNotUseDirectly(
     return headers;
   };
 
-  console.log({ headers: buildRequestHeaders() });
-
   // Create client factory for downstream MCP
   const createClient = async () => {
     const headers = await buildRequestHeaders();

@@ -247,6 +247,57 @@ export function ToolDetail({
   initialInputParams,
   mentions,
 }: ToolDetailProps) {
+  if (!connection) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!tool) {
+    return <div>Tool not found</div>;
+  }
+  return (
+    <ViewLayout onBack={onBack}>
+      <ViewActions>
+        <PinToSidebarButton
+          connectionId={connection?.id ?? undefined}
+          title={tool?.title ?? beautifyToolName(tool.name)}
+          icon="build"
+        />
+      </ViewActions>
+
+      <ToolComponent
+        tool={tool}
+        initialInputParams={initialInputParams}
+        connection={connection}
+        onInputChange={onInputChange}
+        mentions={mentions}
+        mcp={mcp}
+        onBack={onBack}
+      />
+    </ViewLayout>
+  );
+}
+
+export function ToolComponent({
+  tool,
+  initialInputParams,
+  connection,
+  onInputChange,
+  mentions,
+  mcp,
+  onBack,
+}: {
+  tool: NonNullable<ReturnType<typeof useTool>["tool"]>;
+  initialInputParams?: Record<string, unknown>;
+  connection: ReturnType<typeof useTool>["connection"];
+  onInputChange?: (input: Record<string, unknown>) => void;
+  mentions?: MentionItem[];
+  mcp: ReturnType<typeof useTool>["mcp"];
+  onBack?: () => void;
+}) {
   const {
     inputParams,
     setInputParams,
@@ -259,7 +310,6 @@ export function ToolDetail({
     stats,
     setStats,
   } = useToolState(tool.inputSchema as JsonSchema, initialInputParams);
-
   const handleExecute = async () => {
     setIsExecuting(true);
     setExecutionError(null);
@@ -338,105 +388,93 @@ export function ToolDetail({
       </div>
     );
   }
-
-  if (!tool) {
-    return <div>Tool not found</div>;
-  }
   return (
-    <ViewLayout onBack={onBack}>
-      <ViewActions>
-        <PinToSidebarButton
-          connectionId={connection?.id ?? undefined}
-          title={tool?.title ?? beautifyToolName(tool.name)}
-          icon="build"
-        />
-      </ViewActions>
+    <div className="flex flex-col items-center w-full h-full mx-auto pt-8 px-2">
+      {/* Tool Title & Description */}
+      <div className="flex flex-col items-center gap-2 text-center">
+        <h1 className="text-2xl font-medium text-foreground">{tool.name}</h1>
+        <p className="text-muted-foreground text-base">
+          {tool?.description || "No description available"}
+        </p>
+      </div>
 
-      <div className="flex flex-col items-center w-full max-w-[1500px] mx-auto p-10 gap-4">
-        {/* Tool Title & Description */}
-        <div className="flex flex-col items-center gap-2 text-center">
-          <h1 className="text-2xl font-medium text-foreground">{tool.name}</h1>
-          <p className="text-muted-foreground text-base">
-            {tool?.description || "No description available"}
-          </p>
+      {/* Stats Row */}
+      <div className="flex items-center gap-4 py-2 shrink-0">
+        {/* MCP Status */}
+        <div className="flex items-center gap-2">
+          {mcp.state === "ready" ? (
+            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          ) : mcp.state === "connecting" || mcp.state === "authenticating" ? (
+            <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
+          ) : (
+            <div className="h-2 w-2 rounded-full bg-red-500" />
+          )}
+          <span className="font-mono text-sm capitalize text-muted-foreground">
+            {mcp.state.replace("_", " ")}
+          </span>
         </div>
+        <div className="w-px h-4 bg-border" />
 
-        {/* Stats Row */}
-        <div className="flex items-center gap-4 py-2 shrink-0">
-          {/* MCP Status */}
-          <div className="flex items-center gap-2">
-            {mcp.state === "ready" ? (
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-            ) : mcp.state === "connecting" || mcp.state === "authenticating" ? (
-              <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
-            ) : (
-              <div className="h-2 w-2 rounded-full bg-red-500" />
-            )}
-            <span className="font-mono text-sm capitalize text-muted-foreground">
-              {mcp.state.replace("_", " ")}
-            </span>
-          </div>
-          <div className="w-px h-4 bg-border" />
-
-          {/* Execution Stats */}
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono text-sm">{stats?.duration || "-"}</span>
-          </div>
-          <div className="w-px h-4 bg-border" />
-          <div className="flex items-center gap-2">
-            <Box className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono text-sm">{stats?.tokens || "-"}</span>
-          </div>
-          <div className="w-px h-4 bg-border" />
-          <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono text-sm">{stats?.bytes || "-"}</span>
-          </div>
+        {/* Execution Stats */}
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-muted-foreground" />
+          <span className="font-mono text-sm">{stats?.duration || "-"}</span>
         </div>
+        <div className="w-px h-4 bg-border" />
+        <div className="flex items-center gap-2">
+          <Box className="h-4 w-4 text-muted-foreground" />
+          <span className="font-mono text-sm">{stats?.tokens || "-"}</span>
+        </div>
+        <div className="w-px h-4 bg-border" />
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-muted-foreground" />
+          <span className="font-mono text-sm">{stats?.bytes || "-"}</span>
+        </div>
+      </div>
 
-        {/* Error Alert */}
-        {executionError && (
-          <Alert
-            variant="destructive"
-            className="max-w-[800px] w-full bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900"
-          >
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Execution Failed</AlertTitle>
-            <AlertDescription>{executionError}</AlertDescription>
-          </Alert>
-        )}
+      {/* Error Alert */}
+      {executionError && (
+        <Alert
+          variant="destructive"
+          className="max-w-[800px] w-full bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900"
+        >
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Execution Failed</AlertTitle>
+          <AlertDescription>{executionError}</AlertDescription>
+        </Alert>
+      )}
 
-        {/* Main Content Area */}
-        <div className="flex flex-col gap-4 w-full max-w-[800px] items-center h-full flex-1 min-h-0">
-          {/* Input Section */}
-          <div className="w-full bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col h-full min-h-0">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded-sm bg-primary/10 flex items-center justify-center">
-                  <Play className="h-3 w-3 text-primary" />
-                </div>
-                <span className="font-medium text-sm">Input</span>
+      {/* Main Content Area */}
+      <div className="flex flex-col gap-4 w-full items-center h-[calc(100%-40px)] ">
+        {/* Input Section */}
+        <div className="w-full h-[calc(100%-80px)] bg-card border border-border rounded-xl shadow-sm flex flex-col">
+          <div className="h-10 flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-4 rounded-sm bg-primary/10 flex items-center justify-center">
+                <Play className="h-3 w-3 text-primary" />
               </div>
-              <Button
-                size="sm"
-                variant="default"
-                className="h-8 gap-2"
-                onClick={handleExecute}
-                disabled={isExecuting}
-              >
-                {isExecuting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Play className="h-3.5 w-3.5 fill-current" />
-                )}
-                Execute tool
-              </Button>
+              <span className="font-medium text-sm">Input</span>
             </div>
+            <Button
+              size="sm"
+              variant="default"
+              className="h-8 gap-2"
+              onClick={handleExecute}
+              disabled={isExecuting}
+            >
+              {isExecuting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Play className="h-3.5 w-3.5 fill-current" />
+              )}
+              Execute tool
+            </Button>
+          </div>
 
-            <div className="p-4 space-y-4 shrink-0 overflow-auto max-h-[40%]">
-              {(mcp.state === "pending_auth" ||
-                (!connection.connection_token && mcp.state === "failed")) && (
+          <div className="p-4 pb-0 space-y-4 h-full overflow-auto">
+            {(mcp.state === "pending_auth" ||
+              (!connection.connection_token && mcp.state === "failed")) &&
+              onBack && (
                 <Alert variant="destructive" className="mb-4">
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Authorization Required</AlertTitle>
@@ -454,24 +492,21 @@ export function ToolDetail({
                 </Alert>
               )}
 
-              <ToolInput
-                inputSchema={tool.inputSchema as JsonSchema}
-                inputParams={inputParams}
-                setInputParams={setInputParams}
-                handleInputChange={handleInputChange}
-                mentions={mentions ?? []}
-              />
-            </div>
-            <div className="flex-1 min-h-0">
-              <ExecutionResult
-                executionResult={executionResult}
-                placeholder="Run the tool to see results"
-              />
-            </div>
+            <ToolInput
+              inputSchema={tool.inputSchema as JsonSchema}
+              inputParams={inputParams}
+              setInputParams={setInputParams}
+              handleInputChange={handleInputChange}
+              mentions={mentions ?? []}
+            />
           </div>
+          <ExecutionResult
+            executionResult={executionResult}
+            placeholder="Run the tool to see results"
+          />
         </div>
       </div>
-    </ViewLayout>
+    </div>
   );
 }
 

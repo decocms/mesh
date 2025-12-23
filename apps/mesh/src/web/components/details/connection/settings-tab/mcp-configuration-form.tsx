@@ -127,9 +127,11 @@ function BindingFieldWithDynamicSchema({
 
   const resolvedBinding = (() => {
     if (needsDynamicResolution) {
+      console.log("here");
       return registrySchema;
     }
     if (Array.isArray(bindingSchema)) {
+      console.log("here 2");
       return bindingSchema as Array<{
         name: string;
         inputSchema?: Record<string, unknown>;
@@ -137,8 +139,10 @@ function BindingFieldWithDynamicSchema({
       }>;
     }
     if (typeof bindingSchema === "string") {
+      console.log("here 3");
       return bindingSchema;
     }
+    console.log("here 4");
     return undefined;
   })();
 
@@ -202,6 +206,8 @@ function BindingSelector({
     let result = filteredConnections;
 
     const hasBindingSchema = Array.isArray(binding) && binding.length > 0;
+
+    console.log({ result, hasBindingSchema, parsedBindingType });
 
     if (parsedBindingType && !hasBindingSchema) {
       result = result.filter((conn) => {

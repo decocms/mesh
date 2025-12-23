@@ -12,27 +12,14 @@ import type {
   Step,
   StepAction,
   WaitForSignalAction,
-  WorkflowExecutionStepResult,
 } from "@decocms/bindings/workflow";
-import {
-  Card,
-  CardAction,
-  CardHeader,
-  CardTitle,
-} from "@deco/ui/components/card.tsx";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Card, CardHeader, CardTitle } from "@deco/ui/components/card.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import {
   useWorkflowActions,
   useIsAddingStep,
   useTrackingExecutionId,
-  useIsDraftStep,
+  useIsTerminalStep,
   useCurrentStepName,
 } from "@/web/components/details/workflow/stores/workflow";
 import type { StepNodeData } from "../use-workflow-flow";
@@ -109,33 +96,6 @@ function Duration({
 }
 
 // ============================================
-// Step Menu
-// ============================================
-
-function StepMenu({ step }: { step: Step }) {
-  const { deleteStep } = useWorkflowActions();
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="h-7 w-7 p-0 text-muted-foreground flex items-center justify-end rounded-lg cursor-pointer ring-0 outline-none">
-        <Icon name="more_horiz" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        <DropdownMenuItem
-          onClick={(e) => {
-            e.stopPropagation();
-            deleteStep(step.name);
-          }}
-        >
-          <Icon name="delete" className="w-4 h-4 text-muted-foreground" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-// ============================================
 // Step Icon
 // ============================================
 
@@ -201,6 +161,15 @@ function useSendSignalMutation() {
   return { sendSignal: handleSendSignal, isPending };
 }
 
+type WorkflowExecutionStepResult = {
+  output?: unknown;
+  error?: unknown;
+  startedAt: number;
+  stepId: string;
+  executionId: string;
+  completedAt?: number;
+};
+
 function getStepStyle(
   step: Step,
   stepResult?: WorkflowExecutionStepResult | null,
@@ -210,30 +179,31 @@ function getStepStyle(
   if (stepResult.error) return "error";
   if (!stepResult.output) return "pending";
   if (stepResult.output) return "success";
-  if (isSignal && !stepResult.completed_at_epoch_ms)
-    return "waiting_for_signal";
+  if (isSignal && !stepResult.completedAt) return "waiting_for_signal";
   return "default";
 }
 
 export const StepNode = memo(function StepNode({ data }: NodeProps) {
-  const { step } = data as StepNodeData;
+  const { step, isBranchRoot } = data as StepNodeData;
   const trackingExecutionId = useTrackingExecutionId();
   const isAddingStep = useIsAddingStep();
-  const { addDependencyToDraftStep, cancelAddingStep, setCurrentStepName } =
-    useWorkflowActions();
+  const isTerminalStep = useIsTerminalStep(step.name);
+  const { addStepAfter, setCurrentStepName } = useWorkflowActions();
   const { sendSignal, isPending: isSendingSignal } = useSendSignalMutation();
   const currentStepName = useCurrentStepName();
-  const isDraftStep = useIsDraftStep(step.name);
   const { item: pollingExecution } =
     usePollingWorkflowExecution(trackingExecutionId);
+
+  // When adding a step, only terminal steps can be clicked to add after
+  const canAddAfter = isAddingStep && isTerminalStep;
 
   const isForEachStep = step.config?.loop?.for !== undefined;
 
   const stepResult = pollingExecution?.step_results.find((s) => {
     if (isForEachStep) {
-      return s.step_id.startsWith(step.name + "[");
+      return s.stepId.startsWith(step.name + "[");
     }
-    return s.step_id === step.name;
+    return s.stepId === step.name;
   });
   const isConsumed = !!stepResult?.output;
   const style = getStepStyle(step, stepResult);
@@ -255,13 +225,15 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
       setCurrentStepName(undefined);
       return;
     }
-    if (isAddingStep) {
-      if (isDraftStep) {
-        cancelAddingStep();
-        return;
-      }
+    // When adding a step, clicking on a terminal step adds the new step after it
+    if (canAddAfter) {
       e.stopPropagation();
-      addDependencyToDraftStep(step.name);
+      addStepAfter(step.name);
+      return;
+    }
+    // When adding but not a terminal step, do nothing (can't add after non-terminal)
+    if (isAddingStep && !isTerminalStep) {
+      return;
     }
     setCurrentStepName(step.name);
   };
@@ -284,7 +256,7 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
   const badgeContent = () => {
     if (!trackingExecutionId) return <Repeat className="w-4 h-4" />;
     if (isForEachStep) {
-      return `${Number(stepResult?.step_id.split("[").pop()?.split("]")[0]) + 1} / ${Object.keys(stepResult ?? {}).length}`;
+      return `${Number(stepResult?.stepId.split("[").pop()?.split("]")[0]) + 1} / ${Object.keys(stepResult ?? {}).length}`;
     }
     return null;
   };
@@ -293,6 +265,7 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
     <div className="group relative">
       {/* Target handle - hidden, just for receiving edges */}
       <Handle
+        id="top"
         type="target"
         position={Position.Top}
         className="bg-transparent w-1 h-1 border-0 opacity-0"
@@ -301,29 +274,30 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
       <Card
         onClick={selectStep}
         className={cn(
-          "sm:w-40 lg:w-52 xl:w-64 p-0 px-3 h-12 flex items-center justify-center relative cursor-pointer",
-          isDraftStep && "border-brand-purple-light bg-brand-purple-light/5",
+          "sm:w-20 lg:w-28 xl:w-32 p-0 px-3 h-12 flex items-center justify-center relative",
           "transition-all duration-200",
           style === "pending" && "animate-pulse border-warning",
           style === "error" && "border-destructive",
           style === "success" && "border-success",
           style === "waiting_for_signal" && "border-primary animate-pulse",
-          // Highlight when in add-step mode
-          isAddingStep && [
+          // Conditional step styling
+          isBranchRoot && "border-l-2 border-l-violet-500",
+          // Highlight terminal steps when in add-step mode
+          canAddAfter && [
             "cursor-pointer",
-            !isDraftStep &&
-              "ring-2 ring-primary/30 ring-offset-1 ring-offset-background",
-            isDraftStep &&
-              "ring-brand-purple-light/30 ring-offset-brand-purple-light/5 hover:bg-destructive/5! hover:border-destructive! hover:scale-[1]!",
-            !isDraftStep && "hover:ring-primary hover:ring-offset-2",
-            !isDraftStep && "hover:shadow-lg hover:shadow-primary/20",
+            "ring-2 ring-primary ring-offset-2 ring-offset-background",
+            "hover:shadow-lg hover:shadow-primary/20",
             "hover:scale-[1.02]",
           ],
-
-          currentStepName === step.name &&
-            "bg-primary/10 border-primary hover:bg-primary/20",
-          currentStepName !== step.name &&
-            "hover:bg-background hover:border-primary",
+          // Dim non-terminal steps when in add-step mode
+          isAddingStep && !canAddAfter && ["opacity-50 cursor-not-allowed"],
+          // Normal selection state
+          !isAddingStep &&
+            currentStepName === step.name &&
+            "bg-primary/10 border-primary hover:bg-primary/20 cursor-pointer",
+          !isAddingStep &&
+            currentStepName !== step.name &&
+            "hover:bg-background hover:border-primary cursor-pointer",
         )}
       >
         {isForEachStep && Object.keys(stepResult?.output ?? {}).length > 0 && (
@@ -331,7 +305,7 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
             <>{badgeContent()}</>
           </Badge>
         )}
-        <CardHeader className="flex items-center justify-between gap-2 p-0 w-full">
+        <CardHeader className="flex items-center justify-between gap-2 p-0 w-full relative">
           <div className="flex flex-1 items-center gap-2 min-w-0">
             <div
               className={cn(
@@ -349,29 +323,29 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
             </CardTitle>
 
             <Duration
-              startTime={stepResult?.created_at}
+              startTime={
+                stepResult?.startedAt
+                  ? new Date(stepResult.startedAt).toISOString()
+                  : undefined
+              }
               endTime={
-                stepResult?.completed_at_epoch_ms
-                  ? new Date(stepResult.completed_at_epoch_ms).toISOString()
+                stepResult?.completedAt
+                  ? new Date(stepResult.completedAt).toISOString()
                   : undefined
               }
               isRunning={
                 trackingExecutionId
-                  ? stepResult?.completed_at_epoch_ms === null &&
-                    !stepResult?.error
+                  ? stepResult?.completedAt === null && !stepResult?.error
                   : false
               }
             />
           </div>
-
-          <CardAction className="group-hover:opacity-100 opacity-0 transition-opacity shrink-0">
-            <StepMenu step={step} />
-          </CardAction>
         </CardHeader>
       </Card>
 
       {/* Source handle - hidden */}
       <Handle
+        id="bottom"
         type="source"
         position={Position.Bottom}
         className="bg-transparent w-1 h-1 border-0 opacity-0"

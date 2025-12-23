@@ -1,7 +1,6 @@
 import {
   useCurrentStepTab,
   useCurrentStep,
-  useDraftStep,
   useIsAddingStep,
   useTrackingExecutionId,
   useWorkflowActions,
@@ -18,7 +17,6 @@ import { cn } from "@deco/ui/lib/utils.js";
 import { useEffect, useState } from "react";
 import {
   CodeAction,
-  SleepAction,
   Step,
   ToolCallAction,
   WaitForSignalAction,
@@ -33,8 +31,137 @@ import {
 } from "@/web/hooks/collections/use-connection";
 import { usePollingWorkflowExecution } from "../hooks/use-workflow-collection-item";
 import { MentionItem } from "@/web/components/tiptap-mentions-input";
-import { ExecutionResult, ToolDetail } from "./tool";
+import { ExecutionResult, ToolComponent } from "./tool";
 import { useMcp } from "use-mcp/react";
+
+import { useWorkflow } from "@/web/components/details/workflow/stores/workflow";
+import { CheckCircle, Clock, XCircle } from "lucide-react";
+
+import { useWorkflowExecutionCollectionList } from "../hooks/use-workflow-collection-item";
+import { ScrollArea } from "@deco/ui/components/scroll-area.js";
+import { useMembers } from "@/web/hooks/use-members";
+import { Avatar } from "@deco/ui/components/avatar.js";
+
+function StepTabsList() {
+  const activeTab = useCurrentStepTab();
+  const { setCurrentStepTab } = useWorkflowActions();
+  const selectedExecutionId = useTrackingExecutionId();
+  return (
+    <TabsList className="w-full rounded-none bg-transparent p-0">
+      <TabsTrigger
+        className={cn(
+          "border-0 border-b border-border p-0 h-full rounded-none w-full",
+          activeTab === "input" && "border-foreground",
+        )}
+        value="input"
+        onClick={() => setCurrentStepTab("input")}
+      >
+        Input
+      </TabsTrigger>
+      {selectedExecutionId && (
+        <TabsTrigger
+          className={cn(
+            "border-0 border-b border-border p-0 h-full rounded-none w-full",
+            activeTab === "output" && "border-foreground",
+          )}
+          value="output"
+          onClick={() => setCurrentStepTab("output")}
+        >
+          Output
+        </TabsTrigger>
+      )}
+      <TabsTrigger
+        className={cn(
+          "border-0 border-b border-border p-0 h-full rounded-none w-full",
+          activeTab === "action" && "border-foreground",
+        )}
+        value="action"
+        onClick={() => setCurrentStepTab("action")}
+      >
+        Action
+      </TabsTrigger>
+    </TabsList>
+  );
+}
+
+function useToolInfo(step: Step | undefined) {
+  if (step && "toolName" in step.action && "connectionId" in step.action) {
+    return {
+      toolName: step.action.toolName,
+      connectionId: step.action.connectionId,
+    };
+  }
+  return null;
+}
+
+export function ExecutionsTab() {
+  const workflow = useWorkflow();
+  const { list: executions } = useWorkflowExecutionCollectionList({
+    workflowId: workflow.id,
+  });
+  const trackingExecutionId = useTrackingExecutionId();
+  const { setTrackingExecutionId } = useWorkflowActions();
+  const { data } = useMembers();
+  return (
+    <div className="h-full w-full">
+      <ScrollArea className="flex flex-col">
+        {executions.map((execution) => {
+          const isTrackingExecution = trackingExecutionId === execution.id;
+          return (
+            <div
+              key={execution.id}
+              className={cn(
+                "border-b border-border pb-2 pt-2 hover:bg-muted cursor-pointer transition-colors duration-200 w-full",
+                isTrackingExecution && "bg-muted",
+              )}
+              onClick={() => setTrackingExecutionId(execution.id)}
+            >
+              <div className="px-2 w-full flex items-center justify-between text-left gap-3">
+                <div>
+                  {execution.status === "success" && (
+                    <CheckCircle className="w-4 h-4 text-success" />
+                  )}
+                  {execution.status === "running" && (
+                    <Loader2 className="w-4 h-4 animate-spin text-warning" />
+                  )}
+                  {execution.status === "error" && (
+                    <XCircle className="w-4 h-4 text-destructive" />
+                  )}
+                  {execution.status === "enqueued" && (
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 flex items-center gap-3">
+                  <p className="text-sm font-medium">
+                    {new Date(execution.created_at).toLocaleString()}
+                  </p>
+                  <p className="text-xs font-medium text-left text-muted-foreground">
+                    {execution.id}
+                  </p>
+                </div>
+
+                {/* {execution.start_at_epoch_ms && <p className="text-sm font-medium">
+              {new Date(execution.start_at_epoch_ms).toLocaleString()}
+            </p>} */}
+                <p className="text-sm font-medium">
+                  {
+                    data?.data?.members.find(
+                      (m) => m.userId === execution.created_by,
+                    )?.user?.name
+                  }
+                </p>
+
+                {/* <p className="text-sm font-medium">
+              {execution.completed_at_epoch_ms && new Date(execution.completed_at_epoch_ms).toLocaleString()}
+            </p> */}
+              </div>
+            </div>
+          );
+        })}
+      </ScrollArea>
+    </div>
+  );
+}
 
 export function WorkflowTabs() {
   const currentTab = useCurrentTab();
@@ -74,12 +201,12 @@ function useStepResult(executionId: string, stepId: string) {
   const isForEachStep = step?.config?.loop?.for !== undefined;
   if (isForEachStep) {
     const results = pollingExecution?.step_results
-      .filter((s) => s.step_id.startsWith(stepId + "["))
-      .map((s) => [s.step_id, s.output]);
+      .filter((s) => s.stepId.startsWith(stepId + "["))
+      .map((s) => [s.stepId, s.output]);
     if (!results) return null;
     return Object.fromEntries(results);
   }
-  return pollingExecution?.step_results.find((s) => s.step_id === stepId);
+  return pollingExecution?.step_results.find((s) => s.stepId === stepId);
 }
 
 function OutputTabContent({
@@ -116,49 +243,35 @@ export function StepTabs() {
     setCurrentStepTab(tab);
   };
   const selectedExecutionId = useTrackingExecutionId();
-
+  const connection = useConnection(
+    (currentStep?.action as ToolCallAction)?.connectionId ?? "",
+  );
+  const toolInfo = useToolInfo(currentStep);
   return (
     <Tabs
       value={activeTab}
       onValueChange={(value) =>
         handleTabChange(value as "input" | "output" | "action")
       }
-      className="w-1/3 h-full bg-sidebar border-l border-border gap-0"
+      className="h-full w-full"
     >
-      <TabsList className="w-full rounded-none bg-transparent p-0 h-10">
-        <TabsTrigger
-          className={cn(
-            "border-0 border-b border-border p-0 h-full rounded-none w-full",
-            activeTab === "input" && "border-foreground",
-          )}
-          value="input"
-          onClick={() => setCurrentStepTab("input")}
-        >
-          Input
-        </TabsTrigger>
-        {selectedExecutionId && (
-          <TabsTrigger
-            className={cn(
-              "border-0 border-b border-border p-0 h-full rounded-none w-full",
-              activeTab === "output" && "border-foreground",
-            )}
-            value="output"
-            onClick={() => setCurrentStepTab("output")}
-          >
-            Output
-          </TabsTrigger>
-        )}
-        <TabsTrigger
-          className={cn(
-            "border-0 border-b border-border p-0 h-full rounded-none w-full",
-            activeTab === "action" && "border-foreground",
-          )}
-          value="action"
-          onClick={() => setCurrentStepTab("action")}
-        >
-          Action
-        </TabsTrigger>
-      </TabsList>
+      <div className="p-4 flex flex-col gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Avatar
+            url={connection?.icon ?? ""}
+            fallback={currentStep?.name?.charAt(0) ?? ""}
+          />
+          <p className="text-sm font-medium">
+            {currentStep?.name ?? connection?.title ?? toolInfo?.toolName ?? ""}
+          </p>
+        </div>
+        <p className="text-muted-foreground text-xs">
+          {currentStep?.description ?? connection?.description ?? ""}
+        </p>
+      </div>
+      <div className="h-10">
+        <StepTabsList />
+      </div>
       <TabsContent className="flex-1 h-[calc(100%-40px)]" value={activeTab}>
         {currentStep && activeTab === "output" && selectedExecutionId && (
           <div className="h-full">
@@ -194,7 +307,7 @@ function ActionTab({
   step,
 }: {
   step: Step & {
-    action: ToolCallAction | CodeAction | SleepAction | WaitForSignalAction;
+    action: ToolCallAction | CodeAction | WaitForSignalAction;
   };
 }) {
   const { updateStep } = useWorkflowActions();
@@ -223,20 +336,6 @@ function ActionTab({
           }}
         />
       </div>
-    );
-  } else if ("sleepMs" in step.action || "sleepUntil" in step.action) {
-    return (
-      <MonacoCodeEditor
-        key={`sleep-${step.name}`}
-        height="100%"
-        code={JSON.stringify(step.action, null, 2)}
-        language="json"
-        onSave={(action) => {
-          updateStep(step.name, {
-            action: JSON.parse(action) as SleepAction,
-          });
-        }}
-      />
     );
   }
   return null;
@@ -275,11 +374,10 @@ function ToolAction({ step }: { step: Step & { action: ToolCallAction } }) {
     string | null
   >(connectionId ?? null);
   const [isUsingTool, setIsUsingTool] = useState(!!toolName);
-  const { updateStep, setDraftStep } = useWorkflowActions();
+  const { updateStep, addStepAfter } = useWorkflowActions();
   const currentStep = useCurrentStep();
   const isAddingStep = useIsAddingStep();
   const connections = useConnections();
-  const draftStep = useDraftStep();
 
   const handleToolSelect = (newToolName: string | null) => {
     if (!selectedConnectionId || !newToolName) return;
@@ -297,13 +395,9 @@ function ToolAction({ step }: { step: Step & { action: ToolCallAction } }) {
       connectionId: selectedConnectionId,
     };
 
-    if (isAddingStep && draftStep) {
+    if (isAddingStep) {
       // Update draft step
-      setDraftStep({
-        ...draftStep,
-        action: newAction,
-        outputSchema,
-      });
+      addStepAfter(step.name);
     } else if (currentStep?.name) {
       // Update existing step
       updateStep(currentStep.name, {
@@ -314,51 +408,47 @@ function ToolAction({ step }: { step: Step & { action: ToolCallAction } }) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col min-h-0">
-      <div className="">
-        {(!selectedConnectionId || !isUsingTool) && (
-          <ConnectionSelector
-            selectedConnectionId={selectedConnectionId}
-            onConnectionSelect={(connectionId) => {
-              setSelectedConnectionId(connectionId);
-            }}
-          />
-        )}
-        {!isUsingTool && selectedConnectionId && (
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-border">
-            <div onClick={() => setSelectedConnectionId(null)}>
-              <ItemCard
-                item={{
-                  icon: null,
-                  title:
-                    connections.find((c) => c.id === selectedConnectionId)
-                      ?.title ?? selectedConnectionId,
-                }}
-                selected={true}
-                backButton={true}
-              />
-            </div>
-            <ToolSelector
-              selectedConnectionId={selectedConnectionId}
-              selectedToolName={toolName}
-              onToolNameChange={handleToolSelect}
+    <div className="w-full h-full flex flex-col">
+      {(!selectedConnectionId || !isUsingTool) && (
+        <ConnectionSelector
+          selectedConnectionId={selectedConnectionId}
+          onConnectionSelect={(connectionId) => {
+            setSelectedConnectionId(connectionId);
+          }}
+        />
+      )}
+      {!isUsingTool && selectedConnectionId && (
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-border">
+          <div onClick={() => setSelectedConnectionId(null)}>
+            <ItemCard
+              item={{
+                icon: null,
+                title:
+                  connections.find((c) => c.id === selectedConnectionId)
+                    ?.title ?? selectedConnectionId,
+              }}
+              selected={true}
+              backButton={true}
             />
           </div>
-        )}
-      </div>
-      {toolName && isUsingTool && (
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-border">
-          <SelectedTool
+          <ToolSelector
+            selectedConnectionId={selectedConnectionId}
             selectedToolName={toolName}
-            selectedConnectionId={
-              selectedConnectionId ?? step.action.connectionId
-            }
-            input={step.input ?? {}}
-            onBack={() => {
-              setIsUsingTool(false);
-            }}
+            onToolNameChange={handleToolSelect}
           />
         </div>
+      )}
+      {toolName && isUsingTool && (
+        <SelectedTool
+          selectedToolName={toolName}
+          selectedConnectionId={
+            selectedConnectionId ?? step.action.connectionId
+          }
+          input={step.input ?? {}}
+          onBack={() => {
+            setIsUsingTool(false);
+          }}
+        />
       )}
     </div>
   );
@@ -407,7 +497,6 @@ function SelectedTool({
   selectedToolName,
   selectedConnectionId,
   input,
-  onBack,
 }: {
   selectedToolName: string;
   selectedConnectionId: string;
@@ -472,15 +561,14 @@ function SelectedTool({
   }
 
   return (
-    <div className="h-full">
-      <ToolDetail
+    <div className="h-calc(100%-40px) overflow-scroll">
+      <ToolComponent
         tool={tool}
         mcp={mcp}
         connection={connection}
         onInputChange={handleInputChange}
         initialInputParams={input}
         mentions={allMentions}
-        onBack={onBack}
       />
     </div>
   );

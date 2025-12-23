@@ -60,7 +60,6 @@ export async function fetchToolsFromMCP(
 
     await Promise.race([client.connect(transport), timeoutPromise]);
     const result = await Promise.race([client.listTools(), timeoutPromise]);
-    console.log("[FETCH_TOOLS] Result:", result);
 
     if (!result.tools || result.tools.length === 0) {
       return null;

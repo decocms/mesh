@@ -191,7 +191,6 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
         data.connection_headers ?? existing.connection_headers,
     }).catch(() => null);
     const tools = fetchedTools?.length ? fetchedTools : null;
-    console.log("[COLLECTION_CONNECTIONS_UPDATE] Tools:", tools);
 
     // Update the connection with the refreshed tools and configuration
     const updatePayload: Partial<ConnectionEntity> = {
@@ -201,7 +200,6 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       configuration_scopes: finalScopes,
     };
     const connection = await ctx.storage.connections.update(id, updatePayload);
-    console.log("[COLLECTION_CONNECTIONS_UPDATE] Connection:", connection);
 
     // Invoke ON_MCP_CONFIGURATION callback if configuration was updated
     // Ignore errors but await for the response before responding

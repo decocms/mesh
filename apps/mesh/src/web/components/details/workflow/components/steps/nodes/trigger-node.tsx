@@ -12,6 +12,7 @@ import {
   useTrackingExecutionId,
   useWorkflow,
   useWorkflowActions,
+  useBranchTerminalSteps,
 } from "@/web/components/details/workflow/stores/workflow";
 import { useWorkflowBindingConnection } from "../../../hooks/use-workflow-binding-connection";
 import { useWorkflowExecutionCollectionItem } from "../../../hooks/use-workflow-collection-item";
@@ -28,22 +29,21 @@ function useWorkflowStart() {
   const workflow = useWorkflow();
   const { mutateAsync: startWorkflow, isPending } = useToolCallMutation({
     toolCaller,
-    toolName: "WORKFLOW_START",
+    toolName: "COLLECTION_WORKFLOW_EXECUTION_CREATE",
   });
   const handleRunWorkflow = async () => {
-    const startAtEpochMs = Date.now() + 100;
+    const startAtEpochMs = Date.now();
     const timeoutMs = 30000;
     const result = await startWorkflow({
-      workflowId: workflow.id,
+      workflow_id: workflow.id,
       input: {},
-      startAtEpochMs,
-      timeoutMs,
+      start_at_epoch_ms: startAtEpochMs,
+      timeout_ms: timeoutMs,
     });
 
     const executionId =
-      (result as { executionId: string }).executionId ??
-      (result as { structuredContent: { executionId: string } })
-        .structuredContent.executionId;
+      (result as { id: string }).id ??
+      (result as { structuredContent: { id: string } }).structuredContent.id;
     setTrackingExecutionId(executionId);
     return executionId;
   };
@@ -143,12 +143,30 @@ function ResumeButton() {
 export const TriggerNode = memo(function TriggerNode() {
   const isAddingStep = useIsAddingStep();
   const trackingExecutionId = useTrackingExecutionId();
+  const { addStepAfter } = useWorkflowActions();
   const { item: execution } =
     useWorkflowExecutionCollectionItem(trackingExecutionId);
   const isScheduled = useIsExecutionScheduled(trackingExecutionId);
   const isRunning = execution?.completed_at_epoch_ms === null;
   const isPaused = execution?.status === "cancelled";
   const isDirty = useIsDirty();
+  const workflow = useWorkflow();
+  const terminalSteps = useBranchTerminalSteps();
+
+  // Trigger is clickable to add a step when there are no steps (empty workflow)
+  // or when all root steps have no dependents (trigger is also a "terminal" point)
+  const hasNoSteps =
+    workflow.steps.filter((s) => s.name !== "Manual").length === 0;
+  const canAddAfterTrigger =
+    isAddingStep && (hasNoSteps || terminalSteps.size === 0);
+
+  const handleClick = () => {
+    if (canAddAfterTrigger) {
+      // Add step with @input reference (first step after trigger)
+      addStepAfter("input");
+    }
+  };
+
   return (
     <div className="relative">
       <div className="flex flex-col items-start">
@@ -160,19 +178,20 @@ export const TriggerNode = memo(function TriggerNode() {
         </div>
         <Card
           title={isDirty ? "Save or discard changes to run" : undefined}
+          onClick={handleClick}
           className={cn(
             "sm:w-40 lg:w-52 xl:w-64 p-0 px-3 h-12 group flex items-center justify-center relative",
             "transition-all duration-200",
-            // Highlight when in add-step mode
-            isAddingStep
-              ? [
-                  "cursor-pointer",
-                  "ring-2 ring-primary/30 ring-offset-1 ring-offset-background",
-                  "hover:ring-primary hover:ring-offset-2",
-                  "hover:shadow-lg hover:shadow-primary/20",
-                  "hover:scale-[1.02]",
-                ]
-              : "cursor-pointer",
+            // Highlight trigger when it's a valid target for adding steps
+            canAddAfterTrigger && [
+              "cursor-pointer",
+              "ring-2 ring-primary ring-offset-2 ring-offset-background",
+              "hover:shadow-lg hover:shadow-primary/20",
+              "hover:scale-[1.02]",
+            ],
+            // Dim trigger when adding but not a valid target
+            isAddingStep && !canAddAfterTrigger && "opacity-50",
+            !isAddingStep && "cursor-pointer",
             isDirty && "cursor-auto",
           )}
         >
@@ -201,7 +220,12 @@ export const TriggerNode = memo(function TriggerNode() {
       </div>
 
       {/* Source handle - hidden */}
-      <Handle type="source" position={Position.Bottom} style={{ bottom: -8 }} />
+      <Handle
+        id="bottom"
+        type="source"
+        position={Position.Bottom}
+        className="bg-transparent w-1 h-1 border-0 opacity-0"
+      />
     </div>
   );
 });

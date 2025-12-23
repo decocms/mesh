@@ -1,14 +1,9 @@
 import { useParams } from "@tanstack/react-router";
 import {
-  CollectionFilter,
   useCollectionItem,
   useCollectionList,
 } from "@/web/hooks/use-collections";
-import {
-  Workflow,
-  WorkflowExecution,
-  WorkflowExecutionStepResult,
-} from "@decocms/bindings/workflow";
+import { Workflow, WorkflowExecution } from "@decocms/bindings/workflow";
 import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
 import { useWorkflowBindingConnection } from "./use-workflow-binding-connection";
 import { useToolCallQuery } from "@/web/hooks/use-tool-call";
@@ -45,7 +40,7 @@ export function useWorkflowExecutionCollectionList({
     strict: false,
   });
   const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
-  const list = useCollectionList(
+  const list = useCollectionList<WorkflowExecution>(
     connectionId ?? UNKNOWN_CONNECTION_ID,
     "workflow_execution",
     toolCaller,
@@ -59,7 +54,7 @@ export function useWorkflowExecutionCollectionList({
               value: workflowId,
             }
           : undefined,
-      ].filter(Boolean) as CollectionFilter[],
+      ].filter(Boolean) as [],
     },
   );
   return {
@@ -83,30 +78,16 @@ export function useWorkflowExecutionCollectionItem(itemId?: string) {
   };
 }
 
-function useWorkflowGetExecutionStepResultTool() {
-  const connection = useWorkflowBindingConnection();
-  const stepResultsGetTool = connection.tools?.find(
-    (tool) => tool.name === "COLLECTION_EXECUTION_STEP_RESULTS_GET",
-  );
-  if (!stepResultsGetTool) {
-    throw new Error("COLLECTION_EXECUTION_STEP_RESULTS_GET tool not found");
-  }
-  return {
-    tool: stepResultsGetTool,
-    connectionId: connection.id,
-  };
-}
-
 export function usePollingWorkflowExecution(executionId?: string) {
-  const { connectionId } = useWorkflowGetExecutionStepResultTool();
-  const toolCaller = createToolCaller(connectionId);
-
+  const connection = useWorkflowBindingConnection();
+  const toolCaller = createToolCaller(connection.id);
   const { data } = useToolCallQuery({
     toolCaller: toolCaller,
     toolName: "COLLECTION_WORKFLOW_EXECUTION_GET",
     toolInputParams: {
       id: executionId,
     },
+    scope: connection.id,
     enabled: !!executionId,
     refetchInterval: executionId
       ? (
@@ -125,7 +106,16 @@ export function usePollingWorkflowExecution(executionId?: string) {
   }) as {
     data: {
       item:
-        | (WorkflowExecution & { step_results: WorkflowExecutionStepResult[] })
+        | (WorkflowExecution & {
+            step_results: {
+              output?: unknown;
+              error?: unknown;
+              startedAt: number;
+              stepId: string;
+              executionId: string;
+              completedAt?: number;
+            }[];
+          })
         | null;
     };
   };
