@@ -8,9 +8,9 @@ import { Badge } from "@deco/ui/components/badge.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "./home-grid-cell.tsx";
 import type {
-  MonitoringLog,
-  MonitoringLogsResponse,
-} from "./monitoring-types.ts";
+  BaseMonitoringLog,
+  BaseMonitoringLogsResponse,
+} from "@/web/components/monitoring";
 
 function RecentActivityContent() {
   const { org, locator } = useProjectContext();
@@ -28,7 +28,7 @@ function RecentActivityContent() {
       limit: number;
       offset: number;
     },
-    MonitoringLogsResponse
+    BaseMonitoringLogsResponse
   >({
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
@@ -42,7 +42,7 @@ function RecentActivityContent() {
   // Get connection info for icons
   const connectionMap = new Map(connections.map((c) => [c.id, c]));
 
-  const handleRowClick = (log: MonitoringLog) => {
+  const handleRowClick = (log: BaseMonitoringLog) => {
     navigate({
       to: "/$org/monitoring",
       params: { org: org.slug },
@@ -100,7 +100,7 @@ function RecentActivityContent() {
   const displayLogs = logs.length === 0 ? mockLogs : logs;
   const isShowingMockData = logs.length === 0;
 
-  const renderLogRow = (log: MonitoringLog | (typeof mockLogs)[0]) => {
+  const renderLogRow = (log: BaseMonitoringLog | (typeof mockLogs)[0]) => {
     const connection = connectionMap.get(log.connectionId);
     const timestamp = new Date(log.timestamp);
     const timeStr = timestamp.toLocaleString("en-US", {
@@ -116,7 +116,7 @@ function RecentActivityContent() {
         key={log.id}
         className="flex items-center h-16 border-t border-border/60 hover:bg-muted/40 transition-colors cursor-pointer"
         onClick={() =>
-          !isShowingMockData && handleRowClick(log as MonitoringLog)
+          !isShowingMockData && handleRowClick(log as BaseMonitoringLog)
         }
       >
         {/* Icon */}

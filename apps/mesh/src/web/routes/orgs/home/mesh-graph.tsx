@@ -30,10 +30,10 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useState } from "react";
-import {
-  type MonitoringLogWithGateway,
-  type MonitoringLogsWithGatewayResponse,
-} from "./monitoring-types.ts";
+import type {
+  MonitoringLogWithGateway,
+  MonitoringLogsWithGatewayResponse,
+} from "@/web/components/monitoring";
 
 // ============================================================================
 // Types

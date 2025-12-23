@@ -26,7 +26,7 @@ import { MonitoringKPIs } from "./monitoring-kpis.tsx";
 import {
   hasMonitoringActivity,
   type MonitoringStats,
-} from "./monitoring-types.ts";
+} from "@/web/components/monitoring";
 import { RecentActivity } from "./recent-activity.tsx";
 import { TopGateways } from "./top-gateways.tsx";
 import { TopServers } from "./top-servers.tsx";
