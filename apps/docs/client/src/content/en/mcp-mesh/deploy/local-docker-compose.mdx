@@ -1,20 +1,24 @@
 ---
 title: "Local: Docker Compose"
-description: Deploy MCP Mesh locally using Docker Compose for testing and development
+description: Deploy the MCP Mesh locally using Docker Compose for testing and development
 icon: Container
 ---
 
 import Callout from "../../../../components/ui/Callout.astro";
 
-This guide covers deploying MCP Mesh locally using Docker Compose for quick testing and development.
+This guide covers deploying the MCP Mesh locally using Docker Compose for quick testing and development.
+
+Learn more: [the MCP Mesh product page](https://www.decocms.com/mesh)
+
+Source (Docker Compose + README): [decocms/mesh/deploy](https://github.com/decocms/mesh/tree/main/deploy)
 
 ## Overview
 
-- ✅ **SQLite by default** - Works immediately without additional configuration
-- ✅ **PostgreSQL optional** - Configure via environment variable
-- ✅ **Data persistence** - Docker volume to keep data between restarts
-- ✅ **Health checks** - Automatic application health monitoring
-- ✅ **Configuration via variables** - All configurations via `.env`
+- **SQLite by default** - Works immediately without additional configuration
+- **PostgreSQL optional** - Configure via environment variable
+- **Data persistence** - Docker volume to keep data between restarts
+- **Health checks** - Automatic application health monitoring
+- **Configuration via variables** - All configurations via `.env`
 
 ## Prerequisites
 
@@ -118,7 +122,7 @@ docker compose -f docker-compose.postgres.yml up -d
 The `DATABASE_URL` will be configured automatically, but you can specify it if needed:
 
 ```bash
-DATABASE_URL=postgresql://mesh_user:secure_password_here@localhost:5432/mesh_db
+DATABASE_URL=postgresql://mesh_user:secure_password_here@postgres:5432/mesh_db
 ```
 
 ### Option 2: External PostgreSQL
@@ -133,7 +137,7 @@ DATABASE_URL=postgresql://user:password@host:5432/database_name
 **Example with local PostgreSQL:**
 
 ```bash
-DATABASE_URL=postgresql://postgres:password@localhost:5432/mesh_db
+DATABASE_URL=postgresql://postgres:password@host.docker.internal:5432/mesh_db
 ```
 
 **Example with remote PostgreSQL:**
@@ -141,6 +145,13 @@ DATABASE_URL=postgresql://postgres:password@localhost:5432/mesh_db
 ```bash
 DATABASE_URL=postgresql://user:password@db.example.com:5432/mesh_db
 ```
+
+<Callout type="info">
+  **Note:** `localhost` inside the container refers to the container itself.
+
+  - If you’re using the included PostgreSQL from `docker-compose.postgres.yml`, the host should be the service name: `postgres`.
+  - If you’re connecting to PostgreSQL running on your machine, use `host.docker.internal` (Docker Desktop) or your machine’s LAN IP.
+</Callout>
 
 **PostgreSQL Advantages:**
 - ✅ Supports multiple instances (horizontal scalability)

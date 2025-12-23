@@ -176,12 +176,11 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
         }
       : null;
 
-  // Keep legacy guides grouped and listed before Mesh/Studio.
-  // This also ensures Mesh isn't forced to the top by this grouping layer.
+  // Put MCP Mesh and MCP Studio at the top, then group legacy docs under Legacy Admin.
   const next: TreeNode[] = [...files];
-  if (legacyFolder) next.push(legacyFolder);
   if (mcpMesh) next.push(mcpMesh);
   if (mcpStudio) next.push(mcpStudio);
+  if (legacyFolder) next.push(legacyFolder);
   return next;
 }
 
