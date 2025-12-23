@@ -137,7 +137,6 @@ export function useBindingConnections({
     if (!binding) {
       return undefined;
     }
-
     if (typeof binding === "string") {
       const upperBinding = binding.toUpperCase();
       const builtinBinding = BUILTIN_BINDINGS[upperBinding];

@@ -115,6 +115,7 @@ export function useBindingSchemaFromRegistry(
   // Get all connections and filter to registry connections
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
+  console.log({ registryConnections, allConnections });
 
   // Parse the app name for the query
   const parsedAppName = appName ? parseAppName(appName) : "";
