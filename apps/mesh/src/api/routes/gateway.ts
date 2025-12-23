@@ -7,15 +7,13 @@
  *
  * Architecture:
  * - Lists connections for the gateway (from database or organization)
- * - Creates proxies for each connection using createMCPProxy
- * - Composes them into a single GatewayClient interface
- * - Aggregates tools, resources, resource templates, and prompts from all connections
+ * - Creates a ProxyCollection for all connections
+ * - Uses lazy-loading gateways (ToolGateway, ResourceGateway, etc.) to aggregate resources
  * - Deduplicates tools and prompts by name (first occurrence wins)
  * - Routes resources by URI (globally unique)
  * - Supports exclusion strategy for inverse tool selection
  */
 
-import { ServerClient } from "@decocms/bindings/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   CallToolRequestSchema,
@@ -34,78 +32,27 @@ import {
   type ListResourceTemplatesResult,
   type ListToolsRequest,
   type ListToolsResult,
-  type Prompt,
   type ReadResourceRequest,
   type ReadResourceResult,
-  type Resource,
-  type ResourceTemplate,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
-import type {
-  GatewayToolSelectionStrategy,
-  GatewayWithConnections,
-  ToolSelectionMode,
-} from "../../storage/types";
+import {
+  ProxyCollection,
+  ToolGateway,
+  ResourceGateway,
+  ResourceTemplateGateway,
+  PromptGateway,
+  type GatewayClient,
+  type GatewayOptions,
+} from "../../gateway";
+import type { GatewayWithConnections } from "../../storage/types";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { Env } from "../env";
 import { HttpServerTransport } from "../http-server-transport";
-import { getStrategy, type ToolWithConnection } from "./gateway-strategies";
-import { createMCPProxy } from "./proxy";
 
 // Define Hono variables type
 const app = new Hono<Env>();
-
-// ============================================================================
-// Types
-// ============================================================================
-
-/** Maps final tool name -> { connectionId, originalName, proxy } */
-interface ToolMapping {
-  connectionId: string;
-  originalName: string;
-}
-
-/** Maps resource URI -> connectionId */
-interface ResourceMapping {
-  connectionId: string;
-  uri: string;
-}
-
-/** Maps prompt name -> connectionId (first-wins) */
-interface PromptMapping {
-  connectionId: string;
-  name: string;
-}
-
-/** Extended gateway client interface with resources and prompts */
-interface GatewayClient extends ServerClient {
-  client: {
-    listTools: () => Promise<ListToolsResult>;
-    callTool: (params: CallToolRequest["params"]) => Promise<CallToolResult>;
-    listResources: () => Promise<ListResourcesResult>;
-    readResource: (
-      params: ReadResourceRequest["params"],
-    ) => Promise<ReadResourceResult>;
-    listResourceTemplates: () => Promise<ListResourceTemplatesResult>;
-    listPrompts: () => Promise<ListPromptsResult>;
-    getPrompt: (params: GetPromptRequest["params"]) => Promise<GetPromptResult>;
-  };
-  callStreamableTool: (
-    tool: string,
-    args: Record<string, unknown>,
-  ) => Promise<Response>;
-}
-
-/** Gateway configuration for createMCPGateway */
-interface GatewayOptions {
-  connections: Array<{
-    connection: ConnectionEntity;
-    selectedTools: string[] | null; // null = all tools (or full exclusion if mode is "exclusion")
-  }>;
-  toolSelectionMode: ToolSelectionMode;
-  toolSelectionStrategy: GatewayToolSelectionStrategy;
-}
 
 // ============================================================================
 // MCP Gateway Factory
@@ -113,6 +60,8 @@ interface GatewayOptions {
 
 /**
  * Create an MCP gateway that aggregates tools, resources, and prompts from multiple connections
+ *
+ * Uses lazy-loading gateways - data is only fetched from connections when first accessed.
  *
  * @param options - Gateway configuration (connections with selected tools and strategy)
  * @param ctx - Mesh context for creating proxies
@@ -122,336 +71,29 @@ async function createMCPGateway(
   options: GatewayOptions,
   ctx: MeshContext,
 ): Promise<GatewayClient> {
-  // Create proxies for all connections in parallel
-  const proxyResults = await Promise.allSettled(
-    options.connections.map(async ({ connection, selectedTools }) => {
-      try {
-        const proxy = await ctx.createMCPProxy(connection);
-        return { connection, proxy, selectedTools };
-      } catch (error) {
-        console.error(
-          `[gateway] Failed to create proxy for connection ${connection.id}:`,
-          error,
-        );
-        return null;
-      }
-    }),
-  );
+  // Create proxy collection for all connections
+  const proxies = await ProxyCollection.create(options.connections, ctx);
 
-  // Filter successful proxies
-  const proxies = new Map<
-    string,
-    {
-      proxy: Awaited<ReturnType<typeof createMCPProxy>>;
-      connection: ConnectionEntity;
-      selectedTools: string[] | null;
-    }
-  >();
-  for (const result of proxyResults) {
-    if (result.status === "fulfilled" && result.value) {
-      proxies.set(result.value.connection.id, result.value);
-    }
-  }
-
-  // Fetch and aggregate all tools from connections
-  const toolResults = await Promise.allSettled(
-    Array.from(proxies.entries()).map(
-      async ([connectionId, { proxy, connection, selectedTools }]) => {
-        try {
-          const result = await proxy.client.listTools();
-          let tools = result.tools;
-
-          // Apply selection based on mode
-          if (options.toolSelectionMode === "exclusion") {
-            if (selectedTools && selectedTools.length > 0) {
-              const excludeSet = new Set(selectedTools);
-              tools = tools.filter((t) => !excludeSet.has(t.name));
-            }
-          } else {
-            if (selectedTools && selectedTools.length > 0) {
-              const selectedSet = new Set(selectedTools);
-              tools = tools.filter((t) => selectedSet.has(t.name));
-            }
-          }
-
-          return { connectionId, connectionTitle: connection.title, tools };
-        } catch (error) {
-          console.error(
-            `[gateway] Failed to list tools for connection ${connectionId}:`,
-            error,
-          );
-          return null;
-        }
-      },
-    ),
-  );
-
-  // Deduplicate and build tools with connection metadata
-  const seenNames = new Set<string>();
-  const allTools: ToolWithConnection[] = [];
-  const toolMappings = new Map<string, ToolMapping>();
-  const categories = new Set<string>();
-
-  for (const result of toolResults) {
-    if (result.status !== "fulfilled" || !result.value) continue;
-
-    const { connectionId, connectionTitle, tools } = result.value;
-    categories.add(connectionTitle);
-
-    for (const tool of tools) {
-      if (seenNames.has(tool.name)) continue;
-      seenNames.add(tool.name);
-
-      allTools.push({
-        ...tool,
-        connectionId,
-        connectionTitle,
-      });
-      toolMappings.set(tool.name, { connectionId, originalName: tool.name });
-    }
-  }
-
-  // ============================================================================
-  // Aggregate Resources from all connections
-  // ============================================================================
-  const resourceResults = await Promise.allSettled(
-    Array.from(proxies.entries()).map(async ([connectionId, { proxy }]) => {
-      try {
-        const result = await proxy.client.listResources();
-        return { connectionId, resources: result.resources };
-      } catch (error) {
-        console.error(
-          `[gateway] Failed to list resources for connection ${connectionId}:`,
-          error,
-        );
-        return { connectionId, resources: [] as Resource[] };
-      }
-    }),
-  );
-
-  // Build resource URI -> connection mapping (URIs are globally unique)
-  const allResources: Resource[] = [];
-  const resourceMappings = new Map<string, ResourceMapping>();
-
-  for (const result of resourceResults) {
-    if (result.status !== "fulfilled") continue;
-
-    const { connectionId, resources } = result.value;
-    for (const resource of resources) {
-      allResources.push(resource);
-      resourceMappings.set(resource.uri, { connectionId, uri: resource.uri });
-    }
-  }
-
-  // ============================================================================
-  // Aggregate Resource Templates from all connections
-  // ============================================================================
-  const resourceTemplateResults = await Promise.allSettled(
-    Array.from(proxies.entries()).map(async ([connectionId, { proxy }]) => {
-      try {
-        const result = await proxy.client.listResourceTemplates();
-        return { connectionId, templates: result.resourceTemplates };
-      } catch (error) {
-        console.error(
-          `[gateway] Failed to list resource templates for connection ${connectionId}:`,
-          error,
-        );
-        return { connectionId, templates: [] as ResourceTemplate[] };
-      }
-    }),
-  );
-
-  // Build resource template uriTemplate -> connection mapping
-  const allResourceTemplates: ResourceTemplate[] = [];
-  const resourceTemplateMappings = new Map<string, ResourceMapping>();
-
-  for (const result of resourceTemplateResults) {
-    if (result.status !== "fulfilled") continue;
-
-    const { connectionId, templates } = result.value;
-    for (const template of templates) {
-      allResourceTemplates.push(template);
-      resourceTemplateMappings.set(template.uriTemplate, {
-        connectionId,
-        uri: template.uriTemplate,
-      });
-    }
-  }
-
-  // ============================================================================
-  // Aggregate Prompts from all connections (first-wins deduplication)
-  // ============================================================================
-  const promptResults = await Promise.allSettled(
-    Array.from(proxies.entries()).map(async ([connectionId, { proxy }]) => {
-      try {
-        const result = await proxy.client.listPrompts();
-        return { connectionId, prompts: result.prompts };
-      } catch (error) {
-        console.error(
-          `[gateway] Failed to list prompts for connection ${connectionId}:`,
-          error,
-        );
-        return { connectionId, prompts: [] as Prompt[] };
-      }
-    }),
-  );
-
-  // Build prompt name -> connection mapping (first-wins, like tools)
-  const seenPromptNames = new Set<string>();
-  const allPrompts: Prompt[] = [];
-  const promptMappings = new Map<string, PromptMapping>();
-
-  for (const result of promptResults) {
-    if (result.status !== "fulfilled") continue;
-
-    const { connectionId, prompts } = result.value;
-    for (const prompt of prompts) {
-      if (seenPromptNames.has(prompt.name)) continue;
-      seenPromptNames.add(prompt.name);
-
-      allPrompts.push(prompt);
-      promptMappings.set(prompt.name, { connectionId, name: prompt.name });
-    }
-  }
-
-  // Base callTool that routes to the correct connection
-  const baseCallTool = async (
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<CallToolResult> => {
-    const mapping = toolMappings.get(name);
-    if (!mapping) {
-      return {
-        content: [{ type: "text", text: `Tool not found: ${name}` }],
-        isError: true,
-      };
-    }
-
-    const proxyEntry = proxies.get(mapping.connectionId);
-    if (!proxyEntry) {
-      return {
-        content: [
-          { type: "text", text: `Connection not found for tool: ${name}` },
-        ],
-        isError: true,
-      };
-    }
-
-    const result = await proxyEntry.proxy.client.callTool({
-      name: mapping.originalName,
-      arguments: args,
-    });
-
-    return result as CallToolResult;
-  };
-
-  // Apply the strategy to transform tools
-  const strategy = getStrategy(options.toolSelectionStrategy);
-  const strategyResult = strategy({
-    tools: allTools,
-    callTool: baseCallTool,
-    categories: Array.from(categories).sort(),
+  // Create lazy gateway abstractions
+  const tools = new ToolGateway(proxies, {
+    selectionMode: options.toolSelectionMode,
+    strategy: options.toolSelectionStrategy,
   });
-
-  // Wrap callTool to accept MCP params format
-  const listTools = async (): Promise<ListToolsResult> => ({
-    tools: strategyResult.tools,
-  });
-
-  const callTool = async (
-    params: CallToolRequest["params"],
-  ): Promise<CallToolResult> => {
-    return strategyResult.callTool(
-      params.name,
-      params.arguments ?? {},
-    ) as Promise<CallToolResult>;
-  };
-
-  // Streamable calls go through strategy callTool then to base if needed
-  const callStreamableTool = async (
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<Response> => {
-    // For smart strategy, GATEWAY_CALL_TOOL handles delegation
-    // For passthrough, route directly to underlying proxy
-    const mapping = toolMappings.get(toolName);
-    if (mapping) {
-      // Direct tool - route to proxy
-      const proxyEntry = proxies.get(mapping.connectionId);
-      if (proxyEntry) {
-        return proxyEntry.proxy.callStreamableTool(mapping.originalName, args);
-      }
-    }
-
-    // Meta-tool or not found - execute through strategy and return JSON
-    const result = await strategyResult.callTool(toolName, args);
-    return new Response(JSON.stringify(result), {
-      headers: { "Content-Type": "application/json" },
-    });
-  };
-
-  // ============================================================================
-  // Resource handlers
-  // ============================================================================
-  const listResources = async (): Promise<ListResourcesResult> => ({
-    resources: allResources,
-  });
-
-  const readResource = async (
-    params: ReadResourceRequest["params"],
-  ): Promise<ReadResourceResult> => {
-    const mapping = resourceMappings.get(params.uri);
-    if (!mapping) {
-      throw new Error(`Resource not found: ${params.uri}`);
-    }
-
-    const proxyEntry = proxies.get(mapping.connectionId);
-    if (!proxyEntry) {
-      throw new Error(`Connection not found for resource: ${params.uri}`);
-    }
-
-    return await proxyEntry.proxy.client.readResource(params);
-  };
-
-  const listResourceTemplates =
-    async (): Promise<ListResourceTemplatesResult> => ({
-      resourceTemplates: allResourceTemplates,
-    });
-
-  // ============================================================================
-  // Prompt handlers
-  // ============================================================================
-  const listPrompts = async (): Promise<ListPromptsResult> => ({
-    prompts: allPrompts,
-  });
-
-  const getPrompt = async (
-    params: GetPromptRequest["params"],
-  ): Promise<GetPromptResult> => {
-    const mapping = promptMappings.get(params.name);
-    if (!mapping) {
-      throw new Error(`Prompt not found: ${params.name}`);
-    }
-
-    const proxyEntry = proxies.get(mapping.connectionId);
-    if (!proxyEntry) {
-      throw new Error(`Connection not found for prompt: ${params.name}`);
-    }
-
-    return await proxyEntry.proxy.client.getPrompt(params);
-  };
+  const resources = new ResourceGateway(proxies);
+  const resourceTemplates = new ResourceTemplateGateway(proxies);
+  const prompts = new PromptGateway(proxies);
 
   return {
     client: {
-      listTools,
-      callTool,
-      listResources,
-      readResource,
-      listResourceTemplates,
-      listPrompts,
-      getPrompt,
+      listTools: tools.list.bind(tools),
+      callTool: tools.call.bind(tools),
+      listResources: resources.list.bind(resources),
+      readResource: resources.read.bind(resources),
+      listResourceTemplates: resourceTemplates.list.bind(resourceTemplates),
+      listPrompts: prompts.list.bind(prompts),
+      getPrompt: prompts.get.bind(prompts),
     },
-    callStreamableTool,
+    callStreamableTool: tools.callStreamable.bind(tools),
   };
 }
 

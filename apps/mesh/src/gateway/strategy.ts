@@ -7,7 +7,7 @@
  */
 
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
-import type { GatewayToolSelectionStrategy } from "../../storage/types";
+import type { GatewayToolSelectionStrategy } from "../storage/types";
 
 // ============================================================================
 // Types
