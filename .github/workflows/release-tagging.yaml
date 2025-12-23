@@ -1,0 +1,268 @@
+name: Release Tagging
+
+on:
+  pull_request_target:
+    types: [opened]
+    paths:
+      - "apps/mesh/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/mesh/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  tag-discussion:
+    if: github.event_name == 'pull_request_target' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          repository: ${{ github.event.pull_request.base.repo.full_name }}
+
+      - name: Calculate new versions
+        id: calculate_versions
+        run: |
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./apps/mesh/package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Parse version components
+          # Handle prerelease versions like 1.0.0-alpha.23
+          if [[ "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-zA-Z]+)\.([0-9]+))?$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            PRERELEASE_TAG="${BASH_REMATCH[5]}"
+            PRERELEASE_NUM="${BASH_REMATCH[6]}"
+          else
+            echo "Could not parse version: $CURRENT_VERSION"
+            exit 1
+          fi
+
+          echo "Parsed: MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH, PRERELEASE_TAG=$PRERELEASE_TAG, PRERELEASE_NUM=$PRERELEASE_NUM"
+
+          # Calculate next versions
+          if [ -n "$PRERELEASE_TAG" ]; then
+            # Currently a prerelease version
+            NEW_PRERELEASE_VERSION="$MAJOR.$MINOR.$PATCH-$PRERELEASE_TAG.$((PRERELEASE_NUM + 1))"
+          else
+            # Currently a stable version, bump to alpha.1
+            NEW_PRERELEASE_VERSION="$MAJOR.$MINOR.$((PATCH + 1))-alpha.1"
+          fi
+
+          NEW_PATCH_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          NEW_MINOR_VERSION="$MAJOR.$((MINOR + 1)).0"
+          NEW_MAJOR_VERSION="$((MAJOR + 1)).0.0"
+
+          echo "prerelease_version=$NEW_PRERELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "patch_version=$NEW_PATCH_VERSION" >> $GITHUB_OUTPUT
+          echo "minor_version=$NEW_MINOR_VERSION" >> $GITHUB_OUTPUT
+          echo "major_version=$NEW_MAJOR_VERSION" >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Post Release Options Comment
+        uses: peter-evans/create-or-update-comment@v4
+        id: comment
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ## Release Options
+
+            Should a new version be published when this PR is merged?
+
+            React with an emoji to vote on the release type:
+
+            | Reaction | Type | Next Version |
+            |----------|------|--------------|
+            | :+1: | Prerelease | `${{ steps.calculate_versions.outputs.prerelease_version }}` |
+            | :tada: | Patch | `${{ steps.calculate_versions.outputs.patch_version }}` |
+            | :heart: | Minor | `${{ steps.calculate_versions.outputs.minor_version }}` |
+            | :rocket: | Major | `${{ steps.calculate_versions.outputs.major_version }}` |
+
+            Current version: `${{ steps.calculate_versions.outputs.current_version }}`
+
+            ### Deployment
+            - [ ] Deploy to production (triggers ArgoCD sync after Docker image is published)
+
+  determine-tag:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.determine_version.outputs.new_version }}
+      deploy_to_production: ${{ steps.determine_version.outputs.deploy_to_production }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find the Merged Pull Request
+        id: find_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find the most recently merged PR to main
+          PR_NUMBER=$(gh pr list --state merged --base main --json number,mergedAt --jq 'sort_by(.mergedAt) | reverse | .[0].number')
+          
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" == "null" ]; then
+            echo "No recently merged PR found"
+            echo "pr_number=" >> $GITHUB_OUTPUT
+          else
+            echo "Found merged PR #$PR_NUMBER"
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get current version
+        id: get_current_version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./apps/mesh/package.json').version")
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Determine the next version based on reactions
+        id: determine_version
+        if: steps.find_pr.outputs.pr_number != ''
+        env:
+          PR_NUMBER: ${{ steps.find_pr.outputs.pr_number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT_VERSION: ${{ steps.get_current_version.outputs.current_version }}
+        run: |
+          # Parse current version
+          if [[ "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-zA-Z]+)\.([0-9]+))?$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            PRERELEASE_TAG="${BASH_REMATCH[5]}"
+            PRERELEASE_NUM="${BASH_REMATCH[6]}"
+          else
+            echo "Could not parse version: $CURRENT_VERSION"
+            exit 1
+          fi
+
+          # Load maintainers list
+          if [ -f "MAINTAINERS.txt" ]; then
+            ALLOWED_USERS=$(grep -v '^#' MAINTAINERS.txt | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            echo "MAINTAINERS.txt not found, skipping version bump"
+            exit 0
+          fi
+          echo "Maintainers list: $ALLOWED_USERS"
+
+          # Fetch comments and find the Release Options comment
+          COMMENT_DATA=$(gh api graphql -f query='
+            query {
+              repository(owner:"${{ github.repository_owner }}", name:"${{ github.event.repository.name }}") {
+                pullRequest(number: '${PR_NUMBER}') {
+                  comments(last: 100) {
+                    nodes {
+                      body
+                      id
+                      reactions(last: 100) {
+                        nodes {
+                          content
+                          user {
+                            login
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }')
+
+          # Extract reactions from the Release Options comment, filtered by maintainers
+          REACTIONS=$(echo "$COMMENT_DATA" | jq -r --argjson allowed_users "$ALLOWED_USERS" '
+            .data.repository.pullRequest.comments.nodes[] |
+            select(.body | contains("## Release Options")) |
+            .reactions.nodes[] |
+            select(.user.login | IN($allowed_users[])) |
+            .content' | tr '[:lower:]' '[:upper:]')
+
+          echo "Captured reactions: $REACTIONS"
+
+          # Check for deploy checkbox in comment body
+          COMMENT_BODY=$(echo "$COMMENT_DATA" | jq -r '
+            .data.repository.pullRequest.comments.nodes[] |
+            select(.body | contains("## Release Options")) |
+            .body')
+
+          if echo "$COMMENT_BODY" | grep -q '\[x\] Deploy to production'; then
+            DEPLOY_TO_PRODUCTION="true"
+            echo "Deploy to production: enabled"
+          else
+            DEPLOY_TO_PRODUCTION="false"
+            echo "Deploy to production: disabled"
+          fi
+          echo "deploy_to_production=$DEPLOY_TO_PRODUCTION" >> $GITHUB_OUTPUT
+
+          # Determine version bump based on reactions (priority: major > minor > patch > prerelease)
+          NEW_VERSION=""
+          if echo "$REACTIONS" | grep -q "ROCKET"; then
+            NEW_VERSION="$((MAJOR + 1)).0.0"
+            echo "Major bump selected"
+          elif echo "$REACTIONS" | grep -q "HEART"; then
+            NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+            echo "Minor bump selected"
+          elif echo "$REACTIONS" | grep -q "HOORAY"; then
+            NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+            echo "Patch bump selected"
+          elif echo "$REACTIONS" | grep -q "THUMBS_UP"; then
+            if [ -n "$PRERELEASE_TAG" ]; then
+              NEW_VERSION="$MAJOR.$MINOR.$PATCH-$PRERELEASE_TAG.$((PRERELEASE_NUM + 1))"
+            else
+              NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))-alpha.1"
+            fi
+            echo "Prerelease bump selected"
+          else
+            echo "No valid reactions found for version bump. Exiting."
+            echo "new_version=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version
+        if: steps.determine_version.outputs.new_version != ''
+        run: |
+          NEW_VERSION="${{ steps.determine_version.outputs.new_version }}"
+          
+          # Update version in package.json using node
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('./apps/mesh/package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('./apps/mesh/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          
+          echo "Updated apps/mesh/package.json to version $NEW_VERSION"
+
+      - name: Commit and push version bump
+        if: steps.determine_version.outputs.new_version != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/mesh/package.json
+          git commit -m "[release]: bump to ${{ steps.determine_version.outputs.new_version }}"
+          git push origin main
+
+      - name: Trigger Release Workflow
+        if: steps.determine_version.outputs.new_version != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.everest-preview+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/release.yaml/dispatches" \
+            -d '{"ref":"main", "inputs":{"deploy_to_production":"${{ steps.determine_version.outputs.deploy_to_production }}"}}'
+
