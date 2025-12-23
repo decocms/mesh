@@ -29,12 +29,12 @@ export const EVENT_PUBLISH = defineTool({
 
     // Get the source connection ID from the caller's token
     const sourceConnectionId = ctx.connectionId;
-
     if (!sourceConnectionId) {
       throw new Error(
         "Connection ID required to publish events. Use a connection-scoped token.",
       );
     }
+
     // Publish the event (optionally scheduled or recurring)
     const event = await ctx.eventBus.publish(
       organization.id,
