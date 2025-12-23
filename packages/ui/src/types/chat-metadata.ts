@@ -4,13 +4,8 @@ export interface ChatModelConfig {
   provider?: string | null;
 }
 
-export interface ChatAgentConfig {
-  id?: string;
-  title?: string;
-  avatar?: string;
-  description?: string;
-  instructions?: string;
-  tool_set?: Record<string, string[]>;
+export interface ChatGatewayConfig {
+  id: string;
 }
 
 export interface ChatUserConfig {
@@ -20,7 +15,7 @@ export interface ChatUserConfig {
 
 export interface Metadata {
   model?: ChatModelConfig;
-  agent?: ChatAgentConfig;
+  gateway?: ChatGatewayConfig;
   user?: ChatUserConfig;
   created_at?: string | Date;
   thread_id?: string;

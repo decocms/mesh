@@ -10,9 +10,23 @@ import { migrateBetterAuth } from "../auth/migrate";
 import { closeDatabase, getDb } from "./index";
 
 /**
+ * Migration options
+ */
+export interface MigrateOptions {
+  /**
+   * Keep the database connection open after migrations.
+   * Set to true when running migrations before starting a server.
+   * Default: false (closes connection after migrations)
+   */
+  keepOpen?: boolean;
+}
+
+/**
  * Run all pending migrations
  */
-export async function migrateToLatest(): Promise<void> {
+export async function migrateToLatest(options?: MigrateOptions): Promise<void> {
+  const { keepOpen = false } = options ?? {};
+
   // Run Better Auth migrations programmatically
   await migrateBetterAuth();
 
@@ -51,11 +65,13 @@ export async function migrateToLatest(): Promise<void> {
 
   console.log("🎉 All Kysely migrations completed successfully");
 
-  // Close database connection after all migrations
-  console.log("🔒 Closing database connection...");
-  await closeDatabase(database).catch((err: unknown) => {
-    console.warn("Warning: Error closing database:", err);
-  });
+  // Only close database connection if not keeping open for server
+  if (!keepOpen) {
+    console.log("🔒 Closing database connection...");
+    await closeDatabase(database).catch((err: unknown) => {
+      console.warn("Warning: Error closing database:", err);
+    });
+  }
 }
 
 /**

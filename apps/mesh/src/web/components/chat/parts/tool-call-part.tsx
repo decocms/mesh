@@ -1,16 +1,17 @@
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import type { ToolUIPart } from "ai";
+import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { ToolOutputRenderer } from "./tool-outputs/tool-output-renderer.tsx";
 
 interface ToolCallPartProps {
-  part: ToolUIPart;
+  part: ToolUIPart | DynamicToolUIPart;
   id: string;
 }
 
 export function ToolCallPart({ part }: ToolCallPartProps) {
-  const toolName = part.type.replace("tool-", "");
   const { state } = part;
+  const toolName =
+    "toolName" in part ? part.toolName : part.type.replace("tool-", "");
 
   return (
     <div className="flex flex-col gap-1.5 py-1">

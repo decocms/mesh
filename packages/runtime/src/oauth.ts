@@ -480,11 +480,7 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
   /**
    * Check if request has authentication token
    */
-  const hasAuth = (req: Request): boolean => {
-    const authHeader = req.headers.get("Authorization");
-    const meshToken = req.headers.get("x-mesh-token");
-    return !!(authHeader || meshToken);
-  };
+  const hasAuth = (req: Request) => req.headers.has("Authorization");
 
   return {
     handleProtectedResourceMetadata,

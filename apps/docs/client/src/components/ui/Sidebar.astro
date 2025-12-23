@@ -94,18 +94,38 @@ function buildTree(docs: any[]): TreeNode[] {
           if (aIndex !== -1) return -1;
           if (bIndex !== -1) return 1;
         }
+
+        // Custom order for MCP Mesh deploy docs
+        const rootPath = a.path[0];
+        if (rootPath === "mcp-mesh" && parentPath === "deploy") {
+          const deployOrder = [
+            "local-docker-compose.mdx",
+            "kubernetes-helm-chart.mdx",
+          ];
+          const aIndex = deployOrder.indexOf(a.name);
+          const bIndex = deployOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
       }
 
       // For folders - custom ordering
       if (a.type === "folder" && b.type === "folder") {
-        // getting-started before everything else
-        if (a.name === "getting-started") return -1;
-        if (b.name === "getting-started") return 1;
-        // no-code-guides before full-code-guides
-        if (a.name === "no-code-guides") return -1;
-        if (b.name === "no-code-guides") return 1;
-        if (a.name === "full-code-guides") return -1;
-        if (b.name === "full-code-guides") return 1;
+        const folderOrder: Record<string, number> = {
+          "getting-started": 0,
+          "no-code-guides": 1,
+          "full-code-guides": 2,
+          // Keep new platform docs after the legacy guides (as per the original intent)
+          "mcp-mesh": 3,
+          "mcp-studio": 4,
+        };
+
+        const aOrder = folderOrder[a.name] ?? Number.POSITIVE_INFINITY;
+        const bOrder = folderOrder[b.name] ?? Number.POSITIVE_INFINITY;
+        if (aOrder !== bOrder) return aOrder - bOrder;
       }
 
       // Default alphabetical
@@ -121,7 +141,51 @@ function buildTree(docs: any[]): TreeNode[] {
   return sortTree(root);
 }
 
-const tree = buildTree(docs);
+function prefixNode(node: TreeNode, prefix: string[]): TreeNode {
+  const newPath = [...prefix, ...node.path];
+  return {
+    ...node,
+    path: newPath,
+    id: newPath.join("/"),
+    children: node.children.map((child) => prefixNode(child, prefix)),
+  };
+}
+
+function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
+  const legacyRootName = "admin-decocms-com";
+
+  const files = nodes.filter((n) => n.type === "file");
+  const folders = nodes.filter((n) => n.type === "folder");
+
+  const mcpMesh = folders.find((f) => f.name === "mcp-mesh");
+  const mcpStudio = folders.find((f) => f.name === "mcp-studio");
+  const legacyChildren = folders.filter(
+    (f) => f.name !== "mcp-mesh" && f.name !== "mcp-studio",
+  );
+
+  const legacyFolder: TreeNode | null =
+    legacyChildren.length > 0
+      ? {
+          name: legacyRootName,
+          type: "folder",
+          children: legacyChildren.map((child) =>
+            prefixNode(child, [legacyRootName]),
+          ),
+          path: [legacyRootName],
+          id: legacyRootName,
+        }
+      : null;
+
+  // Keep legacy guides grouped and listed before Mesh/Studio.
+  // This also ensures Mesh isn't forced to the top by this grouping layer.
+  const next: TreeNode[] = [...files];
+  if (legacyFolder) next.push(legacyFolder);
+  if (mcpMesh) next.push(mcpMesh);
+  if (mcpStudio) next.push(mcpStudio);
+  return next;
+}
+
+const tree = groupLegacyAdminSections(buildTree(docs));
 
 interface FlatNode {
   name: string;

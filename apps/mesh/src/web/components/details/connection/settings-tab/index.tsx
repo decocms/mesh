@@ -5,7 +5,7 @@ import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { useConnectionActions } from "@/web/hooks/collections/use-connection";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useToolCall } from "@/web/hooks/use-tool-call";
-import { authenticateMcp } from "@/web/lib/browser-oauth-provider";
+import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -174,9 +174,9 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
 
   const form = useForm<ConnectionFormData>({
     resolver: zodResolver(connectionFormSchema),
-    defaultValues: {
+    values: {
       title: connection.title,
-      description: connection.description,
+      description: connection.description ?? "",
       connection_type: connection.connection_type,
       connection_url: connection.connection_url,
       connection_token: connection.connection_token,
@@ -202,7 +202,9 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   };
 
   const handleAuthenticate = async () => {
-    const { token, error } = await authenticateMcp(connection.connection_url);
+    const { token, error } = await authenticateMcp({
+      connectionId: connection.id,
+    });
     if (error || !token) {
       toast.error(`Authentication failed: ${error}`);
       return;

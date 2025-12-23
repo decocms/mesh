@@ -218,6 +218,7 @@ const createMockContext = (
       requestId: "req_123",
       timestamp: new Date(),
     },
+    createMCPProxy: vi.fn().mockResolvedValue({}),
   };
 };
 

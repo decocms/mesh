@@ -1,134 +1,98 @@
 ---
 title: Introdução
-description: Conheça o deco CMS - o Sistema de Gerenciamento de Contexto para software nativo de IA
+description: Documentação de desenvolvimento do MCP Mesh e da plataforma deco CMS
 icon: Rocket
 ---
 
+import Callout from "../../components/ui/Callout.astro";
+
 ![deco](https://assets.decocache.com/mcp/9a3facd8-1199-4635-becc-bdc3f5ee7ab1/deco-banner-capy.png)
+
+## Boas-vindas
+
+Esta documentação é principalmente para **desenvolvedores** do **MCP Mesh** e da plataforma **deco CMS**.
 
 ## O que é deco CMS?
 
-**Deco CMS** é um Sistema de Gerenciamento de Contexto open-source, o MCP Mesh para IA. Ele permite que equipes construam, implantem e gerenciem aplicações nativas de IA através de colaboração única entre usuários de negócios e desenvolvedores.
+**deco CMS** é um **Context Management System** open-source para operações nativas de IA.
 
-> Pense em **Lovable + n8n + LangGraph**, rodando no Cloudflare com um único comando de deploy.  
-> IA full-stack, pronta para produção.
+Se MCP é a interface padrão para acesso a tools, o deco CMS é a **camada de produção ao redor disso**: conectar servidores MCP, aplicar governança e ter observabilidade conforme o uso escala entre times e ambientes.
 
-## Proposta de Valor
+<Callout type="warning">
+  **Divisão da documentação (guia rápido):**
 
-deco CMS conecta protótipos de IA a sistemas de produção:
+  - **MCP Mesh** → Auto-hospedagem, deploy e operação do Mesh (recomendado).
+  - **Admin Legado** → Se você usa `admin.decocms.com` (ainda suportado, **em breve descontinuado**).
 
-- **Para AI Builders:** Interface de construção em linguagem natural para usuários de negócios criarem e implantarem apps de IA sem código
-- **Para Context Engineers:** SDK TypeScript open-source para desenvolvedores estenderem, personalizarem e hospedarem em sua própria infraestrutura
-- **Colaboração Fluida:** Ambos os perfis trabalham juntos na mesma plataforma com contexto compartilhado
+  Estamos lançando o **MCP Studio** (em cima do Mesh), que vai trazer as capacidades do admin SaaS atual para o Mesh (incluindo uma versão hospedada por nós) e substituir o SaaS legado ao longo do tempo.
+</Callout>
 
-## Arquitetura em Resumo
+## Comece por aqui (caminhos mais comuns)
 
-deco CMS é construído sobre duas camadas fundamentais:
+- **[Deploy do MCP Mesh localmente (Docker Compose)](/pt-br/mcp-mesh/deploy/local-docker-compose)**
+- **[Deploy do MCP Mesh no Kubernetes (Helm)](/pt-br/mcp-mesh/deploy/kubernetes-helm-chart)**
 
-### 1. MCP Mesh (O Kernel)
+## Problema (e o que o Mesh resolve)
 
-A espinha dorsal que gerencia contexto, conexões e observabilidade para cada agente no seu sistema.
+Quando a IA sai de demos e vai para produção, os mesmos limites aparecem:
 
-- **Componha e proteja MCPs** em toda a sua organização
-- **Conecte e proxie MCPs externos** com tokens seguros
-- **Exponha Virtual MCPs governados** ("AI Apps") para qualquer cliente MCP
-- **Aplique auth/RBAC/audit/FinOps** em cada camada
-- **Obtenha observabilidade completa** em toda a stack
+- **Lacunas de governança**: sem um lugar único para aplicar SSO/RBAC, aprovações e trilhas de auditoria
+- **Proliferação de integrações**: cada cliente integra cada tool com seus próprios retries, auth e config
+- **Pontos cegos operacionais**: debugging é lento; falhas e custos são difíceis de rastrear ponta a ponta
+- **Obesidade de contexto**: prompts e listas de tools incham, piorando qualidade e custo
 
-### 2. AI App Framework (Virtual MCPs no Mesh)
+O MCP Mesh centraliza essas preocupações transversais **uma vez** para você não reimplementar isso em cada agente/app.
 
-Construa software web nativo de IA que chama tools:
+## Estrutura da plataforma: Mesh → Studio → Distribuição
 
-- **Full-stack**: Do banco de dados à UI com React 19 + Tailwind v4
-- **Generative Admin**: _deco chat_ ajuda você a escrever PRDs e implementar
-- **Admin, workflows e views customizadas** governadas pelo Mesh
+### MCP Mesh (fundação)
+Um **control plane** open-source para tráfego MCP. Ele fica entre seus clientes MCP (Cursor, Claude, VS Code, agentes customizados) e seus servidores MCP, oferecendo uma camada unificada de auth, policy e observabilidade.
 
-## Blocos de Construção Principais
+### MCP Studio (desenvolvimento)
+Um admin no-code + SDK para empacotar capacidades MCP como blocos reutilizáveis.
 
-### Tools
+<Callout type="info">
+  **Em breve:** este é o sucessor do admin SaaS atual, construído em cima do MCP Mesh.
+</Callout>
 
-Funções que executam ações como chamadas de API, consultas ao banco de dados ou computações.
+### MCP Apps & Store (distribuição)
+Um caminho para distribuir capacidades MCP-native reutilizáveis entre times (e eventualmente uma store).
 
-```typescript
-createTool({
-  id: "CEP_SEARCH",
-  description: "Buscar CEPs brasileiros",
-  inputSchema: z.object({ cep: z.string() }),
-  outputSchema: z.object({ city: z.string(), state: z.string() }),
-  execute: async ({ context }) => { /* ... */ },
-});
+<Callout type="info">
+  **Em breve.**
+</Callout>
+
+## Por que MCP?
+
+Nós construímos sobre MCP porque empresas precisam de interoperabilidade no nível de tools — e de uma forma de operar esse acesso com o rigor de qualquer superfície de produção.
+
+MCP te dá uma interface padrão. O deco CMS fornece o **control plane** ao redor disso:
+
+- **Portável**: auto-hospede em Docker/Kubernetes; opção cloud hospedada em breve
+- **Componível**: troque modelos, troque servidores MCP, adote tools da comunidade, crie as suas
+- **Auditável**: políticas centralizadas, logs e traces em chamadas de tool + modelo
+- **Sem lock-in**: seu contexto, sua infraestrutura
+
+## Início rápido
+
+### Opção A: setup local do Mesh em um comando
+
+```bash
+npx @decocms/mesh init
 ```
 
-### Agents
+### Opção B: rodar a partir do código
 
-Assistentes de IA que entendem linguagem natural e chamam tools. Customizáveis com:
-- Seleção de modelo (GPT-4, Claude, etc.)
-- System prompts
-- Acesso a tools
-- Contexto de recursos
-
-### Workflows
-
-Sequências determinísticas de tools para automação. Diferente de agents que decidem, workflows seguem passos predefinidos.
-
-```typescript
-createWorkflow({ id: "REGISTER_CUSTOMER" })
-  .then(validateInput)
-  .then(saveToDatabase) 
-  .then(sendWelcomeEmail)
-  .commit();
+```bash
+git clone https://github.com/decocms/mesh.git
+cd mesh
+bun install
+bun run dev
 ```
 
-### Views
+## Admin Legado — início rápido (admin.decocms.com)
 
-Interfaces React customizadas para seus tools e workflows. Construídas com React 19 + Tailwind v4.
+Se você usa o admin SaaS atual em `admin.decocms.com` (ainda suportado, em breve descontinuado), comece por aqui:
 
-### Documents
-
-Conteúdo Markdown (PRDs, guias, notas) anexável a agents / qualquer thread para contexto.
-
-### Resources
-
-Tudo no deco CMS é um resource: tools, agents, workflows, views e documents. Resources são:
-- Tipados com schemas Zod
-- Armazenados no deconfig (versionamento tipo-git)
-- Referenciáveis usando menções `@` em threads e system prompts de agents
-
-### Database
-
-SQLite integrado com Drizzle ORM para persistência de dados.
-
-### MCP Mesh
-
-Camada de agregação de contexto que unifica integrações, tools e políticas:
-- Proxy MCP externo
-- Armazenamento seguro de credenciais
-- Roteamento RBAC e políticas
-- Rastreamento OpenTelemetry
-- Tracking de custos
-
-## Para quem é o deco CMS?
-
-**AI Builders:** Product managers, equipes de ops, analistas de negócios construindo apps sem código
-
-**Context Engineers:** Desenvolvedores estendendo com TypeScript, auto-hospedando, construindo integrações customizadas
-
-## Por que deco CMS?
-
-Equipes de IA estão presas entre protótipos low-code e caos de produção. Backends em n8n ou LangGraph. Frontends em Lovable ou React. Deploys separados. Auth inconsistente. Custos em espiral.
-
-**deco CMS unifica tudo:**
-
-- 🧠 **MCP-nativo**, Componha servidores com policy, auth e observabilidade integrados
-- ⚙️ **TypeScript full-stack**, Agents, workflows, UIs em um repo
-- 🌍 **Deploy em qualquer lugar**, Cloudflare Workers, AWS ou runtimes locais
-- 🔐 **Governança integrada**, RBAC, audit trails, caps de gastos
-- 🔭 **Observabilidade unificada**, Rastreie UI → agents → models
-- 🧩 **Aberto & modular**, Instale da deco store ou construa o seu próprio
-
----
-
-Pronto para construir seu primeiro AI app? Escolha seu caminho:
-
-- **[Para AI Builders](/pt-br/getting-started/ai-builders)** - Construa sem código
-- **[Para Context Engineers](/pt-br/getting-started/context-engineers)** - Desenvolva com TypeScript
+- **[Para AI Builders](/pt-br/getting-started/ai-builders)**
+- **[Para Context Engineers](/pt-br/getting-started/context-engineers)**

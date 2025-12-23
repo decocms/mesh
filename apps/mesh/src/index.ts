@@ -8,26 +8,50 @@
 
 // Import observability module early to initialize OpenTelemetry SDK
 import "./observability";
-import app from "./api";
+import { createApp } from "./api/app";
+import { isServerPath } from "./api/utils/paths";
+import {
+  resolveClientDir,
+  createAssetHandler,
+} from "@decocms/runtime/asset-server";
 
 const port = parseInt(process.env.PORT || "3000", 10);
 
-// Log startup info
-const dim = "\x1b[2m";
+// ANSI color codes
 const reset = "\x1b[0m";
+const bold = "\x1b[1m";
+const dim = "\x1b[2m";
+const green = "\x1b[32m";
+const cyan = "\x1b[36m";
+const underline = "\x1b[4m";
 
-console.log("✅ MCP Mesh starting...");
+const url = `http://localhost:${port}`;
+
+// Create asset handler - handles both dev proxy and production static files
+const handleAssets = createAssetHandler({
+  clientDir: resolveClientDir(import.meta.url, "../client"),
+  isServerPath,
+});
+
+// Create the Hono app
+const app = createApp();
+
 console.log("");
-console.log(`${dim}📋 Health check:  http://0.0.0.0:${port}/health${reset}`);
+console.log(`${green}✓${reset} ${bold}Ready${reset}`);
+console.log("");
 console.log(
-  `${dim}🔐 Auth endpoints: http://0.0.0.0:${port}/api/auth/*${reset}`,
+  `  ${dim}Open in browser:${reset}  ${cyan}${underline}${url}${reset}`,
 );
-console.log(`${dim}🔧 MCP endpoint:   http://0.0.0.0:${port}/mcp${reset}`);
 console.log("");
 
 Bun.serve({
+  // This was necessary because MCP has SSE endpoints (like notification) that disconnects after 10 seconds (default bun idle timeout)
+  idleTimeout: 0,
   port,
   hostname: "0.0.0.0", // Listen on all network interfaces (required for K8s)
-  fetch: app.fetch,
+  fetch: async (request) => {
+    // Try assets first (static files or dev proxy), then API
+    return (await handleAssets(request)) ?? app.fetch(request);
+  },
   development: process.env.NODE_ENV !== "production",
 });

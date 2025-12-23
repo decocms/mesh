@@ -11,9 +11,9 @@
  * - Supports StreamableHTTP transport
  */
 
+import { extractConnectionPermissions } from "@/auth/configuration-scopes";
 import { once } from "@/common";
 import { getMonitoringConfig } from "@/core/config";
-import { prop } from "@/tools/connection/json-path";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -25,6 +25,7 @@ import {
   type CallToolResult,
   type ListToolsRequest,
   type ListToolsResult,
+  type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import { issueMeshToken } from "../../auth/jwt";
@@ -195,35 +196,13 @@ async function createMCPProxyDoNotUseDirectly(
    * Uses `once` to prevent race conditions - concurrent calls share the same promise.
    */
   const ensureConfigurationToken = once(async (): Promise<void> => {
-    // Parse scopes to build permissions object
+    // Extract connection permissions from configuration state and scopes
     // Format: "KEY::SCOPE" where KEY is in state and state[KEY].value is a connection ID
     // Result: { [connectionId]: [scopes...] }
-    const permissions: Record<string, string[]> = {};
-
-    for (const scope of connection.configuration_scopes ?? []) {
-      const parts = scope.split("::");
-      if (parts.length === 2) {
-        const [key, scopeName] = parts;
-        if (!key || !scopeName) continue; // Skip invalid parts
-
-        const stateValue: unknown = prop(key, connection.configuration_state);
-
-        if (
-          typeof stateValue === "object" &&
-          stateValue !== null &&
-          "value" in stateValue
-        ) {
-          const connectionIdRef = (stateValue as { value: unknown }).value;
-          if (typeof connectionIdRef === "string") {
-            // Add scope to this connection's permissions
-            if (!permissions[connectionIdRef]) {
-              permissions[connectionIdRef] = [];
-            }
-            permissions[connectionIdRef].push(scopeName);
-          }
-        }
-      }
-    }
+    const permissions = extractConnectionPermissions(
+      connection.configuration_state as Record<string, unknown> | null,
+      connection.configuration_scopes,
+    );
 
     // Issue short-lived JWT with configuration permissions
     // JWT can be decoded directly by downstream to access payload
@@ -399,7 +378,20 @@ async function createMCPProxyDoNotUseDirectly(
   };
 
   // List tools from downstream connection
+  // Uses indexed tools if available, falls back to client for connections without cached tools
   const listTools = async (): Promise<ListToolsResult> => {
+    // Use indexed tools if available
+    if (connection.tools && connection.tools.length > 0) {
+      return {
+        tools: connection.tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema as Tool["inputSchema"],
+        })),
+      };
+    }
+
+    // Fall back to client for connections without indexed tools
     const client = await createClient();
     return await client.listTools();
   };
@@ -516,6 +508,34 @@ async function createMCPProxyDoNotUseDirectly(
     // Connect server to transport
     await server.connect(transport);
 
+    // Pre-check: Try connecting to origin MCP to detect if authentication is required
+    // If origin returns 401, we return our own 401 pointing to our OAuth proxy
+    try {
+      await createClient();
+    } catch (error) {
+      const err = error as Error & { status?: number };
+      // Check if this is an authentication error (401 from origin)
+      const isAuthError =
+        err.status === 401 ||
+        err.message?.includes("401") ||
+        err.message?.toLowerCase().includes("unauthorized");
+
+      if (isAuthError) {
+        // Return 401 with WWW-Authenticate pointing to our OAuth proxy resource metadata
+        const reqUrl = new URL(req.url);
+        return new Response(null, {
+          status: 401,
+          headers: {
+            "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${reqUrl.origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
+          },
+        });
+      }
+
+      // For other errors, log and re-throw to be handled by the route handler
+      console.error("[proxy] Failed to connect to origin MCP:", error);
+      throw error;
+    }
+
     // Manually implement list_tools - fetch from downstream and return
     server.server.setRequestHandler(
       ListToolsRequestSchema,
@@ -591,7 +611,7 @@ app.all("/:connectionId", async (c) => {
   const ctx = c.get("meshContext");
 
   try {
-    const proxy = await createMCPProxy(connectionId, ctx);
+    const proxy = await ctx.createMCPProxy(connectionId);
     return await proxy.fetch(c.req.raw);
   } catch (error) {
     const err = error as Error;

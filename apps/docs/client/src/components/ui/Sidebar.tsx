@@ -57,6 +57,7 @@ interface DocData {
 }
 
 interface Doc {
+  id?: string;
   data?: DocData;
   [key: string]: unknown;
 }
@@ -103,10 +104,19 @@ function TreeItem({
     if (node.type !== "file") return;
 
     const currentPath = globalThis.location.pathname;
-    const itemPath = `/${locale}/${node.path.join("/")}`;
+    const docId = node.doc?.id;
+    const docPath = docId ? docId.split("/").slice(1).join("/") : null;
+    const itemPath = `/${locale}/${docPath ?? node.path.join("/")}`;
 
     setActive(currentPath === itemPath);
-  }, [node.type, node.path, locale]);
+  }, [node.type, node.path, locale, node.doc?.id]);
+
+  const docId = node.doc?.id;
+  const docPath = docId ? docId.split("/").slice(1).join("/") : null;
+  const href =
+    node.type === "file"
+      ? `/${locale}/${docPath ?? node.path.join("/")}`
+      : null;
 
   return (
     <li>
@@ -125,7 +135,15 @@ function TreeItem({
         {/* Icon */}
         {node.type === "folder" ? (
           <Icon
-            name="Folder"
+            name={
+              node.id === "mcp-mesh"
+                ? "Network"
+                : node.id === "mcp-studio"
+                  ? "LayoutDashboard"
+                  : node.id === "mcp-mesh/deploy"
+                    ? "Rocket"
+                    : "Folder"
+            }
             size={16}
             className={`shrink-0 ${active ? "text-primary" : ""}`}
           />
@@ -162,7 +180,10 @@ function TreeItem({
             )}
           </button>
         ) : (
-          <a href={`/${locale}/${node.path.join("/")}`} className="flex-1">
+          <a
+            href={href ?? `/${locale}/${node.path.join("/")}`}
+            className="flex-1"
+          >
             {node.doc?.data?.title || node.name}
           </a>
         )}

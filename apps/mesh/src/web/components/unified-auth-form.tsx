@@ -19,7 +19,10 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(() => {
+    const hasLoggedIn = globalThis.localStorage?.getItem("hasLoggedIn");
+    return hasLoggedIn !== "true";
+  });
   const [emailError, setEmailError] = useState("");
 
   const emailPasswordMutation = useMutation({
@@ -56,6 +59,7 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
       }
     },
     onSuccess: () => {
+      globalThis.localStorage?.setItem("hasLoggedIn", "true");
       // If OAuth flow, redirect to authorize endpoint to complete the flow
       if (redirectUrl) {
         window.location.href = redirectUrl;
@@ -162,13 +166,14 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
       {emailAndPassword.enabled && (
         <form onSubmit={handleEmailPassword} className="grid gap-4">
           <div
-            className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)] ${
+            className={cn(
+              "overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)]",
               isSignUp
                 ? "max-h-[200px] opacity-100 translate-y-0"
-                : "max-h-0 opacity-0 -translate-y-2"
-            }`}
+                : "max-h-0 opacity-0 -translate-y-2",
+            )}
           >
-            <div className={isSignUp ? "" : "pointer-events-none"}>
+            <div className={cn("p-1", !isSignUp && "pointer-events-none")}>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Name
               </label>
@@ -217,17 +222,17 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
 
           <div
             className={cn(
-              `overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)]`,
+              "overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.075,0.82,0.165,1)]",
               canSubmit
                 ? "max-h-[100px] opacity-100 translate-y-0"
                 : "max-h-0 opacity-0 -translate-y-2",
             )}
           >
-            <div className={canSubmit ? "" : "pointer-events-none"}>
+            <div className={cn("p-1", !canSubmit && "pointer-events-none")}>
               <Button
                 type="submit"
                 disabled={isLoading || !canSubmit}
-                className="w-full font-semibold"
+                className={cn("w-full font-semibold")}
                 size="lg"
                 aria-hidden={!canSubmit}
               >
@@ -249,8 +254,6 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
           variant="link"
           onClick={() => {
             setIsSignUp(!isSignUp);
-            setEmail("");
-            setPassword("");
             setName("");
             setEmailError("");
             emailPasswordMutation.reset();

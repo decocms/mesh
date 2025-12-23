@@ -22,12 +22,23 @@ export interface Config {
     jwt?: { secret?: string };
   };
   monitoring?: Partial<MonitoringConfig>;
+  /**
+   * Whether to automatically create an organization when a new user signs up.
+   * @default true
+   */
+  autoCreateOrganizationOnSignup?: boolean;
 }
 
-const configPath = "./config.json";
-const authConfigPath = "./auth-config.json";
+// Config paths can be overridden via environment variables for k8s flexibility
+const configPath = process.env.CONFIG_PATH || "./config.json";
+const authConfigPath = process.env.AUTH_CONFIG_PATH || "./auth-config.json";
+
 /**
  * Load optional configuration from file
+ *
+ * Paths can be configured via environment variables:
+ * - CONFIG_PATH: Full config file path (default: ./config.json)
+ * - AUTH_CONFIG_PATH: Auth config file path (default: ./auth-config.json)
  */
 function loadConfig(): Config {
   if (existsSync(configPath)) {
