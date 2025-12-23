@@ -12,7 +12,7 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "./home-grid-cell.tsx";
-import type { MonitoringLogsWithGatewayResponse } from "./monitoring-types.ts";
+import type { MonitoringLogsWithGatewayResponse } from "@/web/components/monitoring";
 
 type MetricsMode = "requests" | "errors" | "latency";
 

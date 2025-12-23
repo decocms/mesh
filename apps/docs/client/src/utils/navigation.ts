@@ -17,7 +17,7 @@ export async function getNavigationLinks(
   const order = [
     "introduction.mdx",
     "getting-started/ai-builders.mdx",
-    "getting-started/context-engineers.mdx",
+    "getting-started/developers.mdx",
     "no-code-guides/creating-tools.mdx",
     "no-code-guides/creating-agents.mdx",
     "full-code-guides/project-structure.mdx",

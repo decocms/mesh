@@ -7,241 +7,93 @@
  *
  * Architecture:
  * - Lists connections for the gateway (from database or organization)
- * - Creates proxies for each connection using createMCPProxy
- * - Composes them into a single ServerClient interface
- * - Always deduplicates tools by name (first occurrence wins)
+ * - Creates a ProxyCollection for all connections
+ * - Uses lazy-loading gateways (ToolGateway, ResourceGateway, etc.) to aggregate resources
+ * - Deduplicates tools and prompts by name (first occurrence wins)
+ * - Routes resources by URI (globally unique)
  * - Supports exclusion strategy for inverse tool selection
  */
 
-import type { ServerClient } from "@decocms/bindings/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   CallToolRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
+  ReadResourceRequestSchema,
   type CallToolRequest,
   type CallToolResult,
+  type GetPromptRequest,
+  type GetPromptResult,
+  type ListPromptsResult,
+  type ListResourcesResult,
+  type ListResourceTemplatesResult,
   type ListToolsRequest,
   type ListToolsResult,
+  type ReadResourceRequest,
+  type ReadResourceResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
-import type {
-  GatewayToolSelectionStrategy,
-  GatewayWithConnections,
-  ToolSelectionMode,
-} from "../../storage/types";
+import {
+  ProxyCollection,
+  ToolGateway,
+  ResourceGateway,
+  ResourceTemplateGateway,
+  PromptGateway,
+  type GatewayClient,
+  type GatewayOptions,
+} from "../../gateway";
+import type { GatewayWithConnections } from "../../storage/types";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { Env } from "../env";
 import { HttpServerTransport } from "../http-server-transport";
-import { getStrategy, type ToolWithConnection } from "./gateway-strategies";
-import { createMCPProxy } from "./proxy";
 
 // Define Hono variables type
 const app = new Hono<Env>();
-
-// ============================================================================
-// Types
-// ============================================================================
-
-/** Maps final tool name -> { connectionId, originalName, proxy } */
-interface ToolMapping {
-  connectionId: string;
-  originalName: string;
-}
-
-/** Gateway configuration for createMCPGateway */
-interface GatewayOptions {
-  connections: Array<{
-    connection: ConnectionEntity;
-    selectedTools: string[] | null; // null = all tools (or full exclusion if mode is "exclusion")
-  }>;
-  toolSelectionMode: ToolSelectionMode;
-  toolSelectionStrategy: GatewayToolSelectionStrategy;
-}
 
 // ============================================================================
 // MCP Gateway Factory
 // ============================================================================
 
 /**
- * Create an MCP gateway that aggregates tools from multiple connections
+ * Create an MCP gateway that aggregates tools, resources, and prompts from multiple connections
+ *
+ * Uses lazy-loading gateways - data is only fetched from connections when first accessed.
  *
  * @param options - Gateway configuration (connections with selected tools and strategy)
  * @param ctx - Mesh context for creating proxies
- * @returns ServerClient interface with aggregated tools
+ * @returns GatewayClient interface with aggregated tools, resources, and prompts
  */
 async function createMCPGateway(
   options: GatewayOptions,
   ctx: MeshContext,
-): Promise<ServerClient> {
-  // Create proxies for all connections in parallel
-  const proxyResults = await Promise.allSettled(
-    options.connections.map(async ({ connection, selectedTools }) => {
-      try {
-        const proxy = await ctx.createMCPProxy(connection);
-        return { connection, proxy, selectedTools };
-      } catch (error) {
-        console.error(
-          `[gateway] Failed to create proxy for connection ${connection.id}:`,
-          error,
-        );
-        return null;
-      }
-    }),
-  );
+): Promise<GatewayClient> {
+  // Create proxy collection for all connections
+  const proxies = await ProxyCollection.create(options.connections, ctx);
 
-  // Filter successful proxies
-  const proxies = new Map<
-    string,
-    {
-      proxy: Awaited<ReturnType<typeof createMCPProxy>>;
-      connection: ConnectionEntity;
-      selectedTools: string[] | null;
-    }
-  >();
-  for (const result of proxyResults) {
-    if (result.status === "fulfilled" && result.value) {
-      proxies.set(result.value.connection.id, result.value);
-    }
-  }
-
-  // Fetch and aggregate all tools from connections
-  const toolResults = await Promise.allSettled(
-    Array.from(proxies.entries()).map(
-      async ([connectionId, { proxy, connection, selectedTools }]) => {
-        try {
-          const result = await proxy.client.listTools();
-          let tools = result.tools;
-
-          // Apply selection based on mode
-          if (options.toolSelectionMode === "exclusion") {
-            if (selectedTools && selectedTools.length > 0) {
-              const excludeSet = new Set(selectedTools);
-              tools = tools.filter((t) => !excludeSet.has(t.name));
-            }
-          } else {
-            if (selectedTools && selectedTools.length > 0) {
-              const selectedSet = new Set(selectedTools);
-              tools = tools.filter((t) => selectedSet.has(t.name));
-            }
-          }
-
-          return { connectionId, connectionTitle: connection.title, tools };
-        } catch (error) {
-          console.error(
-            `[gateway] Failed to list tools for connection ${connectionId}:`,
-            error,
-          );
-          return null;
-        }
-      },
-    ),
-  );
-
-  // Deduplicate and build tools with connection metadata
-  const seenNames = new Set<string>();
-  const allTools: ToolWithConnection[] = [];
-  const toolMappings = new Map<string, ToolMapping>();
-  const categories = new Set<string>();
-
-  for (const result of toolResults) {
-    if (result.status !== "fulfilled" || !result.value) continue;
-
-    const { connectionId, connectionTitle, tools } = result.value;
-    categories.add(connectionTitle);
-
-    for (const tool of tools) {
-      if (seenNames.has(tool.name)) continue;
-      seenNames.add(tool.name);
-
-      allTools.push({
-        ...tool,
-        connectionId,
-        connectionTitle,
-      });
-      toolMappings.set(tool.name, { connectionId, originalName: tool.name });
-    }
-  }
-
-  // Base callTool that routes to the correct connection
-  const baseCallTool = async (
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<CallToolResult> => {
-    const mapping = toolMappings.get(name);
-    if (!mapping) {
-      return {
-        content: [{ type: "text", text: `Tool not found: ${name}` }],
-        isError: true,
-      };
-    }
-
-    const proxyEntry = proxies.get(mapping.connectionId);
-    if (!proxyEntry) {
-      return {
-        content: [
-          { type: "text", text: `Connection not found for tool: ${name}` },
-        ],
-        isError: true,
-      };
-    }
-
-    const result = await proxyEntry.proxy.client.callTool({
-      name: mapping.originalName,
-      arguments: args,
-    });
-
-    return result as CallToolResult;
-  };
-
-  // Apply the strategy to transform tools
-  const strategy = getStrategy(options.toolSelectionStrategy);
-  const strategyResult = strategy({
-    tools: allTools,
-    callTool: baseCallTool,
-    categories: Array.from(categories).sort(),
+  // Create lazy gateway abstractions
+  const tools = new ToolGateway(proxies, {
+    selectionMode: options.toolSelectionMode,
+    strategy: options.toolSelectionStrategy,
   });
-
-  // Wrap callTool to accept MCP params format
-  const listTools = async (): Promise<ListToolsResult> => ({
-    tools: strategyResult.tools,
-  });
-
-  const callTool = async (
-    params: CallToolRequest["params"],
-  ): Promise<CallToolResult> => {
-    return strategyResult.callTool(
-      params.name,
-      params.arguments ?? {},
-    ) as Promise<CallToolResult>;
-  };
-
-  // Streamable calls go through strategy callTool then to base if needed
-  const callStreamableTool = async (
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<Response> => {
-    // For smart strategy, GATEWAY_CALL_TOOL handles delegation
-    // For passthrough, route directly to underlying proxy
-    const mapping = toolMappings.get(toolName);
-    if (mapping) {
-      // Direct tool - route to proxy
-      const proxyEntry = proxies.get(mapping.connectionId);
-      if (proxyEntry) {
-        return proxyEntry.proxy.callStreamableTool(mapping.originalName, args);
-      }
-    }
-
-    // Meta-tool or not found - execute through strategy and return JSON
-    const result = await strategyResult.callTool(toolName, args);
-    return new Response(JSON.stringify(result), {
-      headers: { "Content-Type": "application/json" },
-    });
-  };
+  const resources = new ResourceGateway(proxies);
+  const resourceTemplates = new ResourceTemplateGateway(proxies);
+  const prompts = new PromptGateway(proxies);
 
   return {
-    client: { listTools, callTool },
-    callStreamableTool,
+    client: {
+      listTools: tools.list.bind(tools),
+      callTool: tools.call.bind(tools),
+      listResources: resources.list.bind(resources),
+      readResource: resources.read.bind(resources),
+      listResourceTemplates: resourceTemplates.list.bind(resourceTemplates),
+      listPrompts: prompts.list.bind(prompts),
+      getPrompt: prompts.get.bind(prompts),
+    },
+    callStreamableTool: tools.callStreamable.bind(tools),
   };
 }
 
@@ -256,7 +108,7 @@ async function createMCPGateway(
 async function createMCPGatewayFromEntity(
   gateway: GatewayWithConnections,
   ctx: MeshContext,
-): Promise<ServerClient> {
+): Promise<GatewayClient> {
   let connections: Array<{
     connection: ConnectionEntity;
     selectedTools: string[] | null;
@@ -407,7 +259,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
         version: "1.0.0",
       },
       {
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {}, prompts: {} },
       },
     );
 
@@ -435,6 +287,46 @@ app.all("/gateway/:gatewayId?", async (c) => {
         return (await gatewayClient.client.callTool(
           request.params,
         )) as CallToolResult;
+      },
+    );
+
+    // Handle list_resources
+    server.server.setRequestHandler(
+      ListResourcesRequestSchema,
+      async (): Promise<ListResourcesResult> => {
+        return gatewayClient.client.listResources();
+      },
+    );
+
+    // Handle read_resource
+    server.server.setRequestHandler(
+      ReadResourceRequestSchema,
+      async (request: ReadResourceRequest): Promise<ReadResourceResult> => {
+        return gatewayClient.client.readResource(request.params);
+      },
+    );
+
+    // Handle list_resource_templates
+    server.server.setRequestHandler(
+      ListResourceTemplatesRequestSchema,
+      async (): Promise<ListResourceTemplatesResult> => {
+        return gatewayClient.client.listResourceTemplates();
+      },
+    );
+
+    // Handle list_prompts
+    server.server.setRequestHandler(
+      ListPromptsRequestSchema,
+      async (): Promise<ListPromptsResult> => {
+        return gatewayClient.client.listPrompts();
+      },
+    );
+
+    // Handle get_prompt
+    server.server.setRequestHandler(
+      GetPromptRequestSchema,
+      async (request: GetPromptRequest): Promise<GetPromptResult> => {
+        return gatewayClient.client.getPrompt(request.params);
       },
     );
 

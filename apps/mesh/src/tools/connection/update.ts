@@ -69,18 +69,12 @@ async function validateConfiguration(
     if (refConnectionId === WellKnownMCPId.SELF) {
       continue;
     }
-    // Verify connection exists
+    // Verify connection exists and belongs to same organization
+    // Use consistent error message to prevent cross-org information disclosure
     const refConnection =
       await ctx.storage.connections.findById(refConnectionId);
-    if (!refConnection) {
+    if (!refConnection || refConnection.organization_id !== organizationId) {
       throw new Error(`Referenced connection not found: ${refConnectionId}`);
-    }
-
-    // Verify connection belongs to same organization
-    if (refConnection.organization_id !== organizationId) {
-      throw new Error(
-        `Referenced connection ${refConnectionId} does not belong to organization ${organizationId}`,
-      );
     }
 
     // Verify user has access to the referenced connection

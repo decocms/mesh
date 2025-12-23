@@ -9,9 +9,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { Line, LineChart } from "recharts";
 import { HomeGridCell } from "./home-grid-cell.tsx";
 import type {
-  MonitoringLog,
-  MonitoringLogsResponse,
-} from "./monitoring-types.ts";
+  BaseMonitoringLog,
+  BaseMonitoringLogsResponse,
+} from "@/web/components/monitoring";
 
 type MetricsMode = "requests" | "errors" | "latency";
 
@@ -23,7 +23,7 @@ interface BucketData {
 }
 
 function buildStackedToolBuckets(
-  logs: MonitoringLog[],
+  logs: BaseMonitoringLog[],
   start: Date,
   end: Date,
   topN: number = 10,
@@ -114,7 +114,7 @@ function TopToolsContent(_props: TopToolsContentProps) {
 
   const { data: logsData } = useToolCall<
     { startDate: string; endDate: string; limit: number; offset: number },
-    MonitoringLogsResponse
+    BaseMonitoringLogsResponse
   >({
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
@@ -128,7 +128,7 @@ function TopToolsContent(_props: TopToolsContentProps) {
   const end = new Date(dateRange.endDate);
 
   // Generate mock data if no logs
-  const mockLogs: MonitoringLog[] =
+  const mockLogs: BaseMonitoringLog[] =
     logs.length === 0
       ? Array.from({ length: 150 }, (_, i) => ({
           id: `mock-${i}`,

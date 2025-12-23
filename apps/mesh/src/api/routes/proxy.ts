@@ -20,11 +20,23 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   CallToolRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
+  ReadResourceRequestSchema,
   type CallToolRequest,
   type CallToolResult,
+  type GetPromptRequest,
+  type GetPromptResult,
+  type ListPromptsResult,
+  type ListResourcesResult,
+  type ListResourceTemplatesResult,
   type ListToolsRequest,
   type ListToolsResult,
+  type ReadResourceRequest,
+  type ReadResourceResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
@@ -33,6 +45,7 @@ import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
 import { HttpServerTransport } from "../http-server-transport";
 import { compose } from "../utils/compose";
+import { oauthOn401 } from "./oauth-proxy";
 import {
   createProxyMonitoringMiddleware,
   createProxyStreamableMonitoringMiddleware,
@@ -396,6 +409,41 @@ async function createMCPProxyDoNotUseDirectly(
     return await client.listTools();
   };
 
+  // List resources from downstream connection
+  const listResources = async (): Promise<ListResourcesResult> => {
+    const client = await createClient();
+    return await client.listResources();
+  };
+
+  // Read a specific resource from downstream connection
+  const readResource = async (
+    params: ReadResourceRequest["params"],
+  ): Promise<ReadResourceResult> => {
+    const client = await createClient();
+    return await client.readResource(params);
+  };
+
+  // List resource templates from downstream connection
+  const listResourceTemplates =
+    async (): Promise<ListResourceTemplatesResult> => {
+      const client = await createClient();
+      return await client.listResourceTemplates();
+    };
+
+  // List prompts from downstream connection
+  const listPrompts = async (): Promise<ListPromptsResult> => {
+    const client = await createClient();
+    return await client.listPrompts();
+  };
+
+  // Get a specific prompt from downstream connection
+  const getPrompt = async (
+    params: GetPromptRequest["params"],
+  ): Promise<GetPromptResult> => {
+    const client = await createClient();
+    return await client.getPrompt(params);
+  };
+
   // Call tool using fetch directly for streaming support
   // Inspired by @deco/api proxy callStreamableTool
   const callStreamableTool = async (
@@ -488,6 +536,12 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Create fetch function that handles MCP protocol
   const handleMcpRequest = async (req: Request) => {
+    // Create client once - throws HTTPException for auth errors
+    const reqUrl = new URL(req.url);
+    const client = await createClient().catch((error) =>
+      oauthOn401(error, reqUrl, connectionId),
+    );
+
     // Create MCP server for this proxy
     const server = new McpServer(
       {
@@ -495,7 +549,7 @@ async function createMCPProxyDoNotUseDirectly(
         version: "1.0.0",
       },
       {
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {}, prompts: {} },
       },
     );
 
@@ -508,45 +562,53 @@ async function createMCPProxyDoNotUseDirectly(
     // Connect server to transport
     await server.connect(transport);
 
-    // Pre-check: Try connecting to origin MCP to detect if authentication is required
-    // If origin returns 401, we return our own 401 pointing to our OAuth proxy
-    try {
-      await createClient();
-    } catch (error) {
-      const err = error as Error & { status?: number };
-      // Check if this is an authentication error (401 from origin)
-      const isAuthError =
-        err.status === 401 ||
-        err.message?.includes("401") ||
-        err.message?.toLowerCase().includes("unauthorized");
-
-      if (isAuthError) {
-        // Return 401 with WWW-Authenticate pointing to our OAuth proxy resource metadata
-        const reqUrl = new URL(req.url);
-        return new Response(null, {
-          status: 401,
-          headers: {
-            "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${reqUrl.origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
-          },
-        });
-      }
-
-      // For other errors, log and re-throw to be handled by the route handler
-      console.error("[proxy] Failed to connect to origin MCP:", error);
-      throw error;
-    }
-
-    // Manually implement list_tools - fetch from downstream and return
+    // Tools handlers
     server.server.setRequestHandler(
       ListToolsRequestSchema,
       async (_request: ListToolsRequest): Promise<ListToolsResult> => {
-        const client = await createClient();
         return await client.listTools();
       },
     );
 
     // Set up call tool handler with middleware - reuses executeToolCall
     server.server.setRequestHandler(CallToolRequestSchema, executeToolCall);
+
+    // Resources handlers
+    server.server.setRequestHandler(
+      ListResourcesRequestSchema,
+      async (): Promise<ListResourcesResult> => {
+        return await client.listResources();
+      },
+    );
+
+    server.server.setRequestHandler(
+      ReadResourceRequestSchema,
+      async (request: ReadResourceRequest): Promise<ReadResourceResult> => {
+        return await client.readResource(request.params);
+      },
+    );
+
+    server.server.setRequestHandler(
+      ListResourceTemplatesRequestSchema,
+      async (): Promise<ListResourceTemplatesResult> => {
+        return await client.listResourceTemplates();
+      },
+    );
+
+    // Prompts handlers
+    server.server.setRequestHandler(
+      ListPromptsRequestSchema,
+      async (): Promise<ListPromptsResult> => {
+        return await client.listPrompts();
+      },
+    );
+
+    server.server.setRequestHandler(
+      GetPromptRequestSchema,
+      async (request: GetPromptRequest): Promise<GetPromptResult> => {
+        return await client.getPrompt(request.params);
+      },
+    );
 
     // Handle the incoming message
     return await transport.handleMessage(req);
@@ -562,6 +624,11 @@ async function createMCPProxyDoNotUseDirectly(
         });
       },
       listTools,
+      listResources,
+      readResource,
+      listResourceTemplates,
+      listPrompts,
+      getPrompt,
     },
     callStreamableTool,
   };

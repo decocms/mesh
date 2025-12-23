@@ -8,29 +8,50 @@ import Callout from "../../components/ui/Callout.astro";
 
 ![deco](https://assets.decocache.com/mcp/9a3facd8-1199-4635-becc-bdc3f5ee7ab1/deco-banner-capy.png)
 
-## Boas-vindas
-
-Esta documentação é principalmente para **desenvolvedores** do **MCP Mesh** e da plataforma **deco CMS**.
-
 ## O que é deco CMS?
 
 **deco CMS** é um **Context Management System** open-source para operações nativas de IA.
 
-Se MCP é a interface padrão para acesso a tools, o deco CMS é a **camada de produção ao redor disso**: conectar servidores MCP, aplicar governança e ter observabilidade conforme o uso escala entre times e ambientes.
+Se MCP é a interface padrão para acesso a tools, o deco CMS é a **camada de produção ao redor disso**: conectar servidores MCP, aplicar governança e ter observabilidade conforme o uso escala entre times e ambientes. A plataforma mais ampla também inclui um **framework de builder** (MCP Studio — em breve, substituindo o admin legado) e **capacidades de distribuição** (módulos pré-construidos e uma store).
+
+**Links oficiais:**
+
+- **deco CMS**: [decocms.com](https://www.decocms.com/)
+- **O MCP Mesh**: [decocms.com/mesh](https://www.decocms.com/mesh)
+- **MCP Studio**: [decocms.com/mcp-studio](https://www.decocms.com/mcp-studio)
+
+Se você conheceu a gente antes, como **deco.cx**, e está buscando **headless CMS + storefront**, visite [deco.cx](https://www.decocms.com/use-case/deco-cx). Veja a documentação do deco.cx em [docs.deco.cx](https://docs.deco.cx/en/getting-started/overview).
+
+## Início rápido (Mesh)
+
+### Opção A: setup local do Mesh em um comando
+
+```bash
+npx @decocms/mesh init
+```
+
+### Opção B: rodar a partir do código
+
+```bash
+git clone https://github.com/decocms/mesh.git
+cd mesh
+bun install
+bun run dev
+```
+
+## Deploy (Mesh)
+
+- **[Local: Docker Compose](/pt-br/mcp-mesh/deploy/local-docker-compose)**
+- **[Kubernetes: Helm Chart](/pt-br/mcp-mesh/deploy/kubernetes-helm-chart)**
 
 <Callout type="warning">
   **Divisão da documentação (guia rápido):**
 
-  - **MCP Mesh** → Auto-hospedagem, deploy e operação do Mesh (recomendado).
+  - **O MCP Mesh** → Auto-hospedagem, deploy e operação do Mesh (recomendado).
   - **Admin Legado** → Se você usa `admin.decocms.com` (ainda suportado, **em breve descontinuado**).
 
   Estamos lançando o **MCP Studio** (em cima do Mesh), que vai trazer as capacidades do admin SaaS atual para o Mesh (incluindo uma versão hospedada por nós) e substituir o SaaS legado ao longo do tempo.
 </Callout>
-
-## Comece por aqui (caminhos mais comuns)
-
-- **[Deploy do MCP Mesh localmente (Docker Compose)](/pt-br/mcp-mesh/deploy/local-docker-compose)**
-- **[Deploy do MCP Mesh no Kubernetes (Helm)](/pt-br/mcp-mesh/deploy/kubernetes-helm-chart)**
 
 ## Problema (e o que o Mesh resolve)
 
@@ -45,7 +66,7 @@ O MCP Mesh centraliza essas preocupações transversais **uma vez** para você n
 
 ## Estrutura da plataforma: Mesh → Studio → Distribuição
 
-### MCP Mesh (fundação)
+### O MCP Mesh (fundação)
 Um **control plane** open-source para tráfego MCP. Ele fica entre seus clientes MCP (Cursor, Claude, VS Code, agentes customizados) e seus servidores MCP, oferecendo uma camada unificada de auth, policy e observabilidade.
 
 ### MCP Studio (desenvolvimento)
@@ -73,26 +94,9 @@ MCP te dá uma interface padrão. O deco CMS fornece o **control plane** ao redo
 - **Auditável**: políticas centralizadas, logs e traces em chamadas de tool + modelo
 - **Sem lock-in**: seu contexto, sua infraestrutura
 
-## Início rápido
-
-### Opção A: setup local do Mesh em um comando
-
-```bash
-npx @decocms/mesh init
-```
-
-### Opção B: rodar a partir do código
-
-```bash
-git clone https://github.com/decocms/mesh.git
-cd mesh
-bun install
-bun run dev
-```
-
 ## Admin Legado — início rápido (admin.decocms.com)
 
 Se você usa o admin SaaS atual em `admin.decocms.com` (ainda suportado, em breve descontinuado), comece por aqui:
 
 - **[Para AI Builders](/pt-br/getting-started/ai-builders)**
-- **[Para Context Engineers](/pt-br/getting-started/context-engineers)**
+- **[Para Desenvolvedores](/pt-br/getting-started/developers)**

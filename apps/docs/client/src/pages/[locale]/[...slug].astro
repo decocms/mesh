@@ -16,6 +16,13 @@ export async function getStaticPaths() {
       params: { locale },
       props: { doc: null },
     })),
+    // Legacy path redirects (keep old URLs working without keeping old docs in the sidebar)
+    ...Object.keys(languages).flatMap((locale) => [
+      {
+        params: { locale, slug: "getting-started/context-engineers" },
+        props: { doc: null },
+      },
+    ]),
     ...allDocs.map((doc) => {
       const locale = doc.id.split("/")[0];
       const slug = doc.id.split("/").slice(1).join("/");
@@ -29,6 +36,12 @@ export async function getStaticPaths() {
 }
 
 const { doc } = Astro.props;
+const slug = Astro.params.slug;
+
+// Legacy redirects
+if (slug === "getting-started/context-engineers") {
+  return Astro.redirect(`/${lang}/getting-started/developers`);
+}
 
 // Redirect to introduction if no document is found (i.e., when visiting /en)
 if (!doc) {

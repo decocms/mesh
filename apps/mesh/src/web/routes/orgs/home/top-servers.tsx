@@ -16,7 +16,7 @@ import {
 } from "@deco/ui/components/toggle-group.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "./home-grid-cell.tsx";
-import type { MonitoringLogsWithGatewayResponse } from "./monitoring-types.ts";
+import type { MonitoringLogsWithGatewayResponse } from "@/web/components/monitoring";
 
 type MetricsMode = "requests" | "errors" | "latency";
 
