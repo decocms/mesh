@@ -5,6 +5,7 @@ interface DecoChatEmptyStateProps {
   title?: string;
   description?: ReactNode;
   avatar?: string;
+  avatarNode?: ReactNode;
   className?: string;
 }
 
@@ -12,6 +13,7 @@ export function DecoChatEmptyState({
   title = "Start a conversation",
   description,
   avatar,
+  avatarNode,
   className,
 }: DecoChatEmptyStateProps) {
   return (
@@ -21,13 +23,15 @@ export function DecoChatEmptyState({
         className,
       )}
     >
-      {avatar && (
-        <img
-          src={avatar}
-          alt="Chat avatar"
-          className="size-[60px] rounded-[18px] border-[1.875px] border-border/10"
-        />
-      )}
+      {avatarNode
+        ? avatarNode
+        : avatar && (
+            <img
+              src={avatar}
+              alt="Chat avatar"
+              className="size-[60px] rounded-[18px] border-[1.875px] border-border/10"
+            />
+          )}
       {title && (
         <h3 className="text-xl font-medium text-foreground">{title}</h3>
       )}

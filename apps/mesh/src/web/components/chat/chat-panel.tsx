@@ -1,6 +1,7 @@
 import { EmptyState } from "@/web/components/empty-state";
-import { useAgentsFromConnection } from "@/web/hooks/collections/use-agent";
+import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useLLMsFromConnection } from "@/web/hooks/collections/use-llm";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
@@ -8,7 +9,7 @@ import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { useChat as useAiChat } from "@ai-sdk/react";
 import { Button } from "@deco/ui/components/button.tsx";
-import { DecoChatAgentSelector } from "@deco/ui/components/deco-chat-agent-selector.tsx";
+import { GatewaySelector } from "@/web/components/chat/gateway-selector";
 import { DecoChatAside } from "@deco/ui/components/deco-chat-aside.tsx";
 import { DecoChatEmptyState } from "@deco/ui/components/deco-chat-empty-state.tsx";
 import { DecoChatInputV2 } from "@deco/ui/components/deco-chat-input-v2.tsx";
@@ -24,14 +25,14 @@ import {
   useMessageActions,
   useThreadActions,
   useThreadMessages,
-} from "../hooks/use-chat-store";
-import { useLocalStorage } from "../hooks/use-local-storage";
-import { LOCALSTORAGE_KEYS } from "../lib/localstorage-keys";
-import { useChat } from "../providers/chat-provider";
-import type { Message } from "../types/chat-threads";
-import { MessageAssistant } from "./chat/message-assistant.tsx";
-import { MessageFooter, MessageList } from "./chat/message-list.tsx";
-import { MessageUser } from "./chat/message-user.tsx";
+} from "../../hooks/use-chat-store";
+import { useLocalStorage } from "../../hooks/use-local-storage";
+import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
+import { useChat } from "../../providers/chat-provider";
+import type { Message } from "../../types/chat-threads";
+import { MessageAssistant } from "./message-assistant.tsx";
+import { MessageFooter, MessageList } from "./message-list.tsx";
+import { MessageUser } from "./message-user.tsx";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
@@ -102,7 +103,7 @@ function ChatInput({
   );
 }
 
-export function DecoChatPanel() {
+export function ChatPanel() {
   const { data: session } = authClient.useSession();
   const user = session?.user;
   const { org, locator } = useProjectContext();
@@ -131,11 +132,10 @@ export function DecoChatPanel() {
     (existing) => existing ?? null,
   );
 
-  // Persist selected agent per organization in localStorage
-  const [selectedAgentState, setSelectedAgentState] = useLocalStorage<{
-    agentId: string;
-    connectionId: string;
-  } | null>(`${locator}:selected-agent`, () => null);
+  // Persist selected gateway per organization in localStorage
+  const [selectedGatewayState, setSelectedGatewayState] = useLocalStorage<{
+    gatewayId: string;
+  } | null>(`${locator}:selected-gateway`, () => null);
 
   // Create transport (stable, doesn't depend on selected model)
   const transport = createModelsTransport(org.slug);
@@ -200,21 +200,17 @@ export function DecoChatPanel() {
   // Get all connections
   const allConnections = useConnections();
 
-  // Filter connections by binding type
+  // Filter connections by binding type for LLMs
   const [modelsConnection] = useBindingConnections({
     connections: allConnections,
     binding: "LLMS",
-  });
-  const [agentsConnection] = useBindingConnections({
-    connections: allConnections,
-    binding: "AGENTS",
   });
 
   // Fetch models from the first LLM connection
   const modelsData = useLLMsFromConnection(modelsConnection?.id);
 
-  // Fetch agents from the first AGENTS connection
-  const agentsData = useAgentsFromConnection(agentsConnection?.id);
+  // Fetch all gateways for the organization
+  const gateways = useGateways();
 
   // Transform models for UI display
   const models =
@@ -234,16 +230,6 @@ export function DecoChatPanel() {
           }))
           .sort((a, b) => a.name.localeCompare(b.name));
 
-  // Transform agents with connection info
-  const agents =
-    !agentsData || !agentsConnection
-      ? []
-      : agentsData.map((agent) => ({
-          ...agent,
-          connectionId: agentsConnection.id,
-          connectionName: agentsConnection.title,
-        }));
-
   // Initialize with first model
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
@@ -259,20 +245,19 @@ export function DecoChatPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelsData, modelsConnection, selectedModelState, setSelectedModelState]);
 
-  // Initialize with first agent
+  // Initialize with first gateway
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (agents.length > 0 && !selectedAgentState) {
-      const firstAgent = agents[0];
-      if (firstAgent) {
-        setSelectedAgentState({
-          agentId: firstAgent.id,
-          connectionId: firstAgent.connectionId,
+    if (gateways.length > 0 && !selectedGatewayState) {
+      const firstGateway = gateways[0];
+      if (firstGateway) {
+        setSelectedGatewayState({
+          gatewayId: firstGateway.id,
         });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentsData, agentsConnection, selectedAgentState, setSelectedAgentState]);
+  }, [gateways, selectedGatewayState, setSelectedGatewayState]);
 
   // Get selected model info
   const selectedModel = models.find(
@@ -281,11 +266,9 @@ export function DecoChatPanel() {
       m.connectionId === selectedModelState?.connectionId,
   );
 
-  // Get selected agent info
-  const selectedAgent = agents.find(
-    (a) =>
-      a.id === selectedAgentState?.agentId &&
-      a.connectionId === selectedAgentState?.connectionId,
+  // Get selected gateway info
+  const selectedGateway = gateways.find(
+    (g) => g.id === selectedGatewayState?.gatewayId,
   );
 
   const isEmpty = chat.messages.length === 0;
@@ -311,12 +294,13 @@ export function DecoChatPanel() {
   }
   lastMessageCountRef.current = chat.messages.length;
 
-  // Transform agents to selector options
-  const agentSelectorOptions = agents.map((agent) => ({
-    id: `${agent.connectionId}:${agent.id}`,
-    name: agent.title,
-    avatar: agent.avatar,
-    description: agent.description,
+  // Transform gateways to selector options
+  const gatewaySelectorOptions = gateways.map((gateway) => ({
+    id: gateway.id,
+    title: gateway.title,
+    icon: gateway.icon,
+    description: gateway.description,
+    fallbackIcon: "network_node", // Consistent with gateways page
   }));
 
   const handleSendMessage = async (text: string) => {
@@ -330,12 +314,12 @@ export function DecoChatPanel() {
       return;
     }
 
-    // Prepare metadata with model and agent configuration
+    // Prepare metadata with model and gateway configuration
     const metadata: Metadata = {
       created_at: new Date().toISOString(),
       thread_id: activeThreadId,
       model: selectedModel,
-      agent: selectedAgent ?? undefined,
+      gateway: selectedGateway ? { id: selectedGateway.id } : undefined,
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
@@ -357,27 +341,27 @@ export function DecoChatPanel() {
     chat.stop?.();
   };
 
-  // Check if both required bindings are present
+  // Check if required components are present
   const hasModelsBinding = !!modelsConnection;
-  const hasAgentsBinding = !!agentsConnection;
-  const hasBothBindings = hasModelsBinding && hasAgentsBinding;
+  const hasGateways = gateways.length > 0;
+  const hasRequiredSetup = hasModelsBinding && hasGateways;
 
-  // If missing bindings, show empty state with appropriate message
-  if (!hasBothBindings) {
+  // If missing requirements, show empty state with appropriate message
+  if (!hasRequiredSetup) {
     let title: string;
     let description: string;
 
-    if (!hasModelsBinding && !hasAgentsBinding) {
+    if (!hasModelsBinding && !hasGateways) {
       title = "Connect your providers";
       description =
-        "Connect MCP Servers with llm and agents to unlock AI-powered features.";
+        "Connect an LLM provider and create a gateway to unlock AI-powered features.";
     } else if (!hasModelsBinding) {
       title = "No model provider connected";
       description =
         "Connect to a model provider to unlock AI-powered features.";
     } else {
-      title = "No agents configured";
-      description = "Connect to an agents provider to use AI assistants.";
+      title = "No gateways configured";
+      description = "Create a gateway to expose your MCP tools to the chat.";
     }
 
     return (
@@ -415,13 +399,13 @@ export function DecoChatPanel() {
                 variant="outline"
                 onClick={() =>
                   navigate({
-                    to: "/$org/mcps",
+                    to: hasModelsBinding ? "/$org/gateways" : "/$org/mcps",
                     params: { org: org.slug },
-                    search: { action: "create" },
+                    search: hasModelsBinding ? undefined : { action: "create" },
                   })
                 }
               >
-                Add connection
+                {hasModelsBinding ? "Create gateway" : "Add connection"}
               </Button>
             }
           />
@@ -434,13 +418,14 @@ export function DecoChatPanel() {
     <DecoChatAside className="h-full">
       <DecoChatAside.Header>
         <div className="flex items-center gap-2">
-          <img
-            src={selectedAgent?.avatar || CAPYBARA_AVATAR_URL}
-            alt="deco chat"
-            className="size-5 rounded"
+          <IntegrationIcon
+            icon={selectedGateway?.icon}
+            name={selectedGateway?.title || "deco chat"}
+            size="xs"
+            fallbackIcon="network_node"
           />
           <span className="text-sm font-medium">
-            {selectedAgent?.title || "deco chat"}
+            {selectedGateway?.title || "deco chat"}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -478,14 +463,19 @@ export function DecoChatPanel() {
       <DecoChatAside.Content>
         {isEmpty ? (
           <DecoChatEmptyState
-            title={selectedAgent?.title || "Ask deco chat"}
+            title={selectedGateway?.title || "Ask deco chat"}
             description={
-              selectedAgent?.description ||
+              selectedGateway?.description ||
               "Ask anything about configuring model providers or using MCP Mesh."
             }
-            avatar={
-              selectedAgent?.avatar ||
-              "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png"
+            avatarNode={
+              <IntegrationIcon
+                icon={selectedGateway?.icon}
+                name={selectedGateway?.title || "deco chat"}
+                size="lg"
+                fallbackIcon="network_node"
+                className="size-[60px]! rounded-[18px]!"
+              />
             }
           />
         ) : (
@@ -526,23 +516,16 @@ export function DecoChatPanel() {
           }
           leftActions={
             <div className="flex items-center gap-2">
-              {/* Agent Selector - Rich style */}
-              {agents.length > 0 && (
-                <DecoChatAgentSelector
-                  agents={agentSelectorOptions}
-                  selectedAgentId={
-                    selectedAgentState
-                      ? `${selectedAgentState.connectionId}:${selectedAgentState.agentId}`
-                      : undefined
-                  }
-                  onAgentChange={(value) => {
-                    if (!value) return;
-                    const [connectionId, agentId] = value.split(":");
-                    if (connectionId && agentId) {
-                      setSelectedAgentState({ agentId, connectionId });
-                    }
+              {/* Gateway Selector */}
+              {gateways.length > 0 && (
+                <GatewaySelector
+                  gateways={gatewaySelectorOptions}
+                  selectedGatewayId={selectedGatewayState?.gatewayId}
+                  onGatewayChange={(gatewayId) => {
+                    if (!gatewayId) return;
+                    setSelectedGatewayState({ gatewayId });
                   }}
-                  placeholder="Agent"
+                  placeholder="Gateway"
                   variant="bordered"
                 />
               )}

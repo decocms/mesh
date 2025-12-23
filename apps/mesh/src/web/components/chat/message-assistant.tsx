@@ -1,6 +1,6 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import type { ToolUIPart } from "ai";
+import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { useEffect, useRef, useState } from "react";
 import { MessageProps } from "./message-user.tsx";
@@ -136,8 +136,7 @@ export function MessageAssistant<T extends Metadata>({
                       copyable={true}
                     />
                   );
-                }
-                if (part.type === "reasoning") {
+                } else if (part.type === "reasoning") {
                   return (
                     <MessageReasoningPart
                       key={`${id}-${index}`}
@@ -145,17 +144,28 @@ export function MessageAssistant<T extends Metadata>({
                       id={id}
                     />
                   );
-                }
-                if (part.type.startsWith("tool-")) {
+                } else if (
+                  part.type.startsWith("tool-") ||
+                  part.type === "dynamic-tool"
+                ) {
                   return (
                     <ToolCallPart
                       key={`${id}-${index}`}
-                      part={part as ToolUIPart}
+                      part={part as ToolUIPart | DynamicToolUIPart}
                       id={id}
                     />
                   );
+                } else if (
+                  part.type === "step-start" ||
+                  part.type === "file" ||
+                  part.type === "source-url" ||
+                  part.type === "source-document"
+                ) {
+                  console.warn("Skipping part type", part);
+                  return null;
                 }
-                return null;
+
+                throw new Error(`Unknown part type: ${JSON.stringify(part)}`);
               })}
             </>
           ) : isLoading ? (
