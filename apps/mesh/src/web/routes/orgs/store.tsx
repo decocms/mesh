@@ -55,7 +55,7 @@ export default function StorePage() {
     selectedRegistry?.id || registryConnections[0]?.id || "";
 
   // Well-known registries to show in select (hidden/less prominent)
-  const wellKnownRegistriesForSelect = [getWellKnownRegistryConnection()];
+  const wellKnownRegistriesForSelect = [getWellKnownRegistryConnection(org.id)];
 
   // Well-known registries to show in empty state (only Community Registry)
   const wellKnownRegistriesForEmptyState = [
