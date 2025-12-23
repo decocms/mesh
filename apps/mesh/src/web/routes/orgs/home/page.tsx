@@ -31,6 +31,7 @@ import { RecentActivity } from "./recent-activity.tsx";
 import { TopGateways } from "./top-gateways.tsx";
 import { TopServers } from "./top-servers.tsx";
 import { TopTools } from "./top-tools.tsx";
+import { useAddMcpNavigation } from "@/web/hooks/use-add-mcp-navigation";
 
 // ============================================================================
 // Types
@@ -221,9 +222,10 @@ function DashboardView({
 
 export default function OrgHomePage() {
   const { org, locator } = useProjectContext();
-  const navigate = useNavigate();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
+
+  const { handleAddMcp } = useAddMcpNavigation();
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const stored = localStorage.getItem("org-home-view-mode");
@@ -251,14 +253,6 @@ export default function OrgHomePage() {
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
     localStorage.setItem("org-home-view-mode", mode);
-  };
-
-  const handleAddMcp = () => {
-    navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
-      search: { action: "create" },
-    });
   };
 
   return (

@@ -12,6 +12,7 @@ import {
   useConnections,
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
+import { useAddMcpNavigation } from "@/web/hooks/use-add-mcp-navigation";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
@@ -124,13 +125,7 @@ function OrgMcpsContent() {
   // Create dialog state is derived from search params
   const isCreating = search.action === "create";
 
-  const openCreateDialog = () => {
-    navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
-      search: { action: "create" },
-    });
-  };
+  const { handleAddMcp } = useAddMcpNavigation();
 
   const closeCreateDialog = () => {
     navigate({ to: "/$org/mcps", params: { org: org.slug }, search: {} });
@@ -370,7 +365,7 @@ function OrgMcpsContent() {
 
   const ctaButton = (
     <Button
-      onClick={openCreateDialog}
+      onClick={handleAddMcp}
       size="sm"
       className="h-7 px-3 rounded-lg text-sm font-medium"
     >
