@@ -2,14 +2,16 @@
  * Hook to fetch binding schema from registry for dynamic binding resolution.
  *
  * When a binding field has `__binding.const` as an app name (e.g., "@deco/database"),
- * this hook queries the registry by app name and returns its tools as the binding schema.
+ * this hook queries ALL installed registries by app name and returns the first matching
+ * app's tools as the binding schema.
  */
 
+import { useSuspenseQueries } from "@tanstack/react-query";
 import { createToolCaller } from "@/tools/client";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
-import { useToolCall } from "@/web/hooks/use-tool-call";
+import { KEYS } from "@/web/lib/query-keys";
 import {
   MCP_REGISTRY_DECOCMS_KEY,
   MCP_REGISTRY_PUBLISHER_KEY,
@@ -95,16 +97,16 @@ function extractBindingTools(
 /**
  * Hook to fetch binding schema from registry for an app name.
  *
- * Queries the registry with `where: { appName }` to get the app directly
- * and returns its tools as the binding schema.
+ * Queries ALL installed registries in parallel to find the app and returns
+ * the first matching app's tools as the binding schema.
  *
  * @param appName - The app name to fetch (e.g., "@deco/database")
- * @returns Object with bindingSchema, isLoading, and error
+ * @returns Object with bindingSchema
  *
  * @example
  * ```tsx
- * const { bindingSchema, isLoading } = useBindingSchemaFromRegistry("@deco/database");
- * // bindingSchema will be the tools from the app
+ * const { bindingSchema } = useBindingSchemaFromRegistry("@deco/database");
+ * // bindingSchema will be the tools from the app, found in any installed registry
  * ```
  */
 export function useBindingSchemaFromRegistry(
@@ -114,39 +116,55 @@ export function useBindingSchemaFromRegistry(
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
 
-  // Use first registry connection
-  const registryId = registryConnections[0]?.id || "";
-  const registryConnection = registryConnections[0];
-
-  // Find the LIST tool from the registry connection
-  const listToolName = findListToolName(registryConnection?.tools);
-
-  // Parse the app name for the query - must be in "scope/appName" format
+  // Parse the app name for the query
   const parsedAppName = appName ? parseAppName(appName) : "";
 
-  // Build the tool input params - query by appName directly
-  // When disabled, we still pass a stable, type-safe shape.
-  const toolInputParams = { where: { appName: parsedAppName || "" } };
+  // Build query input params using proper WhereExpression format
+  const toolInputParams = parsedAppName
+    ? { where: { appName: parsedAppName } }
+    : {};
 
-  // Create tool caller only when we have a valid registry ID
-  const toolCaller = createToolCaller(registryId || undefined);
+  // Create queries for all registries in parallel
+  const queries = useSuspenseQueries({
+    queries: registryConnections.map((registryConnection) => {
+      const registryId = registryConnection.id;
+      const listToolName = findListToolName(registryConnection.tools) || "";
+      const toolCaller = createToolCaller(registryId);
+      const paramsKey = JSON.stringify(toolInputParams);
 
-  // Query registry by appName (returns list with single result)
-  const {
-    data: { items: [app] = [] },
-  } = useToolCall<
-    { where: { appName: string } },
-    { items: RegistryItemWithBinding[] }
-  >({
-    toolCaller,
-    toolName: listToolName,
-    toolInputParams,
-    scope: registryId,
-    staleTime: 5 * 60 * 1000, // 5 minutes cache
+      return {
+        queryKey: KEYS.toolCall(registryId, listToolName, paramsKey),
+        queryFn: async (): Promise<RegistryItemWithBinding | null> => {
+          if (!listToolName || !parsedAppName) {
+            return null;
+          }
+
+          try {
+            const result = (await toolCaller(
+              listToolName,
+              toolInputParams,
+            )) as {
+              items?: RegistryItemWithBinding[];
+            };
+            // Return the first matching item, or null if not found
+            return result?.items?.[0] ?? null;
+          } catch {
+            // Silently fail for individual registries - we'll try others
+            return null;
+          }
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes cache
+      };
+    }),
   });
 
-  // Extract binding schema (tools) from the app
-  const bindingSchema = app ? extractBindingTools(app) : undefined;
+  // Find the first successful result with an app
+  const foundApp = queries
+    .map((query) => query.data)
+    .find((app): app is RegistryItemWithBinding => app !== null);
+
+  // Extract binding schema from the found app
+  const bindingSchema = foundApp ? extractBindingTools(foundApp) : undefined;
 
   return { bindingSchema };
 }
