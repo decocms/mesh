@@ -39,7 +39,7 @@ interface OrganizationData {
  * @returns Query result with invitations data (uses Suspense for loading, ErrorBoundary for errors)
  */
 export function useInvitations() {
-  const { locator, _org } = useProjectContext();
+  const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
 
   return useSuspenseQuery({
