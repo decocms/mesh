@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "docs/**"
+      - "apps/docs/**"
 
 jobs:
   deploy:
