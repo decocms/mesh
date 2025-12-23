@@ -16,8 +16,6 @@ import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
 import { ToolName } from "./registry";
 
-export { ConnectionTools };
-
 // All available tools - types are inferred
 export const ALL_TOOLS = [
   OrganizationTools.ORGANIZATION_CREATE,
