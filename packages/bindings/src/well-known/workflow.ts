@@ -16,151 +16,173 @@ import {
 } from "./collections";
 
 export const ToolCallActionSchema = z.object({
-  connectionId: z.string().describe("Integration connection ID"),
-  toolName: z.string().describe("Name of the tool to call"),
+  connectionId: z.string().describe("ID of the MCP connection to use"),
+  toolName: z
+    .string()
+    .describe("Name of the tool to invoke on that connection"),
 });
 export type ToolCallAction = z.infer<typeof ToolCallActionSchema>;
 
 export const CodeActionSchema = z.object({
-  code: z.string().describe("TypeScript code for pure data transformation"),
+  code: z
+    .string()
+    .describe(
+      "Pure TypeScript function for data transformation. Must export a default async function: `export default async function(input: Input): Promise<Output> { ... }`",
+    ),
 });
 export type CodeAction = z.infer<typeof CodeActionSchema>;
-export const SleepActionSchema = z.union([
-  z.object({
-    sleepMs: z.number().describe("Milliseconds to sleep"),
-  }),
-  z.object({
-    sleepUntil: z.string().describe("ISO date string or @ref to sleep until"),
-  }),
-]);
-export type SleepAction = z.infer<typeof SleepActionSchema>;
 
 export const WaitForSignalActionSchema = z.object({
   signalName: z
     .string()
-    .describe("Name of the signal to wait for (must be unique per execution)"),
-  timeoutMs: z
-    .number()
-    .optional()
-    .describe("Maximum time to wait in milliseconds (default: no timeout)"),
-  description: z
-    .string()
-    .optional()
-    .describe("Human-readable description of what this signal is waiting for"),
+    .describe(
+      "Signal name to wait for (e.g., 'approval'). Execution pauses until SEND_SIGNAL is called with this name.",
+    ),
 });
 export type WaitForSignalAction = z.infer<typeof WaitForSignalActionSchema>;
 
 export const StepActionSchema = z.union([
-  ToolCallActionSchema.describe(
-    "Call an external tool (non-deterministic, checkpointed)",
+  ToolCallActionSchema.describe("Call an external tool via MCP connection"),
+  CodeActionSchema.describe("Run pure TypeScript code for data transformation"),
+  WaitForSignalActionSchema.describe(
+    "Pause execution until an external signal is received (human-in-the-loop)",
   ),
-  CodeActionSchema.describe(
-    "Pure TypeScript data transformation (deterministic, replayable)",
-  ),
-  SleepActionSchema.describe("Wait for time"),
-  WaitForSignalActionSchema.describe("Wait for external signal"),
 ]);
 export type StepAction = z.infer<typeof StepActionSchema>;
 /**
- * Loop Config Schema - Run the step in a loop
+ * Condition Schema - Used for conditional step execution (if) and loop termination
+ */
+export const ConditionSchema = z.object({
+  ref: z
+    .string()
+    .describe(
+      "@ref path to evaluate, e.g., '@previousStep.success' or '@input.type'",
+    ),
+  operator: z
+    .enum(["=", "!=", ">", ">=", "<", "<="])
+    .default("=")
+    .describe("Comparison operator (defaults to '=')"),
+  value: z
+    .unknown()
+    .describe(
+      "Value to compare against. Can be a literal (string, number, boolean) or a @ref.",
+    ),
+});
+export type Condition = z.infer<typeof ConditionSchema>;
+
+/**
+ * Loop Config Schema - Run a step multiple times
+ * Use 'for' to iterate over arrays, 'until'/'while' for condition-based loops
  */
 export const LoopConfigSchema = z.object({
   for: z
     .object({
       items: z
         .string()
-        .describe("@ref to array to iterate over, e.g. '@fetchData.items'"),
+        .describe(
+          "@ref to an array to iterate over, e.g., '@fetchData.results'",
+        ),
       as: z
         .string()
         .default("item")
         .describe(
-          "Variable name for current item, default 'item' (accessible as @item)",
+          "Variable name for current element (default: 'item', accessed as @item)",
         ),
     })
-    .optional(),
+    .optional()
+    .describe("Iterate over each element in an array"),
   until: z
     .object({
       path: z
         .string()
-        .describe("Path to the output property to check, e.g. '@success'"),
+        .describe("@ref path to check after each iteration, e.g., '@complete'"),
       condition: z
         .enum(["=", "!=", ">", ">=", "<", "<=", "and", "or"])
         .optional(),
-      value: z
-        .string()
-        .describe(
-          "Value to compare to. Can be a @ref to any property from this or previous steps output, or a literal value",
-        ),
+      value: z.string().describe("Stop looping when path equals this value"),
     })
-    .optional(),
+    .optional()
+    .describe("Repeat until condition becomes true"),
   while: z
     .object({
-      path: z
-        .string()
-        .describe("Path to the output property to check, e.g. '@success'"),
+      path: z.string().describe("@ref path to check before each iteration"),
       condition: z.enum(["=", "!=", ">", ">=", "<", "<=", "and", "or"]),
-      value: z
-        .string()
-        .describe(
-          "Value to compare to. Can be a @ref to any property from this or previous steps output, or a literal value",
-        ),
+      value: z.string().describe("Continue while path matches this value"),
     })
-    .optional(),
+    .optional()
+    .describe("Repeat while condition remains true"),
   limit: z
     .number()
     .optional()
-    .describe(
-      "Maximum number of iterations. If not specified, the loop will run indefinitely until the condition is met or the step is cancelled.",
-    ),
+    .describe("Max iterations (safety limit to prevent infinite loops)"),
   intervalMs: z
     .number()
     .optional()
-    .describe(
-      "Interval in milliseconds to wait between iterations. If not specified, the loop will run as fast as possible.",
-    ),
+    .describe("Delay between iterations in ms (useful for polling patterns)"),
 });
 export type LoopConfig = z.infer<typeof LoopConfigSchema>;
 
 /**
- * Step Config Schema - Optional configuration for step execution
+ * Step Config Schema - Optional configuration for retry, timeout, and looping
  */
 export const StepConfigSchema = z.object({
-  maxAttempts: z.number().optional().describe("Maximum retry attempts"),
-  backoffMs: z.number().optional().describe("Initial backoff in milliseconds"),
-  timeoutMs: z.number().optional().describe("Timeout in milliseconds"),
-  loop: LoopConfigSchema.optional().describe("Run the step in a loop"),
+  maxAttempts: z
+    .number()
+    .optional()
+    .describe("Max retry attempts on failure (default: 1, no retries)"),
+  backoffMs: z
+    .number()
+    .optional()
+    .describe("Initial delay between retries in ms (doubles each attempt)"),
+  timeoutMs: z
+    .number()
+    .optional()
+    .describe("Max execution time in ms before step fails (default: 30000)"),
+  loop: LoopConfigSchema.optional().describe(
+    "Run this step multiple times (iteration)",
+  ),
 });
 export type StepConfig = z.infer<typeof StepConfigSchema>;
 
 /**
- * Step Schema - Unified schema for all step types
+ * Step Schema - A single unit of work in a workflow
  *
- * Step types:
- * - tool: Call external service via MCP (non-deterministic, checkpointed)
- * - transform: Pure TypeScript data transformation (deterministic, replayable)
- * - sleep: Wait for time
- * - waitForSignal: Block until external signal (human-in-the-loop)
+ * Action types:
+ * - Tool call: Invoke an external tool via MCP connection
+ * - Code: Run pure TypeScript for data transformation
+ * - Wait for signal: Pause until external input (human-in-the-loop)
  *
- * Features:
- * - Auto-parallelization: Steps are grouped by @ref dependencies automatically
- * - forEach: Iterate over arrays with sequential/parallel/race/allSettled modes
- * - parallel groups: Explicit step grouping with race/allSettled for special cases
+ * Data flow uses @ref syntax:
+ * - @input.field → workflow input
+ * - @stepName.field → output from a previous step
+ * - @item, @index → current element when looping (config.loop.for)
  */
 export const StepSchema = z.object({
-  name: z.string().min(1).describe("Unique step name within workflow"),
+  name: z
+    .string()
+    .min(1)
+    .describe(
+      "Unique identifier for this step. Other steps reference its output as @name.field",
+    ),
+  description: z.string().optional().describe("What this step does"),
   action: StepActionSchema,
   input: z
     .record(z.unknown())
     .optional()
     .describe(
-      "Input object with @ref resolution or default values. Example: { 'user_id': '@input.user_id', 'product_id': '@input.product_id' }",
+      "Data passed to the action. Use @ref for dynamic values: @input.field (workflow input), @stepName.field (previous step output), @item/@index (loop context). Example: { 'userId': '@input.user_id', 'data': '@fetch.result' }",
     ),
   outputSchema: z
     .record(z.unknown())
     .nullish()
-    .describe("JsonSchema for the step output"),
+    .describe(
+      "Optional JSON Schema describing expected output (for validation/documentation)",
+    ),
   config: StepConfigSchema.optional().describe(
-    "Step configuration (retry, forEach, parallel groups)",
+    "Retry, timeout, and loop settings",
+  ),
+  if: ConditionSchema.optional().describe(
+    "Skip this step unless condition is true. Steps depending on a skipped step are also skipped.",
   ),
 });
 
@@ -193,6 +215,10 @@ export const WorkflowExecutionSchema = BaseCollectionEntitySchema.extend({
   status: WorkflowExecutionStatusEnum,
   input: z.record(z.unknown()).optional(),
   output: z.unknown(),
+  steps: z
+    .array(StepSchema)
+    .describe("Steps that make up the workflow")
+    .optional(),
   completed_at_epoch_ms: z.number().nullish(),
   start_at_epoch_ms: z.number().nullish(),
   timeout_ms: z.number().nullish(),
@@ -201,41 +227,6 @@ export const WorkflowExecutionSchema = BaseCollectionEntitySchema.extend({
 });
 export type WorkflowExecution = z.infer<typeof WorkflowExecutionSchema>;
 
-/**
- * Execution Step Result Schema
- *
- * Includes attempt tracking and error history.
- */
-export const WorkflowExecutionStepResultSchema =
-  BaseCollectionEntitySchema.extend({
-    execution_id: z.string(),
-    step_id: z.string(),
-
-    input: z.record(z.unknown()).nullish(),
-    output: z.unknown().nullish(), // Can be object or array (forEach steps produce arrays)
-    error: z.string().nullish(),
-    completed_at_epoch_ms: z.number().nullish(),
-  });
-export type WorkflowExecutionStepResult = z.infer<
-  typeof WorkflowExecutionStepResultSchema
->;
-
-export const WorkflowExecutionStreamChunkSchema = z.object({
-  step_id: z.string(),
-  chunk_data: z.unknown(),
-});
-export type WorkflowExecutionStreamChunk = z.infer<
-  typeof WorkflowExecutionStreamChunkSchema
->;
-
-export const WorkflowExecutionWithStepResultsSchema =
-  WorkflowExecutionSchema.extend({
-    step_results: z.array(WorkflowExecutionStepResultSchema).optional(),
-  });
-
-export type WorkflowExecutionWithStepResults = z.infer<
-  typeof WorkflowExecutionWithStepResultsSchema
->;
 /**
  * Event Type Enum
  *
@@ -280,24 +271,34 @@ export const WorkflowEventSchema = BaseCollectionEntitySchema.extend({
 export type WorkflowEvent = z.infer<typeof WorkflowEventSchema>;
 
 /**
- * Workflow entity schema for workflows
- * Extends BaseCollectionEntitySchema with workflow-specific fields
- * Base schema already includes: id, title, created_at, updated_at, created_by, updated_by
+ * Workflow Schema - A sequence of steps that execute with data flowing between them
+ *
+ * Key concepts:
+ * - Steps run in parallel unless they reference each other via @ref
+ * - Use @ref to wire data: @input.field, @stepName.field, @item (in loops)
+ * - Execution order is auto-determined from @ref dependencies
+ *
+ * Example: 2 parallel fetches + 1 merge step
+ * {
+ *   "title": "Fetch and Merge",
+ *   "steps": [
+ *     { "name": "fetch_users", "action": { "connectionId": "api", "toolName": "getUsers" } },
+ *     { "name": "fetch_orders", "action": { "connectionId": "api", "toolName": "getOrders" } },
+ *     { "name": "merge", "action": { "code": "..." }, "input": { "users": "@fetch_users.data", "orders": "@fetch_orders.data" } }
+ *   ]
+ * }
+ * → fetch_users and fetch_orders run in parallel; merge waits for both
  */
 export const WorkflowSchema = BaseCollectionEntitySchema.extend({
-  description: z.string().optional().describe("Workflow description"),
+  description: z
+    .string()
+    .optional()
+    .describe("Human-readable summary of what this workflow does"),
 
-  /**
-   * Steps as a flat array.
-   * - Parallelization is automatically determined by @ref dependencies
-   * - Steps with no dependencies run in parallel
-   * - Steps depending on other steps wait for them to complete
-   * - Use config.forEach for iteration, config.parallel for explicit grouping
-   */
   steps: z
     .array(StepSchema)
     .describe(
-      "Flat array of steps - parallelization is auto-determined from @ref dependencies",
+      "Ordered list of steps. Execution order is auto-determined by @ref dependencies: steps with no @ref dependencies run in parallel; steps referencing @stepName wait for that step to complete.",
     ),
 });
 
@@ -319,15 +320,18 @@ const DEFAULT_STEP_CONFIG: StepConfig = {
   timeoutMs: 30000,
 };
 
-export const DEFAULT_SLEEP_STEP: Omit<Step, "name"> = {
-  action: {
-    sleepMs: 1000,
-  },
-};
-
 export const DEFAULT_WAIT_FOR_SIGNAL_STEP: Omit<Step, "name"> = {
   action: {
-    signalName: "signal_name",
+    signalName: "approve_output",
+  },
+  outputSchema: {
+    type: "object",
+    properties: {
+      approved: {
+        type: "boolean",
+        description: "Whether the output was approved",
+      },
+    },
   },
 };
 export const DEFAULT_TOOL_STEP: Omit<Step, "name"> = {
@@ -352,7 +356,7 @@ export const DEFAULT_CODE_STEP: Step = {
     
   export default async function(input: Input): Promise<Output> { 
     return {
-      result: input
+      result: input.example
     }
   }`,
   },
@@ -371,19 +375,7 @@ export const createDefaultWorkflow = (id?: string): Workflow => ({
 export const WORKFLOW_EXECUTIONS_COLLECTION_BINDING = createCollectionBindings(
   "workflow_execution",
   WorkflowExecutionSchema,
-  {
-    readOnly: true,
-  },
 );
-
-export const EXECUTION_STEP_RESULTS_COLLECTION_BINDING =
-  createCollectionBindings(
-    "execution_step_results",
-    WorkflowExecutionStepResultSchema,
-    {
-      readOnly: true,
-    },
-  );
 
 export const WORKFLOW_EVENTS_COLLECTION_BINDING = createCollectionBindings(
   "workflow_events",
@@ -406,38 +398,10 @@ export const WORKFLOW_EVENTS_COLLECTION_BINDING = createCollectionBindings(
 export const WORKFLOW_COLLECTIONS_BINDINGS = [
   ...WORKFLOWS_COLLECTION_BINDING,
   ...WORKFLOW_EXECUTIONS_COLLECTION_BINDING,
-  ...EXECUTION_STEP_RESULTS_COLLECTION_BINDING,
   ...WORKFLOW_EVENTS_COLLECTION_BINDING,
 ] as const satisfies Binder;
 
 export const WORKFLOW_BINDING = [
-  {
-    name: "WORKFLOW_START" as const,
-    inputSchema: z.object({
-      workflowId: z.string().describe("The workflow ID to execute"),
-      input: z
-        .record(z.unknown())
-        .optional()
-        .describe("Input data for the workflow"),
-      startAtEpochMs: z
-        .number()
-        .default(Date.now())
-        .optional()
-        .describe(
-          "The start time of the workflow in epoch milliseconds. Defaults to now.",
-        ),
-      timeoutMs: z
-        .number()
-        .default(30000)
-        .optional()
-        .describe(
-          "The timeout for the workflow in milliseconds. Defaults to 30000.",
-        ),
-    }),
-    outputSchema: z.object({
-      executionId: z.string(),
-    }),
-  },
   {
     name: "SEND_SIGNAL" as const,
     inputSchema: z.object({
@@ -480,6 +444,7 @@ export interface DAGStep {
   config?: {
     loop?: LoopConfig;
   };
+  if?: Condition;
 }
 
 /**
@@ -547,6 +512,14 @@ export function getStepDependencies(
   traverse(step.input);
   if (step.config?.loop?.for?.items) {
     traverse(step.config.loop.for.items);
+  }
+
+  // Also consider "if" condition as a dependency
+  if (step.if) {
+    traverse(step.if.ref);
+    if (typeof step.if.value === "string") {
+      traverse(step.if.value);
+    }
   }
 
   return [...new Set(deps)];
@@ -726,4 +699,207 @@ export function validateNoCycles<T extends DAGStep>(
   }
 
   return { isValid: true };
+}
+
+// ============================================
+// Branch Detection Utilities
+// ============================================
+
+/**
+ * Get the step that a conditional step's "if" condition references.
+ * Returns the step name from the @ref in the condition.
+ *
+ * @param step - The step with an if condition
+ * @returns The step name referenced in the condition, or null if not found
+ */
+export function getConditionDependency(step: DAGStep): string | null {
+  if (!step.if?.ref) return null;
+
+  const match = step.if.ref.match(/@(\w+)/);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Get all refs from a condition (both ref and value if value is a @ref)
+ */
+export function getConditionRefs(condition: Condition): string[] {
+  const refs: string[] = [];
+
+  // Get ref from the condition's ref field
+  const refMatch = condition.ref.match(/@(\w+)/);
+  if (refMatch?.[1]) {
+    refs.push(refMatch[1]);
+  }
+
+  // Get ref from the value if it's a @ref string
+  if (typeof condition.value === "string") {
+    const valueMatch = condition.value.match(/@(\w+)/);
+    if (valueMatch?.[1]) {
+      refs.push(valueMatch[1]);
+    }
+  }
+
+  return [...new Set(refs)];
+}
+
+/**
+ * Determines which branch a step belongs to.
+ * A step belongs to a branch if:
+ * 1. It has an "if" condition (it's the branch root)
+ * 2. It transitively depends on a step with an "if" condition
+ *
+ * @param steps - All steps in the workflow
+ * @returns Map from step name to branch root step name (or null if not in a branch)
+ */
+export function computeBranchMembership<T extends DAGStep>(
+  steps: T[],
+): Map<string, string | null> {
+  const stepNames = new Set(steps.map((s) => s.name));
+  const stepMap = new Map(steps.map((s) => [s.name, s]));
+  const branchMembership = new Map<string, string | null>();
+
+  // Build dependency map
+  const dependsOn = new Map<string, Set<string>>();
+  for (const step of steps) {
+    const deps = new Set<string>();
+
+    // Add input dependencies
+    const inputDeps = getStepDependencies(step, stepNames);
+    for (const dep of inputDeps) {
+      deps.add(dep);
+    }
+
+    // Add condition dependencies
+    if (step.if) {
+      const conditionRefs = getConditionRefs(step.if);
+      for (const ref of conditionRefs) {
+        if (stepNames.has(ref)) {
+          deps.add(ref);
+        }
+      }
+    }
+
+    dependsOn.set(step.name, deps);
+  }
+
+  // Find branch root for each step (with memoization)
+  function findBranchRoot(
+    stepName: string,
+    visited: Set<string>,
+  ): string | null {
+    if (branchMembership.has(stepName)) {
+      return branchMembership.get(stepName) ?? null;
+    }
+
+    if (visited.has(stepName)) {
+      return null; // Cycle detection
+    }
+
+    visited.add(stepName);
+    const step = stepMap.get(stepName);
+    if (!step) return null;
+
+    // If this step has an "if" condition, it's a branch root
+    if (step.if) {
+      branchMembership.set(stepName, stepName);
+      return stepName;
+    }
+
+    // Check if any dependency is in a branch
+    const deps = dependsOn.get(stepName) || new Set();
+    for (const dep of deps) {
+      const depBranchRoot = findBranchRoot(dep, new Set(visited));
+      if (depBranchRoot) {
+        branchMembership.set(stepName, depBranchRoot);
+        return depBranchRoot;
+      }
+    }
+
+    branchMembership.set(stepName, null);
+    return null;
+  }
+
+  // Compute branch membership for all steps
+  for (const step of steps) {
+    findBranchRoot(step.name, new Set());
+  }
+
+  return branchMembership;
+}
+
+/**
+ * Get all steps that are branch roots (have an "if" condition)
+ */
+export function getBranchRoots<T extends DAGStep>(steps: T[]): T[] {
+  return steps.filter((step) => step.if !== undefined);
+}
+
+/**
+ * Get all steps that belong to a specific branch
+ */
+export function getStepsInBranch<T extends DAGStep>(
+  steps: T[],
+  branchRootName: string,
+): T[] {
+  const membership = computeBranchMembership(steps);
+  return steps.filter((step) => membership.get(step.name) === branchRootName);
+}
+
+/**
+ * Format a condition for display
+ */
+export function formatCondition(condition: Condition): string {
+  const operator = condition.operator || "=";
+  const valueStr =
+    typeof condition.value === "string"
+      ? condition.value
+      : JSON.stringify(condition.value);
+  return `${condition.ref} ${operator} ${valueStr}`;
+}
+
+/**
+ * Get the terminal steps in the workflow.
+ * A step is terminal if no other step depends on it (globally).
+ *
+ * This finds steps where you can safely add new steps after them
+ * without breaking existing dependencies.
+ *
+ * @param steps - All steps in the workflow
+ * @returns Array of step names that are terminal (no other step references them)
+ */
+export function getBranchTerminalSteps<T extends DAGStep>(
+  steps: T[],
+): string[] {
+  if (steps.length === 0) return [];
+
+  const stepNames = new Set(steps.map((s) => s.name));
+
+  // Build a map of which steps depend on each step (reverse dependency)
+  const dependedOnBy = new Map<string, Set<string>>();
+  for (const step of steps) {
+    dependedOnBy.set(step.name, new Set());
+  }
+
+  for (const step of steps) {
+    const deps = getStepDependencies(step, stepNames);
+    for (const dep of deps) {
+      dependedOnBy.get(dep)?.add(step.name);
+    }
+  }
+
+  // Terminal steps are those with no dependents (globally)
+  const terminalSteps: string[] = [];
+  for (const step of steps) {
+    const dependents = dependedOnBy.get(step.name) ?? new Set();
+    if (dependents.size === 0) {
+      terminalSteps.push(step.name);
+    }
+  }
+
+  // If no terminal steps found (shouldn't happen with valid workflows), return last step
+  if (terminalSteps.length === 0 && steps.length > 0) {
+    return [steps[steps.length - 1]?.name ?? ""]; // might cause a bug? check this out later @pedrofrxncx
+  }
+
+  return terminalSteps;
 }
