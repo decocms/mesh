@@ -21,10 +21,22 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
   type CallToolRequest,
   type CallToolResult,
   type ListToolsRequest,
   type ListToolsResult,
+  type ListResourcesResult,
+  type ReadResourceRequest,
+  type ReadResourceResult,
+  type ListResourceTemplatesResult,
+  type ListPromptsResult,
+  type GetPromptRequest,
+  type GetPromptResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
@@ -396,6 +408,41 @@ async function createMCPProxyDoNotUseDirectly(
     return await client.listTools();
   };
 
+  // List resources from downstream connection
+  const listResources = async (): Promise<ListResourcesResult> => {
+    const client = await createClient();
+    return await client.listResources();
+  };
+
+  // Read a specific resource from downstream connection
+  const readResource = async (
+    params: ReadResourceRequest["params"],
+  ): Promise<ReadResourceResult> => {
+    const client = await createClient();
+    return await client.readResource(params);
+  };
+
+  // List resource templates from downstream connection
+  const listResourceTemplates =
+    async (): Promise<ListResourceTemplatesResult> => {
+      const client = await createClient();
+      return await client.listResourceTemplates();
+    };
+
+  // List prompts from downstream connection
+  const listPrompts = async (): Promise<ListPromptsResult> => {
+    const client = await createClient();
+    return await client.listPrompts();
+  };
+
+  // Get a specific prompt from downstream connection
+  const getPrompt = async (
+    params: GetPromptRequest["params"],
+  ): Promise<GetPromptResult> => {
+    const client = await createClient();
+    return await client.getPrompt(params);
+  };
+
   // Call tool using fetch directly for streaming support
   // Inspired by @deco/api proxy callStreamableTool
   const callStreamableTool = async (
@@ -495,7 +542,7 @@ async function createMCPProxyDoNotUseDirectly(
         version: "1.0.0",
       },
       {
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {}, prompts: {} },
       },
     );
 
@@ -548,6 +595,48 @@ async function createMCPProxyDoNotUseDirectly(
     // Set up call tool handler with middleware - reuses executeToolCall
     server.server.setRequestHandler(CallToolRequestSchema, executeToolCall);
 
+    // Resources handlers
+    server.server.setRequestHandler(
+      ListResourcesRequestSchema,
+      async (): Promise<ListResourcesResult> => {
+        const client = await createClient();
+        return await client.listResources();
+      },
+    );
+
+    server.server.setRequestHandler(
+      ReadResourceRequestSchema,
+      async (request: ReadResourceRequest): Promise<ReadResourceResult> => {
+        const client = await createClient();
+        return await client.readResource(request.params);
+      },
+    );
+
+    server.server.setRequestHandler(
+      ListResourceTemplatesRequestSchema,
+      async (): Promise<ListResourceTemplatesResult> => {
+        const client = await createClient();
+        return await client.listResourceTemplates();
+      },
+    );
+
+    // Prompts handlers
+    server.server.setRequestHandler(
+      ListPromptsRequestSchema,
+      async (): Promise<ListPromptsResult> => {
+        const client = await createClient();
+        return await client.listPrompts();
+      },
+    );
+
+    server.server.setRequestHandler(
+      GetPromptRequestSchema,
+      async (request: GetPromptRequest): Promise<GetPromptResult> => {
+        const client = await createClient();
+        return await client.getPrompt(request.params);
+      },
+    );
+
     // Handle the incoming message
     return await transport.handleMessage(req);
   };
@@ -562,6 +651,11 @@ async function createMCPProxyDoNotUseDirectly(
         });
       },
       listTools,
+      listResources,
+      readResource,
+      listResourceTemplates,
+      listPrompts,
+      getPrompt,
     },
     callStreamableTool,
   };

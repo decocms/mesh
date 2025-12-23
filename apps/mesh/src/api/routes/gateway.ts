@@ -8,20 +8,37 @@
  * Architecture:
  * - Lists connections for the gateway (from database or organization)
  * - Creates proxies for each connection using createMCPProxy
- * - Composes them into a single ServerClient interface
- * - Always deduplicates tools by name (first occurrence wins)
+ * - Composes them into a single GatewayClient interface
+ * - Aggregates tools, resources, resource templates, and prompts from all connections
+ * - Deduplicates tools and prompts by name (first occurrence wins)
+ * - Routes resources by URI (globally unique)
  * - Supports exclusion strategy for inverse tool selection
  */
 
-import type { ServerClient } from "@decocms/bindings/mcp";
+import { ServerClient } from "@decocms/bindings/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   CallToolRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
+  ReadResourceRequestSchema,
   type CallToolRequest,
   type CallToolResult,
+  type GetPromptRequest,
+  type GetPromptResult,
+  type ListPromptsResult,
+  type ListResourcesResult,
+  type ListResourceTemplatesResult,
   type ListToolsRequest,
   type ListToolsResult,
+  type Prompt,
+  type ReadResourceRequest,
+  type ReadResourceResult,
+  type Resource,
+  type ResourceTemplate,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
@@ -49,6 +66,37 @@ interface ToolMapping {
   originalName: string;
 }
 
+/** Maps resource URI -> connectionId */
+interface ResourceMapping {
+  connectionId: string;
+  uri: string;
+}
+
+/** Maps prompt name -> connectionId (first-wins) */
+interface PromptMapping {
+  connectionId: string;
+  name: string;
+}
+
+/** Extended gateway client interface with resources and prompts */
+interface GatewayClient extends ServerClient {
+  client: {
+    listTools: () => Promise<ListToolsResult>;
+    callTool: (params: CallToolRequest["params"]) => Promise<CallToolResult>;
+    listResources: () => Promise<ListResourcesResult>;
+    readResource: (
+      params: ReadResourceRequest["params"],
+    ) => Promise<ReadResourceResult>;
+    listResourceTemplates: () => Promise<ListResourceTemplatesResult>;
+    listPrompts: () => Promise<ListPromptsResult>;
+    getPrompt: (params: GetPromptRequest["params"]) => Promise<GetPromptResult>;
+  };
+  callStreamableTool: (
+    tool: string,
+    args: Record<string, unknown>,
+  ) => Promise<Response>;
+}
+
 /** Gateway configuration for createMCPGateway */
 interface GatewayOptions {
   connections: Array<{
@@ -64,16 +112,16 @@ interface GatewayOptions {
 // ============================================================================
 
 /**
- * Create an MCP gateway that aggregates tools from multiple connections
+ * Create an MCP gateway that aggregates tools, resources, and prompts from multiple connections
  *
  * @param options - Gateway configuration (connections with selected tools and strategy)
  * @param ctx - Mesh context for creating proxies
- * @returns ServerClient interface with aggregated tools
+ * @returns GatewayClient interface with aggregated tools, resources, and prompts
  */
 async function createMCPGateway(
   options: GatewayOptions,
   ctx: MeshContext,
-): Promise<ServerClient> {
+): Promise<GatewayClient> {
   // Create proxies for all connections in parallel
   const proxyResults = await Promise.allSettled(
     options.connections.map(async ({ connection, selectedTools }) => {
@@ -163,6 +211,109 @@ async function createMCPGateway(
     }
   }
 
+  // ============================================================================
+  // Aggregate Resources from all connections
+  // ============================================================================
+  const resourceResults = await Promise.allSettled(
+    Array.from(proxies.entries()).map(async ([connectionId, { proxy }]) => {
+      try {
+        const result = await proxy.client.listResources();
+        return { connectionId, resources: result.resources };
+      } catch (error) {
+        console.error(
+          `[gateway] Failed to list resources for connection ${connectionId}:`,
+          error,
+        );
+        return { connectionId, resources: [] as Resource[] };
+      }
+    }),
+  );
+
+  // Build resource URI -> connection mapping (URIs are globally unique)
+  const allResources: Resource[] = [];
+  const resourceMappings = new Map<string, ResourceMapping>();
+
+  for (const result of resourceResults) {
+    if (result.status !== "fulfilled") continue;
+
+    const { connectionId, resources } = result.value;
+    for (const resource of resources) {
+      allResources.push(resource);
+      resourceMappings.set(resource.uri, { connectionId, uri: resource.uri });
+    }
+  }
+
+  // ============================================================================
+  // Aggregate Resource Templates from all connections
+  // ============================================================================
+  const resourceTemplateResults = await Promise.allSettled(
+    Array.from(proxies.entries()).map(async ([connectionId, { proxy }]) => {
+      try {
+        const result = await proxy.client.listResourceTemplates();
+        return { connectionId, templates: result.resourceTemplates };
+      } catch (error) {
+        console.error(
+          `[gateway] Failed to list resource templates for connection ${connectionId}:`,
+          error,
+        );
+        return { connectionId, templates: [] as ResourceTemplate[] };
+      }
+    }),
+  );
+
+  // Build resource template uriTemplate -> connection mapping
+  const allResourceTemplates: ResourceTemplate[] = [];
+  const resourceTemplateMappings = new Map<string, ResourceMapping>();
+
+  for (const result of resourceTemplateResults) {
+    if (result.status !== "fulfilled") continue;
+
+    const { connectionId, templates } = result.value;
+    for (const template of templates) {
+      allResourceTemplates.push(template);
+      resourceTemplateMappings.set(template.uriTemplate, {
+        connectionId,
+        uri: template.uriTemplate,
+      });
+    }
+  }
+
+  // ============================================================================
+  // Aggregate Prompts from all connections (first-wins deduplication)
+  // ============================================================================
+  const promptResults = await Promise.allSettled(
+    Array.from(proxies.entries()).map(async ([connectionId, { proxy }]) => {
+      try {
+        const result = await proxy.client.listPrompts();
+        return { connectionId, prompts: result.prompts };
+      } catch (error) {
+        console.error(
+          `[gateway] Failed to list prompts for connection ${connectionId}:`,
+          error,
+        );
+        return { connectionId, prompts: [] as Prompt[] };
+      }
+    }),
+  );
+
+  // Build prompt name -> connection mapping (first-wins, like tools)
+  const seenPromptNames = new Set<string>();
+  const allPrompts: Prompt[] = [];
+  const promptMappings = new Map<string, PromptMapping>();
+
+  for (const result of promptResults) {
+    if (result.status !== "fulfilled") continue;
+
+    const { connectionId, prompts } = result.value;
+    for (const prompt of prompts) {
+      if (seenPromptNames.has(prompt.name)) continue;
+      seenPromptNames.add(prompt.name);
+
+      allPrompts.push(prompt);
+      promptMappings.set(prompt.name, { connectionId, name: prompt.name });
+    }
+  }
+
   // Base callTool that routes to the correct connection
   const baseCallTool = async (
     name: string,
@@ -239,8 +390,67 @@ async function createMCPGateway(
     });
   };
 
+  // ============================================================================
+  // Resource handlers
+  // ============================================================================
+  const listResources = async (): Promise<ListResourcesResult> => ({
+    resources: allResources,
+  });
+
+  const readResource = async (
+    params: ReadResourceRequest["params"],
+  ): Promise<ReadResourceResult> => {
+    const mapping = resourceMappings.get(params.uri);
+    if (!mapping) {
+      throw new Error(`Resource not found: ${params.uri}`);
+    }
+
+    const proxyEntry = proxies.get(mapping.connectionId);
+    if (!proxyEntry) {
+      throw new Error(`Connection not found for resource: ${params.uri}`);
+    }
+
+    return await proxyEntry.proxy.client.readResource(params);
+  };
+
+  const listResourceTemplates =
+    async (): Promise<ListResourceTemplatesResult> => ({
+      resourceTemplates: allResourceTemplates,
+    });
+
+  // ============================================================================
+  // Prompt handlers
+  // ============================================================================
+  const listPrompts = async (): Promise<ListPromptsResult> => ({
+    prompts: allPrompts,
+  });
+
+  const getPrompt = async (
+    params: GetPromptRequest["params"],
+  ): Promise<GetPromptResult> => {
+    const mapping = promptMappings.get(params.name);
+    if (!mapping) {
+      throw new Error(`Prompt not found: ${params.name}`);
+    }
+
+    const proxyEntry = proxies.get(mapping.connectionId);
+    if (!proxyEntry) {
+      throw new Error(`Connection not found for prompt: ${params.name}`);
+    }
+
+    return await proxyEntry.proxy.client.getPrompt(params);
+  };
+
   return {
-    client: { listTools, callTool },
+    client: {
+      listTools,
+      callTool,
+      listResources,
+      readResource,
+      listResourceTemplates,
+      listPrompts,
+      getPrompt,
+    },
     callStreamableTool,
   };
 }
@@ -256,7 +466,7 @@ async function createMCPGateway(
 async function createMCPGatewayFromEntity(
   gateway: GatewayWithConnections,
   ctx: MeshContext,
-): Promise<ServerClient> {
+): Promise<GatewayClient> {
   let connections: Array<{
     connection: ConnectionEntity;
     selectedTools: string[] | null;
@@ -407,7 +617,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
         version: "1.0.0",
       },
       {
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {}, prompts: {} },
       },
     );
 
@@ -435,6 +645,46 @@ app.all("/gateway/:gatewayId?", async (c) => {
         return (await gatewayClient.client.callTool(
           request.params,
         )) as CallToolResult;
+      },
+    );
+
+    // Handle list_resources
+    server.server.setRequestHandler(
+      ListResourcesRequestSchema,
+      async (): Promise<ListResourcesResult> => {
+        return gatewayClient.client.listResources();
+      },
+    );
+
+    // Handle read_resource
+    server.server.setRequestHandler(
+      ReadResourceRequestSchema,
+      async (request: ReadResourceRequest): Promise<ReadResourceResult> => {
+        return gatewayClient.client.readResource(request.params);
+      },
+    );
+
+    // Handle list_resource_templates
+    server.server.setRequestHandler(
+      ListResourceTemplatesRequestSchema,
+      async (): Promise<ListResourceTemplatesResult> => {
+        return gatewayClient.client.listResourceTemplates();
+      },
+    );
+
+    // Handle list_prompts
+    server.server.setRequestHandler(
+      ListPromptsRequestSchema,
+      async (): Promise<ListPromptsResult> => {
+        return gatewayClient.client.listPrompts();
+      },
+    );
+
+    // Handle get_prompt
+    server.server.setRequestHandler(
+      GetPromptRequestSchema,
+      async (request: GetPromptRequest): Promise<GetPromptResult> => {
+        return gatewayClient.client.getPrompt(request.params);
       },
     );
 
