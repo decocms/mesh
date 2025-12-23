@@ -41,6 +41,12 @@ import {
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -153,6 +159,7 @@ interface OrgPermissionsTabProps {
   staticPermissions: string[];
   onAllowAllChange: (allowAll: boolean) => void;
   onPermissionsChange: (permissions: string[]) => void;
+  readOnly?: boolean;
 }
 
 function OrgPermissionsTab({
@@ -160,6 +167,7 @@ function OrgPermissionsTab({
   staticPermissions,
   onAllowAllChange,
   onPermissionsChange,
+  readOnly = false,
 }: OrgPermissionsTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -203,8 +211,12 @@ function OrgPermissionsTab({
       {/* Select All Toggle */}
       <div className="border-b border-border">
         <div
-          className="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-muted/50 cursor-pointer"
+          className={cn(
+            "flex items-center justify-between px-4 py-3 rounded-lg",
+            !readOnly && "hover:bg-muted/50 cursor-pointer",
+          )}
           onClick={() => {
+            if (readOnly) return;
             const newValue = !allowAllStaticPermissions;
             onAllowAllChange(newValue);
             onPermissionsChange([]);
@@ -214,13 +226,38 @@ function OrgPermissionsTab({
             All organization permissions
           </span>
           <div onClick={(e) => e.stopPropagation()}>
-            <Switch
-              checked={allowAllStaticPermissions}
-              onCheckedChange={(checked) => {
-                onAllowAllChange(checked);
-                onPermissionsChange([]);
-              }}
-            />
+            {readOnly ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Switch
+                        checked={allowAllStaticPermissions}
+                        disabled={readOnly}
+                        onCheckedChange={(checked) => {
+                          if (readOnly) return;
+                          onAllowAllChange(checked);
+                          onPermissionsChange([]);
+                        }}
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Built-in role permissions cannot be changed</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Switch
+                checked={allowAllStaticPermissions}
+                disabled={readOnly}
+                onCheckedChange={(checked) => {
+                  if (readOnly) return;
+                  onAllowAllChange(checked);
+                  onPermissionsChange([]);
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -243,8 +280,12 @@ function OrgPermissionsTab({
                 {categoryPermissions.map((permission) => (
                   <div
                     key={permission.value}
-                    className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer"
+                    className={cn(
+                      "flex items-center justify-between gap-3 px-4 py-3",
+                      !readOnly && "hover:bg-muted/50 cursor-pointer",
+                    )}
                     onClick={() => {
+                      if (readOnly) return;
                       if (allowAllStaticPermissions) {
                         onAllowAllChange(false);
                         // Select all except this one
@@ -261,24 +302,66 @@ function OrgPermissionsTab({
                       <span className="text-sm">{permission.label}</span>
                     </div>
                     <div onClick={(e) => e.stopPropagation()}>
-                      <Switch
-                        checked={
-                          allowAllStaticPermissions ||
-                          staticPermissions.includes(permission.value)
-                        }
-                        onCheckedChange={() => {
-                          if (allowAllStaticPermissions) {
-                            onAllowAllChange(false);
-                            // Select all except this one
-                            const allPerms = allPermissions.map((p) => p.value);
-                            onPermissionsChange(
-                              allPerms.filter((p) => p !== permission.value),
-                            );
-                          } else {
-                            togglePermission(permission.value);
+                      {readOnly ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Switch
+                                  checked={
+                                    allowAllStaticPermissions ||
+                                    staticPermissions.includes(permission.value)
+                                  }
+                                  disabled={readOnly}
+                                  onCheckedChange={() => {
+                                    if (readOnly) return;
+                                    if (allowAllStaticPermissions) {
+                                      onAllowAllChange(false);
+                                      // Select all except this one
+                                      const allPerms = allPermissions.map(
+                                        (p) => p.value,
+                                      );
+                                      onPermissionsChange(
+                                        allPerms.filter(
+                                          (p) => p !== permission.value,
+                                        ),
+                                      );
+                                    } else {
+                                      togglePermission(permission.value);
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Built-in role permissions cannot be changed</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <Switch
+                          checked={
+                            allowAllStaticPermissions ||
+                            staticPermissions.includes(permission.value)
                           }
-                        }}
-                      />
+                          disabled={readOnly}
+                          onCheckedChange={() => {
+                            if (readOnly) return;
+                            if (allowAllStaticPermissions) {
+                              onAllowAllChange(false);
+                              // Select all except this one
+                              const allPerms = allPermissions.map(
+                                (p) => p.value,
+                              );
+                              onPermissionsChange(
+                                allPerms.filter((p) => p !== permission.value),
+                              );
+                            } else {
+                              togglePermission(permission.value);
+                            }
+                          }}
+                        />
+                      )}
                     </div>
                   </div>
                 ))}
@@ -453,9 +536,14 @@ function AddMemberDialog({
 interface MembersTabProps {
   memberIds: string[];
   onMemberIdsChange: (memberIds: string[]) => void;
+  readOnly?: boolean;
 }
 
-function MembersTabContent({ memberIds, onMemberIdsChange }: MembersTabProps) {
+function MembersTabContent({
+  memberIds,
+  onMemberIdsChange,
+  readOnly = false,
+}: MembersTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
@@ -495,16 +583,36 @@ function MembersTabContent({ memberIds, onMemberIdsChange }: MembersTabProps) {
           placeholder="Search members..."
           className="flex-1 border-b-0"
         />
-        <div className="pr-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAddMemberDialogOpen(true)}
-          >
-            <Icon name="add" size={16} />
-            Add Member
-          </Button>
-        </div>
+        {readOnly ? (
+          <div className="pr-4">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <Button variant="outline" size="sm" disabled>
+                      <Icon name="add" size={16} />
+                      Add Member
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Owner membership cannot be changed</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        ) : (
+          <div className="pr-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddMemberDialogOpen(true)}
+            >
+              <Icon name="add" size={16} />
+              Add Member
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Members List */}
@@ -546,13 +654,30 @@ function MembersTabContent({ memberIds, onMemberIdsChange }: MembersTabProps) {
                     {member.user?.email}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeMember(member.id)}
-                >
-                  <Icon name="close" size={16} />
-                </Button>
+                {readOnly ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Button variant="ghost" size="sm" disabled>
+                            <Icon name="close" size={16} />
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Owner membership cannot be changed</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeMember(member.id)}
+                  >
+                    <Icon name="close" size={16} />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -585,6 +710,36 @@ function MembersTab(props: MembersTabProps) {
       <MembersTabContent {...props} />
     </Suspense>
   );
+}
+
+// ============================================================================
+// Built-in Role Helper
+// ============================================================================
+
+const BUILTIN_ROLE_PERMISSIONS: Record<"owner" | "admin" | "user", string[]> = {
+  owner: [], // Owner has all permissions
+  admin: [], // Admin has all permissions
+  user: [], // User has no organization permissions by default
+};
+
+// Helper to load built-in role into form data
+function loadBuiltinRoleIntoForm(
+  role: "owner" | "admin" | "user",
+  members: Array<{ id: string; role: string }>,
+): RoleFormData {
+  const isOwnerOrAdmin = role === "owner" || role === "admin";
+  const roleMembers = members.filter((m) => m.role === role);
+
+  return {
+    role: {
+      slug: role,
+      label: role.charAt(0).toUpperCase() + role.slice(1),
+    },
+    allowAllStaticPermissions: isOwnerOrAdmin,
+    staticPermissions: BUILTIN_ROLE_PERMISSIONS[role],
+    toolSet: {},
+    memberIds: roleMembers.map((m) => m.id),
+  };
 }
 
 // ============================================================================
@@ -622,11 +777,17 @@ export function ManageRolesDialog({
   const isFormValid = form.formState.isValid;
   const isFormDirty = form.formState.isDirty;
 
-  // Check if editing a new role (not yet saved)
-  const isNewRole = !form.watch("role.id");
-
   // Track which role is selected (by ID for existing, null for new)
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+
+  // Track if viewing a built-in role (owner, admin, user)
+  const [viewingBuiltinRole, setViewingBuiltinRole] = useState<
+    "owner" | "admin" | "user" | null
+  >(null);
+
+  // Check if editing a new role (not yet saved) - exclude built-in roles
+  const isNewRole =
+    !form.watch("role.id") && !form.watch("role.slug") && !viewingBuiltinRole;
 
   // Delete confirmation dialog state
   const [roleToDelete, setRoleToDelete] = useState<{
@@ -699,12 +860,15 @@ export function ManageRolesDialog({
     const formData = convertRoleToFormData(role);
     form.reset(formData);
     setSelectedRoleId(role.id ?? null);
+    setViewingBuiltinRole(null);
   };
 
   // Start editing a new role
   const startNewRole = () => {
     form.reset(createEmptyRole());
     setSelectedRoleId(null);
+    setViewingBuiltinRole(null);
+    setActiveTab("mcp");
   };
 
   // Handle switching roles - only prompt if there are valid unsaved changes
@@ -727,6 +891,34 @@ export function ManageRolesDialog({
     startNewRole();
   };
 
+  // Handle selecting a built-in role
+  const handleSelectBuiltinRole = (role: "owner" | "admin" | "user") => {
+    if (isFormDirty && isFormValid) {
+      // Has valid unsaved changes - ask what to do
+      setPendingAction(() => () => {
+        const builtinFormData = loadBuiltinRoleIntoForm(
+          role,
+          membersData?.data?.members ?? [],
+        );
+        form.reset(builtinFormData);
+        setViewingBuiltinRole(role);
+        setSelectedRoleId(null);
+        setActiveTab("org");
+      });
+      setDiscardDialogOpen(true);
+    } else {
+      // Form is clean or invalid - just switch
+      const builtinFormData = loadBuiltinRoleIntoForm(
+        role,
+        membersData?.data?.members ?? [],
+      );
+      form.reset(builtinFormData);
+      setViewingBuiltinRole(role);
+      setSelectedRoleId(null);
+      setActiveTab("org");
+    }
+  };
+
   // Handle dialog open/close
   const handleOpenChange = (isOpen: boolean) => {
     // Only prompt to discard if there are valid unsaved changes
@@ -734,6 +926,7 @@ export function ManageRolesDialog({
       setPendingAction(() => () => {
         setOpen(false);
         form.reset(createEmptyRole());
+        setViewingBuiltinRole(null);
       });
       setDiscardDialogOpen(true);
       return;
@@ -742,12 +935,22 @@ export function ManageRolesDialog({
 
     if (!isOpen) {
       form.reset(createEmptyRole());
+      setViewingBuiltinRole(null);
+      setSelectedRoleId(null);
     } else {
       const firstRole = customRoles[0];
       if (firstRole) {
         loadRole(firstRole);
       } else {
-        startNewRole();
+        // If no custom roles, open the "user" built-in role
+        const builtinFormData = loadBuiltinRoleIntoForm(
+          "user",
+          membersData?.data?.members ?? [],
+        );
+        form.reset(builtinFormData);
+        setViewingBuiltinRole("user");
+        setSelectedRoleId(null);
+        setActiveTab("org");
       }
     }
   };
@@ -793,10 +996,55 @@ export function ManageRolesDialog({
   const saveMutation = useMutation({
     mutationFn: async (formData: RoleFormData) => {
       const permission = buildPermission(formData);
-      const roleSlug = formData.role.label.toLowerCase().replace(/\s+/g, "-");
+      const roleSlug =
+        formData.role.slug ||
+        formData.role.label.toLowerCase().replace(/\s+/g, "-");
 
-      if (formData.role.id) {
-        // Update existing role
+      // Check if this is a built-in role (has slug but no id)
+      const isBuiltinRole = formData.role.slug && !formData.role.id;
+
+      if (isBuiltinRole) {
+        // Built-in role - only update member assignments
+        const members = membersData?.data?.members ?? [];
+        const currentMemberIds = members
+          .filter((m) => m.role === formData.role.slug)
+          .map((m) => m.id);
+
+        // Find members to add
+        const membersToAdd = formData.memberIds.filter(
+          (id) => !currentMemberIds.includes(id),
+        );
+
+        // Find members to remove
+        const membersToRemove = currentMemberIds.filter(
+          (id) => !formData.memberIds.includes(id),
+        );
+
+        // Add new members to this role
+        for (const memberId of membersToAdd) {
+          const memberResult = await authClient.organization.updateMemberRole({
+            memberId,
+            role: [formData.role.slug!],
+          });
+          if (memberResult?.error) {
+            throw new Error(memberResult.error.message);
+          }
+        }
+
+        // Remove members from this role
+        for (const memberId of membersToRemove) {
+          const memberResult = await authClient.organization.updateMemberRole({
+            memberId,
+            role: ["user"],
+          });
+          if (memberResult?.error) {
+            throw new Error(memberResult.error.message);
+          }
+        }
+
+        return formData;
+      } else if (formData.role.id) {
+        // Update existing custom role
         const result = await authClient.organization.updateRole({
           roleId: formData.role.id,
           data: { permission },
@@ -882,9 +1130,14 @@ export function ManageRolesDialog({
       queryClient.invalidateQueries({
         queryKey: KEYS.organizationRoles(locator),
       });
-      const isNew = !variables.role.id;
+      const isNew = !variables.role.id && !variables.role.slug;
+      const isBuiltinRole = variables.role.slug && !variables.role.id;
       toast.success(
-        isNew ? "Role created successfully!" : "Role updated successfully!",
+        isBuiltinRole
+          ? "Members updated successfully!"
+          : isNew
+            ? "Role created successfully!"
+            : "Role updated successfully!",
       );
       refetchRoles();
       form.reset(data);
@@ -917,7 +1170,7 @@ export function ManageRolesDialog({
       });
       toast.success("Role deleted successfully!");
       refetchRoles();
-      // If the deleted role was the one being edited, start a new role
+      // If the deleted role was the one being edited, load another role
       if (roleToDelete?.id === selectedRoleId) {
         const remainingRoles = customRoles.filter(
           (r) => r.id !== roleToDelete?.id,
@@ -925,7 +1178,15 @@ export function ManageRolesDialog({
         if (remainingRoles[0]) {
           loadRole(remainingRoles[0]);
         } else {
-          startNewRole();
+          // No custom roles left, load the "user" built-in role
+          const builtinFormData = loadBuiltinRoleIntoForm(
+            "user",
+            membersData?.data?.members ?? [],
+          );
+          form.reset(builtinFormData);
+          setViewingBuiltinRole("user");
+          setSelectedRoleId(null);
+          setActiveTab("org");
         }
       }
     },
@@ -985,28 +1246,36 @@ export function ManageRolesDialog({
             {/* Roles List */}
             <div className="flex-1 overflow-auto px-3.5 py-3.5 pt-3.5">
               <div className="flex flex-col gap-1">
-                {/* Built-in Roles (Read-only) */}
-                {BUILTIN_ROLES.map((builtinRole) => (
-                  <div
-                    key={builtinRole.role}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg overflow-hidden opacity-50 cursor-not-allowed"
-                  >
+                {/* Built-in Roles (Read-only but viewable) */}
+                {BUILTIN_ROLES.map((builtinRole) => {
+                  const isSelected = viewingBuiltinRole === builtinRole.role;
+
+                  return (
                     <div
+                      key={builtinRole.role}
                       className={cn(
-                        "shrink-0 size-3 rounded-full",
-                        builtinRole.color,
+                        "flex items-center gap-2 px-2 py-1.5 rounded-lg overflow-hidden cursor-pointer transition-colors",
+                        isSelected ? "bg-accent" : "hover:bg-muted/50",
                       )}
-                    />
-                    <p className="text-sm font-medium truncate flex-1">
-                      {builtinRole.label}
-                    </p>
-                    <Icon
-                      name="lock"
-                      size={14}
-                      className="text-muted-foreground shrink-0"
-                    />
-                  </div>
-                ))}
+                      onClick={() => handleSelectBuiltinRole(builtinRole.role)}
+                    >
+                      <div
+                        className={cn(
+                          "shrink-0 size-3 rounded-full",
+                          builtinRole.color,
+                        )}
+                      />
+                      <p className="text-sm font-medium truncate flex-1">
+                        {builtinRole.label}
+                      </p>
+                      <Icon
+                        name="lock"
+                        size={14}
+                        className="text-muted-foreground shrink-0"
+                      />
+                    </div>
+                  );
+                })}
 
                 {/* Custom Roles from Server */}
                 {customRoles.map((role) => {
@@ -1031,37 +1300,35 @@ export function ManageRolesDialog({
                         {role.label}
                       </p>
 
-                      {/* Only show delete if there's more than one role total */}
-                      {customRoles.length + (isNewRole ? 1 : 0) > 1 && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={cn(
-                                "size-5 shrink-0 transition-opacity opacity-0 pointer-events-none",
-                                "group-hover:opacity-100 group-hover:pointer-events-auto",
-                                isSelected && "opacity-100 pointer-events-auto",
-                              )}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Icon name="more_horiz" size={14} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteRole(role);
-                              }}
-                            >
-                              <Icon name="delete" size={16} />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                      {/* Always show delete for custom roles */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              "size-5 shrink-0 transition-opacity opacity-0 pointer-events-none",
+                              "group-hover:opacity-100 group-hover:pointer-events-auto",
+                              isSelected && "opacity-100 pointer-events-auto",
+                            )}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Icon name="more_horiz" size={14} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteRole(role);
+                            }}
+                          >
+                            <Icon name="delete" size={16} />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   );
                 })}
@@ -1106,19 +1373,21 @@ export function ManageRolesDialog({
           <div className="flex-1 flex flex-col min-w-0">
             {/* Tab Buttons */}
             <div className="h-12 border-b border-border px-4 py-3.5 flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setActiveTab("mcp")}
-                className={cn(
-                  "h-8 rounded-lg px-2 py-1",
-                  activeTab === "mcp"
-                    ? "bg-muted border-input text-foreground"
-                    : "border-input text-muted-foreground bg-transparent",
-                )}
-              >
-                MCP Permissions
-              </Button>
+              {!viewingBuiltinRole && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab("mcp")}
+                  className={cn(
+                    "h-8 rounded-lg px-2 py-1",
+                    activeTab === "mcp"
+                      ? "bg-muted border-input text-foreground"
+                      : "border-input text-muted-foreground bg-transparent",
+                  )}
+                >
+                  MCP Permissions
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -1149,7 +1418,7 @@ export function ManageRolesDialog({
 
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden min-h-0">
-              {activeTab === "mcp" && (
+              {activeTab === "mcp" && !viewingBuiltinRole && (
                 <ToolSetSelector
                   toolSet={form.watch("toolSet")}
                   onToolSetChange={(newToolSet) =>
@@ -1173,6 +1442,7 @@ export function ManageRolesDialog({
                       shouldDirty: true,
                     })
                   }
+                  readOnly={!!viewingBuiltinRole}
                 />
               )}
               {activeTab === "members" && (
@@ -1183,32 +1453,37 @@ export function ManageRolesDialog({
                       shouldDirty: true,
                     })
                   }
+                  readOnly={viewingBuiltinRole === "owner"}
                 />
               )}
             </div>
 
-            {/* Footer */}
-            <div className="border-t border-border px-5 py-5 flex items-center justify-end gap-2.5 shrink-0">
-              <Button
-                variant="outline"
-                onClick={() => handleOpenChange(false)}
-                disabled={isPending}
-                className="h-10"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={isPending || !isFormValid || !form.formState.isDirty}
-                className="h-10"
-              >
-                {saveMutation.isPending
-                  ? "Saving..."
-                  : isNewRole
-                    ? "Create Role"
-                    : "Save Changes"}
-              </Button>
-            </div>
+            {/* Footer - show for custom roles and non-owner built-in roles */}
+            {(!viewingBuiltinRole || viewingBuiltinRole !== "owner") && (
+              <div className="border-t border-border px-5 py-5 flex items-center justify-end gap-2.5 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}
+                  disabled={isPending}
+                  className="h-10"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={
+                    isPending || !isFormValid || !form.formState.isDirty
+                  }
+                  className="h-10"
+                >
+                  {saveMutation.isPending
+                    ? "Saving..."
+                    : isNewRole
+                      ? "Create Role"
+                      : "Save Changes"}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>

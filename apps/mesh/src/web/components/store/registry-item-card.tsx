@@ -144,14 +144,14 @@ export function RegistryItemCard({
   scopeName,
   displayName,
   description,
-  version,
+  version: _version,
   isVerified,
   canInstall,
   onClick,
 }: RegistryItemCardProps) {
   return (
     <Card
-      className="p-6 cursor-pointer hover:shadow-md transition-shadow"
+      className="p-6 cursor-pointer hover:bg-muted/50 transition-colors"
       onClick={onClick}
     >
       <div className="flex flex-col gap-4 h-full relative">
@@ -167,7 +167,7 @@ export function RegistryItemCard({
             <div className="min-w-0 flex-1">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="flex items-center gap-2 text-base font-semibold min-w-0">
+                  <div className="flex items-center gap-2 text-base font-medium min-w-0">
                     <span className="truncate">{displayName}</span>
                     {isVerified && (
                       <Icon
@@ -193,22 +193,18 @@ export function RegistryItemCard({
                   )}
                 </TooltipContent>
               </Tooltip>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {scopeName && <span className="truncate">{scopeName}</span>}
-                {version && (
-                  <>
-                    {scopeName && <span>•</span>}
-                    <span className="shrink-0">v{version}</span>
-                  </>
-                )}
-              </div>
+              {scopeName && (
+                <div className="text-sm text-muted-foreground truncate">
+                  {scopeName}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Content */}
         <div className="grid grid-cols-1 gap-1 min-w-0">
-          <div className="text-base text-muted-foreground line-clamp-2">
+          <div className="text-sm text-muted-foreground line-clamp-2">
             {description || "No description available"}
           </div>
         </div>

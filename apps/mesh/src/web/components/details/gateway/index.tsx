@@ -92,12 +92,6 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
     return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(slugifiedServerName)}&config=${encodeURIComponent(base64Config)}`;
   })();
 
-  // Generate Windsurf deeplink (similar to Cursor)
-  const windsurfDeeplink = (() => {
-    const base64Config = utf8ToBase64(clientConnectionConfig("Windsurf"));
-    return `windsurf://codeium.windsurf/mcp/install?name=${encodeURIComponent(slugifiedServerName)}&config=${encodeURIComponent(base64Config)}`;
-  })();
-
   // Claude Code CLI command - uses JSON format
   const claudeConfigJson = clientConnectionConfig("Claude Code");
   const claudeCommand = `claude mcp add "${slugifiedServerName}" --config '${claudeConfigJson.replace(/'/g, "'\\''")}'`;
@@ -214,31 +208,6 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Add to Claude Code</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        {/* Windsurf */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                className="h-auto py-3 px-4 justify-center gap-2 flex-1 min-w-fit"
-                onClick={() => handleOpenDeeplink(windsurfDeeplink)}
-              >
-                <img
-                  src="/logos/Windsurf.svg"
-                  alt="Windsurf"
-                  className="h-6 w-6"
-                  style={{
-                    filter:
-                      "brightness(0) saturate(100%) invert(6%) sepia(68%) saturate(3620%) hue-rotate(204deg) brightness(92%) contrast(103%)",
-                  }}
-                />
-                <span className="text-sm font-medium">Windsurf</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Add to Windsurf</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
@@ -403,8 +372,8 @@ function GatewaySettingsForm({
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between gap-3">
+                  <FormLabel className="mb-0">Tool Selection Mode</FormLabel>
                   <div className="flex items-center gap-1.5">
-                    <FormLabel className="mb-0">Tool Selection Mode</FormLabel>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -419,7 +388,7 @@ function GatewaySettingsForm({
                             />
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-sm">
+                        <TooltipContent side="left" className="max-w-sm">
                           <div className="text-xs space-y-1">
                             <div>
                               <strong>Include:</strong> Only selected
@@ -433,22 +402,22 @@ function GatewaySettingsForm({
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="inclusion">
+                          Include Selected
+                        </SelectItem>
+                        <SelectItem value="exclusion">
+                          Exclude Selected
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="inclusion">
-                        Include Selected
-                      </SelectItem>
-                      <SelectItem value="exclusion">
-                        Exclude Selected
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
                 <FormMessage />
               </FormItem>
@@ -462,8 +431,8 @@ function GatewaySettingsForm({
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between gap-3">
+                  <FormLabel className="mb-0">Gateway Strategy</FormLabel>
                   <div className="flex items-center gap-1.5">
-                    <FormLabel className="mb-0">Gateway Strategy</FormLabel>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -478,7 +447,7 @@ function GatewaySettingsForm({
                             />
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-sm">
+                        <TooltipContent side="left" className="max-w-sm">
                           <div className="text-xs space-y-1">
                             <div>
                               <strong>Passthrough:</strong> Pass tools through
@@ -496,23 +465,23 @@ function GatewaySettingsForm({
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="passthrough">Passthrough</SelectItem>
+                        <SelectItem value="smart_tool_selection">
+                          Smart Tool Selection
+                        </SelectItem>
+                        <SelectItem value="code_execution">
+                          Code Execution
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="passthrough">Passthrough</SelectItem>
-                      <SelectItem value="smart_tool_selection">
-                        Smart Tool Selection
-                      </SelectItem>
-                      <SelectItem value="code_execution">
-                        Code Execution
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
                 <FormMessage />
               </FormItem>
@@ -669,7 +638,7 @@ function GatewayInspectorViewWithGateway({
           {/* Last Updated section */}
           <div className="flex items-center gap-4 p-5 border-t border-border">
             <span className="flex-1 text-sm text-foreground">Last Updated</span>
-            <span className="font-mono text-sm uppercase text-muted-foreground">
+            <span className="text-muted-foreground uppercase text-xs">
               {gateway.updated_at
                 ? formatDistanceToNow(new Date(gateway.updated_at), {
                     addSuffix: false,

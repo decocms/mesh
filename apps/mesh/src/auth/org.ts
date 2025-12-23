@@ -138,7 +138,7 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
     // This gateway excludes nothing by default (empty connections list with exclusion = include all)
     await gatewayStorage.create(organizationId, createdBy, {
       title: "Default Gateway",
-      description: "Auto-created gateway that includes all connections",
+      description: "Auto-created gateway for organization",
       toolSelectionStrategy: "passthrough",
       toolSelectionMode: "exclusion",
       status: "active",

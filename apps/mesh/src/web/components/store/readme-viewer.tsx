@@ -107,7 +107,7 @@ export function ReadmeViewer({ repository }: ReadmeViewerProps) {
 
   return (
     <div
-      className="p-6 markdown-body"
+      className="p-5 markdown-body"
       style={{
         backgroundColor: "transparent",
       }}

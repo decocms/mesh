@@ -1,4 +1,3 @@
-import { Badge } from "@deco/ui/components/badge.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { IntegrationIcon } from "../integration-icon.tsx";
@@ -32,7 +31,7 @@ export function ConnectionCard({
 }: ConnectionCardProps) {
   const paddingClass = size === "sm" ? "p-4" : "p-6";
   const titleSizeClass = size === "sm" ? "text-sm" : "text-base";
-  const descriptionSizeClass = size === "sm" ? "text-xs" : "text-base";
+  const descriptionSizeClass = size === "sm" ? "text-xs" : "text-sm";
 
   return (
     <Card
@@ -53,25 +52,13 @@ export function ConnectionCard({
             className="shrink-0 shadow-sm"
             fallbackIcon={fallbackIcon}
           />
-          {/* Badge and Header Actions container - mutually exclusive on hover */}
+          {/* Header Actions container */}
           <div className="relative">
-            {/* Badge: visible by default, hidden on hover when headerActions exist */}
-            {connection.status && (
-              <Badge
-                variant={connection.status === "active" ? "default" : "outline"}
-                className={cn(
-                  "text-xs transition-opacity",
-                  headerActions && "opacity-100 group-hover:opacity-0",
-                )}
-              >
-                {connection.status}
-              </Badge>
-            )}
             {/* Header Actions: hidden by default, visible on hover */}
             {headerActions && (
               <div
                 className={cn(
-                  "absolute top-0 right-0 transition-opacity",
+                  "transition-opacity",
                   "opacity-0 group-hover:opacity-100",
                 )}
                 onClick={(e) => e.stopPropagation()}

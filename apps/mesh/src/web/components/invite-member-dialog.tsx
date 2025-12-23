@@ -17,6 +17,7 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormLabel,
   FormMessage,
 } from "@deco/ui/components/form.tsx";
 import {
@@ -26,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
-import { EmailTagsInput } from "@deco/ui/components/email-tags-input.tsx";
+import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { KEYS } from "@/web/lib/query-keys";
@@ -39,9 +40,23 @@ interface InviteMemberDialogProps {
 const emailSchema = z.string().email("Invalid email address");
 
 type InviteMemberFormData = {
-  emails: string[];
-  role: string; // Single role selection
+  emailsText: string;
+  role: string;
 };
+
+// Parse emails from text input (comma or newline separated)
+function parseEmails(text: string): string[] {
+  if (!text.trim()) return [];
+
+  // Split by comma, semicolon, or newline
+  const emails = text
+    .split(/[,;\n]/)
+    .map((email) => email.trim().toLowerCase())
+    .filter((email) => email.length > 0);
+
+  // Remove duplicates
+  return Array.from(new Set(emails));
+}
 
 export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
   const [open, setOpen] = useState(false);
@@ -62,35 +77,41 @@ export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
   const form = useForm<InviteMemberFormData>({
     mode: "onChange",
     defaultValues: {
-      emails: [],
-      role: "user", // Default to user role
+      emailsText: "",
+      role: "user",
     },
   });
 
-  const emails = form.watch("emails");
+  const emailsText = form.watch("emailsText");
   const selectedRole = form.watch("role");
 
-  // Filter valid emails for submission
-  const validEmails = emails.filter((email) => {
-    const trimmedEmail = email.trim().toLowerCase();
-    const isValidFormat = emailSchema.safeParse(trimmedEmail).success;
+  // Parse and validate emails
+  const parsedEmails = parseEmails(emailsText);
+  const validEmails = parsedEmails.filter((email) => {
+    const isValidFormat = emailSchema.safeParse(email).success;
     const isNotSelf =
-      !currentUserEmail || trimmedEmail !== currentUserEmail.toLowerCase();
+      !currentUserEmail || email !== currentUserEmail.toLowerCase();
     return isValidFormat && isNotSelf;
   });
 
   const inviteMutation = useMutation({
-    mutationFn: async (data: InviteMemberFormData) => {
-      if (!data.role) {
+    mutationFn: async ({
+      emails,
+      role,
+    }: {
+      emails: string[];
+      role: string;
+    }) => {
+      if (!role) {
         throw new Error("Please select a role");
       }
 
       // Invite each valid email with the selected role
       const results = await Promise.allSettled(
-        validEmails.map(async (email) => {
+        emails.map(async (email) => {
           const result = await authClient.organization.inviteMember({
             email,
-            role: data.role as "admin" | "owner",
+            role: role as "admin" | "owner",
           });
 
           if (result.error) {
@@ -111,15 +132,16 @@ export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
 
       return results;
     },
-    onSuccess: () => {
+    onSuccess: (_, { emails }) => {
       queryClient.invalidateQueries({ queryKey: KEYS.members(locator) });
+      queryClient.invalidateQueries({ queryKey: KEYS.invitations(locator) });
       toast.success(
-        validEmails.length === 1
+        emails.length === 1
           ? "Member invited successfully!"
-          : `${validEmails.length} members invited successfully!`,
+          : `${emails.length} members invited successfully!`,
       );
       form.reset({
-        emails: [],
+        emailsText: "",
         role: "user",
       });
       setOpen(false);
@@ -133,14 +155,14 @@ export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
 
   const handleSubmit = (data: InviteMemberFormData) => {
     if (validEmails.length === 0) {
-      toast.error("Please add at least one valid email address");
+      toast.error("Please enter at least one valid email address");
       return;
     }
     if (!data.role) {
       toast.error("Please select a role");
       return;
     }
-    inviteMutation.mutate(data);
+    inviteMutation.mutate({ emails: validEmails, role: data.role });
   };
 
   const isFormValid = validEmails.length > 0 && !!selectedRole;
@@ -160,19 +182,21 @@ export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
           >
             <FormField
               control={form.control}
-              name="emails"
+              name="emailsText"
               render={({ field }) => (
                 <FormItem>
+                  <FormLabel>Email addresses</FormLabel>
                   <FormControl>
-                    <EmailTagsInput
-                      emails={field.value ?? []}
-                      onEmailsChange={field.onChange}
+                    <Textarea
+                      {...field}
                       disabled={inviteMutation.isPending}
-                      placeholder="Emails, comma separated"
-                      validation={{ currentUserEmail }}
-                      onToast={(msg, type) => toast[type](msg)}
+                      placeholder={`Enter email addresses separated by commas or new lines
+e.g. user1@example.com, user2@example.com
+or one per line`}
+                      className="min-h-[120px] resize-none"
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -262,7 +286,7 @@ export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
                 variant="outline"
                 onClick={() => {
                   form.reset({
-                    emails: [],
+                    emailsText: "",
                     role: "user",
                   });
                   setOpen(false);

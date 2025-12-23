@@ -162,7 +162,7 @@ export function ConnectionSettingsFormUI({
         {/* Last Updated section */}
         <div className="flex items-center gap-4 p-5 border-b border-border">
           <span className="flex-1 text-sm text-foreground">Last Updated</span>
-          <span className="font-mono text-sm uppercase text-muted-foreground">
+          <span className="text-muted-foreground uppercase text-xs">
             {connection.updated_at
               ? formatDistanceToNow(new Date(connection.updated_at), {
                   addSuffix: false,
