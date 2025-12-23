@@ -18,8 +18,8 @@ import type {
   Database,
   Event,
   EventDelivery,
-  EventStatus,
   EventSubscription,
+  EventStatus,
 } from "./types";
 
 // ============================================================================

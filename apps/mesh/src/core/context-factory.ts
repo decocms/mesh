@@ -400,6 +400,7 @@ async function authenticateRequest(
   organization?: OrganizationContext;
 }> {
   const authHeader = req.headers.get("Authorization");
+
   // Try OAuth session first (getMcpSession)
   // Add X-MCP-Session-Auth header to tell the API key plugin this is an MCP OAuth session
   // so it won't try to validate the Bearer token as an API key
@@ -465,6 +466,7 @@ async function authenticateRequest(
   // These use the same header but different validation
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.replace("Bearer ", "").trim();
+
     // First, try to verify as Mesh JWT token
     // These are issued by mesh for downstream services calling back
     try {
@@ -492,6 +494,7 @@ async function authenticateRequest(
       const result = await auth.api.verifyApiKey({
         body: { key: token },
       });
+
       if (result?.valid && result.key) {
         // For API keys, organization might be embedded in metadata
         const orgMetadata = result.key.metadata?.organization as
