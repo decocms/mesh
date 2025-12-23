@@ -13,6 +13,7 @@
  */
 
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { ContextFactory } from "../../core/context-factory";
 import type { MeshContext } from "../../core/mesh-context";
 
@@ -137,6 +138,37 @@ async function ensureContext(c: {
 // ============================================================================
 // Protected Resource Metadata Proxy
 // ============================================================================
+
+/**
+ * Throws HTTPException for 401 auth errors to trigger OAuth flow.
+ * Used by MCP proxy to handle authentication failures from origin servers.
+ */
+export function oauthOn401(
+  error: Error & { status?: number },
+  reqUrl: URL,
+  connectionId: string,
+): never {
+  const isAuthError =
+    error.status === 401 ||
+    error.message?.includes("401") ||
+    error.message?.toLowerCase().includes("unauthorized");
+
+  if (isAuthError) {
+    // Throw 401 with WWW-Authenticate pointing to our OAuth proxy resource metadata
+    throw new HTTPException(401, {
+      res: new Response(null, {
+        status: 401,
+        headers: {
+          "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${reqUrl.origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
+        },
+      }),
+    });
+  }
+
+  // For other errors, log and re-throw to be handled by the route handler
+  console.error("[proxy] Failed to connect to origin MCP:", error);
+  throw error;
+}
 
 // force https if not localhost
 export const fixProtocol = (url: URL) => {

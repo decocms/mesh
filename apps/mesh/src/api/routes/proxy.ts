@@ -20,23 +20,23 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-  ListResourceTemplatesRequestSchema,
-  ListPromptsRequestSchema,
   GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ListToolsRequestSchema,
+  ReadResourceRequestSchema,
   type CallToolRequest,
   type CallToolResult,
-  type ListToolsRequest,
-  type ListToolsResult,
-  type ListResourcesResult,
-  type ReadResourceRequest,
-  type ReadResourceResult,
-  type ListResourceTemplatesResult,
-  type ListPromptsResult,
   type GetPromptRequest,
   type GetPromptResult,
+  type ListPromptsResult,
+  type ListResourcesResult,
+  type ListResourceTemplatesResult,
+  type ListToolsRequest,
+  type ListToolsResult,
+  type ReadResourceRequest,
+  type ReadResourceResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
@@ -45,6 +45,7 @@ import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
 import { HttpServerTransport } from "../http-server-transport";
 import { compose } from "../utils/compose";
+import { oauthOn401 } from "./oauth-proxy";
 import {
   createProxyMonitoringMiddleware,
   createProxyStreamableMonitoringMiddleware,
@@ -535,6 +536,12 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Create fetch function that handles MCP protocol
   const handleMcpRequest = async (req: Request) => {
+    // Create client once - throws HTTPException for auth errors
+    const reqUrl = new URL(req.url);
+    const client = await createClient().catch((error) =>
+      oauthOn401(error, reqUrl, connectionId),
+    );
+
     // Create MCP server for this proxy
     const server = new McpServer(
       {
@@ -555,39 +562,10 @@ async function createMCPProxyDoNotUseDirectly(
     // Connect server to transport
     await server.connect(transport);
 
-    // Pre-check: Try connecting to origin MCP to detect if authentication is required
-    // If origin returns 401, we return our own 401 pointing to our OAuth proxy
-    try {
-      await createClient();
-    } catch (error) {
-      const err = error as Error & { status?: number };
-      // Check if this is an authentication error (401 from origin)
-      const isAuthError =
-        err.status === 401 ||
-        err.message?.includes("401") ||
-        err.message?.toLowerCase().includes("unauthorized");
-
-      if (isAuthError) {
-        // Return 401 with WWW-Authenticate pointing to our OAuth proxy resource metadata
-        const reqUrl = new URL(req.url);
-        return new Response(null, {
-          status: 401,
-          headers: {
-            "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${reqUrl.origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
-          },
-        });
-      }
-
-      // For other errors, log and re-throw to be handled by the route handler
-      console.error("[proxy] Failed to connect to origin MCP:", error);
-      throw error;
-    }
-
-    // Manually implement list_tools - fetch from downstream and return
+    // Tools handlers
     server.server.setRequestHandler(
       ListToolsRequestSchema,
       async (_request: ListToolsRequest): Promise<ListToolsResult> => {
-        const client = await createClient();
         return await client.listTools();
       },
     );
@@ -599,7 +577,6 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListResourcesRequestSchema,
       async (): Promise<ListResourcesResult> => {
-        const client = await createClient();
         return await client.listResources();
       },
     );
@@ -607,7 +584,6 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ReadResourceRequestSchema,
       async (request: ReadResourceRequest): Promise<ReadResourceResult> => {
-        const client = await createClient();
         return await client.readResource(request.params);
       },
     );
@@ -615,7 +591,6 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListResourceTemplatesRequestSchema,
       async (): Promise<ListResourceTemplatesResult> => {
-        const client = await createClient();
         return await client.listResourceTemplates();
       },
     );
@@ -624,7 +599,6 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListPromptsRequestSchema,
       async (): Promise<ListPromptsResult> => {
-        const client = await createClient();
         return await client.listPrompts();
       },
     );
@@ -632,7 +606,6 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       GetPromptRequestSchema,
       async (request: GetPromptRequest): Promise<GetPromptResult> => {
-        const client = await createClient();
         return await client.getPrompt(request.params);
       },
     );

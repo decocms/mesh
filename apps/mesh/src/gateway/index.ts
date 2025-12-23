@@ -10,7 +10,6 @@ export { ResourceGateway } from "./resource-gateway";
 export { ResourceTemplateGateway } from "./resource-template-gateway";
 export { PromptGateway } from "./prompt-gateway";
 export {
-  getStrategy,
   type ToolWithConnection,
   type StrategyContext,
   type StrategyResult,
