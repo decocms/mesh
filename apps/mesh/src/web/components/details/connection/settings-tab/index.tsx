@@ -6,9 +6,11 @@ import { useConnectionActions } from "@/web/hooks/collections/use-connection";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { authenticateMcp } from "@/web/lib/mcp-oauth";
+import { KEYS } from "@/web/lib/query-keys";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -223,6 +225,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   } = props;
 
   const connectionActions = useConnectionActions();
+  const queryClient = useQueryClient();
 
   // Check if connection has README
   const repository = connection?.metadata?.repository as
@@ -271,6 +274,15 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
     await connectionActions.update.mutateAsync({
       id: connection.id,
       data: { connection_token: token },
+    });
+
+    // Invalidate auth status query to trigger UI refresh
+    const mcpProxyUrl = new URL(
+      `/mcp/${connection.id}`,
+      window.location.origin,
+    );
+    await queryClient.invalidateQueries({
+      queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
     });
 
     toast.success("Authentication successful");
