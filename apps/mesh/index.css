@@ -9,13 +9,3 @@
     @apply bg-background text-foreground;
   }
 }
-
-.marching-ants-stroke {
-  animation: marching-ants-svg 0.8s linear infinite;
-}
-
-@keyframes marching-ants-svg {
-  to {
-    stroke-dashoffset: -26;
-  }
-}

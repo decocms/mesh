@@ -1002,10 +1002,7 @@ class KyselyEventBusStorage implements EventBusStorage {
           organization_id: organizationId,
           connection_id: connectionId,
           event_type: desiredSub.eventType,
-          publisher:
-            desiredSub.publisher === "self"
-              ? connectionId
-              : (desiredSub.publisher ?? null),
+          publisher: desiredSub.publisher ?? null,
           filter: desiredSub.filter ?? null,
           enabled: 1,
           created_at: now,

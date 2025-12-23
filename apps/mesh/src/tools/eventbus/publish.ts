@@ -28,7 +28,7 @@ export const EVENT_PUBLISH = defineTool({
     await ctx.access.check();
 
     // Get the source connection ID from the caller's token
-    const sourceConnectionId = ctx.connectionId ?? ctx.access["connectionId"];
+    const sourceConnectionId = ctx.connectionId;
 
     if (!sourceConnectionId) {
       throw new Error(
