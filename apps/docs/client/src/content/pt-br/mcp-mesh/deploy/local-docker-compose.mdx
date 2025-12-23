@@ -122,7 +122,7 @@ docker compose -f docker-compose.postgres.yml up -d
 A `DATABASE_URL` será configurada automaticamente, mas você pode especificar se necessário:
 
 ```bash
-DATABASE_URL=postgresql://mesh_user:senha_segura_aqui@localhost:5432/mesh_db
+DATABASE_URL=postgresql://mesh_user:senha_segura_aqui@postgres:5432/mesh_db
 ```
 
 ### Opção 2: PostgreSQL Externo
@@ -137,7 +137,7 @@ DATABASE_URL=postgresql://usuario:senha@host:5432/nome_do_banco
 **Exemplo com PostgreSQL local:**
 
 ```bash
-DATABASE_URL=postgresql://postgres:senha@localhost:5432/mesh_db
+DATABASE_URL=postgresql://postgres:senha@host.docker.internal:5432/mesh_db
 ```
 
 **Exemplo com PostgreSQL remoto:**
@@ -145,6 +145,13 @@ DATABASE_URL=postgresql://postgres:senha@localhost:5432/mesh_db
 ```bash
 DATABASE_URL=postgresql://usuario:senha@db.exemplo.com:5432/mesh_db
 ```
+
+<Callout type="info">
+  **Nota:** `localhost` dentro do container aponta para o próprio container.
+
+  - Se você estiver usando o PostgreSQL incluído no `docker-compose.postgres.yml`, o host deve ser o nome do service: `postgres`.
+  - Se você estiver conectando a um PostgreSQL rodando na sua máquina, use `host.docker.internal` (Docker Desktop) ou o IP da sua máquina na rede.
+</Callout>
 
 **Vantagens do PostgreSQL:**
 - ✅ Suporta múltiplas instâncias (escalabilidade horizontal)
