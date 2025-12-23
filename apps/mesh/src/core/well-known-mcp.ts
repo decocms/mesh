@@ -18,9 +18,11 @@ export const WellKnownOrgMCPId = {
  *
  * @returns ConnectionCreateData for the Deco Store registry
  */
-export function getWellKnownRegistryConnection(): ConnectionCreateData {
+export function getWellKnownRegistryConnection(
+  orgId: string,
+): ConnectionCreateData {
   return {
-    id: WellKnownMCPId.REGISTRY,
+    id: WellKnownOrgMCPId.REGISTRY(orgId),
     title: "Deco Store",
     description: "Official deco MCP registry with curated integrations",
     connection_type: "HTTP",
