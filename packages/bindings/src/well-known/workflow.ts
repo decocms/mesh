@@ -312,24 +312,6 @@ export const WORKFLOW_COLLECTIONS_BINDINGS = [
 ] as const satisfies Binder;
 
 export const WORKFLOW_BINDING = [
-  {
-    name: "SEND_SIGNAL" as const,
-    inputSchema: z.object({
-      executionId: z.string().describe("The execution ID to send signal to"),
-      signalName: z
-        .string()
-        .describe("Name of the signal (used by workflow to filter)"),
-      payload: z
-        .unknown()
-        .optional()
-        .describe("Optional data payload to send with the signal"),
-    }),
-    outputSchema: z.object({
-      success: z.boolean(),
-      signalId: z.string().optional(),
-      message: z.string().optional(),
-    }),
-  },
   ...WORKFLOW_COLLECTIONS_BINDINGS,
 ] satisfies ToolBinder[];
 

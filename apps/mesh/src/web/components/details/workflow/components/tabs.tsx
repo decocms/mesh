@@ -25,7 +25,6 @@ import { useConnection } from "@/web/hooks/collections/use-connection";
 import { usePollingWorkflowExecution } from "../hooks/use-workflow-collection-item";
 import { useWorkflow } from "@/web/components/details/workflow/stores/workflow";
 import { CheckCircle, Clock, XCircle } from "lucide-react";
-
 import { useWorkflowExecutionCollectionList } from "../hooks/use-workflow-collection-item";
 import { ScrollArea } from "@deco/ui/components/scroll-area.tsx";
 import { useMembers } from "@/web/hooks/use-members";
@@ -183,11 +182,6 @@ export function WorkflowTabs() {
   );
 }
 
-function useStepResult(executionId: string, stepId: string) {
-  const { item: pollingExecution } = usePollingWorkflowExecution(executionId);
-  return pollingExecution?.step_results.find((s) => s.stepId === stepId);
-}
-
 function OutputTabContent({
   executionId,
   stepId,
@@ -195,8 +189,16 @@ function OutputTabContent({
   executionId: string;
   stepId: string;
 }) {
-  const stepResult = useStepResult(executionId, stepId);
-  if (!stepResult) {
+  const { item: pollingExecution } = usePollingWorkflowExecution(executionId);
+  const stepResult = pollingExecution?.step_results.find(
+    (s) => s.step_id === stepId,
+  );
+
+  if (
+    !stepResult &&
+    (pollingExecution?.status === "running" ||
+      pollingExecution?.status === "enqueued")
+  ) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -204,11 +206,21 @@ function OutputTabContent({
       </div>
     );
   }
+
+  if (pollingExecution?.status === "cancelled" && !stepResult) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <XCircle className="w-4 h-4 text-destructive" />
+        <p className="text-destructive text-sm">Execution cancelled</p>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full">
       <MonacoCodeEditor
         height="100%"
-        code={JSON.stringify(stepResult.output, null, 2)}
+        code={JSON.stringify(stepResult?.output ?? null, null, 2)}
         language="json"
       />
     </div>

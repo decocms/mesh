@@ -17,7 +17,7 @@ import { WORKFLOW_BINDING } from "@decocms/bindings/workflow";
 const BUILTIN_BINDINGS: Record<string, Binder> = {
   LLMS: LANGUAGE_MODEL_BINDING,
   AGENTS: AGENTS_BINDING,
-  WORKFLOWS: WORKFLOW_BINDING,
+  WORKFLOW: WORKFLOW_BINDING,
   MCP: MCP_BINDING,
 };
 

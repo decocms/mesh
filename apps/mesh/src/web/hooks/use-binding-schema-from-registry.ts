@@ -121,7 +121,7 @@ export function useBindingSchemaFromRegistry(
 
   // Build query input params using proper WhereExpression format
   const toolInputParams = parsedAppName
-    ? { where: { appName: parsedAppName } }
+    ? { where: { appName: parsedAppName }, includeTools: true }
     : {};
 
   // Create queries for all registries in parallel

@@ -10,7 +10,7 @@ import {
   useTrackingExecutionId,
   useCurrentStepName,
 } from "@/web/components/details/workflow/stores/workflow";
-import type { StepNodeData } from "../use-workflow-flow";
+import type { StepNodeData, StepResult } from "../use-workflow-flow";
 import { usePollingWorkflowExecution } from "../../../hooks/use-workflow-collection-item";
 
 // ============================================
@@ -101,16 +101,7 @@ function getStepIcon(step: Step) {
   return <Wrench className="w-4 h-4" />;
 }
 
-type WorkflowExecutionStepResult = {
-  output?: unknown;
-  error?: unknown;
-  startedAt: number;
-  stepId: string;
-  executionId: string;
-  completedAt?: number;
-};
-
-function getStepStyle(stepResult?: WorkflowExecutionStepResult | null) {
+function getStepStyle(stepResult?: StepResult | null) {
   if (!stepResult) return "default";
   if (stepResult.error) return "error";
   if (!stepResult.output) return "pending";
@@ -131,7 +122,7 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
   const canAddAfter = isAddingStep && step.config?.maxAttempts === undefined;
 
   const stepResult = pollingExecution?.step_results.find((s) => {
-    return s.stepId === step.name;
+    return s.step_id === step.name;
   });
   const isConsumed = !!stepResult?.output;
   const style = getStepStyle(stepResult);
@@ -218,18 +209,19 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
 
             <Duration
               startTime={
-                stepResult?.startedAt
-                  ? new Date(stepResult.startedAt).toISOString()
+                stepResult?.started_at_epoch_ms
+                  ? new Date(stepResult.started_at_epoch_ms).toISOString()
                   : undefined
               }
               endTime={
-                stepResult?.completedAt
-                  ? new Date(stepResult.completedAt).toISOString()
+                stepResult?.completed_at_epoch_ms
+                  ? new Date(stepResult.completed_at_epoch_ms).toISOString()
                   : undefined
               }
               isRunning={
                 trackingExecutionId
-                  ? stepResult?.completedAt === null && !stepResult?.error
+                  ? stepResult?.completed_at_epoch_ms === null &&
+                    !stepResult?.error
                   : false
               }
             />

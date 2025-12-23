@@ -14,8 +14,7 @@ import {
   useWorkflowActions,
 } from "@/web/components/details/workflow/stores/workflow";
 import { useWorkflowBindingConnection } from "../../../hooks/use-workflow-binding-connection";
-import { useWorkflowExecutionCollectionItem } from "../../../hooks/use-workflow-collection-item";
-import { ExecutionScheduleTooltip, useIsExecutionScheduled } from "../../..";
+import { usePollingWorkflowExecution } from "../../../hooks/use-workflow-collection-item";
 
 // ============================================
 // Workflow Start Hook
@@ -106,6 +105,31 @@ function PauseButton() {
   );
 }
 
+function TrackingExecutionIdButton({
+  trackingExecutionId,
+}: {
+  trackingExecutionId: string;
+}) {
+  const result = usePollingWorkflowExecution(trackingExecutionId);
+  const isRunning =
+    (result?.item?.completed_at_epoch_ms === null &&
+      result?.item?.status === "running") ||
+    result?.item?.status === "enqueued";
+  const isPaused = result?.item?.status === "cancelled";
+  if (isRunning) {
+    return <PauseButton />;
+  }
+  if (isPaused) {
+    return <ResumeButton />;
+  }
+
+  return (
+    <Button variant="ghost" size="xs" disabled>
+      <Play className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors" />
+    </Button>
+  );
+}
+
 function PlayButton() {
   const { handleRunWorkflow } = useWorkflowStart();
   const isDirty = useIsDirty();
@@ -113,6 +137,7 @@ function PlayButton() {
     e.stopPropagation();
     handleRunWorkflow();
   };
+  const trackingExecutionId = useTrackingExecutionId();
   return (
     <Button
       variant="ghost"
@@ -120,7 +145,11 @@ function PlayButton() {
       onClick={handleTriggerClick}
       disabled={isDirty}
     >
-      <Play className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors" />
+      {trackingExecutionId ? (
+        <TrackingExecutionIdButton trackingExecutionId={trackingExecutionId} />
+      ) : (
+        <Play className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors" />
+      )}
     </Button>
   );
 }
@@ -141,13 +170,7 @@ function ResumeButton() {
 
 export const TriggerNode = memo(function TriggerNode() {
   const isAddingStep = useIsAddingStep();
-  const trackingExecutionId = useTrackingExecutionId();
   const { addStepAfter } = useWorkflowActions();
-  const { item: execution } =
-    useWorkflowExecutionCollectionItem(trackingExecutionId);
-  const isScheduled = useIsExecutionScheduled(trackingExecutionId);
-  const isRunning = execution?.completed_at_epoch_ms === null;
-  const isPaused = execution?.status === "cancelled";
   const isDirty = useIsDirty();
   const workflow = useWorkflow();
 
@@ -195,12 +218,7 @@ export const TriggerNode = memo(function TriggerNode() {
           <CardHeader className="flex items-center justify-between gap-2 p-0 w-full ">
             <div className="flex flex-1 items-center gap-2 min-w-0">
               <div className="h-6 w-6 p-1 shrink-0 flex items-center justify-center rounded-md">
-                {isScheduled && (
-                  <ExecutionScheduleTooltip id={trackingExecutionId} />
-                )}
-                {isPaused && <ResumeButton />}
-                {isRunning && !isPaused && <PauseButton />}
-                {!isRunning && !isPaused && <PlayButton />}
+                <PlayButton />
               </div>
 
               <CardTitle

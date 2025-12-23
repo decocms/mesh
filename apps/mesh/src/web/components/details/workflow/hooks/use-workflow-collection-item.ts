@@ -34,47 +34,25 @@ export function useWorkflowCollectionItem(itemId: string) {
 export function useWorkflowExecutionCollectionList({
   workflowId,
 }: {
-  workflowId?: string;
+  workflowId: string;
 }) {
-  const { connectionId } = useParams({
-    strict: false,
-  });
-  const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
+  const { id: connectionId } = useWorkflowBindingConnection();
+  const toolCaller = createToolCaller(connectionId);
   const list = useCollectionList<WorkflowExecution>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
+    connectionId,
     "workflow_execution",
     toolCaller,
     {
-      sortKey: "created_at",
-      sortDirection: "desc",
       filters: [
-        workflowId
-          ? {
-              column: "workflow_id",
-              value: workflowId,
-            }
-          : undefined,
-      ].filter(Boolean) as [],
+        {
+          column: "workflow_id",
+          value: workflowId,
+        },
+      ],
     },
   );
   return {
     list,
-  };
-}
-
-export function useWorkflowExecutionCollectionItem(itemId?: string) {
-  const { connectionId } = useParams({
-    strict: false,
-  });
-  const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
-  const item = useCollectionItem<WorkflowExecution>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
-    "workflow_execution",
-    itemId,
-    toolCaller,
-  );
-  return {
-    item,
   };
 }
 
@@ -98,7 +76,9 @@ export function usePollingWorkflowExecution(executionId?: string) {
             readonly unknown[]
           >,
         ) => {
-          return query.state?.data?.item?.completed_at_epoch_ms === null
+          return (query.state?.data?.item?.completed_at_epoch_ms === null &&
+            query.state?.data?.item?.status === "running") ||
+            query.state?.data?.item?.status === "enqueued"
             ? 5000
             : false;
         }
@@ -110,10 +90,10 @@ export function usePollingWorkflowExecution(executionId?: string) {
             step_results: {
               output?: unknown;
               error?: unknown;
-              startedAt: number;
-              stepId: string;
-              executionId: string;
-              completedAt?: number;
+              started_at_epoch_ms: number;
+              step_id: string;
+              execution_id: string;
+              completed_at_epoch_ms?: number;
             }[];
           })
         | null;

@@ -5,10 +5,11 @@ export function useWorkflowBindingConnection() {
   const connections = useConnections();
   const connection = useBindingConnections({
     connections,
-    binding: "WORKFLOWS",
+    binding: "WORKFLOW",
   });
   if (!connection || connection.length === 0 || !connection[0]) {
     throw new Error("No workflow connection found");
   }
+
   return connection[0];
 }
