@@ -115,6 +115,9 @@ function ConnectionInspectorViewWithConnection({
                   isUpdating={isUpdating}
                   isMCPAuthenticated={isMCPAuthenticated}
                   supportsOAuth={authStatus.supportsOAuth}
+                  onViewReadme={
+                    hasRepository ? () => handleTabChange("readme") : undefined
+                  }
                 />
               ) : activeTabId === "readme" && hasRepository ? (
                 <ReadmeTab repository={repository} />

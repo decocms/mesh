@@ -23,6 +23,7 @@ interface SettingsTabProps {
   isUpdating: boolean;
   isMCPAuthenticated: boolean;
   supportsOAuth: boolean;
+  onViewReadme?: () => void;
 }
 
 type SettingsTabWithMcpBindingProps = SettingsTabProps & {
@@ -218,6 +219,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
     scopes,
     hasMcpBinding,
     stateSchema,
+    onViewReadme,
   } = props;
 
   const connectionActions = useConnectionActions();
@@ -321,6 +323,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
               formState={formState ?? undefined}
               onFormStateChange={handleFormStateChange}
               onAuthenticate={handleAuthenticate}
+              onViewReadme={onViewReadme}
               isMCPAuthenticated={props.isMCPAuthenticated}
               supportsOAuth={props.supportsOAuth}
               hasReadme={hasReadme}
