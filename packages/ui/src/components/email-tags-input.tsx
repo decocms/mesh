@@ -2,7 +2,15 @@
 "use client";
 
 import type * as React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  forwardRef,
+} from "react";
 import { z } from "zod";
 import { Badge } from "./badge.tsx";
 import { Button } from "./button.tsx";
@@ -36,6 +44,18 @@ export interface EmailTagsInputProps {
 }
 
 /**
+ * Imperative handle for EmailTagsInput
+ * Allows parent components to flush pending input before form submission
+ */
+export interface EmailTagsInputHandle {
+  /**
+   * Flush any pending input in the text field, adding it as an email
+   * Useful to call before form submission to ensure typed but not-yet-added emails are included
+   */
+  flushPending: () => void;
+}
+
+/**
  * EmailTagsInput - A composable input component for managing multiple email addresses
  *
  * Features:
@@ -47,7 +67,15 @@ export interface EmailTagsInputProps {
  *
  * Usage:
  * ```tsx
+ * const inputRef = useRef<EmailTagsInputHandle>(null);
+ *
+ * const handleSubmit = () => {
+ *   inputRef.current?.flushPending(); // Ensure any typed email is added
+ *   // ... submit logic
+ * };
+ *
  * <EmailTagsInput
+ *   ref={inputRef}
  *   emails={emails}
  *   onEmailsChange={setEmails}
  *   validation={{ currentUserEmail: user.email }}
@@ -55,20 +83,27 @@ export interface EmailTagsInputProps {
  * />
  * ```
  */
-export function EmailTagsInput({
-  emails,
-  onEmailsChange,
-  disabled,
-  placeholder = "Emails, comma separated",
-  validation,
-  onToast,
-  badgeClassName,
-}: EmailTagsInputProps) {
+export const EmailTagsInput = forwardRef<
+  EmailTagsInputHandle,
+  EmailTagsInputProps
+>(function EmailTagsInput(
+  {
+    emails,
+    onEmailsChange,
+    disabled,
+    placeholder = "Emails, comma separated",
+    validation,
+    onToast,
+    badgeClassName,
+  },
+  ref,
+) {
   const [inputValue, setInputValue] = useState("");
   const [emailStates, setEmailStates] = useState<
     Map<string, EmailValidationState>
   >(new Map());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const addEmailRef = useRef<(email: string) => boolean>(() => false);
 
   const validateEmail = useCallback(
     (email: string): EmailValidationState => {
@@ -123,6 +158,23 @@ export function EmailTagsInput({
       return true;
     },
     [emails, onEmailsChange, validateEmail],
+  );
+
+  // Keep ref updated with current addEmail function
+  addEmailRef.current = addEmail;
+
+  // Expose imperative handle for parent to flush pending input
+  useImperativeHandle(
+    ref,
+    () => ({
+      flushPending: () => {
+        if (inputValue.trim()) {
+          addEmailRef.current(inputValue);
+          setInputValue("");
+        }
+      },
+    }),
+    [inputValue],
   );
 
   const removeEmail = useCallback(
@@ -380,4 +432,4 @@ export function EmailTagsInput({
       )}
     </div>
   );
-}
+});

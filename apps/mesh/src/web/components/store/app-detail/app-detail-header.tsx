@@ -1,4 +1,5 @@
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
+import { ArrowLeft } from "lucide-react";
 
 interface AppDetailHeaderProps {
   onBack: () => void;
@@ -6,15 +7,17 @@ interface AppDetailHeaderProps {
 
 export function AppDetailHeader({ onBack }: AppDetailHeaderProps) {
   return (
-    <div className="shrink-0 bg-background border-b border-border px-4 py-3">
-      <div className="max-w-7xl mx-auto">
-        <button
+    <div className="flex items-center h-12 border-b border-border shrink-0">
+      {/* Back Button */}
+      <div className="flex h-full px-2 border-r items-center">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="items-center size-8 text-muted-foreground"
           onClick={onBack}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
-          <Icon name="arrow_back" size={20} />
-          Back
-        </button>
+          <ArrowLeft />
+        </Button>
       </div>
     </div>
   );

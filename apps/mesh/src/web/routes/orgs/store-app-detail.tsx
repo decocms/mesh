@@ -462,9 +462,9 @@ function StoreAppDetailContent() {
       <AppDetailHeader onBack={handleBackClick} />
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto pt-10 h-full">
+      <div className="flex-1 overflow-y-auto h-full">
         <div className="h-full">
-          <div className="max-w-7xl mx-auto h-full">
+          <div className="h-full">
             {/* Not installable state */}
             {!canInstall && (
               <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">

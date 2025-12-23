@@ -316,7 +316,7 @@ function OrgMcpsContent() {
       id: "status",
       header: "Status",
       render: (connection) => (
-        <Badge variant={connection.status === "active" ? "default" : "outline"}>
+        <Badge variant={connection.status === "active" ? "success" : "outline"}>
           {connection.status}
         </Badge>
       ),
@@ -369,13 +369,25 @@ function OrgMcpsContent() {
   ];
 
   const ctaButton = (
-    <Button
-      onClick={openCreateDialog}
-      size="sm"
-      className="h-7 px-3 rounded-lg text-sm font-medium"
-    >
-      Connect MCP Server
-    </Button>
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        onClick={() =>
+          navigate({ to: "/$org/store", params: { org: org.slug } })
+        }
+        size="sm"
+        className="h-7 px-3 rounded-lg text-sm font-medium"
+      >
+        Browse Store
+      </Button>
+      <Button
+        onClick={openCreateDialog}
+        size="sm"
+        className="h-7 px-3 rounded-lg text-sm font-medium"
+      >
+        Connect MCP Server
+      </Button>
+    </div>
   );
 
   return (

@@ -1,4 +1,5 @@
 import type { RegistryItem } from "@/web/components/store/registry-items-section";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import type { AppData, PublisherInfo } from "./types";
 
@@ -34,8 +35,8 @@ export function AppSidebar({
       {/* Overview */}
       {data.description && (
         <div className="px-5 pb-5 border-b border-border">
-          <h2 className="text-lg font-medium mb-3">Overview</h2>
-          <p className="text-muted-foreground leading-relaxed">
+          <h2 className="text-base font-medium mb-3">Overview</h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
             {data.description}
           </p>
         </div>
@@ -44,35 +45,16 @@ export function AppSidebar({
       {/* Publisher */}
       <div className="px-5 border-b border-border">
         <div className="flex items-center gap-3 py-5">
-          <div className="w-12 h-12 rounded-lg bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center text-sm font-semibold text-primary shrink-0 overflow-hidden">
-            {publisherInfo.logo ? (
-              <img
-                src={publisherInfo.logo}
-                alt={data.publisher}
-                crossOrigin="anonymous"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = "none";
-                  const parent = target.parentElement;
-                  if (parent) {
-                    const initials =
-                      data.publisher ===
-                      "io.modelcontextprotocol.registry/official"
-                        ? "OR"
-                        : data.publisher.substring(0, 2).toUpperCase();
-                    parent.innerHTML = initials;
-                  }
-                }}
-                className="w-full h-full object-cover"
-              />
-            ) : data.publisher ===
-              "io.modelcontextprotocol.registry/official" ? (
-              "OR"
-            ) : (
-              data.publisher.substring(0, 2).toUpperCase()
-            )}
-          </div>
+          <IntegrationIcon
+            icon={publisherInfo.logo}
+            name={
+              data.publisher === "io.modelcontextprotocol.registry/official"
+                ? "Official Registry"
+                : data.publisher
+            }
+            size="sm"
+            className="shrink-0 shadow-sm"
+          />
           <div>
             <div className="font-medium">
               {data.publisher === "io.modelcontextprotocol.registry/official"
@@ -101,19 +83,19 @@ export function AppSidebar({
 
       {/* Technical Details */}
       <div className="px-5 py-5 border-b border-border space-y-4">
-        <h2 className="text-lg font-medium mb-3">Technical Details</h2>
-
         {data.version && (
           <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">Version</span>
-            <span className="text-foreground font-medium">v{data.version}</span>
+            <span className="text-foreground text-sm">Version</span>
+            <span className="text-muted-foreground uppercase text-xs">
+              v{data.version}
+            </span>
           </div>
         )}
 
         {data.connectionType && (
           <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">Connection Type</span>
-            <span className="text-foreground font-medium">
+            <span className="text-foreground text-sm">Connection Type</span>
+            <span className="text-muted-foreground uppercase text-xs">
               {data.connectionType}
             </span>
           </div>
@@ -121,8 +103,8 @@ export function AppSidebar({
 
         {data.schemaVersion && (
           <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">Schema Version</span>
-            <span className="text-foreground font-medium">
+            <span className="text-foreground text-sm">Schema Version</span>
+            <span className="text-muted-foreground text-xs">
               {data.schemaVersion}
             </span>
           </div>
@@ -130,12 +112,12 @@ export function AppSidebar({
 
         {data.websiteUrl && (
           <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">Website</span>
+            <span className="text-foreground text-sm">Website</span>
             <a
               href={data.websiteUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline flex items-center gap-1"
+              className="text-muted-foreground hover:underline flex items-center gap-1 text-xs"
             >
               <span>Visit</span>
               <Icon name="open_in_new" size={14} />
@@ -145,12 +127,12 @@ export function AppSidebar({
 
         {data.repository?.url && (
           <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">Source</span>
+            <span className="text-foreground text-sm">Source</span>
             <a
               href={data.repository.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline flex items-center gap-1"
+              className="text-muted-foreground hover:underline flex items-center gap-1 text-xs"
             >
               <span>GitHub</span>
               <Icon name="open_in_new" size={14} />

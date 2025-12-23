@@ -25,6 +25,9 @@ export const KEYS = {
   // Organization members (scoped by org)
   members: (locator: ProjectLocator) => [locator, "members"] as const,
 
+  // Organization invitations (scoped by org)
+  invitations: (locator: ProjectLocator) => [locator, "invitations"] as const,
+
   // Organization roles (scoped by org)
   organizationRoles: (locator: ProjectLocator) =>
     [locator, "organization-roles"] as const,
