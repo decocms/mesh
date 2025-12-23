@@ -74,8 +74,10 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
           ? { "x-trace-debug-id": debugId }
           : undefined;
 
+        console.log(`[bindings] ${Date.now()} - callToolFn: creating client`);
         const { client, callStreamableTool } = await createClient(extraHeaders);
 
+        console.log(`[bindings] ${Date.now()} - callToolFn: client created`);
         if (options?.streamable?.[String(toolName)]) {
           return callStreamableTool(String(toolName), args);
         }
@@ -85,6 +87,7 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
           arguments: args as Record<string, unknown>,
         });
 
+        console.log(`[bindings-proxy] ${Date.now()} - callToolFn: got result`);
         if (isError) {
           const maybeErrorMessage = (content as { text: string }[])?.[0]?.text;
           const error =

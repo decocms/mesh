@@ -18,8 +18,8 @@ import type {
   Database,
   Event,
   EventDelivery,
-  EventSubscription,
   EventStatus,
+  EventSubscription,
 } from "./types";
 
 // ============================================================================
@@ -1002,7 +1002,10 @@ class KyselyEventBusStorage implements EventBusStorage {
           organization_id: organizationId,
           connection_id: connectionId,
           event_type: desiredSub.eventType,
-          publisher: desiredSub.publisher ?? null,
+          publisher:
+            desiredSub.publisher === "self"
+              ? connectionId
+              : (desiredSub.publisher ?? null),
           filter: desiredSub.filter ?? null,
           enabled: 1,
           created_at: now,

@@ -6,15 +6,13 @@ import {
   Workflow,
   DEFAULT_TOOL_STEP,
   DEFAULT_CODE_STEP,
-  DEFAULT_WAIT_FOR_SIGNAL_STEP,
-  getBranchTerminalSteps,
 } from "@decocms/bindings/workflow";
 import { Step, ToolCallAction, CodeAction } from "@decocms/bindings/workflow";
 import { createContext, useContext, useState } from "react";
 import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
 
 type CurrentStepTab = "input" | "output" | "action" | "executions";
-export type StepType = "tool" | "code" | "wait_for_signal";
+export type StepType = "tool" | "code";
 type CurrentTab = "steps" | "code" | "executions";
 
 interface State {
@@ -101,8 +99,6 @@ function createDefaultStep(type: StepType, index: number): Step {
       return { ...DEFAULT_TOOL_STEP, name: `Step_${index + 1}` };
     case "code":
       return { ...DEFAULT_CODE_STEP, name: `Step_${index + 1}` };
-    case "wait_for_signal":
-      return { ...DEFAULT_WAIT_FOR_SIGNAL_STEP, name: `Step_${index + 1}` };
     default:
       throw new Error(`Invalid step type: ${type}`);
   }
@@ -414,22 +410,4 @@ export function useIsAddingStep() {
 
 export function useAddingStepType() {
   return useWorkflowStore((state) => state.addingStepType);
-}
-
-/**
- * Hook to get the terminal (last) steps of each branch in the workflow.
- * These are the steps that can have new steps added after them.
- */
-export function useBranchTerminalSteps(): Set<string> {
-  const workflow = useWorkflow();
-  const terminalSteps = getBranchTerminalSteps(workflow.steps);
-  return new Set(terminalSteps);
-}
-
-/**
- * Hook to check if a specific step is a terminal step (can have steps added after it)
- */
-export function useIsTerminalStep(stepName: string): boolean {
-  const terminalSteps = useBranchTerminalSteps();
-  return terminalSteps.has(stepName);
 }

@@ -1,34 +1,17 @@
 import { memo, useRef, useSyncExternalStore } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import {
-  BellIcon,
-  CheckIcon,
-  ClockIcon,
-  CodeXml,
-  Repeat,
-  Wrench,
-} from "lucide-react";
-import type {
-  Step,
-  StepAction,
-  WaitForSignalAction,
-} from "@decocms/bindings/workflow";
+import { BellIcon, CheckIcon, ClockIcon, CodeXml, Wrench } from "lucide-react";
+import type { Step } from "@decocms/bindings/workflow";
 import { Card, CardHeader, CardTitle } from "@deco/ui/components/card.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import {
   useWorkflowActions,
   useIsAddingStep,
   useTrackingExecutionId,
-  useIsTerminalStep,
   useCurrentStepName,
 } from "@/web/components/details/workflow/stores/workflow";
 import type { StepNodeData } from "../use-workflow-flow";
-import { createToolCaller } from "@/tools/client";
-import { useToolCallMutation } from "@/web/hooks/use-tool-call";
-import { Spinner } from "@deco/ui/components/spinner.js";
-import { useWorkflowBindingConnection } from "../../../hooks/use-workflow-binding-connection";
 import { usePollingWorkflowExecution } from "../../../hooks/use-workflow-collection-item";
-import { Badge } from "@deco/ui/components/badge.js";
 
 // ============================================
 // Duration Component
@@ -118,49 +101,6 @@ function getStepIcon(step: Step) {
   return <Wrench className="w-4 h-4" />;
 }
 
-// ============================================
-// Step Node Component
-// ============================================
-
-function checkIfIsWaitForSignalAction(
-  action: StepAction,
-): action is WaitForSignalAction {
-  return "signalName" in action;
-}
-
-function useSendSignalMutation() {
-  const { id: connectionId } = useWorkflowBindingConnection();
-  const toolCaller = createToolCaller(connectionId);
-
-  const { mutateAsync: sendSignal, isPending } = useToolCallMutation({
-    toolCaller,
-    toolName: "SEND_SIGNAL",
-  });
-
-  const handleSendSignal = async (
-    executionId: string,
-    signalName: string,
-    payload: unknown,
-  ): Promise<{
-    success: boolean;
-    signalId: string | undefined;
-    message: string | undefined;
-  }> => {
-    const result = await sendSignal({
-      executionId,
-      signalName,
-      payload,
-    });
-    return result as {
-      success: boolean;
-      signalId: string | undefined;
-      message: string | undefined;
-    };
-  };
-
-  return { sendSignal: handleSendSignal, isPending };
-}
-
 type WorkflowExecutionStepResult = {
   output?: unknown;
   error?: unknown;
@@ -170,16 +110,11 @@ type WorkflowExecutionStepResult = {
   completedAt?: number;
 };
 
-function getStepStyle(
-  step: Step,
-  stepResult?: WorkflowExecutionStepResult | null,
-) {
-  const isSignal = checkIfIsWaitForSignalAction(step.action);
+function getStepStyle(stepResult?: WorkflowExecutionStepResult | null) {
   if (!stepResult) return "default";
   if (stepResult.error) return "error";
   if (!stepResult.output) return "pending";
   if (stepResult.output) return "success";
-  if (isSignal && !stepResult.completedAt) return "waiting_for_signal";
   return "default";
 }
 
@@ -187,34 +122,23 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
   const { step, isBranchRoot } = data as StepNodeData;
   const trackingExecutionId = useTrackingExecutionId();
   const isAddingStep = useIsAddingStep();
-  const isTerminalStep = useIsTerminalStep(step.name);
   const { addStepAfter, setCurrentStepName } = useWorkflowActions();
-  const { sendSignal, isPending: isSendingSignal } = useSendSignalMutation();
   const currentStepName = useCurrentStepName();
   const { item: pollingExecution } =
     usePollingWorkflowExecution(trackingExecutionId);
 
   // When adding a step, only terminal steps can be clicked to add after
-  const canAddAfter = isAddingStep && isTerminalStep;
-
-  const isForEachStep = step.config?.loop?.for !== undefined;
+  const canAddAfter = isAddingStep && step.config?.maxAttempts === undefined;
 
   const stepResult = pollingExecution?.step_results.find((s) => {
-    if (isForEachStep) {
-      return s.stepId.startsWith(step.name + "[");
-    }
     return s.stepId === step.name;
   });
   const isConsumed = !!stepResult?.output;
-  const style = getStepStyle(step, stepResult);
+  const style = getStepStyle(stepResult);
 
   const displayIcon = (() => {
     if (!step.action) return null;
-    if (
-      step.action &&
-      checkIfIsWaitForSignalAction(step.action) &&
-      isConsumed
-    ) {
+    if (step.action && isConsumed) {
       return <CheckIcon className="w-4 h-4 text-primary-foreground" />;
     }
     return getStepIcon(step);
@@ -232,33 +156,10 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
       return;
     }
     // When adding but not a terminal step, do nothing (can't add after non-terminal)
-    if (isAddingStep && !isTerminalStep) {
+    if (isAddingStep && step.config?.maxAttempts !== undefined) {
       return;
     }
     setCurrentStepName(step.name);
-  };
-
-  const handleIconClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (
-      step.action &&
-      checkIfIsWaitForSignalAction(step.action) &&
-      trackingExecutionId
-    ) {
-      sendSignal(
-        trackingExecutionId,
-        step.action.signalName,
-        stepResult?.output,
-      );
-    }
-  };
-
-  const badgeContent = () => {
-    if (!trackingExecutionId) return <Repeat className="w-4 h-4" />;
-    if (isForEachStep) {
-      return `${Number(stepResult?.stepId.split("[").pop()?.split("]")[0]) + 1} / ${Object.keys(stepResult ?? {}).length}`;
-    }
-    return null;
   };
 
   return (
@@ -279,7 +180,6 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
           style === "pending" && "animate-pulse border-warning",
           style === "error" && "border-destructive",
           style === "success" && "border-success",
-          style === "waiting_for_signal" && "border-primary animate-pulse",
           // Conditional step styling
           isBranchRoot && "border-l-2 border-l-violet-500",
           // Highlight terminal steps when in add-step mode
@@ -300,11 +200,6 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
             "hover:bg-background hover:border-primary cursor-pointer",
         )}
       >
-        {isForEachStep && Object.keys(stepResult?.output ?? {}).length > 0 && (
-          <Badge className="absolute top-2 right-2 text-[8px] h-4 p-1 group-hover:opacity-0 group-hover:pointer-events-none">
-            <>{badgeContent()}</>
-          </Badge>
-        )}
         <CardHeader className="flex items-center justify-between gap-2 p-0 w-full relative">
           <div className="flex flex-1 items-center gap-2 min-w-0">
             <div
@@ -313,9 +208,8 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
                 currentStepName === step.name &&
                   "bg-primary/10 border-primary hover:bg-primary/20",
               )}
-              onClick={handleIconClick}
             >
-              {isSendingSignal ? <Spinner size="xs" /> : displayIcon}
+              {displayIcon}
             </div>
 
             <CardTitle className="p-0 text-sm font-medium truncate">

@@ -9,7 +9,7 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { BellIcon, CodeXml, Plus, Wrench, X } from "lucide-react";
+import { CodeXml, Plus, Wrench, X } from "lucide-react";
 import { cn } from "@deco/ui/lib/utils.js";
 import {
   type StepType,
@@ -84,11 +84,6 @@ const stepButtons: StepButton[] = [
     type: "tool",
     icon: <Wrench className="w-4 h-4" />,
     label: "Tool Step",
-  },
-  {
-    type: "wait_for_signal",
-    icon: <BellIcon className="w-4 h-4" />,
-    label: "Signal Step",
   },
 ];
 

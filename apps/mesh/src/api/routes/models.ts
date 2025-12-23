@@ -16,7 +16,7 @@ import { createLLMProvider } from "../llm-provider";
 import { fixProtocol } from "./oauth-proxy";
 
 // Default values
-const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MAX_TOKENS = 32000;
 const DEFAULT_MEMORY = 50; // last N messages to keep
 
 const StreamRequestSchema = z.object({

@@ -12,7 +12,6 @@ import {
   useTrackingExecutionId,
   useWorkflow,
   useWorkflowActions,
-  useBranchTerminalSteps,
 } from "@/web/components/details/workflow/stores/workflow";
 import { useWorkflowBindingConnection } from "../../../hooks/use-workflow-binding-connection";
 import { useWorkflowExecutionCollectionItem } from "../../../hooks/use-workflow-collection-item";
@@ -151,14 +150,12 @@ export const TriggerNode = memo(function TriggerNode() {
   const isPaused = execution?.status === "cancelled";
   const isDirty = useIsDirty();
   const workflow = useWorkflow();
-  const terminalSteps = useBranchTerminalSteps();
 
   // Trigger is clickable to add a step when there are no steps (empty workflow)
   // or when all root steps have no dependents (trigger is also a "terminal" point)
   const hasNoSteps =
     workflow.steps.filter((s) => s.name !== "Manual").length === 0;
-  const canAddAfterTrigger =
-    isAddingStep && (hasNoSteps || terminalSteps.size === 0);
+  const canAddAfterTrigger = isAddingStep && hasNoSteps;
 
   const handleClick = () => {
     if (canAddAfterTrigger) {

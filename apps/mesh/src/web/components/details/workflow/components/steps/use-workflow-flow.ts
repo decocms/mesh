@@ -1,10 +1,6 @@
 import type { Node, Edge, OnNodesChange, OnEdgesChange } from "@xyflow/react";
 import dagre from "@dagrejs/dagre";
-import {
-  buildDagEdges,
-  computeBranchMembership,
-  type Step,
-} from "@decocms/bindings/workflow";
+import { buildDagEdges, type Step } from "@decocms/bindings/workflow";
 import { useWorkflowSteps } from "@/web/components/details/workflow/stores/workflow";
 
 // ============================================
@@ -71,7 +67,6 @@ const TRIGGER_NODE_ID = "__trigger__";
 function getPrimaryParentMap(steps: Step[]): Map<string, string> {
   const stepNames = new Set(steps.map((s) => s.name));
   const primaryParent = new Map<string, string>();
-  const stepMap = new Map(steps.map((s) => [s.name, s]));
 
   for (const step of steps) {
     if (step.name === "Manual") continue;
@@ -97,36 +92,8 @@ function getPrimaryParentMap(steps: Step[]): Map<string, string> {
     }
     findDeps(step.input);
 
-    // If this is a conditional step, check for input deps from same branch
-    if (step.if) {
-      const myConditionRef = step.if.ref.match(/@(\w+)/)?.[1];
-
-      // Find input dep that's also conditional with same condition
-      for (const depName of inputDeps) {
-        const depStep = stepMap.get(depName);
-        if (depStep?.if) {
-          const depConditionRef = depStep.if.ref.match(/@(\w+)/)?.[1];
-          if (depConditionRef === myConditionRef) {
-            // Same branch! Use this as primary parent
-            primaryParent.set(step.name, depName);
-            break;
-          }
-        }
-      }
-
-      // If no same-branch input dep, use condition ref
-      if (
-        !primaryParent.has(step.name) &&
-        myConditionRef &&
-        stepNames.has(myConditionRef)
-      ) {
-        primaryParent.set(step.name, myConditionRef);
-      }
-    } else {
-      // Regular step - use first input dependency
-      if (inputDeps[0]) {
-        primaryParent.set(step.name, inputDeps[0]);
-      }
+    if (inputDeps[0]) {
+      primaryParent.set(step.name, inputDeps[0]);
     }
   }
 
@@ -205,7 +172,6 @@ function computeNodePositions(
 export function useWorkflowNodes(): WorkflowNode[] {
   const steps = useWorkflowSteps();
   const positions = computeNodePositions(steps);
-  const branchMembership = computeBranchMembership(steps);
 
   // Find manual trigger step
   const manualTriggerStep = steps.find((step) => step.name === "Manual");
@@ -228,7 +194,6 @@ export function useWorkflowNodes(): WorkflowNode[] {
   const stepNodes: WorkflowNode[] = steps
     .filter((step) => !!step && step.name !== "Manual")
     .map((step) => {
-      const branchRoot = branchMembership.get(step.name) ?? null;
       return {
         id: step.name,
         type: "step",
@@ -236,8 +201,7 @@ export function useWorkflowNodes(): WorkflowNode[] {
         data: {
           step,
           isFetching: false,
-          branchRoot,
-          isBranchRoot: step.if !== undefined,
+          isBranchRoot: step.config?.maxAttempts !== undefined,
         } as StepNodeData,
         draggable: true,
       };
@@ -276,7 +240,6 @@ function getPrimaryEdges(steps: Step[]): Map<string, string> {
 export function useWorkflowEdges(): WorkflowEdge[] {
   const steps = useWorkflowSteps();
   const dagEdges = buildDagEdges(steps);
-  const branchMembership = computeBranchMembership(steps);
   const primaryParent = getPrimaryEdges(steps);
 
   // Find root steps (no dependencies) and connect them to trigger
@@ -302,24 +265,10 @@ export function useWorkflowEdges(): WorkflowEdge[] {
 
   // Add only PRIMARY edges (one per step)
   for (const [to, from] of primaryParent) {
-    const toStep = steps.find((s) => s.name === to);
-    const branchRoot = branchMembership.get(to);
-    const isInBranch = branchRoot !== null;
-    const isConditionEdge = toStep?.if !== undefined;
-
-    let edgeStyle: React.CSSProperties | undefined;
-    if (isConditionEdge) {
-      edgeStyle = {
-        stroke: BRANCH_COLOR,
-        strokeWidth: 1.5,
-        strokeDasharray: "5,5",
-      };
-    } else if (isInBranch) {
-      edgeStyle = {
-        stroke: BRANCH_COLOR,
-        strokeWidth: 1.5,
-      };
-    }
+    const edgeStyle: React.CSSProperties = {
+      stroke: BRANCH_COLOR,
+      strokeWidth: 1.5,
+    };
 
     edges.push({
       id: `${from}-${to}`,

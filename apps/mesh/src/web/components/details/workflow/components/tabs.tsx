@@ -196,16 +196,6 @@ export function WorkflowTabs() {
 
 function useStepResult(executionId: string, stepId: string) {
   const { item: pollingExecution } = usePollingWorkflowExecution(executionId);
-  const steps = useWorkflowSteps();
-  const step = steps.find((s) => s.name === stepId);
-  const isForEachStep = step?.config?.loop?.for !== undefined;
-  if (isForEachStep) {
-    const results = pollingExecution?.step_results
-      .filter((s) => s.stepId.startsWith(stepId + "["))
-      .map((s) => [s.stepId, s.output]);
-    if (!results) return null;
-    return Object.fromEntries(results);
-  }
   return pollingExecution?.step_results.find((s) => s.stepId === stepId);
 }
 

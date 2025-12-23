@@ -99,7 +99,7 @@ export function usePollingWorkflowExecution(executionId?: string) {
           >,
         ) => {
           return query.state?.data?.item?.completed_at_epoch_ms === null
-            ? 1000
+            ? 5000
             : false;
         }
       : false,
