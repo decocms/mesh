@@ -591,7 +591,12 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListResourcesRequestSchema,
       async (): Promise<ListResourcesResult> => {
-        return await client.listResources();
+        if (client.getServerCapabilities()?.resources) {
+          return await client.listResources();
+        }
+        return {
+          resources: [],
+        };
       },
     );
 
@@ -605,7 +610,12 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListResourceTemplatesRequestSchema,
       async (): Promise<ListResourceTemplatesResult> => {
-        return await client.listResourceTemplates();
+        if (client.getServerCapabilities()?.resourceTemplates) {
+          return await client.listResourceTemplates();
+        }
+        return {
+          resourceTemplates: [],
+        };
       },
     );
 
@@ -613,7 +623,12 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListPromptsRequestSchema,
       async (): Promise<ListPromptsResult> => {
-        return await client.listPrompts();
+        if (client.getServerCapabilities()?.prompts) {
+          return await client.listPrompts();
+        }
+        return {
+          prompts: [],
+        };
       },
     );
 
