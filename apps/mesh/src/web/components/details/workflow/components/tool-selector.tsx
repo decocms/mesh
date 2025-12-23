@@ -6,7 +6,7 @@ import {
   CommandGroup,
   CommandList,
   CommandInput,
-} from "@deco/ui/components/command.js";
+} from "@deco/ui/components/command.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ChevronLeft } from "lucide-react";
 import { useState } from "react";
