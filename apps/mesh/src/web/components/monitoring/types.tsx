@@ -1,0 +1,330 @@
+/**
+ * Monitoring Types and Shared Components
+ *
+ * Contains shared types and the ExpandedLogContent component used by LogRow.
+ */
+
+import { Button } from "@deco/ui/components/button.tsx";
+import { Icon } from "@deco/ui/components/icon.tsx";
+import { lazy, Suspense, useState } from "react";
+import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
+import { MONITORING_CONFIG } from "./config.ts";
+
+// @ts-ignore - style module path
+import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+import type { MonitoringLog as SharedMonitoringLog } from "./monitoring-stats-row.tsx";
+
+export interface MonitoringLog extends SharedMonitoringLog {
+  organizationId: string;
+  userId: string | null;
+  requestId: string;
+  input: Record<string, unknown> | null;
+  output: Record<string, unknown> | null;
+  userAgent: string | null;
+  gatewayId: string | null;
+}
+
+export interface EnrichedMonitoringLog extends MonitoringLog {
+  userName: string;
+  userImage: string | undefined;
+  gatewayName: string | null;
+}
+
+export interface MonitoringLogsResponse {
+  logs: MonitoringLog[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+export interface MonitoringSearchParams {
+  // Time range using expressions (from/to)
+  from?: string; // e.g., "now-24h", "now-7d", or ISO string
+  to?: string; // e.g., "now" or ISO string
+  connections?: string; // Comma-separated connection IDs
+  tool?: string;
+  status?: "all" | "success" | "errors";
+  search?: string;
+  page?: number;
+  streaming?: boolean;
+}
+
+// ============================================================================
+// Lazy Syntax Highlighter
+// ============================================================================
+
+const LazySyntaxHighlighter = lazy(() =>
+  // @ts-ignore - prism-light.js has no types but is valid
+  import("react-syntax-highlighter/dist/esm/prism-light.js").then(
+    async (mod) => {
+      // Register only JSON language (much smaller bundle)
+      const json = await import(
+        // @ts-ignore - language module has no types
+        "react-syntax-highlighter/dist/esm/languages/prism/json.js"
+      );
+      mod.default.registerLanguage("json", json.default);
+      return {
+        default: mod.default as React.ComponentType<SyntaxHighlighterProps>,
+      };
+    },
+  ),
+);
+
+// ============================================================================
+// JSON Processing Utilities
+// ============================================================================
+
+interface TruncatedJson {
+  content: string;
+  isTruncated: boolean;
+  originalSize: number;
+}
+
+function truncateJsonForDisplay(
+  data: Record<string, unknown> | null,
+): TruncatedJson {
+  if (!data) {
+    return { content: "null", isTruncated: false, originalSize: 4 };
+  }
+
+  const fullJson = JSON.stringify(data, null, 2);
+  const originalSize = fullJson.length;
+
+  if (originalSize <= MONITORING_CONFIG.maxJsonRenderSize) {
+    return { content: fullJson, isTruncated: false, originalSize };
+  }
+
+  // Truncate and add indicator
+  const truncated = fullJson.slice(0, MONITORING_CONFIG.maxJsonRenderSize);
+  return {
+    content: truncated + "\n\n... [TRUNCATED - content too large to display]",
+    isTruncated: true,
+    originalSize,
+  };
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ============================================================================
+// JSON Syntax Highlighter Component
+// ============================================================================
+
+const SYNTAX_HIGHLIGHTER_CUSTOM_STYLE = {
+  margin: 0,
+  padding: "1rem",
+  fontSize: "0.75rem",
+  height: "100%",
+} as const;
+
+const SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS = {
+  className: "font-mono",
+  style: {
+    wordBreak: "break-word",
+    overflowWrap: "break-word",
+    whiteSpace: "pre-wrap",
+  },
+} as const;
+
+interface JsonSyntaxHighlighterProps {
+  jsonString: string;
+}
+
+function JsonFallback({ jsonString }: { jsonString: string }) {
+  return (
+    <pre className="font-mono text-xs whitespace-pre-wrap break-words p-4 m-0 h-full text-foreground/80 bg-transparent">
+      {jsonString}
+    </pre>
+  );
+}
+
+function JsonSyntaxHighlighter({ jsonString }: JsonSyntaxHighlighterProps) {
+  return (
+    <Suspense fallback={<JsonFallback jsonString={jsonString} />}>
+      <LazySyntaxHighlighter
+        language="json"
+        style={oneLight}
+        customStyle={SYNTAX_HIGHLIGHTER_CUSTOM_STYLE}
+        codeTagProps={SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS}
+        wrapLongLines
+      >
+        {jsonString}
+      </LazySyntaxHighlighter>
+    </Suspense>
+  );
+}
+
+// ============================================================================
+// Expanded Log Content Component
+// ============================================================================
+
+interface ExpandedLogContentProps {
+  log: EnrichedMonitoringLog;
+}
+
+export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
+  const [copiedInput, setCopiedInput] = useState(false);
+  const [copiedOutput, setCopiedOutput] = useState(false);
+
+  // Process JSON for display (React 19 compiler handles optimization)
+  const inputJson = truncateJsonForDisplay(log.input);
+  const outputJson = truncateJsonForDisplay(log.output);
+
+  // Keep full JSON for copy (stringify lazily only when copying)
+  const getFullJson = (data: Record<string, unknown> | null) =>
+    JSON.stringify(data, null, 2);
+
+  const handleCopy = async (type: "input" | "output") => {
+    // Always copy full JSON, not truncated
+    const fullJson = getFullJson(type === "input" ? log.input : log.output);
+    await navigator.clipboard.writeText(fullJson);
+    if (type === "input") {
+      setCopiedInput(true);
+      setTimeout(() => setCopiedInput(false), 2000);
+    } else {
+      setCopiedOutput(true);
+      setTimeout(() => setCopiedOutput(false), 2000);
+    }
+  };
+
+  const handleDownload = (type: "input" | "output") => {
+    const fullJson = getFullJson(type === "input" ? log.input : log.output);
+    const blob = new Blob([fullJson], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${log.toolName}-${type}-${log.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-3 text-sm px-3 md:px-5 py-4 bg-muted/30">
+      {/* Metadata Row: User Agent and Gateway */}
+      {(log.userAgent || log.gatewayName) && (
+        <div className="flex flex-wrap gap-4 text-xs">
+          {log.userAgent && (
+            <div>
+              <span className="font-medium text-muted-foreground">
+                Client:{" "}
+              </span>
+              <span className="font-mono text-foreground">{log.userAgent}</span>
+            </div>
+          )}
+          {log.gatewayName && (
+            <div>
+              <span className="font-medium text-muted-foreground">
+                Gateway:{" "}
+              </span>
+              <span className="text-foreground">{log.gatewayName}</span>
+            </div>
+          )}
+        </div>
+      )}
+      {log.errorMessage && (
+        <div>
+          <div className="font-medium text-destructive mb-1">Error Message</div>
+          <div className="text-destructive font-mono text-xs bg-destructive/10 p-2 rounded break-all">
+            {log.errorMessage}
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div className="rounded-lg bg-muted overflow-hidden border border-border">
+            <div className="flex items-center justify-between p-1 pl-4 bg-transparent border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest select-none">
+                  Input
+                </span>
+                {inputJson.isTruncated && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                    ({formatBytes(inputJson.originalSize)} - truncated)
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {inputJson.isTruncated && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleDownload("input")}
+                    aria-label="Download full input"
+                    className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
+                  >
+                    <Icon name="download" size={14} />
+                  </Button>
+                )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleCopy("input")}
+                  aria-label="Copy input"
+                  className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
+                >
+                  <Icon name={copiedInput ? "check" : "content_copy"} size={14} />
+                </Button>
+              </div>
+            </div>
+            <div className="h-[200px] md:h-[300px] overflow-auto">
+              <JsonSyntaxHighlighter jsonString={inputJson.content} />
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="rounded-lg bg-muted overflow-hidden border border-border">
+            <div className="flex items-center justify-between p-1 pl-4 bg-transparent border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest select-none">
+                  Output
+                </span>
+                {outputJson.isTruncated && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                    ({formatBytes(outputJson.originalSize)} - truncated)
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {outputJson.isTruncated && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleDownload("output")}
+                    aria-label="Download full output"
+                    className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
+                  >
+                    <Icon name="download" size={14} />
+                  </Button>
+                )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleCopy("output")}
+                  aria-label="Copy output"
+                  className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
+                >
+                  <Icon
+                    name={copiedOutput ? "check" : "content_copy"}
+                    size={14}
+                  />
+                </Button>
+              </div>
+            </div>
+            <div className="h-[200px] md:h-[300px] overflow-auto">
+              <JsonSyntaxHighlighter jsonString={outputJson.content} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

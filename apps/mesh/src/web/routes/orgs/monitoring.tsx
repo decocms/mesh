@@ -10,17 +10,23 @@ import { CollectionPage } from "@/web/components/collections/collection-page.tsx
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { MONITORING_CONFIG } from "@/web/components/monitoring/config.ts";
+import { LogRow } from "@/web/components/monitoring/log-row.tsx";
 import {
   MonitoringStatsRow,
   MonitoringStatsRowSkeleton,
   calculateStats,
   type DateRange,
-  type MonitoringLog as SharedMonitoringLog,
-  type MonitoringLogsResponse as SharedMonitoringLogsResponse,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
+import type {
+  EnrichedMonitoringLog,
+  MonitoringLog,
+  MonitoringLogsResponse,
+  MonitoringSearchParams,
+} from "@/web/components/monitoring/types.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useGateways } from "@/web/hooks/collections/use-gateway";
+import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -47,48 +53,7 @@ import {
 } from "@deco/ui/components/time-range-picker.tsx";
 import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Fragment, Suspense, useRef, useState } from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-
-// @ts-ignore - correct
-import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface MonitoringLog extends SharedMonitoringLog {
-  organizationId: string;
-  userId: string | null;
-  requestId: string;
-  input: Record<string, unknown> | null;
-  output: Record<string, unknown> | null;
-  userAgent: string | null;
-  gatewayId: string | null;
-}
-
-interface EnrichedMonitoringLog extends MonitoringLog {
-  userName: string;
-  userImage: string | undefined;
-  gatewayName: string | null;
-}
-
-interface MonitoringLogsResponse
-  extends Omit<SharedMonitoringLogsResponse, "logs"> {
-  logs: MonitoringLog[];
-}
-
-interface MonitoringSearchParams {
-  // Time range using expressions (from/to)
-  from?: string; // e.g., "now-24h", "now-7d", or ISO string
-  to?: string; // e.g., "now" or ISO string
-  connections?: string; // Comma-separated connection IDs
-  tool?: string;
-  status?: "all" | "success" | "errors";
-  search?: string;
-  page?: number;
-  streaming?: boolean;
-}
+import { Suspense, useState } from "react";
 
 // ============================================================================
 // Stats Component
@@ -253,152 +218,6 @@ function FiltersPopover({
 }
 
 // ============================================================================
-// JSON Syntax Highlighter Component
-// ============================================================================
-
-const SYNTAX_HIGHLIGHTER_CUSTOM_STYLE = {
-  margin: 0,
-  padding: "1rem",
-  fontSize: "0.75rem",
-  height: "100%",
-} as const;
-
-const SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS = {
-  className: "font-mono",
-  style: {
-    wordBreak: "break-word",
-    overflowWrap: "break-word",
-    whiteSpace: "pre-wrap",
-  },
-} as const;
-
-interface JsonSyntaxHighlighterProps {
-  jsonString: string;
-}
-
-function JsonSyntaxHighlighter({ jsonString }: JsonSyntaxHighlighterProps) {
-  return (
-    <SyntaxHighlighter
-      language="json"
-      style={oneLight}
-      customStyle={SYNTAX_HIGHLIGHTER_CUSTOM_STYLE}
-      codeTagProps={SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS}
-      wrapLongLines
-    >
-      {jsonString}
-    </SyntaxHighlighter>
-  );
-}
-
-// ============================================================================
-// Expanded Row Content Component
-// ============================================================================
-
-interface ExpandedLogContentProps {
-  log: EnrichedMonitoringLog;
-}
-
-function ExpandedLogContent({ log }: ExpandedLogContentProps) {
-  const [copiedInput, setCopiedInput] = useState(false);
-  const [copiedOutput, setCopiedOutput] = useState(false);
-
-  const inputJsonString = JSON.stringify(log.input, null, 2);
-  const outputJsonString = JSON.stringify(log.output, null, 2);
-
-  const handleCopy = async (text: string, type: "input" | "output") => {
-    await navigator.clipboard.writeText(text);
-    if (type === "input") {
-      setCopiedInput(true);
-      setTimeout(() => setCopiedInput(false), 2000);
-    } else {
-      setCopiedOutput(true);
-      setTimeout(() => setCopiedOutput(false), 2000);
-    }
-  };
-
-  return (
-    <div className="space-y-3 text-sm px-3 md:px-5 py-4 bg-muted/30">
-      {/* Metadata Row: User Agent and Gateway */}
-      {(log.userAgent || log.gatewayName) && (
-        <div className="flex flex-wrap gap-4 text-xs">
-          {log.userAgent && (
-            <div>
-              <span className="font-medium text-muted-foreground">
-                Client:{" "}
-              </span>
-              <span className="font-mono text-foreground">{log.userAgent}</span>
-            </div>
-          )}
-          {log.gatewayName && (
-            <div>
-              <span className="font-medium text-muted-foreground">
-                Gateway:{" "}
-              </span>
-              <span className="text-foreground">{log.gatewayName}</span>
-            </div>
-          )}
-        </div>
-      )}
-      {log.errorMessage && (
-        <div>
-          <div className="font-medium text-destructive mb-1">Error Message</div>
-          <div className="text-destructive font-mono text-xs bg-destructive/10 p-2 rounded break-all">
-            {log.errorMessage}
-          </div>
-        </div>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <div className="rounded-lg bg-muted overflow-hidden border border-border">
-            <div className="flex items-center justify-between p-1 pl-4 bg-transparent border-b border-border">
-              <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest select-none">
-                Input
-              </span>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => handleCopy(inputJsonString, "input")}
-                aria-label="Copy input"
-                className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
-              >
-                <Icon name={copiedInput ? "check" : "content_copy"} size={14} />
-              </Button>
-            </div>
-            <div className="h-[200px] md:h-[300px] overflow-auto">
-              <JsonSyntaxHighlighter jsonString={inputJsonString} />
-            </div>
-          </div>
-        </div>
-        <div>
-          <div className="rounded-lg bg-muted overflow-hidden border border-border">
-            <div className="flex items-center justify-between p-1 pl-4 bg-transparent border-b border-border">
-              <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest select-none">
-                Output
-              </span>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => handleCopy(outputJsonString, "output")}
-                aria-label="Copy output"
-                className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
-              >
-                <Icon
-                  name={copiedOutput ? "check" : "content_copy"}
-                  size={14}
-                />
-              </Button>
-            </div>
-            <div className="h-[200px] md:h-[300px] overflow-auto">
-              <JsonSyntaxHighlighter jsonString={outputJsonString} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
 // Logs Table Component
 // ============================================================================
 
@@ -439,19 +258,11 @@ function MonitoringLogsTableContent({
   // Check if there are more pages available
   const hasMore = logs.length >= pageSize;
 
-  // Setup intersection observer for infinite scroll
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const lastLogRef = (node: HTMLDivElement | null) => {
-    if (observerRef.current) observerRef.current.disconnect();
-
-    observerRef.current = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && hasMore) {
-        onPageChange(page + 1);
-      }
-    });
-
-    if (node) observerRef.current.observe(node);
-  };
+  // Use the infinite scroll hook
+  const lastLogRef = useInfiniteScroll(
+    () => onPageChange(page + 1),
+    hasMore,
+  );
 
   const members = membersData?.data?.members ?? [];
   const userMap = new Map(members.map((m) => [m.userId, m.user]));
@@ -505,104 +316,6 @@ function MonitoringLogsTableContent({
 
   // Get connection info for icons
   const connectionMap = new Map(connections.map((c) => [c.id, c]));
-
-  const renderLogRow = (log: EnrichedMonitoringLog, index: number) => {
-    const isLastLog = index === filteredLogs.length - 1;
-    const isFirstLog = index === 0;
-    const connection = connectionMap.get(log.connectionId);
-    const timestamp = new Date(log.timestamp);
-    const dateStr = timestamp.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-    const timeStr = timestamp.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-    const isExpanded = expandedRows.has(log.id);
-
-    return (
-      <Fragment key={log.id}>
-        <div
-          ref={isLastLog ? lastLogRef : null}
-          className={`flex items-center h-14 md:h-16 ${isFirstLog ? "" : "border-t border-border/60"} transition-colors cursor-pointer ${
-            isExpanded ? "bg-muted/30 hover:bg-accent/80" : "hover:bg-muted/40"
-          }`}
-          onClick={() => toggleRow(log)}
-        >
-          {/* Expand Icon */}
-          <div className="flex items-center justify-center w-10 md:w-12 px-2 md:px-4">
-            <Icon
-              name={isExpanded ? "expand_more" : "chevron_right"}
-              size={16}
-              className="text-muted-foreground"
-            />
-          </div>
-
-          {/* Connection Icon */}
-          <div className="flex items-center justify-center w-12 md:w-16 px-2 md:px-4">
-            <IntegrationIcon
-              icon={connection?.icon || null}
-              name={log.connectionTitle}
-              size="xs"
-              className="shadow-sm"
-            />
-          </div>
-
-          {/* Tool Name + Connection Name */}
-          <div className="flex-1 min-w-0 pr-2 md:pr-4">
-            <div className="text-xs font-medium text-foreground truncate block">
-              {log.toolName}
-            </div>
-            <div className="text-xs text-muted-foreground truncate block">
-              {log.connectionTitle}
-            </div>
-          </div>
-
-          {/* User Name */}
-          <div className="w-20 md:w-24 px-2 md:px-3 text-xs text-muted-foreground">
-            {log.userName}
-          </div>
-
-          {/* Gateway */}
-          <div className="w-20 md:w-28 px-2 md:px-3 text-xs text-muted-foreground truncate">
-            {log.gatewayName ?? "-"}
-          </div>
-
-          {/* Date */}
-          <div className="w-20 md:w-24 px-2 md:px-3 text-xs text-muted-foreground">
-            {dateStr}
-          </div>
-
-          {/* Time */}
-          <div className="w-20 md:w-28 px-2 md:px-3 text-xs text-muted-foreground">
-            {timeStr}
-          </div>
-
-          {/* Duration */}
-          <div className="w-16 md:w-20 px-2 md:px-3 text-xs text-muted-foreground font-mono text-right">
-            {log.durationMs}ms
-          </div>
-
-          {/* Status Badge */}
-          <div className="w-16 md:w-24 flex items-center justify-end pr-3 md:pr-5">
-            <Badge
-              variant={log.isError ? "destructive" : "success"}
-              className="text-xs px-1.5 md:px-2 py-0.5 md:py-1"
-            >
-              {log.isError ? "Error" : "OK"}
-            </Badge>
-          </div>
-        </div>
-        {isExpanded && (
-          <div>
-            <ExpandedLogContent log={log} />
-          </div>
-        )}
-      </Fragment>
-    );
-  };
 
   if (filteredLogs.length === 0) {
     return (
@@ -668,7 +381,19 @@ function MonitoringLogsTableContent({
           </div>
 
           {/* Table Body */}
-          {filteredLogs.map((log, index) => renderLogRow(log, index))}
+          {filteredLogs.map((log, index) => (
+            <LogRow
+              key={log.id}
+              log={log}
+              isFirst={index === 0}
+              isExpanded={expandedRows.has(log.id)}
+              connection={connectionMap.get(log.connectionId)}
+              onToggle={() => toggleRow(log)}
+              lastLogRef={
+                index === filteredLogs.length - 1 ? lastLogRef : undefined
+              }
+            />
+          ))}
         </div>
       </div>
     </div>
@@ -733,7 +458,7 @@ function MonitoringDashboardContent({
     label: conn.title || conn.id,
   }));
 
-  const pageSize = 50;
+  const { pageSize, streamingRefetchInterval } = MONITORING_CONFIG;
   const offset = page * pageSize;
 
   // Single fetch for current page logs
@@ -761,7 +486,7 @@ function MonitoringDashboardContent({
     toolInputParams: logsParams,
     scope: locator,
     staleTime: 0,
-    refetchInterval: isStreaming ? 3000 : false,
+    refetchInterval: isStreaming ? streamingRefetchInterval : false,
   });
 
   const handlePageChange = (newPage: number) => {
