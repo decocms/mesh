@@ -12,9 +12,11 @@ import {
   MonitoringStatsRow,
   MonitoringStatsRowSkeleton,
   calculateStats,
+  type KPIType,
   type MonitoringLogsResponse,
   type MonitoringStatsData,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
+import { useNavigate } from "@tanstack/react-router";
 
 // Mock stats for empty state display
 function getMockStats(startDate: Date, endDate: Date): MonitoringStatsData {
@@ -55,7 +57,8 @@ function getMockStats(startDate: Date, endDate: Date): MonitoringStatsData {
 }
 
 function MonitoringKPIsContent() {
-  const { locator } = useProjectContext();
+  const { locator, org } = useProjectContext();
+  const navigate = useNavigate();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
 
@@ -85,12 +88,28 @@ function MonitoringKPIsContent() {
           logsData?.total,
         );
 
+  const handleKPIClick = (kpiType: KPIType) => {
+    if (kpiType === "errors") {
+      navigate({
+        to: "/$org/monitoring",
+        params: { org: org.slug },
+        search: { status: "errors" },
+      });
+    } else {
+      navigate({
+        to: "/$org/monitoring",
+        params: { org: org.slug },
+      });
+    }
+  };
+
   return (
     <MonitoringStatsRow
       stats={stats}
       chartHeight="h-[103px]"
       showDateLabels
       dateRange={{ startDate: start, endDate: end }}
+      onKPIClick={handleKPIClick}
     />
   );
 }
