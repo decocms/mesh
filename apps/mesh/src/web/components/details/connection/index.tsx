@@ -6,7 +6,7 @@ import {
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
 import { useCollectionBindings } from "@/web/hooks/use-binding";
-import { useIsMCPAuthenticated } from "@/web/hooks/use-is-mcp-authenticated";
+import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
@@ -43,9 +43,10 @@ function ConnectionInspectorViewWithConnection({
   const router = useRouter();
   const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
 
-  const isMCPAuthenticated = useIsMCPAuthenticated({
+  const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
   });
+  const isMCPAuthenticated = authStatus.isAuthenticated;
 
   // Check if connection has repository info for README tab (stored in metadata)
   const repository = connection?.metadata?.repository as
@@ -113,6 +114,10 @@ function ConnectionInspectorViewWithConnection({
                   onUpdate={onUpdate}
                   isUpdating={isUpdating}
                   isMCPAuthenticated={isMCPAuthenticated}
+                  supportsOAuth={authStatus.supportsOAuth}
+                  onViewReadme={
+                    hasRepository ? () => handleTabChange("readme") : undefined
+                  }
                 />
               ) : activeTabId === "readme" && hasRepository ? (
                 <ReadmeTab repository={repository} />
