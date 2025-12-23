@@ -25,6 +25,7 @@ interface LogRowProps {
   isFirst: boolean;
   isExpanded: boolean;
   connection: Connection | undefined;
+  gatewayName: string; // já resolvido pelo pai
   onToggle: () => void;
   lastLogRef?: (node: HTMLDivElement | null) => void;
 }
@@ -38,6 +39,7 @@ export function LogRow({
   isFirst,
   isExpanded,
   connection,
+  gatewayName,
   onToggle,
   lastLogRef,
 }: LogRowProps) {
@@ -90,14 +92,14 @@ export function LogRow({
           </div>
         </div>
 
+        {/* Gateway */}
+        <div className="w-24 md:w-32 px-2 md:px-3 text-xs text-muted-foreground truncate">
+          {gatewayName}
+        </div>
+
         {/* User Name */}
         <div className="w-20 md:w-24 px-2 md:px-3 text-xs text-muted-foreground">
           {log.userName}
-        </div>
-
-        {/* Gateway */}
-        <div className="w-20 md:w-28 px-2 md:px-3 text-xs text-muted-foreground truncate">
-          {log.gatewayName ?? "-"}
         </div>
 
         {/* Date */}

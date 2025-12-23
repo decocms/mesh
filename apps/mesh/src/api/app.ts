@@ -25,7 +25,10 @@ import authRoutes from "./routes/auth";
 import gatewayRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
-import oauthProxyRoutes from "./routes/oauth-proxy";
+import oauthProxyRoutes, {
+  fetchAuthorizationServerMetadata,
+  fetchProtectedResourceMetadata,
+} from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
 
 // Track current event bus instance for cleanup during HMR
@@ -198,13 +201,10 @@ export function createApp(options: CreateAppOptions = {}) {
       return c.json({ error: "Connection not found" }, 404);
     }
 
-    // Get origin auth server
-    const originUrl = new URL(connection.connection_url);
-    originUrl.pathname = "/.well-known/oauth-protected-resource";
-    const resourceRes = await fetch(originUrl.toString(), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    // Get origin auth server - uses shared function that tries all 3 well-known URL formats
+    const resourceRes = await fetchProtectedResourceMetadata(
+      connection.connection_url,
+    );
     if (!resourceRes.ok) {
       return c.json({ error: "Failed to get resource metadata" }, 502);
     }
@@ -216,16 +216,9 @@ export function createApp(options: CreateAppOptions = {}) {
       return c.json({ error: "No authorization server found" }, 404);
     }
 
-    // Get OAuth endpoints from auth server metadata
-    const authServerUrl = new URL(originAuthServer);
-    // If auth server is at root ("/"), don't append the path (avoid trailing slash)
-    const authServerPath =
-      authServerUrl.pathname === "/" ? "" : authServerUrl.pathname;
-    authServerUrl.pathname = `/.well-known/oauth-authorization-server${authServerPath}`;
-    const authServerRes = await fetch(authServerUrl.toString(), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    // Get OAuth endpoints from auth server metadata - uses shared function that tries all formats
+    const authServerRes =
+      await fetchAuthorizationServerMetadata(originAuthServer);
     if (!authServerRes.ok) {
       return c.json({ error: "Failed to get auth server metadata" }, 502);
     }

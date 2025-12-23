@@ -17,8 +17,12 @@ export {
 } from "./monitoring-stats-row.tsx";
 export {
   ExpandedLogContent,
+  hasMonitoringActivity,
   type EnrichedMonitoringLog,
   type MonitoringLog,
   type MonitoringLogsResponse,
+  type MonitoringLogsWithGatewayResponse,
+  type MonitoringLogWithGateway,
   type MonitoringSearchParams,
+  type MonitoringStats,
 } from "./types.tsx";

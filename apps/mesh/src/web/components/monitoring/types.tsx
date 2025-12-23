@@ -18,9 +18,43 @@ import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism/index.j
 // Types
 // ============================================================================
 
-import type { MonitoringLog as SharedMonitoringLog } from "./monitoring-stats-row.tsx";
+import type {
+  MonitoringLog as BaseMonitoringLog,
+  MonitoringLogsResponse as BaseMonitoringLogsResponse,
+} from "./monitoring-stats-row.tsx";
 
-export interface MonitoringLog extends SharedMonitoringLog {
+// Re-export base types for convenience
+export type { BaseMonitoringLog, BaseMonitoringLogsResponse };
+
+// ----------------------------------------------------------------------------
+// Home Page Types (KPIs, Dashboard)
+// ----------------------------------------------------------------------------
+
+export interface MonitoringStats {
+  totalCalls: number;
+  errorRate: number;
+  avgDurationMs: number;
+  errorRatePercent: string;
+}
+
+export interface MonitoringLogWithGateway extends BaseMonitoringLog {
+  gatewayId?: string | null;
+}
+
+export interface MonitoringLogsWithGatewayResponse {
+  logs: MonitoringLogWithGateway[];
+  total: number;
+}
+
+export function hasMonitoringActivity(stats?: MonitoringStats | null): boolean {
+  return (stats?.totalCalls ?? 0) > 0;
+}
+
+// ----------------------------------------------------------------------------
+// Full Monitoring Page Types
+// ----------------------------------------------------------------------------
+
+export interface MonitoringLog extends BaseMonitoringLog {
   organizationId: string;
   userId: string | null;
   requestId: string;
@@ -36,18 +70,17 @@ export interface EnrichedMonitoringLog extends MonitoringLog {
   gatewayName: string | null;
 }
 
-export interface MonitoringLogsResponse {
+export interface MonitoringLogsResponse
+  extends Omit<BaseMonitoringLogsResponse, "logs"> {
   logs: MonitoringLog[];
-  total: number;
-  offset: number;
-  limit: number;
 }
 
 export interface MonitoringSearchParams {
   // Time range using expressions (from/to)
   from?: string; // e.g., "now-24h", "now-7d", or ISO string
   to?: string; // e.g., "now" or ISO string
-  connections?: string; // Comma-separated connection IDs
+  connectionId?: string[]; // Array of connection IDs
+  gatewayId?: string[]; // Array of gateway IDs
   tool?: string;
   status?: "all" | "success" | "errors";
   search?: string;

@@ -1,6 +1,6 @@
 {
   "name": "@decocms/mesh",
-  "version": "1.0.0-alpha.12",
+  "version": "1.0.0-alpha.19",
   "description": "MCP Mesh - Self-hostable MCP Gateway for managing AI connections and tools",
   "license": "MIT",
   "author": "Deco team",
@@ -35,12 +35,14 @@
     "prepublishOnly": "bun run build:client && bun run build:server"
   },
   "dependencies": {
+    "@ai-sdk/mcp": "^1.0.0",
+    "@xyflow/react": "^12.10.0",
     "kysely": "^0.28.8",
     "kysely-bun-worker": "^0.6.0"
   },
   "devDependencies": {
-    "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/react": "^2.0.59",
+    "@ai-sdk/provider": "^3.0.0",
+    "@ai-sdk/react": "^3.0.1",
     "@better-auth/sso": "1.4.1",
     "@daveyplate/better-auth-ui": "^3.2.7",
     "@deco/ui": "workspace:*",
@@ -79,7 +81,8 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vercel/nft": "^1.1.1",
     "@vitejs/plugin-react": "^5.1.0",
-    "ai": "^5.0.101",
+    "@xyflow/react": "^12.10.0",
+    "ai": "^6.0.1",
     "babel-plugin-react-compiler": "^1.0.0",
     "better-auth": "1.4.5",
     "class-variance-authority": "^0.7.1",

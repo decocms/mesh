@@ -1,18 +1,16 @@
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import {
-  type MonitoringLog,
-  type MonitoringLogsResponse,
-} from "@/web/components/monitoring/monitoring-stats-row.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { Badge } from "@deco/ui/components/badge.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "./home-grid-cell.tsx";
+import type {
+  BaseMonitoringLog,
+  BaseMonitoringLogsResponse,
+} from "@/web/components/monitoring";
 
 function RecentActivityContent() {
   const { org, locator } = useProjectContext();
@@ -21,7 +19,7 @@ function RecentActivityContent() {
   const connections = useConnections() ?? [];
 
   const dateRange = getLast24HoursDateRange();
-  const toolInputParams = { ...dateRange, limit: 8, offset: 0 };
+  const toolInputParams = { ...dateRange, limit: 10, offset: 0 };
 
   const { data: logsData } = useToolCall<
     {
@@ -30,7 +28,7 @@ function RecentActivityContent() {
       limit: number;
       offset: number;
     },
-    MonitoringLogsResponse
+    BaseMonitoringLogsResponse
   >({
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
@@ -44,12 +42,12 @@ function RecentActivityContent() {
   // Get connection info for icons
   const connectionMap = new Map(connections.map((c) => [c.id, c]));
 
-  const handleRowClick = (log: MonitoringLog) => {
+  const handleRowClick = (log: BaseMonitoringLog) => {
     navigate({
       to: "/$org/monitoring",
       params: { org: org.slug },
       search: {
-        connections: log.connectionId,
+        connectionId: [log.connectionId],
         tool: log.toolName,
       },
     });
@@ -62,85 +60,47 @@ function RecentActivityContent() {
     });
   };
 
-  const mockLogs = [
-    {
-      id: "1",
-      toolName: "Google Drive",
-      connectionId: "mock1",
-      connectionTitle: "Google Drive",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: true,
-    },
-    {
-      id: "2",
-      toolName: "Google Sheets",
-      connectionId: "mock2",
-      connectionTitle: "Google Sheets",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "3",
-      toolName: "Google Slides",
-      connectionId: "mock3",
-      connectionTitle: "Google Slides",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "4",
-      toolName: "Gmail",
-      connectionId: "mock4",
-      connectionTitle: "Gmail",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "5",
-      toolName: "Google Calendar",
-      connectionId: "mock5",
-      connectionTitle: "Google Calendar",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "6",
-      toolName: "Discord",
-      connectionId: "mock6",
-      connectionTitle: "Discord",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "7",
-      toolName: "VTEX",
-      connectionId: "mock7",
-      connectionTitle: "VTEX",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
-    {
-      id: "8",
-      toolName: "Google Docs",
-      connectionId: "mock8",
-      connectionTitle: "Google Docs",
-      timestamp: new Date().toISOString(),
-      durationMs: 200,
-      isError: false,
-    },
+  const mockTools = [
+    "Google Drive",
+    "Google Sheets",
+    "Google Slides",
+    "Gmail",
+    "Google Calendar",
+    "Discord",
+    "VTEX",
+    "Google Docs",
+    "Slack",
+    "Notion",
+    "GitHub",
+    "Linear",
   ];
+
+  const mockLogs: Array<{
+    id: string;
+    toolName: string;
+    connectionId: string;
+    connectionTitle: string;
+    timestamp: string;
+    durationMs: number;
+    isError: boolean;
+  }> = Array.from({ length: 10 }, (_, i) => {
+    const timestamp = new Date(Date.now() - i * 60000); // 1 minute apart
+    const toolName = mockTools[i % mockTools.length] ?? "Unknown";
+    return {
+      id: `mock-${i}`,
+      toolName,
+      connectionId: `mock${i}`,
+      connectionTitle: toolName,
+      timestamp: timestamp.toISOString(),
+      durationMs: Math.floor(Math.random() * 500) + 100,
+      isError: Math.random() > 0.9,
+    };
+  });
 
   const displayLogs = logs.length === 0 ? mockLogs : logs;
   const isShowingMockData = logs.length === 0;
 
-  const renderLogRow = (log: MonitoringLog | (typeof mockLogs)[0]) => {
+  const renderLogRow = (log: BaseMonitoringLog | (typeof mockLogs)[0]) => {
     const connection = connectionMap.get(log.connectionId);
     const timestamp = new Date(log.timestamp);
     const timeStr = timestamp.toLocaleString("en-US", {
@@ -156,7 +116,7 @@ function RecentActivityContent() {
         key={log.id}
         className="flex items-center h-16 border-t border-border/60 hover:bg-muted/40 transition-colors cursor-pointer"
         onClick={() =>
-          !isShowingMockData && handleRowClick(log as MonitoringLog)
+          !isShowingMockData && handleRowClick(log as BaseMonitoringLog)
         }
       >
         {/* Icon */}
@@ -198,17 +158,11 @@ function RecentActivityContent() {
   return (
     <HomeGridCell
       title={<p className="text-sm text-muted-foreground">Recent Activity</p>}
-      action={
-        logsData && logsData.total > logs.length ? (
-          <Button variant="ghost" size="sm" onClick={handleViewAll}>
-            See all
-            <Icon name="chevron_right" size={16} />
-          </Button>
-        ) : null
-      }
+      onTitleClick={handleViewAll}
       noPadding
+      className="min-h-0 overflow-hidden"
     >
-      <div className={`w-full h-full overflow-auto ${""}`}>
+      <div className="overflow-auto">
         {displayLogs.map((log) => renderLogRow(log))}
       </div>
     </HomeGridCell>
@@ -219,17 +173,36 @@ function RecentActivitySkeleton() {
   return (
     <HomeGridCell
       title={<p className="text-sm text-muted-foreground">Recent Activity</p>}
-      action={<div className="h-7 w-20 rounded bg-muted animate-pulse" />}
+      noPadding
+      className="min-h-0 overflow-hidden"
     >
-      <div className="space-y-2">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-12 rounded-xl bg-muted animate-pulse" />
+      <div className="overflow-auto">
+        {[...Array(10)].map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center h-16 border-t border-border/60"
+          >
+            <div className="flex items-center justify-center w-16 px-4">
+              <div className="h-6 w-6 bg-muted animate-pulse rounded-md" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+            </div>
+            <div className="flex items-center gap-2 px-5">
+              <div className="h-3 w-12 bg-muted animate-pulse rounded" />
+              <div className="h-3 w-40 bg-muted animate-pulse rounded" />
+            </div>
+            <div className="flex items-center pr-5">
+              <div className="h-6 w-12 bg-muted animate-pulse rounded-full" />
+            </div>
+          </div>
         ))}
       </div>
     </HomeGridCell>
   );
 }
 
-export const RecentActivity = Object.assign(RecentActivityContent, {
+export const RecentActivity = {
+  Content: RecentActivityContent,
   Skeleton: RecentActivitySkeleton,
-});
+};

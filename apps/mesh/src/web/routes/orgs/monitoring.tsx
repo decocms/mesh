@@ -18,12 +18,6 @@ import {
   calculateStats,
   type DateRange,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
-import type {
-  EnrichedMonitoringLog,
-  MonitoringLog,
-  MonitoringLogsResponse,
-  MonitoringSearchParams,
-} from "@/web/components/monitoring/types.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
@@ -53,7 +47,17 @@ import {
 } from "@deco/ui/components/time-range-picker.tsx";
 import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Suspense, useState } from "react";
+import { Fragment, Suspense, useRef, useState } from "react";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+
+// @ts-ignore - correct
+import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
+import {
+  type EnrichedMonitoringLog,
+  type MonitoringLogsResponse,
+  type MonitoringSearchParams,
+} from "@/web/components/monitoring";
+import { MonitoringLog } from "@/storage/types";
 
 // ============================================================================
 // Stats Component
@@ -99,18 +103,22 @@ const MonitoringStats = Object.assign(MonitoringStatsContent, {
 
 interface FiltersPopoverProps {
   connectionIds: string[];
+  gatewayIds: string[];
   tool: string;
   status: string;
   connectionOptions: Array<{ value: string; label: string }>;
+  gatewayOptions: Array<{ value: string; label: string }>;
   activeFiltersCount: number;
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
 }
 
 function FiltersPopover({
   connectionIds,
+  gatewayIds,
   tool,
   status,
   connectionOptions,
+  gatewayOptions,
   activeFiltersCount,
   onUpdateFilters,
 }: FiltersPopoverProps) {
@@ -141,15 +149,32 @@ function FiltersPopover({
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Connections
+                MCP Servers
               </label>
               <MultiSelect
                 options={connectionOptions}
                 defaultValue={connectionIds}
                 onValueChange={(values) =>
-                  onUpdateFilters({ connections: values.join(",") })
+                  onUpdateFilters({ connectionId: values })
                 }
-                placeholder="All connections"
+                placeholder="All servers"
+                variant="secondary"
+                className="w-full"
+                maxCount={2}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Gateways
+              </label>
+              <MultiSelect
+                options={gatewayOptions}
+                defaultValue={gatewayIds}
+                onValueChange={(values) =>
+                  onUpdateFilters({ gatewayId: values })
+                }
+                placeholder="All gateways"
                 variant="secondary"
                 className="w-full"
                 maxCount={2}
@@ -201,7 +226,8 @@ function FiltersPopover({
               className="w-full"
               onClick={() => {
                 onUpdateFilters({
-                  connections: "",
+                  connectionId: [],
+                  gatewayId: [],
                   tool: "",
                   status: "all",
                 });
@@ -223,6 +249,7 @@ function FiltersPopover({
 
 interface MonitoringLogsTableProps {
   connectionIds: string[];
+  gatewayIds: string[];
   tool: string;
   status: string;
   search: string;
@@ -237,6 +264,7 @@ interface MonitoringLogsTableProps {
 
 function MonitoringLogsTableContent({
   connectionIds,
+  gatewayIds,
   tool,
   status,
   search: searchQuery,
@@ -278,13 +306,20 @@ function MonitoringLogsTableContent({
     };
   });
 
-  // Filter logs by search query and multiple connections (client-side)
+  // Filter logs by search query and multiple connections/gateways (client-side)
   let filteredLogs = enrichedLogs;
 
   // Filter by multiple connection IDs (if more than one selected)
   if (connectionIds.length > 1) {
     filteredLogs = filteredLogs.filter((log) =>
       connectionIds.includes(log.connectionId),
+    );
+  }
+
+  // Filter by multiple gateway IDs (if more than one selected)
+  if (gatewayIds.length > 1) {
+    filteredLogs = filteredLogs.filter(
+      (log) => log.gatewayId && gatewayIds.includes(log.gatewayId),
     );
   }
 
@@ -299,7 +334,7 @@ function MonitoringLogsTableContent({
     );
   }
 
-  const toggleRow = (log: MonitoringLog) => {
+  const toggleRow = (log: EnrichedMonitoringLog) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);
       if (next.has(log.id)) {
@@ -311,7 +346,7 @@ function MonitoringLogsTableContent({
     });
   };
 
-  // Get connection info for icons
+  // Get connection info
   const connectionMap = new Map(connections.map((c) => [c.id, c]));
 
   if (filteredLogs.length === 0) {
@@ -320,7 +355,11 @@ function MonitoringLogsTableContent({
         <EmptyState
           title="No logs found"
           description={
-            searchQuery || connectionIds.length > 0 || tool || status !== "all"
+            searchQuery ||
+            connectionIds.length > 0 ||
+            gatewayIds.length > 0 ||
+            tool ||
+            status !== "all"
               ? "No logs match your filters"
               : "No logs found in this time range"
           }
@@ -346,14 +385,14 @@ function MonitoringLogsTableContent({
               Tool / MCP Server
             </div>
 
+            {/* Gateway Column */}
+            <div className="w-24 md:w-32 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+              Gateway
+            </div>
+
             {/* User name Column */}
             <div className="w-20 md:w-24 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
               User Name
-            </div>
-
-            {/* Gateway Column */}
-            <div className="w-20 md:w-28 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              Gateway
             </div>
 
             {/* Date Column */}
@@ -385,6 +424,7 @@ function MonitoringLogsTableContent({
               isFirst={index === 0}
               isExpanded={expandedRows.has(log.id)}
               connection={connectionMap.get(log.connectionId)}
+              gatewayName={log.gatewayName ?? ""}
               onToggle={() => toggleRow(log)}
               lastLogRef={
                 index === filteredLogs.length - 1 ? lastLogRef : undefined
@@ -417,6 +457,7 @@ interface MonitoringDashboardContentProps {
   dateRange: DateRange;
   displayDateRange: DateRange;
   connectionIds: string[];
+  gatewayIds: string[];
   tool: string;
   status: string;
   search: string;
@@ -434,6 +475,7 @@ function MonitoringDashboardContent({
   dateRange,
   displayDateRange,
   connectionIds,
+  gatewayIds,
   tool,
   status,
   search: searchQuery,
@@ -454,6 +496,10 @@ function MonitoringDashboardContent({
     value: conn.id,
     label: conn.title || conn.id,
   }));
+  const gatewayOptions = allGateways.map((gw) => ({
+    value: gw.id,
+    label: gw.title || gw.id,
+  }));
 
   const { pageSize, streamingRefetchInterval } = MONITORING_CONFIG;
   const offset = page * pageSize;
@@ -465,8 +511,9 @@ function MonitoringDashboardContent({
   const logsParams = {
     startDate: dateRange.startDate.toISOString(),
     endDate: dateRange.endDate.toISOString(),
-    // Only pass single connection to API; multi-connection is filtered client-side
+    // Only pass single connection/gateway to API; multi-selection is filtered client-side
     connectionId: connectionIds.length === 1 ? connectionIds[0] : undefined,
+    gatewayId: gatewayIds.length === 1 ? gatewayIds[0] : undefined,
     toolName: tool || undefined,
     isError:
       status === "errors" ? true : status === "success" ? false : undefined,
@@ -499,9 +546,11 @@ function MonitoringDashboardContent({
             {/* Filters Button */}
             <FiltersPopover
               connectionIds={connectionIds}
+              gatewayIds={gatewayIds}
               tool={tool}
               status={status}
               connectionOptions={connectionOptions}
+              gatewayOptions={gatewayOptions}
               activeFiltersCount={activeFiltersCount}
               onUpdateFilters={onUpdateFilters}
             />
@@ -558,6 +607,7 @@ function MonitoringDashboardContent({
         <div className="flex-1 flex flex-col overflow-hidden">
           <MonitoringLogsTable
             connectionIds={connectionIds}
+            gatewayIds={gatewayIds}
             tool={tool}
             status={status}
             search={searchQuery}
@@ -585,16 +635,14 @@ export default function MonitoringDashboard() {
   const {
     from,
     to,
-    connections,
+    connectionId: connectionIds = [],
+    gatewayId: gatewayIds = [],
     tool,
     search: searchQuery,
     status,
     page = 0,
     streaming = true,
   } = search;
-
-  // Get filters from URL - defaults are handled by router schema
-  const connectionIds = connections ? connections.split(",") : [];
 
   // Update URL with new filter values
   const updateFilters = (updates: Partial<MonitoringSearchParams>) => {
@@ -603,7 +651,8 @@ export default function MonitoringDashboard() {
       !("page" in updates) &&
       ("from" in updates ||
         "to" in updates ||
-        "connections" in updates ||
+        "connectionId" in updates ||
+        "gatewayId" in updates ||
         "tool" in updates ||
         "status" in updates ||
         "search" in updates);
@@ -645,6 +694,7 @@ export default function MonitoringDashboard() {
 
   let activeFiltersCount = 0;
   if (connectionIds.length > 0) activeFiltersCount++;
+  if (gatewayIds.length > 0) activeFiltersCount++;
   if (tool) activeFiltersCount++;
   if (status !== "all") activeFiltersCount++;
 
@@ -685,6 +735,7 @@ export default function MonitoringDashboard() {
             dateRange={dateRange}
             displayDateRange={displayDateRange}
             connectionIds={connectionIds}
+            gatewayIds={gatewayIds}
             tool={tool}
             status={status}
             search={searchQuery}

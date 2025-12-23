@@ -1,4 +1,4 @@
-import { DecoChatPanel } from "@/web/components/deco-chat-panel";
+import { ChatPanel } from "@/web/components/chat/chat-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { MeshSidebar } from "@/web/components/mesh-sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
@@ -143,7 +143,7 @@ function ChatPanels() {
       <PersistentResizablePanel className={chatOpen ? "max-w-none" : "max-w-0"}>
         <ErrorBoundary>
           <Suspense fallback={<DecoChatSkeleton />}>
-            <DecoChatPanel />
+            <ChatPanel />
           </Suspense>
         </ErrorBoundary>
       </PersistentResizablePanel>

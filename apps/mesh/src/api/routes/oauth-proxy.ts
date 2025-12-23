@@ -42,6 +42,60 @@ async function getConnectionUrl(
 }
 
 /**
+ * Fetch protected resource metadata, trying both well-known URL formats
+ * Format 1: {resource}/.well-known/oauth-protected-resource (resource-relative)
+ * Format 2: /.well-known/oauth-protected-resource{resource-path} (well-known prefix, e.g. Smithery)
+ *
+ * Per RFC 9728: strip trailing slash before inserting /.well-known/
+ * Returns the response (even if error) so caller can handle/pass-through error status
+ */
+export async function fetchProtectedResourceMetadata(
+  connectionUrl: string,
+): Promise<Response> {
+  const connUrl = new URL(connectionUrl);
+  // Normalize: strip trailing slash per RFC 9728
+  let resourcePath = connUrl.pathname;
+  if (resourcePath.endsWith("/")) {
+    resourcePath = resourcePath.slice(0, -1);
+  }
+
+  // Try format 1 first (most common)
+  const format1Url = new URL(connectionUrl);
+  format1Url.pathname = `${resourcePath}/.well-known/oauth-protected-resource`;
+
+  let response = await fetch(format1Url.toString(), {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  if (response.ok) return response;
+
+  // If format 1 returns 404, try format 2 (Smithery-style: well-known prefix)
+  // For other errors (401, 500, etc.), return immediately to preserve error info
+  if (response.status !== 404 && response.status !== 401) return response;
+
+  const format2Url = new URL(connectionUrl);
+  format2Url.pathname = `/.well-known/oauth-protected-resource${resourcePath}`;
+
+  response = await fetch(format2Url.toString(), {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  if (response.status !== 404 && response.status !== 401) return response;
+
+  const format3Url = new URL(connectionUrl);
+  format3Url.pathname = `/.well-known/oauth-protected-resource`;
+
+  response = await fetch(format3Url.toString(), {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  return response;
+}
+
+/**
  * Get the origin authorization server URL from connection's protected resource metadata
  */
 async function getOriginAuthServer(
@@ -52,14 +106,7 @@ async function getOriginAuthServer(
   if (!connectionUrl) return null;
 
   try {
-    const originUrl = new URL(connectionUrl);
-    originUrl.pathname = "/.well-known/oauth-protected-resource";
-
-    const response = await fetch(originUrl.toString(), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-
+    const response = await fetchProtectedResourceMetadata(connectionUrl);
     if (!response.ok) return null;
 
     const data = (await response.json()) as {
@@ -91,6 +138,16 @@ async function ensureContext(c: {
 // Protected Resource Metadata Proxy
 // ============================================================================
 
+// force https if not localhost
+export const fixProtocol = (url: URL) => {
+  const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (!isLocal) {
+    // force http if not local
+    url.protocol = "https:";
+  }
+  return url;
+};
+
 /**
  * Handler for proxying OAuth protected resource metadata
  * Rewrites resource to /mcp/:connectionId and authorization_servers to /oauth-proxy/:connectionId
@@ -110,16 +167,10 @@ const protectedResourceMetadataHandler = async (c: {
   }
 
   try {
-    // Build the origin's well-known URL
-    const originUrl = new URL(connectionUrl);
-    originUrl.pathname = "/.well-known/oauth-protected-resource";
+    // Fetch from origin, trying both well-known URL formats
+    const response = await fetchProtectedResourceMetadata(connectionUrl);
 
-    // Fetch from origin and proxy response
-    const response = await fetch(originUrl.toString(), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-
+    // Pass through error responses from origin (e.g., 401, 500)
     if (!response.ok) {
       return new Response(response.body, {
         status: response.status,
@@ -132,7 +183,7 @@ const protectedResourceMetadataHandler = async (c: {
     const data = (await response.json()) as Record<string, unknown>;
 
     // Build our proxy resource URL (matches the MCP proxy endpoint)
-    const requestUrl = new URL(c.req.url);
+    const requestUrl = fixProtocol(new URL(c.req.url));
     const proxyResourceUrl = `${requestUrl.origin}/mcp/${connectionId}`;
 
     // Rewrite authorization_servers to point to our proxy
@@ -178,6 +229,90 @@ app.get("/mcp/:connectionId/.well-known/oauth-protected-resource", (c) =>
 // ============================================================================
 
 /**
+ * Fetch authorization server metadata, trying multiple well-known URL formats per spec.
+ *
+ * For issuer URLs with path components (e.g., https://auth.example.com/tenant1):
+ * 1. OAuth 2.0 Authorization Server Metadata with path insertion:
+ *    https://auth.example.com/.well-known/oauth-authorization-server/tenant1
+ * 2. OpenID Connect 1.0 Discovery with path insertion:
+ *    https://auth.example.com/.well-known/openid-configuration/tenant1
+ * 3. OpenID Connect 1.0 Discovery with path append:
+ *    https://auth.example.com/tenant1/.well-known/openid-configuration
+ *
+ * For issuer URLs without path components (e.g., https://auth.example.com):
+ * 1. OAuth 2.0 Authorization Server Metadata:
+ *    https://auth.example.com/.well-known/oauth-authorization-server
+ * 2. OpenID Connect 1.0 Discovery:
+ *    https://auth.example.com/.well-known/openid-configuration
+ *
+ * Returns the response (even if error) so caller can handle/pass-through error status
+ */
+export async function fetchAuthorizationServerMetadata(
+  authServerUrl: string,
+): Promise<Response> {
+  const url = new URL(authServerUrl);
+  // Normalize: strip trailing slash
+  let authServerPath = url.pathname;
+  if (authServerPath.endsWith("/")) {
+    authServerPath = authServerPath.slice(0, -1);
+  }
+
+  // Check if URL has a path component
+  const hasPath = authServerPath !== "" && authServerPath !== "/";
+
+  // Build list of URLs to try in priority order
+  const urlsToTry: URL[] = [];
+
+  if (hasPath) {
+    // Format 1: OAuth 2.0 with path insertion
+    const format1 = new URL(authServerUrl);
+    format1.pathname = `/.well-known/oauth-authorization-server${authServerPath}`;
+    urlsToTry.push(format1);
+
+    // Format 2: OpenID Connect with path insertion
+    const format2 = new URL(authServerUrl);
+    format2.pathname = `/.well-known/openid-configuration${authServerPath}`;
+    urlsToTry.push(format2);
+
+    // Format 3: OpenID Connect with path append
+    const format3 = new URL(authServerUrl);
+    format3.pathname = `${authServerPath}/.well-known/openid-configuration`;
+    urlsToTry.push(format3);
+  } else {
+    // Format 1: OAuth 2.0 at root
+    const format1 = new URL(authServerUrl);
+    format1.pathname = "/.well-known/oauth-authorization-server";
+    urlsToTry.push(format1);
+
+    // Format 2: OpenID Connect at root
+    const format2 = new URL(authServerUrl);
+    format2.pathname = "/.well-known/openid-configuration";
+    urlsToTry.push(format2);
+  }
+
+  // Try each URL in order
+  let response: Response | null = null;
+  for (const tryUrl of urlsToTry) {
+    response = await fetch(tryUrl.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+
+    // If successful, return immediately
+    if (response.ok) return response;
+
+    // For 404/401, try next format
+    // For other errors (500, etc.), return immediately to preserve error info
+    if (response.status !== 404 && response.status !== 401) {
+      return response;
+    }
+  }
+
+  // Return the last response (will be an error)
+  return response!;
+}
+
+/**
  * Proxy authorization server metadata to avoid CORS issues
  * Rewrites OAuth endpoint URLs to go through our proxy
  */
@@ -193,17 +328,8 @@ app.get(
     }
 
     try {
-      // Build the origin's well-known URL for auth server metadata
-      const originUrl = new URL(originAuthServer);
-      // If auth server is at root ("/"), don't append the path (avoid trailing slash)
-      const authServerPath =
-        originUrl.pathname === "/" ? "" : originUrl.pathname;
-      originUrl.pathname = `/.well-known/oauth-authorization-server${authServerPath}`;
-
-      const response = await fetch(originUrl.toString(), {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
+      // Fetch auth server metadata, trying all well-known URL formats
+      const response = await fetchAuthorizationServerMetadata(originAuthServer);
 
       if (!response.ok) {
         return new Response(response.body, {
@@ -215,7 +341,7 @@ app.get(
 
       // Parse and rewrite URLs to point to our proxy
       const data = (await response.json()) as Record<string, unknown>;
-      const requestUrl = new URL(c.req.url);
+      const requestUrl = fixProtocol(new URL(c.req.url));
       const proxyBase = `${requestUrl.origin}/oauth-proxy/${connectionId}`;
 
       // Rewrite OAuth endpoint URLs to go through our proxy

@@ -58,6 +58,8 @@ Environment Variables:
   NODE_ENV              Set to 'production' for production mode
   BETTER_AUTH_SECRET    Secret for authentication (auto-generated if not set)
   ENCRYPTION_KEY        Key for encrypting secrets (auto-generated if not set)
+  AUTH_CONFIG_PATH      Path to auth config file (default: ./auth-config.json)
+  CONFIG_PATH           Path to full config file (default: ./config.json)
 
 Examples:
   bunx @decocms/mesh                    # Start on port 3000
@@ -138,7 +140,9 @@ try {
   // File doesn't exist or is invalid, will create new secrets
 }
 
-let usingSecretsFile = false;
+// Track which secrets are from file vs env (independently)
+let betterAuthFromFile = false;
+let encryptionKeyFromFile = false;
 let secretsModified = false;
 
 if (!process.env.BETTER_AUTH_SECRET) {
@@ -149,18 +153,18 @@ if (!process.env.BETTER_AUTH_SECRET) {
     process.env.BETTER_AUTH_SECRET = savedSecrets.BETTER_AUTH_SECRET;
     secretsModified = true;
   }
-  usingSecretsFile = true;
+  betterAuthFromFile = true;
 }
 
 if (!process.env.ENCRYPTION_KEY) {
   if (savedSecrets.ENCRYPTION_KEY) {
     process.env.ENCRYPTION_KEY = savedSecrets.ENCRYPTION_KEY;
   } else {
-    savedSecrets.ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+    savedSecrets.ENCRYPTION_KEY = "";
     process.env.ENCRYPTION_KEY = savedSecrets.ENCRYPTION_KEY;
     secretsModified = true;
   }
-  usingSecretsFile = true;
+  encryptionKeyFromFile = true;
 }
 
 // Save secrets to file if we generated new ones
@@ -178,16 +182,23 @@ console.log("");
 console.log(`${bold}${cyan}MCP Mesh${reset}`);
 console.log(`${dim}Self-hostable MCP Gateway${reset}`);
 
-if (usingSecretsFile) {
+// Only show warning for secrets that are actually from file
+if (betterAuthFromFile || encryptionKeyFromFile) {
   console.log("");
   console.log(
-    `${yellow}⚠️  Using generated dev-only secrets file: ${secretsFilePath}${reset}`,
+    `${yellow}⚠️  Using generated dev-only secrets from: ${secretsFilePath}${reset}`,
   );
   console.log(
     `${dim}   For production, set these environment variables:${reset}`,
   );
-  console.log(`${dim}   BETTER_AUTH_SECRET=$(openssl rand -base64 32)${reset}`);
-  console.log(`${dim}   ENCRYPTION_KEY=$(openssl rand -hex 32)${reset}`);
+  if (betterAuthFromFile) {
+    console.log(
+      `${dim}   BETTER_AUTH_SECRET=$(openssl rand -base64 32)${reset}`,
+    );
+  }
+  if (encryptionKeyFromFile) {
+    console.log(`${dim}   ENCRYPTION_KEY=$(openssl rand -hex 32)${reset}`);
+  }
 }
 
 console.log("");

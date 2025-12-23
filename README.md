@@ -53,16 +53,15 @@ It replaces M×N integrations (M MCP servers × N clients) with one production e
 ```bash
 # Clone and install
 git clone https://github.com/decocms/mesh.git
-cd mesh
 bun install
 
 # Run locally (client + API server)
 bun run dev
 ```
 
-→ runs at [http://localhost:4000](http://localhost:4000) (client) + API server
+→ runs at [http://localhost:3000](http://localhost:3000) (client) + API server
 
-Or use `npm create deco` to scaffold a new project with the CLI.
+Or use `npx @decocms/mesh` to instantly get a mesh running.
 
 ---
 
