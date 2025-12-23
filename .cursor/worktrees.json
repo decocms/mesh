@@ -1,7 +1,7 @@
 {
-    "setup-worktree": [
-        "bun install",
-        "cp $ROOT_WORKTREE_PATH/apps/mesh/auth-config.json apps/mesh/auth-config.json",
-        "cp $ROOT_WORKTREE_PATH/apps/mesh/config.json apps/mesh/config.json"
-    ]
+  "setup-worktree": [
+    "bun install",
+    "cp $ROOT_WORKTREE_PATH/apps/mesh/auth-config.json apps/mesh/auth-config.json",
+    "cp $ROOT_WORKTREE_PATH/apps/mesh/config.json apps/mesh/config.json"
+  ]
 }

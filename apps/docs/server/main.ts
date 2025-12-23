@@ -20,7 +20,9 @@ const runtime = withRuntime<Env>({
         env: "development",
       });
 
-    return await assetsHandler(req) ?? new Response("Not found", { status: 404 });
+    return (
+      (await assetsHandler(req)) ?? new Response("Not found", { status: 404 })
+    );
   },
 });
 
