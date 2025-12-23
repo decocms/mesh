@@ -190,7 +190,9 @@ export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
                     <Textarea
                       {...field}
                       disabled={inviteMutation.isPending}
-                      placeholder="Enter email addresses separated by commas or new lines&#10;e.g. user1@example.com, user2@example.com&#10;or one per line"
+                      placeholder={`Enter email addresses separated by commas or new lines
+e.g. user1@example.com, user2@example.com
+or one per line`}
                       className="min-h-[120px] resize-none"
                     />
                   </FormControl>

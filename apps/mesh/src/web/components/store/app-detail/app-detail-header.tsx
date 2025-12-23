@@ -15,6 +15,7 @@ export function AppDetailHeader({ onBack }: AppDetailHeaderProps) {
           size="icon"
           className="items-center size-8 text-muted-foreground"
           onClick={onBack}
+          aria-label="Go back"
         >
           <ArrowLeft />
         </Button>
