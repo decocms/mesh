@@ -19,9 +19,7 @@
     "./client": "./src/core/client/index.ts",
     "./mcp": "./src/well-known/mcp.ts",
     "./agent": "./src/well-known/agent.ts",
-    "./workflow": "./src/well-known/workflow.ts",
-    "./event-bus": "./src/well-known/event-bus.ts",
-    "./event-subscriber": "./src/well-known/event-subscriber.ts"
+    "./workflow": "./src/well-known/workflow.ts"
   },
   "engines": {
     "node": ">=24.0.0"
