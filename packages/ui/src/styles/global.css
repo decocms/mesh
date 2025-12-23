@@ -24,6 +24,10 @@
   @apply [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
 }
 
+@utility border-shadow {
+  box-shadow: var(--shadow-border);
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.19 0.01 107);
@@ -290,6 +294,14 @@
   --ease-in-out-quint: cubic-bezier(0.86, 0, 0.07, 1);
   --ease-in-out-expo: cubic-bezier(1, 0, 0, 1);
   --ease-in-out-circ: cubic-bezier(0.785, 0.135, 0.15, 0.86);
+}
+
+/* Shadows */
+
+:root {
+  --shadow-border:
+    0px 0px 0px 0.5px rgba(0, 0, 0, 0.09),
+    0px 1px 2px -1px rgba(0, 0, 0, 0.2), 0px 2px 4px 0px rgba(0, 0, 0, 0.04);
 }
 
 @layer base {

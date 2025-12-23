@@ -25,7 +25,7 @@ export function CollectionHeader({
   return (
     <div className="shrink-0 w-full border-b border-border h-12">
       <div className="flex items-center justify-between gap-3 h-12 px-4">
-        <h1 className="text-base font-medium text-foreground">{title}</h1>
+        <h1 className="text-sm font-medium text-foreground">{title}</h1>
         <div className="flex items-center gap-2">
           {viewMode && onViewModeChange && (
             <CollectionDisplayButton
