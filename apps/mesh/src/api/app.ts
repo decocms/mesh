@@ -417,7 +417,7 @@ export function createApp(options: CreateAppOptions = {}) {
   // ============================================================================
 
   app.onError((err, c) => {
-    console.error("Server error:", err);
+    console.error("Server error: ", err);
 
     // If error is Error, provide message
     const message = err instanceof Error ? err.message : "Unknown error";
