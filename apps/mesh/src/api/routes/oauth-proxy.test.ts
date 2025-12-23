@@ -15,6 +15,8 @@ mock.module("../../core/context-factory", () => ({
         },
       }),
     ),
+    // Include set to prevent breaking other tests that use createApp
+    set: mock(() => {}),
   },
 }));
 
