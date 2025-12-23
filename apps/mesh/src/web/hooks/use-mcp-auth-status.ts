@@ -1,20 +1,23 @@
-import { isConnectionAuthenticated } from "@/web/lib/mcp-oauth";
+import {
+  isConnectionAuthenticated,
+  type McpAuthStatus,
+} from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { useSuspenseQuery } from "@tanstack/react-query";
 
 /**
- * Hook to verify if an OAuth token is valid
+ * Hook to check MCP authentication status
  * Uses Suspense for loading states - wrap components in <Suspense> and <ErrorBoundary>.
  * @param connectionId - Connection ID
- * @returns isMCPAuthenticated - true if authenticated, false otherwise
+ * @returns McpAuthStatus - authentication status including OAuth support info
  */
-export function useIsMCPAuthenticated({
+export function useMCPAuthStatus({
   connectionId,
 }: {
   connectionId: string;
-}) {
+}): McpAuthStatus {
   const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
-  const { data: isMCPAuthenticated } = useSuspenseQuery({
+  const { data: authStatus } = useSuspenseQuery({
     queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
     queryFn: () =>
       isConnectionAuthenticated({
@@ -23,5 +26,5 @@ export function useIsMCPAuthenticated({
       }),
   });
 
-  return isMCPAuthenticated;
+  return authStatus;
 }

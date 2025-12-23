@@ -29,6 +29,11 @@ describe("OAuth Proxy Routes", () => {
   });
 
   afterEach(() => {
+    // Restore original fetch to not affect other test files
+    global.fetch = originalFetch;
+  });
+
+  afterEach(() => {
     global.fetch = originalFetch;
     mock.restore();
   });

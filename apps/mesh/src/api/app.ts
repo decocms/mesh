@@ -247,7 +247,16 @@ export function createApp(options: CreateAppOptions = {}) {
     const reqUrl = new URL(c.req.url);
     targetUrl.search = reqUrl.search;
 
-    // Forward headers
+    // For authorize endpoint, REDIRECT instead of proxying
+    // The browser needs to navigate directly to the auth server so that:
+    // 1. CSS/JS loads correctly from the origin
+    // 2. Cookies are set on the correct domain
+    // 3. The user can interact with the consent screen
+    if (endpoint === "authorize") {
+      return c.redirect(targetUrl.toString(), 302);
+    }
+
+    // Forward headers for token/register endpoints
     const headers: Record<string, string> = {
       Accept: c.req.header("Accept") || "application/json",
     };
@@ -256,7 +265,7 @@ export function createApp(options: CreateAppOptions = {}) {
     const authorization = c.req.header("Authorization");
     if (authorization) headers["Authorization"] = authorization;
 
-    // Proxy the request
+    // Proxy the request (token and register endpoints only)
     const response = await fetch(targetUrl.toString(), {
       method: c.req.method,
       headers,

@@ -13,7 +13,6 @@
  */
 
 import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
 import { ContextFactory } from "../../core/context-factory";
 import type { MeshContext } from "../../core/mesh-context";
 
@@ -139,35 +138,84 @@ async function ensureContext(c: {
 // Protected Resource Metadata Proxy
 // ============================================================================
 
+export interface HandleAuthErrorOptions {
+  /** The error from the MCP client connection attempt */
+  error: Error & { status?: number };
+  /** The request URL (used to build the OAuth proxy URL) */
+  reqUrl: URL;
+  /** The connection ID */
+  connectionId: string;
+  /** The origin MCP server URL */
+  connectionUrl: string;
+  /** Headers to use when checking the origin server */
+  headers: Record<string, string>;
+}
+
 /**
- * Throws HTTPException for 401 auth errors to trigger OAuth flow.
- * Used by MCP proxy to handle authentication failures from origin servers.
+ * Handles 401 auth errors from MCP origin servers.
+ *
+ * Checks if the origin server supports OAuth by looking for WWW-Authenticate header.
+ * - If origin supports OAuth: returns 401 with WWW-Authenticate pointing to our proxy
+ * - If origin doesn't support OAuth: returns plain 401 with JSON error
+ * - If not an auth error: returns null (caller should handle)
  */
-export function oauthOn401(
-  error: Error & { status?: number },
-  reqUrl: URL,
-  connectionId: string,
-): never {
+export async function handleAuthError({
+  error,
+  reqUrl,
+  connectionId,
+  connectionUrl,
+  headers,
+}: HandleAuthErrorOptions): Promise<Response | null> {
   const isAuthError =
     error.status === 401 ||
     error.message?.includes("401") ||
     error.message?.toLowerCase().includes("unauthorized");
 
-  if (isAuthError) {
-    // Throw 401 with WWW-Authenticate pointing to our OAuth proxy resource metadata
-    throw new HTTPException(401, {
-      res: new Response(null, {
-        status: 401,
-        headers: {
-          "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${reqUrl.origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
-        },
-      }),
+  if (!isAuthError) {
+    return null;
+  }
+
+  // Check if origin supports OAuth by looking for WWW-Authenticate header
+  const originSupportsOAuth = await fetch(connectionUrl, {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 0,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "mcp-mesh-proxy", version: "1.0.0" },
+      },
+    }),
+  })
+    .then((response) => response.headers.has("WWW-Authenticate"))
+    .catch(() => false);
+
+  if (originSupportsOAuth) {
+    return new Response(null, {
+      status: 401,
+      headers: {
+        "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${reqUrl.origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
+      },
     });
   }
 
-  // For other errors, log and re-throw to be handled by the route handler
-  console.error("[proxy] Failed to connect to origin MCP:", error);
-  throw error;
+  return new Response(
+    JSON.stringify({
+      error: "unauthorized",
+      message: "Authentication required but server does not support OAuth",
+    }),
+    {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }
 
 // force https if not localhost

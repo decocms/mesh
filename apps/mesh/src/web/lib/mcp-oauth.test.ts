@@ -1,13 +1,21 @@
 import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
 import { isConnectionAuthenticated, handleOAuthCallback } from "./mcp-oauth";
 
+// Save original fetch to restore after tests
+const originalFetch = globalThis.fetch;
+
 describe("isConnectionAuthenticated", () => {
   beforeEach(() => {
     // Clear all mocks before each test
     mock.restore();
   });
 
-  test("POSTs initialize and returns true when response is OK", async () => {
+  afterEach(() => {
+    // Restore original fetch to not affect other test files
+    globalThis.fetch = originalFetch;
+  });
+
+  test("POSTs initialize and returns isAuthenticated:true when response is OK", async () => {
     global.fetch = mock(() =>
       Promise.resolve({
         status: 200,
@@ -21,7 +29,8 @@ describe("isConnectionAuthenticated", () => {
       token: null,
     });
 
-    expect(result).toBe(true);
+    expect(result.isAuthenticated).toBe(true);
+    expect(result.supportsOAuth).toBe(true);
 
     const calls = (global.fetch as unknown as ReturnType<typeof mock>).mock
       .calls;
@@ -50,7 +59,7 @@ describe("isConnectionAuthenticated", () => {
       token: "valid-token",
     });
 
-    expect(result).toBe(true);
+    expect(result.isAuthenticated).toBe(true);
 
     const calls = (global.fetch as unknown as ReturnType<typeof mock>).mock
       .calls;
@@ -59,13 +68,14 @@ describe("isConnectionAuthenticated", () => {
     expect(headers.get("Authorization")).toBe("Bearer valid-token");
   });
 
-  test("returns false when response is not OK (401)", async () => {
+  test("returns isAuthenticated:false and supportsOAuth:false when 401 without WWW-Authenticate", async () => {
     global.fetch = mock(() =>
       Promise.resolve({
         status: 401,
         ok: false,
         headers: new Headers(),
-      } as Response),
+        json: () => Promise.resolve({ error: "unauthorized" }),
+      } as unknown as Response),
     ) as unknown as typeof fetch;
 
     const result = await isConnectionAuthenticated({
@@ -73,11 +83,34 @@ describe("isConnectionAuthenticated", () => {
       token: "invalid-token",
     });
 
-    expect(result).toBe(false);
+    expect(result.isAuthenticated).toBe(false);
+    expect(result.supportsOAuth).toBe(false);
+  });
+
+  test("returns isAuthenticated:false and supportsOAuth:true when 401 with WWW-Authenticate", async () => {
+    const headers = new Headers();
+    headers.set("WWW-Authenticate", 'Bearer realm="mcp"');
+
+    global.fetch = mock(() =>
+      Promise.resolve({
+        status: 401,
+        ok: false,
+        headers,
+        json: () => Promise.resolve({}),
+      } as unknown as Response),
+    ) as unknown as typeof fetch;
+
+    const result = await isConnectionAuthenticated({
+      url: "https://example.com/mcp",
+      token: null,
+    });
+
+    expect(result.isAuthenticated).toBe(false);
+    expect(result.supportsOAuth).toBe(true);
   });
 
   describe("edge cases and error handling", () => {
-    test("returns false when fetch throws network error", async () => {
+    test("returns isAuthenticated:false when fetch throws network error", async () => {
       global.fetch = mock(() =>
         Promise.reject(new Error("Network error")),
       ) as unknown as typeof fetch;
@@ -87,10 +120,12 @@ describe("isConnectionAuthenticated", () => {
         token: "some-token",
       });
 
-      expect(result).toBe(false);
+      expect(result.isAuthenticated).toBe(false);
+      expect(result.supportsOAuth).toBe(false);
+      expect(result.error).toBe("Network error");
     });
 
-    test("returns false when fetch throws non-Error", async () => {
+    test("returns isAuthenticated:false when fetch throws non-Error", async () => {
       global.fetch = mock(() =>
         Promise.reject("string error"),
       ) as unknown as typeof fetch;
@@ -100,7 +135,8 @@ describe("isConnectionAuthenticated", () => {
         token: null,
       });
 
-      expect(result).toBe(false);
+      expect(result.isAuthenticated).toBe(false);
+      expect(result.supportsOAuth).toBe(false);
     });
   });
 
@@ -119,7 +155,7 @@ describe("isConnectionAuthenticated", () => {
         token: "",
       });
 
-      expect(result).toBe(true);
+      expect(result.isAuthenticated).toBe(true);
 
       const calls = (global.fetch as unknown as ReturnType<typeof mock>).mock
         .calls;

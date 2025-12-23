@@ -22,6 +22,7 @@ interface SettingsTabProps {
   onUpdate: (connection: Partial<ConnectionEntity>) => Promise<void>;
   isUpdating: boolean;
   isMCPAuthenticated: boolean;
+  supportsOAuth: boolean;
 }
 
 type SettingsTabWithMcpBindingProps = SettingsTabProps & {
@@ -96,6 +97,40 @@ export function OAuthAuthenticationState({
   );
 }
 
+interface ManualAuthRequiredStateProps {
+  hasReadme: boolean;
+  onViewReadme?: () => void;
+}
+
+export function ManualAuthRequiredState({
+  hasReadme,
+  onViewReadme,
+}: ManualAuthRequiredStateProps) {
+  return (
+    <div className="w-3/5 min-w-0 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4 max-w-md text-center">
+        <Icon name="key" size={48} className="text-muted-foreground" />
+        <div className="flex flex-col gap-2">
+          <h3 className="text-lg font-semibold">
+            Manual Authentication Required
+          </h3>
+          <p className="text-sm text-muted-foreground max-w-md text-center">
+            This server requires an API key or token that must be configured
+            manually. Check the server's documentation for instructions on
+            obtaining credentials.
+          </p>
+        </div>
+        {hasReadme && onViewReadme && (
+          <Button onClick={onViewReadme} variant="outline" size="lg">
+            <Icon name="description" size={18} className="mr-2" />
+            View README
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SettingsTabContentWithMcpBinding(
   props: SettingsTabWithMcpBindingProps,
 ) {
@@ -115,14 +150,20 @@ function SettingsRightPanel({
   formState,
   onFormStateChange,
   onAuthenticate,
+  onViewReadme,
   isMCPAuthenticated,
+  supportsOAuth,
+  hasReadme,
 }: {
   hasMcpBinding: boolean;
   stateSchema?: Record<string, unknown>;
   formState?: Record<string, unknown>;
   onFormStateChange: (state: Record<string, unknown>) => void;
   onAuthenticate: () => void | Promise<void>;
+  onViewReadme?: () => void;
   isMCPAuthenticated: boolean;
+  supportsOAuth: boolean;
+  hasReadme: boolean;
 }) {
   const hasProperties =
     stateSchema &&
@@ -131,7 +172,16 @@ function SettingsRightPanel({
     Object.keys(stateSchema.properties).length > 0;
 
   if (!isMCPAuthenticated) {
-    return <OAuthAuthenticationState onAuthenticate={onAuthenticate} />;
+    // Show different UI based on whether the server supports OAuth
+    if (supportsOAuth) {
+      return <OAuthAuthenticationState onAuthenticate={onAuthenticate} />;
+    }
+    return (
+      <ManualAuthRequiredState
+        hasReadme={hasReadme}
+        onViewReadme={onViewReadme}
+      />
+    );
   }
 
   if (!hasMcpBinding) {
@@ -171,6 +221,12 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   } = props;
 
   const connectionActions = useConnectionActions();
+
+  // Check if connection has README
+  const repository = connection?.metadata?.repository as
+    | { url?: string }
+    | undefined;
+  const hasReadme = !!repository?.url;
 
   const form = useForm<ConnectionFormData>({
     resolver: zodResolver(connectionFormSchema),
@@ -266,6 +322,8 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
               onFormStateChange={handleFormStateChange}
               onAuthenticate={handleAuthenticate}
               isMCPAuthenticated={props.isMCPAuthenticated}
+              supportsOAuth={props.supportsOAuth}
+              hasReadme={hasReadme}
             />
           </Suspense>
         </ErrorBoundary>
