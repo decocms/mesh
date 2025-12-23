@@ -9,6 +9,7 @@ import {
   createCollectionGetOutputSchema,
 } from "@decocms/bindings/collections";
 import { defineTool } from "../../core/define-tool";
+import { requireOrganization } from "../../core/mesh-context";
 import { ConnectionEntitySchema } from "./schema";
 
 /**
@@ -26,13 +27,17 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
   outputSchema: ConnectionGetOutputSchema,
 
   handler: async (input, ctx) => {
+    // Require organization context
+    const organization = requireOrganization(ctx);
+
     // Check authorization
     await ctx.access.check();
 
     // Get connection
     const connection = await ctx.storage.connections.findById(input.id);
 
-    if (!connection) {
+    // Verify connection exists and belongs to the current organization
+    if (!connection || connection.organization_id !== organization.id) {
       return { item: null };
     }
 

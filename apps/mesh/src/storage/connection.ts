@@ -63,6 +63,10 @@ export class ConnectionStorage implements ConnectionStoragePort {
     const existing = await this.findById(id);
 
     if (existing) {
+      // Only allow update if same organization - prevent cross-org hijacking
+      if (existing.organization_id !== data.organization_id) {
+        throw new Error("Connection ID already exists");
+      }
       return this.update(id, data);
     }
 
