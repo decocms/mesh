@@ -47,17 +47,12 @@ import {
 } from "@deco/ui/components/time-range-picker.tsx";
 import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Fragment, Suspense, useRef, useState } from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-
-// @ts-ignore - correct
-import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
+import { Suspense, useState } from "react";
 import {
   type EnrichedMonitoringLog,
   type MonitoringLogsResponse,
   type MonitoringSearchParams,
 } from "@/web/components/monitoring";
-import { MonitoringLog } from "@/storage/types";
 
 // ============================================================================
 // Stats Component
