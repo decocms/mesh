@@ -24,7 +24,10 @@ function getSecret(): Uint8Array {
     return jwtSecret;
   }
 
-  const envSecret = process.env.MESH_JWT_SECRET ?? authConfig.jwt?.secret;
+  const envSecret =
+    process.env.MESH_JWT_SECRET ??
+    authConfig.jwt?.secret ??
+    process.env.BETTER_AUTH_SECRET;
   if (envSecret) {
     jwtSecret = new TextEncoder().encode(envSecret);
   } else {
