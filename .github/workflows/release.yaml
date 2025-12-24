@@ -6,6 +6,12 @@ on:
     paths:
       - "apps/mesh/**"
   workflow_dispatch:
+    inputs:
+      deploy_to_production:
+        description: "Deploy to production (trigger ArgoCD sync)"
+        required: false
+        default: "false"
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -15,6 +21,11 @@ jobs:
   release:
     name: Release npm + Docker
     runs-on: ubuntu-latest
+    # Skip if triggered by push AND commit is from release-tagging workflow
+    # This prevents double-runs when release-tagging.yaml bumps the version
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      !startsWith(github.event.head_commit.message, '[release]:')
     permissions:
       contents: write
       packages: write
@@ -168,4 +179,21 @@ jobs:
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      # ==================== ARGOCD DEPLOYMENT ====================
+      - name: Trigger deployment update
+        if: inputs.deploy_to_production == 'true' && steps.version-check.outputs.version-changed == 'true'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.DEPLOY_REPO_TOKEN }}
+          repository: deco-cx/argo-deploy-mesh
+          event-type: image-update
+          client-payload: '{"image_tag": "${{ steps.version-check.outputs.current-version }}"}'
+
+      - name: Deployment summary
+        if: inputs.deploy_to_production == 'true' && steps.version-check.outputs.version-changed == 'true'
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "🚀 Triggered ArgoCD deployment with image tag \`${{ steps.version-check.outputs.current-version }}\`" >> $GITHUB_STEP_SUMMARY
 

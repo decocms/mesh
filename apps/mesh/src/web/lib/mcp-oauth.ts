@@ -461,7 +461,19 @@ export async function handleOAuthCallback(): Promise<{
 }
 
 /**
- * Check if an MCP connection is authenticated
+ * Authentication status for an MCP connection
+ */
+export interface McpAuthStatus {
+  /** Whether the connection is authenticated and working */
+  isAuthenticated: boolean;
+  /** Whether the server supports OAuth (has WWW-Authenticate header on 401) */
+  supportsOAuth: boolean;
+  /** Error message if authentication failed */
+  error?: string;
+}
+
+/**
+ * Check if an MCP connection is authenticated and whether it supports OAuth
  */
 export async function isConnectionAuthenticated({
   url,
@@ -469,7 +481,7 @@ export async function isConnectionAuthenticated({
 }: {
   url: string;
   token: string | null;
-}): Promise<boolean> {
+}): Promise<McpAuthStatus> {
   try {
     const headers = new Headers();
     headers.set("Content-Type", "application/json");
@@ -496,9 +508,34 @@ export async function isConnectionAuthenticated({
       }),
     });
 
-    return response.ok;
+    if (response.ok) {
+      return { isAuthenticated: true, supportsOAuth: true };
+    }
+
+    // Check if server supports OAuth by looking for WWW-Authenticate header
+    const wwwAuth = response.headers.get("WWW-Authenticate");
+    const supportsOAuth = !!wwwAuth;
+
+    // Try to get error message from response body
+    let error: string | undefined;
+    try {
+      const body = await response.json();
+      error = body.error || body.message;
+    } catch {
+      // Ignore JSON parse errors
+    }
+
+    return {
+      isAuthenticated: false,
+      supportsOAuth,
+      error: error || `HTTP ${response.status}`,
+    };
   } catch (error) {
     console.error("[isConnectionAuthenticated] Error:", error);
-    return false;
+    return {
+      isAuthenticated: false,
+      supportsOAuth: false,
+      error: (error as Error).message,
+    };
   }
 }

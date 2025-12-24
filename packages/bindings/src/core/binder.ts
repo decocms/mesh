@@ -171,8 +171,6 @@ export function createBindingChecker<TDefinition extends readonly ToolBinder[]>(
         if (!matchedTool) {
           return false;
         }
-        return true;
-
         // FIXME @mcandeia Zod to JSONSchema converstion is creating inconsistent schemas
       }
       return true;

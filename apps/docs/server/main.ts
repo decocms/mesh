@@ -1,5 +1,5 @@
 import { withRuntime } from "@decocms/runtime";
-import { createAssetServer } from "@decocms/runtime/asset-server";
+import { createAssetHandler } from "@decocms/runtime/asset-server";
 
 interface Env {
   ASSETS?: {
@@ -8,20 +8,21 @@ interface Env {
 }
 
 const runtime = withRuntime<Env>({
-  fetch: (req, env) => {
+  fetch: async (req, env) => {
     const url = new URL(req.url);
     if (url.pathname === "/" || url.pathname === "") {
       return Response.redirect(new URL("/en/introduction", req.url), 302);
     }
 
-    const assets =
-      env.ASSETS ??
-      createAssetServer({
+    const assetsHandler =
+      env.ASSETS?.fetch ??
+      createAssetHandler({
         env: "development",
-        assetsMiddlewarePath: "*",
       });
 
-    return assets.fetch(req);
+    return (
+      (await assetsHandler(req)) ?? new Response("Not found", { status: 404 })
+    );
   },
 });
 
