@@ -1,7 +1,6 @@
 import { memo } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { Handle, NodeProps, Position } from "@xyflow/react";
 import { Pause, Play, Zap } from "lucide-react";
-import { Button } from "@deco/ui/components/button.tsx";
 import { Card, CardHeader, CardTitle } from "@deco/ui/components/card.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useToolCallMutation } from "@/web/hooks/use-tool-call";
@@ -15,6 +14,8 @@ import {
 } from "@/web/components/details/workflow/stores/workflow";
 import { useWorkflowBindingConnection } from "../../../hooks/use-workflow-binding-connection";
 import { usePollingWorkflowExecution } from "../../../hooks/use-workflow-collection-item";
+import { TriggerNodeData } from "../use-workflow-flow";
+import { Duration } from "./step-node";
 
 // ============================================
 // Workflow Start Hook
@@ -34,7 +35,9 @@ function useWorkflowStart() {
     const timeoutMs = 30000;
     const result = await startWorkflow({
       workflow_id: workflow.id,
-      input: {},
+      input: {
+        limit: 15,
+      },
       start_at_epoch_ms: startAtEpochMs,
       timeout_ms: timeoutMs,
     });
@@ -94,14 +97,14 @@ function useWorkflowCancel() {
 function PauseButton() {
   const { handleCancelWorkflow } = useWorkflowCancel();
 
-  const handleTriggerClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleTriggerClick = () => {
     handleCancelWorkflow();
   };
   return (
-    <Button variant="ghost" size="xs" onClick={handleTriggerClick}>
-      <Pause className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors" />
-    </Button>
+    <Pause
+      className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors"
+      onClick={handleTriggerClick}
+    />
   );
 }
 
@@ -124,56 +127,50 @@ function TrackingExecutionIdButton({
   }
 
   return (
-    <Button variant="ghost" size="xs" disabled>
-      <Play className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors" />
-    </Button>
+    <Play className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" />
   );
 }
 
 function PlayButton() {
   const { handleRunWorkflow } = useWorkflowStart();
-  const isDirty = useIsDirty();
-  const handleTriggerClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleTriggerClick = () => {
     handleRunWorkflow();
   };
   const trackingExecutionId = useTrackingExecutionId();
   return (
-    <Button
-      variant="ghost"
-      size="xs"
-      onClick={handleTriggerClick}
-      disabled={isDirty}
-    >
+    <div className="h-6 w-6 p-1 shrink-0 flex items-center justify-center rounded-md">
       {trackingExecutionId ? (
         <TrackingExecutionIdButton trackingExecutionId={trackingExecutionId} />
       ) : (
-        <Play className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors" />
+        <Play
+          className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors"
+          onClick={handleTriggerClick}
+        />
       )}
-    </Button>
+    </div>
   );
 }
 
 function ResumeButton() {
   const { handleResumeWorkflow } = useWorkflowResume();
 
-  const handleTriggerClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleTriggerClick = () => {
     handleResumeWorkflow();
   };
   return (
-    <Button variant="ghost" size="xs" onClick={handleTriggerClick}>
-      <Play className="w-4 h-4 text-primary cursor-pointer hover:text-primary transition-colors" />
-    </Button>
+    <Play
+      className="w-4 h-4 text-primary cursor-pointer hover:text-primary transition-colors"
+      onClick={handleTriggerClick}
+    />
   );
 }
 
-export const TriggerNode = memo(function TriggerNode() {
+export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
   const isAddingStep = useIsAddingStep();
   const { addStepAfter } = useWorkflowActions();
   const isDirty = useIsDirty();
   const workflow = useWorkflow();
-
+  const { isRunning, startTime, endTime } = data as TriggerNodeData;
   // Trigger is clickable to add a step when there are no steps (empty workflow)
   // or when all root steps have no dependents (trigger is also a "terminal" point)
   const hasNoSteps =
@@ -213,13 +210,12 @@ export const TriggerNode = memo(function TriggerNode() {
             isAddingStep && !canAddAfterTrigger && "opacity-50",
             !isAddingStep && "cursor-pointer",
             isDirty && "cursor-auto",
+            isRunning && "animate-pulse",
           )}
         >
           <CardHeader className="flex items-center justify-between gap-2 p-0 w-full ">
-            <div className="flex flex-1 items-center gap-2 min-w-0">
-              <div className="h-6 w-6 p-1 shrink-0 flex items-center justify-center rounded-md">
-                <PlayButton />
-              </div>
+            <div className="flex flex-1 items-center justify-between gap-2 min-w-0">
+              <PlayButton />
 
               <CardTitle
                 className={cn(
@@ -229,6 +225,13 @@ export const TriggerNode = memo(function TriggerNode() {
               >
                 Manual
               </CardTitle>
+              <div className="shrink-0 flex items-center justify-center h-6 w-6 p-1">
+                <Duration
+                  startTime={startTime as string | null | undefined}
+                  endTime={endTime as string | null | undefined}
+                  isRunning={isRunning}
+                />
+              </div>
             </div>
           </CardHeader>
         </Card>

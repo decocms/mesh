@@ -1,17 +1,15 @@
 import { memo, useRef, useSyncExternalStore } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { BellIcon, CheckIcon, ClockIcon, CodeXml, Wrench } from "lucide-react";
+import { BellIcon, ClockIcon, CodeXml, Wrench } from "lucide-react";
 import type { Step } from "@decocms/bindings/workflow";
 import { Card, CardHeader, CardTitle } from "@deco/ui/components/card.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import {
   useWorkflowActions,
   useIsAddingStep,
-  useTrackingExecutionId,
   useCurrentStepName,
 } from "@/web/components/details/workflow/stores/workflow";
-import type { StepNodeData, StepResult } from "../use-workflow-flow";
-import { usePollingWorkflowExecution } from "../../../hooks/use-workflow-collection-item";
+import type { StepNodeData } from "../use-workflow-flow";
 
 // ============================================
 // Duration Component
@@ -47,7 +45,7 @@ export function useCurrentTime() {
   return currentTime;
 }
 
-function Duration({
+export function Duration({
   startTime,
   endTime,
   isRunning,
@@ -101,37 +99,25 @@ function getStepIcon(step: Step) {
   return <Wrench className="w-4 h-4" />;
 }
 
-function getStepStyle(stepResult?: StepResult | null) {
-  if (!stepResult) return "default";
-  if (stepResult.error) return "error";
-  if (!stepResult.output) return "pending";
-  if (stepResult.output) return "success";
-  return "default";
-}
-
 export const StepNode = memo(function StepNode({ data }: NodeProps) {
-  const { step, isBranchRoot } = data as StepNodeData;
-  const trackingExecutionId = useTrackingExecutionId();
+  const {
+    step,
+    hasFinished,
+    isFetching,
+    isRunning,
+    startTime,
+    endTime,
+    isError,
+  } = data as StepNodeData;
   const isAddingStep = useIsAddingStep();
   const { addStepAfter, setCurrentStepName } = useWorkflowActions();
   const currentStepName = useCurrentStepName();
-  const { item: pollingExecution } =
-    usePollingWorkflowExecution(trackingExecutionId);
 
   // When adding a step, only terminal steps can be clicked to add after
-  const canAddAfter = isAddingStep && step.config?.maxAttempts === undefined;
-
-  const stepResult = pollingExecution?.step_results.find((s) => {
-    return s.step_id === step.name;
-  });
-  const isConsumed = !!stepResult?.output;
-  const style = getStepStyle(stepResult);
+  const canAddAfter = isAddingStep;
 
   const displayIcon = (() => {
     if (!step.action) return null;
-    if (step.action && isConsumed) {
-      return <CheckIcon className="w-4 h-4 text-primary-foreground" />;
-    }
     return getStepIcon(step);
   })();
 
@@ -144,10 +130,6 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
     if (canAddAfter) {
       e.stopPropagation();
       addStepAfter(step.name);
-      return;
-    }
-    // When adding but not a terminal step, do nothing (can't add after non-terminal)
-    if (isAddingStep && step.config?.maxAttempts !== undefined) {
       return;
     }
     setCurrentStepName(step.name);
@@ -166,20 +148,20 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
       <Card
         onClick={selectStep}
         className={cn(
-          "sm:w-20 lg:w-28 xl:w-32 p-0 px-3 h-12 flex items-center justify-center relative",
+          "sm:w-40 lg:w-52 xl:w-64 p-0 px-3 h-12 flex items-center justify-center relative",
           "transition-all duration-200",
-          style === "pending" && "animate-pulse border-warning",
-          style === "error" && "border-destructive",
-          style === "success" && "border-success",
-          // Conditional step styling
-          isBranchRoot && "border-l-2 border-l-violet-500",
-          // Highlight terminal steps when in add-step mode
           canAddAfter && [
             "cursor-pointer",
             "ring-2 ring-primary ring-offset-2 ring-offset-background",
             "hover:shadow-lg hover:shadow-primary/20",
             "hover:scale-[1.02]",
           ],
+          hasFinished &&
+            !isError && ["bg-primary/10 border-primary hover:bg-primary/20"],
+          isError && [
+            "bg-destructive/10 border-destructive hover:bg-destructive/20",
+          ],
+          isFetching && ["animate-pulse text-primary"],
           // Dim non-terminal steps when in add-step mode
           isAddingStep && !canAddAfter && ["opacity-50 cursor-not-allowed"],
           // Normal selection state
@@ -192,39 +174,26 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
         )}
       >
         <CardHeader className="flex items-center justify-between gap-2 p-0 w-full relative">
-          <div className="flex flex-1 items-center gap-2 min-w-0">
-            <div
-              className={cn(
-                "h-6 w-6 p-1 shrink-0 flex items-center justify-center rounded-md bg-primary cursor-pointer hover:bg-primary/80 transition-all",
-                currentStepName === step.name &&
-                  "bg-primary/10 border-primary hover:bg-primary/20",
-              )}
-            >
-              {displayIcon}
-            </div>
-
-            <CardTitle className="p-0 text-sm font-medium truncate">
-              {step.name}
-            </CardTitle>
-
-            <Duration
-              startTime={
-                stepResult?.started_at_epoch_ms
-                  ? new Date(stepResult.started_at_epoch_ms).toISOString()
-                  : undefined
-              }
-              endTime={
-                stepResult?.completed_at_epoch_ms
-                  ? new Date(stepResult.completed_at_epoch_ms).toISOString()
-                  : undefined
-              }
-              isRunning={
-                trackingExecutionId
-                  ? stepResult?.completed_at_epoch_ms === null &&
-                    !stepResult?.error
-                  : false
-              }
-            />
+          <div
+            className={cn(
+              "h-6 w-6 p-1 flex items-center justify-center rounded-md bg-primary cursor-pointer hover:bg-primary/80 transition-all",
+              currentStepName === step.name &&
+                "bg-primary/10 border-primary hover:bg-primary/20",
+            )}
+          >
+            {displayIcon}
+          </div>
+          <CardTitle className="p-0 text-sm font-medium truncate shrink-0">
+            {step.name}
+          </CardTitle>
+          <div className="shrink-0 flex items-center justify-center h-6 w-6 p-1">
+            {startTime && (
+              <Duration
+                startTime={startTime}
+                endTime={endTime}
+                isRunning={isRunning}
+              />
+            )}
           </div>
         </CardHeader>
       </Card>

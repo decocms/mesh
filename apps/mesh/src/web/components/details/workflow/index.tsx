@@ -3,7 +3,6 @@ import { Workflow } from "@decocms/bindings/workflow";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 import { WorkflowSteps } from "./components/steps/index";
 import {
-  useCurrentStepName,
   useCurrentTab,
   useWorkflow,
   useWorkflowActions,
@@ -94,7 +93,6 @@ function WorkflowCode({
 
 export function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   const currentTab = useCurrentTab();
-  const currentStepName = useCurrentStepName();
   const workflow = useWorkflow();
   return (
     <ViewLayout onBack={onBack}>
@@ -127,7 +125,7 @@ export function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
           )}
         </div>
         <div className="w-1/3 h-full bg-sidebar border-l border-border gap-0">
-          {currentStepName && currentTab === "steps" && <StepTabs />}
+          {currentTab === "steps" && <StepTabs />}
           {currentTab === "executions" && <ExecutionsTab />}
         </div>
       </div>

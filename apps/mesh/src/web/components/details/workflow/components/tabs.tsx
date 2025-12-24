@@ -4,6 +4,8 @@ import {
   useTrackingExecutionId,
   useWorkflowActions,
   useCurrentTab,
+  useCurrentStepName,
+  useWorkflowSteps,
 } from "@/web/components/details/workflow/stores/workflow";
 import {
   Tabs,
@@ -20,8 +22,11 @@ import {
 } from "@decocms/bindings/workflow";
 import { MonacoCodeEditor } from "./monaco-editor";
 import { Button } from "@deco/ui/components/button.tsx";
-import { CodeXml, GitBranch, Loader2 } from "lucide-react";
-import { useConnection } from "@/web/hooks/collections/use-connection";
+import { ArrowLeft, CodeXml, GitBranch, Loader2 } from "lucide-react";
+import {
+  useConnection,
+  useConnections,
+} from "@/web/hooks/collections/use-connection";
 import { usePollingWorkflowExecution } from "../hooks/use-workflow-collection-item";
 import { useWorkflow } from "@/web/components/details/workflow/stores/workflow";
 import { CheckCircle, Clock, XCircle } from "lucide-react";
@@ -29,6 +34,10 @@ import { useWorkflowExecutionCollectionList } from "../hooks/use-workflow-collec
 import { ScrollArea } from "@deco/ui/components/scroll-area.tsx";
 import { useMembers } from "@/web/hooks/use-members";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
+import { ItemCard, ToolComponent } from "./tool-selector";
+import { MentionItem } from "@/web/components/tiptap-mentions-input";
+import { McpTool, useMcp } from "@/web/hooks/use-mcp";
+import { useState } from "react";
 
 function StepTabsList() {
   const activeTab = useCurrentStepTab();
@@ -70,16 +79,6 @@ function StepTabsList() {
       </TabsTrigger>
     </TabsList>
   );
-}
-
-function useToolInfo(step: Step | undefined) {
-  if (step && "toolName" in step.action && "connectionId" in step.action) {
-    return {
-      toolName: step.action.toolName,
-      connectionId: step.action.connectionId,
-    };
-  }
-  return null;
 }
 
 export function ExecutionsTab() {
@@ -127,10 +126,6 @@ export function ExecutionsTab() {
                     {execution.id}
                   </p>
                 </div>
-
-                {/* {execution.start_at_epoch_ms && <p className="text-sm font-medium">
-              {new Date(execution.start_at_epoch_ms).toLocaleString()}
-            </p>} */}
                 <p className="text-sm font-medium">
                   {
                     data?.data?.members.find(
@@ -138,10 +133,6 @@ export function ExecutionsTab() {
                     )?.user?.name
                   }
                 </p>
-
-                {/* <p className="text-sm font-medium">
-              {execution.completed_at_epoch_ms && new Date(execution.completed_at_epoch_ms).toLocaleString()}
-            </p> */}
               </div>
             </div>
           );
@@ -182,22 +173,18 @@ export function WorkflowTabs() {
   );
 }
 
-function OutputTabContent({
-  executionId,
-  stepId,
-}: {
-  executionId: string;
-  stepId: string;
-}) {
-  const { item: pollingExecution } = usePollingWorkflowExecution(executionId);
-  const stepResult = pollingExecution?.step_results.find(
-    (s) => s.step_id === stepId,
-  );
+function OutputTabContent({ executionId }: { executionId: string }) {
+  const { item: pollingExecution, step_results } =
+    usePollingWorkflowExecution(executionId);
+  const currentStepName = useCurrentStepName();
+
+  const output = currentStepName
+    ? step_results?.find((result) => result.step_id === currentStepName)?.output
+    : pollingExecution?.output;
 
   if (
-    !stepResult &&
-    (pollingExecution?.status === "running" ||
-      pollingExecution?.status === "enqueued")
+    pollingExecution?.status === "running" ||
+    pollingExecution?.status === "enqueued"
   ) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
@@ -207,7 +194,7 @@ function OutputTabContent({
     );
   }
 
-  if (pollingExecution?.status === "cancelled" && !stepResult) {
+  if (pollingExecution?.status === "cancelled") {
     return (
       <div className="flex flex-col items-center justify-center h-full">
         <XCircle className="w-4 h-4 text-destructive" />
@@ -220,7 +207,7 @@ function OutputTabContent({
     <div className="h-full">
       <MonacoCodeEditor
         height="100%"
-        code={JSON.stringify(stepResult?.output ?? null, null, 2)}
+        code={JSON.stringify(output ?? null, null, 2)}
         language="json"
       />
     </div>
@@ -238,7 +225,6 @@ export function StepTabs() {
   const connection = useConnection(
     (currentStep?.action as ToolCallAction)?.connectionId ?? "",
   );
-  const toolInfo = useToolInfo(currentStep);
   return (
     <Tabs
       value={activeTab}
@@ -247,40 +233,37 @@ export function StepTabs() {
       }
       className="h-full w-full"
     >
-      <div className="p-4 flex flex-col gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <Avatar
-            url={connection?.icon ?? ""}
-            fallback={currentStep?.name?.charAt(0) ?? ""}
-          />
-          <p className="text-sm font-medium">
-            {currentStep?.name ?? connection?.title ?? toolInfo?.toolName ?? ""}
+      {currentStep && (
+        <div className="p-4 flex flex-col gap-4 mb-4">
+          <div className="flex items-center gap-2">
+            <Avatar
+              url={connection?.icon ?? ""}
+              fallback={currentStep?.name?.charAt(0) ?? ""}
+            />
+            <p className="text-sm font-medium">{currentStep?.name}</p>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            {currentStep?.description ?? connection?.description ?? ""}
           </p>
         </div>
-        <p className="text-muted-foreground text-xs">
-          {currentStep?.description ?? connection?.description ?? ""}
-        </p>
-      </div>
+      )}
       <div className="h-10">
         <StepTabsList />
       </div>
       <TabsContent className="flex-1 h-[calc(100%-40px)]" value={activeTab}>
-        {currentStep && activeTab === "output" && selectedExecutionId && (
+        {activeTab === "output" && selectedExecutionId && (
           <div className="h-full">
-            <OutputTabContent
-              executionId={selectedExecutionId}
-              stepId={currentStep.name}
-            />
+            <OutputTabContent executionId={selectedExecutionId} />
           </div>
         )}
-        {currentStep && activeTab === "input" && (
+        {activeTab === "input" && (
           <MonacoCodeEditor
-            key={`input-${currentStep.name}`}
+            key={`input-${currentStep?.name}`}
             height="100%"
-            code={JSON.stringify(currentStep.input ?? {}, null, 2)}
+            code={JSON.stringify(currentStep?.input ?? {}, null, 2)}
             language="json"
             onSave={(input) => {
-              updateStep(currentStep.name, {
+              updateStep(currentStep?.name ?? "", {
                 input: JSON.parse(input) as Record<string, unknown>,
               });
             }}
@@ -304,7 +287,11 @@ function ActionTab({
 }) {
   const { updateStep } = useWorkflowActions();
   if ("toolName" in step.action) {
-    return <div className="h-[calc(100%-60px)]">Tool Action Here</div>;
+    return (
+      <div className="h-[calc(100%-60px)]">
+        <ToolAction />
+      </div>
+    );
   } else if ("code" in step.action) {
     return (
       <div className="h-[calc(100%-60px)]">
@@ -326,4 +313,223 @@ function ActionTab({
     );
   }
   return null;
+}
+function jsonSchemaToMentionItems(
+  schema: Record<string, unknown>,
+  prefix = "",
+): MentionItem[] {
+  if (schema?.type === "object" && schema?.properties) {
+    return Object.entries(schema.properties as Record<string, unknown>).map(
+      ([key, value]) => {
+        const children = jsonSchemaToMentionItems(
+          value as Record<string, unknown>,
+          `${prefix}${key}.`,
+        );
+        return {
+          id: `${prefix}${key}`,
+          label: key,
+          ...(children.length > 0 && { children }),
+        };
+      },
+    );
+  }
+  if (schema?.type === "array" && schema?.items) {
+    const itemSchema = schema?.items as Record<string, unknown>;
+    return jsonSchemaToMentionItems(itemSchema, prefix);
+  }
+  return [];
+}
+
+function ConnectionSelector({
+  onSelect,
+}: {
+  onSelect: (connectionId: string) => void;
+}) {
+  const connections = useConnections();
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-border">
+        {connections.map((connection) => (
+          <ItemCard
+            key={connection.id}
+            item={{
+              icon: connection.icon,
+              title: connection.title,
+            }}
+            onClick={() => onSelect(connection.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ToolAction() {
+  const currentStep = useCurrentStep();
+  const stepAsTool = currentStep as Step & {
+    action: ToolCallAction;
+  };
+  const [tab, setTab] = useState<"connection" | "tool" | "input">("input");
+  const { updateStep } = useWorkflowActions();
+  const { tool } = useTool(
+    stepAsTool?.action?.connectionId ?? "",
+    stepAsTool?.action?.toolName ?? "",
+  );
+
+  console.log({ tool, stepAsTool });
+  return (
+    <div className="w-full h-full flex flex-col">
+      {tab === "connection" && (
+        <div className="h-full flex flex-col">
+          <ConnectionSelector
+            onSelect={(connectionId) => {
+              updateStep(stepAsTool.name, {
+                action: { ...stepAsTool.action, connectionId },
+              });
+              setTab("tool");
+            }}
+          />
+        </div>
+      )}
+      {tab === "tool" && (
+        <div className="h-full flex flex-col">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTab("connection")}
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <ToolSelector
+            stepAsTool={stepAsTool}
+            onSelect={(toolName) => {
+              setTab("input");
+              updateStep(stepAsTool.name, {
+                action: { ...stepAsTool.action, toolName },
+                outputSchema: tool?.outputSchema as Record<
+                  string,
+                  unknown
+                > | null,
+              });
+            }}
+          />
+        </div>
+      )}
+      {tab === "input" && (
+        <div className="h-full flex flex-col">
+          <Button variant="outline" size="sm" onClick={() => setTab("tool")}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <SelectedTool step={stepAsTool} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToolSelector({
+  stepAsTool,
+  onSelect,
+  toolName,
+}: {
+  stepAsTool: Step & {
+    action: ToolCallAction;
+  };
+  onSelect: (toolName: string) => void;
+  toolName?: string;
+}) {
+  const connection = useConnection(stepAsTool?.action?.connectionId ?? "");
+  const tools = connection?.tools ?? [];
+  const tool = tools.find((t) => t.name === toolName);
+  const toolIcon = connection?.icon ?? null;
+  const toolTitle = tool?.name;
+  return (
+    <div className="h-full flex flex-col">
+      {toolTitle && (
+        <ItemCard
+          item={{
+            icon: toolIcon,
+            title: toolTitle,
+          }}
+        />
+      )}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-border">
+        {tools
+          .filter((t) => t.name !== toolName)
+          .map((tool) => (
+            <ItemCard
+              key={tool.name}
+              item={{
+                icon: toolIcon,
+                title: tool.name,
+              }}
+              onClick={() => onSelect(tool.name)}
+            />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+function useTool(connectionId: string, toolName: string) {
+  const mcp = useMcp({
+    url: `/mcp/${connectionId}`,
+  });
+  const connection = useConnection(connectionId);
+  const tool = connection?.tools?.find((t) => t.name === toolName);
+  return {
+    tool,
+    mcp,
+    connection,
+  };
+}
+
+function SelectedTool({
+  step,
+}: {
+  step: Step & {
+    action: ToolCallAction;
+  };
+}) {
+  const { tool, mcp, connection } = useTool(
+    step?.action?.connectionId ?? "",
+    step?.action?.toolName ?? "",
+  );
+  const { updateStep } = useWorkflowActions();
+  const handleInputChange = (inputParams: Record<string, unknown>) => {
+    if (!step?.action?.toolName) return;
+    updateStep(step?.name, {
+      input: inputParams,
+    });
+  };
+  const workflowSteps = useWorkflowSteps();
+
+  const allMentions = workflowSteps.map((step) => ({
+    id: step.name,
+    label: step.name,
+    children: jsonSchemaToMentionItems(
+      step.outputSchema as Record<string, unknown>,
+      `${step.name}.`,
+    ),
+  }));
+
+  if (!tool) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  return (
+    <div className="h-calc(100%-40px) overflow-scroll">
+      <ToolComponent
+        tool={tool as McpTool}
+        connection={connection}
+        onInputChange={handleInputChange}
+        initialInputParams={step?.input ?? {}}
+        mentions={allMentions}
+        mcp={mcp}
+      />
+    </div>
+  );
 }

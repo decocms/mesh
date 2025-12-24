@@ -9,7 +9,10 @@ import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
 import { convertJsonSchemaToZod } from "zod-from-json-schema";
 import type { ConnectionEntity } from "@/tools/connection/schema";
-import { WORKFLOW_BINDING } from "@decocms/bindings/workflow";
+import {
+  WORKFLOW_BINDING,
+  WORKFLOW_EXECUTION_BINDING,
+} from "@decocms/bindings/workflow";
 
 /**
  * Map of well-known binding names to their definitions
@@ -18,6 +21,7 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
   LLMS: LANGUAGE_MODEL_BINDING,
   AGENTS: AGENTS_BINDING,
   WORKFLOW: WORKFLOW_BINDING,
+  WORKFLOW_EXECUTION: WORKFLOW_EXECUTION_BINDING,
   MCP: MCP_BINDING,
 };
 

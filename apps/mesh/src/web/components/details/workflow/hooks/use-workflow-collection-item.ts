@@ -8,7 +8,6 @@ import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
 import { useWorkflowBindingConnection } from "./use-workflow-binding-connection";
 import { useToolCallQuery } from "@/web/hooks/use-tool-call";
 import { Query } from "@tanstack/react-query";
-
 export function useWorkflowCollectionItem(itemId: string) {
   const { connectionId } = useParams({
     strict: false,
@@ -40,7 +39,7 @@ export function useWorkflowExecutionCollectionList({
   const toolCaller = createToolCaller(connectionId);
   const list = useCollectionList<WorkflowExecution>(
     connectionId,
-    "workflow_execution",
+    "WORKFLOW_EXECUTION",
     toolCaller,
     {
       filters: [
@@ -52,7 +51,7 @@ export function useWorkflowExecutionCollectionList({
     },
   );
   return {
-    list,
+    list: list.filter((item) => item.workflow_id === workflowId),
   };
 }
 
@@ -70,9 +69,15 @@ export function usePollingWorkflowExecution(executionId?: string) {
     refetchInterval: executionId
       ? (
           query: Query<
-            { item: WorkflowExecution | null },
+            {
+              item: WorkflowExecution | null;
+              step_results: Record<string, unknown> | null;
+            },
             Error,
-            { item: WorkflowExecution | null },
+            {
+              item: WorkflowExecution | null;
+              step_results: Record<string, unknown> | null;
+            },
             readonly unknown[]
           >,
         ) => {
@@ -85,22 +90,23 @@ export function usePollingWorkflowExecution(executionId?: string) {
       : false,
   }) as {
     data: {
-      item:
-        | (WorkflowExecution & {
-            step_results: {
-              output?: unknown;
-              error?: unknown;
-              started_at_epoch_ms: number;
-              step_id: string;
-              execution_id: string;
-              completed_at_epoch_ms?: number;
-            }[];
-          })
+      item: WorkflowExecution | null;
+      step_results:
+        | {
+            step_id: string;
+            workflow_execution_id: string;
+            status: "success" | "error" | "running" | "enqueued" | "cancelled";
+            started_at_epoch_ms: number | null;
+            completed_at_epoch_ms: number | null;
+            output: unknown | null;
+            error: unknown | null;
+          }[]
         | null;
-    };
+    } | null;
   };
 
   return {
     item: data?.item,
+    step_results: data?.step_results,
   };
 }

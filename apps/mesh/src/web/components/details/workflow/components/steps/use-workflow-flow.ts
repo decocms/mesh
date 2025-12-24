@@ -1,38 +1,20 @@
 import type { Node, Edge, OnNodesChange, OnEdgesChange } from "@xyflow/react";
 import dagre from "@dagrejs/dagre";
 import { buildDagEdges, type Step } from "@decocms/bindings/workflow";
-import { useWorkflowSteps } from "@/web/components/details/workflow/stores/workflow";
-
-// ============================================
-// Types
-// ============================================
-
-export type StepStyle =
-  | "success"
-  | "error"
-  | "pending"
-  | "waiting_for_signal"
-  | "creating"
-  | "default"
-  | undefined;
-
-export interface StepResult {
-  step_id: string;
-  input?: unknown;
-  output?: unknown;
-  error?: unknown;
-  created_at?: string;
-  completed_at_epoch_ms?: number | null;
-}
+import {
+  useTrackingExecutionId,
+  useWorkflowSteps,
+} from "@/web/components/details/workflow/stores/workflow";
+import { usePollingWorkflowExecution } from "../../hooks/use-workflow-collection-item";
 
 export interface StepNodeData extends Record<string, unknown> {
   step: Step;
-  stepResult: StepResult | null;
   isFetching: boolean;
-  /** The branch root step name if this step is part of a branch */
-  branchRoot: string | null;
-  /** Whether this step is a branch root (has an "if" condition) */
-  isBranchRoot: boolean;
+  isError: boolean;
+  startTime: string | null | undefined;
+  endTime: string | null | undefined;
+  hasFinished: boolean;
+  isRunning: boolean;
 }
 
 export interface TriggerNodeData extends Record<string, unknown> {
@@ -172,9 +154,17 @@ function computeNodePositions(
 export function useWorkflowNodes(): WorkflowNode[] {
   const steps = useWorkflowSteps();
   const positions = computeNodePositions(steps);
+  const trackingExecutionId = useTrackingExecutionId();
+  const pollingResult = usePollingWorkflowExecution(trackingExecutionId);
+  const isRunning =
+    (pollingResult?.item?.completed_at_epoch_ms === null &&
+      pollingResult?.item?.status === "running") ||
+    pollingResult?.item?.status === "enqueued";
+  const isPaused = pollingResult?.item?.status === "cancelled";
 
   // Find manual trigger step
   const manualTriggerStep = steps.find((step) => step.name === "Manual");
+  const isError = pollingResult?.item?.status === "error";
 
   // Create trigger node
   const triggerNode: WorkflowNode = {
@@ -184,8 +174,10 @@ export function useWorkflowNodes(): WorkflowNode[] {
     data: {
       step: manualTriggerStep ?? null,
       isFetched: false,
-      isRunning: false,
-      isPending: false,
+      isRunning: isRunning,
+      isPending: isPaused,
+      startTime: pollingResult?.item?.start_at_epoch_ms ?? null,
+      endTime: pollingResult?.item?.completed_at_epoch_ms ?? null,
     } as TriggerNodeData,
     draggable: false,
   };
@@ -194,15 +186,28 @@ export function useWorkflowNodes(): WorkflowNode[] {
   const stepNodes: WorkflowNode[] = steps
     .filter((step) => !!step && step.name !== "Manual")
     .map((step) => {
+      const stepResult = pollingResult?.step_results?.find(
+        (result) => result.step_id === step.name,
+      );
+      const hasFinished =
+        stepResult && stepResult.completed_at_epoch_ms !== null;
+      const isFetching = !stepResult && isRunning;
+
       return {
         id: step.name,
         type: "step",
         position: positions.get(step.name) ?? { x: 0, y: 0 },
         data: {
           step,
-          isFetching: false,
-          isBranchRoot: step.config?.maxAttempts !== undefined,
-        } as StepNodeData,
+          isFetching: isFetching,
+          hasFinished: hasFinished,
+          isError:
+            isError &&
+            (!stepResult?.started_at_epoch_ms || stepResult?.error !== null),
+          startTime: stepResult?.started_at_epoch_ms ?? null,
+          endTime: stepResult?.completed_at_epoch_ms ?? null,
+          isRunning: isRunning,
+        } as unknown as StepNodeData,
         draggable: true,
       };
     });

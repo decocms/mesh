@@ -317,6 +317,11 @@ export const WORKFLOW_BINDING = [
 
 export const WorkflowBinding = bindingClient(WORKFLOW_BINDING);
 
+export const WORKFLOW_EXECUTION_BINDING = createCollectionBindings(
+  "workflow_execution",
+  WorkflowExecutionSchema,
+);
+
 /**
  * DAG (Directed Acyclic Graph) utilities for workflow step execution
  *

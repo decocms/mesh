@@ -43,7 +43,10 @@ interface Actions {
   /** Cancel the add step flow */
   cancelAddingStep: () => void;
   /** Add new step after the specified parent step */
-  addStepAfter: (parentStepName: string) => void;
+  addStepAfter: (
+    parentStepName: string,
+    outputSchema?: Record<string, unknown>,
+  ) => void;
   setOriginalWorkflow: (workflow: Workflow) => void;
   setWorkflow: (workflow: Workflow) => void;
 }
@@ -206,7 +209,10 @@ export const createWorkflowStore = (initialState: State) => {
               isAddingStep: false,
               addingStepType: null,
             })),
-          addStepAfter: (parentStepName: string) =>
+          addStepAfter: (
+            parentStepName: string,
+            outputSchema?: Record<string, unknown>,
+          ) =>
             set((state) => {
               const addingStepType = state.addingStepType;
               if (!addingStepType) return state;
@@ -228,6 +234,13 @@ export const createWorkflowStore = (initialState: State) => {
                   example: `@${parentStepName}`,
                 },
               };
+
+              if (addingStepType === "tool") {
+                newStep = {
+                  ...newStep,
+                  outputSchema: outputSchema,
+                };
+              }
 
               // If creating a code step after a step with outputSchema, inject the Input interface
               const isCodeStep = newStep.action && "code" in newStep.action;
