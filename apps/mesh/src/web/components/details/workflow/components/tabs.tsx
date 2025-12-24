@@ -47,7 +47,7 @@ function StepTabsList() {
     <TabsList className="w-full rounded-none bg-transparent p-0">
       <TabsTrigger
         className={cn(
-          "border-0 border-b border-border p-0 h-full rounded-none w-full",
+          "border-0 border-b border-border p-0 h-full rounded-none w-full font-sans text-sm font-normal text-foreground shadow-none!",
           activeTab === "input" && "border-foreground",
         )}
         value="input"
@@ -58,18 +58,18 @@ function StepTabsList() {
       {selectedExecutionId && (
         <TabsTrigger
           className={cn(
-            "border-0 border-b border-border p-0 h-full rounded-none w-full",
+            "border-0 border-b border-border p-0 h-full rounded-none w-full font-sans text-sm font-normal text-foreground shadow-none!",
             activeTab === "output" && "border-foreground",
           )}
           value="output"
           onClick={() => setCurrentStepTab("output")}
         >
-          Output
+          <span>Output</span>
         </TabsTrigger>
       )}
       <TabsTrigger
         className={cn(
-          "border-0 border-b border-border p-0 h-full rounded-none w-full",
+          "border-0 border-b border-border p-0 h-full rounded-none w-full font-sans text-sm font-normal text-foreground shadow-none!",
           activeTab === "action" && "border-foreground",
         )}
         value="action"
@@ -86,58 +86,78 @@ export function ExecutionsTab() {
   const { list: executions } = useWorkflowExecutionCollectionList({
     workflowId: workflow.id,
   });
-  const trackingExecutionId = useTrackingExecutionId();
-  const { setTrackingExecutionId } = useWorkflowActions();
-  const { data } = useMembers();
+
   return (
     <div className="h-full w-full">
-      <ScrollArea className="flex flex-col">
-        {executions.map((execution) => {
-          const isTrackingExecution = trackingExecutionId === execution.id;
-          return (
-            <div
-              key={execution.id}
-              className={cn(
-                "border-b border-border pb-2 pt-2 hover:bg-muted cursor-pointer transition-colors duration-200 w-full",
-                isTrackingExecution && "bg-muted",
-              )}
-              onClick={() => setTrackingExecutionId(execution.id)}
-            >
-              <div className="px-2 w-full flex items-center justify-between text-left gap-3">
-                <div>
-                  {execution.status === "success" && (
-                    <CheckCircle className="w-4 h-4 text-success" />
-                  )}
-                  {execution.status === "running" && (
-                    <Loader2 className="w-4 h-4 animate-spin text-warning" />
-                  )}
-                  {execution.status === "error" && (
-                    <XCircle className="w-4 h-4 text-destructive" />
-                  )}
-                  {execution.status === "enqueued" && (
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1 flex items-center gap-3">
-                  <p className="text-sm font-medium">
-                    {new Date(execution.created_at).toLocaleString()}
-                  </p>
-                  <p className="text-xs font-medium text-left text-muted-foreground">
-                    {execution.id}
-                  </p>
-                </div>
-                <p className="text-sm font-medium">
-                  {
-                    data?.data?.members.find(
-                      (m) => m.userId === execution.created_by,
-                    )?.user?.name
-                  }
-                </p>
-              </div>
+      <ScrollArea className="h-full">
+        <div className="flex flex-col">
+          {executions.length === 0 && (
+            <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">
+              No executions yet
             </div>
-          );
-        })}
+          )}
+          {executions.map((execution) => (
+            <ExecutionBar key={execution.id} executionId={execution.id} />
+          ))}
+        </div>
       </ScrollArea>
+    </div>
+  );
+}
+
+function useExecution(executionId: string) {
+  const workflow = useWorkflow();
+  const { list: executions } = useWorkflowExecutionCollectionList({
+    workflowId: workflow.id,
+  });
+  return executions.find((execution) => execution.id === executionId);
+}
+
+export function ExecutionBar({ executionId }: { executionId: string }) {
+  const { setTrackingExecutionId } = useWorkflowActions();
+  const { data } = useMembers();
+  const trackingExecutionId = useTrackingExecutionId();
+  const execution = useExecution(executionId);
+  const isTrackingExecution = trackingExecutionId === executionId;
+  if (!execution) return null;
+  return (
+    <div
+      className={cn(
+        "px-3 py-2.5 hover:bg-accent cursor-pointer transition-colors duration-150 w-full border-b border-border",
+        isTrackingExecution && "bg-accent border-l-2 border-l-primary",
+      )}
+      onClick={() => setTrackingExecutionId(execution.id)}
+    >
+      <div className="w-full flex items-center gap-3">
+        <div className="shrink-0">
+          {execution.status === "success" && (
+            <CheckCircle className="w-4 h-4 text-success" />
+          )}
+          {execution.status === "running" && (
+            <Loader2 className="w-4 h-4 animate-spin text-warning" />
+          )}
+          {execution.status === "error" && (
+            <XCircle className="w-4 h-4 text-destructive" />
+          )}
+          {execution.status === "enqueued" && (
+            <Clock className="w-4 h-4 text-muted-foreground" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground">
+            {new Date(execution.created_at).toLocaleString()}
+          </span>
+          <span className="text-xs text-muted-foreground truncate">
+            {execution.id.slice(0, 8)}...
+          </span>
+        </div>
+        <span className="shrink-0 text-xs font-medium text-muted-foreground">
+          {
+            data?.data?.members.find((m) => m.userId === execution.created_by)
+              ?.user?.name
+          }
+        </span>
+      </div>
     </div>
   );
 }
@@ -204,9 +224,10 @@ function OutputTabContent({ executionId }: { executionId: string }) {
   }
 
   return (
-    <div className="h-full">
+    <div className="h-full bg-background">
       <MonacoCodeEditor
         height="100%"
+        readOnly={true}
         code={JSON.stringify(output ?? null, null, 2)}
         language="json"
       />
@@ -231,11 +252,11 @@ export function StepTabs() {
       onValueChange={(value) =>
         handleTabChange(value as "input" | "output" | "action")
       }
-      className="h-full w-full"
+      className="h-full w-full gap-0 bg-background"
     >
       {currentStep && (
-        <div className="p-4 flex flex-col gap-4 mb-4">
-          <div className="flex items-center gap-2">
+        <div className="p-4 flex flex-col gap-4 mb-4 bg-background">
+          <div className="flex items-center gap-2 bg-background">
             <Avatar
               url={connection?.icon ?? ""}
               fallback={currentStep?.name?.charAt(0) ?? ""}
@@ -247,10 +268,13 @@ export function StepTabs() {
           </p>
         </div>
       )}
-      <div className="h-10">
+      <div className="h-10 bg-background">
         <StepTabsList />
       </div>
-      <TabsContent className="flex-1 h-[calc(100%-40px)]" value={activeTab}>
+      <TabsContent
+        className="flex-1 h-[calc(100%-40px)] bg-background"
+        value={activeTab}
+      >
         {activeTab === "output" && selectedExecutionId && (
           <div className="h-full">
             <OutputTabContent executionId={selectedExecutionId} />
@@ -288,13 +312,13 @@ function ActionTab({
   const { updateStep } = useWorkflowActions();
   if ("toolName" in step.action) {
     return (
-      <div className="h-[calc(100%-60px)]">
+      <div className="h-[calc(100%-60px)] bg-background">
         <ToolAction />
       </div>
     );
   } else if ("code" in step.action) {
     return (
-      <div className="h-[calc(100%-60px)]">
+      <div className="h-[calc(100%-60px)] bg-background">
         <MonacoCodeEditor
           key={`code-${step.name}`}
           height="100%"
@@ -376,7 +400,6 @@ function ToolAction() {
     stepAsTool?.action?.toolName ?? "",
   );
 
-  console.log({ tool, stepAsTool });
   return (
     <div className="w-full h-full flex flex-col">
       {tab === "connection" && (
@@ -521,7 +544,7 @@ function SelectedTool({
     );
   }
   return (
-    <div className="h-calc(100%-40px) overflow-scroll">
+    <div className="h-calc(100%-40px) overflow-scroll bg-background">
       <ToolComponent
         tool={tool as McpTool}
         connection={connection}

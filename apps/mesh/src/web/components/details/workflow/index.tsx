@@ -13,6 +13,16 @@ import { WorkflowActions } from "./components/actions";
 import { ExecutionsTab, StepTabs, WorkflowTabs } from "./components/tabs";
 import { toast } from "@deco/ui/components/sonner.tsx";
 import { MonacoCodeEditor } from "./components/monaco-editor";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@deco/ui/components/resizable.js";
+import { type ComponentRef, useRef, useState } from "react";
+import { ChevronDown, ChevronUp, History } from "lucide-react";
+import { Button } from "@deco/ui/components/button.tsx";
+import { useTrackingExecutionId } from "@/web/components/details/workflow/stores/workflow";
+import { ExecutionBar } from "./components/tabs";
 export interface WorkflowDetailsViewProps {
   itemId: string;
   onBack: () => void;
@@ -91,6 +101,74 @@ function WorkflowCode({
   );
 }
 
+function RightPanel() {
+  const [showExecutions, setShowExecutions] = useState(false);
+  const executionsPanelRef = useRef<ComponentRef<typeof ResizablePanel>>(null);
+  const trackingExecutionId = useTrackingExecutionId();
+
+  return (
+    <ResizablePanelGroup direction="vertical">
+      <ResizablePanel
+        ref={executionsPanelRef}
+        collapsible
+        collapsedSize={0}
+        minSize={15}
+        defaultSize={0}
+        onCollapse={() => setShowExecutions(false)}
+        onExpand={() => setShowExecutions(true)}
+        className="overflow-hidden"
+      >
+        <div className="h-full border-b border-border bg-muted/30">
+          <ExecutionsTab />
+        </div>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel defaultSize={100} minSize={40} className="flex flex-col">
+        {/* Executions Toggle Header */}
+        <div className="shrink-0 border-b border-border bg-muted/50">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-between rounded-none h-9 px-3 hover:bg-muted"
+            onClick={() => {
+              const panel = executionsPanelRef.current;
+              if (panel) {
+                if (panel.isCollapsed()) {
+                  panel.expand();
+                } else {
+                  panel.collapse();
+                }
+              }
+            }}
+          >
+            <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <History className="h-3.5 w-3.5" />
+              Executions
+            </span>
+            {showExecutions ? (
+              <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+          </Button>
+        </div>
+
+        {/* Tracking Execution Bar - shown when collapsed */}
+        {!showExecutions && trackingExecutionId && (
+          <div className="shrink-0 border-b border-border bg-muted/20">
+            <ExecutionBar executionId={trackingExecutionId} />
+          </div>
+        )}
+
+        {/* Step Tabs */}
+        <div className="flex-1 min-h-0">
+          <StepTabs />
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  );
+}
+
 export function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   const currentTab = useCurrentTab();
   const workflow = useWorkflow();
@@ -112,23 +190,28 @@ export function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
       </ViewActions>
 
       {/* Main Content */}
-      <div className="flex w-full h-full bg-background overflow-hidden relative">
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="flex w-full h-full overflow-hidden relative"
+      >
         <div className="absolute top-4 left-4 z-50">
           <WorkflowTabs />
         </div>
-        <div className="flex-1 h-full">
-          {currentTab !== "code" && <WorkflowSteps />}
-          {currentTab === "code" && (
-            <div className="h-[calc(100%-60px)]">
-              <WorkflowCode workflow={workflow} onUpdate={onUpdate} />
-            </div>
-          )}
-        </div>
-        <div className="w-1/3 h-full bg-sidebar border-l border-border gap-0">
-          {currentTab === "steps" && <StepTabs />}
-          {currentTab === "executions" && <ExecutionsTab />}
-        </div>
-      </div>
+        <ResizablePanel defaultSize={50}>
+          <div className="flex-1 h-full">
+            {currentTab !== "code" && <WorkflowSteps />}
+            {currentTab === "code" && (
+              <div className="h-[calc(100%-60px)]">
+                <WorkflowCode workflow={workflow} onUpdate={onUpdate} />
+              </div>
+            )}
+          </div>
+        </ResizablePanel>
+        <ResizableHandle />
+        <ResizablePanel className="bg-background" defaultSize={50}>
+          <RightPanel />
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </ViewLayout>
   );
 }

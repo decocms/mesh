@@ -105,7 +105,6 @@ const PRETTIER_OPTIONS = {
 } as const;
 
 const EDITOR_BASE_OPTIONS: EditorProps["options"] = {
-  minimap: { enabled: false },
   fontSize: 13,
   lineNumbers: "on",
   scrollBeyondLastLine: false,
@@ -131,10 +130,11 @@ const EDITOR_BASE_OPTIONS: EditorProps["options"] = {
     verticalScrollbarSize: 8,
     horizontalScrollbarSize: 8,
   },
+  theme: "light",
 };
 
 const LoadingPlaceholder = (
-  <div className="flex items-center justify-center h-full w-full bg-[#1e1e1e] text-gray-400">
+  <div className="flex items-center justify-center h-full w-full text-gray-400">
     <Spinner size="sm" />
   </div>
 );
@@ -570,22 +570,24 @@ declare const __outputValue: __InferredOutput;
 
   return (
     <div className="rounded-lg border border-base-border h-full">
-      <div className="flex justify-end gap-2 p-4 bg-[#1e1e1e] border-b border-[#3c3c3c]">
-        <button
-          onClick={handleFormat}
-          disabled={!isDirty}
-          className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Format
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={!isDirty}
-          className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Save (⌘S)
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="flex justify-end gap-2 p-4 border-b border-base-border">
+          <button
+            onClick={handleFormat}
+            disabled={!isDirty}
+            className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Format
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!isDirty}
+            className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Save (⌘S)
+          </button>
+        </div>
+      )}
       <MonacoErrorBoundary onError={handleMonacoError}>
         <Editor
           key={mountKey}
@@ -593,7 +595,6 @@ declare const __outputValue: __InferredOutput;
           language={language}
           value={code}
           path={filePath}
-          theme="vs-dark"
           onChange={onChange}
           onMount={handleEditorDidMount}
           loading={LoadingPlaceholder}

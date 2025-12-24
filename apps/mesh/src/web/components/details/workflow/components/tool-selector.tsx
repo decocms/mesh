@@ -308,7 +308,7 @@ export function ToolComponent({
     );
   }
   return (
-    <div className="flex flex-col items-center w-full h-full mx-auto pt-8 px-2">
+    <div className="flex flex-col items-center w-full h-full mx-auto pt-8 px-2 bg-background">
       {/* Tool Title & Description */}
       <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-2xl font-medium text-foreground">{tool.name}</h1>
@@ -332,19 +332,16 @@ export function ToolComponent({
             {mcp.state.replace("_", " ")}
           </span>
         </div>
-        <div className="w-px h-4 bg-border" />
 
         {/* Execution Stats */}
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground" />
           <span className="font-mono text-sm">{stats?.duration || "-"}</span>
         </div>
-        <div className="w-px h-4 bg-border" />
         <div className="flex items-center gap-2">
           <Box className="h-4 w-4 text-muted-foreground" />
           <span className="font-mono text-sm">{stats?.tokens || "-"}</span>
         </div>
-        <div className="w-px h-4 bg-border" />
         <div className="flex items-center gap-2">
           <Database className="h-4 w-4 text-muted-foreground" />
           <span className="font-mono text-sm">{stats?.bytes || "-"}</span>
@@ -366,8 +363,8 @@ export function ToolComponent({
       {/* Main Content Area */}
       <div className="flex flex-col gap-4 w-full items-center h-[calc(100%-40px)] ">
         {/* Input Section */}
-        <div className="w-full h-[calc(100%-80px)] bg-card border border-border rounded-xl shadow-sm flex flex-col">
-          <div className="h-10 flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30">
+        <div className="w-full h-[calc(100%-80px)] bg-background border border-border rounded-xl shadow-sm flex flex-col">
+          <div className="h-10 flex items-center justify-between px-4 py-2 border-b border-border bg-background">
             <div className="flex items-center gap-2">
               <div className="h-4 w-4 rounded-sm bg-primary/10 flex items-center justify-center">
                 <Play className="h-3 w-3 text-primary" />
@@ -423,7 +420,7 @@ export function ExecutionResult({
         <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
           Execution Result
         </span>
-        <div className="flex items-center bg-muted rounded-lg p-1">
+        <div className="flex items-center bg-background rounded-lg p-1">
           <button
             onClick={() => setViewMode("json")}
             className={cn(
