@@ -16,6 +16,7 @@ import { useWorkflowBindingConnection } from "../../../hooks/use-workflow-bindin
 import { usePollingWorkflowExecution } from "../../../hooks/use-workflow-collection-item";
 import { TriggerNodeData } from "../use-workflow-flow";
 import { Duration } from "./step-node";
+import { useActivePanels, usePanelsActions } from "../../../stores/panels";
 
 // ============================================
 // Workflow Start Hook
@@ -133,7 +134,11 @@ function TrackingExecutionIdButton({
 
 function PlayButton() {
   const { handleRunWorkflow } = useWorkflowStart();
+  const isDirty = useIsDirty();
   const handleTriggerClick = () => {
+    if (isDirty) {
+      return;
+    }
     handleRunWorkflow();
   };
   const trackingExecutionId = useTrackingExecutionId();
@@ -143,7 +148,10 @@ function PlayButton() {
         <TrackingExecutionIdButton trackingExecutionId={trackingExecutionId} />
       ) : (
         <Play
-          className="w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors"
+          className={cn(
+            "w-4 h-4 text-foreground cursor-pointer hover:text-primary transition-colors",
+            isDirty && "cursor-not-allowed text-muted-foreground",
+          )}
           onClick={handleTriggerClick}
         />
       )}
@@ -176,8 +184,14 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
   const hasNoSteps =
     workflow.steps.filter((s) => s.name !== "Manual").length === 0;
   const canAddAfterTrigger = isAddingStep && hasNoSteps;
-
+  const { togglePanel } = usePanelsActions();
+  const activePanels = useActivePanels();
+  const { setCurrentStepName } = useWorkflowActions();
   const handleClick = () => {
+    if (!activePanels.step) {
+      togglePanel("step");
+    }
+    setCurrentStepName("Manual");
     if (canAddAfterTrigger) {
       // Add step with @input reference (first step after trigger)
       addStepAfter("input");
@@ -209,7 +223,6 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
             // Dim trigger when adding but not a valid target
             isAddingStep && !canAddAfterTrigger && "opacity-50",
             !isAddingStep && "cursor-pointer",
-            isDirty && "cursor-auto",
             isRunning && "animate-pulse",
           )}
         >

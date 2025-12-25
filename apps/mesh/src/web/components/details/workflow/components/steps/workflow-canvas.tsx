@@ -14,6 +14,7 @@ import { cn } from "@deco/ui/lib/utils.js";
 import {
   type StepType,
   useIsAddingStep,
+  useTrackingExecutionId,
   useWorkflowActions,
   useWorkflowSteps,
 } from "@/web/components/details/workflow/stores/workflow";
@@ -25,6 +26,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.js";
+import { usePollingWorkflowExecution } from "../../hooks/use-workflow-collection-item";
+import { Spinner } from "@deco/ui/components/spinner.js";
 
 // ============================================
 // Node Types Configuration
@@ -226,9 +229,18 @@ export const WorkflowCanvas = memo(function WorkflowCanvas() {
   const steps = useWorkflowSteps();
   const { nodes, edges, onNodesChange, onEdgesChange, onNodeClick } =
     useWorkflowFlow();
+  const trackingExecutionId = useTrackingExecutionId();
+  const { isLoading } = usePollingWorkflowExecution(trackingExecutionId);
 
   // Check if workflow has actual steps (excluding Manual trigger)
   const hasSteps = steps.some((s) => s.name !== "Manual");
+  if (isLoading) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
 
   return (
     <div

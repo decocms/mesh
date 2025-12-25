@@ -143,10 +143,6 @@ function computeNodePositions(
   return positions;
 }
 
-// ============================================
-// Hooks
-// ============================================
-
 /**
  * Hook to get React Flow nodes from workflow steps
  * React Compiler handles memoization automatically
@@ -155,16 +151,42 @@ export function useWorkflowNodes(): WorkflowNode[] {
   const steps = useWorkflowSteps();
   const positions = computeNodePositions(steps);
   const trackingExecutionId = useTrackingExecutionId();
-  const pollingResult = usePollingWorkflowExecution(trackingExecutionId);
+  const { item: pollingExecution, step_results: pollingStepResults } =
+    usePollingWorkflowExecution(trackingExecutionId);
   const isRunning =
-    (pollingResult?.item?.completed_at_epoch_ms === null &&
-      pollingResult?.item?.status === "running") ||
-    pollingResult?.item?.status === "enqueued";
-  const isPaused = pollingResult?.item?.status === "cancelled";
+    (pollingExecution?.completed_at_epoch_ms === null &&
+      pollingExecution?.status === "running") ||
+    pollingExecution?.status === "enqueued";
+  const isPaused = pollingExecution?.status === "cancelled";
+
+  const workflowSteps = steps;
+  const executionSteps = pollingExecution?.steps ?? workflowSteps;
+
+  function stepsAreEqual(a: Step, b: Step): boolean {
+    return (
+      a.name === b.name &&
+      a.action === b.action &&
+      a.description === b.description &&
+      a.input === b.input &&
+      a.outputSchema === b.outputSchema &&
+      a.config === b.config
+    );
+  }
+
+  const areStepsEqual =
+    executionSteps &&
+    workflowSteps &&
+    executionSteps.every((step) =>
+      workflowSteps.some((s) => stepsAreEqual(step, s)),
+    );
+  const currentSteps =
+    trackingExecutionId && executionSteps && !areStepsEqual
+      ? executionSteps
+      : workflowSteps;
 
   // Find manual trigger step
   const manualTriggerStep = steps.find((step) => step.name === "Manual");
-  const isError = pollingResult?.item?.status === "error";
+  const isError = pollingExecution?.status === "error";
 
   // Create trigger node
   const triggerNode: WorkflowNode = {
@@ -176,18 +198,18 @@ export function useWorkflowNodes(): WorkflowNode[] {
       isFetched: false,
       isRunning: isRunning,
       isPending: isPaused,
-      startTime: pollingResult?.item?.start_at_epoch_ms ?? null,
-      endTime: pollingResult?.item?.completed_at_epoch_ms ?? null,
+      startTime: pollingExecution?.start_at_epoch_ms ?? null,
+      endTime: pollingExecution?.completed_at_epoch_ms ?? null,
     } as TriggerNodeData,
     draggable: false,
   };
 
   // Create step nodes
-  const stepNodes: WorkflowNode[] = steps
+  const stepNodes: WorkflowNode[] = currentSteps
     .filter((step) => !!step && step.name !== "Manual")
     .map((step) => {
-      const stepResult = pollingResult?.step_results?.find(
-        (result) => result.step_id === step.name,
+      const stepResult = pollingStepResults?.find(
+        (result: Record<string, unknown>) => result.step_id === step.name,
       );
       const hasFinished =
         stepResult && stepResult.completed_at_epoch_ms !== null;

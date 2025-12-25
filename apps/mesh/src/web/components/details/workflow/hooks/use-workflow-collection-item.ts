@@ -58,7 +58,7 @@ export function useWorkflowExecutionCollectionList({
 export function usePollingWorkflowExecution(executionId?: string) {
   const connection = useWorkflowBindingConnection();
   const toolCaller = createToolCaller(connection.id);
-  const { data } = useToolCallQuery({
+  const { data, isLoading } = useToolCallQuery({
     toolCaller: toolCaller,
     toolName: "COLLECTION_WORKFLOW_EXECUTION_GET",
     toolInputParams: {
@@ -88,25 +88,15 @@ export function usePollingWorkflowExecution(executionId?: string) {
             : false;
         }
       : false,
-  }) as {
-    data: {
-      item: WorkflowExecution | null;
-      step_results:
-        | {
-            step_id: string;
-            workflow_execution_id: string;
-            status: "success" | "error" | "running" | "enqueued" | "cancelled";
-            started_at_epoch_ms: number | null;
-            completed_at_epoch_ms: number | null;
-            output: unknown | null;
-            error: unknown | null;
-          }[]
-        | null;
-    } | null;
-  };
+  });
 
   return {
     item: data?.item,
     step_results: data?.step_results,
+    isLoading,
+  } as {
+    item: WorkflowExecution | null;
+    step_results: Record<string, unknown>[] | null;
+    isLoading: boolean;
   };
 }

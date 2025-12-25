@@ -13,7 +13,6 @@ import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
 
 type CurrentStepTab = "input" | "output" | "action" | "executions";
 export type StepType = "tool" | "code";
-type CurrentTab = "steps" | "code" | "executions";
 
 interface State {
   originalWorkflow: Workflow;
@@ -24,7 +23,6 @@ interface State {
   trackingExecutionId: string | undefined;
   currentStepTab: CurrentStepTab;
   currentStepName: string | undefined;
-  currentTab: CurrentTab;
 }
 
 interface Actions {
@@ -36,7 +34,6 @@ interface Actions {
   updateStep: (stepName: string, updates: Partial<Step>) => void;
   setTrackingExecutionId: (executionId: string | undefined) => void;
   setCurrentStepTab: (currentStepTab: CurrentStepTab) => void;
-  setCurrentTab: (currentTab: CurrentTab) => void;
   resetToOriginalWorkflow: () => void;
   /** Start the add step flow - user selects type first */
   startAddingStep: (type: StepType) => void;
@@ -286,11 +283,6 @@ export const createWorkflowStore = (initialState: State) => {
               ...state,
               originalWorkflow: workflow,
             })),
-          setCurrentTab: (currentTab) =>
-            set((state) => ({
-              ...state,
-              currentTab: currentTab,
-            })),
           setWorkflow: (workflow) =>
             set((state) => ({
               ...state,
@@ -311,7 +303,6 @@ export const createWorkflowStore = (initialState: State) => {
           originalWorkflow: state.originalWorkflow,
           isAddingStep: state.isAddingStep,
           addingStepType: state.addingStepType,
-          currentTab: state.currentTab,
         }),
       },
     ),
@@ -336,7 +327,6 @@ export function WorkflowStoreProvider({
       currentStepName: undefined,
       trackingExecutionId,
       currentStepTab: "input",
-      currentTab: "steps",
     }),
   );
 
@@ -367,10 +357,6 @@ export function useWorkflowActions() {
   return useWorkflowStore((state) => state.actions);
 }
 
-export function useCurrentTab() {
-  return useWorkflowStore((state) => state.currentTab);
-}
-
 export function useCurrentStepName() {
   return useWorkflowStore((state) => state.currentStepName);
 }
@@ -380,22 +366,6 @@ export function useCurrentStep() {
   const workflow = useWorkflowStore((state) => state.workflow);
   const exact = workflow.steps.find((step) => step.name === currentStepName);
   if (exact) return exact;
-  // Check for iteration match "stepName[index]"
-  if (currentStepName && currentStepName.includes("[")) {
-    const match = currentStepName.match(/^(.+)\[(\d+)\]$/);
-    if (match) {
-      const parentName = match[1];
-      const parentStep = workflow.steps.find((s) => s.name === parentName);
-      if (parentStep) {
-        return {
-          ...parentStep,
-          name: currentStepName,
-          description: `Iteration ${match[2]} of ${parentName}`,
-          config: { ...parentStep.config, forEach: undefined }, // Treat as single execution
-        };
-      }
-    }
-  }
   return undefined;
 }
 

@@ -1,17 +1,13 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { ListRow } from "@/web/components/list-row.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ChevronLeft } from "lucide-react";
 import { useState } from "react";
 import { createToolCaller } from "@/tools/client";
 import { useConnection } from "@/web/hooks/collections/use-connection";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@deco/ui/components/alert.tsx";
+
 import { Button } from "@deco/ui/components/button.tsx";
 import {
-  AlertCircle,
   Box,
   Clock,
   Code,
@@ -42,30 +38,30 @@ export function ItemCard({
   onClick?: () => void;
 }) {
   return (
-    <div
-      className={cn(
-        "flex items-center gap-3 px-3 py-2 hover:bg-muted/50 cursor-pointer w-full",
-        selected && "bg-primary/10 hover:bg-primary/20",
-      )}
-      onClick={onClick}
-    >
+    <ListRow selected={selected} onClick={onClick}>
       {backButton && (
-        <ChevronLeft
-          className={cn(
-            "h-4 w-4 shrink-0 transition-colors",
-            selected ? "text-foreground" : "text-muted-foreground/50",
-          )}
-        />
+        <ListRow.Icon>
+          <ChevronLeft
+            className={cn(
+              "h-4 w-4 transition-colors",
+              selected ? "text-foreground" : "text-muted-foreground/50",
+            )}
+          />
+        </ListRow.Icon>
       )}
       {item.icon !== null && (
-        <IntegrationIcon icon={item.icon ?? null} name={item.title} size="sm" />
+        <ListRow.Icon>
+          <IntegrationIcon
+            icon={item.icon ?? null}
+            name={item.title}
+            size="sm"
+          />
+        </ListRow.Icon>
       )}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">
-          {item.title}
-        </p>
-      </div>
-    </div>
+      <ListRow.Content>
+        <ListRow.Title>{item.title}</ListRow.Title>
+      </ListRow.Content>
+    </ListRow>
   );
 }
 
@@ -222,7 +218,6 @@ export function ToolComponent({
     setInputParams,
     executionResult,
     setExecutionResult,
-    executionError,
     setExecutionError,
     isExecuting,
     setIsExecuting,
@@ -347,60 +342,43 @@ export function ToolComponent({
           <span className="font-mono text-sm">{stats?.bytes || "-"}</span>
         </div>
       </div>
-
-      {/* Error Alert */}
-      {executionError && (
-        <Alert
-          variant="destructive"
-          className="max-w-[800px] w-full bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900"
-        >
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Execution Failed</AlertTitle>
-          <AlertDescription>{executionError}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Main Content Area */}
-      <div className="flex flex-col gap-4 w-full items-center h-[calc(100%-40px)] ">
-        {/* Input Section */}
-        <div className="w-full h-[calc(100%-80px)] bg-background border border-border rounded-xl shadow-sm flex flex-col">
-          <div className="h-10 flex items-center justify-between px-4 py-2 border-b border-border bg-background">
-            <div className="flex items-center gap-2">
-              <div className="h-4 w-4 rounded-sm bg-primary/10 flex items-center justify-center">
-                <Play className="h-3 w-3 text-primary" />
-              </div>
-              <span className="font-medium text-sm">Input</span>
+      <div className="w-full h-full bg-background border border-border rounded-xl shadow-sm flex flex-col">
+        <div className="h-10 flex items-center justify-between px-4 py-2 border-b border-border bg-background">
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-4 rounded-sm bg-primary/10 flex items-center justify-center">
+              <Play className="h-3 w-3 text-primary" />
             </div>
-            <Button
-              size="sm"
-              variant="default"
-              className="h-8 gap-2"
-              onClick={handleExecute}
-              disabled={isExecuting}
-            >
-              {isExecuting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Play className="h-3.5 w-3.5 fill-current" />
-              )}
-              Execute tool
-            </Button>
+            <span className="font-medium text-sm">Input</span>
           </div>
+          <Button
+            size="sm"
+            variant="default"
+            className="h-8 gap-2"
+            onClick={handleExecute}
+            disabled={isExecuting}
+          >
+            {isExecuting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Play className="h-3.5 w-3.5 fill-current" />
+            )}
+            Execute tool
+          </Button>
+        </div>
 
-          <div className="p-4 pb-0 space-y-4 h-full overflow-auto">
-            <ToolInput
-              inputSchema={tool?.inputSchema as JsonSchema}
-              inputParams={inputParams}
-              setInputParams={setInputParams}
-              handleInputChange={handleInputChange}
-              mentions={mentions ?? []}
-            />
-          </div>
-          <ExecutionResult
-            executionResult={executionResult}
-            placeholder="Run the tool to see results"
+        <div className="p-4 pb-0 space-y-4 h-full overflow-auto min-h-[200px]">
+          <ToolInput
+            inputSchema={tool?.inputSchema as JsonSchema}
+            inputParams={inputParams}
+            setInputParams={setInputParams}
+            handleInputChange={handleInputChange}
+            mentions={mentions ?? []}
           />
         </div>
+        <ExecutionResult
+          executionResult={executionResult}
+          placeholder="Run the tool to see results"
+        />
       </div>
     </div>
   );
@@ -415,7 +393,7 @@ export function ExecutionResult({
 }) {
   const [viewMode, setViewMode] = useState<"json" | "view">("json");
   return (
-    <div className="w-full shadow-sm h-full border-t border-border overflow-hidden">
+    <div className="w-full shadow-sm h-full border-t border-border">
       <div className="flex items-center justify-between px-4 py-2 bg-muted/30">
         <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
           Execution Result

@@ -8,6 +8,8 @@ const ACTIONS_PORTAL_ID = "view-details-actions-portal";
 
 interface PortalProps {
   children: ReactNode;
+  icon?: string;
+  title?: string;
 }
 
 function usePortal(id: string) {
@@ -36,9 +38,10 @@ export function ViewActions({ children }: PortalProps) {
 interface ViewLayoutProps {
   children: ReactNode;
   onBack: () => void;
+  title?: string;
 }
 
-export function ViewLayout({ children, onBack }: ViewLayoutProps) {
+export function ViewLayout({ children, onBack, title }: ViewLayoutProps) {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -54,6 +57,12 @@ export function ViewLayout({ children, onBack }: ViewLayoutProps) {
             <ArrowLeft />
           </Button>
         </div>
+
+        {title && (
+          <div className="flex items-center gap-2 px-2">
+            <p className="text-sm font-medium">{title}</p>
+          </div>
+        )}
 
         {/* Tabs and Actions */}
         <div className="flex justify-between px-4 items-center gap-4 flex-1">

@@ -1,10 +1,9 @@
 import {
-  useCurrentStepTab,
   useCurrentStep,
+  useCurrentStepName,
+  useCurrentStepTab,
   useTrackingExecutionId,
   useWorkflowActions,
-  useCurrentTab,
-  useCurrentStepName,
   useWorkflowSteps,
 } from "@/web/components/details/workflow/stores/workflow";
 import {
@@ -22,7 +21,7 @@ import {
 } from "@decocms/bindings/workflow";
 import { MonacoCodeEditor } from "./monaco-editor";
 import { Button } from "@deco/ui/components/button.tsx";
-import { ArrowLeft, CodeXml, GitBranch, Loader2 } from "lucide-react";
+import { CodeXml, GitBranch, Loader2 } from "lucide-react";
 import {
   useConnection,
   useConnections,
@@ -34,15 +33,19 @@ import { useWorkflowExecutionCollectionList } from "../hooks/use-workflow-collec
 import { ScrollArea } from "@deco/ui/components/scroll-area.tsx";
 import { useMembers } from "@/web/hooks/use-members";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
+import { ListRow } from "@/web/components/list-row.tsx";
 import { ItemCard, ToolComponent } from "./tool-selector";
 import { MentionItem } from "@/web/components/tiptap-mentions-input";
 import { McpTool, useMcp } from "@/web/hooks/use-mcp";
-import { useState } from "react";
+import { usePanelsActions } from "../stores/panels";
+import { useActiveView } from "../stores/panels";
+import { useToolActionTab } from "../stores/step-tabs";
 
 function StepTabsList() {
   const activeTab = useCurrentStepTab();
   const { setCurrentStepTab } = useWorkflowActions();
   const selectedExecutionId = useTrackingExecutionId();
+  const currentStepName = useCurrentStepName();
   return (
     <TabsList className="w-full rounded-none bg-transparent p-0">
       <TabsTrigger
@@ -67,16 +70,18 @@ function StepTabsList() {
           <span>Output</span>
         </TabsTrigger>
       )}
-      <TabsTrigger
-        className={cn(
-          "border-0 border-b border-border p-0 h-full rounded-none w-full font-sans text-sm font-normal text-foreground shadow-none!",
-          activeTab === "action" && "border-foreground",
-        )}
-        value="action"
-        onClick={() => setCurrentStepTab("action")}
-      >
-        Action
-      </TabsTrigger>
+      {currentStepName !== "Manual" && (
+        <TabsTrigger
+          className={cn(
+            "border-0 border-b border-border p-0 h-full rounded-none w-full font-sans text-sm font-normal text-foreground shadow-none!",
+            activeTab === "action" && "border-foreground",
+          )}
+          value="action"
+          onClick={() => setCurrentStepTab("action")}
+        >
+          Action
+        </TabsTrigger>
+      )}
     </TabsList>
   );
 }
@@ -113,58 +118,61 @@ function useExecution(executionId: string) {
   return executions.find((execution) => execution.id === executionId);
 }
 
+const ExecutionStatusIcon = ({ status }: { status: string }) => {
+  switch (status) {
+    case "success":
+      return <CheckCircle className="w-4 h-4 text-success" />;
+    case "running":
+      return <Loader2 className="w-4 h-4 animate-spin text-warning" />;
+    case "error":
+      return <XCircle className="w-4 h-4 text-destructive" />;
+    case "enqueued":
+      return <Clock className="w-4 h-4 text-muted-foreground" />;
+    default:
+      return null;
+  }
+};
+
 export function ExecutionBar({ executionId }: { executionId: string }) {
   const { setTrackingExecutionId } = useWorkflowActions();
   const { data } = useMembers();
   const trackingExecutionId = useTrackingExecutionId();
   const execution = useExecution(executionId);
   const isTrackingExecution = trackingExecutionId === executionId;
+
   if (!execution) return null;
+
+  const memberName = data?.data?.members.find(
+    (m) => m.userId === execution.created_by,
+  )?.user?.name;
+
   return (
-    <div
-      className={cn(
-        "px-3 py-2.5 hover:bg-accent cursor-pointer transition-colors duration-150 w-full border-b border-border",
-        isTrackingExecution && "bg-accent border-l-2 border-l-primary",
-      )}
+    <ListRow
+      selected={isTrackingExecution}
       onClick={() => setTrackingExecutionId(execution.id)}
+      className="border-b border-border"
     >
-      <div className="w-full flex items-center gap-3">
-        <div className="shrink-0">
-          {execution.status === "success" && (
-            <CheckCircle className="w-4 h-4 text-success" />
-          )}
-          {execution.status === "running" && (
-            <Loader2 className="w-4 h-4 animate-spin text-warning" />
-          )}
-          {execution.status === "error" && (
-            <XCircle className="w-4 h-4 text-destructive" />
-          )}
-          {execution.status === "enqueued" && (
-            <Clock className="w-4 h-4 text-muted-foreground" />
-          )}
-        </div>
-        <div className="flex-1 min-w-0 flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">
-            {new Date(execution.created_at).toLocaleString()}
-          </span>
-          <span className="text-xs text-muted-foreground truncate">
-            {execution.id.slice(0, 8)}...
-          </span>
-        </div>
-        <span className="shrink-0 text-xs font-medium text-muted-foreground">
-          {
-            data?.data?.members.find((m) => m.userId === execution.created_by)
-              ?.user?.name
-          }
-        </span>
-      </div>
-    </div>
+      <ListRow.Icon>
+        <ExecutionStatusIcon status={execution.status} />
+      </ListRow.Icon>
+      <ListRow.Content className="flex items-center gap-2">
+        <ListRow.Title>
+          {new Date(execution.created_at).toLocaleString()}
+        </ListRow.Title>
+        <ListRow.Subtitle>{execution.id.slice(0, 8)}...</ListRow.Subtitle>
+      </ListRow.Content>
+      {memberName && (
+        <ListRow.Trailing className="text-xs font-medium text-muted-foreground">
+          {memberName}
+        </ListRow.Trailing>
+      )}
+    </ListRow>
   );
 }
 
 export function WorkflowTabs() {
-  const currentTab = useCurrentTab();
-  const { setCurrentTab } = useWorkflowActions();
+  const activeView = useActiveView();
+  const { setActiveView } = usePanelsActions();
   return (
     <div className="bg-muted border border-border rounded-lg flex">
       <Button
@@ -172,9 +180,9 @@ export function WorkflowTabs() {
         size="xs"
         className={cn(
           "h-7 border-0 text-foreground",
-          currentTab !== "steps" && "bg-transparent text-muted-foreground",
+          activeView === "canvas" && "bg-transparent text-muted-foreground",
         )}
-        onClick={() => setCurrentTab("steps")}
+        onClick={() => setActiveView("canvas")}
       >
         <GitBranch className="w-4 h-4" />
       </Button>
@@ -183,9 +191,9 @@ export function WorkflowTabs() {
         size="xs"
         className={cn(
           "h-7 border-0 text-foreground",
-          currentTab !== "code" && "bg-transparent text-muted-foreground",
+          activeView === "code" && "bg-transparent text-muted-foreground",
         )}
-        onClick={() => setCurrentTab("code")}
+        onClick={() => setActiveView("code")}
       >
         <CodeXml className="w-4 h-4" />
       </Button>
@@ -199,8 +207,15 @@ function OutputTabContent({ executionId }: { executionId: string }) {
   const currentStepName = useCurrentStepName();
 
   const output = currentStepName
-    ? step_results?.find((result) => result.step_id === currentStepName)?.output
-    : pollingExecution?.output;
+    ? currentStepName === "Manual"
+      ? (pollingExecution?.output ?? pollingExecution?.error ?? null)
+      : () => {
+          const stepResult = step_results?.find(
+            (result) => result.step_id === currentStepName,
+          );
+          return stepResult?.output ?? stepResult?.error ?? null;
+        }
+    : (pollingExecution?.output ?? pollingExecution?.error ?? null);
 
   if (
     pollingExecution?.status === "running" ||
@@ -228,9 +243,30 @@ function OutputTabContent({ executionId }: { executionId: string }) {
       <MonacoCodeEditor
         height="100%"
         readOnly={true}
-        code={JSON.stringify(output ?? null, null, 2)}
+        code={JSON.stringify(output, null, 2)}
         language="json"
       />
+    </div>
+  );
+}
+
+export function StepHeader() {
+  const currentStep = useCurrentStep();
+  const connection = useConnection(
+    (currentStep?.action as ToolCallAction)?.connectionId ?? "",
+  );
+  return (
+    <div className="p-4 flex flex-col gap-4 bg-background">
+      <div className="flex items-center gap-2 bg-background">
+        <Avatar
+          url={connection?.icon ?? ""}
+          fallback={currentStep?.name?.charAt(0) ?? ""}
+        />
+        <p className="text-sm font-medium">{currentStep?.name}</p>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        {currentStep?.description ?? connection?.description ?? ""}
+      </p>
     </div>
   );
 }
@@ -239,35 +275,20 @@ export function StepTabs() {
   const activeTab = useCurrentStepTab();
   const { setCurrentStepTab, updateStep } = useWorkflowActions();
   const currentStep = useCurrentStep();
+  const currentStepName = useCurrentStepName();
   const handleTabChange = (tab: "input" | "output" | "action") => {
     setCurrentStepTab(tab);
   };
   const selectedExecutionId = useTrackingExecutionId();
-  const connection = useConnection(
-    (currentStep?.action as ToolCallAction)?.connectionId ?? "",
-  );
+  if (!currentStep && currentStepName !== "Manual") return null;
   return (
     <Tabs
       value={activeTab}
       onValueChange={(value) =>
         handleTabChange(value as "input" | "output" | "action")
       }
-      className="h-full w-full gap-0 bg-background"
+      className="h-full w-full gap-0"
     >
-      {currentStep && (
-        <div className="p-4 flex flex-col gap-4 mb-4 bg-background">
-          <div className="flex items-center gap-2 bg-background">
-            <Avatar
-              url={connection?.icon ?? ""}
-              fallback={currentStep?.name?.charAt(0) ?? ""}
-            />
-            <p className="text-sm font-medium">{currentStep?.name}</p>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            {currentStep?.description ?? connection?.description ?? ""}
-          </p>
-        </div>
-      )}
       <div className="h-10 bg-background">
         <StepTabsList />
       </div>
@@ -312,7 +333,7 @@ function ActionTab({
   const { updateStep } = useWorkflowActions();
   if ("toolName" in step.action) {
     return (
-      <div className="h-[calc(100%-60px)] bg-background">
+      <div className="h-full bg-background">
         <ToolAction />
       </div>
     );
@@ -365,17 +386,28 @@ function jsonSchemaToMentionItems(
 }
 
 function ConnectionSelector({
+  selectedConnectionName,
   onSelect,
 }: {
+  selectedConnectionName: string | null;
   onSelect: (connectionId: string) => void;
 }) {
   const connections = useConnections();
+  const selectedConnection = connections.find(
+    (c) => c.title === selectedConnectionName,
+  );
+  const sortedWithSelectedConnectionAtFirst = connections.sort((a, b) => {
+    if (a.title === selectedConnectionName) return -1;
+    if (b.title === selectedConnectionName) return 1;
+    return a.title.localeCompare(b.title);
+  });
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-border">
-        {connections.map((connection) => (
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {sortedWithSelectedConnectionAtFirst.map((connection) => (
           <ItemCard
             key={connection.id}
+            selected={selectedConnection?.id === connection.id}
             item={{
               icon: connection.icon,
               title: connection.title,
@@ -393,40 +425,43 @@ function ToolAction() {
   const stepAsTool = currentStep as Step & {
     action: ToolCallAction;
   };
-  const [tab, setTab] = useState<"connection" | "tool" | "input">("input");
   const { updateStep } = useWorkflowActions();
-  const { tool } = useTool(
+  const { activeTab, setActiveTab } = useToolActionTab();
+  const { tool, connection } = useTool(
     stepAsTool?.action?.connectionId ?? "",
     stepAsTool?.action?.toolName ?? "",
   );
 
   return (
     <div className="w-full h-full flex flex-col">
-      {tab === "connection" && (
+      {activeTab === "connections" && (
         <div className="h-full flex flex-col">
           <ConnectionSelector
+            selectedConnectionName={connection?.title ?? null}
             onSelect={(connectionId) => {
               updateStep(stepAsTool.name, {
                 action: { ...stepAsTool.action, connectionId },
               });
-              setTab("tool");
+              setActiveTab("tools");
             }}
           />
         </div>
       )}
-      {tab === "tool" && (
+      {activeTab === "tools" && (
         <div className="h-full flex flex-col">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setTab("connection")}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
+          <ItemCard
+            backButton
+            onClick={() => setActiveTab("connections")}
+            item={{
+              icon: connection?.icon ?? null,
+              title: connection?.title ?? "",
+            }}
+          />
           <ToolSelector
+            toolName={stepAsTool?.action?.toolName ?? null}
             stepAsTool={stepAsTool}
             onSelect={(toolName) => {
-              setTab("input");
+              setActiveTab("tool");
               updateStep(stepAsTool.name, {
                 action: { ...stepAsTool.action, toolName },
                 outputSchema: tool?.outputSchema as Record<
@@ -438,11 +473,16 @@ function ToolAction() {
           />
         </div>
       )}
-      {tab === "input" && (
+      {activeTab === "tool" && connection && (
         <div className="h-full flex flex-col">
-          <Button variant="outline" size="sm" onClick={() => setTab("tool")}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
+          <ItemCard
+            backButton
+            onClick={() => setActiveTab("tools")}
+            item={{
+              icon: connection?.icon ?? null,
+              title: connection.title,
+            }}
+          />
           <SelectedTool step={stepAsTool} />
         </div>
       )}
@@ -463,32 +503,25 @@ function ToolSelector({
 }) {
   const connection = useConnection(stepAsTool?.action?.connectionId ?? "");
   const tools = connection?.tools ?? [];
-  const tool = tools.find((t) => t.name === toolName);
-  const toolIcon = connection?.icon ?? null;
-  const toolTitle = tool?.name;
+  const sortedWithSelectedToolAtFirst = tools.sort((a, b) => {
+    if (a.name === toolName) return -1;
+    if (b.name === toolName) return 1;
+    return a.name.localeCompare(b.name);
+  });
   return (
     <div className="h-full flex flex-col">
-      {toolTitle && (
-        <ItemCard
-          item={{
-            icon: toolIcon,
-            title: toolTitle,
-          }}
-        />
-      )}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-border">
-        {tools
-          .filter((t) => t.name !== toolName)
-          .map((tool) => (
-            <ItemCard
-              key={tool.name}
-              item={{
-                icon: toolIcon,
-                title: tool.name,
-              }}
-              onClick={() => onSelect(tool.name)}
-            />
-          ))}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {sortedWithSelectedToolAtFirst.map((tool) => (
+          <ItemCard
+            key={tool.name}
+            selected={tool.name === toolName}
+            item={{
+              icon: connection?.icon ?? null,
+              title: tool.name,
+            }}
+            onClick={() => onSelect(tool.name)}
+          />
+        ))}
       </div>
     </div>
   );
@@ -544,7 +577,7 @@ function SelectedTool({
     );
   }
   return (
-    <div className="h-calc(100%-40px) overflow-scroll bg-background">
+    <div className="overflow-scroll h-full">
       <ToolComponent
         tool={tool as McpTool}
         connection={connection}

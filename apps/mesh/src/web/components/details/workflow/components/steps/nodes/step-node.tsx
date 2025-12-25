@@ -10,6 +10,7 @@ import {
   useCurrentStepName,
 } from "@/web/components/details/workflow/stores/workflow";
 import type { StepNodeData } from "../use-workflow-flow";
+import { useActivePanels, usePanelsActions } from "../../../stores/panels";
 
 // ============================================
 // Duration Component
@@ -112,6 +113,8 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
   const isAddingStep = useIsAddingStep();
   const { addStepAfter, setCurrentStepName } = useWorkflowActions();
   const currentStepName = useCurrentStepName();
+  const activePanels = useActivePanels();
+  const { togglePanel } = usePanelsActions();
 
   // When adding a step, only terminal steps can be clicked to add after
   const canAddAfter = isAddingStep;
@@ -122,9 +125,8 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
   })();
 
   const selectStep = (e: React.MouseEvent) => {
-    if (step.name === currentStepName) {
-      setCurrentStepName(undefined);
-      return;
+    if (!activePanels.step) {
+      togglePanel("step");
     }
     // When adding a step, clicking on a terminal step adds the new step after it
     if (canAddAfter) {
@@ -159,7 +161,7 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
           hasFinished &&
             !isError && ["bg-primary/10 border-primary hover:bg-primary/20"],
           isError && [
-            "bg-destructive/10 border-destructive hover:bg-destructive/20",
+            "bg-destructive/10 border-destructive! hover:bg-destructive/20",
           ],
           isFetching && ["animate-pulse text-primary"],
           // Dim non-terminal steps when in add-step mode
