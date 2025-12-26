@@ -43,6 +43,7 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
         onClick={() => {
           navigate({ to: item.url });
         }}
+        tooltip={item.title}
       >
         <div className="flex items-center justify-center shrink-0 mr-2">
           {isIconUrl ? (
@@ -121,7 +122,7 @@ function SidebarItemLayout({ children }: PropsWithChildren) {
       <SidebarSeparator className="my-2 -ml-1" />
       <SidebarMenuItem>
         <div className="px-2 py-0 text-xs font-medium text-muted-foreground flex items-center justify-between">
-          <span>Pinned Views</span>
+          <span className="whitespace-nowrap group-data-[collapsible=icon]:hidden">Pinned Views</span>
         </div>
       </SidebarMenuItem>
       {children}
