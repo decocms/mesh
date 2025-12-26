@@ -471,7 +471,7 @@ export function ChatPanel() {
                 icon={selectedGateway?.icon}
                 name={selectedGateway?.title || "deco chat"}
                 size="lg"
-                fallbackIcon={<CpuChip02 />}
+                fallbackIcon={<CpuChip02 size={32} />}
                 className="size-[60px]! rounded-[18px]!"
               />
             }

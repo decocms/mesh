@@ -413,13 +413,17 @@ function OrgGatewaysContent() {
           emptyState={
             listState.search ? (
               <EmptyState
-                image={<CpuChip02 size={36} className="text-muted-foreground" />}
+                image={
+                  <CpuChip02 size={36} className="text-muted-foreground" />
+                }
                 title="No gateways found"
                 description={`No gateways match "${listState.search}"`}
               />
             ) : (
               <EmptyState
-                image={<CpuChip02 size={36} className="text-muted-foreground" />}
+                image={
+                  <CpuChip02 size={36} className="text-muted-foreground" />
+                }
                 title="No gateways yet"
                 description="Create a gateway to aggregate tools from multiple MCP connections."
               />
