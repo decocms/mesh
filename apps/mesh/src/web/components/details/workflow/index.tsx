@@ -10,7 +10,7 @@ import {
 } from "@/web/components/details/workflow/stores/workflow";
 import { useWorkflowCollectionItem } from "./hooks/use-workflow-collection-item";
 import { WorkflowActions } from "./components/actions";
-import { ExecutionsTab, StepTabs, WorkflowTabs } from "./components/tabs";
+import { ActionTab, ExecutionsTab, WorkflowTabs } from "./components/tabs";
 import { toast } from "@deco/ui/components/sonner.tsx";
 import { MonacoCodeEditor } from "./components/monaco-editor";
 import {
@@ -145,7 +145,7 @@ function RightPanel() {
               onBack={() => togglePanel("step")}
               title={currentStep?.name}
             >
-              <StepTabs />
+              {currentStep && <ActionTab step={currentStep} />}
             </ViewLayout>
           </div>
         </ResizablePanel>

@@ -1,17 +1,9 @@
 import {
   useCurrentStep,
-  useCurrentStepName,
-  useCurrentStepTab,
   useTrackingExecutionId,
   useWorkflowActions,
   useWorkflowSteps,
 } from "@/web/components/details/workflow/stores/workflow";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@deco/ui/components/tabs.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   CodeAction,
@@ -26,7 +18,6 @@ import {
   useConnection,
   useConnections,
 } from "@/web/hooks/collections/use-connection";
-import { usePollingWorkflowExecution } from "../hooks/use-workflow-collection-item";
 import { useWorkflow } from "@/web/components/details/workflow/stores/workflow";
 import { CheckCircle, Clock, XCircle } from "lucide-react";
 import { useWorkflowExecutionCollectionList } from "../hooks/use-workflow-collection-item";
@@ -40,52 +31,6 @@ import { McpTool, useMcp } from "@/web/hooks/use-mcp";
 import { usePanelsActions } from "../stores/panels";
 import { useActiveView } from "../stores/panels";
 import { useToolActionTab } from "../stores/step-tabs";
-
-function StepTabsList() {
-  const activeTab = useCurrentStepTab();
-  const { setCurrentStepTab } = useWorkflowActions();
-  const selectedExecutionId = useTrackingExecutionId();
-  const currentStepName = useCurrentStepName();
-  const trackingExecutionId = useTrackingExecutionId();
-  return (
-    <TabsList className="w-full rounded-none bg-transparent p-0">
-      <TabsTrigger
-        className={cn(
-          "border-0 border-b border-border p-0 h-full rounded-none w-full font-sans text-sm font-normal text-foreground shadow-none!",
-          activeTab === "input" && "border-foreground",
-        )}
-        value="input"
-        onClick={() => setCurrentStepTab("input")}
-      >
-        Input
-      </TabsTrigger>
-      {selectedExecutionId && (
-        <TabsTrigger
-          className={cn(
-            "border-0 border-b border-border p-0 h-full rounded-none w-full font-sans text-sm font-normal text-foreground shadow-none!",
-            activeTab === "output" && "border-foreground",
-          )}
-          value="output"
-          onClick={() => setCurrentStepTab("output")}
-        >
-          <span>Output</span>
-        </TabsTrigger>
-      )}
-      {currentStepName !== "Manual" && !trackingExecutionId && (
-        <TabsTrigger
-          className={cn(
-            "border-0 border-b border-border p-0 h-full rounded-none w-full font-sans text-sm font-normal text-foreground shadow-none!",
-            activeTab === "action" && "border-foreground",
-          )}
-          value="action"
-          onClick={() => setCurrentStepTab("action")}
-        >
-          Action
-        </TabsTrigger>
-      )}
-    </TabsList>
-  );
-}
 
 export function ExecutionsTab() {
   const workflow = useWorkflow();
@@ -202,55 +147,6 @@ export function WorkflowTabs() {
   );
 }
 
-function OutputTabContent({ executionId }: { executionId: string }) {
-  const { item: pollingExecution, step_results } =
-    usePollingWorkflowExecution(executionId);
-  const currentStepName = useCurrentStepName();
-
-  const output = currentStepName
-    ? currentStepName === "Manual"
-      ? (pollingExecution?.output ?? pollingExecution?.error ?? null)
-      : (() => {
-          const stepResult = step_results?.find(
-            (result) => result.step_id === currentStepName,
-          );
-          return stepResult?.output ?? stepResult?.error ?? null;
-        })()
-    : (pollingExecution?.output ?? pollingExecution?.error ?? null);
-
-  if (
-    pollingExecution?.status === "running" ||
-    pollingExecution?.status === "enqueued"
-  ) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="text-muted-foreground text-sm">Loading execution...</p>
-      </div>
-    );
-  }
-
-  if (pollingExecution?.status === "cancelled") {
-    return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <XCircle className="w-4 h-4 text-destructive" />
-        <p className="text-destructive text-sm">Execution cancelled</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full bg-background">
-      <MonacoCodeEditor
-        height="100%"
-        readOnly={true}
-        code={JSON.stringify(output, null, 2)}
-        language="json"
-      />
-    </div>
-  );
-}
-
 export function StepHeader() {
   const currentStep = useCurrentStep();
   const connection = useConnection(
@@ -272,60 +168,7 @@ export function StepHeader() {
   );
 }
 
-export function StepTabs() {
-  const activeTab = useCurrentStepTab();
-  const trackingExecutionId = useTrackingExecutionId();
-  const { setCurrentStepTab, updateStep } = useWorkflowActions();
-  const currentStep = useCurrentStep();
-  const currentStepName = useCurrentStepName();
-  const handleTabChange = (tab: "input" | "output" | "action") => {
-    setCurrentStepTab(tab);
-  };
-  const selectedExecutionId = useTrackingExecutionId();
-  if (!currentStep && currentStepName !== "Manual") return null;
-  return (
-    <Tabs
-      value={activeTab}
-      onValueChange={(value) =>
-        handleTabChange(value as "input" | "output" | "action")
-      }
-      className="h-full w-full gap-0"
-    >
-      <div className="h-10 bg-background">
-        <StepTabsList />
-      </div>
-      <TabsContent
-        className="flex-1 h-[calc(100%-40px)] bg-background"
-        value={activeTab}
-      >
-        {activeTab === "output" && selectedExecutionId && (
-          <div className="h-full">
-            <OutputTabContent executionId={selectedExecutionId} />
-          </div>
-        )}
-        {activeTab === "input" && (
-          <MonacoCodeEditor
-            key={`input-${currentStep?.name}`}
-            height="100%"
-            code={JSON.stringify(currentStep?.input ?? {}, null, 2)}
-            language="json"
-            onSave={(input) => {
-              updateStep(currentStep?.name ?? "", {
-                input: JSON.parse(input) as Record<string, unknown>,
-              });
-            }}
-          />
-        )}
-
-        {currentStep && activeTab === "action" && !trackingExecutionId && (
-          <ActionTab step={currentStep} />
-        )}
-      </TabsContent>
-    </Tabs>
-  );
-}
-
-function ActionTab({
+export function ActionTab({
   step,
 }: {
   step: Step & {
