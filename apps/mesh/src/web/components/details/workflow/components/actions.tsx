@@ -6,55 +6,51 @@ import {
 } from "@/web/components/details/workflow/stores/workflow";
 import { Button } from "@deco/ui/components/button.js";
 import { cn } from "@deco/ui/lib/utils.js";
-import { History, RefreshCcw, Save, StepForward, X } from "lucide-react";
-import { useActivePanels, usePanelsActions } from "../stores/panels";
+import { Loader2, Play, RefreshCcw, Save, X } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.js";
+import { useSyncExternalStore } from "react";
+import { useWorkflowStart } from "../hooks/use-workflow-start";
+import { usePanelsActions } from "../stores/panels";
+import { toast } from "@deco/ui/components/sonner.tsx";
+
+// Navigation protection hook that warns before leaving with unsaved changes
+function useNavigationProtection(isDirty: boolean) {
+  useSyncExternalStore(
+    (_onStoreChange) => {
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        if (isDirty) {
+          e.preventDefault();
+          e.returnValue = "";
+        }
+      };
+
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      return () => {
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+      };
+    },
+    () => isDirty,
+    () => false,
+  );
+}
 
 export function WorkflowActions({
   onUpdate,
 }: {
   onUpdate: (updates: Record<string, unknown>) => Promise<void>;
 }) {
-  return (
-    <>
-      <WorkflowPanels />
-      <WorkflowCollectionActions onUpdate={onUpdate} />
-    </>
-  );
-}
+  const isDirty = useIsDirty();
 
-function WorkflowPanels() {
-  const activePanels = useActivePanels();
-  const isExecutionsPanelActive = activePanels.executions;
-  const { togglePanel } = usePanelsActions();
+  // Warn before leaving with unsaved changes
+  useNavigationProtection(isDirty);
+
   return (
-    <div className="bg-muted border border-border rounded-lg flex">
-      <Button
-        variant="outline"
-        size="xs"
-        className={cn(
-          "h-7 border-0 text-foreground",
-          !isExecutionsPanelActive && "bg-transparent text-muted-foreground",
-        )}
-        onClick={() => togglePanel("step")}
-      >
-        <StepForward className="w-4 h-4" />
-      </Button>
-      <Button
-        variant="outline"
-        size="xs"
-        className={cn(
-          "h-7 border-0 text-foreground",
-          isExecutionsPanelActive && "bg-transparent text-muted-foreground",
-        )}
-        onClick={() => togglePanel("executions")}
-      >
-        <History className="w-4 h-4" />
-      </Button>
+    <div className="flex gap-1">
+      <WorkflowCollectionActions onUpdate={onUpdate} />
     </div>
   );
 }
@@ -69,6 +65,23 @@ function WorkflowCollectionActions({
   const trackingExecutionId = useTrackingExecutionId();
   const { setTrackingExecutionId } = useWorkflowActions();
   const workflow = useWorkflow();
+  const { handleRunWorkflow, isPending } = useWorkflowStart();
+  const { setRightPanelTab, setViewingRunId } = usePanelsActions();
+
+  const handleRun = async () => {
+    if (isDirty || isPending) return;
+    try {
+      const executionId = await handleRunWorkflow();
+      // Switch to runs tab and view the new execution
+      setRightPanelTab("runs");
+      setViewingRunId(executionId);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to start workflow",
+      );
+    }
+  };
+
   return (
     <div className="flex gap-1">
       {trackingExecutionId && (
@@ -76,12 +89,13 @@ function WorkflowCollectionActions({
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="xs"
+              size="icon"
+              className="size-7"
               onClick={() => {
                 setTrackingExecutionId(undefined);
               }}
             >
-              <X className="w-4 h-4" />
+              <X className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Stop tracking execution</TooltipContent>
@@ -90,12 +104,29 @@ function WorkflowCollectionActions({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
+            variant="secondary"
+            size="icon"
+            className="size-7"
+            onClick={() => {
+              resetToOriginalWorkflow();
+              setTrackingExecutionId(undefined);
+            }}
+          >
+            <RefreshCcw className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Reset to original workflow</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
             variant="default"
+            size="icon"
             className={cn(
+              "size-7",
               !isDirty &&
                 "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
             )}
-            size="xs"
             onClick={() => {
               if (isDirty) {
                 onUpdate(workflow).then(() => {
@@ -104,7 +135,7 @@ function WorkflowCollectionActions({
               }
             }}
           >
-            <Save className="w-4 h-4" />
+            <Save className="size-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -114,17 +145,22 @@ function WorkflowCollectionActions({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="secondary"
-            size="xs"
-            onClick={() => {
-              resetToOriginalWorkflow();
-              setTrackingExecutionId(undefined);
-            }}
+            variant="default"
+            size="icon"
+            className="size-7"
+            onClick={handleRun}
+            disabled={isDirty || isPending}
           >
-            <RefreshCcw className="w-4 h-4" />
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Play className="size-4" />
+            )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Reset to original workflow</TooltipContent>
+        <TooltipContent>
+          {isDirty ? "Save workflow first to run" : "Run workflow"}
+        </TooltipContent>
       </Tooltip>
     </div>
   );

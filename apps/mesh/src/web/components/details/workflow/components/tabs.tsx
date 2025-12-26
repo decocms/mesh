@@ -13,7 +13,17 @@ import {
 } from "@decocms/bindings/workflow";
 import { MonacoCodeEditor } from "./monaco-editor";
 import { Button } from "@deco/ui/components/button.tsx";
-import { CodeXml, GitBranch, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
+import { CodeXml, GitBranch, List, Loader2, Plus, Trash2 } from "lucide-react";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { useState } from "react";
+import type { View } from "../stores/panels";
 import {
   useConnection,
   useConnections,
@@ -25,12 +35,14 @@ import { ScrollArea } from "@deco/ui/components/scroll-area.tsx";
 import { useMembers } from "@/web/hooks/use-members";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { ListRow } from "@/web/components/list-row.tsx";
-import { ItemCard, ToolComponent } from "./tool-selector";
-import { MentionItem } from "@/web/components/tiptap-mentions-input";
+import { ToolComponent } from "./tool-selector";
+import {
+  MentionInput,
+  MentionItem,
+} from "@/web/components/tiptap-mentions-input";
 import { McpTool, useMcp } from "@/web/hooks/use-mcp";
 import { usePanelsActions } from "../stores/panels";
 import { useActiveView } from "../stores/panels";
-import { useToolActionTab } from "../stores/step-tabs";
 
 export function ExecutionsTab() {
   const workflow = useWorkflow();
@@ -116,33 +128,34 @@ export function ExecutionBar({ executionId }: { executionId: string }) {
   );
 }
 
+const viewOptions: { value: View; icon: React.ReactNode; label: string }[] = [
+  { value: "list", icon: <List className="w-4 h-4" />, label: "List" },
+  { value: "canvas", icon: <GitBranch className="w-4 h-4" />, label: "Canvas" },
+  { value: "code", icon: <CodeXml className="w-4 h-4" />, label: "Code" },
+];
+
 export function WorkflowTabs() {
   const activeView = useActiveView();
   const { setActiveView } = usePanelsActions();
+
   return (
     <div className="bg-muted border border-border rounded-lg flex">
-      <Button
-        variant="outline"
-        size="xs"
-        className={cn(
-          "h-7 border-0 text-foreground",
-          activeView === "canvas" && "bg-transparent text-muted-foreground",
-        )}
-        onClick={() => setActiveView("canvas")}
-      >
-        <GitBranch className="w-4 h-4" />
-      </Button>
-      <Button
-        variant="outline"
-        size="xs"
-        className={cn(
-          "h-7 border-0 text-foreground",
-          activeView === "code" && "bg-transparent text-muted-foreground",
-        )}
-        onClick={() => setActiveView("code")}
-      >
-        <CodeXml className="w-4 h-4" />
-      </Button>
+      {viewOptions.map((option) => (
+        <Button
+          key={option.value}
+          variant="outline"
+          size="xs"
+          className={cn(
+            "h-7 border-0",
+            activeView === option.value
+              ? "bg-background text-foreground shadow-sm"
+              : "bg-transparent text-muted-foreground hover:text-foreground",
+          )}
+          onClick={() => setActiveView(option.value)}
+        >
+          {option.icon}
+        </Button>
+      ))}
     </div>
   );
 }
@@ -175,7 +188,6 @@ export function ActionTab({
     action: ToolCallAction | CodeAction | WaitForSignalAction;
   };
 }) {
-  const { updateStep } = useWorkflowActions();
   if ("toolName" in step.action) {
     return (
       <div className="h-full bg-background">
@@ -184,25 +196,257 @@ export function ActionTab({
     );
   } else if ("code" in step.action) {
     return (
-      <div className="h-[calc(100%-60px)] bg-background">
+      <div className="h-full flex flex-col bg-background">
+        <CodeStepAction step={step as Step & { action: CodeAction }} />
+      </div>
+    );
+  }
+  return null;
+}
+
+function CodeStepAction({
+  step,
+}: {
+  step: Step & { action: CodeAction };
+}) {
+  const { updateStep } = useWorkflowActions();
+  const workflowSteps = useWorkflowSteps();
+  const currentStepIndex = workflowSteps.findIndex((s) => s.name === step.name);
+  const [activeTab, setActiveTab] = useState<"code" | "input">("input");
+
+  const allMentions = workflowSteps.slice(0, currentStepIndex).map((s) => ({
+    id: s.name,
+    label: s.name,
+    children: jsonSchemaToMentionItems(
+      s.outputSchema as Record<string, unknown>,
+      `${s.name}.`,
+    ),
+  }));
+
+  const handleInputChange = (key: string, value: string) => {
+    updateStep(step.name, {
+      input: { ...step.input, [key]: value },
+    });
+  };
+
+  const handleAddInput = () => {
+    const existingKeys = Object.keys(step.input ?? {});
+    let newKey = "input";
+    let counter = 1;
+    while (existingKeys.includes(newKey)) {
+      newKey = `input${counter}`;
+      counter++;
+    }
+    updateStep(step.name, {
+      input: { ...step.input, [newKey]: "" },
+    });
+  };
+
+  const handleRemoveInput = (key: string) => {
+    const newInput = { ...step.input };
+    delete newInput[key];
+    updateStep(step.name, { input: newInput });
+  };
+
+  const handleRenameInput = (oldKey: string, newKey: string) => {
+    if (oldKey === newKey || !newKey.trim()) return;
+    const input = step.input ?? {};
+    const newInput: Record<string, unknown> = {};
+    for (const k of Object.keys(input)) {
+      if (k === oldKey) {
+        newInput[newKey] = input[k];
+      } else {
+        newInput[k] = input[k];
+      }
+    }
+    updateStep(step.name, { input: newInput });
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Tab toggle */}
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-border shrink-0">
+        <button
+          type="button"
+          onClick={() => setActiveTab("input")}
+          className={cn(
+            "px-3 py-1.5 text-sm rounded-md transition-colors",
+            activeTab === "input"
+              ? "bg-accent/50 text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Input
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("code")}
+          className={cn(
+            "px-3 py-1.5 text-sm rounded-md transition-colors",
+            activeTab === "code"
+              ? "bg-accent/50 text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Code
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {activeTab === "input" && (
+          <CodeInputEditor
+            input={step.input ?? {}}
+            mentions={allMentions}
+            onInputChange={handleInputChange}
+            onAddInput={handleAddInput}
+            onRemoveInput={handleRemoveInput}
+            onRenameInput={handleRenameInput}
+          />
+        )}
+        {activeTab === "code" && (
         <MonacoCodeEditor
           key={`code-${step.name}`}
           height="100%"
           code={step.action.code}
           language="typescript"
           onSave={(code, outputSchema) => {
-            // Extract output schema from the TypeScript code
-
             updateStep(step.name, {
               action: { ...step.action, code },
               outputSchema: outputSchema as Record<string, unknown> | null,
             });
           }}
         />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CodeInputEditor({
+  input,
+  mentions,
+  onInputChange,
+  onAddInput,
+  onRemoveInput,
+  onRenameInput,
+}: {
+  input: Record<string, unknown>;
+  mentions: MentionItem[];
+  onInputChange: (key: string, value: string) => void;
+  onAddInput: () => void;
+  onRemoveInput: (key: string) => void;
+  onRenameInput: (oldKey: string, newKey: string) => void;
+}) {
+  const entries = Object.entries(input);
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+          Input Variables
+        </span>
+        <Button variant="outline" size="sm" onClick={onAddInput}>
+          <Plus className="h-3.5 w-3.5 mr-1" />
+          Add
+        </Button>
+      </div>
+
+      {entries.length === 0 ? (
+        <div className="text-sm text-muted-foreground text-center py-8 border border-dashed border-border rounded-lg">
+          No inputs defined. Click "Add" to create an input variable.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {entries.map(([key, value]) => (
+            <CodeInputRow
+              key={key}
+              inputKey={key}
+              value={String(value ?? "")}
+              mentions={mentions}
+              onChange={(v) => onInputChange(key, v)}
+              onRemove={() => onRemoveInput(key)}
+              onRename={(newKey) => onRenameInput(key, newKey)}
+            />
+          ))}
+        </div>
+      )}
       </div>
     );
   }
-  return null;
+
+function CodeInputRow({
+  inputKey,
+  value,
+  mentions,
+  onChange,
+  onRemove,
+  onRename,
+}: {
+  inputKey: string;
+  value: string;
+  mentions: MentionItem[];
+  onChange: (value: string) => void;
+  onRemove: () => void;
+  onRename: (newKey: string) => void;
+}) {
+  const [isEditingKey, setIsEditingKey] = useState(false);
+  const [editedKey, setEditedKey] = useState(inputKey);
+
+  const handleKeyBlur = () => {
+    setIsEditingKey(false);
+    if (editedKey !== inputKey && editedKey.trim()) {
+      onRename(editedKey);
+    } else {
+      setEditedKey(inputKey);
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2">
+      <div className="w-32 shrink-0">
+        {isEditingKey ? (
+          <input
+            type="text"
+            value={editedKey}
+            onChange={(e) => setEditedKey(e.target.value)}
+            onBlur={handleKeyBlur}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleKeyBlur();
+              }
+            }}
+            className="w-full px-2 py-1.5 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-accent"
+            autoFocus
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsEditingKey(true)}
+            className="w-full px-2 py-1.5 text-sm text-left font-mono bg-muted/50 border border-border rounded-md hover:bg-muted transition-colors truncate"
+          >
+            {inputKey}
+          </button>
+        )}
+      </div>
+      <div className="flex-1">
+        <MentionInput
+          mentions={mentions}
+          value={value}
+          onChange={onChange}
+          placeholder="Enter value or use @ to reference previous step outputs..."
+        />
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+        onClick={onRemove}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
 }
 function jsonSchemaToMentionItems(
   schema: Record<string, unknown>,
@@ -230,36 +474,111 @@ function jsonSchemaToMentionItems(
   return [];
 }
 
-function ConnectionSelector({
-  selectedConnectionName,
-  onSelect,
+function StepNameInput({ step }: { step: Step }) {
+  const { updateStep } = useWorkflowActions();
+  const [name, setName] = useState(step.name);
+
+  const handleBlur = () => {
+    if (name !== step.name && name.trim()) {
+      updateStep(step.name, { name: name.trim() });
+    } else {
+      setName(step.name);
+    }
+  };
+
+  return (
+    <div className="px-4 py-3 border-b border-border">
+      <label className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1.5 block">
+        Step Name
+      </label>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            handleBlur();
+          }
+        }}
+        className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-accent"
+      />
+    </div>
+  );
+}
+
+function ToolSelectors({
+  step,
+  onConnectionChange,
+  onToolChange,
 }: {
-  selectedConnectionName: string | null;
-  onSelect: (connectionId: string) => void;
+  step: Step & { action: ToolCallAction };
+  onConnectionChange: (connectionId: string) => void;
+  onToolChange: (toolName: string) => void;
 }) {
   const connections = useConnections();
-  const selectedConnection = connections.find(
-    (c) => c.title === selectedConnectionName,
-  );
-  const sortedWithSelectedConnectionAtFirst = connections.sort((a, b) => {
-    if (a.title === selectedConnectionName) return -1;
-    if (b.title === selectedConnectionName) return 1;
-    return a.title.localeCompare(b.title);
-  });
+  const selectedConnection = useConnection(step?.action?.connectionId ?? "");
+  const tools = selectedConnection?.tools ?? [];
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {sortedWithSelectedConnectionAtFirst.map((connection) => (
-          <ItemCard
-            key={connection.id}
-            selected={selectedConnection?.id === connection.id}
-            item={{
-              icon: connection.icon,
-              title: connection.title,
-            }}
-            onClick={() => onSelect(connection.id)}
-          />
-        ))}
+    <div className="px-4 py-3 border-b border-border space-y-3">
+      {/* MCP/Connection Select */}
+      <div>
+        <label className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1.5 block">
+          Connection
+        </label>
+        <Select
+          value={step?.action?.connectionId ?? ""}
+          onValueChange={onConnectionChange}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select connection">
+              {selectedConnection && (
+                <div className="flex items-center gap-2">
+                  <IntegrationIcon
+                    icon={selectedConnection.icon}
+                    name={selectedConnection.title}
+                    size="xs"
+                  />
+                  <span>{selectedConnection.title}</span>
+                </div>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {connections.map((conn) => (
+              <SelectItem key={conn.id} value={conn.id}>
+                <div className="flex items-center gap-2">
+                  <IntegrationIcon icon={conn.icon} name={conn.title} size="xs" />
+                  <span>{conn.title}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Tool Select */}
+      <div>
+        <label className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1.5 block">
+          Tool
+        </label>
+        <Select
+          value={step?.action?.toolName ?? ""}
+          onValueChange={onToolChange}
+          disabled={!step?.action?.connectionId}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select tool" />
+          </SelectTrigger>
+          <SelectContent>
+            {tools.map((tool) => (
+              <SelectItem key={tool.name} value={tool.name}>
+                {tool.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );
@@ -271,103 +590,35 @@ function ToolAction() {
     action: ToolCallAction;
   };
   const { updateStep } = useWorkflowActions();
-  const { activeTab, setActiveTab } = useToolActionTab();
-  const { tool, connection } = useTool(
+  const { tool } = useTool(
     stepAsTool?.action?.connectionId ?? "",
     stepAsTool?.action?.toolName ?? "",
   );
 
+  const handleConnectionChange = (connectionId: string) => {
+    updateStep(stepAsTool.name, {
+      action: { ...stepAsTool.action, connectionId, toolName: "" },
+    });
+  };
+
+  const handleToolChange = (toolName: string) => {
+    updateStep(stepAsTool.name, {
+      action: { ...stepAsTool.action, toolName },
+      outputSchema: tool?.outputSchema as Record<string, unknown> | null,
+    });
+  };
+
   return (
     <div className="w-full h-full flex flex-col">
-      {activeTab === "connections" && (
-        <div className="h-full flex flex-col">
-          <ConnectionSelector
-            selectedConnectionName={connection?.title ?? null}
-            onSelect={(connectionId) => {
-              updateStep(stepAsTool.name, {
-                action: { ...stepAsTool.action, connectionId },
-              });
-              setActiveTab("tools");
-            }}
-          />
-        </div>
-      )}
-      {activeTab === "tools" && (
-        <div className="h-full flex flex-col">
-          <ItemCard
-            backButton
-            onClick={() => setActiveTab("connections")}
-            item={{
-              icon: connection?.icon ?? null,
-              title: connection?.title ?? "",
-            }}
-          />
-          <ToolSelector
-            toolName={stepAsTool?.action?.toolName ?? null}
-            stepAsTool={stepAsTool}
-            onSelect={(toolName) => {
-              setActiveTab("tool");
-              updateStep(stepAsTool.name, {
-                action: { ...stepAsTool.action, toolName },
-                outputSchema: tool?.outputSchema as Record<
-                  string,
-                  unknown
-                > | null,
-              });
-            }}
-          />
-        </div>
-      )}
-      {activeTab === "tool" && connection && (
-        <div className="h-full flex flex-col">
-          <ItemCard
-            backButton
-            onClick={() => setActiveTab("tools")}
-            item={{
-              icon: connection?.icon ?? null,
-              title: connection.title,
-            }}
-          />
+      <ToolSelectors
+        step={stepAsTool}
+        onConnectionChange={handleConnectionChange}
+        onToolChange={handleToolChange}
+      />
+      <StepNameInput step={stepAsTool} />
+      {stepAsTool?.action?.toolName && (
           <SelectedTool step={stepAsTool} />
-        </div>
       )}
-    </div>
-  );
-}
-
-function ToolSelector({
-  stepAsTool,
-  onSelect,
-  toolName,
-}: {
-  stepAsTool: Step & {
-    action: ToolCallAction;
-  };
-  onSelect: (toolName: string) => void;
-  toolName?: string;
-}) {
-  const connection = useConnection(stepAsTool?.action?.connectionId ?? "");
-  const tools = connection?.tools ?? [];
-  const sortedWithSelectedToolAtFirst = tools.sort((a, b) => {
-    if (a.name === toolName) return -1;
-    if (b.name === toolName) return 1;
-    return a.name.localeCompare(b.name);
-  });
-  return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {sortedWithSelectedToolAtFirst.map((tool) => (
-          <ItemCard
-            key={tool.name}
-            selected={tool.name === toolName}
-            item={{
-              icon: connection?.icon ?? null,
-              title: tool.name,
-            }}
-            onClick={() => onSelect(tool.name)}
-          />
-        ))}
-      </div>
     </div>
   );
 }
@@ -386,6 +637,13 @@ function useTool(connectionId: string, toolName: string) {
   };
 }
 
+function getOutputVariables(step: Step): string[] {
+  if (!step.outputSchema) return [];
+  const schema = step.outputSchema as { properties?: Record<string, unknown> };
+  if (!schema.properties) return [];
+  return Object.keys(schema.properties);
+}
+
 function SelectedTool({
   step,
 }: {
@@ -398,6 +656,7 @@ function SelectedTool({
     step?.action?.toolName ?? "",
   );
   const { updateStep } = useWorkflowActions();
+  const trackingExecutionId = useTrackingExecutionId();
   const handleInputChange = (inputParams: Record<string, unknown>) => {
     if (!step?.action?.toolName) return;
     updateStep(step?.name, {
@@ -416,6 +675,9 @@ function SelectedTool({
     ),
   }));
 
+  const outputVariables = getOutputVariables(step);
+  const isInRunMode = !!trackingExecutionId;
+
   if (!tool) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -432,6 +694,8 @@ function SelectedTool({
         initialInputParams={step?.input ?? {}}
         mentions={allMentions}
         mcp={mcp}
+        showExecutionResult={isInRunMode}
+        outputVariables={outputVariables}
       />
     </div>
   );

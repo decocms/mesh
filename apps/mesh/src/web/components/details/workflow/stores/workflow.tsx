@@ -44,6 +44,8 @@ interface Actions {
     parentStepName: string,
     outputSchema?: Record<string, unknown>,
   ) => void;
+  /** Insert a new step at a specific index in the steps array */
+  insertStepAtIndex: (index: number, type: StepType) => void;
   setOriginalWorkflow: (workflow: Workflow) => void;
   setWorkflow: (workflow: Workflow) => void;
 }
@@ -274,6 +276,58 @@ export const createWorkflowStore = (initialState: State) => {
                     ...state.workflow.steps,
                     { ...newStep, name: newName },
                   ],
+                },
+                currentStepName: newName,
+              };
+            }),
+          insertStepAtIndex: (index: number, type: StepType) =>
+            set((state) => {
+              const newStep = createDefaultStep(type, state.workflow.steps.length);
+              const newName = generateUniqueName(
+                newStep.name,
+                state.workflow.steps,
+              );
+
+              // Get the previous step's output schema if inserting after a step
+              const previousStep = index > 0 ? state.workflow.steps[index - 1] : null;
+              let finalStep = { ...newStep, name: newName };
+
+              // If creating a code step after a step with outputSchema, inject the Input interface
+              const isCodeStep = finalStep.action && "code" in finalStep.action;
+              const hasOutputSchema = previousStep?.outputSchema;
+
+              if (isCodeStep && hasOutputSchema) {
+                const inputInterface = jsonSchemaToTypeScript(
+                  hasOutputSchema as Record<string, unknown>,
+                  "Input",
+                );
+                const codeAction = finalStep.action as CodeAction;
+                const updatedCode = replaceInputInterface(
+                  codeAction.code,
+                  inputInterface,
+                );
+                finalStep = {
+                  ...finalStep,
+                  action: { ...codeAction, code: updatedCode },
+                  input: previousStep ? { example: `@${previousStep.name}` } : {},
+                };
+              } else if (previousStep) {
+                finalStep = {
+                  ...finalStep,
+                  input: { example: `@${previousStep.name}` },
+                };
+              }
+
+              const newSteps = [...state.workflow.steps];
+              newSteps.splice(index, 0, finalStep);
+
+              return {
+                ...state,
+                isAddingStep: false,
+                addingStepType: null,
+                workflow: {
+                  ...state.workflow,
+                  steps: newSteps,
                 },
                 currentStepName: newName,
               };

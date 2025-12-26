@@ -13,6 +13,7 @@ import Editor, {
 } from "@monaco-editor/react";
 import type { Plugin } from "prettier";
 import { Spinner } from "@deco/ui/components/spinner.js";
+import { Button } from "@deco/ui/components/button.tsx";
 
 // Error boundary to catch Monaco disposal errors and recover
 class MonacoErrorBoundary extends Component<
@@ -569,38 +570,34 @@ declare const __outputValue: __InferredOutput;
   }
 
   return (
-    <div className="rounded-lg border border-base-border h-full">
+    <div className="rounded-lg border border-border h-full flex flex-col">
       {!readOnly && (
-        <div className="flex justify-end gap-2 p-4 border-b border-base-border">
-          <button
+        <div className="flex justify-end gap-2 px-4 py-2 border-b border-border shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleFormat}
             disabled={!isDirty}
-            className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Format
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!isDirty}
-            className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Save (⌘S)
-          </button>
+          </Button>
         </div>
       )}
-      <MonacoErrorBoundary onError={handleMonacoError}>
-        <Editor
-          key={mountKey}
-          height={height}
-          language={language}
-          value={code}
-          path={filePath}
-          onChange={onChange}
-          onMount={handleEditorDidMount}
-          loading={LoadingPlaceholder}
-          options={editorOptions}
-        />
-      </MonacoErrorBoundary>
+      <div className="flex-1 min-h-0">
+        <MonacoErrorBoundary onError={handleMonacoError}>
+          <Editor
+            key={mountKey}
+            height={height}
+            language={language}
+            value={code}
+            path={filePath}
+            onChange={onChange}
+            onMount={handleEditorDidMount}
+            loading={LoadingPlaceholder}
+            options={editorOptions}
+          />
+        </MonacoErrorBoundary>
+      </div>
     </div>
   );
 });

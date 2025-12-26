@@ -14,7 +14,6 @@ import {
   Copy,
   Database,
   Loader2,
-  Play,
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -205,6 +204,8 @@ export function ToolComponent({
   onInputChange,
   mentions,
   mcp,
+  showExecutionResult = false,
+  outputVariables = [],
 }: {
   tool: NonNullable<ReturnType<typeof useTool>["tool"]>;
   initialInputParams?: Record<string, unknown>;
@@ -212,6 +213,8 @@ export function ToolComponent({
   onInputChange?: (input: Record<string, unknown>) => void;
   mentions?: MentionItem[];
   mcp: ReturnType<typeof useTool>["mcp"];
+  showExecutionResult?: boolean;
+  outputVariables?: string[];
 }) {
   const {
     inputParams,
@@ -303,70 +306,10 @@ export function ToolComponent({
     );
   }
   return (
-    <div className="flex flex-col items-center w-full h-full mx-auto pt-8 px-2 bg-background">
-      {/* Tool Title & Description */}
-      <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-2xl font-medium text-foreground">{tool.name}</h1>
-        <p className="text-muted-foreground text-base">
-          {tool?.description || "No description available"}
-        </p>
-      </div>
-
-      {/* Stats Row */}
-      <div className="flex items-center gap-4 py-2 shrink-0">
-        {/* MCP Status */}
-        <div className="flex items-center gap-2">
-          {mcp.state === "ready" ? (
-            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          ) : mcp.state === "connecting" ? (
-            <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
-          ) : (
-            <div className="h-2 w-2 rounded-full bg-red-500" />
-          )}
-          <span className="font-mono text-sm capitalize text-muted-foreground">
-            {mcp.state.replace("_", " ")}
-          </span>
-        </div>
-
-        {/* Execution Stats */}
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <span className="font-mono text-sm">{stats?.duration || "-"}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Box className="h-4 w-4 text-muted-foreground" />
-          <span className="font-mono text-sm">{stats?.tokens || "-"}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Database className="h-4 w-4 text-muted-foreground" />
-          <span className="font-mono text-sm">{stats?.bytes || "-"}</span>
-        </div>
-      </div>
-      <div className="w-full h-full bg-background border border-border rounded-xl shadow-sm flex flex-col">
-        <div className="h-10 flex items-center justify-between px-4 py-2 border-b border-border bg-background">
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded-sm bg-primary/10 flex items-center justify-center">
-              <Play className="h-3 w-3 text-primary" />
-            </div>
-            <span className="font-medium text-sm">Input</span>
-          </div>
-          <Button
-            size="sm"
-            variant="default"
-            className="h-8 gap-2"
-            onClick={handleExecute}
-            disabled={isExecuting}
-          >
-            {isExecuting ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Play className="h-3.5 w-3.5 fill-current" />
-            )}
-            Execute tool
-          </Button>
-        </div>
-
-        <div className="p-4 pb-0 space-y-4 h-full overflow-auto min-h-[200px]">
+    <div className="flex flex-col w-full h-full mx-auto bg-background">
+      {/* Inputs Section */}
+      <div className="flex-1 overflow-auto">
+        <div className="p-4 space-y-4">
           <ToolInput
             inputSchema={tool?.inputSchema as JsonSchema}
             inputParams={inputParams}
@@ -375,11 +318,38 @@ export function ToolComponent({
             mentions={mentions ?? []}
           />
         </div>
+
+        {/* Output Variables Section (shown when not in run mode) */}
+        {!showExecutionResult && outputVariables.length > 0 && (
+          <div className="px-4 pb-4">
+            <div className="border-t border-border pt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                  Output Variables
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {outputVariables.map((varName) => (
+                  <div
+                    key={varName}
+                    className="px-2 py-1 rounded-md bg-muted/50 border border-border text-xs font-mono text-muted-foreground"
+                  >
+                    {varName}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Execution Result (only shown in run mode) */}
+      {showExecutionResult && (
         <ExecutionResult
           executionResult={executionResult}
           placeholder="Run the tool to see results"
         />
-      </div>
+      )}
     </div>
   );
 }
