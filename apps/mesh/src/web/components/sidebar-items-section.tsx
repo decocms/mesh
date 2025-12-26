@@ -122,7 +122,9 @@ function SidebarItemLayout({ children }: PropsWithChildren) {
       <SidebarSeparator className="my-2 -ml-1" />
       <SidebarMenuItem>
         <div className="px-2 py-0 text-xs font-medium text-muted-foreground flex items-center justify-between">
-          <span className="whitespace-nowrap group-data-[collapsible=icon]:hidden">Pinned Views</span>
+          <span className="whitespace-nowrap group-data-[collapsible=icon]:hidden">
+            Pinned Views
+          </span>
         </div>
       </SidebarMenuItem>
       {children}
