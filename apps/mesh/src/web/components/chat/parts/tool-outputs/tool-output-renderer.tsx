@@ -2,7 +2,7 @@ import { ConnectionCard } from "@/web/components/connections/connection-card.tsx
 import { useConnection } from "@/web/hooks/collections/use-connection";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { LinkExternal01, Copy01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -106,7 +106,7 @@ function ConnectionRenderer({
           className="hover:text-foreground transition-colors"
           title="Open connection"
         >
-          <Icon name="open_in_new" size={12} />
+          <LinkExternal01 size={12} />
         </button>
       </div>
     );
@@ -161,7 +161,7 @@ function CopyButton({ text }: { text: string }) {
       className="h-5 w-5 hover:bg-background/50"
       onClick={handleCopy}
     >
-      <Icon name="content_copy" size={12} />
+      <Copy01 size={12} />
     </Button>
   );
 }

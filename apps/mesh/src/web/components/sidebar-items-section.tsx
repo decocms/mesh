@@ -1,5 +1,5 @@
 import { SidebarItem } from "@/storage/types";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { X, File06 } from "@untitledui/icons";
 import {
   SidebarMenuButton,
   SidebarMenuItem,
@@ -53,11 +53,7 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
               className="h-4 w-4 rounded object-cover"
             />
           ) : (
-            <Icon
-              name={item.icon}
-              size={18}
-              className="text-muted-foreground/85 group-hover/item:text-foreground"
-            />
+            <File06 size={16} className="text-muted-foreground/85 group-hover/item:text-foreground" />
           )}
         </div>
         <div className="flex-1 min-w-0 flex flex-col items-start">
@@ -65,8 +61,7 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
             {item.title.toLocaleLowerCase()}
           </span>
         </div>
-        <Icon
-          name="close"
+        <X
           size={16}
           className="text-muted-foreground opacity-0 group-hover/item:opacity-50 hover:opacity-100 cursor-pointer"
           onClick={(e) => {

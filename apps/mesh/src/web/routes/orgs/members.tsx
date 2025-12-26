@@ -46,7 +46,15 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import {
+  DotsVertical,
+  SwitchHorizontal01,
+  Trash01,
+  XClose,
+  Shield01,
+  Key01,
+  Loading01,
+} from "@untitledui/icons";
 import {
   Select,
   SelectContent,
@@ -283,13 +291,13 @@ function MemberActionsDropdown({
           disabled={isOwner}
           onClick={(e) => e.stopPropagation()}
         >
-          <Icon name="more_vert" size={20} />
+          <DotsVertical size={20} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger disabled={isUpdating}>
-            <Icon name="swap_horiz" size={16} />
+            <SwitchHorizontal01 size={16} />
             Change Role
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
@@ -340,7 +348,11 @@ function MemberActionsDropdown({
                   }}
                   disabled={isUpdating}
                 >
-                  <Icon name={role.isBuiltin ? "shield" : "key"} size={16} />
+                  {role.isBuiltin ? (
+                    <Shield01 size={16} />
+                  ) : (
+                    <Key01 size={16} />
+                  )}
                   <span className="flex flex-col">
                     <span>{role.label}</span>
                     {!role.isBuiltin && parts.length > 0 && (
@@ -362,7 +374,7 @@ function MemberActionsDropdown({
             onRemove(member.id);
           }}
         >
-          <Icon name="delete" size={16} />
+          <Trash01 size={16} />
           Remove Member
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -391,7 +403,7 @@ function InvitationActionsDropdown({
           className="h-8 w-8 p-0"
           onClick={(e) => e.stopPropagation()}
         >
-          <Icon name="more_vert" size={20} />
+          <DotsVertical size={20} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
@@ -403,7 +415,7 @@ function InvitationActionsDropdown({
           }}
           disabled={isCancelling}
         >
-          <Icon name="cancel" size={16} />
+          <XClose size={16} />
           Cancel Invitation
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -751,7 +763,7 @@ function OrgMembersContent() {
             size="sm"
             className="h-7 px-3 rounded-lg text-sm font-medium"
           >
-            <Icon name="shield" size={16} />
+            <Shield01 size={16} />
             Manage Roles
           </Button>
         }
@@ -1024,8 +1036,7 @@ export default function OrgMembers() {
         fallback={
           <CollectionPage>
             <div className="flex items-center justify-center h-full">
-              <Icon
-                name="progress_activity"
+              <Loading01
                 size={32}
                 className="animate-spin text-muted-foreground"
               />

@@ -1,8 +1,8 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
-import { Icon } from "@deco/ui/components/icon.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Target04, Stars01, Lightbulb01 } from "@untitledui/icons";
 import { MessageProps } from "./message-user.tsx";
 import { MessageReasoningPart } from "./parts/reasoning-part.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
@@ -12,17 +12,19 @@ import { UsageStats } from "./usage-stats.tsx";
 type ThinkingStage = "planning" | "thinking";
 
 interface ThinkingStageConfig {
-  icon: string;
+  icon: ReactNode;
   label: string;
 }
 
 const THINKING_STAGES: Record<ThinkingStage, ThinkingStageConfig> = {
   planning: {
-    icon: "track_changes",
+    icon: (
+      <Target04 className="text-muted-foreground animate-pulse" size={20} />
+    ),
     label: "Planning next moves",
   },
   thinking: {
-    icon: "psychology",
+    icon: <Stars01 className="text-muted-foreground animate-pulse" size={20} />,
     label: "Thinking",
   },
 };
@@ -47,11 +49,7 @@ function TypingIndicator() {
 
   return (
     <div className="flex items-center gap-2 py-2">
-      <Icon
-        name={config.icon}
-        className="text-muted-foreground animate-pulse"
-        size={20}
-      />
+      {config.icon}
       <span className="text-sm font-medium text-muted-foreground text-shimmer">
         {config.label}...
       </span>
@@ -64,7 +62,7 @@ function ThoughtSummary({ duration }: { duration: number }) {
 
   return (
     <div className="flex items-center gap-2 py-2 opacity-60">
-      <Icon name="lightbulb" className="text-muted-foreground" size={16} />
+      <Lightbulb01 className="text-muted-foreground" size={16} />
       <span className="text-xs text-muted-foreground">
         Thought · {seconds}s
       </span>

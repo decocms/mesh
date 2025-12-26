@@ -1,4 +1,4 @@
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Loading01, AlertCircle, SearchLg } from "@untitledui/icons";
 
 interface LoadingStateProps {
   message?: string;
@@ -9,7 +9,7 @@ export function AppDetailLoadingState({
 }: LoadingStateProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full">
-      <Icon name="progress_activity" size={48} className="animate-spin mb-4" />
+      <Loading01 size={48} className="animate-spin mb-4" />
       <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   );
@@ -25,7 +25,7 @@ export function AppDetailErrorState({ error, onBack }: ErrorStateProps) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full">
-      <Icon name="error" size={48} className="text-destructive mb-4" />
+      <AlertCircle size={48} className="text-destructive mb-4" />
       <h3 className="text-lg font-medium mb-2">Error loading app</h3>
       <p className="text-muted-foreground max-w-md text-center">
         {errorMessage}
@@ -47,11 +47,7 @@ interface NotFoundStateProps {
 export function AppDetailNotFoundState({ onBack }: NotFoundStateProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full">
-      <Icon
-        name="search_off"
-        size={48}
-        className="text-muted-foreground mb-4"
-      />
+      <SearchLg size={48} className="text-muted-foreground mb-4" />
       <h3 className="text-lg font-medium mb-2">App not found</h3>
       <p className="text-muted-foreground max-w-md text-center">
         The app you're looking for doesn't exist in this store.

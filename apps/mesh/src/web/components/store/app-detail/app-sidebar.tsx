@@ -1,6 +1,6 @@
 import type { RegistryItem } from "@/web/components/store/registry-items-section";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { LinkExternal01 } from "@untitledui/icons";
 import type { AppData, PublisherInfo } from "./types";
 
 /** Format date to MMM DD, YYYY format */
@@ -120,7 +120,7 @@ export function AppSidebar({
               className="text-muted-foreground hover:underline flex items-center gap-1 text-xs"
             >
               <span>Visit</span>
-              <Icon name="open_in_new" size={14} />
+              <LinkExternal01 size={14} />
             </a>
           </div>
         )}
@@ -135,7 +135,7 @@ export function AppSidebar({
               className="text-muted-foreground hover:underline flex items-center gap-1 text-xs"
             >
               <span>GitHub</span>
-              <Icon name="open_in_new" size={14} />
+              <LinkExternal01 size={14} />
             </a>
           </div>
         )}

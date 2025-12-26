@@ -2,7 +2,7 @@
 
 import type * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { XIcon } from "lucide-react";
+import { X } from "@untitledui/icons";
 
 import { cn } from "@deco/ui/lib/utils.ts";
 
@@ -56,7 +56,7 @@ function DialogDefaultCloseButton({ className }: { className?: string }) {
         className,
       )}
     >
-      <XIcon />
+      <X />
       <span className="sr-only">Close</span>
     </DialogPrimitive.Close>
   );

@@ -1,10 +1,10 @@
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 export interface ViewModeOption<T extends string = string> {
   value: T;
-  icon: string;
+  icon: ReactNode;
   label?: string;
 }
 
@@ -81,16 +81,17 @@ export function ViewModeToggle<T extends string = string>({
           !fullWidth && options[0].label ? "px-3" : "",
         )}
       >
-        <Icon
-          name={options[0].icon}
+        <span
           className={cn(
-            "transition-colors ease-out duration-200",
+            "transition-colors ease-out duration-200 flex items-center justify-center [&>svg]:size-[1em]",
             config.icon,
             value === options[0].value
               ? "text-foreground"
               : "text-muted-foreground",
           )}
-        />
+        >
+          {options[0].icon}
+        </span>
         {options[0].label && (
           <span
             className={cn(
@@ -114,16 +115,17 @@ export function ViewModeToggle<T extends string = string>({
           !fullWidth && options[1].label ? "px-3" : "",
         )}
       >
-        <Icon
-          name={options[1].icon}
+        <span
           className={cn(
-            "transition-colors ease-out duration-200",
+            "transition-colors ease-out duration-200 flex items-center justify-center [&>svg]:size-[1em]",
             config.icon,
             value === options[1].value
               ? "text-foreground"
               : "text-muted-foreground",
           )}
-        />
+        >
+          {options[1].icon}
+        </span>
         {options[1].label && (
           <span
             className={cn(

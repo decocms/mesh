@@ -6,7 +6,7 @@
 
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { ChevronDown, ChevronRight } from "@untitledui/icons";
 import { Fragment } from "react";
 import { ExpandedLogContent, type EnrichedMonitoringLog } from "./types.tsx";
 
@@ -65,11 +65,11 @@ export function LogRow({
       >
         {/* Expand Icon */}
         <div className="flex items-center justify-center w-10 md:w-12 px-2 md:px-4">
-          <Icon
-            name={isExpanded ? "expand_more" : "chevron_right"}
-            size={16}
-            className="text-muted-foreground"
-          />
+          {isExpanded ? (
+            <ChevronDown size={16} className="text-muted-foreground" />
+          ) : (
+            <ChevronRight size={16} className="text-muted-foreground" />
+          )}
         </div>
 
         {/* Connection Icon */}

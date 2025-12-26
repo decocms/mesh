@@ -1,11 +1,11 @@
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
+import { Pin01 } from "@untitledui/icons";
 import { useRouterState } from "@tanstack/react-router";
 import {
   useOrganizationSettings,
@@ -62,7 +62,7 @@ export function PinToSidebarButton({
             variant={isPinned ? "secondary" : "outline"}
             className="size-7 border border-input"
           >
-            <Icon name="keep" size={16} />
+            <Pin01 size={16} />
           </Button>
         </TooltipTrigger>
         <TooltipContent>

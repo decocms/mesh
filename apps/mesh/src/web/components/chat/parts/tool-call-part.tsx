@@ -1,4 +1,4 @@
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { AlertCircle, Terminal } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { ToolOutputRenderer } from "./tool-outputs/tool-output-renderer.tsx";
@@ -16,13 +16,11 @@ export function ToolCallPart({ part }: ToolCallPartProps) {
   return (
     <div className="flex flex-col gap-1.5 py-1">
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-        <Icon
-          name={state === "output-error" ? "error" : "terminal"}
-          className={cn(
-            "h-3.5 w-3.5",
-            state === "output-error" && "text-destructive",
-          )}
-        />
+        {state === "output-error" ? (
+          <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+        ) : (
+          <Terminal className="h-3.5 w-3.5" />
+        )}
         <span className={cn(state === "output-error" && "text-destructive/90")}>
           {state === "input-streaming" && `Streaming ${toolName} arguments...`}
           {state === "input-available" && `Calling ${toolName}...`}

@@ -13,8 +13,13 @@ import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
+import {
+  ShoppingBag01,
+  Plus,
+  BarChart01,
+  GitBranch01,
+} from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
 import {
@@ -100,7 +105,7 @@ function WelcomeOverlay() {
 
         <div className="border-t border-border px-4 py-4 flex items-center justify-center gap-2">
           <Button onClick={handleBrowseStore} size="sm" className="h-9">
-            <Icon name="shopping_bag" size={16} />
+            <ShoppingBag01 size={16} />
             Browse Store
           </Button>
           <Button
@@ -109,7 +114,7 @@ function WelcomeOverlay() {
             size="sm"
             className="h-9"
           >
-            <Icon name="add" size={16} />
+            <Plus size={16} />
             Connect MCP Server
           </Button>
         </div>
@@ -275,8 +280,8 @@ export default function OrgHomePage() {
                 onValueChange={handleViewModeChange}
                 size="sm"
                 options={[
-                  { value: "dashboard", icon: "bar_chart" },
-                  { value: "graph", icon: "account_tree" },
+                  { value: "dashboard", icon: <BarChart01 /> },
+                  { value: "graph", icon: <GitBranch01 /> },
                 ]}
               />
             )}
@@ -286,7 +291,7 @@ export default function OrgHomePage() {
               className="h-7 px-3"
               onClick={handleAddMcp}
             >
-              <Icon name="add" size={16} />
+              <Plus size={16} />
               Connect MCP Server
             </Button>
           </div>

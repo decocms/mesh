@@ -9,7 +9,13 @@ import {
 } from "@/web/hooks/collections/use-gateway";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import {
+  InfoCircle,
+  Loading01,
+  Check,
+  Copy01,
+  Share07,
+} from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
@@ -134,10 +140,7 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
                   className="h-7 w-7 p-0 shrink-0"
                   onClick={handleCopyConfig}
                 >
-                  <Icon
-                    name={copiedConfig ? "check" : "content_copy"}
-                    size={14}
-                  />
+                  {copiedConfig ? <Check size={14} /> : <Copy01 size={14} />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Copy configuration</TooltipContent>
@@ -199,11 +202,7 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
                 />
                 <span className="text-sm font-medium">Claude Code</span>
                 {copiedCommand === "Claude" && (
-                  <Icon
-                    name="check"
-                    size={14}
-                    className="ml-2 text-green-500"
-                  />
+                  <Check size={14} className="ml-2 text-green-500" />
                 )}
               </Button>
             </TooltipTrigger>
@@ -301,7 +300,7 @@ function GatewaySettingsForm({
               name={form.watch("title") || "Gateway"}
               size="lg"
               className="shrink-0 shadow-sm"
-              fallbackIcon="network_node"
+              fallbackIcon={<Share07 />}
             />
             <FormField
               control={form.control}
@@ -381,8 +380,7 @@ function GatewaySettingsForm({
                             type="button"
                             className="cursor-help flex items-center"
                           >
-                            <Icon
-                              name="info"
+                            <InfoCircle
                               size={14}
                               className="text-muted-foreground"
                             />
@@ -440,8 +438,7 @@ function GatewaySettingsForm({
                             type="button"
                             className="cursor-help flex items-center"
                           >
-                            <Icon
-                              name="info"
+                            <InfoCircle
                               size={14}
                               className="text-muted-foreground"
                             />
@@ -495,8 +492,7 @@ function GatewaySettingsForm({
             <Suspense
               fallback={
                 <div className="flex-1 flex items-center justify-center p-5">
-                  <Icon
-                    name="progress_activity"
+                  <Loading01
                     size={32}
                     className="animate-spin text-muted-foreground"
                   />
@@ -604,11 +600,7 @@ function GatewayInspectorViewWithGateway({
             className="h-7"
           >
             {actions.update.isPending && (
-              <Icon
-                name="progress_activity"
-                size={16}
-                className="mr-2 animate-spin"
-              />
+              <Loading01 size={16} className="mr-2 animate-spin" />
             )}
             Save Changes
           </Button>
@@ -695,8 +687,7 @@ export default function GatewayInspectorView() {
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center bg-background">
-            <Icon
-              name="progress_activity"
+            <Loading01
               size={32}
               className="animate-spin text-muted-foreground"
             />

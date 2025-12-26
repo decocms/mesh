@@ -3,14 +3,14 @@ import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
 import { useCollectionItem } from "@/web/hooks/use-collections";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Loading01 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { AgentSchema } from "@decocms/bindings/agent";
 import { useParams } from "@tanstack/react-router";
-import { Info, Upload } from "lucide-react";
+import { InfoCircle, Upload01 } from "@untitledui/icons";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -80,7 +80,7 @@ function SmartAvatarUpload({
 
         {/* Hover Overlay */}
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-          <Upload className="h-5 w-5 text-white" />
+          <Upload01 className="h-5 w-5 text-white" />
         </div>
       </div>
     </div>
@@ -238,11 +238,7 @@ export function AgentDetailsView({
         >
           {isSaving ? (
             <>
-              <Icon
-                name="progress_activity"
-                size={12}
-                className="mr-2 animate-spin"
-              />
+              <Loading01 size={12} className="mr-2 animate-spin" />
               Saving...
             </>
           ) : (
@@ -284,7 +280,7 @@ export function AgentDetailsView({
                 variant="secondary"
                 className="px-2 py-0.5 h-6 gap-1.5 bg-secondary/50 text-muted-foreground font-normal text-xs hover:bg-secondary/50"
               >
-                <Info className="h-3.5 w-3.5" />
+                <InfoCircle className="h-3.5 w-3.5" />
                 Type @ to add tools and more
               </Badge>
 

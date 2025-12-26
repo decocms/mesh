@@ -15,7 +15,7 @@ import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { Icon } from "@deco/ui/components/icon.js";
+import { Loading01 } from "@untitledui/icons";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { Suspense } from "react";
 
@@ -103,8 +103,7 @@ export default function StorePage() {
         <Suspense
           fallback={
             <div className="flex flex-col items-center justify-center h-full">
-              <Icon
-                name="progress_activity"
+              <Loading01
                 size={32}
                 className="animate-spin text-muted-foreground mb-4"
               />

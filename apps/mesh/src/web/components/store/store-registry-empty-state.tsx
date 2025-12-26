@@ -5,7 +5,7 @@ import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Loading01, Plus } from "@untitledui/icons";
 
 interface StoreRegistryEmptyStateProps {
   registries: ConnectionCreateData[];
@@ -90,12 +90,12 @@ function RegistryConnectCard({
         >
           {actions.create.isPending ? (
             <>
-              <Icon name="progress_activity" className="animate-spin" />
+              <Loading01 className="animate-spin" />
               Connecting...
             </>
           ) : (
             <>
-              <Icon name="add" />
+              <Plus />
               Connect
             </>
           )}

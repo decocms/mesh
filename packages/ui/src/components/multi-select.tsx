@@ -7,7 +7,7 @@ import { cn } from "../lib/utils.ts";
 import { Badge } from "./badge.tsx";
 import { Button } from "./button.tsx";
 import { Checkbox } from "./checkbox.tsx";
-import { Icon } from "./icon.tsx";
+import { ChevronDown } from "@untitledui/icons";
 import {
   Command,
   CommandEmpty,
@@ -154,11 +154,7 @@ export function MultiSelect({
                 )}
               </div>
               <div className="flex items-center shrink-0 ml-2">
-                <Icon
-                  name="keyboard_arrow_down"
-                  size={20}
-                  className="shrink-0 opacity-50"
-                />
+                <ChevronDown size={20} className="shrink-0 opacity-50" />
               </div>
             </div>
           ) : (
@@ -166,11 +162,7 @@ export function MultiSelect({
               <span className="text-sm text-muted-foreground">
                 {placeholder}
               </span>
-              <Icon
-                name="keyboard_arrow_down"
-                size={20}
-                className="shrink-0 opacity-50"
-              />
+              <ChevronDown size={20} className="shrink-0 opacity-50" />
             </div>
           )}
         </Button>

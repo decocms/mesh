@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Loading01, File06 } from "@untitledui/icons";
 import { extractGitHubRepo } from "@/web/utils/github-icon";
 import { KEYS } from "@/web/lib/query-keys";
 import "github-markdown-css/github-markdown-light.css";
@@ -79,11 +79,7 @@ export function ReadmeViewer({ repository }: ReadmeViewerProps) {
   if (isLoadingReadme) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Icon
-          name="progress_activity"
-          size={32}
-          className="animate-spin text-muted-foreground"
-        />
+        <Loading01 size={32} className="animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -91,11 +87,7 @@ export function ReadmeViewer({ repository }: ReadmeViewerProps) {
   if (!readmeData) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-6">
-        <Icon
-          name="description"
-          size={48}
-          className="text-muted-foreground mb-4"
-        />
+        <File06 size={48} className="text-muted-foreground mb-4" />
         <h3 className="text-lg font-medium mb-2">README not found</h3>
         <p className="text-muted-foreground max-w-md">
           This repository doesn't have a README file, or it's not publicly

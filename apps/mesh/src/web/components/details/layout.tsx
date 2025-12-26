@@ -1,5 +1,5 @@
 import { Button } from "@deco/ui/components/button.tsx";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@untitledui/icons";
 import { type ReactNode, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 

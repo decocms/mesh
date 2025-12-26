@@ -2,6 +2,15 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js";
 import { Locator } from "@/web/lib/locator";
 import { useNavigate } from "@tanstack/react-router";
+import {
+  Home01,
+  ShoppingBag01,
+  PuzzlePiece01,
+  Share07,
+  BarChartSquare02,
+  Users01,
+  Settings01,
+} from "@untitledui/icons";
 
 export function useProjectSidebarItems() {
   const { locator } = useProjectContext();
@@ -13,43 +22,43 @@ export function useProjectSidebarItems() {
     {
       key: "home",
       label: "Home",
-      icon: "home",
+      icon: <Home01 />,
       onClick: () => navigate({ to: "/$org", params: { org } }),
     },
     {
       key: "store",
       label: "Store",
-      icon: "shopping_bag",
+      icon: <ShoppingBag01 />,
       onClick: () => navigate({ to: "/$org/store", params: { org } }),
     },
     {
       key: "mcps",
       label: "MCP Servers",
-      icon: "extension",
+      icon: <PuzzlePiece01 />,
       onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
     },
     {
       key: "gateways",
       label: "MCP Gateways",
-      icon: "network_node",
+      icon: <Share07 />,
       onClick: () => navigate({ to: "/$org/gateways", params: { org } }),
     },
     {
       key: "monitoring",
       label: "Monitoring",
-      icon: "monitoring",
+      icon: <BarChartSquare02 />,
       onClick: () => navigate({ to: "/$org/monitoring", params: { org } }),
     },
     {
       key: "members",
       label: "Members",
-      icon: "group",
+      icon: <Users01 />,
       onClick: () => navigate({ to: "/$org/members", params: { org } }),
     },
     {
       key: "settings",
       label: "Settings",
-      icon: "settings",
+      icon: <Settings01 />,
       onClick: () => navigate({ to: "/$org/settings", params: { org } }),
     },
   ];

@@ -1,6 +1,6 @@
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { slugify } from "@/web/utils/slugify";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Inbox01, SearchMd, Loading01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useState, useRef } from "react";
 import { CollectionSearch } from "../collections/collection-search";
@@ -132,11 +132,7 @@ export function StoreDiscoveryUI({
           <div>
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Icon
-                  name="inbox"
-                  size={48}
-                  className="text-muted-foreground mb-4"
-                />
+                <Inbox01 size={48} className="text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No items available</h3>
                 <p className="text-muted-foreground">
                   This store doesn't have any available items yet.
@@ -144,11 +140,7 @@ export function StoreDiscoveryUI({
               </div>
             ) : search && filteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Icon
-                  name="search"
-                  size={48}
-                  className="text-muted-foreground mb-4"
-                />
+                <SearchMd size={48} className="text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No results found</h3>
                 <p className="text-muted-foreground">
                   Try adjusting your search terms.
@@ -176,11 +168,7 @@ export function StoreDiscoveryUI({
                 {hasMore && !search && isLoadingMore && (
                   <div className="flex justify-center py-8">
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Icon
-                        name="progress_activity"
-                        size={20}
-                        className="animate-spin"
-                      />
+                      <Loading01 size={20} className="animate-spin" />
                       <span className="text-sm">Loading more items...</span>
                     </div>
                   </div>

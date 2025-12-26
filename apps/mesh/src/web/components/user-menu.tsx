@@ -1,6 +1,14 @@
 import { UserMenu } from "@deco/ui/components/user-menu.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import {
+  UserCircle,
+  Mail01,
+  Globe01,
+  LogOut01,
+  LinkExternal01,
+  Check,
+  Copy01,
+} from "@untitledui/icons";
 import {
   Dialog,
   DialogContent,
@@ -70,11 +78,11 @@ function ProfileDialog({
               className="flex-shrink-0 p-2 hover:bg-background rounded-md transition-colors"
               aria-label="Copy user ID"
             >
-              <Icon
-                name={copied ? "check" : "content_copy"}
-                size={16}
-                className={copied ? "text-green-600" : "text-muted-foreground"}
-              />
+              {copied ? (
+                <Check size={16} className="text-green-600" />
+              ) : (
+                <Copy01 size={16} className="text-muted-foreground" />
+              )}
             </button>
           </div>
         </div>
@@ -144,13 +152,13 @@ function MeshUserMenuBase({
         align="end"
       >
         <UserMenu.Item onClick={() => setProfileOpen(true)}>
-          <Icon name="account_circle" className="text-muted-foreground" />
+          <UserCircle className="text-muted-foreground" size={18} />
           Profile
         </UserMenu.Item>
 
         {showInvitesItem && (
           <UserMenu.Item onClick={() => setInvitesOpen(true)}>
-            <Icon name="mail" className="text-muted-foreground" />
+            <Mail01 className="text-muted-foreground" size={18} />
             Invitations
             {hasInvites && (
               <span className="ml-auto h-2 w-2 rounded-full bg-destructive" />
@@ -169,8 +177,7 @@ function MeshUserMenuBase({
           >
             <GitHubIcon className="w-4 h-4 text-muted-foreground" />
             decocms/admin
-            <Icon
-              name="arrow_outward"
+            <LinkExternal01
               size={18}
               className="text-muted-foreground ml-auto"
             />
@@ -183,10 +190,9 @@ function MeshUserMenuBase({
             rel="noopener noreferrer"
             className="flex w-full items-center gap-2 text-sm cursor-pointer"
           >
-            <Icon name="language" className="text-muted-foreground" />
+            <Globe01 className="text-muted-foreground" size={18} />
             Homepage
-            <Icon
-              name="arrow_outward"
+            <LinkExternal01
               size={18}
               className="ml-auto text-muted-foreground"
             />
@@ -196,7 +202,7 @@ function MeshUserMenuBase({
         <UserMenu.Separator />
 
         <UserMenu.Item onClick={() => authClient.signOut()}>
-          <Icon name="logout" size={18} className="text-muted-foreground" />
+          <LogOut01 size={18} className="text-muted-foreground" />
           Log out
         </UserMenu.Item>
       </UserMenu>

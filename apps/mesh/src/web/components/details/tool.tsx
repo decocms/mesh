@@ -8,19 +8,19 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Loading01 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useParams } from "@tanstack/react-router";
 import {
   AlertCircle,
   Box,
   Clock,
-  Code,
-  Copy,
-  Database,
+  Code01,
+  Copy01,
+  Database01,
   Play,
   Plus,
-} from "lucide-react";
+} from "@untitledui/icons";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
@@ -247,11 +247,7 @@ function ToolDetailsAuthenticated({
             {mcp.state === "ready" ? (
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
             ) : mcp.state === "connecting" ? (
-              <Icon
-                name="progress_activity"
-                size={12}
-                className="animate-spin text-yellow-500"
-              />
+              <Loading01 size={12} className="animate-spin text-yellow-500" />
             ) : (
               <div className="h-2 w-2 rounded-full bg-red-500" />
             )}
@@ -273,7 +269,7 @@ function ToolDetailsAuthenticated({
           </div>
           <div className="w-px h-4 bg-border" />
           <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-muted-foreground" />
+            <Database01 className="h-4 w-4 text-muted-foreground" />
             <span className="font-mono text-sm">{stats?.bytes || "-"}</span>
           </div>
         </div>
@@ -309,11 +305,7 @@ function ToolDetailsAuthenticated({
                 disabled={isExecuting}
               >
                 {isExecuting ? (
-                  <Icon
-                    name="progress_activity"
-                    size={14}
-                    className="animate-spin"
-                  />
+                  <Loading01 size={14} className="animate-spin" />
                 ) : (
                   <Play className="h-3.5 w-3.5 fill-current" />
                 )}
@@ -439,7 +431,7 @@ function ToolDetailsAuthenticated({
                 </pre>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-700">
-                  <Code className="h-8 w-8 mb-2 opacity-50" />
+                  <Code01 className="h-8 w-8 mb-2 opacity-50" />
                   <p>Run the tool to see results</p>
                 </div>
               )}
@@ -457,7 +449,7 @@ function ToolDetailsAuthenticated({
                       toast.success("Copied to clipboard");
                     }}
                   >
-                    <Copy className="h-4 w-4" />
+                    <Copy01 className="h-4 w-4" />
                   </Button>
                 </div>
               )}
@@ -495,11 +487,7 @@ export function ToolDetailsView({
     <Suspense
       fallback={
         <div className="flex h-full items-center justify-center">
-          <Icon
-            name="progress_activity"
-            size={32}
-            className="animate-spin text-muted-foreground"
-          />
+          <Loading01 size={32} className="animate-spin text-muted-foreground" />
         </div>
       }
     >

@@ -1,23 +1,21 @@
 import { Button } from "./button.tsx";
-import { Icon } from "./icon.tsx";
+import { LayoutRight } from "@untitledui/icons";
 import { useSidebar } from "./sidebar.tsx";
 
 export function SidebarToggleButton() {
   const { toggleSidebar } = useSidebar();
 
   return (
-    <Button
-      onClick={toggleSidebar}
-      size="icon"
-      variant="ghost"
-      className="w-8 h-8 rounded-md group"
-    >
-      <Icon
-        name="dock_to_right"
-        className="text-muted-foreground/85 group-hover:text-foreground transition-colors"
-        size={18}
-      />
-    </Button>
+    <>
+      <Button
+        onClick={toggleSidebar}
+        size="icon"
+        variant="ghost"
+        className="w-8 h-8 rounded-md"
+      >
+        <LayoutRight className="text-muted-foreground/85 group-hover:text-foreground transition-colors" size={20} />
+      </Button>
+    </>
   );
 }
 

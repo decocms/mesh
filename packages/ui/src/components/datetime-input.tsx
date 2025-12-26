@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon } from "@untitledui/icons";
 import {
   expressionToDate,
   isTimeExpression,

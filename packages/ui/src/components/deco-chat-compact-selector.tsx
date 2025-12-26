@@ -1,5 +1,5 @@
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { ChevronDownIcon, CheckIcon } from "lucide-react";
+import { ChevronDown, Check } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 
 export interface CompactSelectorOption {
@@ -78,7 +78,7 @@ export function DecoChatCompactSelector({
 
         {/* Chevron */}
         <SelectPrimitive.Icon asChild>
-          <ChevronDownIcon className="size-3.5 shrink-0 opacity-70" />
+          <ChevronDown className="size-3.5 shrink-0 opacity-70" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
 
@@ -125,7 +125,7 @@ export function DecoChatCompactSelector({
                 </div>
                 <span className="absolute right-2 flex size-3.5 items-center justify-center">
                   <SelectPrimitive.ItemIndicator>
-                    <CheckIcon className="size-4" />
+                    <Check className="size-4" />
                   </SelectPrimitive.ItemIndicator>
                 </span>
               </SelectPrimitive.Item>

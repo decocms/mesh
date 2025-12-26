@@ -8,7 +8,7 @@ import { useToolCall } from "@/web/hooks/use-tool-call";
 import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Key01, File06, Loading01 } from "@untitledui/icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { Suspense } from "react";
@@ -112,7 +112,7 @@ export function ManualAuthRequiredState({
   return (
     <div className="w-3/5 min-w-0 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4 max-w-md text-center">
-        <Icon name="key" size={48} className="text-muted-foreground" />
+        <Key01 size={48} className="text-muted-foreground" />
         <div className="flex flex-col gap-2">
           <h3 className="text-lg font-semibold">
             Manual Authentication Required
@@ -125,7 +125,7 @@ export function ManualAuthRequiredState({
         </div>
         {hasReadme && onViewReadme && (
           <Button onClick={onViewReadme} variant="outline" size="lg">
-            <Icon name="description" size={18} className="mr-2" />
+            <File06 size={18} className="mr-2" />
             View README
           </Button>
         )}
@@ -299,11 +299,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
             className="h-7"
           >
             {isUpdating && (
-              <Icon
-                name="progress_activity"
-                size={16}
-                className="mr-2 animate-spin"
-              />
+              <Loading01 size={16} className="mr-2 animate-spin" />
             )}
             Save Changes
           </Button>
@@ -321,8 +317,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
           <Suspense
             fallback={
               <div className="w-3/5 min-w-0 flex items-center justify-center">
-                <Icon
-                  name="progress_activity"
+                <Loading01
                   size={32}
                   className="animate-spin text-muted-foreground"
                 />

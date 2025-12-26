@@ -5,7 +5,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import {
+  Sliders01,
+  List,
+  Grid01,
+  Check,
+  ArrowUp,
+  ArrowDown,
+} from "@untitledui/icons";
 import {
   Tooltip,
   TooltipContent,
@@ -43,7 +50,7 @@ export function CollectionDisplayButton({
                 size="icon"
                 className="size-7 border border-input"
               >
-                <Icon name="tune" size={16} />
+                <Sliders01 size={16} />
               </Button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
@@ -58,8 +65,8 @@ export function CollectionDisplayButton({
             onValueChange={onViewModeChange}
             fullWidth
             options={[
-              { value: "table", icon: "table_rows" },
-              { value: "cards", icon: "grid_view" },
+              { value: "table", icon: <List /> },
+              { value: "cards", icon: <Grid01 /> },
             ]}
           />
         </div>
@@ -83,27 +90,25 @@ export function CollectionDisplayButton({
                 >
                   <div className="flex items-center gap-2 w-full">
                     {isSelected && (
-                      <Icon
-                        name="check"
-                        size={16}
-                        className="text-foreground shrink-0"
-                      />
+                      <Check size={16} className="text-foreground shrink-0" />
                     )}
                     {!isSelected && <div className="w-4 shrink-0" />}
                     <span className="text-sm text-foreground flex-1">
                       {option.label}
                     </span>
-                    {isSelected && sortDirection && (
-                      <Icon
-                        name={
-                          sortDirection === "asc"
-                            ? "arrow_upward"
-                            : "arrow_downward"
-                        }
-                        size={16}
-                        className="text-foreground shrink-0"
-                      />
-                    )}
+                    {isSelected &&
+                      sortDirection &&
+                      (sortDirection === "asc" ? (
+                        <ArrowUp
+                          size={16}
+                          className="text-foreground shrink-0"
+                        />
+                      ) : (
+                        <ArrowDown
+                          size={16}
+                          className="text-foreground shrink-0"
+                        />
+                      ))}
                   </div>
                 </DropdownMenuItem>
               );

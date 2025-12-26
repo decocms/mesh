@@ -38,7 +38,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import {
+  Plus,
+  Lock01,
+  DotsHorizontal,
+  Trash01,
+  Loading01,
+  X,
+} from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
@@ -590,7 +597,7 @@ function MembersTabContent({
                 <TooltipTrigger asChild>
                   <div>
                     <Button variant="outline" size="sm" disabled>
-                      <Icon name="add" size={16} />
+                      <Plus size={16} />
                       Add Member
                     </Button>
                   </div>
@@ -608,7 +615,7 @@ function MembersTabContent({
               size="sm"
               onClick={() => setAddMemberDialogOpen(true)}
             >
-              <Icon name="add" size={16} />
+              <Plus size={16} />
               Add Member
             </Button>
           </div>
@@ -660,7 +667,7 @@ function MembersTabContent({
                       <TooltipTrigger asChild>
                         <div>
                           <Button variant="ghost" size="sm" disabled>
-                            <Icon name="close" size={16} />
+                            <X size={16} />
                           </Button>
                         </div>
                       </TooltipTrigger>
@@ -675,7 +682,7 @@ function MembersTabContent({
                     size="sm"
                     onClick={() => removeMember(member.id)}
                   >
-                    <Icon name="close" size={16} />
+                    <X size={16} />
                   </Button>
                 )}
               </div>
@@ -699,11 +706,7 @@ function MembersTab(props: MembersTabProps) {
     <Suspense
       fallback={
         <div className="flex items-center justify-center h-full">
-          <Icon
-            name="progress_activity"
-            size={24}
-            className="animate-spin text-muted-foreground"
-          />
+          <Loading01 size={24} className="animate-spin text-muted-foreground" />
         </div>
       }
     >
@@ -1268,8 +1271,7 @@ export function ManageRolesDialog({
                       <p className="text-sm font-medium truncate flex-1">
                         {builtinRole.label}
                       </p>
-                      <Icon
-                        name="lock"
+                      <Lock01
                         size={14}
                         className="text-muted-foreground shrink-0"
                       />
@@ -1313,7 +1315,7 @@ export function ManageRolesDialog({
                             )}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <Icon name="more_horiz" size={14} />
+                            <DotsHorizontal size={14} />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -1324,7 +1326,7 @@ export function ManageRolesDialog({
                               handleDeleteRole(role);
                             }}
                           >
-                            <Icon name="delete" size={16} />
+                            <Trash01 size={16} />
                             Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -1363,7 +1365,7 @@ export function ManageRolesDialog({
                 disabled={isPending || isFormDirty}
                 className="w-full h-10"
               >
-                <Icon name="add" size={16} />
+                <Plus size={16} />
                 Create new role
               </Button>
             </div>
