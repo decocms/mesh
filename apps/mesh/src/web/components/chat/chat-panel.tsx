@@ -19,7 +19,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import { X, Plus, CpuChip02, Clock, Trash01, SearchMd } from "@untitledui/icons";
+import {
+  X,
+  Plus,
+  CpuChip02,
+  Clock,
+  Trash01,
+  SearchMd,
+} from "@untitledui/icons";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate } from "@tanstack/react-router";
 import { type ChatInit, DefaultChatTransport, type UIMessage } from "ai";
@@ -158,19 +165,39 @@ function groupThreadsByDate(threads: Thread[]): ThreadSection[] {
 
   const result: ThreadSection[] = [];
   if (todayThreads.length > 0) {
-    result.push({ label: "Today", threads: todayThreads, showRelativeTime: true });
+    result.push({
+      label: "Today",
+      threads: todayThreads,
+      showRelativeTime: true,
+    });
   }
   if (yesterdayThreads.length > 0) {
-    result.push({ label: "Yesterday", threads: yesterdayThreads, showRelativeTime: false });
+    result.push({
+      label: "Yesterday",
+      threads: yesterdayThreads,
+      showRelativeTime: false,
+    });
   }
   if (last7DaysThreads.length > 0) {
-    result.push({ label: "7 days ago", threads: last7DaysThreads, showRelativeTime: false });
+    result.push({
+      label: "7 days ago",
+      threads: last7DaysThreads,
+      showRelativeTime: false,
+    });
   }
   if (last30DaysThreads.length > 0) {
-    result.push({ label: "30 days ago", threads: last30DaysThreads, showRelativeTime: false });
+    result.push({
+      label: "30 days ago",
+      threads: last30DaysThreads,
+      showRelativeTime: false,
+    });
   }
   if (olderThreads.length > 0) {
-    result.push({ label: "Older", threads: olderThreads, showRelativeTime: false });
+    result.push({
+      label: "Older",
+      threads: olderThreads,
+      showRelativeTime: false,
+    });
   }
 
   return result;
@@ -616,20 +643,20 @@ export function ChatPanel() {
           </span>
         </div>
         <div className="flex items-center gap-1">
-        <button
-              type="button"
-              onClick={() => {
-                createThread();
-              }}
-              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
-              title="New chat"
-            >
-              <Plus
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
-            <ThreadHistoryPopover />
+          <button
+            type="button"
+            onClick={() => {
+              createThread();
+            }}
+            className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
+            title="New chat"
+          >
+            <Plus
+              size={16}
+              className="text-muted-foreground group-hover:text-foreground transition-colors"
+            />
+          </button>
+          <ThreadHistoryPopover />
           <button
             type="button"
             onClick={() => setOpen(false)}
