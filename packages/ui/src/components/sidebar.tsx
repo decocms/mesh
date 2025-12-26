@@ -381,14 +381,7 @@ function SidebarSeparator({
   className,
   ...props
 }: React.ComponentProps<typeof Separator>) {
-  return (
-    <Separator
-      data-slot="sidebar-separator"
-      data-sidebar="separator"
-      className={cn("bg-border mx-4 w-full", className)}
-      {...props}
-    />
-  );
+  return <div className="h-3 mx-4 w-full"></div>;
 }
 
 function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
@@ -510,7 +503,7 @@ const sidebarMenuButtonVariants = cva(
           "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
       },
       size: {
-        default: "h-8 text-sm",
+        default: "h-7 text-sm font-[450]",
         sm: "h-7 text-xs",
         lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
       },

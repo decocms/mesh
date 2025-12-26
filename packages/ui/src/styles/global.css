@@ -269,6 +269,8 @@
   --spacing-72: calc(var(--spacing) * 72);
   --spacing-80: calc(var(--spacing) * 80);
   --spacing-96: calc(var(--spacing) * 96);
+
+  --text-sm: 0.8125rem;
 }
 
 /* Animations */

@@ -44,7 +44,7 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
           navigate({ to: item.url });
         }}
       >
-        <div className="flex items-center justify-center shrink-0 mr-2">
+        <div className="flex items-center justify-center shrink-0">
           {isIconUrl ? (
             <img
               src={item.icon}
@@ -54,7 +54,7 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
           ) : (
             <Icon
               name={item.icon}
-              size={16}
+              size={18}
               className="text-muted-foreground"
             />
           )}
@@ -119,11 +119,6 @@ function SidebarItemLayout({ children }: PropsWithChildren) {
   return (
     <>
       <SidebarSeparator className="my-2 -ml-1" />
-      <SidebarMenuItem>
-        <div className="px-2 py-0 text-xs font-medium text-muted-foreground flex items-center justify-between">
-          <span>Pinned Views</span>
-        </div>
-      </SidebarMenuItem>
       {children}
     </>
   );
