@@ -49,7 +49,7 @@ function GatewayItemContent({
           )}
         </div>
         {gateway.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+          <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
             {gateway.description}
           </p>
         )}

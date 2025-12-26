@@ -7,11 +7,21 @@
  */
 
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+import zodToJsonSchema from "zod-to-json-schema";
+import { runCode } from "../sandbox/index.ts";
 import type { GatewayToolSelectionStrategy } from "../storage/types";
 
 // ============================================================================
 // Types
 // ============================================================================
+
+type ToolHandler = (args: Record<string, unknown>) => Promise<CallToolResult>;
+
+interface ToolWithHandler {
+  tool: Tool;
+  handler: ToolHandler;
+}
 
 /** Extended tool info with connection metadata */
 export interface ToolWithConnection extends Tool {
@@ -100,7 +110,243 @@ function searchTools(
 }
 
 // ============================================================================
-// Passthrough Strategy
+// Helpers
+// ============================================================================
+
+function jsonResult(data: unknown): CallToolResult {
+  return {
+    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+  };
+}
+
+function jsonError(data: unknown): CallToolResult {
+  return {
+    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    isError: true,
+  };
+}
+
+// ============================================================================
+// Tool Factories
+// ============================================================================
+
+function createSearchTool(ctx: StrategyContext): ToolWithHandler {
+  const inputSchema = z.object({
+    query: z
+      .string()
+      .describe(
+        "Natural language search query (e.g., 'send email', 'create order')",
+      ),
+    limit: z
+      .number()
+      .default(10)
+      .describe("Maximum results to return (default: 10)"),
+  });
+
+  const categoryList =
+    ctx.categories.length > 0
+      ? ` Available categories: ${ctx.categories.join(", ")}.`
+      : "";
+
+  return {
+    tool: {
+      name: "GATEWAY_SEARCH_TOOLS",
+      description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas.${categoryList} Total tools: ${ctx.tools.length}.`,
+      inputSchema: zodToJsonSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      const results = searchTools(
+        parsed.data.query,
+        ctx.tools,
+        parsed.data.limit,
+      );
+      return jsonResult({
+        query: parsed.data.query,
+        results: results.map((t) => ({
+          name: t.name,
+          description: t.description,
+          connection: t.connectionTitle,
+        })),
+        totalAvailable: ctx.tools.length,
+      });
+    },
+  };
+}
+
+function createDescribeTool(ctx: StrategyContext): ToolWithHandler {
+  const inputSchema = z.object({
+    tools: z
+      .array(z.string())
+      .min(1)
+      .describe("Array of tool names to get detailed schemas for"),
+  });
+
+  return {
+    tool: {
+      name: "GATEWAY_DESCRIBE_TOOLS",
+      description:
+        "Get detailed schemas for specific tools. Call after searching to get full input/output schemas.",
+      inputSchema: zodToJsonSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      const toolMap = new Map(ctx.tools.map((t) => [t.name, t]));
+      const tools = parsed.data.tools
+        .map((n) => toolMap.get(n))
+        .filter((t): t is ToolWithConnection => t !== undefined);
+
+      return jsonResult({
+        tools: tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          connection: t.connectionTitle,
+          inputSchema: t.inputSchema,
+          outputSchema: t.outputSchema,
+        })),
+        notFound: parsed.data.tools.filter((n) => !toolMap.has(n)),
+      });
+    },
+  };
+}
+
+function createCallTool(ctx: StrategyContext): ToolWithHandler {
+  const toolNames = ctx.tools.map((t) => t.name);
+  const toolMap = new Map(ctx.tools.map((t) => [t.name, t]));
+
+  const inputSchema = z.object({
+    name: z
+      .enum(toolNames as [string, ...string[]])
+      .describe("The name of the tool to execute"),
+    arguments: z
+      .record(z.unknown())
+      .default({})
+      .describe("Arguments to pass to the tool"),
+  });
+
+  return {
+    tool: {
+      name: "GATEWAY_CALL_TOOL",
+      description:
+        "Execute a tool by name. Use GATEWAY_DESCRIBE_TOOLS first to understand the input schema.",
+      inputSchema: zodToJsonSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      const { name: innerName, arguments: innerArgs } = parsed.data;
+
+      if (!toolMap.has(innerName)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Tool not found: ${innerName}. Use GATEWAY_SEARCH_TOOLS to find available tools.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      return ctx.callTool(innerName, innerArgs);
+    },
+  };
+}
+
+function createRunCodeTool(ctx: StrategyContext): ToolWithHandler {
+  const inputSchema = z.object({
+    code: z
+      .string()
+      .min(1)
+      .describe(
+        "JavaScript code to execute. It runs as an async function body; you can use top-level `return` and `await`.",
+      ),
+    timeoutMs: z
+      .number()
+      .default(3000)
+      .describe("Max execution time in milliseconds (default: 3000)."),
+  });
+
+  return {
+    tool: {
+      name: "GATEWAY_RUN_CODE",
+      description:
+        'Run JavaScript code in a sandbox. Code must be an ES module that `export default`s an async function that receives (tools) as its first parameter. Use GATEWAY_DESCRIBE_TOOLS to understand the input/output schemas for a tool before calling it. Use `await tools.toolName(args)` or `await tools["tool-name"](args)` to call tools.',
+      inputSchema: zodToJsonSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      const toolsRecord: Record<
+        string,
+        (args: Record<string, unknown>) => Promise<CallToolResult>
+      > = Object.fromEntries(
+        ctx.tools.map((tool) => [
+          tool.name,
+          async (innerArgs) => ctx.callTool(tool.name, innerArgs ?? {}),
+        ]),
+      );
+
+      const result = await runCode({ ...parsed.data, tools: toolsRecord });
+
+      if (result.error) {
+        return jsonError(result);
+      }
+
+      return jsonResult(result);
+    },
+  };
+}
+
+// ============================================================================
+// Strategy Helpers
+// ============================================================================
+
+function createStrategyFromTools(
+  toolsWithHandlers: ToolWithHandler[],
+): StrategyResult {
+  const handlerMap = new Map(
+    toolsWithHandlers.map((t) => [t.tool.name, t.handler]),
+  );
+
+  const toolNames = toolsWithHandlers.map((t) => t.tool.name);
+
+  return {
+    tools: toolsWithHandlers.map((t) => t.tool),
+    callTool: async (name, args) => {
+      const handler = handlerMap.get(name);
+      if (!handler) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Unknown meta-tool: ${name}. Available: ${toolNames.join(", ")}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return handler(args);
+    },
+  };
+}
+
+// ============================================================================
+// Strategies
 // ============================================================================
 
 /**
@@ -113,217 +359,29 @@ const passthroughStrategy: ToolSelectionStrategyFn = (ctx) => ({
   callTool: (name, args) => ctx.callTool(name, args),
 });
 
-// ============================================================================
-// Smart Tool Selection Strategy
-// ============================================================================
-
-/** Meta-tool names */
-const META_TOOLS = {
-  SEARCH: "GATEWAY_SEARCH_TOOLS",
-  DESCRIBE: "GATEWAY_DESCRIBE_TOOLS",
-  CALL: "GATEWAY_CALL_TOOL",
-} as const;
-
 /**
- * Create meta-tools for smart gateway
+ * Code execution strategy: expose meta-tools for discovery and code execution.
+ *
+ * (tools) => [GATEWAY_SEARCH_TOOLS, GATEWAY_DESCRIBE_TOOLS, GATEWAY_RUN_CODE]
  */
-function createMetaTools(ctx: StrategyContext): Tool[] {
-  const categoryList =
-    ctx.categories.length > 0
-      ? ` Available categories: ${ctx.categories.join(", ")}.`
-      : "";
-
-  const toolNames = ctx.tools.map((t) => t.name);
-
-  return [
-    {
-      name: META_TOOLS.SEARCH,
-      description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas.${categoryList} Total tools: ${ctx.tools.length}.`,
-      inputSchema: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description:
-              "Natural language search query (e.g., 'send email', 'create order')",
-          },
-          limit: {
-            type: "number",
-            description: "Maximum results to return (default: 10)",
-            default: 10,
-          },
-        },
-        required: ["query"],
-      },
-    },
-    {
-      name: META_TOOLS.DESCRIBE,
-      description:
-        "Get detailed schemas for specific tools. Call after searching to get full input/output schemas.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          tools: {
-            type: "array",
-            items: { type: "string", enum: toolNames },
-            description: "Array of tool names to get detailed schemas for",
-          },
-        },
-        required: ["tools"],
-      },
-    },
-    {
-      name: META_TOOLS.CALL,
-      description:
-        "Execute a tool by name. Use GATEWAY_DESCRIBE_TOOLS first to understand the input schema.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          name: {
-            type: "string",
-            enum: toolNames,
-            description: "The name of the tool to execute",
-          },
-          arguments: {
-            type: "object",
-            description: "Arguments to pass to the tool",
-            additionalProperties: true,
-          },
-        },
-        required: ["name"],
-      },
-    },
-  ];
-}
+const codeExecutionStrategy: ToolSelectionStrategyFn = (ctx) =>
+  createStrategyFromTools([
+    createSearchTool(ctx),
+    createDescribeTool(ctx),
+    createRunCodeTool(ctx),
+  ]);
 
 /**
  * Smart tool selection strategy: expose meta-tools for dynamic discovery
  *
  * (tools) => [GATEWAY_SEARCH_TOOLS, GATEWAY_DESCRIBE_TOOLS, GATEWAY_CALL_TOOL]
  */
-const smartToolSelectionStrategy: ToolSelectionStrategyFn = (ctx) => {
-  const toolMap = new Map(ctx.tools.map((t) => [t.name, t]));
-
-  const callTool = async (
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<CallToolResult> => {
-    switch (name) {
-      case META_TOOLS.SEARCH: {
-        const query = (args.query as string) ?? "";
-        const limit = (args.limit as number) ?? 10;
-        const results = searchTools(query, ctx.tools, limit);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  query,
-                  results: results.map((t) => ({
-                    name: t.name,
-                    description: t.description,
-                    connection: t.connectionTitle,
-                  })),
-                  totalAvailable: ctx.tools.length,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-
-      case META_TOOLS.DESCRIBE: {
-        const toolNames = (args.tools as string[]) ?? [];
-
-        if (toolNames.length === 0) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({ error: "No tool names provided" }),
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const tools = toolNames
-          .map((n) => toolMap.get(n))
-          .filter((t): t is ToolWithConnection => t !== undefined);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  tools: tools.map((t) => ({
-                    name: t.name,
-                    description: t.description,
-                    connection: t.connectionTitle,
-                    inputSchema: t.inputSchema,
-                    outputSchema: t.outputSchema,
-                  })),
-                  notFound: toolNames.filter((n) => !toolMap.has(n)),
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-
-      case META_TOOLS.CALL: {
-        const innerName = args.name as string;
-        const innerArgs = (args.arguments as Record<string, unknown>) ?? {};
-
-        if (!innerName) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({ error: "Tool name is required" }),
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        if (!toolMap.has(innerName)) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Tool not found: ${innerName}. Use ${META_TOOLS.SEARCH} to find available tools.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        return ctx.callTool(innerName, innerArgs);
-      }
-
-      default:
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Unknown meta-tool: ${name}. Available: ${Object.values(META_TOOLS).join(", ")}`,
-            },
-          ],
-          isError: true,
-        };
-    }
-  };
-
-  return { tools: createMetaTools(ctx), callTool };
-};
+const smartToolSelectionStrategy: ToolSelectionStrategyFn = (ctx) =>
+  createStrategyFromTools([
+    createSearchTool(ctx),
+    createDescribeTool(ctx),
+    createCallTool(ctx),
+  ]);
 
 // ============================================================================
 // Strategy Registry
@@ -337,8 +395,7 @@ export function getStrategy(
     case "smart_tool_selection":
       return smartToolSelectionStrategy;
     case "code_execution":
-      // TODO: Implement code execution strategy
-      return passthroughStrategy;
+      return codeExecutionStrategy;
     case "passthrough":
     default:
       return passthroughStrategy;

@@ -2,6 +2,7 @@ import { AlertCircle, Terminal } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { ToolOutputRenderer } from "./tool-outputs/tool-output-renderer.tsx";
+import { Spinner } from "@deco/ui/components/spinner.js";
 
 interface ToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
@@ -22,13 +23,15 @@ export function ToolCallPart({ part }: ToolCallPartProps) {
           <Terminal className="h-3.5 w-3.5" />
         )}
         <span className={cn(state === "output-error" && "text-destructive/90")}>
-          {state === "input-streaming" && `Streaming ${toolName} arguments...`}
-          {state === "input-available" && `Calling ${toolName}...`}
+          {state === "input-streaming" && `Streaming ${toolName} arguments`}
+          {state === "input-available" && `Calling ${toolName}`}
           {state === "output-available" && `Called ${toolName}`}
           {state === "output-error" && `Error calling ${toolName}`}
         </span>
         {(state === "input-streaming" || state === "input-available") && (
-          <span className="animate-pulse">...</span>
+          <span className="animate-spin">
+            <Spinner size="xs" />
+          </span>
         )}
       </div>
 
