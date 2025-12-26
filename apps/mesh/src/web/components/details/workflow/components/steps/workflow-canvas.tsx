@@ -286,7 +286,7 @@ export const WorkflowCanvas = memo(function WorkflowCanvas() {
         />
 
         {/* Floating Add Step Button */}
-        {hasSteps && (
+        {hasSteps && !trackingExecutionId && (
           <Panel position="bottom-center" className="mb-4">
             <FloatingAddStepButton />
           </Panel>

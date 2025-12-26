@@ -46,6 +46,7 @@ function StepTabsList() {
   const { setCurrentStepTab } = useWorkflowActions();
   const selectedExecutionId = useTrackingExecutionId();
   const currentStepName = useCurrentStepName();
+  const trackingExecutionId = useTrackingExecutionId();
   return (
     <TabsList className="w-full rounded-none bg-transparent p-0">
       <TabsTrigger
@@ -70,7 +71,7 @@ function StepTabsList() {
           <span>Output</span>
         </TabsTrigger>
       )}
-      {currentStepName !== "Manual" && (
+      {currentStepName !== "Manual" && !trackingExecutionId && (
         <TabsTrigger
           className={cn(
             "border-0 border-b border-border p-0 h-full rounded-none w-full font-sans text-sm font-normal text-foreground shadow-none!",
@@ -209,12 +210,12 @@ function OutputTabContent({ executionId }: { executionId: string }) {
   const output = currentStepName
     ? currentStepName === "Manual"
       ? (pollingExecution?.output ?? pollingExecution?.error ?? null)
-      : () => {
+      : (() => {
           const stepResult = step_results?.find(
             (result) => result.step_id === currentStepName,
           );
           return stepResult?.output ?? stepResult?.error ?? null;
-        }
+        })()
     : (pollingExecution?.output ?? pollingExecution?.error ?? null);
 
   if (
@@ -273,6 +274,7 @@ export function StepHeader() {
 
 export function StepTabs() {
   const activeTab = useCurrentStepTab();
+  const trackingExecutionId = useTrackingExecutionId();
   const { setCurrentStepTab, updateStep } = useWorkflowActions();
   const currentStep = useCurrentStep();
   const currentStepName = useCurrentStepName();
@@ -315,7 +317,7 @@ export function StepTabs() {
           />
         )}
 
-        {currentStep && activeTab === "action" && (
+        {currentStep && activeTab === "action" && !trackingExecutionId && (
           <ActionTab step={currentStep} />
         )}
       </TabsContent>
