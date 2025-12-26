@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronSelectorVertical } from "@untitledui/icons";
 import { ReactNode, useState } from "react";
 
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -65,7 +65,7 @@ export function Combobox({
             className={cn("justify-between", width, triggerClassName)}
           >
             {selectedOption ? selectedOption.label : placeholder}
-            <ChevronsUpDown className="opacity-50" />
+            <ChevronSelectorVertical className="opacity-50" />
           </Button>
         )}
       </PopoverTrigger>

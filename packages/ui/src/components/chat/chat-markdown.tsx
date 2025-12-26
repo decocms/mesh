@@ -13,7 +13,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { Button } from "../button.tsx";
-import { Icon } from "../icon.tsx";
+import { Check, Copy01 } from "@untitledui/icons";
 
 const LazyHighlighter = lazy(() => import("./lazy-highlighter.tsx"));
 
@@ -141,7 +141,7 @@ function Table(props: React.HTMLAttributes<HTMLTableElement>) {
           type="button"
         >
           Copy as CSV
-          <Icon name={copied ? "check" : "content_copy"} size={12} />
+          {copied ? <Check size={12} /> : <Copy01 size={12} />}
         </Button>
       </div>
       <div className="overflow-x-auto mb-4 rounded-lg border border-border">
@@ -267,7 +267,7 @@ function CodeBlock({
           aria-label="Copy code"
           className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
         >
-          <Icon name={copied ? "check" : "content_copy"} size={14} />
+          {copied ? <Check size={14} /> : <Copy01 size={14} />}
         </Button>
       </div>
 

@@ -1,11 +1,11 @@
 import { Button } from "./button.tsx";
-import { Icon } from "./icon.tsx";
 import { Input } from "./input.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover.tsx";
 import { Separator } from "./separator.tsx";
 import { Avatar } from "./avatar.tsx";
 import { createContext, useContext, type ReactNode } from "react";
 import { cn } from "../lib/utils.ts";
+import { ChevronSelectorVertical } from "@untitledui/icons";
 
 export interface TopbarSwitcherEntity {
   slug: string;
@@ -81,7 +81,7 @@ function TopbarSwitcherTrigger({
       </Button>
       <PopoverTrigger asChild>
         <Button size="icon" variant="ghost" className="w-6 h-6 p-0">
-          <Icon name="expand_all" size={16} className="opacity-50" />
+          <ChevronSelectorVertical size={16} className="opacity-50" />
         </Button>
       </PopoverTrigger>
     </div>
@@ -272,7 +272,7 @@ function TopbarSwitcherActions({ children }: TopbarSwitcherActionsProps) {
 // Action button
 interface TopbarSwitcherActionProps {
   onClick: () => void;
-  icon?: string;
+  icon?: ReactNode;
   children: ReactNode;
   variant?: "default" | "muted";
 }
@@ -293,7 +293,7 @@ function TopbarSwitcherAction({
       )}
       onClick={onClick}
     >
-      {icon && <Icon name={icon} size={16} />}
+      {icon && <span className="[&>svg]:size-4">{icon}</span>}
       <span>{children}</span>
     </Button>
   );

@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Plus } from "@untitledui/icons";
 
 interface Registry {
   id: string;
@@ -89,7 +89,7 @@ export function StoreRegistrySelect({
                   <span className="flex-1">{registry.title}</span>
                 </div>
                 <span className="absolute right-2 flex size-3.5 items-center justify-center text-muted-foreground">
-                  <Icon name="add" size={16} />
+                  <Plus size={16} />
                 </span>
               </button>
             ))}

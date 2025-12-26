@@ -5,8 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@deco/ui/components/card.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle, AlertCircle, Loading01 } from "@untitledui/icons";
 import { handleOAuthCallback } from "@/web/lib/mcp-oauth";
 
 export default function OAuthCallback() {
@@ -58,12 +57,12 @@ export default function OAuthCallback() {
               </>
             ) : success ? (
               <>
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <CheckCircle className="h-5 w-5 text-green-600" />
                 Authentication Successful
               </>
             ) : (
               <>
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loading01 className="h-5 w-5 animate-spin" />
                 Authentication in progress...
               </>
             )}
@@ -83,11 +82,7 @@ export default function OAuthCallback() {
           ) : (
             <>
               <div className="flex items-center justify-center py-4">
-                <Icon
-                  name="progress_activity"
-                  size={32}
-                  className="animate-spin text-primary"
-                />
+                <Loading01 size={32} className="animate-spin text-primary" />
               </div>
               <p className="text-sm text-muted-foreground text-center">
                 Processing authentication...

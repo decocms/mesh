@@ -1,7 +1,7 @@
 import type { RegistryItem } from "@/web/components/store/registry-items-section";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Plus, ChevronDown, CheckCircle } from "@untitledui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,7 +69,7 @@ export function AppHeroSection({
                   disabled={isInstalling}
                   className="shrink-0 rounded-r-none cursor-pointer"
                 >
-                  <Icon name="add" size={20} />
+                  <Plus size={20} />
                   {isInstalling ? "Connecting..." : "Connect MCP Server"}
                 </Button>
 
@@ -80,7 +80,7 @@ export function AppHeroSection({
                       disabled={isInstalling}
                       className="shrink-0 rounded-l-none px-2 border-l-2 border-l-white/50 cursor-pointer"
                     >
-                      <Icon name="expand_more" size={20} />
+                      <ChevronDown size={20} />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
@@ -111,8 +111,7 @@ export function AppHeroSection({
                               )}
                             </div>
                             {index === selectedVersionIndex && (
-                              <Icon
-                                name="check_circle"
+                              <CheckCircle
                                 size={16}
                                 className="text-muted-foreground shrink-0"
                               />
@@ -131,7 +130,7 @@ export function AppHeroSection({
                 disabled={itemVersions.length === 0 || isInstalling}
                 className="shrink-0"
               >
-                <Icon name="add" size={20} />
+                <Plus size={20} />
                 {isInstalling ? "Connecting..." : "Connect MCP Server"}
               </Button>
             )}

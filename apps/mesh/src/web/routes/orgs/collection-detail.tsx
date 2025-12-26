@@ -4,7 +4,7 @@ import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useCollectionActions } from "@/web/hooks/use-collections";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Loading01, Container } from "@untitledui/icons";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { Suspense, type ComponentType } from "react";
 import { WorkflowDetailsView } from "@/web/components/details/workflow/index.tsx";
@@ -102,7 +102,7 @@ function CollectionDetailsContent() {
 
   return (
     <EmptyState
-      icon="extension"
+      icon={<Container size={36} className="text-muted-foreground" />}
       title="No component defined"
       description="No component for this collection was defined"
       buttonProps={{
@@ -135,8 +135,7 @@ export default function CollectionDetails() {
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center">
-            <Icon
-              name="progress_activity"
+            <Loading01
               size={32}
               className="animate-spin text-muted-foreground"
             />

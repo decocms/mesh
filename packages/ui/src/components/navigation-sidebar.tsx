@@ -1,5 +1,4 @@
-import { ReactNode } from "react";
-import { Icon } from "./icon.tsx";
+import type { ReactNode } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,7 +13,7 @@ import { Skeleton } from "./skeleton.tsx";
 export interface NavigationSidebarItem {
   key: string;
   label: string;
-  icon: string;
+  icon: ReactNode;
   onClick: () => void;
   isActive?: boolean;
 }
@@ -47,12 +46,14 @@ export function NavigationSidebar({
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
-                    className="cursor-pointer text-foreground/90 [&>span.material-symbols-outlined]:text-muted-foreground/85! hover:[&>span.material-symbols-outlined]:text-foreground! hover:text-foreground!"
+                    className="group/nav-item cursor-pointer text-foreground/90 hover:text-foreground"
                     onClick={item.onClick}
                     isActive={item.isActive}
                     tooltip={item.label}
                   >
-                    <Icon name={item.icon} size={18} />
+                    <span className="text-muted-foreground group-hover/nav-item:text-foreground transition-colors [&>svg]:size-4">
+                      {item.icon}
+                    </span>
                     <span className="truncate">{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -3,7 +3,7 @@ import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Loading01, Plus } from "@untitledui/icons";
 import {
   Select,
   SelectContent,
@@ -292,16 +292,12 @@ function BindingSelector({
             >
               {isInstalling ? (
                 <>
-                  <Icon
-                    name="progress_activity"
-                    size={16}
-                    className="animate-spin"
-                  />
+                  <Loading01 size={16} className="animate-spin" />
                   <span>Connecting...</span>
                 </>
               ) : (
                 <>
-                  <Icon name="add" size={16} />
+                  <Plus size={16} />
                   <span>
                     {canInstallInline
                       ? "Connect MCP Server"

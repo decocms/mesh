@@ -16,6 +16,5 @@
     "utils": "@deco/ui/lib/utils.ts",
     "lib": "@deco/ui/lib",
     "hooks": "@deco/ui/hooks"
-  },
-  "iconLibrary": "material-symbols"
+  }
 }

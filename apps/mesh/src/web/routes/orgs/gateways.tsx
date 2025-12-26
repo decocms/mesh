@@ -33,7 +33,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import {
+  DotsVertical,
+  Eye,
+  Trash01,
+  Loading01,
+  CpuChip02,
+} from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useReducer } from "react";
 import { toast } from "sonner";
@@ -120,7 +126,7 @@ function OrgGatewaysContent() {
           name={gateway.title}
           size="sm"
           className="shrink-0 shadow-sm"
-          fallbackIcon="network_node"
+          fallbackIcon={<CpuChip02 size={16} />}
         />
       ),
       cellClassName: "w-16 shrink-0",
@@ -192,7 +198,7 @@ function OrgGatewaysContent() {
               className="h-8 w-8 p-0"
               onClick={(e) => e.stopPropagation()}
             >
-              <Icon name="more_vert" size={20} />
+              <DotsVertical size={20} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
@@ -205,7 +211,7 @@ function OrgGatewaysContent() {
                 });
               }}
             >
-              <Icon name="visibility" size={16} />
+              <Eye size={16} />
               Inspect
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -215,7 +221,7 @@ function OrgGatewaysContent() {
                 dispatch({ type: "delete", gateway });
               }}
             >
-              <Icon name="delete" size={16} />
+              <Trash01 size={16} />
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -300,13 +306,7 @@ function OrgGatewaysContent() {
         <div className="flex-1 overflow-auto p-5">
           {gateways.length === 0 ? (
             <EmptyState
-              image={
-                <Icon
-                  name="network_node"
-                  size={48}
-                  className="text-muted-foreground"
-                />
-              }
+              image={<CpuChip02 size={36} className="text-muted-foreground" />}
               title={listState.search ? "No gateways found" : "No gateways yet"}
               description={
                 listState.search
@@ -326,7 +326,7 @@ function OrgGatewaysContent() {
                     icon: gateway.icon,
                     status: gateway.status,
                   }}
-                  fallbackIcon="network_node"
+                  fallbackIcon={<CpuChip02 />}
                   onClick={() =>
                     navigate({
                       to: "/$org/gateways/$gatewayId",
@@ -356,7 +356,7 @@ function OrgGatewaysContent() {
                           className="h-8 w-8 p-0"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Icon name="more_vert" size={20} />
+                          <DotsVertical size={20} />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
@@ -375,7 +375,7 @@ function OrgGatewaysContent() {
                             });
                           }}
                         >
-                          <Icon name="visibility" size={16} />
+                          <Eye size={16} />
                           Inspect
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -385,7 +385,7 @@ function OrgGatewaysContent() {
                             dispatch({ type: "delete", gateway });
                           }}
                         >
-                          <Icon name="delete" size={16} />
+                          <Trash01 size={16} />
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -414,11 +414,7 @@ function OrgGatewaysContent() {
             listState.search ? (
               <EmptyState
                 image={
-                  <Icon
-                    name="network_node"
-                    size={48}
-                    className="text-muted-foreground"
-                  />
+                  <CpuChip02 size={36} className="text-muted-foreground" />
                 }
                 title="No gateways found"
                 description={`No gateways match "${listState.search}"`}
@@ -426,11 +422,7 @@ function OrgGatewaysContent() {
             ) : (
               <EmptyState
                 image={
-                  <Icon
-                    name="network_node"
-                    size={48}
-                    className="text-muted-foreground"
-                  />
+                  <CpuChip02 size={36} className="text-muted-foreground" />
                 }
                 title="No gateways yet"
                 description="Create a gateway to aggregate tools from multiple MCP connections."
@@ -449,8 +441,7 @@ export default function OrgGateways() {
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center">
-            <Icon
-              name="progress_activity"
+            <Loading01
               size={32}
               className="animate-spin text-muted-foreground"
             />

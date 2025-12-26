@@ -17,7 +17,7 @@ import { Input } from "@deco/ui/components/input.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Upload, X } from "lucide-react";
+import { Upload01, X } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -128,7 +128,7 @@ function LogoUpload({
           onClick={handleClick}
           className="h-20 w-20 rounded-lg border-2 border-dashed border-border hover:border-foreground/50 hover:bg-accent/50 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground"
         >
-          <Upload className="h-5 w-5" />
+          <Upload01 className="h-5 w-5" />
           <span className="text-xs">Upload</span>
         </button>
       )}

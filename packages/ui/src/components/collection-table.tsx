@@ -6,9 +6,9 @@ import {
   TableHeader,
   TableRow,
 } from "@deco/ui/components/table.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { ReactNode } from "react";
+import { ArrowUp, ArrowDown } from "@untitledui/icons";
 
 export interface CollectionTableColumn<T> {
   id: string;
@@ -43,13 +43,19 @@ export function CollectionTable<T = Record<string, unknown>>({
   function renderSortIcon(_key: string, isActive: boolean) {
     return (
       <div className="w-4 flex items-center justify-center">
-        {isActive && sortDirection && (
-          <Icon
-            name={sortDirection === "asc" ? "arrow_upward" : "arrow_downward"}
-            size={16}
-            className="text-muted-foreground transition-colors"
-          />
-        )}
+        {isActive &&
+          sortDirection &&
+          (sortDirection === "asc" ? (
+            <ArrowUp
+              size={16}
+              className="text-muted-foreground transition-colors"
+            />
+          ) : (
+            <ArrowDown
+              size={16}
+              className="text-muted-foreground transition-colors"
+            />
+          ))}
       </div>
     );
   }

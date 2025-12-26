@@ -1,5 +1,6 @@
 import { Card } from "@deco/ui/components/card.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import type { ReactNode } from "react";
 import { IntegrationIcon } from "../integration-icon.tsx";
 
 export interface ConnectionCardData {
@@ -17,7 +18,7 @@ export interface ConnectionCardProps {
   footer?: React.ReactNode;
   className?: string;
   size?: "sm" | "md";
-  fallbackIcon?: string;
+  fallbackIcon?: ReactNode;
 }
 
 export function ConnectionCard({

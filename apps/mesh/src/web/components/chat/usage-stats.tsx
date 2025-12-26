@@ -3,7 +3,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@deco/ui/components/tooltip.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Coins01 } from "@untitledui/icons";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
 
@@ -23,7 +23,7 @@ export function UsageStats({ messages }: UsageStatsProps) {
           type="button"
           className="ml-auto shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground/60 font-mono tabular-nums hover:text-muted-foreground transition-colors"
         >
-          <Icon name="token" size={12} className="opacity-60" />
+          <Coins01 size={12} className="opacity-60" />
           <span className="hidden md:inline">
             {totalTokens.toLocaleString()}
           </span>

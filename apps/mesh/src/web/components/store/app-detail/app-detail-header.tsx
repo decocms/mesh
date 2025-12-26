@@ -1,5 +1,5 @@
 import { Button } from "@deco/ui/components/button.tsx";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@untitledui/icons";
 
 interface AppDetailHeaderProps {
   onBack: () => void;

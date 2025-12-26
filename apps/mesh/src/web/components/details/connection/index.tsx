@@ -8,7 +8,7 @@ import {
 import { useCollectionBindings } from "@/web/hooks/use-binding";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Loading01 } from "@untitledui/icons";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import {
   useNavigate,
@@ -94,9 +94,8 @@ function ConnectionInspectorViewWithConnection({
             <Suspense
               fallback={
                 <div className="flex h-full items-center justify-center">
-                  <Icon
+                  <Loading01
                     size={32}
-                    name="progress_activity"
                     className="animate-spin text-muted-foreground"
                   />
                 </div>
@@ -211,8 +210,7 @@ export default function ConnectionInspectorView() {
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center bg-background">
-            <Icon
-              name="progress_activity"
+            <Loading01
               size={32}
               className="animate-spin text-muted-foreground"
             />

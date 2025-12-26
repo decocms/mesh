@@ -26,7 +26,7 @@ import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { FilterLines, PauseCircle, PlayCircle } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import { MultiSelect } from "@deco/ui/components/multi-select.tsx";
 import {
@@ -123,7 +123,7 @@ function FiltersPopover({
     <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-7 px-3 gap-1.5">
-          <Icon name="filter_list" size={16} />
+          <FilterLines size={16} />
           Filters
           {activeFiltersCount > 0 && (
             <Badge
@@ -557,11 +557,11 @@ function MonitoringDashboardContent({
               className={`h-7 px-2 sm:px-3 gap-1.5 ${isStreaming ? "bg-muted hover:bg-muted/80" : ""}`}
               onClick={onStreamingToggle}
             >
-              <Icon
-                name={isStreaming ? "pause" : "play_arrow"}
-                size={16}
-                className={isStreaming ? "animate-pulse" : ""}
-              />
+              {isStreaming ? (
+                <PauseCircle size={16} className="animate-pulse" />
+              ) : (
+                <PlayCircle size={16} />
+              )}
               <span className="hidden sm:inline">
                 {isStreaming ? "Streaming" : "Stream"}
               </span>

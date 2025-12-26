@@ -4,7 +4,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { MessageListContext } from "./message-list.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { ChevronUp, ChevronDown } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 
 export interface MessageProps<T extends Metadata> {
@@ -91,10 +91,11 @@ export function MessageUser<T extends Metadata>({
               size="xs"
               className="text-xs w-full text-muted-foreground hover:text-foreground"
             >
-              <Icon
-                name={isExpanded ? "expand_less" : "expand_more"}
-                className="text-sm"
-              />
+              {isExpanded ? (
+                <ChevronUp className="text-sm" />
+              ) : (
+                <ChevronDown className="text-sm" />
+              )}
             </Button>
           </div>
         )}

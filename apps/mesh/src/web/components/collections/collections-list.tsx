@@ -12,7 +12,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import {
+  DotsVertical,
+  Eye,
+  Edit01,
+  Copy01,
+  Trash01,
+  Inbox01,
+} from "@untitledui/icons";
 import type { JsonSchema } from "@/web/utils/constants";
 
 // Helper to generate sort options from JSONSchema
@@ -103,7 +110,7 @@ export function CollectionsList<T extends BaseCollectionEntity>({
             <div className="flex items-center justify-center h-full">
               {emptyState || (
                 <EmptyState
-                  icon="inbox"
+                  icon={<Inbox01 size={36} className="text-muted-foreground" />}
                   title="No items found"
                   description={
                     search ? "Try adjusting your search" : "No items to display"
@@ -141,7 +148,7 @@ export function CollectionsList<T extends BaseCollectionEntity>({
           emptyState={
             emptyState || (
               <EmptyState
-                icon="inbox"
+                icon={<Inbox01 size={36} className="text-muted-foreground" />}
                 title="No items found"
                 description={
                   search ? "Try adjusting your search" : "No items to display"
@@ -171,7 +178,7 @@ function generateActionsColumn<T extends BaseCollectionEntity>(
             className="h-8 w-8 p-0"
             onClick={(e) => e.stopPropagation()}
           >
-            <Icon name="more_vert" size={20} />
+            <DotsVertical size={20} />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
@@ -182,7 +189,7 @@ function generateActionsColumn<T extends BaseCollectionEntity>(
                 actions.open?.(row);
               }}
             >
-              <Icon name="visibility" size={16} />
+              <Eye size={16} />
               Open
             </DropdownMenuItem>
           )}
@@ -193,7 +200,7 @@ function generateActionsColumn<T extends BaseCollectionEntity>(
                 actions.edit?.(row);
               }}
             >
-              <Icon name="edit" size={16} />
+              <Edit01 size={16} />
               Edit
             </DropdownMenuItem>
           )}
@@ -204,7 +211,7 @@ function generateActionsColumn<T extends BaseCollectionEntity>(
                 actions.duplicate?.(row);
               }}
             >
-              <Icon name="content_copy" size={16} />
+              <Copy01 size={16} />
               Duplicate
             </DropdownMenuItem>
           )}
@@ -216,7 +223,7 @@ function generateActionsColumn<T extends BaseCollectionEntity>(
                 actions.delete?.(row);
               }}
             >
-              <Icon name="delete" size={16} />
+              <Trash01 size={16} />
               Delete
             </DropdownMenuItem>
           )}

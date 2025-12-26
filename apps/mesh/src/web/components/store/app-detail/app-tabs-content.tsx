@@ -1,6 +1,6 @@
 import { EmptyState } from "@/web/components/empty-state";
 import { ReadmeViewer } from "@/web/components/store/readme-viewer";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Loading01 } from "@untitledui/icons";
 import { ToolsList, type Tool } from "@/web/components/tools";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import type { AppData, TabItem } from "./types";
@@ -49,11 +49,7 @@ export function AppTabsContent({
         <div className="flex flex-col flex-1">
           {isLoadingTools ? (
             <div className="flex items-center justify-center p-8">
-              <Icon
-                name="progress_activity"
-                size={24}
-                className="animate-spin"
-              />
+              <Loading01 size={24} className="animate-spin" />
               <span className="ml-2 text-sm text-muted-foreground">
                 Loading tools...
               </span>

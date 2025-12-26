@@ -1,6 +1,6 @@
 import { cn } from "../lib/utils.ts";
 import { Button } from "./button.tsx";
-import { Icon } from "./icon.tsx";
+import { ArrowUp, Plus, Stop } from "@untitledui/icons";
 import { Textarea } from "./textarea.tsx";
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 
@@ -124,11 +124,7 @@ export function DecoChatInputV2({
               )}
               title={isStreaming ? "Stop generating" : "Send message (Enter)"}
             >
-              <Icon
-                name={isStreaming ? "stop" : "arrow_upward"}
-                size={20}
-                filled={isStreaming}
-              />
+              {isStreaming ? <Stop size={20} /> : <ArrowUp size={20} />}
             </Button>
           </div>
         </div>
@@ -157,8 +153,7 @@ export function AddContextButton({
       )}
       title="Add context"
     >
-      <Icon
-        name="add"
+      <Plus
         size={20}
         className="text-muted-foreground group-hover:text-foreground transition-colors"
       />

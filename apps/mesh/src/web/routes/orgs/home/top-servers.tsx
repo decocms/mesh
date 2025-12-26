@@ -6,6 +6,7 @@
 
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { Container } from "@untitledui/icons";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -256,7 +257,7 @@ function TopServersContent({
                   icon={connection.icon}
                   name={connection.title}
                   size="xs"
-                  fallbackIcon="extension"
+                  fallbackIcon={<Container />}
                   className="shrink-0"
                 />
                 <span className="text-xs font-medium text-foreground truncate min-w-0 w-32">

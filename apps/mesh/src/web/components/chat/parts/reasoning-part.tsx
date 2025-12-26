@@ -1,7 +1,7 @@
 import { ReasoningUIPart } from "ai";
 import { useEffect, useReducer } from "react";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Stars01, ChevronDown } from "@untitledui/icons";
 import { MemoizedMarkdown } from "@deco/ui/components/chat/chat-markdown.tsx";
 
 interface ReasoningPartProps {
@@ -62,8 +62,7 @@ export function MessageReasoningPart({ part, id }: ReasoningPartProps) {
         onClick={handleToggle}
         className="flex items-center gap-2 py-2 transition-colors cursor-pointer"
       >
-        <Icon
-          name="psychology"
+        <Stars01
           className={cn(
             "text-muted-foreground transition-opacity",
             isPartStreaming && "animate-pulse",
@@ -77,8 +76,7 @@ export function MessageReasoningPart({ part, id }: ReasoningPartProps) {
         >
           Agent thinking
         </span>
-        <Icon
-          name="expand_more"
+        <ChevronDown
           className={cn(
             "text-muted-foreground transition-transform duration-200",
             isExpanded ? "rotate-180" : "",

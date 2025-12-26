@@ -32,7 +32,7 @@ import {
 } from "@/web/utils/registry-utils";
 import { extractDisplayNameFromDomain } from "@/web/utils/app-name";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { InfoCircle } from "@untitledui/icons";
 import {
   Component,
   type ErrorInfo,
@@ -468,7 +468,7 @@ function StoreAppDetailContent() {
             {/* Not installable state */}
             {!canInstall && (
               <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
-                <Icon name="info" size={16} className="inline mr-2" />
+                <InfoCircle size={16} className="inline mr-2" />
                 This MCP Server cannot be connected - no connection method
                 available.
               </div>

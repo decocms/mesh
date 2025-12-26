@@ -2,7 +2,7 @@ import { authClient } from "@/web/lib/auth-client";
 import { useNavigate } from "@tanstack/react-router";
 import { EntityCard } from "@deco/ui/components/entity-card.tsx";
 import { EntityGrid } from "@deco/ui/components/entity-grid.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { AlertCircle, Plus } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Suspense, useState, useDeferredValue } from "react";
@@ -88,7 +88,7 @@ function OrganizationsGrid({ query }: { query?: string }) {
 function ErrorState({ error }: { error: Error }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 p-8">
-      <Icon name="error" size={24} className="text-destructive" />
+      <AlertCircle size={24} className="text-destructive" />
       <div className="text-sm text-muted-foreground text-center">
         Error loading organizations: {error.message}
       </div>
@@ -131,7 +131,7 @@ export function OrganizationsHome() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           <Button variant="default" onClick={() => setIsCreateDialogOpen(true)}>
-            <Icon name="add" size={16} />
+            <Plus size={16} />
             <span>New organization</span>
           </Button>
         </div>

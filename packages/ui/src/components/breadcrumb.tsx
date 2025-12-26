@@ -1,5 +1,5 @@
 import { Slot } from "@radix-ui/react-slot";
-import { MoreHorizontal, Slash } from "lucide-react";
+import { DotsHorizontal, SlashDivider } from "@untitledui/icons";
 import type * as React from "react";
 
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -78,7 +78,7 @@ function BreadcrumbSeparator({
       )}
       {...props}
     >
-      {children ?? <Slash />}
+      {children ?? <SlashDivider />}
     </li>
   );
 }
@@ -95,7 +95,7 @@ function BreadcrumbEllipsis({
       className={cn("flex size-10 items-center justify-center", className)}
       {...props}
     >
-      <MoreHorizontal className="size-4" />
+      <DotsHorizontal className="size-4" />
       <span className="sr-only">More</span>
     </span>
   );
