@@ -52,10 +52,7 @@ export function NavigationSidebar({
                     isActive={item.isActive}
                     tooltip={item.label}
                   >
-                    <Icon
-                      name={item.icon}
-                      size={18}
-                    />
+                    <Icon name={item.icon} size={18} />
                     <span className="truncate">{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

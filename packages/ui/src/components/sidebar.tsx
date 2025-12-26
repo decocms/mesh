@@ -378,8 +378,7 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function SidebarSeparator({
-  className,
-  ...props
+  className: _className,
 }: React.ComponentProps<typeof Separator>) {
   return <div className="h-3 mx-4 w-full"></div>;
 }
