@@ -36,7 +36,7 @@ const PROVIDER_COST_EXTRACTORS: Record<string, ProviderCostExtractor> = {
 /**
  * Extract cost from usage metadata by checking all known provider formats
  */
-export function getCostFromUsage(usage: Metadata["usage"]): number | null {
+function getCostFromUsage(usage: Metadata["usage"]): number | null {
   if (!usage?.providerMetadata) {
     return null;
   }

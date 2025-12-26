@@ -16,21 +16,6 @@ import { useProjectContext } from "../providers/project-context-provider";
 import type { Message, Thread } from "../types/chat-threads";
 
 /**
- * Get all threads for the current organization from IndexedDB
- */
-function getThreadsFromIndexedDB(locator: string): Promise<Thread[]> {
-  const prefix = `${locator}:threads:`;
-  return entries().then((allEntries: [unknown, unknown][]) =>
-    allEntries
-      .filter(
-        ([key]: [unknown, unknown]) =>
-          typeof key === "string" && key.startsWith(prefix),
-      )
-      .map(([, value]: [unknown, unknown]) => value as Thread),
-  );
-}
-
-/**
  * Get a single thread by ID from IndexedDB
  */
 export async function getThreadFromIndexedDB(
@@ -75,23 +60,6 @@ function getThreadMessagesFromIndexedDB(
       return String(aTime).localeCompare(String(bTime));
     });
   });
-}
-
-/**
- * Hook to get all threads for the current organization
- *
- * @returns Suspense query result with threads array
- */
-export function useThreads() {
-  const { locator } = useProjectContext();
-
-  const { data } = useSuspenseQuery({
-    queryKey: KEYS.threads(locator),
-    queryFn: () => getThreadsFromIndexedDB(locator),
-    staleTime: 30_000, // 30 seconds
-  });
-
-  return data;
 }
 
 /**
