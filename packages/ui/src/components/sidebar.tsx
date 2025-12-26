@@ -383,7 +383,7 @@ function SidebarSeparator({
   return (
     <div
       data-sidebar="separator"
-      className={cn("h-3 mx-4 w-full", className)}
+      className={cn("h-4 m-0! w-full", className)}
       {...props}
     />
   );
