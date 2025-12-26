@@ -254,13 +254,31 @@ export function useMentionEditor({
         HTMLAttributes: {
           class: "bg-primary/20 text-primary px-1 rounded font-medium",
         },
-        renderLabel: ({ node }) => `@${node.attrs.id}`,
+        renderText: ({ node }) => `@${node.attrs.id}`,
+        renderHTML: ({ options, node }) => [
+          "span",
+          options.HTMLAttributes,
+          `@${node.attrs.id}`,
+        ],
         suggestion: {
           items: ({ query }: { query: string }) =>
             mentions.filter((m) =>
               m.label.toLowerCase().includes(query.toLowerCase()),
             ),
           render: suggestionRenderer,
+          command: ({ editor, range, props }) => {
+            // Insert mention without trailing space
+            editor
+              .chain()
+              .focus()
+              .insertContentAt(range, [
+                {
+                  type: "mention",
+                  attrs: props,
+                },
+              ])
+              .run();
+          },
         },
       }),
     ],
@@ -281,7 +299,7 @@ export function useMentionEditor({
         return false;
       },
     },
-    onUpdate: ({ editor }) => onChange?.(editor.getText()),
+    onUpdate: ({ editor }) => onChange?.(editor.getText().trim()),
   });
 }
 
@@ -342,7 +360,9 @@ export function TiptapMentionsInput({
   const editor = useMentionEditor({
     mentions,
     placeholder,
-    onChange: (text) => onChange?.("", text),
+    onChange: (text) => {
+      onChange?.("", text);
+    },
   });
 
   return (
