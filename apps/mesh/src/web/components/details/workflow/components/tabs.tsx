@@ -405,8 +405,9 @@ function SelectedTool({
     });
   };
   const workflowSteps = useWorkflowSteps();
+  const currentStepIndex = workflowSteps.findIndex((s) => s.name === step.name);
 
-  const allMentions = workflowSteps.map((step) => ({
+  const allMentions = workflowSteps.slice(0, currentStepIndex).map((step) => ({
     id: step.name,
     label: step.name,
     children: jsonSchemaToMentionItems(
