@@ -1,35 +1,40 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
+import {
+  describe,
+  expect,
+  test,
+  mock,
+  beforeEach,
+  afterEach,
+  spyOn,
+} from "bun:test";
 import { Hono } from "hono";
 import oauthProxyRoutes from "./oauth-proxy";
 import { ContextFactory } from "../../core/context-factory";
 
-// Mock ContextFactory
-mock.module("../../core/context-factory", () => ({
-  ContextFactory: {
-    create: mock(() =>
-      Promise.resolve({
-        storage: {
-          connections: {
-            findById: mock(() => Promise.resolve(null)),
-          },
-        },
-      }),
-    ),
-  },
-}));
-
 describe("OAuth Proxy Routes", () => {
   let app: Hono;
   let originalFetch: typeof fetch;
+  let contextFactorySpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
     app = new Hono();
     app.route("/", oauthProxyRoutes);
     originalFetch = global.fetch;
+
+    // Spy on ContextFactory.create - this doesn't affect other test files
+    contextFactorySpy = spyOn(ContextFactory, "create").mockResolvedValue({
+      storage: {
+        connections: {
+          findById: mock(() => Promise.resolve(null)),
+        },
+      },
+    } as never);
   });
 
   afterEach(() => {
+    // Restore original fetch and mocks
     global.fetch = originalFetch;
+    contextFactorySpy.mockRestore();
     mock.restore();
   });
 
@@ -39,16 +44,13 @@ describe("OAuth Proxy Routes", () => {
         connection_url?: string;
       } | null,
     ) => {
-      (ContextFactory.create as ReturnType<typeof mock>).mockImplementation(
-        () =>
-          Promise.resolve({
-            storage: {
-              connections: {
-                findById: mock(() => Promise.resolve(connection)),
-              },
-            },
-          }),
-      );
+      contextFactorySpy.mockResolvedValue({
+        storage: {
+          connections: {
+            findById: mock(() => Promise.resolve(connection)),
+          },
+        },
+      } as never);
     };
 
     test("returns 404 when connection not found", async () => {

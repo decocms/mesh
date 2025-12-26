@@ -16,7 +16,7 @@ import { createLLMProvider } from "../llm-provider";
 import { fixProtocol } from "./oauth-proxy";
 
 // Default values
-const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MAX_TOKENS = 32768;
 const DEFAULT_MEMORY = 50; // last N messages to keep
 
 const StreamRequestSchema = z.object({
@@ -218,6 +218,16 @@ app.post("/:org/models/stream", async (c) => {
             model: modelConfig,
             created_at: new Date(),
             thread_id: threadId,
+          };
+        }
+
+        if (part.type === "finish-step") {
+          const usage = part.usage;
+          return {
+            usage: {
+              ...usage,
+              providerMetadata: part.providerMetadata,
+            },
           };
         }
         return {};

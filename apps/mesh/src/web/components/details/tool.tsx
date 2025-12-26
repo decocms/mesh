@@ -25,8 +25,11 @@ import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
-import { OAuthAuthenticationState } from "./connection/settings-tab";
-import { useIsMCPAuthenticated } from "@/web/hooks/use-is-mcp-authenticated";
+import {
+  OAuthAuthenticationState,
+  ManualAuthRequiredState,
+} from "./connection/settings-tab";
+import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { useMcp } from "@/web/hooks/use-mcp";
 
 export interface ToolDetailsViewProps {
@@ -52,17 +55,21 @@ function ToolDetailsContent({
 }) {
   const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
 
-  const isMCPAuthenticated = useIsMCPAuthenticated({
+  const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
   });
 
-  if (!isMCPAuthenticated) {
+  if (!authStatus.isAuthenticated) {
     return (
       <div className="flex h-full items-center justify-center">
-        <OAuthAuthenticationState
-          onAuthenticate={() => onBack()}
-          buttonText="Go back"
-        />
+        {authStatus.supportsOAuth ? (
+          <OAuthAuthenticationState
+            onAuthenticate={() => onBack()}
+            buttonText="Go back to authenticate"
+          />
+        ) : (
+          <ManualAuthRequiredState hasReadme={false} />
+        )}
       </div>
     );
   }

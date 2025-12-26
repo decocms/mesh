@@ -14,10 +14,16 @@ function responseToStream(
     throw new Error("Response body is null");
   }
 
+  let buffer = "";
+
   return response.body.pipeThrough(new TextDecoderStream()).pipeThrough(
     new TransformStream<string, LanguageModelV2StreamPart>({
       transform(chunk, controller) {
-        const lines = chunk.split("\n");
+        buffer += chunk;
+        const lines = buffer.split("\n");
+
+        // Keep the last element in the buffer - it might be incomplete
+        buffer = lines.pop() ?? "";
 
         for (const line of lines) {
           if (line.trim()) {
@@ -28,6 +34,18 @@ function responseToStream(
               console.error("Failed to parse stream chunk:", error);
               throw error;
             }
+          }
+        }
+      },
+      flush(controller) {
+        // Process any remaining data in the buffer when the stream ends
+        if (buffer.trim()) {
+          try {
+            const parsed = JSON.parse(buffer) as LanguageModelV2StreamPart;
+            controller.enqueue(parsed);
+          } catch (error) {
+            console.error("Failed to parse final stream chunk:", error);
+            throw error;
           }
         }
       },

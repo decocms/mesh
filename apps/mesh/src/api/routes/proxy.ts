@@ -45,7 +45,7 @@ import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
 import { HttpServerTransport } from "../http-server-transport";
 import { compose } from "../utils/compose";
-import { oauthOn401 } from "./oauth-proxy";
+import { handleAuthError } from "./oauth-proxy";
 import {
   createProxyMonitoringMiddleware,
   createProxyStreamableMonitoringMiddleware,
@@ -384,6 +384,8 @@ async function createMCPProxyDoNotUseDirectly(
             span.end();
 
             throw error;
+          } finally {
+            await client.close();
           }
         },
       );
@@ -538,9 +540,23 @@ async function createMCPProxyDoNotUseDirectly(
   const handleMcpRequest = async (req: Request) => {
     // Create client once - throws HTTPException for auth errors
     const reqUrl = new URL(req.url);
-    const client = await createClient().catch((error) =>
-      oauthOn401(error, reqUrl, connectionId),
-    );
+    let client: Awaited<ReturnType<typeof createClient>>;
+    try {
+      client = await createClient();
+    } catch (error) {
+      // Check if this is an auth error - if so, return appropriate 401
+      const authResponse = await handleAuthError({
+        error: error as Error & { status?: number },
+        reqUrl,
+        connectionId,
+        connectionUrl: connection.connection_url,
+        headers: await buildRequestHeaders(),
+      });
+      if (authResponse) {
+        return authResponse;
+      }
+      throw error;
+    }
 
     // Create MCP server for this proxy
     const server = new McpServer(
@@ -577,7 +593,12 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListResourcesRequestSchema,
       async (): Promise<ListResourcesResult> => {
-        return await client.listResources();
+        if (client.getServerCapabilities()?.resources) {
+          return await client.listResources();
+        }
+        return {
+          resources: [],
+        };
       },
     );
 
@@ -591,7 +612,12 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListResourceTemplatesRequestSchema,
       async (): Promise<ListResourceTemplatesResult> => {
-        return await client.listResourceTemplates();
+        if (client.getServerCapabilities()?.resourceTemplates) {
+          return await client.listResourceTemplates();
+        }
+        return {
+          resourceTemplates: [],
+        };
       },
     );
 
@@ -599,7 +625,12 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListPromptsRequestSchema,
       async (): Promise<ListPromptsResult> => {
-        return await client.listPrompts();
+        if (client.getServerCapabilities()?.prompts) {
+          return await client.listPrompts();
+        }
+        return {
+          prompts: [],
+        };
       },
     );
 

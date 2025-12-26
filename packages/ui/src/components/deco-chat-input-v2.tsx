@@ -99,7 +99,7 @@ export function DecoChatInputV2({
         {/* Bottom Actions Row */}
         <div className="flex items-center justify-between px-2.5 pb-2.5">
           {/* Left Actions (add context, files, etc) */}
-          <div className="flex items-center">{leftActions}</div>
+          <div className="flex items-center overflow-hidden">{leftActions}</div>
 
           {/* Right Actions (model selector, audio, send) */}
           <div className="flex items-center gap-1">
