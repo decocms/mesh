@@ -532,6 +532,7 @@ function ToolSelector({
 function useTool(connectionId: string, toolName: string) {
   const mcp = useMcp({
     url: `/mcp/${connectionId}`,
+    enabled: !!connectionId && !!toolName,
   });
   const connection = useConnection(connectionId);
   const tool = connection?.tools?.find((t) => t.name === toolName);
