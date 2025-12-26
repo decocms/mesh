@@ -30,7 +30,7 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
 import { useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { Plus } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ViewActions } from "../layout";

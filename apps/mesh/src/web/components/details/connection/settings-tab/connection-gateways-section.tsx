@@ -4,7 +4,7 @@ import {
   type GatewayEntity,
 } from "@/web/hooks/collections/use-gateway";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { CpuChip02, ChevronRight, Plus, Loading01 } from "@untitledui/icons";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 interface ConnectionGatewaysSectionProps {
@@ -36,14 +36,13 @@ function GatewayListItem({
         />
       ) : (
         <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-          <Icon name="network_node" size={16} className="text-primary" />
+          <CpuChip02 size={16} className="text-primary" />
         </div>
       )}
       <span className="flex-1 text-sm font-medium text-foreground truncate">
         {gateway.title}
       </span>
-      <Icon
-        name="chevron_right"
+      <ChevronRight
         size={16}
         className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0"
       />
@@ -101,9 +100,9 @@ function CreateGatewayButton({
         disabled={actions.create.isPending}
       >
         {actions.create.isPending ? (
-          <Icon name="progress_activity" size={16} className="animate-spin" />
+          <Loading01 size={16} className="animate-spin" />
         ) : (
-          <Icon name="add" size={16} />
+          <Plus size={16} />
         )}
         Create another gateway
       </Button>
@@ -118,9 +117,9 @@ function CreateGatewayButton({
       disabled={actions.create.isPending}
     >
       {actions.create.isPending ? (
-        <Icon name="progress_activity" size={20} className="animate-spin" />
+        <Loading01 size={20} className="animate-spin" />
       ) : (
-        <Icon name="network_node" size={20} />
+        <CpuChip02 size={20} />
       )}
       Expose via MCP Gateway
     </Button>

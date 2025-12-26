@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Button } from "./button.tsx";
-import { Icon } from "./icon.tsx";
 import { cn } from "../lib/utils.ts";
+import { X } from "@untitledui/icons";
 
 interface DecoChatHeaderProps {
   avatar?: string;
@@ -53,7 +53,7 @@ export function DecoChatHeader({
             className="size-6 rounded-full"
             title="Close chat"
           >
-            <Icon name="close" size={16} />
+            <X size={16} />
           </Button>
         )}
       </div>

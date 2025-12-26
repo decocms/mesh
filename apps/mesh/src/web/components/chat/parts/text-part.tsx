@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useCopy } from "@deco/ui/hooks/use-copy.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import { MemoizedMarkdown } from "@deco/ui/components/chat/chat-markdown.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Check, Copy01 } from "@untitledui/icons";
 
 interface MessageTextPartProps {
   id: string;
@@ -37,13 +37,9 @@ export function MessageTextPart({
               className="text-muted-foreground hover:text-foreground px-2 py-1 h-auto whitespace-nowrap"
             >
               {isCopied ? (
-                <>
-                  <Icon name="check" className="mr-1 text-sm" />
-                </>
+                <Check className="mr-1 text-sm" />
               ) : (
-                <>
-                  <Icon name="content_copy" className="mr-1 text-sm" />
-                </>
+                <Copy01 className="mr-1 text-sm" />
               )}
             </Button>
           </div>

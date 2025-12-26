@@ -17,8 +17,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { ArrowLeft, X, Plus } from "@untitledui/icons";
 
 export type FilterOperator =
   | "contains"
@@ -261,7 +261,7 @@ export function FilterBar({
                 setSelectedOperator(null);
               }}
             >
-              <Icon name="arrow_back" size={16} />
+              <ArrowLeft size={16} />
             </Button>
             <p className="text-xs text-muted-foreground uppercase font-mono">
               {COLUMN_LABELS[selectedColumn]}
@@ -316,7 +316,7 @@ export function FilterBar({
               }
             }}
           >
-            <Icon name="arrow_back" size={16} />
+            <ArrowLeft size={16} />
           </Button>
           <p className="text-xs text-muted-foreground uppercase font-mono">
             {selectedColumn === "name" || selectedColumn === "description"
@@ -444,7 +444,7 @@ export function FilterBar({
                   }}
                   className="flex items-center justify-center w-0 opacity-0 group-hover:w-4 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all overflow-hidden"
                 >
-                  <Icon name="close" size={16} />
+                  <X size={16} />
                 </button>
               </div>
             </DropdownMenuTrigger>
@@ -473,7 +473,7 @@ export function FilterBar({
             size="sm"
             className="h-8 rounded-lg text-muted-foreground hover:text-foreground"
           >
-            <Icon name="add" size={16} />
+            <Plus size={16} />
             Add filter
           </Button>
         </DropdownMenuTrigger>

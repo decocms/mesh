@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@untitledui/icons";
 
 interface Props {
   children: ReactNode;

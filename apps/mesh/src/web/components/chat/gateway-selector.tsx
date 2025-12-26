@@ -1,5 +1,5 @@
 import type { GatewayEntity } from "@/tools/gateway/schema";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Check, SearchMd, CpuChip02 } from "@untitledui/icons";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   ResponsiveSelect,
@@ -8,11 +8,11 @@ import {
   ResponsiveSelectValue,
 } from "@deco/ui/components/responsive-select.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 export interface GatewayInfo
   extends Pick<GatewayEntity, "id" | "title" | "description" | "icon"> {
-  fallbackIcon?: string; // Material Symbol name to use when icon is not available
+  fallbackIcon?: ReactNode; // Icon to use when icon is not available
 }
 
 function GatewayItemContent({
@@ -34,7 +34,7 @@ function GatewayItemContent({
         icon={gateway.icon}
         name={gateway.title}
         size="sm"
-        fallbackIcon={gateway.fallbackIcon || "network_node"}
+        fallbackIcon={gateway.fallbackIcon ?? <CpuChip02 />}
         className="size-10"
       />
 
@@ -45,7 +45,7 @@ function GatewayItemContent({
             {gateway.title}
           </span>
           {isSelected && (
-            <Icon name="check" size={16} className="text-foreground shrink-0" />
+            <Check size={16} className="text-foreground shrink-0" />
           )}
         </div>
         {gateway.description && (
@@ -75,7 +75,7 @@ function SelectedGatewayDisplay({
         icon={gateway.icon}
         name={gateway.title}
         size="xs"
-        fallbackIcon={gateway.fallbackIcon || "network_node"}
+        fallbackIcon={gateway.fallbackIcon ?? <CpuChip02 />}
         className="size-5"
       />
       <span className="text-sm font-medium text-foreground truncate">
@@ -143,7 +143,7 @@ export function GatewaySelector({
           {/* Search/Header area could go here if needed */}
           <div className="border-b px-4 py-3 bg-background/95 backdrop-blur sticky top-0 z-10">
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Icon name="search" size={16} />
+              <SearchMd size={16} />
               <span className="text-sm">Search for a gateway...</span>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { SearchMd } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 
@@ -32,11 +32,7 @@ export function CollectionSearch({
       className={cn("shrink-0 w-full border-b border-border h-12", className)}
     >
       <div className="flex items-center gap-2.5 h-12 px-4">
-        <Icon
-          name="search"
-          size={16}
-          className="text-muted-foreground shrink-0"
-        />
+        <SearchMd size={16} className="text-muted-foreground shrink-0" />
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}

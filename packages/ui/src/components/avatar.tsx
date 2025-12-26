@@ -4,7 +4,7 @@
 import type * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 import { cn } from "../lib/utils.ts";
-import { Icon } from "./icon.tsx";
+import { User01 } from "@untitledui/icons";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type HTMLAttributes, type ReactNode, useMemo, useState } from "react";
 
@@ -235,7 +235,7 @@ function UnifiedAvatar({
             fallbackColor,
           )}
         >
-          <Icon name={iconName} size={getIconSize(size)} />
+          <User01 size={getIconSize(size)} />
         </div>
       ) : (
         <>

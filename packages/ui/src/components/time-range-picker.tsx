@@ -9,7 +9,7 @@ import {
 } from "@deco/ui/components/popover.tsx";
 import { ScrollArea } from "@deco/ui/components/scroll-area.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Clock, ChevronDown } from "lucide-react";
+import { Clock, ChevronDown } from "@untitledui/icons";
 import { DateTimeInput } from "@deco/ui/components/datetime-input.tsx";
 import {
   QUICK_RANGES,

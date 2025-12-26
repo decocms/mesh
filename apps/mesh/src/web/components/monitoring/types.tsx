@@ -5,7 +5,7 @@
  */
 
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { Download01, Check, Copy01 } from "@untitledui/icons";
 import { lazy, Suspense, useState } from "react";
 import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
 import { toast } from "sonner";
@@ -298,7 +298,7 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                     aria-label="Download full input"
                     className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
                   >
-                    <Icon name="download" size={14} />
+                    <Download01 size={14} />
                   </Button>
                 )}
                 <Button
@@ -308,10 +308,7 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                   aria-label="Copy input"
                   className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
                 >
-                  <Icon
-                    name={copiedInput ? "check" : "content_copy"}
-                    size={14}
-                  />
+                  {copiedInput ? <Check size={14} /> : <Copy01 size={14} />}
                 </Button>
               </div>
             </div>
@@ -342,7 +339,7 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                     aria-label="Download full output"
                     className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
                   >
-                    <Icon name="download" size={14} />
+                    <Download01 size={14} />
                   </Button>
                 )}
                 <Button
@@ -352,10 +349,7 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                   aria-label="Copy output"
                   className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
                 >
-                  <Icon
-                    name={copiedOutput ? "check" : "content_copy"}
-                    size={14}
-                  />
+                  {copiedOutput ? <Check size={14} /> : <Copy01 size={14} />}
                 </Button>
               </div>
             </div>

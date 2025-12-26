@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Button } from "./button.tsx";
-import { Icon } from "./icon.tsx";
 import { cn } from "../lib/utils.ts";
+import { MessageChatSquare } from "@untitledui/icons";
 
 interface DecoChatToggleButtonProps {
   onClick: () => void;
@@ -20,7 +20,7 @@ export function DecoChatToggleButton({
 }: DecoChatToggleButtonProps) {
   const defaultAvatar = (
     <span className="inline-flex size-5 items-center justify-center rounded-lg bg-lime-400 text-lime-950 shadow-sm">
-      <Icon name="robot_2" size={16} />
+      <MessageChatSquare size={16} />
     </span>
   );
 

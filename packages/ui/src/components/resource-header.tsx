@@ -13,9 +13,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Tabs, TabsList, TabsTrigger } from "@deco/ui/components/tabs.tsx";
+import {
+  SearchMd,
+  RefreshCw01,
+  FilterLines,
+  DotsHorizontal,
+  Grid01,
+  List,
+  Check,
+  ArrowUp,
+  ArrowDown,
+} from "@untitledui/icons";
 
 export interface ResourceHeaderTab {
   id: string;
@@ -110,11 +120,7 @@ export function ResourceHeader({
           <div className="flex items-center justify-end gap-2 py-2 shrink-0">
             {onSearchChange && (
               <div className="flex items-center gap-2">
-                <Icon
-                  name="search"
-                  size={20}
-                  className="text-muted-foreground"
-                />
+                <SearchMd size={20} className="text-muted-foreground" />
                 <Input
                   ref={searchInputRef}
                   value={searchValue}
@@ -134,7 +140,7 @@ export function ResourceHeader({
                 onClick={onRefresh}
                 className="h-9 w-9 flex items-center text-muted-foreground justify-center"
               >
-                <Icon name="refresh" size={20} />
+                <RefreshCw01 size={20} />
               </Button>
             )}
 
@@ -145,8 +151,7 @@ export function ResourceHeader({
                 onClick={onFilterClick}
                 className="h-9 w-9 flex items-center justify-center"
               >
-                <Icon
-                  name="filter_list"
+                <FilterLines
                   size={20}
                   className={
                     filters && filters.length > 0
@@ -164,7 +169,7 @@ export function ResourceHeader({
                   size="icon"
                   className="h-9 w-9 flex items-center text-muted-foreground justify-center"
                 >
-                  <Icon name="more_horiz" size={20} />
+                  <DotsHorizontal size={20} />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 p-1">
@@ -176,11 +181,7 @@ export function ResourceHeader({
                       onClick={() => onViewModeChange?.("cards")}
                       className="flex-1 h-10 "
                     >
-                      <Icon
-                        name="grid_view"
-                        size={20}
-                        className="text-muted-foreground"
-                      />
+                      <Grid01 size={20} className="text-muted-foreground" />
                     </Button>
                     <Button
                       variant={viewMode === "table" ? "secondary" : "ghost"}
@@ -188,11 +189,7 @@ export function ResourceHeader({
                       onClick={() => onViewModeChange?.("table")}
                       className="flex-1 h-10"
                     >
-                      <Icon
-                        name="view_list"
-                        size={20}
-                        className="text-muted-foreground"
-                      />
+                      <List size={20} className="text-muted-foreground" />
                     </Button>
                   </div>
                 </div>
@@ -210,25 +207,23 @@ export function ResourceHeader({
                   className="cursor-pointer"
                 >
                   {sortKey === "title" && (
-                    <Icon
-                      name="check"
-                      size={16}
-                      className="mr-2 text-foreground"
-                    />
+                    <Check size={16} className="mr-2 text-foreground" />
                   )}
                   {sortKey !== "title" && <span className="w-4 mr-2" />}
                   <span className="flex-1">Name</span>
-                  {sortKey === "title" && sortDirection && (
-                    <Icon
-                      name={
-                        sortDirection === "asc"
-                          ? "arrow_upward"
-                          : "arrow_downward"
-                      }
-                      size={16}
-                      className="ml-2 text-muted-foreground"
-                    />
-                  )}
+                  {sortKey === "title" &&
+                    sortDirection &&
+                    (sortDirection === "asc" ? (
+                      <ArrowUp
+                        size={16}
+                        className="ml-2 text-muted-foreground"
+                      />
+                    ) : (
+                      <ArrowDown
+                        size={16}
+                        className="ml-2 text-muted-foreground"
+                      />
+                    ))}
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
@@ -236,25 +231,23 @@ export function ResourceHeader({
                   className="cursor-pointer"
                 >
                   {sortKey === "description" && (
-                    <Icon
-                      name="check"
-                      size={16}
-                      className="mr-2 text-foreground"
-                    />
+                    <Check size={16} className="mr-2 text-foreground" />
                   )}
                   {sortKey !== "description" && <span className="w-4 mr-2" />}
                   <span className="flex-1">Description</span>
-                  {sortKey === "description" && sortDirection && (
-                    <Icon
-                      name={
-                        sortDirection === "asc"
-                          ? "arrow_upward"
-                          : "arrow_downward"
-                      }
-                      size={16}
-                      className="ml-2 text-muted-foreground"
-                    />
-                  )}
+                  {sortKey === "description" &&
+                    sortDirection &&
+                    (sortDirection === "asc" ? (
+                      <ArrowUp
+                        size={16}
+                        className="ml-2 text-muted-foreground"
+                      />
+                    ) : (
+                      <ArrowDown
+                        size={16}
+                        className="ml-2 text-muted-foreground"
+                      />
+                    ))}
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
@@ -262,25 +255,23 @@ export function ResourceHeader({
                   className="cursor-pointer"
                 >
                   {sortKey === "updated_at" && (
-                    <Icon
-                      name="check"
-                      size={16}
-                      className="mr-2 text-foreground"
-                    />
+                    <Check size={16} className="mr-2 text-foreground" />
                   )}
                   {sortKey !== "updated_at" && <span className="w-4 mr-2" />}
                   <span className="flex-1">Date updated</span>
-                  {sortKey === "updated_at" && sortDirection && (
-                    <Icon
-                      name={
-                        sortDirection === "asc"
-                          ? "arrow_upward"
-                          : "arrow_downward"
-                      }
-                      size={16}
-                      className="ml-2 text-muted-foreground"
-                    />
-                  )}
+                  {sortKey === "updated_at" &&
+                    sortDirection &&
+                    (sortDirection === "asc" ? (
+                      <ArrowUp
+                        size={16}
+                        className="ml-2 text-muted-foreground"
+                      />
+                    ) : (
+                      <ArrowDown
+                        size={16}
+                        className="ml-2 text-muted-foreground"
+                      />
+                    ))}
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
@@ -288,25 +279,23 @@ export function ResourceHeader({
                   className="cursor-pointer"
                 >
                   {sortKey === "updated_by" && (
-                    <Icon
-                      name="check"
-                      size={16}
-                      className="mr-2 text-foreground"
-                    />
+                    <Check size={16} className="mr-2 text-foreground" />
                   )}
                   {sortKey !== "updated_by" && <span className="w-4 mr-2" />}
                   <span className="flex-1">Updated by</span>
-                  {sortKey === "updated_by" && sortDirection && (
-                    <Icon
-                      name={
-                        sortDirection === "asc"
-                          ? "arrow_upward"
-                          : "arrow_downward"
-                      }
-                      size={16}
-                      className="ml-2 text-muted-foreground"
-                    />
-                  )}
+                  {sortKey === "updated_by" &&
+                    sortDirection &&
+                    (sortDirection === "asc" ? (
+                      <ArrowUp
+                        size={16}
+                        className="ml-2 text-muted-foreground"
+                      />
+                    ) : (
+                      <ArrowDown
+                        size={16}
+                        className="ml-2 text-muted-foreground"
+                      />
+                    ))}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

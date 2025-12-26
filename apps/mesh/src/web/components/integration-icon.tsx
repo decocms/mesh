@@ -1,13 +1,13 @@
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Icon } from "@deco/ui/components/icon.tsx";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Container } from "@untitledui/icons";
 
 interface IntegrationIconProps {
   icon: string | null | undefined;
   name: string;
   size?: "xs" | "sm" | "md" | "lg";
   className?: string;
-  fallbackIcon?: string;
+  fallbackIcon?: ReactNode;
 }
 
 export function IntegrationIcon({
@@ -15,7 +15,7 @@ export function IntegrationIcon({
   name,
   size = "md",
   className,
-  fallbackIcon = "extension",
+  fallbackIcon,
 }: IntegrationIconProps) {
   const [imageError, setImageError] = useState(icon ? false : true);
 
@@ -40,6 +40,10 @@ export function IntegrationIcon({
     lg: 32,
   };
 
+  const defaultFallback = (
+    <Container size={iconSizes[size]} className="text-muted-foreground" />
+  );
+
   const fallbackIconElement = (
     <div
       className={cn(
@@ -49,11 +53,7 @@ export function IntegrationIcon({
         className,
       )}
     >
-      <Icon
-        name={fallbackIcon}
-        size={iconSizes[size]}
-        className="text-muted-foreground"
-      />
+      {fallbackIcon ?? defaultFallback}
     </div>
   );
 

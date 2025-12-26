@@ -14,8 +14,8 @@ import {
 import { z } from "zod";
 import { Badge } from "./badge.tsx";
 import { Button } from "./button.tsx";
-import { Icon } from "./icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { X } from "@untitledui/icons";
 
 // Email validation schema
 const emailSchema = z.string().email("Invalid email address");
@@ -394,7 +394,7 @@ export const EmailTagsInput = forwardRef<
                 }}
                 disabled={disabled}
               >
-                <Icon name="close" size={12} />
+                <X size={12} />
               </Button>
             </Badge>
           ))}

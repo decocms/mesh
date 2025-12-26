@@ -1,5 +1,4 @@
 /* eslint-disable ban-memoization/ban-memoization */
-import { Icon } from "./icon.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip.tsx";
 import {
   ResponsiveSelect,
@@ -8,7 +7,18 @@ import {
   ResponsiveSelectValue,
 } from "./responsive-select.tsx";
 import { cn } from "../lib/utils.ts";
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
+import {
+  Stars01,
+  Image01,
+  File06,
+  SearchMd,
+  Check,
+  Grid01,
+  CurrencyDollar,
+  LogOut04,
+  InfoCircle,
+} from "@untitledui/icons";
 
 export interface ModelInfo {
   id: string;
@@ -23,32 +33,35 @@ export interface ModelInfo {
   provider?: string | null;
 }
 
-const CAPABILITY_CONFIGS = {
+const CAPABILITY_CONFIGS: Record<
+  string,
+  { icon: ReactNode; bg: string; text: string; label: string }
+> = {
   reasoning: {
-    icon: "neurology",
+    icon: <Stars01 className="size-4" />,
     bg: "bg-purple-100",
     text: "text-purple-700",
     label: "Reasoning",
   },
   "image-upload": {
-    icon: "image",
+    icon: <Image01 className="size-4" />,
     bg: "bg-teal-100",
     text: "text-teal-700",
     label: "Can analyze images",
   },
   "file-upload": {
-    icon: "description",
+    icon: <File06 className="size-4" />,
     bg: "bg-blue-100",
     text: "text-blue-700",
     label: "Can analyze files",
   },
   "web-search": {
-    icon: "search",
+    icon: <SearchMd className="size-4" />,
     bg: "bg-amber-100",
     text: "text-amber-700",
     label: "Can search the web to answer questions",
   },
-} as const;
+};
 
 const CapabilityBadge = memo(function CapabilityBadge({
   capability,
@@ -56,13 +69,12 @@ const CapabilityBadge = memo(function CapabilityBadge({
   capability: string;
 }) {
   const config = useMemo(() => {
-    const knownConfig =
-      CAPABILITY_CONFIGS[capability as keyof typeof CAPABILITY_CONFIGS];
+    const knownConfig = CAPABILITY_CONFIGS[capability];
     return (
       knownConfig || {
-        icon: "check" as const,
-        bg: "bg-slate-200" as const,
-        text: "text-slate-700" as const,
+        icon: <Check className="size-4" />,
+        bg: "bg-slate-200",
+        text: "text-slate-700",
         label: capability,
       }
     );
@@ -72,9 +84,9 @@ const CapabilityBadge = memo(function CapabilityBadge({
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className={`flex items-center justify-center h-6 w-6 rounded-sm ${config.bg}`}
+          className={`flex items-center justify-center h-6 w-6 rounded-sm ${config.bg} ${config.text}`}
         >
-          <Icon name={config.icon} className={config.text} />
+          {config.icon}
         </div>
       </TooltipTrigger>
       <TooltipContent>
@@ -192,10 +204,7 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
         {model.contextWindow && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
-              <Icon
-                name="widgets"
-                className="w-3.5 h-3.5 text-muted-foreground"
-              />
+              <Grid01 className="w-3.5 h-3.5 text-muted-foreground" />
               <p className="text-sm text-foreground">Context window</p>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -207,10 +216,7 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
         {(model.inputCost || model.outputCost) && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
-              <Icon
-                name="attach_money"
-                className="w-3.5 h-3.5 text-muted-foreground"
-              />
+              <CurrencyDollar className="w-3.5 h-3.5 text-muted-foreground" />
               <p className="text-sm text-foreground">Costs</p>
             </div>
             <div className="flex flex-col gap-0.5">
@@ -231,10 +237,7 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
         {model.outputLimit && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
-              <Icon
-                name="output"
-                className="w-4.5 h-4.5 text-muted-foreground/70"
-              />
+              <LogOut04 className="w-4.5 h-4.5 text-muted-foreground/70" />
               <p className="text-sm text-foreground">Output limit</p>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -280,10 +283,10 @@ const ModelItemContent = memo(function ModelItemContent({
           </div>
         )}
       {isSelected && !hasExpandedInfo && (
-        <Icon name="check" className="w-4 h-4 text-foreground ml-auto" />
+        <Check className="w-4 h-4 text-foreground ml-auto" />
       )}
       {isSelected && hasExpandedInfo && (
-        <Icon name="check" className="w-4 h-4 text-foreground ml-2 shrink-0" />
+        <Check className="w-4 h-4 text-foreground ml-2 shrink-0" />
       )}
     </div>
   );
@@ -369,8 +372,7 @@ export function DecoChatModelSelectorRich({
             className="md:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-accent transition-colors"
             aria-label="Toggle model info"
           >
-            <Icon
-              name="info"
+            <InfoCircle
               className={cn(
                 "w-5 h-5 transition-colors",
                 showInfoMobile ? "text-foreground" : "text-muted-foreground",

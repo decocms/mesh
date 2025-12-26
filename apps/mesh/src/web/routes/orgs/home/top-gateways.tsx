@@ -6,6 +6,7 @@
 
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { CpuChip02 } from "@untitledui/icons";
 import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -220,7 +221,7 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
                     icon={gateway.icon}
                     name={gateway.title}
                     size="xs"
-                    fallbackIcon="network_node"
+                    fallbackIcon={<CpuChip02 />}
                     className="shrink-0"
                   />
                   <span className="text-xs font-medium text-foreground truncate min-w-0 w-32">

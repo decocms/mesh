@@ -3,7 +3,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { CheckVerified02, Lock01 } from "@untitledui/icons";
 import { Card } from "@deco/ui/components/card.js";
 import { IntegrationIcon } from "../integration-icon.tsx";
 import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
@@ -170,18 +170,15 @@ export function RegistryItemCard({
                   <div className="flex items-center gap-2 text-base font-medium min-w-0">
                     <span className="truncate">{displayName}</span>
                     {isVerified && (
-                      <Icon
-                        name="verified"
+                      <CheckVerified02
                         size={16}
                         className="text-success shrink-0"
                       />
                     )}
                     {!canInstall && (
-                      <Icon
-                        name="lock"
+                      <Lock01
                         size={16}
                         className="text-muted-foreground shrink-0"
-                        title="This MCP Server cannot be connected"
                       />
                     )}
                   </div>

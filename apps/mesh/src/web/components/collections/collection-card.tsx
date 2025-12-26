@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { DotsVertical, Eye, Edit01, Copy01, Trash01 } from "@untitledui/icons";
 
 interface CollectionCardProps<T extends BaseCollectionEntity> {
   item: T;
@@ -109,7 +109,7 @@ export function CollectionCard<T extends BaseCollectionEntity>({
                 className="h-8 w-8"
                 onClick={(e) => e.stopPropagation()}
               >
-                <Icon name="more_vert" size={20} />
+                <DotsVertical size={20} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -123,7 +123,7 @@ export function CollectionCard<T extends BaseCollectionEntity>({
                     actions.open?.(item);
                   }}
                 >
-                  <Icon name="visibility" size={16} />
+                  <Eye size={16} />
                   Open
                 </DropdownMenuItem>
               )}
@@ -134,7 +134,7 @@ export function CollectionCard<T extends BaseCollectionEntity>({
                     actions.edit?.(item);
                   }}
                 >
-                  <Icon name="edit" size={16} />
+                  <Edit01 size={16} />
                   Edit
                 </DropdownMenuItem>
               )}
@@ -145,7 +145,7 @@ export function CollectionCard<T extends BaseCollectionEntity>({
                     actions.duplicate?.(item);
                   }}
                 >
-                  <Icon name="content_copy" size={16} />
+                  <Copy01 size={16} />
                   Duplicate
                 </DropdownMenuItem>
               )}
@@ -157,7 +157,7 @@ export function CollectionCard<T extends BaseCollectionEntity>({
                     actions.delete?.(item);
                   }}
                 >
-                  <Icon name="delete" size={16} />
+                  <Trash01 size={16} />
                   Delete
                 </DropdownMenuItem>
               )}

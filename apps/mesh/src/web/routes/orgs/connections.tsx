@@ -49,7 +49,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@deco/ui/components/form.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import {
+  DotsVertical,
+  Eye,
+  Trash01,
+  Loading01,
+  Container,
+} from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
   Select,
@@ -261,7 +267,7 @@ function OrgMcpsContent() {
           name={connection.title}
           size="sm"
           className="shrink-0 shadow-sm"
-          fallbackIcon="extension"
+          fallbackIcon={<Container />}
         />
       ),
       cellClassName: "w-16 shrink-0",
@@ -335,7 +341,7 @@ function OrgMcpsContent() {
               className="h-8 w-8 p-0"
               onClick={(e) => e.stopPropagation()}
             >
-              <Icon name="more_vert" size={20} />
+              <DotsVertical size={20} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
@@ -348,7 +354,7 @@ function OrgMcpsContent() {
                 });
               }}
             >
-              <Icon name="visibility" size={16} />
+              <Eye size={16} />
               Inspect
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -358,7 +364,7 @@ function OrgMcpsContent() {
                 dispatch({ type: "delete", connection });
               }}
             >
-              <Icon name="delete" size={16} />
+              <Trash01 size={16} />
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -621,7 +627,7 @@ function OrgMcpsContent() {
                 <ConnectionCard
                   key={connection.id}
                   connection={connection}
-                  fallbackIcon="extension"
+                  fallbackIcon={<Container />}
                   onClick={() =>
                     navigate({
                       to: "/$org/mcps/$connectionId",
@@ -637,7 +643,7 @@ function OrgMcpsContent() {
                           className="h-8 w-8 p-0"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Icon name="more_vert" size={20} />
+                          <DotsVertical size={20} />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
@@ -656,7 +662,7 @@ function OrgMcpsContent() {
                             });
                           }}
                         >
-                          <Icon name="visibility" size={16} />
+                          <Eye size={16} />
                           Inspect
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -666,7 +672,7 @@ function OrgMcpsContent() {
                             dispatch({ type: "delete", connection });
                           }}
                         >
-                          <Icon name="delete" size={16} />
+                          <Trash01 size={16} />
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -734,8 +740,7 @@ export default function OrgMcps() {
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center">
-            <Icon
-              name="progress_activity"
+            <Loading01
               size={32}
               className="animate-spin text-muted-foreground"
             />

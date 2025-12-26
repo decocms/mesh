@@ -1,5 +1,4 @@
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { ComponentProps, ReactNode } from "react";
 
@@ -10,7 +9,7 @@ export function EmptyState({
   buttonProps,
   buttonComponent,
 }: {
-  icon: string;
+  icon: ReactNode;
   title: string;
   description: string | ReactNode;
   buttonProps?: ComponentProps<typeof Button>;
@@ -24,11 +23,7 @@ export function EmptyState({
             <div className="p-3.5 rounded-full border border-border">
               <div className="p-3 rounded-full border border-border">
                 <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center p-4">
-                  <Icon
-                    name={icon}
-                    className="text-muted-foreground"
-                    size={36}
-                  />
+                  {icon}
                 </div>
               </div>
             </div>

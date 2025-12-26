@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { SearchMd } from "@untitledui/icons";
 
 function Command({
   className,
@@ -67,11 +67,7 @@ function CommandInput({
       data-slot="command-input-wrapper"
       className="flex h-10 items-center gap-2 border-b px-3"
     >
-      <Icon
-        name="search"
-        className="size-5 shrink-0 text-foreground"
-        size={20}
-      />
+      <SearchMd className="size-5 shrink-0 text-foreground" />
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(

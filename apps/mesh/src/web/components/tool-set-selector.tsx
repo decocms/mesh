@@ -1,7 +1,7 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Checkbox } from "@deco/ui/components/checkbox.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
+import { ArrowLeft } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { memo, useDeferredValue, useRef, useState } from "react";
 import { useConnections } from "@/web/hooks/collections/use-connection";
@@ -349,7 +349,7 @@ export function ToolSetSelector({
                 onClick={handleMobileBack}
                 className="h-8 w-8 p-0 shrink-0"
               >
-                <Icon name="arrow_back" size={20} />
+                <ArrowLeft size={20} />
               </Button>
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <IntegrationIcon

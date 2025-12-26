@@ -2,8 +2,8 @@
 import { useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { Icon } from "@deco/ui/components/icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { Eye, EyeOff, Check, Copy01 } from "@untitledui/icons";
 
 interface PasswordInputProps {
   value?: string;
@@ -58,10 +58,7 @@ function PasswordInput({
           onClick={togglePasswordVisibility}
           title={showPassword ? "Hide password" : "Show password"}
         >
-          <Icon
-            name={showPassword ? "visibility_off" : "visibility"}
-            size={16}
-          />
+          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
         </Button>
         <Button
           type="button"
@@ -72,7 +69,7 @@ function PasswordInput({
           disabled={!value}
           title={copySuccess ? "Copied!" : "Copy token"}
         >
-          <Icon name={copySuccess ? "check" : "content_copy"} size={16} />
+          {copySuccess ? <Check size={16} /> : <Copy01 size={16} />}
         </Button>
       </div>
     </div>
