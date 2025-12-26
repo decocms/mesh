@@ -24,6 +24,7 @@ interface NavigationSidebarProps {
   footer?: ReactNode;
   additionalContent?: ReactNode;
   variant?: "sidebar" | "floating" | "inset";
+  collapsible?: "offcanvas" | "icon" | "none";
 }
 
 /**
@@ -35,9 +36,10 @@ export function NavigationSidebar({
   footer,
   additionalContent,
   variant = "sidebar",
+  collapsible = "icon",
 }: NavigationSidebarProps) {
   return (
-    <Sidebar variant={variant}>
+    <Sidebar variant={variant} collapsible={collapsible}>
       <SidebarContent className="flex-1 overflow-x-hidden">
         <SidebarGroup className="font-medium">
           <SidebarGroupContent>
@@ -45,15 +47,12 @@ export function NavigationSidebar({
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
-                    className="cursor-pointer"
+                    className="cursor-pointer text-foreground/90 [&>span.material-symbols-outlined]:text-muted-foreground/85! hover:[&>span.material-symbols-outlined]:text-foreground! hover:text-foreground!"
                     onClick={item.onClick}
                     isActive={item.isActive}
+                    tooltip={item.label}
                   >
-                    <Icon
-                      name={item.icon}
-                      size={20}
-                      className="text-muted-foreground/75"
-                    />
+                    <Icon name={item.icon} size={18} />
                     <span className="truncate">{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

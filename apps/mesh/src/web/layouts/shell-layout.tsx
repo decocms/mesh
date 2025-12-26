@@ -55,8 +55,12 @@ function Topbar({
 
   return (
     <AppTopbar>
+      {showSidebarToggle && (
+        <AppTopbar.Sidebar>
+          <SidebarToggleButton />
+        </AppTopbar.Sidebar>
+      )}
       <AppTopbar.Left>
-        {showSidebarToggle && <SidebarToggleButton />}
         {showOrgSwitcher && (
           <Suspense fallback={<MeshOrgSwitcher.Skeleton />}>
             <MeshOrgSwitcher />

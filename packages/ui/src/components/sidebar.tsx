@@ -10,7 +10,6 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { Separator } from "@deco/ui/components/separator.tsx";
 import {
   Sheet,
   SheetContent,
@@ -380,12 +379,11 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
 function SidebarSeparator({
   className,
   ...props
-}: React.ComponentProps<typeof Separator>) {
+}: React.ComponentProps<"div">) {
   return (
-    <Separator
-      data-slot="sidebar-separator"
+    <div
       data-sidebar="separator"
-      className={cn("bg-border mx-4 w-full", className)}
+      className={cn("h-4 m-0! w-full", className)}
       {...props}
     />
   );
@@ -500,7 +498,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-lg px-2 py-1.5 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding,colors] transition-colors duration-150 ease-out hover:transition-none focus-visible:ring-2 active:bg-sidebar-accent/75 disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent/75 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-[18px] [&>svg]:shrink-0 [&>svg]:text-muted-foreground/75",
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-lg px-2 py-1.5 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding,colors] transition-colors duration-150 ease-out hover:transition-none focus-visible:ring-2 active:bg-sidebar-accent/75 disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent/75 [&>span:last-child]:truncate [&>svg]:size-[18px] [&>svg]:shrink-0 [&>svg]:text-muted-foreground",
   {
     variants: {
       variant: {
@@ -510,7 +508,7 @@ const sidebarMenuButtonVariants = cva(
           "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
       },
       size: {
-        default: "h-8 text-sm",
+        default: "h-7 text-sm font-[450]",
         sm: "h-7 text-xs",
         lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
       },
@@ -710,7 +708,7 @@ function SidebarMenuSubButton({
       data-sidebar="menu-sub-button"
       data-active={isActive}
       className={cn(
-        "text-sidebar-foreground ring-sidebar-ring transition-colors duration-150 ease-out hover:bg-sidebar-accent hover:transition-none active:bg-sidebar-accent/75 flex h-auto w-full min-w-0 translate-x-0 items-center gap-2 overflow-hidden rounded-lg pl-8 pr-4 py-2.5 text-left text-sm outline-hidden focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-[18px] [&>svg]:shrink-0 [&>svg]:text-muted-foreground/75",
+        "text-sidebar-foreground ring-sidebar-ring transition-colors duration-150 ease-out hover:bg-sidebar-accent hover:transition-none active:bg-sidebar-accent/75 flex h-auto w-full min-w-0 translate-x-0 items-center gap-2 overflow-hidden rounded-lg pl-8 pr-4 py-2.5 text-left text-sm outline-hidden focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-[18px] [&>svg]:shrink-0 [&>svg]:text-muted-foreground",
         "data-[active=true]:bg-sidebar-accent/75 text-sidebar-foreground/80 data-[active=true]:text-sidebar-foreground",
         "h-8 py-1.5 px-2 pl-4 text-sm",
         "group-data-[collapsible=icon]:hidden",
