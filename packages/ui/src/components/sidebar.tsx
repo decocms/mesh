@@ -10,7 +10,6 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { Separator } from "@deco/ui/components/separator.tsx";
 import {
   Sheet,
   SheetContent,
@@ -378,9 +377,16 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function SidebarSeparator({
-  className: _className,
-}: React.ComponentProps<typeof Separator>) {
-  return <div className="h-3 mx-4 w-full"></div>;
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-sidebar="separator"
+      className={cn("h-3 mx-4 w-full", className)}
+      {...props}
+    />
+  );
 }
 
 function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
