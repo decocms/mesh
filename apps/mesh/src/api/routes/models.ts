@@ -220,6 +220,16 @@ app.post("/:org/models/stream", async (c) => {
             thread_id: threadId,
           };
         }
+
+        if (part.type === "finish-step") {
+          const usage = part.usage;
+          return {
+            usage: {
+              ...usage,
+              providerMetadata: part.providerMetadata,
+            },
+          };
+        }
         return {};
       },
     });

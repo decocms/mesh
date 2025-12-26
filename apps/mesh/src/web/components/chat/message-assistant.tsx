@@ -7,6 +7,7 @@ import { MessageProps } from "./message-user.tsx";
 import { MessageReasoningPart } from "./parts/reasoning-part.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
+import { UsageStats } from "./usage-stats.tsx";
 
 type ThinkingStage = "planning" | "thinking";
 
@@ -71,6 +72,49 @@ function ThoughtSummary({ duration }: { duration: number }) {
   );
 }
 
+function renderPart(
+  part: MessageProps<Metadata>["message"]["parts"][number],
+  id: string,
+  index: number,
+) {
+  const isToolCall =
+    part.type.startsWith("tool-") || part.type === "dynamic-tool";
+  const shouldSkip =
+    part.type === "step-start" ||
+    part.type === "file" ||
+    part.type === "source-url" ||
+    part.type === "source-document";
+  if (shouldSkip) {
+    return null;
+  }
+  if (isToolCall) {
+    return (
+      <ToolCallPart
+        key={`${id}-${index}`}
+        part={part as ToolUIPart | DynamicToolUIPart}
+        id={id}
+      />
+    );
+  }
+  switch (part.type) {
+    case "text":
+      return (
+        <MessageTextPart
+          key={`${id}-${index}`}
+          id={id}
+          text={part.text}
+          copyable={true}
+        />
+      );
+    case "reasoning":
+      return (
+        <MessageReasoningPart key={`${id}-${index}`} part={part} id={id} />
+      );
+  }
+
+  throw new Error(`Unknown part type: ${part.type}`);
+}
+
 export function MessageAssistant<T extends Metadata>({
   message,
   status,
@@ -126,52 +170,13 @@ export function MessageAssistant<T extends Metadata>({
           {hasContent ? (
             <>
               {showThought && <ThoughtSummary duration={duration} />}
-              {parts.map((part, index) => {
-                if (part.type === "text") {
-                  return (
-                    <MessageTextPart
-                      key={`${id}-${index}`}
-                      id={id}
-                      text={part.text}
-                      copyable={true}
-                    />
-                  );
-                } else if (part.type === "reasoning") {
-                  return (
-                    <MessageReasoningPart
-                      key={`${id}-${index}`}
-                      part={part}
-                      id={id}
-                    />
-                  );
-                } else if (
-                  part.type.startsWith("tool-") ||
-                  part.type === "dynamic-tool"
-                ) {
-                  return (
-                    <ToolCallPart
-                      key={`${id}-${index}`}
-                      part={part as ToolUIPart | DynamicToolUIPart}
-                      id={id}
-                    />
-                  );
-                } else if (
-                  part.type === "step-start" ||
-                  part.type === "file" ||
-                  part.type === "source-url" ||
-                  part.type === "source-document"
-                ) {
-                  console.warn("Skipping part type", part);
-                  return null;
-                }
-
-                throw new Error(`Unknown part type: ${JSON.stringify(part)}`);
-              })}
+              {parts.map((part, index) => renderPart(part, id, index))}
             </>
           ) : isLoading ? (
             <TypingIndicator />
           ) : null}
         </div>
+        <UsageStats messages={[message]} />
       </div>
     </div>
   );

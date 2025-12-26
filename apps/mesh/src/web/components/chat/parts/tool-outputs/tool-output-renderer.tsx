@@ -19,6 +19,11 @@ export function ToolOutputRenderer({
   output,
   isError,
 }: ToolOutputRendererProps) {
+  const stringifiedOutput = JSON.stringify(output, null, 2);
+  const isLargeOutput = stringifiedOutput.length > 2000;
+  const outputContent = isLargeOutput
+    ? stringifiedOutput.slice(0, 2000) + "...[TRUNCATED]"
+    : stringifiedOutput;
   // Handle READ_MCP_TOOLS
   if (toolName === "READ_MCP_TOOLS") {
     const connectionId = (input as { id: string })?.id;
@@ -54,7 +59,7 @@ export function ToolOutputRenderer({
               isError ? "text-destructive" : "text-foreground"
             }`}
           >
-            {JSON.stringify(output, null, 2)}
+            {outputContent}
           </pre>
         </div>
       </div>
@@ -64,9 +69,7 @@ export function ToolOutputRenderer({
   // Default fallback
   return (
     <div className="bg-muted rounded-md p-2 text-xs font-mono overflow-auto max-h-[200px]">
-      <pre className="whitespace-pre-wrap break-all">
-        {JSON.stringify(output, null, 2)}
-      </pre>
+      <pre className="whitespace-pre-wrap break-all">{outputContent}</pre>
     </div>
   );
 }

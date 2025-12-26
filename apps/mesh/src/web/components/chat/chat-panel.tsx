@@ -17,7 +17,7 @@ import { DecoChatModelSelectorRich } from "@deco/ui/components/deco-chat-model-s
 import { Icon } from "@deco/ui/components/icon.tsx";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate } from "@tanstack/react-router";
-import { DefaultChatTransport, type ChatInit, type UIMessage } from "ai";
+import { type ChatInit, DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -33,6 +33,7 @@ import type { Message } from "../../types/chat-threads";
 import { MessageAssistant } from "./message-assistant.tsx";
 import { MessageFooter, MessageList } from "./message-list.tsx";
 import { MessageUser } from "./message-user.tsx";
+import { UsageStats } from "./usage-stats.tsx";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
@@ -548,6 +549,7 @@ export function ChatPanel() {
                   variant="borderless"
                 />
               )}
+              <UsageStats messages={chat.messages} />
             </div>
           }
         />

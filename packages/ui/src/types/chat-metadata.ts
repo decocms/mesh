@@ -19,4 +19,13 @@ export interface Metadata {
   user?: ChatUserConfig;
   created_at?: string | Date;
   thread_id?: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    reasoningTokens?: number;
+    providerMetadata?: {
+      [key: string]: unknown;
+    };
+  };
 }
