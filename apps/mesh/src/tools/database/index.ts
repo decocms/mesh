@@ -1,4 +1,3 @@
-// apps/mesh/src/tools/database/index.ts
 import { sql } from "kysely";
 import type { Kysely } from "kysely";
 import { z } from "zod";
@@ -63,16 +62,15 @@ async function createSchemaAndRole(
   // Create the schema
   await sql`CREATE SCHEMA IF NOT EXISTS ${sql.id(schemaName)}`.execute(db);
 
-  // Create the role (NOLOGIN = can't be used to connect directly)
-  await sql`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = ${roleName}) THEN
-        CREATE ROLE ${sql.id(roleName)} NOLOGIN;
-      END IF;
-    END
-    $$
+  // Create the role if it doesn't exist (NOLOGIN = can't be used to connect directly)
+  // Note: We query pg_roles separately because DO blocks don't support parameter binding
+  const roleExists = await sql<{ exists: boolean }>`
+    SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${roleName}) as exists
   `.execute(db);
+
+  if (!roleExists.rows[0]?.exists) {
+    await sql`CREATE ROLE ${sql.id(roleName)} NOLOGIN`.execute(db);
+  }
 
   // Grant access to the connection's schema only
   await sql`GRANT USAGE, CREATE ON SCHEMA ${sql.id(schemaName)} TO ${sql.id(roleName)}`.execute(
