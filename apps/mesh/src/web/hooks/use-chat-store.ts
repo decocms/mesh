@@ -27,6 +27,26 @@ export async function getThreadFromIndexedDB(
 }
 
 /**
+ * Get all threads from IndexedDB
+ */
+async function getAllThreadsFromIndexedDB(locator: string): Promise<Thread[]> {
+  const prefix = `${locator}:threads:`;
+  const allEntries = await entries();
+  const threads = allEntries
+    .filter(
+      ([key]: [unknown, unknown]) =>
+        typeof key === "string" && key.startsWith(prefix),
+    )
+    .map(([, value]: [unknown, unknown]) => value as Thread)
+    .filter((thread: Thread) => !thread.hidden);
+
+  // Sort by updated_at descending (most recent first)
+  return threads.sort((a: Thread, b: Thread) => {
+    return String(b.updated_at).localeCompare(String(a.updated_at));
+  });
+}
+
+/**
  * Get messages for a specific thread from IndexedDB
  */
 function getThreadMessagesFromIndexedDB(
@@ -60,6 +80,23 @@ function getThreadMessagesFromIndexedDB(
       return String(aTime).localeCompare(String(bTime));
     });
   });
+}
+
+/**
+ * Hook to get all threads
+ *
+ * @returns Object with threads array and refetch function
+ */
+export function useThreads() {
+  const { locator } = useProjectContext();
+
+  const { data, refetch } = useSuspenseQuery({
+    queryKey: KEYS.threads(locator),
+    queryFn: () => getAllThreadsFromIndexedDB(locator),
+    staleTime: 30_000,
+  });
+
+  return { threads: data ?? [], refetch };
 }
 
 /**
