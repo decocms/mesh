@@ -46,12 +46,12 @@ export function NavigationSidebar({
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
-                    className="cursor-pointer text-foreground/90 [&>span.material-symbols-outlined]:text-muted-foreground/85! hover:[&>span.material-symbols-outlined]:text-foreground! hover:text-foreground!"
+                    className="group/nav-item cursor-pointer text-foreground/90 hover:text-foreground"
                     onClick={item.onClick}
                     isActive={item.isActive}
                     tooltip={item.label}
                   >
-                    <span className="text-muted-foreground/75 [&>svg]:size-5">
+                    <span className="text-muted-foreground group-hover/nav-item:text-foreground transition-colors [&>svg]:size-4">
                       {item.icon}
                     </span>
                     <span className="truncate">{item.label}</span>

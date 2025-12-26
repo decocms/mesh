@@ -53,7 +53,10 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
               className="h-4 w-4 rounded object-cover"
             />
           ) : (
-            <File06 size={16} className="text-muted-foreground/85 group-hover/item:text-foreground" />
+            <File06
+              size={16}
+              className="text-muted-foreground group-hover/item:text-foreground transition-colors"
+            />
           )}
         </div>
         <div className="flex-1 min-w-0 flex flex-col items-start">
