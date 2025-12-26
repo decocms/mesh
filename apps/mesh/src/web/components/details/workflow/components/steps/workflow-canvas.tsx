@@ -28,6 +28,7 @@ import {
 } from "@deco/ui/components/tooltip.js";
 import { usePollingWorkflowExecution } from "../../hooks/use-workflow-collection-item";
 import { Spinner } from "@deco/ui/components/spinner.js";
+import { useToolActionTab } from "../../stores/step-tabs";
 
 // ============================================
 // Node Types Configuration
@@ -95,9 +96,11 @@ const FloatingAddStepButton = memo(function FloatingAddStepButton() {
   const { startAddingStep, cancelAddingStep } = useWorkflowActions();
   const isAddingStep = useIsAddingStep();
   const { setCurrentStepTab, setTrackingExecutionId } = useWorkflowActions();
+  const { setActiveTab } = useToolActionTab();
   const handleSelectType = (type: StepType) => {
     startAddingStep(type);
     setCurrentStepTab("action");
+    setActiveTab("connections");
     setTrackingExecutionId(undefined);
     setIsExpanded(false);
   };
