@@ -7,6 +7,7 @@ import {
   type EventBusBindingClient,
 } from "@decocms/bindings";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { GetPromptResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { BindingRegistry } from "./bindings.ts";
@@ -81,6 +82,58 @@ export type CreatedTool = {
   }): Promise<unknown>;
 };
 
+// Re-export GetPromptResult for external use
+export type { GetPromptResult } from "@modelcontextprotocol/sdk/types.js";
+
+/**
+ * Prompt argument schema shape - must be string types per MCP specification.
+ * Unlike tool arguments, prompt arguments are always strings.
+ */
+export type PromptArgsRawShape = {
+  [k: string]:
+    | z.ZodType<string, z.ZodTypeDef, string>
+    | z.ZodOptional<z.ZodType<string, z.ZodTypeDef, string>>;
+};
+
+/**
+ * Context passed to prompt execute functions.
+ */
+export interface PromptExecutionContext<
+  TArgs extends PromptArgsRawShape = PromptArgsRawShape,
+> {
+  args: z.objectOutputType<TArgs, z.ZodTypeAny>;
+  runtimeContext: AppContext;
+}
+
+/**
+ * Prompt interface with generic argument types for type-safe prompt creation.
+ */
+export interface Prompt<TArgs extends PromptArgsRawShape = PromptArgsRawShape> {
+  name: string;
+  title?: string;
+  description?: string;
+  argsSchema?: TArgs;
+  execute(
+    context: PromptExecutionContext<TArgs>,
+  ): Promise<GetPromptResult> | GetPromptResult;
+}
+
+/**
+ * CreatedPrompt is a permissive type that any Prompt can be assigned to.
+ * Uses a structural type with relaxed execute signature to allow prompts with any schema.
+ */
+export type CreatedPrompt = {
+  name: string;
+  title?: string;
+  description?: string;
+  argsSchema?: PromptArgsRawShape;
+  // Use a permissive execute signature - accepts any args shape
+  execute(context: {
+    args: Record<string, string | undefined>;
+    runtimeContext: AppContext;
+  }): Promise<GetPromptResult> | GetPromptResult;
+};
+
 /**
  * creates a private tool that always ensure for athentication before being executed
  */
@@ -132,6 +185,43 @@ export function createTool<
       });
     },
   };
+}
+
+/**
+ * Creates a public prompt that does not require authentication.
+ */
+export function createPublicPrompt<TArgs extends PromptArgsRawShape>(
+  opts: Prompt<TArgs>,
+): Prompt<TArgs> {
+  return {
+    ...opts,
+    execute: (input: PromptExecutionContext<TArgs>) => {
+      return opts.execute({
+        ...input,
+        runtimeContext: createRuntimeContext(input.runtimeContext),
+      });
+    },
+  };
+}
+
+/**
+ * Creates a prompt that always ensures authentication before being executed.
+ * This is the default and recommended way to create prompts.
+ */
+export function createPrompt<TArgs extends PromptArgsRawShape>(
+  opts: Prompt<TArgs>,
+): Prompt<TArgs> {
+  const execute = opts.execute;
+  return createPublicPrompt({
+    ...opts,
+    execute: (input: PromptExecutionContext<TArgs>) => {
+      const env = input.runtimeContext.env;
+      if (env) {
+        env.MESH_REQUEST_CONTEXT?.ensureAuthenticated();
+      }
+      return execute(input);
+    },
+  });
 }
 
 export interface ViewExport {
@@ -260,6 +350,17 @@ export interface CreateMCPServerOptions<
           | Promise<CreatedTool[]>
       >
     | ((env: TEnv) => CreatedTool[] | Promise<CreatedTool[]>);
+  prompts?:
+    | Array<
+        (
+          env: TEnv,
+        ) =>
+          | Promise<CreatedPrompt>
+          | CreatedPrompt
+          | CreatedPrompt[]
+          | Promise<CreatedPrompt[]>
+      >
+    | ((env: TEnv) => CreatedPrompt[] | Promise<CreatedPrompt[]>);
 }
 
 export type Fetch<TEnv = unknown> = (
@@ -399,7 +500,7 @@ export const createMCPServer = <
 
     const server = new McpServer(
       { name: "@deco/mcp-api", version: "1.0.0" },
-      { capabilities: { tools: {} } },
+      { capabilities: { tools: {}, prompts: {} } },
     );
 
     const toolsFn =
@@ -466,7 +567,45 @@ export const createMCPServer = <
       );
     }
 
-    return { server, tools };
+    // Resolve and register prompts
+    const promptsFn =
+      typeof options.prompts === "function"
+        ? options.prompts
+        : async (bindings: TEnv) => {
+            if (typeof options.prompts === "function") {
+              return await options.prompts(bindings);
+            }
+            return await Promise.all(
+              options.prompts?.flatMap(async (prompt) => {
+                const promptResult = prompt(bindings);
+                const awaited = await promptResult;
+                if (Array.isArray(awaited)) {
+                  return awaited;
+                }
+                return [awaited];
+              }) ?? [],
+            ).then((p) => p.flat());
+          };
+    const prompts = await promptsFn(bindings);
+
+    for (const prompt of prompts) {
+      server.registerPrompt(
+        prompt.name,
+        {
+          title: prompt.title,
+          description: prompt.description,
+          argsSchema: prompt.argsSchema,
+        },
+        async (args) => {
+          return await prompt.execute({
+            args: args as Record<string, string | undefined>,
+            runtimeContext: createRuntimeContext(),
+          });
+        },
+      );
+    }
+
+    return { server, tools, prompts };
   };
 
   const fetch = async (req: Request, env: TEnv) => {

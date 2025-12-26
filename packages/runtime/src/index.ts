@@ -14,6 +14,15 @@ import {
   type CreateMCPServerOptions,
   MCPServer,
 } from "./tools.ts";
+export {
+  createPrompt,
+  createPublicPrompt,
+  type Prompt,
+  type PromptArgsRawShape,
+  type PromptExecutionContext,
+  type CreatedPrompt,
+  type GetPromptResult,
+} from "./tools.ts";
 import type { Binding } from "./wrangler.ts";
 export { proxyConnectionForId, BindingOf } from "./bindings.ts";
 export { type CORSOptions, type CORSOrigin } from "./cors.ts";
