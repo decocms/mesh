@@ -298,12 +298,12 @@ function ThreadHistoryPopover() {
                           e.stopPropagation();
                           hideThread(thread.id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity"
+                        className="opacity-0 cursor-pointer group/trash group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity"
                         title="Remove chat"
                       >
                         <Trash01
                           size={14}
-                          className="text-muted-foreground hover:text-destructive"
+                          className="text-muted-foreground group-hover/trash:text-destructive"
                         />
                       </button>
                     </div>
