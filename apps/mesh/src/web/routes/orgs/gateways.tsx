@@ -38,7 +38,7 @@ import {
   Eye,
   Trash01,
   Loading01,
-  Share07,
+  CpuChip02,
 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useReducer } from "react";
@@ -126,7 +126,7 @@ function OrgGatewaysContent() {
           name={gateway.title}
           size="sm"
           className="shrink-0 shadow-sm"
-          fallbackIcon={<Share07 />}
+          fallbackIcon={<CpuChip02 size={16} />}
         />
       ),
       cellClassName: "w-16 shrink-0",
@@ -306,7 +306,7 @@ function OrgGatewaysContent() {
         <div className="flex-1 overflow-auto p-5">
           {gateways.length === 0 ? (
             <EmptyState
-              image={<Share07 size={36} className="text-muted-foreground" />}
+              image={<CpuChip02 size={36} className="text-muted-foreground" />}
               title={listState.search ? "No gateways found" : "No gateways yet"}
               description={
                 listState.search
@@ -326,7 +326,7 @@ function OrgGatewaysContent() {
                     icon: gateway.icon,
                     status: gateway.status,
                   }}
-                  fallbackIcon={<Share07 />}
+                  fallbackIcon={<CpuChip02 />}
                   onClick={() =>
                     navigate({
                       to: "/$org/gateways/$gatewayId",
@@ -413,13 +413,13 @@ function OrgGatewaysContent() {
           emptyState={
             listState.search ? (
               <EmptyState
-                image={<Share07 size={36} className="text-muted-foreground" />}
+                image={<CpuChip02 size={36} className="text-muted-foreground" />}
                 title="No gateways found"
                 description={`No gateways match "${listState.search}"`}
               />
             ) : (
               <EmptyState
-                image={<Share07 size={36} className="text-muted-foreground" />}
+                image={<CpuChip02 size={36} className="text-muted-foreground" />}
                 title="No gateways yet"
                 description="Create a gateway to aggregate tools from multiple MCP connections."
               />

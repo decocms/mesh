@@ -14,7 +14,7 @@ import { DecoChatAside } from "@deco/ui/components/deco-chat-aside.tsx";
 import { DecoChatEmptyState } from "@deco/ui/components/deco-chat-empty-state.tsx";
 import { DecoChatInputV2 } from "@deco/ui/components/deco-chat-input-v2.tsx";
 import { DecoChatModelSelectorRich } from "@deco/ui/components/deco-chat-model-selector-rich.tsx";
-import { X, Plus, Share07 } from "@untitledui/icons";
+import { X, Plus, CpuChip02 } from "@untitledui/icons";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate } from "@tanstack/react-router";
 import { type ChatInit, DefaultChatTransport, type UIMessage } from "ai";
@@ -301,7 +301,7 @@ export function ChatPanel() {
     title: gateway.title,
     icon: gateway.icon,
     description: gateway.description,
-    fallbackIcon: <Share07 />, // Consistent with gateways page
+    fallbackIcon: <CpuChip02 />, // Consistent with gateways page
   }));
 
   const handleSendMessage = async (text: string) => {
@@ -422,7 +422,7 @@ export function ChatPanel() {
             icon={selectedGateway?.icon}
             name={selectedGateway?.title || "deco chat"}
             size="xs"
-            fallbackIcon={<Share07 />}
+            fallbackIcon={<CpuChip02 size={12} />}
           />
           <span className="text-sm font-medium">
             {selectedGateway?.title || "deco chat"}
@@ -471,7 +471,7 @@ export function ChatPanel() {
                 icon={selectedGateway?.icon}
                 name={selectedGateway?.title || "deco chat"}
                 size="lg"
-                fallbackIcon={<Share07 />}
+                fallbackIcon={<CpuChip02 />}
                 className="size-[60px]! rounded-[18px]!"
               />
             }

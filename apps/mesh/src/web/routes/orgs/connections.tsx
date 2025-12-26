@@ -54,7 +54,7 @@ import {
   Eye,
   Trash01,
   Loading01,
-  PuzzlePiece01,
+  Container,
 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
@@ -267,7 +267,7 @@ function OrgMcpsContent() {
           name={connection.title}
           size="sm"
           className="shrink-0 shadow-sm"
-          fallbackIcon={<PuzzlePiece01 />}
+          fallbackIcon={<Container />}
         />
       ),
       cellClassName: "w-16 shrink-0",
@@ -627,7 +627,7 @@ function OrgMcpsContent() {
                 <ConnectionCard
                   key={connection.id}
                   connection={connection}
-                  fallbackIcon={<PuzzlePiece01 />}
+                  fallbackIcon={<Container />}
                   onClick={() =>
                     navigate({
                       to: "/$org/mcps/$connectionId",

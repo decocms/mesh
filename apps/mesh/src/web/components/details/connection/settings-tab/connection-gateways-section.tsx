@@ -4,7 +4,7 @@ import {
   type GatewayEntity,
 } from "@/web/hooks/collections/use-gateway";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Share07, ChevronRight, Plus, Loading01 } from "@untitledui/icons";
+import { CpuChip02, ChevronRight, Plus, Loading01 } from "@untitledui/icons";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 interface ConnectionGatewaysSectionProps {
@@ -36,7 +36,7 @@ function GatewayListItem({
         />
       ) : (
         <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-          <Share07 size={16} className="text-primary" />
+          <CpuChip02 size={16} className="text-primary" />
         </div>
       )}
       <span className="flex-1 text-sm font-medium text-foreground truncate">
@@ -119,7 +119,7 @@ function CreateGatewayButton({
       {actions.create.isPending ? (
         <Loading01 size={20} className="animate-spin" />
       ) : (
-        <Share07 size={20} />
+        <CpuChip02 size={20} />
       )}
       Expose via MCP Gateway
     </Button>

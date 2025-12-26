@@ -16,7 +16,7 @@ import {
   Check,
   Grid01,
   CurrencyDollar,
-  File01,
+  LogOut04,
   InfoCircle,
 } from "@untitledui/icons";
 
@@ -237,7 +237,7 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
         {model.outputLimit && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
-              <File01 className="w-4.5 h-4.5 text-muted-foreground/70" />
+              <LogOut04 className="w-4.5 h-4.5 text-muted-foreground/70" />
               <p className="text-sm text-foreground">Output limit</p>
             </div>
             <p className="text-sm text-muted-foreground">

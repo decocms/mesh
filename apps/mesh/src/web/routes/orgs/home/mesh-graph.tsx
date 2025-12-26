@@ -9,7 +9,7 @@ import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { GatewayEntity } from "@/tools/gateway/schema";
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { Share07, PuzzlePiece01 } from "@untitledui/icons";
+import { CpuChip02, Container } from "@untitledui/icons";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useToolCall } from "@/web/hooks/use-tool-call";
@@ -251,7 +251,7 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
         icon={data.gateway.icon}
         name={data.gateway.title}
         size="md"
-        fallbackIcon={<Share07 />}
+        fallbackIcon={<CpuChip02 />}
         className="relative z-10"
       />
       <div className="relative z-10 flex flex-col min-w-0 flex-1">
@@ -328,7 +328,7 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
         icon={data.connection.icon}
         name={data.connection.title}
         size="md"
-        fallbackIcon={<PuzzlePiece01 />}
+        fallbackIcon={<Container />}
         className="relative z-10"
       />
       <div className="relative z-10 flex flex-col min-w-0 flex-1">

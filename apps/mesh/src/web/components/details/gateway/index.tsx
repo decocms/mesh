@@ -14,7 +14,7 @@ import {
   Loading01,
   Check,
   Copy01,
-  Share07,
+  CpuChip02,
 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
@@ -300,7 +300,7 @@ function GatewaySettingsForm({
               name={form.watch("title") || "Gateway"}
               size="lg"
               className="shrink-0 shadow-sm"
-              fallbackIcon={<Share07 />}
+              fallbackIcon={<CpuChip02 />}
             />
             <FormField
               control={form.control}

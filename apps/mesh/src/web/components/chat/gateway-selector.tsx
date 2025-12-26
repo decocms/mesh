@@ -1,5 +1,5 @@
 import type { GatewayEntity } from "@/tools/gateway/schema";
-import { Check, SearchMd, Share07 } from "@untitledui/icons";
+import { Check, SearchMd, CpuChip02 } from "@untitledui/icons";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   ResponsiveSelect,
@@ -34,7 +34,7 @@ function GatewayItemContent({
         icon={gateway.icon}
         name={gateway.title}
         size="sm"
-        fallbackIcon={gateway.fallbackIcon ?? <Share07 />}
+        fallbackIcon={gateway.fallbackIcon ?? <CpuChip02 />}
         className="size-10"
       />
 
@@ -75,7 +75,7 @@ function SelectedGatewayDisplay({
         icon={gateway.icon}
         name={gateway.title}
         size="xs"
-        fallbackIcon={gateway.fallbackIcon ?? <Share07 />}
+        fallbackIcon={gateway.fallbackIcon ?? <CpuChip02 />}
         className="size-5"
       />
       <span className="text-sm font-medium text-foreground truncate">

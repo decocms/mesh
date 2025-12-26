@@ -41,7 +41,7 @@ function DecoChatAsideHeader({
   return (
     <div
       className={cn(
-        "flex h-12 items-center justify-between border-b border-border px-2 flex-none",
+        "flex h-12 items-center justify-between border-b border-border px-4 flex-none",
         className,
       )}
     >

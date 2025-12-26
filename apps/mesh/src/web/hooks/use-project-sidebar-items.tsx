@@ -3,13 +3,13 @@ import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js
 import { Locator } from "@/web/lib/locator";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  Home01,
-  ShoppingBag01,
-  PuzzlePiece01,
-  Share07,
-  BarChartSquare02,
+  Home02,
+  Building02,
+  Container,
+  CpuChip02,
   Users01,
   Settings01,
+  BarChart10,
 } from "@untitledui/icons";
 
 export function useProjectSidebarItems() {
@@ -22,31 +22,31 @@ export function useProjectSidebarItems() {
     {
       key: "home",
       label: "Home",
-      icon: <Home01 />,
+      icon: <Home02 />,
       onClick: () => navigate({ to: "/$org", params: { org } }),
     },
     {
       key: "store",
       label: "Store",
-      icon: <ShoppingBag01 />,
+      icon: <Building02 />,
       onClick: () => navigate({ to: "/$org/store", params: { org } }),
     },
     {
       key: "mcps",
       label: "MCP Servers",
-      icon: <PuzzlePiece01 />,
+      icon: <Container />,
       onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
     },
     {
       key: "gateways",
       label: "MCP Gateways",
-      icon: <Share07 />,
+      icon: <CpuChip02 />,
       onClick: () => navigate({ to: "/$org/gateways", params: { org } }),
     },
     {
       key: "monitoring",
       label: "Monitoring",
-      icon: <BarChartSquare02 />,
+      icon: <BarChart10 />,
       onClick: () => navigate({ to: "/$org/monitoring", params: { org } }),
     },
     {

@@ -1,6 +1,6 @@
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { PuzzlePiece01 } from "@untitledui/icons";
+import { Container } from "@untitledui/icons";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -182,7 +182,7 @@ function TopToolsContent(_props: TopToolsContentProps) {
                     icon={connection?.icon || null}
                     name={tool.name}
                     size="xs"
-                    fallbackIcon={<PuzzlePiece01 />}
+                    fallbackIcon={<Container />}
                     className="shrink-0 !size-4 !min-w-4 aspect-square rounded-sm"
                   />
                   <span className="text-[10px] text-foreground truncate max-w-32">
@@ -248,7 +248,7 @@ function TopToolsContent(_props: TopToolsContentProps) {
                                 icon={connection?.icon || null}
                                 name={entry.dataKey}
                                 size="xs"
-                                fallbackIcon={<PuzzlePiece01 />}
+                                fallbackIcon={<Container />}
                                 className="shrink-0"
                               />
                               <span className="text-xs font-medium">

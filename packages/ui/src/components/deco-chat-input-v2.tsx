@@ -1,6 +1,6 @@
 import { cn } from "../lib/utils.ts";
 import { Button } from "./button.tsx";
-import { ArrowUp, Plus, StopCircle } from "@untitledui/icons";
+import { ArrowUp, Plus, Stop } from "@untitledui/icons";
 import { Textarea } from "./textarea.tsx";
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 
@@ -124,7 +124,7 @@ export function DecoChatInputV2({
               )}
               title={isStreaming ? "Stop generating" : "Send message (Enter)"}
             >
-              {isStreaming ? <StopCircle size={20} /> : <ArrowUp size={20} />}
+              {isStreaming ? <Stop size={20} /> : <ArrowUp size={20} />}
             </Button>
           </div>
         </div>

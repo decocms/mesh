@@ -1,6 +1,6 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useState, type ReactNode } from "react";
-import { PuzzlePiece01 } from "@untitledui/icons";
+import { Container } from "@untitledui/icons";
 
 interface IntegrationIconProps {
   icon: string | null | undefined;
@@ -41,7 +41,7 @@ export function IntegrationIcon({
   };
 
   const defaultFallback = (
-    <PuzzlePiece01 size={iconSizes[size]} className="text-muted-foreground" />
+    <Container size={iconSizes[size]} className="text-muted-foreground" />
   );
 
   const fallbackIconElement = (
