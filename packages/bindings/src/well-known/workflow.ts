@@ -20,15 +20,28 @@ export const ToolCallActionSchema = z.object({
   toolName: z
     .string()
     .describe("Name of the tool to invoke on that connection"),
+  transformCode: z
+    .string()
+    .optional()
+    .describe(`Pure TypeScript function for data transformation of the tool call result. Must be a TypeScript file that declares the Output interface and exports a default function: \`interface Output { ... } export default async function(input): Output { ... }\`
+    The input will match with the tool call outputSchema. If transformCode is not provided, the tool call result will be used as the step output. 
+    Providing an transformCode is recommended because it both allows you to transform the data and validate it against a JSON Schema - tools are ephemeral and may return unexpected data.`),
 });
 export type ToolCallAction = z.infer<typeof ToolCallActionSchema>;
 
 export const CodeActionSchema = z.object({
-  code: z
-    .string()
-    .describe(
-      "Pure TypeScript function for data transformation. Must export a default async function: `export default async function(input: Input): Promise<Output> { ... }`",
-    ),
+  code: z.string().describe(
+    `Pure TypeScript function for data transformation. Useful to merge data from multiple steps and transform it. Must be a TypeScript file that declares the Output interface and exports a default function: \`interface Output { ... } export default async function(input): Output { ... }\`
+       The input is the resolved value of the references in the input field. Example: 
+       {
+         "input": {
+          "name": "@Step_1.name",
+          "age": "@Step_2.age"
+         },
+         "code": "export default function(input): Output { return { result: \`\${input.name} is \${input.age} years old.\` } }"
+       }
+      `,
+  ),
 });
 export type CodeAction = z.infer<typeof CodeActionSchema>;
 
@@ -42,8 +55,10 @@ export const WaitForSignalActionSchema = z.object({
 export type WaitForSignalAction = z.infer<typeof WaitForSignalActionSchema>;
 
 export const StepActionSchema = z.union([
-  ToolCallActionSchema.describe("Call an external tool via MCP connection"),
-  CodeActionSchema.describe("Run pure TypeScript code for data transformation"),
+  ToolCallActionSchema.describe("Call an external tool via MCP connection. "),
+  CodeActionSchema.describe(
+    "Run pure TypeScript code for data transformation. Useful to merge data from multiple steps and transform it.",
+  ),
   // WaitForSignalActionSchema.describe(
   //   "Pause execution until an external signal is received (human-in-the-loop)",
   // ),
