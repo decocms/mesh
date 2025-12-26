@@ -8,22 +8,16 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "./sidebar.tsx";
 import { Skeleton } from "./skeleton.tsx";
 
-export type NavigationSidebarItem =
-  | {
-      key: string;
-      label: string;
-      icon: string;
-      onClick: () => void;
-      isActive?: boolean;
-    }
-  | {
-      key: string;
-      type: "separator";
-    };
+export interface NavigationSidebarItem {
+  key: string;
+  label: string;
+  icon: string;
+  onClick: () => void;
+  isActive?: boolean;
+}
 
 interface NavigationSidebarProps {
   navigationItems: NavigationSidebarItem[];
@@ -48,27 +42,21 @@ export function NavigationSidebar({
         <SidebarGroup className="font-medium">
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {navigationItems.map((item) => {
-                if ("type" in item) {
-                  return <SidebarSeparator key={item.key} />;
-                }
-                return (
-                  <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton
-                      className="cursor-pointer"
-                      onClick={item.onClick}
-                      isActive={item.isActive}
-                    >
-                      <Icon
-                        name={item.icon}
-                        size={18}
-                        className="text-muted-foreground/75"
-                      />
-                      <span className="truncate">{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {navigationItems.map((item) => (
+                <SidebarMenuItem key={item.key}>
+                  <SidebarMenuButton
+                    className="cursor-pointer text-foreground/90 [&>span.material-symbols-outlined]:text-muted-foreground/85! hover:[&>span.material-symbols-outlined]:text-foreground! hover:text-foreground!"
+                    onClick={item.onClick}
+                    isActive={item.isActive}
+                  >
+                    <Icon
+                      name={item.icon}
+                      size={18}
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
               {additionalContent}
             </SidebarMenu>
           </SidebarGroupContent>

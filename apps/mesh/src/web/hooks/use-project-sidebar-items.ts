@@ -35,10 +35,6 @@ export function useProjectSidebarItems() {
       onClick: () => navigate({ to: "/$org/gateways", params: { org } }),
     },
     {
-      key: "sep1",
-      type: "separator",
-    },
-    {
       key: "monitoring",
       label: "Monitoring",
       icon: "monitoring",

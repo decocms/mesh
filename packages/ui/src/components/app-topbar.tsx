@@ -15,7 +15,7 @@ function AppTopbarRoot({ children, className }: AppTopbarProps) {
   return (
     <div
       className={cn(
-        "fixed top-0 left-0 right-0 z-20 bg-sidebar flex items-center justify-between w-full px-2.5 h-12 border-b border-border",
+        "fixed top-0 left-0 right-0 z-20 bg-sidebar flex items-center justify-between w-full px-2 h-12 border-b border-border",
         className,
       )}
     >

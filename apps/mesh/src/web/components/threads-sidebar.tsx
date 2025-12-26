@@ -37,7 +37,7 @@ function ThreadListItem({
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        className={`w-full pr-2 group/thread relative cursor-pointer ${
+        className={`w-full pr-2 group/thread relative cursor-pointer text-foreground/90 hover:text-foreground ${
           isActive ? "bg-accent" : ""
         }`}
         onClick={() => {
@@ -127,6 +127,11 @@ export function ThreadsSidebarSection() {
   return (
     <>
       <SidebarSeparator className="my-2 -ml-1" />
+      <SidebarMenuItem>
+        <div className="px-2 py-0 text-xs font-medium h-6 text-muted-foreground flex items-center justify-between">
+          <span>Recent Threads</span>
+        </div>
+      </SidebarMenuItem>
       <Suspense
         fallback={
           <>

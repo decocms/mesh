@@ -11,12 +11,12 @@ export function SidebarToggleButton() {
         onClick={toggleSidebar}
         size="icon"
         variant="ghost"
-        className="w-8 h-8 rounded-md"
+        className="w-8 h-8 rounded-md group"
       >
         <Icon
           name="dock_to_right"
-          className="text-muted-foreground"
-          size={20}
+          className="text-muted-foreground/85 group-hover:text-foreground transition-colors"
+          size={18}
         />
       </Button>
       <div className="h-8 w-px bg-border" />

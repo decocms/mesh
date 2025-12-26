@@ -39,7 +39,7 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        className="w-full pr-2 group/item relative cursor-pointer"
+        className="w-full pr-2 group/item relative cursor-pointer text-foreground/90 hover:text-foreground"
         onClick={() => {
           navigate({ to: item.url });
         }}
@@ -55,7 +55,7 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
             <Icon
               name={item.icon}
               size={18}
-              className="text-muted-foreground"
+              className="text-muted-foreground/85 group-hover/item:text-foreground"
             />
           )}
         </div>
@@ -119,6 +119,11 @@ function SidebarItemLayout({ children }: PropsWithChildren) {
   return (
     <>
       <SidebarSeparator className="my-2 -ml-1" />
+      <SidebarMenuItem>
+        <div className="px-2 py-0 text-xs font-medium h-6 text-muted-foreground flex items-center justify-between">
+          <span>Pinned Views</span>
+        </div>
+      </SidebarMenuItem>
       {children}
     </>
   );
