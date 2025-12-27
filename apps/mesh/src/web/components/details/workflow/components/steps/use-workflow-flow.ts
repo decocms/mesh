@@ -147,7 +147,7 @@ function computeNodePositions(
  * Hook to get React Flow nodes from workflow steps
  * React Compiler handles memoization automatically
  */
-export function useWorkflowNodes(): WorkflowNode[] {
+function useWorkflowNodes(): WorkflowNode[] {
   const steps = useWorkflowSteps();
   const positions = computeNodePositions(steps);
   const trackingExecutionId = useTrackingExecutionId();
@@ -264,7 +264,7 @@ function getPrimaryEdges(steps: Step[]): Map<string, string> {
  * Hook to get React Flow edges from workflow steps
  * Shows only primary structural edges to reduce clutter
  */
-export function useWorkflowEdges(): WorkflowEdge[] {
+function useWorkflowEdges(): WorkflowEdge[] {
   const steps = useWorkflowSteps();
   const dagEdges = buildDagEdges(steps);
   const primaryParent = getPrimaryEdges(steps);
@@ -316,7 +316,7 @@ export function useWorkflowEdges(): WorkflowEdge[] {
  * Hook to handle node selection
  * React Compiler handles memoization automatically
  */
-export function useNodeSelection() {
+function useNodeSelection() {
   const onNodeClick = (_: React.MouseEvent, _node: Node) => {};
 
   return { onNodeClick };
@@ -348,5 +348,3 @@ export function useWorkflowFlow() {
     onNodeClick,
   };
 }
-
-export { TRIGGER_NODE_ID };

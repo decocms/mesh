@@ -39,7 +39,7 @@ interface Store extends State {
   actions: Actions;
 }
 
-export const createPanelsStore = (initialState: State) => {
+const createPanelsStore = (initialState: State) => {
   return createStore<Store>()(
     persist(
       (set) => ({

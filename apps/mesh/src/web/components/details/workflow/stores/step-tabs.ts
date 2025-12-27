@@ -18,7 +18,7 @@ const initialState: State = {
   currentStepTab: "connections",
 };
 
-export const createStepTabsStore = () => {
+const createStepTabsStore = () => {
   const store = create<Store>()(
     persist(
       (set) => ({

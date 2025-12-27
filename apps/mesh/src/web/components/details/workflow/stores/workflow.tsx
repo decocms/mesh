@@ -110,8 +110,8 @@ function createDefaultStep(type: StepType, index: number): Step {
   }
 }
 
-export const WorkflowStoreContext = createContext<StoreApi<Store> | null>(null);
-export const createWorkflowStore = (initialState: State) => {
+const WorkflowStoreContext = createContext<StoreApi<Store> | null>(null);
+const createWorkflowStore = (initialState: State) => {
   return createStore<Store>()(
     persist(
       (set) => ({
@@ -460,10 +460,6 @@ export function useCurrentStep() {
   const exact = workflow.steps.find((step) => step.name === currentStepName);
   if (exact) return exact;
   return undefined;
-}
-
-export function useCurrentStepTab() {
-  return useWorkflowStore((state) => state.currentStepTab);
 }
 
 export function useWorkflowSteps() {

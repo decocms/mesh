@@ -331,6 +331,3 @@ export const WorkflowCanvas = memo(function WorkflowCanvas() {
     </div>
   );
 });
-
-// Re-export for compatibility
-export default WorkflowCanvas;

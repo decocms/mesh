@@ -272,5 +272,3 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
     </div>
   );
 });
-
-export default TriggerNode;

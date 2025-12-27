@@ -32,7 +32,7 @@ function formatDuration(milliseconds: number): string {
   return `${seconds.toFixed(1)}s`;
 }
 
-export function useCurrentTime() {
+function useCurrentTime() {
   const timeRef = useRef(Date.now());
   const subscribe = (callback: () => void) => {
     const interval = setInterval(() => {
@@ -223,5 +223,3 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
     </div>
   );
 });
-
-export default StepNode;

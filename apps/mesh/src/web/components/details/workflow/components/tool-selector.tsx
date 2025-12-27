@@ -435,7 +435,7 @@ export function ToolComponent({
   );
 }
 
-export function ExecutionResult({
+function ExecutionResult({
   executionResult,
   placeholder,
 }: {
@@ -557,7 +557,7 @@ function InputField({
   );
 }
 
-export function ToolInput({
+function ToolInput({
   inputSchema,
   inputParams,
   setInputParams,

@@ -162,6 +162,7 @@ function RightPanel() {
                   height="100%"
                   code={JSON.stringify(currentStepResult, null, 2)}
                   language="json"
+                  readOnly
                 />
               )}
             </ViewLayout>
@@ -172,7 +173,7 @@ function RightPanel() {
   );
 }
 
-export function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
+function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   const activeView = useActiveView();
   const workflow = useWorkflow();
   return (
@@ -193,28 +194,30 @@ export function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
       </ViewActions>
 
       {/* Main Content */}
-      <ResizablePanelGroup
-        direction="horizontal"
-        className="flex w-full h-full overflow-hidden relative"
-      >
+      <div className="h-full relative">
         <div className="absolute top-4 left-4 z-50">
           <WorkflowTabs />
         </div>
-        <ResizablePanel defaultSize={50}>
-          <div className="flex-1 h-full">
-            {activeView === "canvas" && <WorkflowSteps />}
-            {activeView === "code" && (
-              <div className="h-[calc(100%-60px)]">
-                <WorkflowCode workflow={workflow} onUpdate={onUpdate} />
+        {activeView === "code" && (
+          <WorkflowCode workflow={workflow} onUpdate={onUpdate} />
+        )}
+        {activeView === "canvas" && (
+          <ResizablePanelGroup
+            direction="horizontal"
+            className="flex w-full h-full overflow-hidden"
+          >
+            <ResizablePanel defaultSize={50}>
+              <div className="flex-1 h-full">
+                <WorkflowSteps />
               </div>
-            )}
-          </div>
-        </ResizablePanel>
-        <ResizableHandle />
-        <ResizablePanel className="bg-background" defaultSize={50}>
-          <RightPanel />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+            </ResizablePanel>
+            <ResizableHandle />
+            <ResizablePanel className="bg-background" defaultSize={50}>
+              <RightPanel />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
+      </div>
     </ViewLayout>
   );
 }

@@ -232,7 +232,7 @@ interface UseMentionEditorOptions {
   onSubmit?: () => void;
 }
 
-export function useMentionEditor({
+function useMentionEditor({
   mentions,
   multiline = false,
   placeholder = "",
@@ -344,36 +344,3 @@ export function MentionInput({
   );
 }
 
-// Legacy export for backward compatibility
-export function TiptapMentionsInput({
-  placeholder,
-  className,
-  mentions,
-  onChange,
-}: {
-  placeholder?: string;
-  className?: string;
-  mentions: MentionItem[];
-  onChange?: (html: string, text: string) => void;
-  onSubmit?: () => void;
-}) {
-  const editor = useMentionEditor({
-    mentions,
-    placeholder,
-    onChange: (text) => {
-      console.log({ text });
-      onChange?.("", text);
-    },
-  });
-
-  return (
-    <div
-      className={cn(
-        "rounded-lg border border-border bg-background focus-within:ring-1 focus-within:ring-ring",
-        className,
-      )}
-    >
-      <EditorContent editor={editor} />
-    </div>
-  );
-}
