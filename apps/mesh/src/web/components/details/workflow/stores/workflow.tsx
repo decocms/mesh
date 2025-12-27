@@ -404,15 +404,16 @@ export function useWorkflowActions() {
 }
 
 export function useCurrentStepName() {
-  return useWorkflowStore((state) => state.currentStepName);
+  const steps = useWorkflowSteps();
+  return useWorkflowStore((state) => state.currentStepName) ?? steps[0]?.name;
 }
 
 export function useCurrentStep() {
   const currentStepName = useCurrentStepName();
-  const workflow = useWorkflowStore((state) => state.workflow);
-  const exact = workflow.steps.find((step) => step.name === currentStepName);
+  const steps = useWorkflowSteps();
+  const exact = steps.find((step) => step.name === currentStepName);
   if (exact) return exact;
-  return undefined;
+  return steps[0];
 }
 
 export function useWorkflowSteps() {

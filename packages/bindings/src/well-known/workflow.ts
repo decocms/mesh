@@ -132,8 +132,8 @@ export const StepSchema = z.object({
     .describe(
       "Data passed to the action. Use @ref for dynamic values: @input.field (workflow input), @stepName.field (previous step output), @item/@index (loop context). Example: { 'userId': '@input.user_id', 'data': '@fetch.result' }",
     ),
-  outputSchema: JsonSchemaSchema.describe(
-    "JSON Schema describing the expected output of the step.",
+  outputSchema: JsonSchemaSchema.optional().describe(
+    "Optional JSON Schema describing the expected output of the step.",
   ),
   config: StepConfigSchema.optional().describe("Retry and timeout settings"),
 });

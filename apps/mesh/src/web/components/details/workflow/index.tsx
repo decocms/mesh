@@ -8,6 +8,7 @@ import {
   useWorkflowActions,
   WorkflowStoreProvider,
 } from "@/web/components/details/workflow/stores/workflow";
+import { StepTabsStoreProvider } from "@/web/components/details/workflow/stores/step-tabs";
 import { useWorkflowCollectionItem } from "./hooks/use-workflow-collection-item";
 import { WorkflowActions } from "./components/actions";
 import { ExecutionsTab, WorkflowTabs } from "./components/tabs";
@@ -47,25 +48,34 @@ export function WorkflowDetailsView({
     );
   }
 
+  const initialCurrentStepTab =
+    item.steps[0] &&
+    ("toolName" in item.steps[0].action ||
+      "connectionId" in item.steps[0].action)
+      ? "tool"
+      : "connections";
+
   return (
-    <WorkflowStoreProvider workflow={item}>
-      <WorkflowDetails
-        onBack={onBack}
-        onUpdate={async (updates) => {
-          try {
-            update(updates);
-            toast.success("Workflow updated successfully");
-          } catch (error) {
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : "Failed to update workflow",
-            );
-            throw error;
-          }
-        }}
-      />
-    </WorkflowStoreProvider>
+    <StepTabsStoreProvider initialCurrentStepTab={initialCurrentStepTab}>
+      <WorkflowStoreProvider workflow={item}>
+        <WorkflowDetails
+          onBack={onBack}
+          onUpdate={async (updates) => {
+            try {
+              update(updates);
+              toast.success("Workflow updated successfully");
+            } catch (error) {
+              toast.error(
+                error instanceof Error
+                  ? error.message
+                  : "Failed to update workflow",
+              );
+              throw error;
+            }
+          }}
+        />
+      </WorkflowStoreProvider>
+    </StepTabsStoreProvider>
   );
 }
 
@@ -123,21 +133,23 @@ function RightPanel() {
   const activePanels = useActivePanels();
   const { togglePanel } = usePanelsActions();
   const currentStep = useCurrentStep();
+  console.log({ activePanels, panels: Object.values(PANELS) });
   return (
     <ResizablePanelGroup direction="vertical" className="flex w-full h-full">
-      {Object.values(PANELS)
-        .filter((panel) => activePanels[panel.name as keyof typeof PANELS])
+      {Object.keys(PANELS)
+        .filter((panel) => activePanels[panel as keyof typeof PANELS])
         .map((panel, i) => {
+          const Component = PANELS[panel as keyof typeof PANELS].component;
           return (
-            <Fragment key={panel.name}>
+            <Fragment key={panel}>
               {i > 0 && (
                 <ResizableHandle
                   withHandle={
                     i <
-                    Object.values(PANELS).filter(
-                      (panel) =>
-                        activePanels[panel.name as keyof typeof PANELS],
-                    ).length -
+                    Object.values(PANELS).filter((panel) => {
+                      console.log({ panel });
+                      return activePanels[panel.name as keyof typeof PANELS];
+                    }).length -
                       1
                   }
                 />
@@ -145,8 +157,8 @@ function RightPanel() {
               <ResizablePanel order={i} className="flex-1">
                 <div className="h-10 flex items-center justify-between px-2 border-b border-border bg-muted/50 text-sm font-medium text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <span>{panel.label}</span>
-                    {panel.label === "Step" && (
+                    <span>{PANELS[panel as keyof typeof PANELS].label}</span>
+                    {PANELS[panel as keyof typeof PANELS].label === "Step" && (
                       <span className="text-xs text-muted-foreground/50">
                         {currentStep?.name}
                       </span>
@@ -155,14 +167,12 @@ function RightPanel() {
                   <Button
                     variant="ghost"
                     size="xs"
-                    onClick={() =>
-                      togglePanel(panel.name as keyof typeof PANELS)
-                    }
+                    onClick={() => togglePanel(panel as keyof typeof PANELS)}
                   >
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                <panel.component />
+                <Component key={panel} />
               </ResizablePanel>
             </Fragment>
           );
@@ -210,6 +220,7 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
               </div>
             </ResizablePanel>
             <ResizableHandle />
+
             <ResizablePanel defaultSize={50}>
               <RightPanel />
             </ResizablePanel>

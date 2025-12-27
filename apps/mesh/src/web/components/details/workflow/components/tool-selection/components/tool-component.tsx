@@ -49,7 +49,12 @@ export function ToolComponent({
   const stepResult = step_results?.find(
     (step: Record<string, unknown>) => step.step_id === currentStepName,
   );
-  const executionResult = stepResult ?? executionResultFromTool;
+  const executionResult =
+    (stepResult ?? Object.keys(executionResultFromTool ?? {}).length > 0)
+      ? executionResultFromTool
+      : null;
+
+  console.log({ stepResult, executionResultFromTool });
 
   const { execute } = useToolExecution(
     tool,

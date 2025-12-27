@@ -1,4 +1,11 @@
-import { History, Wrench } from "lucide-react";
+import {
+  CircleDashed,
+  CodeIcon,
+  History,
+  Loader2,
+  SlidersHorizontal,
+  Wrench,
+} from "lucide-react";
 import { createStore } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
@@ -18,6 +25,12 @@ export const PANELS = {
     label: "Step",
     icon: Wrench,
     component: ActionTab,
+    panels: [
+      { name: "Input", icon: SlidersHorizontal },
+      { name: "Output Config", icon: CircleDashed },
+      { name: "Result", icon: Loader2 },
+      { name: "Transform Code", icon: CodeIcon },
+    ],
   },
 };
 type View = "code" | "canvas";

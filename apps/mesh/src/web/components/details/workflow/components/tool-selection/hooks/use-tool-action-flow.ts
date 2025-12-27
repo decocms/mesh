@@ -1,9 +1,9 @@
 import { useCurrentStep } from "@/web/components/details/workflow/stores/workflow";
 import { useWorkflowActions } from "@/web/components/details/workflow/stores/workflow";
-import { useToolActionTab } from "../../../stores/step-tabs";
 import { useTool } from "../../tool-selector";
 import { useConnection } from "@/web/hooks/collections/use-connection";
 import type { ToolStep } from "../../types";
+import { useToolActionTab } from "../../../stores/step-tabs";
 
 /**
  * Hook to manage the tool action flow (connections → tools → tool config).
@@ -13,7 +13,7 @@ export function useToolActionFlow() {
   const currentStep = useCurrentStep();
   const toolStep = currentStep as ToolStep | null;
   const { updateStep } = useWorkflowActions();
-  const { activeTab, setActiveTab } = useToolActionTab();
+  const { activeTab, setActiveTab } = useToolActionTab(currentStep);
 
   const { tool, connection } = useTool(
     toolStep?.action?.toolName ?? "",

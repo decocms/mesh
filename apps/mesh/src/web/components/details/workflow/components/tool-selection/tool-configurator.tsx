@@ -22,6 +22,7 @@ import {
 import { MonacoCodeEditor } from "../monaco-editor.tsx";
 import { ToolCallAction } from "@decocms/bindings/workflow";
 import { useTransformCodeSync } from "../output-schema/hooks/use-transform-code-sync.ts";
+import { PANELS } from "../../stores/panels.ts";
 
 export function ToolStep({ step }: { step: ToolStep }) {
   const trackingExecutionId = useTrackingExecutionId();
@@ -64,41 +65,46 @@ export function ToolStep({ step }: { step: ToolStep }) {
 
   return (
     <ResizablePanelGroup direction="vertical">
-      <ResizablePanel order={1} className="mask-b-from-95% pb-1">
-        <ScrollArea hideScrollbar className="h-full">
-          <ToolComponent
-            tool={tool as McpTool}
-            connection={connection}
-            onInputChange={handleInputChange}
-            initialInputParams={step?.input ?? {}}
-            mentions={mentions}
-            mcp={mcp}
-          />
-        </ScrollArea>
-      </ResizablePanel>
-      <ResizableHandle />
-      {!trackingExecutionId && (
-        <ResizablePanel order={2} className="flex-1">
-          <ResizablePanelGroup direction="vertical">
+      {PANELS.step.panels.map((panel) => {
+        if (panel.name === "Input") {
+          return (
+            <ResizablePanel order={1} className="mask-b-from-95% pb-1">
+              <ScrollArea hideScrollbar className="h-full">
+                <ToolComponent
+                  tool={tool as McpTool}
+                  connection={connection}
+                  onInputChange={handleInputChange}
+                  initialInputParams={step?.input ?? {}}
+                  mentions={mentions}
+                  mcp={mcp}
+                />
+              </ScrollArea>
+            </ResizablePanel>
+          );
+        }
+        if (panel.name === "Output Config") {
+          return (
             <ResizablePanel className="flex-1">
               <OutputSchemaProvider schema={outputSchema}>
                 <OutputSchemaSection />
               </OutputSchemaProvider>
             </ResizablePanel>
-            <ResizableHandle />
-            <ResizablePanel className="flex-1">
-              <MonacoCodeEditor
-                code={transformCode}
-                language="typescript"
-                onSave={(value, outputSchema) =>
-                  handleCodeSave(value, outputSchema ?? undefined)
-                }
-                height="100%"
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </ResizablePanel>
-      )}
+          );
+        }
+        if (panel.name === "Transform Code") {
+          <ResizablePanel className="flex-1">
+            <MonacoCodeEditor
+              code={transformCode}
+              language="typescript"
+              onSave={(value, outputSchema) =>
+                handleCodeSave(value, outputSchema ?? undefined)
+              }
+              height="100%"
+            />
+          </ResizablePanel>;
+        }
+        return null;
+      })}
     </ResizablePanelGroup>
   );
 }

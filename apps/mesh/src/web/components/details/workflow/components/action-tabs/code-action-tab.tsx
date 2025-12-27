@@ -22,12 +22,7 @@ export function CodeActionTab({ step }: { step: CodeStep }) {
 
   const output = stepResult?.output;
   const error = stepResult?.error as string | undefined;
-  const result =
-    (output ?? error)
-      ? {
-          error,
-        }
-      : null;
+  const result = output ? output : { error };
   return (
     <ResizablePanelGroup direction="vertical" className="h-full">
       <ResizablePanel order={1} className="flex-1">
@@ -52,7 +47,9 @@ export function CodeActionTab({ step }: { step: CodeStep }) {
       <ResizableHandle />
       {result && (
         <ResizablePanel order={2} className="flex-1">
-          <ExecutionResult executionResult={result} />
+          <ExecutionResult
+            executionResult={result as Record<string, unknown> | null}
+          />
         </ResizablePanel>
       )}
     </ResizablePanelGroup>
