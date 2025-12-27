@@ -1,4 +1,3 @@
-import { memo } from "react";
 import { Handle, NodeProps, Position } from "@xyflow/react";
 import { Pause, Play, Zap } from "lucide-react";
 import { Card, CardHeader, CardTitle } from "@deco/ui/components/card.tsx";
@@ -175,11 +174,11 @@ function ResumeButton() {
   );
 }
 
-export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
+export function TriggerNode({ data }: NodeProps) {
   const isAddingStep = useIsAddingStep();
   const addingStepType = useAddingStepType();
   const selectedParentSteps = useSelectedParentSteps();
-  const { addStepAfter, toggleParentStepSelection } = useWorkflowActions();
+  const { addToolStep, toggleParentStepSelection } = useWorkflowActions();
   const isDirty = useIsDirty();
   const workflow = useWorkflow();
   const { isRunning, startTime, endTime } = data as TriggerNodeData;
@@ -204,7 +203,7 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
         toggleParentStepSelection("input");
       } else {
         // Add step with @input reference (first step after trigger)
-        addStepAfter("input");
+        addToolStep();
       }
     }
   };
@@ -271,4 +270,4 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
       />
     </div>
   );
-});
+}

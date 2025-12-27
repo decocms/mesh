@@ -1,4 +1,4 @@
-import { memo, useRef, useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { BellIcon, ClockIcon, CodeXml, Wrench } from "lucide-react";
 import type { Step } from "@decocms/bindings/workflow";
@@ -6,7 +6,6 @@ import { Card, CardHeader, CardTitle } from "@deco/ui/components/card.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import {
   useWorkflowActions,
-  useIsAddingStep,
   useCurrentStepName,
   useAddingStepType,
   useSelectedParentSteps,
@@ -102,7 +101,7 @@ function getStepIcon(step: Step) {
   return <Wrench className="w-4 h-4" />;
 }
 
-export const StepNode = memo(function StepNode({ data }: NodeProps) {
+export function StepNode({ data }: NodeProps) {
   const {
     step,
     hasFinished,
@@ -112,17 +111,15 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
     endTime,
     isError,
   } = data as StepNodeData;
-  const isAddingStep = useIsAddingStep();
   const addingStepType = useAddingStepType();
   const selectedParentSteps = useSelectedParentSteps();
-  const { addStepAfter, setCurrentStepName, toggleParentStepSelection } =
+  const { setCurrentStepName, toggleParentStepSelection } =
     useWorkflowActions();
   const currentStepName = useCurrentStepName();
   const activePanels = useActivePanels();
   const { togglePanel } = usePanelsActions();
 
   // When adding a step, this step can be clicked
-  const canAddAfter = isAddingStep;
   // Check if this step is selected (for code steps multi-selection)
   const isSelected = selectedParentSteps.includes(step.name);
 
@@ -138,13 +135,9 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
     // When adding a step, clicking on a step either:
     // - For code steps: toggle selection (multi-select)
     // - For tool steps: immediately add after
-    if (canAddAfter) {
+    if (addingStepType === "code") {
       e.stopPropagation();
-      if (addingStepType === "code") {
-        toggleParentStepSelection(step.name);
-      } else {
-        addStepAfter(step.name);
-      }
+      toggleParentStepSelection(step.name);
       return;
     }
     setCurrentStepName(step.name);
@@ -165,7 +158,7 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
         className={cn(
           "sm:w-40 lg:w-52 xl:w-64 p-0 px-3 h-12 flex items-center justify-center relative",
           "transition-all duration-200",
-          canAddAfter && [
+          addingStepType === "code" && [
             "cursor-pointer",
             "ring-2 ring-offset-2 ring-offset-background",
             isSelected
@@ -180,10 +173,10 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
           ],
           isFetching && ["animate-pulse text-primary"],
           // Normal selection state
-          !isAddingStep &&
+          addingStepType !== "code" &&
             currentStepName === step.name &&
             "bg-primary/10 border-primary hover:bg-primary/20 cursor-pointer",
-          !isAddingStep &&
+          addingStepType !== "code" &&
             currentStepName !== step.name &&
             "hover:bg-background hover:border-primary cursor-pointer",
         )}
@@ -222,4 +215,4 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
       />
     </div>
   );
-});
+}

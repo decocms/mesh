@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -53,7 +53,7 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
 // Empty State
 // ============================================
 
-const EmptyState = memo(function EmptyState() {
+function EmptyState() {
   const { appendStep } = useWorkflowActions();
 
   const handleAdd = (type: StepType) => {
@@ -68,7 +68,7 @@ const EmptyState = memo(function EmptyState() {
       <AddFirstStepButton onAdd={handleAdd} />
     </div>
   );
-});
+}
 
 // ============================================
 // Floating Add Step Button
@@ -93,21 +93,24 @@ const stepButtons: StepButton[] = [
   },
 ];
 
-const FloatingAddStepButton = memo(function FloatingAddStepButton() {
+function FloatingAddStepButton() {
   const [isExpanded, setIsExpanded] = useState(false);
   const { startAddingStep, cancelAddingStep, confirmAddCodeStep } =
     useWorkflowActions();
   const isAddingStep = useIsAddingStep();
   const addingStepType = useAddingStepType();
   const selectedParentSteps = useSelectedParentSteps();
-  const { setCurrentStepTab, setTrackingExecutionId } = useWorkflowActions();
+  const { setCurrentStepTab, addToolStep } = useWorkflowActions();
   const { setActiveTab } = useToolActionTab();
   const handleSelectType = (type: StepType) => {
-    startAddingStep(type);
-    setCurrentStepTab("action");
-    setActiveTab("connections");
-    setTrackingExecutionId(undefined);
     setIsExpanded(false);
+    setCurrentStepTab("action");
+    if (type === "tool") {
+      setActiveTab("connections");
+      addToolStep();
+      return;
+    }
+    startAddingStep(type);
   };
 
   const handleCancel = () => {
@@ -121,19 +124,11 @@ const FloatingAddStepButton = memo(function FloatingAddStepButton() {
 
   // If we're in "adding step" mode, show cancel button and instructions
   // For code steps, also show a confirm button when steps are selected
-  if (isAddingStep) {
-    const isCodeStep = addingStepType === "code";
+  if (isAddingStep && addingStepType === "code") {
     const hasSelectedSteps = selectedParentSteps.length > 0;
 
     return (
       <div className="flex flex-col items-center gap-2">
-        <div className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-md backdrop-blur-sm">
-          {isCodeStep
-            ? hasSelectedSteps
-              ? `${selectedParentSteps.length} step${selectedParentSteps.length > 1 ? "s" : ""} selected`
-              : "Select one or more steps to use as input"
-            : "Click a highlighted step to add after it"}
-        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -147,7 +142,7 @@ const FloatingAddStepButton = memo(function FloatingAddStepButton() {
           >
             <X className="w-4 h-4 text-destructive" />
           </button>
-          {isCodeStep && hasSelectedSteps && (
+          {hasSelectedSteps && (
             <button
               type="button"
               onClick={handleConfirm}
@@ -247,7 +242,7 @@ const FloatingAddStepButton = memo(function FloatingAddStepButton() {
       </div>
     </div>
   );
-});
+}
 
 // ============================================
 // Workflow Canvas
@@ -261,7 +256,7 @@ const fitViewOptions = {
 
 const proOptions = { hideAttribution: true } as const;
 
-export const WorkflowCanvas = memo(function WorkflowCanvas() {
+export function WorkflowCanvas() {
   const steps = useWorkflowSteps();
   const { nodes, edges, onNodesChange, onEdgesChange, onNodeClick } =
     useWorkflowFlow();
@@ -330,4 +325,4 @@ export const WorkflowCanvas = memo(function WorkflowCanvas() {
       </ReactFlow>
     </div>
   );
-});
+}

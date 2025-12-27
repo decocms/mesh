@@ -14,7 +14,6 @@ import {
   BaseCollectionEntitySchema,
   createCollectionBindings,
 } from "./collections";
-
 export const ToolCallActionSchema = z.object({
   connectionId: z.string().describe("ID of the MCP connection to use"),
   toolName: z
@@ -96,6 +95,28 @@ export type StepConfig = z.infer<typeof StepConfigSchema>;
  * - @input.field → workflow input
  * - @stepName.field → output from a previous step
  */
+
+type JsonSchema = {
+  type?: string;
+  properties?: Record<string, unknown>;
+  required?: string[];
+  description?: string;
+  additionalProperties?: boolean;
+  additionalItems?: boolean;
+  items?: JsonSchema;
+};
+const JsonSchemaSchema: z.ZodType<JsonSchema> = z.lazy(() =>
+  z.object({
+    type: z.string().optional(),
+    properties: z.record(z.unknown()).optional(),
+    required: z.array(z.string()).optional(),
+    description: z.string().optional(),
+    additionalProperties: z.boolean().optional(),
+    additionalItems: z.boolean().optional(),
+    items: JsonSchemaSchema.optional(),
+  }),
+);
+
 export const StepSchema = z.object({
   name: z
     .string()
@@ -111,12 +132,9 @@ export const StepSchema = z.object({
     .describe(
       "Data passed to the action. Use @ref for dynamic values: @input.field (workflow input), @stepName.field (previous step output), @item/@index (loop context). Example: { 'userId': '@input.user_id', 'data': '@fetch.result' }",
     ),
-  outputSchema: z
-    .record(z.unknown())
-    .nullish()
-    .describe(
-      "Optional JSON Schema describing expected output (for validation/documentation)",
-    ),
+  outputSchema: JsonSchemaSchema.describe(
+    "JSON Schema describing the expected output of the step.",
+  ),
   config: StepConfigSchema.optional().describe("Retry and timeout settings"),
 });
 
@@ -270,11 +288,29 @@ const DEFAULT_STEP_CONFIG: StepConfig = {
 // };
 export const DEFAULT_TOOL_STEP: Omit<Step, "name"> = {
   action: {
-    toolName: "",
+    toolName: "LLM_DO_GENERATE",
     connectionId: "",
+    transformCode: `
+    interface Input { 
+      
+    }
+    export default function(input) { return input.result }`,
   },
-  input: {},
+  input: {
+    modelId: "anthropic/claude-4.5-haiku",
+    prompt: "Write a haiku about the weather.",
+  },
+
   config: DEFAULT_STEP_CONFIG,
+  outputSchema: {
+    type: "object",
+    properties: {
+      result: {
+        type: "string",
+        description: "The result of the step",
+      },
+    },
+  },
 };
 export const DEFAULT_CODE_STEP: Step = {
   name: "Initial Step",
@@ -295,6 +331,18 @@ export const DEFAULT_CODE_STEP: Step = {
   }`,
   },
   config: DEFAULT_STEP_CONFIG,
+  outputSchema: {
+    type: "object",
+    properties: {
+      result: {
+        type: "string",
+        description: "The result of the step",
+      },
+    },
+    required: ["result"],
+    description:
+      "The output of the step. This is a JSON Schema describing the expected output of the step.",
+  },
 };
 
 export const createDefaultWorkflow = (id?: string): Workflow => ({

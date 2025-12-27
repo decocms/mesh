@@ -1,8 +1,9 @@
 import { ItemCard } from "../tool-selector";
 import { ConnectionSelector } from "../tool-selection/connection-selector";
 import { ToolSelector } from "../tool-selection/tool-selector";
-import { ToolConfigurator } from "../tool-selection/tool-configurator";
+import { ToolStep } from "../tool-selection/tool-configurator";
 import { useToolActionFlow } from "../tool-selection/hooks/use-tool-action-flow";
+import { useTrackingExecutionId } from "../../stores/workflow";
 
 export function ToolActionTab() {
   const {
@@ -13,12 +14,18 @@ export function ToolActionTab() {
     handleConnectionSelect,
     handleToolSelect,
   } = useToolActionFlow();
+  const trackingExecutionId = useTrackingExecutionId();
+
+  const toolName = toolStep?.action?.toolName;
+  const connectionId = toolStep?.action?.connectionId;
 
   if (!toolStep) return null;
 
+  if (trackingExecutionId) return <ToolStep step={toolStep} />;
+
   return (
     <div className="w-full h-full flex flex-col">
-      {activeTab === "connections" && (
+      {(activeTab === "connections" || (!toolName && !connectionId)) && (
         <div className="h-full flex flex-col">
           <ConnectionSelector
             selectedConnectionName={connection?.title ?? null}
@@ -53,7 +60,7 @@ export function ToolActionTab() {
               title: connection.title,
             }}
           />
-          <ToolConfigurator step={toolStep} />
+          <ToolStep step={toolStep} />
         </div>
       )}
     </div>

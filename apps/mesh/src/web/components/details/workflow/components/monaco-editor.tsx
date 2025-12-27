@@ -1,11 +1,4 @@
-import {
-  memo,
-  useRef,
-  useId,
-  useState,
-  Component,
-  type ReactNode,
-} from "react";
+import { memo, useRef, useId, Component, cloneElement } from "react";
 import Editor, {
   loader,
   OnMount,
@@ -13,15 +6,38 @@ import Editor, {
 } from "@monaco-editor/react";
 import type { Plugin } from "prettier";
 import { Spinner } from "@deco/ui/components/spinner.js";
+import { getReturnType } from "./monaco";
 
-// Error boundary to catch Monaco disposal errors and recover
+// ============================================
+// Types
+// ============================================
+
+interface MonacoCodeEditorProps {
+  code: string;
+  onChange?: (value: string | undefined) => void;
+  onSave?: (
+    value: string,
+    outputSchema: Record<string, unknown> | null,
+  ) => void;
+  readOnly?: boolean;
+  height?: string | number;
+  language?: "typescript" | "json";
+  foldOnMount?: boolean;
+}
+
+// Internal component that receives mountKey from error boundary
+interface InternalEditorProps extends MonacoCodeEditorProps {
+  mountKey?: number;
+}
+
+// Error boundary to catch Monaco disposal errors and recover by forcing remount
 class MonacoErrorBoundary extends Component<
-  { children: ReactNode; onError: () => void },
-  { hasError: boolean }
+  { children: React.ReactElement<InternalEditorProps> },
+  { hasError: boolean; mountKey: number }
 > {
-  constructor(props: { children: ReactNode; onError: () => void }) {
+  constructor(props: { children: React.ReactElement<InternalEditorProps> }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, mountKey: 0 };
   }
 
   static getDerivedStateFromError(error: Error) {
@@ -34,18 +50,11 @@ class MonacoErrorBoundary extends Component<
 
   override componentDidCatch(error: Error) {
     if (error.message?.includes("InstantiationService has been disposed")) {
-      // Trigger recovery
-      this.props.onError();
-    }
-  }
-
-  override componentDidUpdate(prevProps: {
-    children: ReactNode;
-    onError: () => void;
-  }) {
-    // Reset error state when children change (new key)
-    if (this.state.hasError && prevProps.children !== this.props.children) {
-      this.setState({ hasError: false });
+      // Schedule recovery: increment mountKey and clear error
+      this.setState((prev) => ({
+        hasError: false,
+        mountKey: prev.mountKey + 1,
+      }));
     }
   }
 
@@ -57,7 +66,10 @@ class MonacoErrorBoundary extends Component<
         </div>
       );
     }
-    return this.props.children;
+    // Clone child with mountKey to force fresh instance on recovery
+    return cloneElement(this.props.children, {
+      mountKey: this.state.mountKey,
+    });
   }
 }
 
@@ -109,6 +121,7 @@ const EDITOR_BASE_OPTIONS: EditorProps["options"] = {
   lineNumbers: "on",
   scrollBeyondLastLine: false,
   automaticLayout: true,
+  foldingStrategy: "auto",
   tabSize: 2,
   wordWrap: "on",
   folding: true,
@@ -123,6 +136,9 @@ const EDITOR_BASE_OPTIONS: EditorProps["options"] = {
   },
   parameterHints: { enabled: true },
   inlineSuggest: { enabled: true },
+  autoClosingBrackets: "always",
+  autoClosingQuotes: "always",
+  autoSurround: "languageDefined",
   padding: { top: 12, bottom: 12 },
   scrollbar: {
     vertical: "auto",
@@ -139,33 +155,20 @@ const LoadingPlaceholder = (
   </div>
 );
 
-interface MonacoCodeEditorProps {
-  code: string;
-  onChange?: (value: string | undefined) => void;
-  onSave?: (
-    value: string,
-    outputSchema: Record<string, unknown> | null,
-  ) => void;
-  readOnly?: boolean;
-  height?: string | number;
-  language?: "typescript" | "json";
-}
-
-export const MonacoCodeEditor = memo(function MonacoCodeEditor({
+const InternalMonacoEditor = memo(function InternalMonacoEditor({
   code,
   onChange,
   onSave,
   readOnly = false,
   height = 300,
   language = "typescript",
-}: MonacoCodeEditorProps) {
-  const [isDirty, setIsDirty] = useState(false);
-  const [mountKey, setMountKey] = useState(0);
+  foldOnMount = false,
+  mountKey = 0,
+}: InternalEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
-  const lastSavedVersionIdRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
-  const monacoRef = useRef(null);
 
   // Store language in ref to avoid stale closures in editor callbacks
   const languageRef = useRef(language);
@@ -173,16 +176,11 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
 
   // Unique path so Monaco treats this as a TypeScript file
   const uniqueId = useId();
+  const editorKey = `${uniqueId}-${mountKey}`;
   const filePath =
     language === "typescript"
       ? `file:///workflow-${uniqueId.replace(/:/g, "-")}-${mountKey}.tsx`
       : undefined;
-
-  // Handle Monaco error recovery by incrementing mount key
-  const handleMonacoError = () => {
-    editorRef.current = null;
-    setMountKey((k) => k + 1);
-  };
 
   // Compute options with readOnly merged in
   const editorOptions = readOnly
@@ -238,12 +236,18 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
     }
   };
 
-  const handleEditorDidMount: OnMount = (editor, monaco) => {
+  const handleEditorDidMount: OnMount = async (editor, monaco) => {
     editorRef.current = editor;
+
+    // Fold first level regions if requested, then reveal
+    if (foldOnMount && containerRef.current) {
+      containerRef.current.style.visibility = "hidden";
+      await editor.getAction("editor.foldLevel2")?.run();
+      containerRef.current.style.visibility = "visible";
+    }
 
     // Configure TypeScript AFTER mount (beforeMount was causing value not to display)
     if (language === "typescript") {
-      monacoRef.current = monaco;
       monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
         target: monaco.languages.typescript.ScriptTarget.ESNext,
         module: monaco.languages.typescript.ModuleKind.ESNext,
@@ -264,343 +268,45 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
       });
     }
 
-    const model = editor.getModel();
-    if (model) {
-      // Initialize lastSavedVersionId
-      lastSavedVersionIdRef.current = model.getAlternativeVersionId();
-
-      model.onDidChangeContent(() => {
-        // Compute dirty state by comparing version IDs
-        const currentVersionId = model.getAlternativeVersionId();
-        setIsDirty(lastSavedVersionIdRef.current !== currentVersionId);
-      });
-    }
-
     // Add Ctrl+S / Cmd+S keybinding to format and save
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
       // Format the document first
       await formatWithPrettier(editor);
-      const returnType = await getReturnType();
+      const returnType = await getReturnType(editor);
 
       // Then call onSave with the formatted value
       const value = editor.getValue();
 
-      onSaveRef.current?.(value, returnType as Record<string, unknown> | null);
+      console.log({ value, returnType });
 
-      // Record the saved version ID
-      const model = editor.getModel();
-      if (model) {
-        lastSavedVersionIdRef.current = model.getAlternativeVersionId();
-      }
-      setIsDirty(false);
+      onSaveRef.current?.(value, returnType as Record<string, unknown> | null);
     });
   };
 
-  const handleFormat = async () => {
-    if (editorRef.current) {
-      await formatWithPrettier(editorRef.current);
-    }
-  };
-
-  const handleSave = async () => {
-    if (editorRef.current) {
-      await formatWithPrettier(editorRef.current);
-      const value = editorRef.current.getValue();
-      const returnType = await getReturnType();
-      onSaveRef.current?.(value, returnType as Record<string, unknown> | null);
-
-      // Record the saved version ID
-      const model = editorRef.current.getModel();
-      if (model) {
-        lastSavedVersionIdRef.current = model.getAlternativeVersionId();
-      }
-      setIsDirty(false);
-    }
-  };
-
-  // Convert TypeScript type string to JSON Schema
-  function tsTypeToJsonSchema(typeStr: string): object {
-    typeStr = typeStr.trim();
-
-    // Handle primitives
-    if (typeStr === "string") return { type: "string" };
-    if (typeStr === "number") return { type: "number" };
-    if (typeStr === "boolean") return { type: "boolean" };
-    if (typeStr === "null") return { type: "null" };
-    if (typeStr === "undefined") return { type: "null" };
-    if (typeStr === "unknown" || typeStr === "any") return {};
-    if (typeStr === "never") return { not: {} };
-
-    // Handle arrays: T[] or Array<T>
-    if (typeStr.endsWith("[]")) {
-      const itemType = typeStr.slice(0, -2);
-      return { type: "array", items: tsTypeToJsonSchema(itemType) };
-    }
-    const arrayMatch = typeStr.match(/^Array<(.+)>$/);
-    if (arrayMatch && arrayMatch[1]) {
-      return { type: "array", items: tsTypeToJsonSchema(arrayMatch[1]) };
-    }
-
-    // Handle Record<K, V>
-    const recordMatch = typeStr.match(/^Record<(.+),\s*(.+)>$/);
-    if (recordMatch && recordMatch[2]) {
-      return {
-        type: "object",
-        additionalProperties: tsTypeToJsonSchema(recordMatch[2].trim()),
-      };
-    }
-
-    // Handle union types: A | B | C
-    if (typeStr.includes("|") && !typeStr.startsWith("{")) {
-      const parts = splitUnion(typeStr);
-      // Check if it's a string literal union
-      const allStringLiterals = parts.every((p) => /^["']/.test(p.trim()));
-      if (allStringLiterals) {
-        return {
-          type: "string",
-          enum: parts.map((p) => p.trim().replace(/^["']|["']$/g, "")),
-        };
-      }
-      return { anyOf: parts.map((p) => tsTypeToJsonSchema(p.trim())) };
-    }
-
-    // Handle string/number literals
-    if (/^["'].*["']$/.test(typeStr)) {
-      return { type: "string", const: typeStr.slice(1, -1) };
-    }
-    if (/^-?\d+(\.\d+)?$/.test(typeStr)) {
-      return { type: "number", const: parseFloat(typeStr) };
-    }
-
-    // Handle object types: { prop: type; ... }
-    if (typeStr.startsWith("{") && typeStr.endsWith("}")) {
-      return parseObjectType(typeStr);
-    }
-
-    // Fallback for complex types
-    return { description: `TypeScript type: ${typeStr}` };
-  }
-
-  // Split union types while respecting nested braces
-  function splitUnion(typeStr: string): string[] {
-    const parts: string[] = [];
-    let depth = 0;
-    let current = "";
-
-    for (let i = 0; i < typeStr.length; i++) {
-      const char = typeStr[i];
-      if (char === "{" || char === "<" || char === "(") depth++;
-      else if (char === "}" || char === ">" || char === ")") depth--;
-      else if (char === "|" && depth === 0) {
-        parts.push(current.trim());
-        current = "";
-        continue;
-      }
-      current += char;
-    }
-    if (current.trim()) parts.push(current.trim());
-    return parts;
-  }
-
-  // Parse object type: { prop: type; prop2?: type2; ... }
-  function parseObjectType(typeStr: string): object {
-    // Remove outer braces
-    const inner = typeStr.slice(1, -1).trim();
-    if (!inner) return { type: "object", properties: {} };
-
-    const properties: Record<string, object> = {};
-    const required: string[] = [];
-
-    // Parse properties - handle nested objects by tracking brace depth
-    let depth = 0;
-    let currentProp = "";
-
-    for (let i = 0; i < inner.length; i++) {
-      const char = inner[i];
-      if (char === "{" || char === "<" || char === "(" || char === "[") depth++;
-      else if (char === "}" || char === ">" || char === ")" || char === "]")
-        depth--;
-      else if (char === ";" && depth === 0) {
-        if (currentProp.trim()) {
-          parseSingleProperty(currentProp.trim(), properties, required);
-        }
-        currentProp = "";
-        continue;
-      }
-      currentProp += char;
-    }
-    // Handle last property (may not end with ;)
-    if (currentProp.trim()) {
-      parseSingleProperty(currentProp.trim(), properties, required);
-    }
-
-    const schema: Record<string, unknown> = {
-      type: "object",
-      properties,
-    };
-    if (required.length > 0) {
-      schema.required = required;
-    }
-    return schema;
-  }
-
-  function parseSingleProperty(
-    propStr: string,
-    properties: Record<string, object>,
-    required: string[],
-  ) {
-    // Match: propName?: type or propName: type
-    const match = propStr.match(/^(\w+)(\?)?:\s*(.+)$/s);
-    if (match) {
-      const propName = match[1];
-      const optional = match[2];
-      const propType = match[3];
-      if (propName && propType) {
-        properties[propName] = tsTypeToJsonSchema(propType.trim());
-        if (!optional) {
-          required.push(propName);
-        }
-      }
-    }
-  }
-
-  async function getReturnType() {
-    if (!editorRef.current) return;
-
-    const model = editorRef.current.getModel();
-    const monaco = monacoRef.current;
-
-    if (!model) {
-      return null;
-    }
-
-    // Strategy: Append a helper type to the code and query its expanded type
-    const originalCode = model.getValue();
-
-    // Use a recursive Expand utility type to force TypeScript to inline all type references
-    const helperCode = `
-type __ExpandRecursively<T> = T extends (...args: infer A) => infer R
-  ? (...args: __ExpandRecursively<A>) => __ExpandRecursively<R>
-  : T extends object
-  ? T extends infer O ? { [K in keyof O]: __ExpandRecursively<O[K]> } : never
-  : T;
-type __InferredOutput = __ExpandRecursively<Awaited<ReturnType<typeof __default>>>;
-declare const __outputValue: __InferredOutput;
-`;
-
-    // Replace "export default" with a named function temporarily
-    const modifiedCode =
-      originalCode.replace(
-        /export default (async )?function/,
-        "export default $1function __default",
-      ) + helperCode;
-
-    // Set the modified code temporarily
-    model.setValue(modifiedCode);
-
-    // Find the __outputValue declaration to get its type
-    const matches = model.findMatches(
-      "__outputValue",
-      false,
-      false,
-      false,
-      null,
-      false,
-    );
-
-    if (!matches || matches.length === 0) {
-      model.setValue(originalCode);
-      return null;
-    }
-
-    const match = matches[0];
-    if (!match) {
-      model.setValue(originalCode);
-      return null;
-    }
-
-    const position = {
-      lineNumber: match.range.startLineNumber,
-      column: match.range.startColumn + 1,
-    };
-
-    try {
-      const worker = await (
-        monaco as any
-      )?.languages?.typescript?.getTypeScriptWorker();
-      if (!worker) {
-        model.setValue(originalCode);
-        return null;
-      }
-      const client = await worker(model.uri);
-
-      // Wait for TypeScript to process the modified code
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      const offset = model.getOffsetAt(position);
-      const quickInfo = await client.getQuickInfoAtPosition(
-        model.uri.toString(),
-        offset,
-      );
-
-      // Restore original code
-      model.setValue(originalCode);
-
-      if (quickInfo) {
-        const displayString = quickInfo.displayParts
-          .map((part: { text: string }) => part.text)
-          .join("");
-
-        // Clean up the display string - remove "const __outputValue: " prefix
-        const typeOnly = displayString.replace(/^const __outputValue:\s*/, "");
-
-        // Convert to JSON Schema
-        const jsonSchema = tsTypeToJsonSchema(typeOnly);
-
-        return jsonSchema;
-      } else {
-        return null;
-      }
-    } catch (error) {
-      model.setValue(originalCode);
-      console.error("Error getting return type:", error);
-      return null;
-    }
-  }
-
   return (
-    <div className="h-full">
-      {!readOnly && (
-        <div className="flex justify-end gap-2 p-4 border-b border-base-border">
-          <button
-            onClick={handleFormat}
-            disabled={!isDirty}
-            className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Format
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!isDirty}
-            className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Save (⌘S)
-          </button>
-        </div>
-      )}
-      <MonacoErrorBoundary onError={handleMonacoError}>
-        <Editor
-          key={mountKey}
-          height={height}
-          language={language}
-          value={code}
-          path={filePath}
-          onChange={onChange}
-          onMount={handleEditorDidMount}
-          loading={LoadingPlaceholder}
-          options={editorOptions}
-        />
-      </MonacoErrorBoundary>
+    <div ref={containerRef} className="h-full">
+      <Editor
+        key={editorKey}
+        height={height}
+        language={language}
+        value={code}
+        path={filePath}
+        onChange={onChange}
+        onMount={handleEditorDidMount}
+        loading={LoadingPlaceholder}
+        options={editorOptions}
+      />
     </div>
+  );
+});
+
+// Public component that wraps with error boundary for disposal recovery
+export const MonacoCodeEditor = memo(function MonacoCodeEditor(
+  props: MonacoCodeEditorProps,
+) {
+  return (
+    <MonacoErrorBoundary>
+      <InternalMonacoEditor {...props} />
+    </MonacoErrorBoundary>
   );
 });

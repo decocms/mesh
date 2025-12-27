@@ -1,24 +1,23 @@
-import { History, ListChecks, Wrench } from "lucide-react";
+import { History, Wrench } from "lucide-react";
 import { createStore } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/vanilla/shallow";
+import { ExecutionsPanel } from "..";
+import { ActionTab } from "../components/tabs";
 
-const PANELS = {
+export const PANELS = {
   executions: {
     name: "executions",
     label: "Executions",
     icon: History,
+    component: ExecutionsPanel,
   },
   step: {
-    name: "step",
+    name: "step_input",
     label: "Step",
     icon: Wrench,
-  },
-  steps: {
-    name: "steps",
-    label: "Steps",
-    icon: ListChecks,
+    component: ActionTab,
   },
 };
 type View = "code" | "canvas";
@@ -74,7 +73,6 @@ function getDefaultActivePanels(): ActivePanels {
   return {
     executions: false,
     step: true,
-    steps: false,
   };
 }
 
@@ -84,11 +82,13 @@ const usePanelsStore = createPanelsStore({
 });
 
 export const useActivePanels = () => {
-  return useStoreWithEqualityFn(
+  const activePanels = useStoreWithEqualityFn(
     usePanelsStore,
     (state) => state.activePanels,
     shallow,
   );
+
+  return activePanels;
 };
 
 export const useActiveView = () => {

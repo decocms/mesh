@@ -17,30 +17,28 @@ export function ExecutionsTab() {
     useExecutionNavigation(executions);
 
   return (
-    <div className="h-full w-full">
-      <ScrollArea className="h-full">
-        <div
-          ref={containerRef}
-          className="flex flex-col outline-none"
-          tabIndex={0}
-          onKeyDown={handleKeyDown}
-        >
-          {executions.length === 0 && (
-            <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">
-              No executions yet
-            </div>
-          )}
-          {executions.map((execution: { id: string }) => (
-            <ExecutionBar
-              key={execution.id}
-              ref={(el) => setItemRef(execution.id, el)}
-              executionId={execution.id}
-              isSelected={execution.id === trackingExecutionId}
-              onClick={() => handleItemClick(execution.id)}
-            />
-          ))}
-        </div>
-      </ScrollArea>
-    </div>
+    <ScrollArea className="h-full">
+      <div
+        ref={containerRef}
+        className="flex flex-col outline-none"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+      >
+        {executions.length === 0 && (
+          <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">
+            No executions yet
+          </div>
+        )}
+        {executions.map((execution: { id: string }) => (
+          <ExecutionBar
+            key={execution.id}
+            ref={(el) => setItemRef(execution.id, el)}
+            executionId={execution.id}
+            isSelected={execution.id === trackingExecutionId}
+            onClick={() => handleItemClick(execution.id)}
+          />
+        ))}
+      </div>
+    </ScrollArea>
   );
 }

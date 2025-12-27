@@ -44,10 +44,7 @@ export function useToolActionFlow() {
     setActiveTab("tool");
     updateStep(toolStep.name, {
       action: { ...toolStep.action, toolName },
-      outputSchema: selectedTool?.outputSchema as Record<
-        string,
-        unknown
-      > | null,
+      outputSchema: selectedTool?.outputSchema ?? undefined,
     });
   };
 

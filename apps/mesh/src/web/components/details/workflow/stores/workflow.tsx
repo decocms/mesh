@@ -2,11 +2,7 @@ import { createStore, StoreApi } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/vanilla/shallow";
-import {
-  Workflow,
-  DEFAULT_TOOL_STEP,
-  DEFAULT_CODE_STEP,
-} from "@decocms/bindings/workflow";
+import { Workflow, DEFAULT_CODE_STEP } from "@decocms/bindings/workflow";
 import { Step, ToolCallAction, CodeAction } from "@decocms/bindings/workflow";
 import { createContext, useContext, useState } from "react";
 import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
@@ -41,11 +37,8 @@ interface Actions {
   startAddingStep: (type: StepType) => void;
   /** Cancel the add step flow */
   cancelAddingStep: () => void;
-  /** Add new step after the specified parent step (for tool steps) */
-  addStepAfter: (
-    parentStepName: string,
-    outputSchema?: Record<string, unknown>,
-  ) => void;
+  /** Add new tool step */
+  addToolStep: () => void;
   /** Toggle selection of a parent step (for code steps multi-selection) */
   toggleParentStepSelection: (stepName: string) => void;
   /** Confirm adding a code step with selected parent steps */
@@ -102,7 +95,12 @@ function replaceInputInterface(
 function createDefaultStep(type: StepType, index: number): Step {
   switch (type) {
     case "tool":
-      return { ...DEFAULT_TOOL_STEP, name: `Step_${index + 1}` };
+      return {
+        input: {},
+        action: { toolName: "", connectionId: "" },
+        outputSchema: {},
+        name: `Step_${index + 1}`,
+      };
     case "code":
       return { ...DEFAULT_CODE_STEP, name: `Step_${index + 1}` };
     default:
@@ -297,58 +295,13 @@ const createWorkflowStore = (initialState: State) => {
                 currentStepName: newName,
               };
             }),
-          addStepAfter: (
-            parentStepName: string,
-            outputSchema?: Record<string, unknown>,
-          ) =>
+          addToolStep: () =>
             set((state) => {
-              const addingStepType = state.addingStepType;
-              if (!addingStepType) return state;
-
-              const parentStep = state.workflow.steps.find(
-                (s) => s.name === parentStepName,
-              );
-
               // Create the new step
               let newStep = createDefaultStep(
-                addingStepType,
+                "tool",
                 Number((Math.random() * 1000000).toFixed(0)),
               );
-
-              // Set input to reference parent step
-              newStep = {
-                ...newStep,
-                input: {
-                  example: `@${parentStepName}`,
-                },
-              };
-
-              if (addingStepType === "tool") {
-                newStep = {
-                  ...newStep,
-                  outputSchema: outputSchema,
-                };
-              }
-
-              // If creating a code step after a step with outputSchema, inject the Input interface
-              const isCodeStep = newStep.action && "code" in newStep.action;
-              const hasOutputSchema = parentStep?.outputSchema;
-
-              if (isCodeStep && hasOutputSchema) {
-                const inputInterface = jsonSchemaToTypeScript(
-                  hasOutputSchema as Record<string, unknown>,
-                  "Input",
-                );
-                const codeAction = newStep.action as CodeAction;
-                const updatedCode = replaceInputInterface(
-                  codeAction.code,
-                  inputInterface,
-                );
-                newStep = {
-                  ...newStep,
-                  action: { ...codeAction, code: updatedCode },
-                };
-              }
 
               const newName = generateUniqueName(
                 newStep.name,

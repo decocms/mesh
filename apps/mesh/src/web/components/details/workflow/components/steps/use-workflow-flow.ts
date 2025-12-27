@@ -41,13 +41,12 @@ const TRIGGER_NODE_ID = "__trigger__";
 
 /**
  * Get the PRIMARY parent for each step.
- * Priority:
- * 1. Input dependency from another conditional step in same branch
- * 2. First input dependency
- * 3. If condition reference
+ * Priority: Pick the dependency that appears furthest to the right in the steps array
+ * (highest index = defined later in workflow = should be primary parent)
  */
 function getPrimaryParentMap(steps: Step[]): Map<string, string> {
   const stepNames = new Set(steps.map((s) => s.name));
+  const stepIndexMap = new Map(steps.map((s, idx) => [s.name, idx]));
   const primaryParent = new Map<string, string>();
 
   for (const step of steps) {
@@ -74,8 +73,14 @@ function getPrimaryParentMap(steps: Step[]): Map<string, string> {
     }
     findDeps(step.input);
 
-    if (inputDeps[0]) {
-      primaryParent.set(step.name, inputDeps[0]);
+    // Pick the dependency with the highest index (furthest to the right in steps array)
+    if (inputDeps.length > 0) {
+      const depWithMaxIndex = inputDeps.reduce((max, dep) => {
+        const maxIdx = stepIndexMap.get(max) ?? -1;
+        const depIdx = stepIndexMap.get(dep) ?? -1;
+        return depIdx > maxIdx ? dep : max;
+      });
+      primaryParent.set(step.name, depWithMaxIndex);
     }
   }
 

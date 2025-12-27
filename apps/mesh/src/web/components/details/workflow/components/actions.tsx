@@ -6,8 +6,8 @@ import {
 } from "@/web/components/details/workflow/stores/workflow";
 import { Button } from "@deco/ui/components/button.js";
 import { cn } from "@deco/ui/lib/utils.js";
-import { History, RefreshCcw, Save, StepForward, X } from "lucide-react";
-import { useActivePanels, usePanelsActions } from "../stores/panels";
+import { RefreshCcw, Save, X } from "lucide-react";
+import { PANELS, useActivePanels, usePanelsActions } from "../stores/panels";
 import {
   Tooltip,
   TooltipContent,
@@ -29,32 +29,30 @@ export function WorkflowActions({
 
 function WorkflowPanels() {
   const activePanels = useActivePanels();
-  const isExecutionsPanelActive = activePanels.executions;
   const { togglePanel } = usePanelsActions();
+  const trackExecutionId = useTrackingExecutionId();
   return (
     <div className="bg-muted border border-border rounded-lg flex">
-      <Button
-        variant="outline"
-        size="xs"
-        className={cn(
-          "h-7 border-0 text-foreground",
-          !isExecutionsPanelActive && "bg-transparent text-muted-foreground",
-        )}
-        onClick={() => togglePanel("step")}
-      >
-        <StepForward className="w-4 h-4" />
-      </Button>
-      <Button
-        variant="outline"
-        size="xs"
-        className={cn(
-          "h-7 border-0 text-foreground",
-          isExecutionsPanelActive && "bg-transparent text-muted-foreground",
-        )}
-        onClick={() => togglePanel("executions")}
-      >
-        <History className="w-4 h-4" />
-      </Button>
+      {Object.values(PANELS).map((panel) => {
+        if (panel.name === "executions" && trackExecutionId) return null;
+        if (panel.name === "step_input" && trackExecutionId) return null;
+
+        return (
+          <Button
+            key={panel.name}
+            variant="outline"
+            size="xs"
+            className={cn(
+              "h-7 border-0 text-foreground",
+              activePanels[panel.name as keyof typeof PANELS] &&
+                "bg-transparent text-muted-foreground",
+            )}
+            onClick={() => togglePanel(panel.name as keyof typeof PANELS)}
+          >
+            <panel.icon className="w-4 h-4" />
+          </Button>
+        );
+      })}
     </div>
   );
 }

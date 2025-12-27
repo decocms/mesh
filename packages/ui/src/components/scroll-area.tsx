@@ -8,8 +8,11 @@ import { cn } from "@deco/ui/lib/utils.ts";
 function ScrollArea({
   className,
   children,
+  hideScrollbar = false,
   ...props
-}: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+}: React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
+  hideScrollbar?: boolean;
+}) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
@@ -22,7 +25,7 @@ function ScrollArea({
       >
         <div className="flex min-w-0 flex-col">{children}</div>
       </ScrollAreaPrimitive.Viewport>
-      <ScrollBar />
+      <ScrollBar hideScrollbar={hideScrollbar} />
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   );
@@ -31,8 +34,11 @@ function ScrollArea({
 function ScrollBar({
   className,
   orientation = "vertical",
+  hideScrollbar = false,
   ...props
-}: React.ComponentProps<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>) {
+}: React.ComponentProps<typeof ScrollAreaPrimitive.ScrollAreaScrollbar> & {
+  hideScrollbar?: boolean;
+}) {
   return (
     <ScrollAreaPrimitive.ScrollAreaScrollbar
       data-slot="scroll-area-scrollbar"
@@ -43,6 +49,7 @@ function ScrollBar({
           "h-full w-2.5 border-l border-l-transparent",
         orientation === "horizontal" &&
           "h-2.5 flex-col border-t border-t-transparent",
+        hideScrollbar && "hidden",
         className,
       )}
       {...props}

@@ -4,17 +4,13 @@ import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 import { WorkflowSteps } from "./components/steps/index";
 import {
   useCurrentStep,
-  useTrackingExecutionId,
   useWorkflow,
   useWorkflowActions,
   WorkflowStoreProvider,
 } from "@/web/components/details/workflow/stores/workflow";
-import {
-  usePollingWorkflowExecution,
-  useWorkflowCollectionItem,
-} from "./hooks/use-workflow-collection-item";
+import { useWorkflowCollectionItem } from "./hooks/use-workflow-collection-item";
 import { WorkflowActions } from "./components/actions";
-import { ActionTab, ExecutionsTab, WorkflowTabs } from "./components/tabs";
+import { ExecutionsTab, WorkflowTabs } from "./components/tabs";
 import { toast } from "@deco/ui/components/sonner.tsx";
 import { MonacoCodeEditor } from "./components/monaco-editor";
 import {
@@ -23,11 +19,14 @@ import {
   ResizablePanelGroup,
 } from "@deco/ui/components/resizable.js";
 import {
+  PANELS,
   useActivePanels,
   useActiveView,
   usePanelsActions,
 } from "./stores/panels";
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
+import { Button } from "@deco/ui/components/button.js";
+import { X } from "lucide-react";
 export interface WorkflowDetailsViewProps {
   itemId: string;
   onBack: () => void;
@@ -106,69 +105,68 @@ function WorkflowCode({
   );
 }
 
+export function ExecutionsPanel() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-full w-full flex items-center justify-center">
+          <Spinner />
+        </div>
+      }
+    >
+      <ExecutionsTab />
+    </Suspense>
+  );
+}
+
 function RightPanel() {
   const activePanels = useActivePanels();
-  const hasMultiplePanels =
-    Object.values(activePanels).filter(Boolean).length > 1;
-  const currentStep = useCurrentStep();
   const { togglePanel } = usePanelsActions();
-  const trackingExecutionId = useTrackingExecutionId();
-  const { step_results } = usePollingWorkflowExecution(trackingExecutionId);
-  const currentStepResult = step_results?.find(
-    (step) => step.step_id === currentStep?.name,
-  );
+  const currentStep = useCurrentStep();
   return (
-    <ResizablePanelGroup direction="vertical">
-      <Suspense
-        fallback={
-          <div className="h-full w-full flex items-center justify-center">
-            <Spinner />
-          </div>
-        }
-      >
-        {activePanels.executions && (
-          <ResizablePanel
-            id="executions-panel"
-            order={1}
-            minSize={15}
-            className="overflow-hidden"
-          >
-            <div className="h-full bg-muted/30">
-              <ExecutionsTab />
-            </div>
-          </ResizablePanel>
-        )}
-        {hasMultiplePanels && <ResizableHandle />}
-        {activePanels.step && (
-          <ResizablePanel
-            id="step-panel"
-            order={2}
-            defaultSize={100}
-            minSize={40}
-            className="flex flex-col"
-          >
-            {/* Step Tabs */}
-            <div className="min-h-1/2 h-full pb-1">
-              <ViewLayout
-                onBack={() => togglePanel("step")}
-                title={currentStep?.name}
-              >
-                {currentStep && !trackingExecutionId && (
-                  <ActionTab step={currentStep} />
-                )}
-                {trackingExecutionId && (
-                  <MonacoCodeEditor
-                    height="100%"
-                    code={JSON.stringify(currentStepResult, null, 2)}
-                    language="json"
-                    readOnly
-                  />
-                )}
-              </ViewLayout>
-            </div>
-          </ResizablePanel>
-        )}
-      </Suspense>
+    <ResizablePanelGroup direction="vertical" className="flex w-full h-full">
+      {Object.values(PANELS)
+        .filter((panel) => activePanels[panel.name as keyof typeof PANELS])
+        .map((panel, i) => {
+          return (
+            <Fragment key={panel.name}>
+              {i > 0 && (
+                <ResizableHandle
+                  withHandle={
+                    i <
+                    Object.values(PANELS).filter(
+                      (panel) =>
+                        activePanels[panel.name as keyof typeof PANELS],
+                    ).length -
+                      1
+                  }
+                />
+              )}
+              <ResizablePanel order={i} className="flex-1">
+                <div className="h-10 flex items-center justify-between px-2 border-b border-border bg-muted/50 text-sm font-medium text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span>{panel.label}</span>
+                    {panel.label === "Step" && (
+                      <span className="text-xs text-muted-foreground/50">
+                        {currentStep?.name}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() =>
+                      togglePanel(panel.name as keyof typeof PANELS)
+                    }
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <panel.component />
+              </ResizablePanel>
+            </Fragment>
+          );
+        })}
     </ResizablePanelGroup>
   );
 }
@@ -212,7 +210,7 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
               </div>
             </ResizablePanel>
             <ResizableHandle />
-            <ResizablePanel className="bg-background" defaultSize={50}>
+            <ResizablePanel defaultSize={50}>
               <RightPanel />
             </ResizablePanel>
           </ResizablePanelGroup>

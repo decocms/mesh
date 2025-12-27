@@ -2,13 +2,23 @@ import {
   useEditor,
   EditorContent,
   ReactRenderer,
+  NodeViewWrapper,
+  ReactNodeViewRenderer,
   type Editor,
+  type Content,
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Mention from "@tiptap/extension-mention";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { createStore } from "zustand";
 import { useStore } from "zustand";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@deco/ui/components/hover-card.tsx";
+import { createContext, useContext } from "react";
+import { useResolvedRefs } from "./details/workflow/components/tool-selector";
 
 // --- Types ---
 
@@ -18,10 +28,118 @@ export interface MentionItem {
   children?: MentionItem[];
 }
 
+// --- Resolved Refs Context ---
+
+const ResolvedRefsContext = createContext<Record<string, unknown> | undefined>(
+  undefined,
+);
+
+/**
+ * Resolve a reference like "Step_1.field.subfield" from the resolved refs map
+ */
+function resolveRefPath(
+  resolvedRefs: Record<string, unknown>,
+  refId: string,
+): unknown {
+  const parts = refId.split(".");
+  const rootKey = parts[0];
+  if (!rootKey) return undefined;
+
+  let value: unknown = resolvedRefs[rootKey];
+
+  for (let i = 1; i < parts.length && value !== undefined; i++) {
+    const part = parts[i];
+    if (!part) continue;
+    if (typeof value === "object" && value !== null) {
+      value = (value as Record<string, unknown>)[part];
+    } else {
+      return undefined;
+    }
+  }
+
+  return value;
+}
+
+/**
+ * Custom NodeView for mentions that shows resolved values on hover
+ */
+function MentionNodeView({
+  node,
+}: {
+  node: { attrs: Record<string, unknown> };
+}) {
+  const resolvedRefs = useContext(ResolvedRefsContext);
+  const mentionId = (node.attrs.id as string) ?? "";
+
+  const hasResolvedRefs = resolvedRefs !== undefined;
+  const resolvedValue = hasResolvedRefs
+    ? resolveRefPath(resolvedRefs, mentionId)
+    : undefined;
+
+  const formattedValue =
+    resolvedValue !== undefined
+      ? typeof resolvedValue === "object"
+        ? JSON.stringify(resolvedValue, null, 2)
+        : String(resolvedValue)
+      : undefined;
+
+  const mentionSpan = (
+    <span className="bg-primary/20 text-primary px-1 rounded font-medium cursor-pointer">
+      @{mentionId}
+    </span>
+  );
+
+  if (!hasResolvedRefs || formattedValue === undefined) {
+    return <NodeViewWrapper as="span">{mentionSpan}</NodeViewWrapper>;
+  }
+
+  return (
+    <NodeViewWrapper as="span">
+      <HoverCard openDelay={200}>
+        <HoverCardTrigger asChild>{mentionSpan}</HoverCardTrigger>
+        <HoverCardContent
+          className="w-auto max-w-[400px] p-3"
+          side="top"
+          align="start"
+        >
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">
+              @{mentionId}
+            </div>
+            <pre className="text-xs font-mono bg-muted/50 p-2 rounded overflow-auto max-h-[200px] whitespace-pre-wrap break-all">
+              {formattedValue}
+            </pre>
+          </div>
+        </HoverCardContent>
+      </HoverCard>
+    </NodeViewWrapper>
+  );
+}
+
+/**
+ * Flatten the mentions tree into a flat array for suggestions and lookup
+ */
+function flattenMentions(items: MentionItem[]): MentionItem[] {
+  const result: MentionItem[] = [];
+
+  function traverse(list: MentionItem[]) {
+    for (const item of list) {
+      // Only add leaf nodes (no children) as selectable mentions
+      if (!item.children?.length) {
+        result.push(item);
+      }
+      if (item.children) {
+        traverse(item.children);
+      }
+    }
+  }
+
+  traverse(items);
+  return result;
+}
+
 interface MentionState {
-  path: MentionItem[];
   items: MentionItem[];
-  rootItems: MentionItem[];
   selectedIndex: number;
   command: ((item: MentionItem) => void) | null;
 }
@@ -32,22 +150,14 @@ let mentionStore = createMentionStore();
 
 function createMentionStore() {
   return createStore<MentionState>(() => ({
-    path: [],
     items: [],
-    rootItems: [],
     selectedIndex: 0,
     command: null,
   }));
 }
 
 function setItems(items: MentionItem[], command: (item: MentionItem) => void) {
-  mentionStore.setState({
-    items,
-    rootItems: items,
-    command,
-    selectedIndex: 0,
-    path: [],
-  });
+  mentionStore.setState({ items, command, selectedIndex: 0 });
 }
 
 function moveUp() {
@@ -64,37 +174,11 @@ function moveDown() {
   mentionStore.setState({ selectedIndex: (selectedIndex + 1) % items.length });
 }
 
-function drillIn(): boolean {
-  const { items, selectedIndex, path } = mentionStore.getState();
-  const item = items[selectedIndex];
-  if (!item?.children?.length) return false;
-  mentionStore.setState({
-    path: [...path, item],
-    items: item.children,
-    selectedIndex: 0,
-  });
-  return true;
-}
-
 function selectItem(): boolean {
   const { items, selectedIndex, command } = mentionStore.getState();
   const item = items[selectedIndex];
   if (!item) return false;
-  if (item.children?.length) return false;
   command?.(item);
-  return true;
-}
-
-function goBack(): boolean {
-  const { path, rootItems } = mentionStore.getState();
-  if (path.length === 0) return false;
-  const newPath = path.slice(0, -1);
-  const parent = newPath[newPath.length - 1];
-  mentionStore.setState({
-    path: newPath,
-    items: parent?.children ?? rootItems,
-    selectedIndex: 0,
-  });
   return true;
 }
 
@@ -107,21 +191,11 @@ function reset() {
 function MentionList() {
   const items = useStore(mentionStore, (s) => s.items);
   const selectedIndex = useStore(mentionStore, (s) => s.selectedIndex);
-  const path = useStore(mentionStore, (s) => s.path);
 
   if (!items.length) return null;
 
   return (
     <div className="bg-popover border border-border rounded-lg shadow-lg overflow-hidden min-w-[180px]">
-      {path.length > 0 && (
-        <button
-          type="button"
-          onClick={goBack}
-          className="flex items-center gap-1.5 w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted border-b border-border"
-        >
-          ← {path[path.length - 1]?.label}
-        </button>
-      )}
       <div className="p-1">
         {items.map((item, index) => (
           <button
@@ -129,19 +203,16 @@ function MentionList() {
             key={item.id}
             onClick={() => {
               mentionStore.setState({ selectedIndex: index });
-              if (!drillIn()) selectItem();
+              selectItem();
             }}
             className={cn(
-              "flex items-center justify-between w-full text-left px-3 py-1.5 text-sm rounded-md transition-colors",
+              "flex items-center w-full text-left px-3 py-1.5 text-sm rounded-md transition-colors",
               index === selectedIndex
                 ? "bg-accent text-accent-foreground"
                 : "hover:bg-muted",
             )}
           >
-            <span>{item.label}</span>
-            {item.children?.length ? (
-              <span className="text-muted-foreground text-xs">→</span>
-            ) : null}
+            {item.label}
           </button>
         ))}
       </div>
@@ -167,6 +238,7 @@ function suggestionRenderer() {
       setItems(props.items, props.command);
       component = new ReactRenderer(MentionList, { editor: props.editor });
       popup = document.createElement("div");
+
       popup.style.cssText = "position:absolute;z-index:9999";
       const rect = props.clientRect?.();
       if (rect) {
@@ -199,16 +271,7 @@ function suggestionRenderer() {
         moveDown();
         return true;
       }
-      if (event.key === "ArrowRight") {
-        return drillIn();
-      }
-      if (event.key === "ArrowLeft") {
-        return goBack();
-      }
       if (event.key === "Enter") {
-        const { items, selectedIndex } = mentionStore.getState();
-        const item = items[selectedIndex];
-        if (item?.children?.length) return drillIn();
         return selectItem();
       }
       return false;
@@ -221,34 +284,113 @@ function suggestionRenderer() {
   };
 }
 
-// --- Reusable Hook ---
+// --- Helper Functions ---
 
-interface UseMentionEditorOptions {
-  mentions: MentionItem[];
-  multiline?: boolean;
-  placeholder?: string;
-  value?: string;
-  onChange?: (value: string) => void;
-  onSubmit?: () => void;
+// Regex to match @mentions (e.g., @Initial_Step.query)
+const MENTION_REGEX = /@([\w.]+)/g;
+
+/**
+ * Parse plain text value and convert @mentions into Tiptap JSON format.
+ */
+function parseValueToTiptapContent(
+  value: string | undefined,
+  mentions: MentionItem[],
+): Content {
+  if (!value) return null;
+
+  const flatMentions = flattenMentions(mentions);
+  const mentionMap = new Map(flatMentions.map((m) => [m.id, m]));
+
+  // Check if there are any @mentions in the value
+  const hasRefs = MENTION_REGEX.test(value);
+  if (!hasRefs) return value;
+
+  // Reset regex state
+  MENTION_REGEX.lastIndex = 0;
+
+  type NodeContent = {
+    type: string;
+    text?: string;
+    attrs?: Record<string, string>;
+  };
+  const content: NodeContent[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = MENTION_REGEX.exec(value)) !== null) {
+    const mentionId = match[1] ?? "";
+    const matchStart = match.index;
+
+    if (matchStart > lastIndex) {
+      content.push({ type: "text", text: value.slice(lastIndex, matchStart) });
+    }
+
+    const mentionItem = mentionMap.get(mentionId);
+    if (mentionItem) {
+      content.push({
+        type: "mention",
+        attrs: { id: mentionItem.id, label: mentionItem.label },
+      });
+    } else {
+      content.push({ type: "text", text: match[0] });
+    }
+
+    lastIndex = matchStart + match[0].length;
+  }
+
+  if (lastIndex < value.length) {
+    content.push({ type: "text", text: value.slice(lastIndex) });
+  }
+
+  return {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: content.length > 0 ? content : undefined },
+    ],
+  };
 }
 
-function useMentionEditor({
+// --- Component ---
+
+interface MentionInputProps {
+  mentions: MentionItem[];
+  value?: string;
+  onChange?: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  readOnly?: boolean;
+  /**
+   * Map of resolved ref values for displaying on hover.
+   * Keys are root step names (e.g., "Step_1", "input").
+   * When provided, hovering mentions will show their resolved values.
+   */
+  resolvedRefs?: Record<string, unknown>;
+}
+
+export function MentionInput({
   mentions,
-  multiline = false,
-  placeholder = "",
   value,
   onChange,
-  onSubmit,
-}: UseMentionEditorOptions) {
-  return useEditor({
-    content: value,
+  placeholder,
+  className,
+  readOnly,
+}: MentionInputProps) {
+  const resolvedRefs = useResolvedRefs();
+  const parsedContent = parseValueToTiptapContent(value, mentions);
+
+  // Use custom NodeView when we have resolvedRefs to enable hover tooltips
+  const useCustomNodeView = resolvedRefs !== undefined;
+
+  const editor = useEditor({
+    content: parsedContent,
+    editable: !readOnly,
     extensions: [
       StarterKit.configure({
         heading: false,
         blockquote: false,
         codeBlock: false,
         horizontalRule: false,
-        hardBreak: multiline ? {} : false,
+        hardBreak: false,
       }),
       Mention.configure({
         HTMLAttributes: {
@@ -261,39 +403,42 @@ function useMentionEditor({
           `@${node.attrs.id}`,
         ],
         suggestion: {
-          items: ({ query }: { query: string }) =>
-            mentions.filter((m) =>
-              m.label.toLowerCase().includes(query.toLowerCase()),
-            ),
+          items: ({ query }: { query: string }) => {
+            const flat = flattenMentions(mentions);
+            return flat.filter(
+              (m) =>
+                m.label.toLowerCase().includes(query.toLowerCase()) ||
+                m.id.toLowerCase().includes(query.toLowerCase()),
+            );
+          },
           render: suggestionRenderer,
           command: ({ editor, range, props }) => {
-            // Insert mention without trailing space
             editor
               .chain()
               .focus()
-              .insertContentAt(range, [
-                {
-                  type: "mention",
-                  attrs: props,
-                },
-              ])
+              .insertContentAt(range, [{ type: "mention", attrs: props }])
               .run();
           },
         },
-      }),
+      }).extend(
+        useCustomNodeView
+          ? {
+              addNodeView() {
+                return ReactNodeViewRenderer(MentionNodeView);
+              },
+            }
+          : {},
+      ),
     ],
     editorProps: {
       attributes: {
-        class: cn(
-          "prose prose-sm max-w-none focus:outline-none w-full",
-          multiline ? "min-h-[80px]" : "min-h-[20px]",
-        ),
-        "data-placeholder": placeholder,
+        class:
+          "prose prose-sm max-w-none focus:outline-none w-full min-h-[20px]",
+        "data-placeholder": placeholder ?? "",
       },
       handleKeyDown: (_view, event) => {
-        if (event.key === "Enter" && !event.shiftKey && !multiline) {
+        if (event.key === "Enter") {
           event.preventDefault();
-          onSubmit?.();
           return true;
         }
         return false;
@@ -301,45 +446,27 @@ function useMentionEditor({
     },
     onUpdate: ({ editor }) => onChange?.(editor.getText().trim()),
   });
-}
 
-// --- Components ---
-
-interface MentionInputProps {
-  mentions: MentionItem[];
-  value?: string;
-  onChange?: (value: string) => void;
-  placeholder?: string;
-  className?: string;
-  multiline?: boolean;
-}
-
-export function MentionInput({
-  mentions,
-  value,
-  onChange,
-  placeholder,
-  className,
-  multiline = false,
-}: MentionInputProps) {
-  const editor = useMentionEditor({
-    mentions,
-    multiline,
-    placeholder,
-    value,
-    onChange,
-  });
-
-  return (
+  const content = (
     <div
       className={cn(
         "rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
         "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
-        multiline && "min-h-[80px]",
         className,
       )}
     >
       <EditorContent editor={editor} />
     </div>
   );
+
+  // Wrap with context provider if we have resolved refs
+  if (resolvedRefs !== undefined) {
+    return (
+      <ResolvedRefsContext.Provider value={resolvedRefs}>
+        {content}
+      </ResolvedRefsContext.Provider>
+    );
+  }
+
+  return content;
 }

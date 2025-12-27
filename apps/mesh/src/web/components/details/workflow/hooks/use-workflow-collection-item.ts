@@ -84,7 +84,7 @@ export function usePollingWorkflowExecution(executionId?: string) {
           return (query.state?.data?.item?.completed_at_epoch_ms === null &&
             query.state?.data?.item?.status === "running") ||
             query.state?.data?.item?.status === "enqueued"
-            ? 5000
+            ? 2000
             : false;
         }
       : false,
