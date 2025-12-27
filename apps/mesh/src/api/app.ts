@@ -30,6 +30,7 @@ import oauthProxyRoutes, {
   fetchProtectedResourceMetadata,
 } from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
+import stdioLogsRoutes from "./routes/stdio-logs";
 
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
@@ -403,6 +404,9 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // LLM API routes (OpenAI-compatible)
   app.route("/api", modelsRoutes);
+
+  // STDIO connection management routes (logs, info, restart)
+  app.route("/api/stdio", stdioLogsRoutes);
 
   // ============================================================================
   // 404 Handler

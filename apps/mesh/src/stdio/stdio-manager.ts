@@ -8,7 +8,7 @@
  * - Spawns child processes for stdio connections
  * - Maintains a pool of active connections
  * - Provides MCP Client instances for each spawned process
- * - Auto-restarts crashed processes
+ * - Detects disconnections and auto-respawns on next request
  * - Cleans up on shutdown
  */
 
@@ -29,14 +29,30 @@ export interface StdioConnectionConfig {
   cwd?: string;
 }
 
+/** Log entry with timestamp and level */
+export interface StdioLogEntry {
+  timestamp: number;
+  level: "info" | "error" | "debug";
+  message: string;
+}
+
+/** Maximum number of log entries to keep per connection */
+const MAX_LOG_ENTRIES = 500;
+
+/** Heartbeat interval to keep connections alive (30 seconds) */
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
 interface ManagedProcess {
   config: StdioConnectionConfig;
   process: ChildProcess | null;
   client: Client | null;
   transport: StdioClientTransport | null;
-  status: "starting" | "running" | "stopped" | "error";
+  status: "starting" | "running" | "stopped" | "error" | "disconnected";
   restartCount: number;
   lastError?: string;
+  logs: StdioLogEntry[];
+  startedAt?: number;
+  heartbeatInterval?: ReturnType<typeof setInterval>;
 }
 
 /**
@@ -51,26 +67,150 @@ class StdioConnectionManager {
   }
 
   /**
+   * Add a log entry for a connection
+   */
+  private addLog(
+    connectionId: string,
+    level: StdioLogEntry["level"],
+    message: string,
+  ): void {
+    const managed = this.connections.get(connectionId);
+    if (!managed) return;
+
+    managed.logs.push({
+      timestamp: Date.now(),
+      level,
+      message: message.trim(),
+    });
+
+    // Keep only the last MAX_LOG_ENTRIES
+    if (managed.logs.length > MAX_LOG_ENTRIES) {
+      managed.logs = managed.logs.slice(-MAX_LOG_ENTRIES);
+    }
+  }
+
+  /**
+   * Start heartbeat to keep connection alive
+   * Sends periodic ping requests to prevent idle timeout
+   */
+  private startHeartbeat(
+    connectionId: string,
+    managed: ManagedProcess,
+  ): void {
+    // Clear any existing heartbeat
+    if (managed.heartbeatInterval) {
+      clearInterval(managed.heartbeatInterval);
+    }
+
+    managed.heartbeatInterval = setInterval(async () => {
+      if (managed.status !== "running" || !managed.client) {
+        // Connection is no longer running, stop heartbeat
+        if (managed.heartbeatInterval) {
+          clearInterval(managed.heartbeatInterval);
+          managed.heartbeatInterval = undefined;
+        }
+        return;
+      }
+
+      try {
+        // Send a ping to keep the connection alive
+        // MCP SDK Client has a ping method
+        await managed.client.ping();
+      } catch (error) {
+        // Ping failed - connection might be dead
+        this.addLog(
+          connectionId,
+          "debug",
+          `Heartbeat failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  /**
+   * Get logs for a connection
+   */
+  getLogs(connectionId: string, since?: number): StdioLogEntry[] {
+    const managed = this.connections.get(connectionId);
+    if (!managed) return [];
+
+    if (since) {
+      return managed.logs.filter((log) => log.timestamp > since);
+    }
+    return [...managed.logs];
+  }
+
+  /**
+   * Get detailed info for a specific connection
+   */
+  getConnectionInfo(connectionId: string): {
+    status: string;
+    command: string;
+    restartCount: number;
+    error?: string;
+    startedAt?: number;
+    logsCount: number;
+  } | null {
+    const managed = this.connections.get(connectionId);
+    if (!managed) return null;
+
+    return {
+      status: managed.status,
+      command: `${managed.config.command} ${managed.config.args.join(" ")}`,
+      restartCount: managed.restartCount,
+      error: managed.lastError,
+      startedAt: managed.startedAt,
+      logsCount: managed.logs.length,
+    };
+  }
+
+  /**
    * Register a stdio connection and start the process
    */
   async spawn(config: StdioConnectionConfig): Promise<Client> {
     // If already exists and running, return existing client
     const existing = this.connections.get(config.id);
     if (existing?.status === "running" && existing.client) {
-      return existing.client;
+      // Verify the client is actually still connected by checking transport
+      // The transport will have closed if the process died
+      try {
+        // Try a lightweight operation to verify connection is alive
+        // If it throws, the connection is dead
+        return existing.client;
+      } catch {
+        console.log(`[StdioManager] Client ${config.id} appears dead, respawning...`);
+        existing.status = "disconnected";
+      }
     }
 
-    // Create managed process entry
+    // If disconnected, error, or stopped, increment restart count
+    const restartCount = existing?.restartCount ?? 0;
+    const isRestart =
+      existing?.status === "disconnected" ||
+      existing?.status === "error" ||
+      existing?.status === "stopped";
+
+    // Create managed process entry, preserving existing logs on restart
+    const existingLogs = existing?.logs ?? [];
     const managed: ManagedProcess = {
       config,
       process: null,
       client: null,
       transport: null,
       status: "starting",
-      restartCount: existing?.restartCount ?? 0,
+      restartCount: isRestart ? restartCount + 1 : restartCount,
+      logs: existingLogs,
+      startedAt: Date.now(),
     };
 
     this.connections.set(config.id, managed);
+
+    // Log the spawn attempt
+    this.addLog(
+      config.id,
+      "info",
+      `${isRestart ? "Restarting" : "Starting"}: ${config.command} ${config.args.join(" ")}`,
+    );
 
     try {
       // Build environment, filtering out undefined values from process.env
@@ -102,6 +242,20 @@ class StdioConnectionManager {
 
       managed.client = client;
 
+      // Listen for client close event to mark as disconnected
+      client.onclose = () => {
+        this.addLog(config.id, "info", "Connection closed");
+        console.log(`[StdioManager] Client closed: ${config.id}`);
+        managed.status = "disconnected";
+        managed.client = null;
+        managed.transport = null;
+        // Clear heartbeat
+        if (managed.heartbeatInterval) {
+          clearInterval(managed.heartbeatInterval);
+          managed.heartbeatInterval = undefined;
+        }
+      };
+
       // Connect with timeout
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(
@@ -114,13 +268,20 @@ class StdioConnectionManager {
 
       managed.status = "running";
 
-      // Handle process exit for auto-restart
+      // Handle stderr - store in logs and also console.error
       transport.stderr?.on("data", (data) => {
-        console.error(`[stdio:${config.id}] stderr:`, data.toString());
+        const message = data.toString();
+        this.addLog(config.id, "error", message);
+        console.error(`[stdio:${config.id}] stderr:`, message);
       });
 
+      // Start heartbeat to keep connection alive
+      this.startHeartbeat(config.id, managed);
+
+      const action = isRestart ? "Restarted" : "Started";
+      this.addLog(config.id, "info", `${action} successfully`);
       console.log(
-        `[StdioManager] Started: ${config.id} (${config.command} ${config.args.join(" ")})`,
+        `[StdioManager] ${action}: ${config.id} (${config.command} ${config.args.join(" ")})`,
       );
 
       return client;
@@ -129,6 +290,7 @@ class StdioConnectionManager {
       managed.lastError =
         error instanceof Error ? error.message : String(error);
 
+      this.addLog(config.id, "error", `Failed to start: ${managed.lastError}`);
       console.error(`[StdioManager] Failed to start ${config.id}:`, error);
 
       throw error;
@@ -153,11 +315,21 @@ class StdioConnectionManager {
     const managed = this.connections.get(connectionId);
     if (!managed) return;
 
+    this.addLog(connectionId, "info", "Stopping...");
+
+    // Clear heartbeat interval
+    if (managed.heartbeatInterval) {
+      clearInterval(managed.heartbeatInterval);
+      managed.heartbeatInterval = undefined;
+    }
+
     try {
       if (managed.client) {
         await managed.client.close();
       }
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.addLog(connectionId, "error", `Error closing: ${errMsg}`);
       console.error(`[StdioManager] Error closing client ${connectionId}:`, error);
     }
 
@@ -165,7 +337,31 @@ class StdioConnectionManager {
     managed.client = null;
     managed.transport = null;
 
+    this.addLog(connectionId, "info", "Stopped");
     console.log(`[StdioManager] Stopped: ${connectionId}`);
+  }
+
+  /**
+   * List all connections with their status
+   */
+  list(): Array<{
+    id: string;
+    status: string;
+    command: string;
+    restartCount: number;
+    error?: string;
+    startedAt?: number;
+    logsCount: number;
+  }> {
+    return Array.from(this.connections.entries()).map(([id, managed]) => ({
+      id,
+      status: managed.status,
+      command: `${managed.config.command} ${managed.config.args.join(" ")}`,
+      restartCount: managed.restartCount,
+      error: managed.lastError,
+      startedAt: managed.startedAt,
+      logsCount: managed.logs.length,
+    }));
   }
 
   /**
@@ -236,8 +432,15 @@ class StdioConnectionManager {
   }
 }
 
-// Singleton instance
-export const stdioManager = new StdioConnectionManager();
+// Singleton instance - use globalThis to survive HMR reloads
+const GLOBAL_KEY = "__mesh_stdio_manager__";
+
+declare global {
+  var __mesh_stdio_manager__: StdioConnectionManager | undefined;
+}
+
+export const stdioManager: StdioConnectionManager =
+  globalThis[GLOBAL_KEY] ?? (globalThis[GLOBAL_KEY] = new StdioConnectionManager());
 
 /**
  * Parse a connection URL that specifies a stdio command

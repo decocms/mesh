@@ -71,6 +71,8 @@ export const ALL_TOOLS = [
   StdioTools.listStdioConnections,
   StdioTools.stopStdioConnection,
   StdioTools.stopAllStdioConnections,
+  StdioTools.restartStdioConnection,
+  StdioTools.getStdioLogs,
 ] as const satisfies { name: ToolName }[];
 
 export type MCPMeshTools = typeof ALL_TOOLS;

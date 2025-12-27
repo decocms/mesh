@@ -416,7 +416,10 @@ async function createMCPProxyDoNotUseDirectly(
 
             throw error;
           } finally {
-            await client.close();
+            // Only close non-STDIO clients - STDIO connections are managed by stdioManager
+            if (!stdioConfig) {
+              await client.close();
+            }
           }
         },
       );

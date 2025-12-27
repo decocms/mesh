@@ -78,6 +78,8 @@ const ALL_TOOL_NAMES = [
   "STDIO_LIST",
   "STDIO_STOP",
   "STDIO_STOP_ALL",
+  "STDIO_RESTART",
+  "STDIO_LOGS",
 ] as const;
 
 /**
@@ -327,6 +329,16 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "STDIO",
     dangerous: true,
   },
+  {
+    name: "STDIO_RESTART",
+    description: "Restart a STDIO MCP connection",
+    category: "STDIO",
+  },
+  {
+    name: "STDIO_LOGS",
+    description: "Get logs from a STDIO MCP connection",
+    category: "STDIO",
+  },
 ];
 
 /**
@@ -372,6 +384,8 @@ const TOOL_LABELS: Record<ToolName, string> = {
   STDIO_LIST: "List STDIO connections",
   STDIO_STOP: "Stop STDIO connection",
   STDIO_STOP_ALL: "Stop all STDIO connections",
+  STDIO_RESTART: "Restart STDIO connection",
+  STDIO_LOGS: "Get STDIO connection logs",
 };
 
 // ============================================================================
