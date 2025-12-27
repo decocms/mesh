@@ -12,6 +12,7 @@ import {
   requireAuth,
   requireOrganization,
 } from "../../core/mesh-context";
+import { parseStdioUrl, stdioManager } from "../../stdio/stdio-manager";
 import { fetchToolsFromMCP } from "./fetch-tools";
 import { ConnectionCreateDataSchema, ConnectionEntitySchema } from "./schema";
 
@@ -58,14 +59,24 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
     };
 
     // Fetch tools from the MCP server before creating the connection
+    // Use a unique temporary ID based on URL to prevent STDIO process collisions
+    const tempId = `pending-${Date.now()}-${connectionData.connection_url}`;
     const fetchedTools = await fetchToolsFromMCP({
-      id: "pending",
+      id: tempId,
       title: connectionData.title,
       connection_url: connectionData.connection_url,
       connection_token: connectionData.connection_token,
       connection_headers: connectionData.connection_headers,
     }).catch(() => null);
     const tools = fetchedTools?.length ? fetchedTools : null;
+
+    // Clean up temporary STDIO process if one was spawned
+    const isStdio = parseStdioUrl(connectionData.connection_url);
+    if (isStdio) {
+      await stdioManager.stop(tempId).catch(() => {
+        // Ignore cleanup errors
+      });
+    }
 
     // Create the connection with the fetched tools
     const connection = await ctx.storage.connections.create({
