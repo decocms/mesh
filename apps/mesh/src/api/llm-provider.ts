@@ -31,7 +31,7 @@ function responseToStream(
               const parsed = JSON.parse(line) as LanguageModelV2StreamPart;
               controller.enqueue(parsed);
             } catch (error) {
-              console.error("Failed to parse stream chunk:", error);
+              console.error("Failed to parse stream chunk:", error, chunk);
               throw error;
             }
           }

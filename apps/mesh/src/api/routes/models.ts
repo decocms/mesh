@@ -172,6 +172,8 @@ app.post("/:org/models/stream", async (c) => {
       );
     }
 
+    mcpClient = client;
+
     // Prune messages to reduce context size
     const prunedMessages = pruneMessages({
       messages: modelMessages,
@@ -185,7 +187,6 @@ app.post("/:org/models/stream", async (c) => {
       client.tools({ schemas: "automatic" }),
     ]);
 
-    mcpClient = client;
     const llmBinding = LanguageModelBinding.forClient(proxy);
     const provider = createLLMProvider(llmBinding).languageModel(
       modelConfig.id,
@@ -202,10 +203,10 @@ app.post("/:org/models/stream", async (c) => {
       stopWhen: stepCountIs(30), // Stop after 30 steps with tool calls
       onError: async (error) => {
         console.error("[models:stream] Error", error);
-        await mcpClient?.close().catch(console.error);
+        await client.close().catch(console.error);
       },
       onFinish: async () => {
-        await mcpClient?.close().catch(console.error);
+        await client.close().catch(console.error);
       },
     });
 
