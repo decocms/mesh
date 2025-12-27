@@ -343,4 +343,3 @@ export function MentionInput({
     </div>
   );
 }
-
