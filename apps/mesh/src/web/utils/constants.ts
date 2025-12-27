@@ -14,6 +14,7 @@ export type JsonSchema = {
   description?: string;
   enum?: string[];
   maxLength?: number;
+  anyOf?: JsonSchema[];
   [key: string]: unknown;
 };
 

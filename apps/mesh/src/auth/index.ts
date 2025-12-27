@@ -224,6 +224,9 @@ const plugins = [
         ],
       },
     },
+    rateLimit: {
+      enabled: false,
+    },
   }),
 
   // Admin plugin for system-level super-admins

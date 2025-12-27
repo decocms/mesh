@@ -15,7 +15,7 @@ export const ORG_ADMIN_PROJECT_SLUG = "org-admin";
 
 export const Locator = {
   from({ org, project }: LocatorStructured): ProjectLocator {
-    if (org.includes("/") || project.includes("/")) {
+    if (org?.includes("/") || project.includes("/")) {
       throw new Error("Org or project cannot contain slashes");
     }
 

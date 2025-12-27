@@ -12,6 +12,11 @@ export interface McpTool {
     properties?: Record<string, unknown>;
     required?: string[];
   };
+  outputSchema?: {
+    type: string;
+    properties?: Record<string, unknown>;
+    required?: string[];
+  };
 }
 
 /**

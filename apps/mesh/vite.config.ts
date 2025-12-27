@@ -7,6 +7,9 @@ import deco from "@decocms/vite-plugin";
 export default defineConfig({
   server: {
     port: 4000,
+    hmr: {
+      overlay: true,
+    },
   },
   clearScreen: false,
   logLevel: "warn",

@@ -230,7 +230,6 @@ export const LanguageModelMessageSchema = z.union([
 export const LanguageModelPromptSchema = z
   .array(LanguageModelMessageSchema)
   .describe("A list of messages forming the prompt");
-
 /**
  * Language Model Call Options Schema
  * Based on LanguageModelV2CallOptions from @ai-sdk/provider

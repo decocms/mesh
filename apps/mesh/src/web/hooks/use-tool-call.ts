@@ -6,6 +6,9 @@
  */
 
 import {
+  Query,
+  useMutation,
+  useQuery,
   useSuspenseQuery,
   UseSuspenseQueryOptions,
 } from "@tanstack/react-query";
@@ -25,6 +28,17 @@ export interface UseToolCallOptions<TInput, TOutput>
   toolInputParams: TInput;
   /** Scope to cache the tool call (connectionId for connection-scoped, locator for org/project-scoped) */
   scope: string;
+  /** Cache time in milliseconds */
+  staleTime?: number;
+  /** Refetch interval in milliseconds (false to disable) */
+  refetchInterval?:
+    | number
+    | ((
+        query: Query<TOutput, Error, TOutput, readonly unknown[]>,
+      ) => number | false)
+    | false;
+  /** Whether to enable the tool call */
+  enabled?: boolean;
 }
 
 /**
@@ -71,5 +85,57 @@ export function useToolCall<TInput, TOutput>({
       const result = await toolCaller(toolName, toolInputParams);
       return result as TOutput;
     },
+  });
+}
+
+export interface UseToolCallMutationOptions {
+  toolCaller: ToolCaller;
+  toolName: string;
+}
+export function useToolCallMutation<TInput>(
+  options: UseToolCallMutationOptions,
+) {
+  const { toolCaller, toolName } = options;
+
+  return useMutation({
+    mutationFn: async (input: TInput) => {
+      const result = await toolCaller(toolName, input);
+      return result;
+    },
+    onSuccess: (data) => {
+      console.log("tool call mutation success", data);
+    },
+    onError: (error) => {
+      console.error("tool call mutation error", error);
+    },
+  });
+}
+
+export function useToolCallQuery<TInput, TOutput>(
+  options: UseToolCallOptions<TInput, TOutput>,
+) {
+  const {
+    toolCaller,
+    toolName,
+    toolInputParams,
+    scope,
+    staleTime = 60_000,
+    refetchInterval,
+    enabled,
+  } = options;
+
+  return useQuery({
+    queryKey: KEYS.toolCall(
+      scope,
+      toolName,
+      JSON.stringify(toolInputParams ?? {}),
+    ),
+    queryFn: async () => {
+      const result = await toolCaller(toolName, toolInputParams ?? {});
+      return result as TOutput;
+    },
+    enabled,
+    staleTime,
+    refetchInterval,
   });
 }

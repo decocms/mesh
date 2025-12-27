@@ -24,7 +24,11 @@ export {
   type GetPromptResult,
 } from "./tools.ts";
 import type { Binding } from "./wrangler.ts";
-export { proxyConnectionForId, BindingOf } from "./bindings.ts";
+export {
+  proxyConnectionForId,
+  BindingOf,
+  mcpClientForConnectionId,
+} from "./bindings.ts";
 export { type CORSOptions, type CORSOrigin } from "./cors.ts";
 export {
   createMCPFetchStub,

@@ -7,6 +7,7 @@ import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import { Loading01, Container } from "@untitledui/icons";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { Suspense, type ComponentType } from "react";
+import { WorkflowDetailsView } from "@/web/components/details/workflow/index.tsx";
 
 interface CollectionDetailsProps {
   itemId: string;
@@ -20,6 +21,7 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
   ComponentType<CollectionDetailsProps>
 > = {
   agent: AgentDetailsView,
+  workflow: WorkflowDetailsView,
 };
 
 function ToolDetailsContent() {
