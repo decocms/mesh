@@ -133,42 +133,42 @@ function RightPanel() {
             minSize={15}
             className="overflow-hidden"
           >
-            <div className="h-full border-b border-border bg-muted/30">
+            <div className="h-full bg-muted/30">
               <ExecutionsTab />
             </div>
           </ResizablePanel>
         )}
+        {hasMultiplePanels && <ResizableHandle />}
+        {activePanels.step && (
+          <ResizablePanel
+            id="step-panel"
+            order={2}
+            defaultSize={100}
+            minSize={40}
+            className="flex flex-col"
+          >
+            {/* Step Tabs */}
+            <div className="min-h-1/2 h-full pb-1">
+              <ViewLayout
+                onBack={() => togglePanel("step")}
+                title={currentStep?.name}
+              >
+                {currentStep && !trackingExecutionId && (
+                  <ActionTab step={currentStep} />
+                )}
+                {trackingExecutionId && (
+                  <MonacoCodeEditor
+                    height="100%"
+                    code={JSON.stringify(currentStepResult, null, 2)}
+                    language="json"
+                    readOnly
+                  />
+                )}
+              </ViewLayout>
+            </div>
+          </ResizablePanel>
+        )}
       </Suspense>
-      {hasMultiplePanels && <ResizableHandle />}
-      {activePanels.step && (
-        <ResizablePanel
-          id="step-panel"
-          order={2}
-          defaultSize={100}
-          minSize={40}
-          className="flex flex-col"
-        >
-          {/* Step Tabs */}
-          <div className="min-h-1/2 h-full">
-            <ViewLayout
-              onBack={() => togglePanel("step")}
-              title={currentStep?.name}
-            >
-              {currentStep && !trackingExecutionId && (
-                <ActionTab step={currentStep} />
-              )}
-              {trackingExecutionId && (
-                <MonacoCodeEditor
-                  height="100%"
-                  code={JSON.stringify(currentStepResult, null, 2)}
-                  language="json"
-                  readOnly
-                />
-              )}
-            </ViewLayout>
-          </div>
-        </ResizablePanel>
-      )}
     </ResizablePanelGroup>
   );
 }

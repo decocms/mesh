@@ -23,11 +23,7 @@ export const ExecutionBar = React.forwardRef<
 
   return (
     <div ref={ref}>
-      <ListRow
-        selected={isSelected}
-        onClick={onClick}
-        className="border-b border-border"
-      >
+      <ListRow selected={isSelected} onClick={onClick}>
         <ListRow.Icon>
           <ExecutionStatusIcon status={execution.status} />
         </ListRow.Icon>

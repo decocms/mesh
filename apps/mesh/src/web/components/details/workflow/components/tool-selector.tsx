@@ -1,7 +1,7 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ListRow } from "@/web/components/list-row.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { ChevronLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { createToolCaller } from "@/tools/client";
 import { useConnection } from "@/web/hooks/collections/use-connection";
@@ -31,8 +31,8 @@ import { useCurrentStepName, useTrackingExecutionId } from "../stores/workflow";
 export function ItemCard({
   item,
   selected,
-  backButton = false,
   onClick,
+  backButton = false,
 }: {
   item: { icon: string | null; title: string };
   selected?: boolean;
@@ -40,16 +40,22 @@ export function ItemCard({
   onClick?: () => void;
 }) {
   return (
-    <ListRow selected={selected} onClick={onClick}>
+    <ListRow
+      className={cn("border-b border-border/50 h-12", backButton && "p-0")}
+      selected={selected}
+      onClick={onClick}
+    >
       {backButton && (
-        <ListRow.Icon>
-          <ChevronLeft
-            className={cn(
-              "h-4 w-4 transition-colors",
-              selected ? "text-foreground" : "text-muted-foreground/50",
-            )}
-          />
-        </ListRow.Icon>
+        <div className="flex h-full px-2 border-r items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="items-center size-8 text-muted-foreground/50"
+            onClick={onClick}
+          >
+            <ArrowLeft />
+          </Button>
+        </div>
       )}
       {item.icon !== null && (
         <ListRow.Icon>
@@ -61,7 +67,9 @@ export function ItemCard({
         </ListRow.Icon>
       )}
       <ListRow.Content>
-        <ListRow.Title>{item.title}</ListRow.Title>
+        <ListRow.Title className="text-muted-foreground/70">
+          {item.title}
+        </ListRow.Title>
       </ListRow.Content>
     </ListRow>
   );

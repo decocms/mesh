@@ -569,7 +569,7 @@ declare const __outputValue: __InferredOutput;
   }
 
   return (
-    <div className="rounded-lg border border-base-border h-full">
+    <div className="h-full">
       {!readOnly && (
         <div className="flex justify-end gap-2 p-4 border-b border-base-border">
           <button
