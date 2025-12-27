@@ -401,7 +401,7 @@ function SelectedTool({
   const handleInputChange = (inputParams: Record<string, unknown>) => {
     if (!step?.action?.toolName) return;
     updateStep(step?.name, {
-      input: inputParams,
+      input: { ...step.input, ...inputParams },
     });
   };
   const workflowSteps = useWorkflowSteps();

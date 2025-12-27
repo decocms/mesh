@@ -9,11 +9,13 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { CodeXml, Plus, Wrench, X } from "lucide-react";
+import { Check, CodeXml, Plus, Wrench, X } from "lucide-react";
 import { cn } from "@deco/ui/lib/utils.js";
 import {
   type StepType,
+  useAddingStepType,
   useIsAddingStep,
+  useSelectedParentSteps,
   useTrackingExecutionId,
   useWorkflowActions,
   useWorkflowSteps,
@@ -93,8 +95,11 @@ const stepButtons: StepButton[] = [
 
 const FloatingAddStepButton = memo(function FloatingAddStepButton() {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { startAddingStep, cancelAddingStep } = useWorkflowActions();
+  const { startAddingStep, cancelAddingStep, confirmAddCodeStep } =
+    useWorkflowActions();
   const isAddingStep = useIsAddingStep();
+  const addingStepType = useAddingStepType();
+  const selectedParentSteps = useSelectedParentSteps();
   const { setCurrentStepTab, setTrackingExecutionId } = useWorkflowActions();
   const { setActiveTab } = useToolActionTab();
   const handleSelectType = (type: StepType) => {
@@ -110,25 +115,53 @@ const FloatingAddStepButton = memo(function FloatingAddStepButton() {
     setIsExpanded(false);
   };
 
+  const handleConfirm = () => {
+    confirmAddCodeStep();
+  };
+
   // If we're in "adding step" mode, show cancel button and instructions
+  // For code steps, also show a confirm button when steps are selected
   if (isAddingStep) {
+    const isCodeStep = addingStepType === "code";
+    const hasSelectedSteps = selectedParentSteps.length > 0;
+
     return (
       <div className="flex flex-col items-center gap-2">
         <div className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-md backdrop-blur-sm">
-          Click a highlighted step to add after it
+          {isCodeStep
+            ? hasSelectedSteps
+              ? `${selectedParentSteps.length} step${selectedParentSteps.length > 1 ? "s" : ""} selected`
+              : "Select one or more steps to use as input"
+            : "Click a highlighted step to add after it"}
         </div>
-        <button
-          type="button"
-          onClick={handleCancel}
-          className={cn(
-            "w-8 h-8 rounded-full border-2 border-destructive bg-background",
-            "flex items-center justify-center cursor-pointer",
-            "hover:bg-destructive/10 transition-colors",
-            "shadow-lg",
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className={cn(
+              "w-8 h-8 rounded-full border-2 border-destructive bg-background",
+              "flex items-center justify-center cursor-pointer",
+              "hover:bg-destructive/10 transition-colors",
+              "shadow-lg",
+            )}
+          >
+            <X className="w-4 h-4 text-destructive" />
+          </button>
+          {isCodeStep && hasSelectedSteps && (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              className={cn(
+                "w-8 h-8 rounded-full border-2 border-green-500 bg-background",
+                "flex items-center justify-center cursor-pointer",
+                "hover:bg-green-500/10 transition-colors",
+                "shadow-lg",
+              )}
+            >
+              <Check className="w-4 h-4 text-green-500" />
+            </button>
           )}
-        >
-          <X className="w-4 h-4 text-destructive" />
-        </button>
+        </div>
       </div>
     );
   }

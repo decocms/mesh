@@ -4,11 +4,15 @@ import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 import { WorkflowSteps } from "./components/steps/index";
 import {
   useCurrentStep,
+  useTrackingExecutionId,
   useWorkflow,
   useWorkflowActions,
   WorkflowStoreProvider,
 } from "@/web/components/details/workflow/stores/workflow";
-import { useWorkflowCollectionItem } from "./hooks/use-workflow-collection-item";
+import {
+  usePollingWorkflowExecution,
+  useWorkflowCollectionItem,
+} from "./hooks/use-workflow-collection-item";
 import { WorkflowActions } from "./components/actions";
 import { ActionTab, ExecutionsTab, WorkflowTabs } from "./components/tabs";
 import { toast } from "@deco/ui/components/sonner.tsx";
@@ -108,6 +112,11 @@ function RightPanel() {
     Object.values(activePanels).filter(Boolean).length > 1;
   const currentStep = useCurrentStep();
   const { togglePanel } = usePanelsActions();
+  const trackingExecutionId = useTrackingExecutionId();
+  const { step_results } = usePollingWorkflowExecution(trackingExecutionId);
+  const currentStepResult = step_results?.find(
+    (step) => step.step_id === currentStep?.name,
+  );
   return (
     <ResizablePanelGroup direction="vertical">
       <Suspense
@@ -145,7 +154,16 @@ function RightPanel() {
               onBack={() => togglePanel("step")}
               title={currentStep?.name}
             >
-              {currentStep && <ActionTab step={currentStep} />}
+              {currentStep && !trackingExecutionId && (
+                <ActionTab step={currentStep} />
+              )}
+              {trackingExecutionId && (
+                <MonacoCodeEditor
+                  height="100%"
+                  code={JSON.stringify(currentStepResult, null, 2)}
+                  language="json"
+                />
+              )}
             </ViewLayout>
           </div>
         </ResizablePanel>

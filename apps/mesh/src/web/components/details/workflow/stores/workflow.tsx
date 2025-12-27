@@ -19,6 +19,8 @@ interface State {
   isAddingStep: boolean;
   /** The type of step being added (set when user clicks add button) */
   addingStepType: StepType | null;
+  /** Selected parent steps for multi-selection (used for code steps) */
+  selectedParentSteps: string[];
   workflow: Workflow;
   trackingExecutionId: string | undefined;
   currentStepTab: CurrentStepTab;
@@ -39,11 +41,15 @@ interface Actions {
   startAddingStep: (type: StepType) => void;
   /** Cancel the add step flow */
   cancelAddingStep: () => void;
-  /** Add new step after the specified parent step */
+  /** Add new step after the specified parent step (for tool steps) */
   addStepAfter: (
     parentStepName: string,
     outputSchema?: Record<string, unknown>,
   ) => void;
+  /** Toggle selection of a parent step (for code steps multi-selection) */
+  toggleParentStepSelection: (stepName: string) => void;
+  /** Confirm adding a code step with selected parent steps */
+  confirmAddCodeStep: () => void;
   setOriginalWorkflow: (workflow: Workflow) => void;
   setWorkflow: (workflow: Workflow) => void;
 }
@@ -205,7 +211,92 @@ export const createWorkflowStore = (initialState: State) => {
               ...state,
               isAddingStep: false,
               addingStepType: null,
+              selectedParentSteps: [],
             })),
+          toggleParentStepSelection: (stepName: string) =>
+            set((state) => {
+              const isSelected = state.selectedParentSteps.includes(stepName);
+              return {
+                ...state,
+                selectedParentSteps: isSelected
+                  ? state.selectedParentSteps.filter((s) => s !== stepName)
+                  : [...state.selectedParentSteps, stepName],
+              };
+            }),
+          confirmAddCodeStep: () =>
+            set((state) => {
+              const { selectedParentSteps, addingStepType, workflow } = state;
+              if (addingStepType !== "code" || selectedParentSteps.length === 0)
+                return state;
+
+              // Build input object with references to all selected parent steps
+              const input: Record<string, string> = {};
+              for (const stepName of selectedParentSteps) {
+                input[stepName] = `@${stepName}`;
+              }
+
+              // Combine outputSchemas from all selected parent steps
+              const combinedProperties: Record<string, unknown> = {};
+              for (const stepName of selectedParentSteps) {
+                const parentStep = workflow.steps.find(
+                  (s) => s.name === stepName,
+                );
+                if (parentStep?.outputSchema) {
+                  combinedProperties[stepName] = parentStep.outputSchema;
+                }
+              }
+
+              const combinedSchema: Record<string, unknown> | undefined =
+                Object.keys(combinedProperties).length > 0
+                  ? {
+                      type: "object",
+                      properties: combinedProperties,
+                      required: Object.keys(combinedProperties),
+                    }
+                  : undefined;
+
+              // Create the new code step
+              let newStep = createDefaultStep(
+                "code",
+                Number((Math.random() * 1000000).toFixed(0)),
+              );
+
+              newStep = {
+                ...newStep,
+                input,
+              };
+
+              // Inject the combined Input interface into the code
+              if (combinedSchema) {
+                const inputInterface = jsonSchemaToTypeScript(
+                  combinedSchema,
+                  "Input",
+                );
+                const codeAction = newStep.action as CodeAction;
+                const updatedCode = replaceInputInterface(
+                  codeAction.code,
+                  inputInterface,
+                );
+                newStep = {
+                  ...newStep,
+                  action: { ...codeAction, code: updatedCode },
+                };
+              }
+
+              const newName = generateUniqueName(newStep.name, workflow.steps);
+
+              return {
+                ...state,
+                isAddingStep: false,
+                addingStepType: null,
+                selectedParentSteps: [],
+                workflow: {
+                  ...workflow,
+                  steps: [...workflow.steps, { ...newStep, name: newName }],
+                },
+                currentStepName: newName,
+              };
+            }),
           addStepAfter: (
             parentStepName: string,
             outputSchema?: Record<string, unknown>,
@@ -303,6 +394,7 @@ export const createWorkflowStore = (initialState: State) => {
           originalWorkflow: state.originalWorkflow,
           isAddingStep: state.isAddingStep,
           addingStepType: state.addingStepType,
+          selectedParentSteps: state.selectedParentSteps,
         }),
       },
     ),
@@ -324,6 +416,7 @@ export function WorkflowStoreProvider({
       workflow,
       isAddingStep: false,
       addingStepType: null,
+      selectedParentSteps: [],
       currentStepName: undefined,
       trackingExecutionId,
       currentStepTab: "input",
@@ -393,4 +486,8 @@ export function useIsAddingStep() {
 
 export function useAddingStepType() {
   return useWorkflowStore((state) => state.addingStepType);
+}
+
+export function useSelectedParentSteps() {
+  return useWorkflowStore((state) => state.selectedParentSteps);
 }

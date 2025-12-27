@@ -25,6 +25,8 @@ import {
   MentionInput,
   MentionItem,
 } from "@/web/components/tiptap-mentions-input";
+import { usePollingWorkflowExecution } from "../hooks/use-workflow-collection-item";
+import { useCurrentStepName, useTrackingExecutionId } from "../stores/workflow";
 
 export function ItemCard({
   item,
@@ -216,7 +218,7 @@ export function ToolComponent({
   const {
     inputParams,
     setInputParams,
-    executionResult,
+    executionResult: executionResultFromTool,
     setExecutionResult,
     setExecutionError,
     isExecuting,
@@ -224,6 +226,13 @@ export function ToolComponent({
     stats,
     setStats,
   } = useToolState(tool.inputSchema as JsonSchema, initialInputParams);
+  const trackingExecutionId = useTrackingExecutionId();
+  const currentStepName = useCurrentStepName();
+  const { step_results } = usePollingWorkflowExecution(trackingExecutionId);
+  const stepResult = step_results?.find(
+    (step) => step.step_id === currentStepName,
+  );
+  const executionResult = stepResult ?? executionResultFromTool;
   const handleExecute = async () => {
     setIsExecuting(true);
     setExecutionError(null);
@@ -292,7 +301,29 @@ export function ToolComponent({
 
   const handleInputChange = (key: string, value: string) => {
     setInputParams((prev) => ({ ...prev, [key]: value }));
-    onInputChange?.({ [key]: value });
+
+    // Try to parse JSON for object/array values before saving to step input
+    // Check schema type first, then fall back to detecting JSON-like strings
+    const propSchema = tool?.inputSchema?.properties?.[key] as
+      | { type?: string }
+      | undefined;
+    const isObjectOrArray =
+      propSchema?.type === "object" || propSchema?.type === "array";
+    const looksLikeJson =
+      (value.trim().startsWith("{") && value.trim().endsWith("}")) ||
+      (value.trim().startsWith("[") && value.trim().endsWith("]"));
+
+    let parsedValue: unknown = value;
+    if (isObjectOrArray || looksLikeJson) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch {
+        // Keep as string if parsing fails (user still typing)
+        parsedValue = value;
+      }
+    }
+
+    onInputChange?.({ [key]: parsedValue });
   };
 
   if (!connection) {
@@ -366,7 +397,7 @@ export function ToolComponent({
           </Button>
         </div>
 
-        <div className="p-4 pb-0 space-y-4 h-full overflow-auto min-h-[200px]">
+        <div className="p-4 space-y-4 h-fit">
           <ToolInput
             inputSchema={tool?.inputSchema as JsonSchema}
             inputParams={inputParams}
@@ -375,10 +406,30 @@ export function ToolComponent({
             mentions={mentions ?? []}
           />
         </div>
-        <ExecutionResult
-          executionResult={executionResult}
-          placeholder="Run the tool to see results"
-        />
+        {/* {
+          tool?.outputSchema && (
+                () => {
+                  const outputSchema = tool?.outputSchema as JsonSchema;
+                  const outputSchemaProperties = outputSchema?.properties;
+                  return (
+                    <div className="p-4 space-y-4 h-fit border-t border-border bg-muted/30">
+                      {outputSchemaProperties && Object.entries(outputSchemaProperties).map(([key, prop]) => {
+                        return (
+                          <div key={key}>
+                            <p>{key}</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()
+        } */}
+        {executionResult && (
+          <ExecutionResult
+            executionResult={executionResult}
+            placeholder="Run the tool to see results"
+          />
+        )}
       </div>
     </div>
   );
@@ -521,6 +572,8 @@ export function ToolInput({
 }) {
   const mentionItems = mentions ?? [];
 
+  console.log({ inputParams, inputSchema });
+
   if (!inputSchema?.properties) {
     if (inputSchema) {
       return (
@@ -557,7 +610,6 @@ export function ToolInput({
   return (
     <>
       {Object.entries(inputSchema.properties).map(([key, prop]) => {
-        const p = prop as { type?: string; description?: string };
         const rawValue = inputParams?.[key];
         const value =
           typeof rawValue === "object"
@@ -568,8 +620,8 @@ export function ToolInput({
           <InputField
             key={key}
             name={key}
-            type={p.type ?? "string"}
-            description={p.description}
+            type={prop.type ?? "string"}
+            description={prop.description}
             required={inputSchema.required?.includes(key)}
             value={value}
             onChange={(v) => handleInputChange?.(key, v)}

@@ -361,6 +361,7 @@ export function TiptapMentionsInput({
     mentions,
     placeholder,
     onChange: (text) => {
+      console.log({ text });
       onChange?.("", text);
     },
   });

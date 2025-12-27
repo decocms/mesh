@@ -6,8 +6,10 @@ import { cn } from "@deco/ui/lib/utils.js";
 import { useToolCallMutation } from "@/web/hooks/use-tool-call";
 import { createToolCaller } from "@/tools/client";
 import {
+  useAddingStepType,
   useIsAddingStep,
   useIsDirty,
+  useSelectedParentSteps,
   useTrackingExecutionId,
   useWorkflow,
   useWorkflowActions,
@@ -175,7 +177,9 @@ function ResumeButton() {
 
 export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
   const isAddingStep = useIsAddingStep();
-  const { addStepAfter } = useWorkflowActions();
+  const addingStepType = useAddingStepType();
+  const selectedParentSteps = useSelectedParentSteps();
+  const { addStepAfter, toggleParentStepSelection } = useWorkflowActions();
   const isDirty = useIsDirty();
   const workflow = useWorkflow();
   const { isRunning, startTime, endTime } = data as TriggerNodeData;
@@ -184,6 +188,8 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
   const hasNoSteps =
     workflow.steps.filter((s) => s.name !== "Manual").length === 0;
   const canAddAfterTrigger = isAddingStep && hasNoSteps;
+  // Check if trigger/input is selected (for code steps multi-selection)
+  const isSelected = selectedParentSteps.includes("input");
   const { togglePanel } = usePanelsActions();
   const activePanels = useActivePanels();
   const { setCurrentStepName } = useWorkflowActions();
@@ -193,8 +199,13 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
     }
     setCurrentStepName("Manual");
     if (canAddAfterTrigger) {
-      // Add step with @input reference (first step after trigger)
-      addStepAfter("input");
+      // For code steps: toggle selection. For tool steps: immediately add
+      if (addingStepType === "code") {
+        toggleParentStepSelection("input");
+      } else {
+        // Add step with @input reference (first step after trigger)
+        addStepAfter("input");
+      }
     }
   };
 
@@ -216,9 +227,10 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
             // Highlight trigger when it's a valid target for adding steps
             canAddAfterTrigger && [
               "cursor-pointer",
-              "ring-2 ring-primary ring-offset-2 ring-offset-background",
-              "hover:shadow-lg hover:shadow-primary/20",
-              "hover:scale-[1.02]",
+              "ring-2 ring-offset-2 ring-offset-background",
+              isSelected
+                ? "ring-green-500 bg-green-500/10 border-green-500"
+                : "ring-primary hover:shadow-lg hover:shadow-primary/20 hover:scale-[1.02]",
             ],
             // Dim trigger when adding but not a valid target
             isAddingStep && !canAddAfterTrigger && "opacity-50",

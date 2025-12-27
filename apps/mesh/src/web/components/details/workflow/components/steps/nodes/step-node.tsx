@@ -8,6 +8,8 @@ import {
   useWorkflowActions,
   useIsAddingStep,
   useCurrentStepName,
+  useAddingStepType,
+  useSelectedParentSteps,
 } from "@/web/components/details/workflow/stores/workflow";
 import type { StepNodeData } from "../use-workflow-flow";
 import { useActivePanels, usePanelsActions } from "../../../stores/panels";
@@ -111,13 +113,18 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
     isError,
   } = data as StepNodeData;
   const isAddingStep = useIsAddingStep();
-  const { addStepAfter, setCurrentStepName } = useWorkflowActions();
+  const addingStepType = useAddingStepType();
+  const selectedParentSteps = useSelectedParentSteps();
+  const { addStepAfter, setCurrentStepName, toggleParentStepSelection } =
+    useWorkflowActions();
   const currentStepName = useCurrentStepName();
   const activePanels = useActivePanels();
   const { togglePanel } = usePanelsActions();
 
-  // When adding a step, only terminal steps can be clicked to add after
+  // When adding a step, this step can be clicked
   const canAddAfter = isAddingStep;
+  // Check if this step is selected (for code steps multi-selection)
+  const isSelected = selectedParentSteps.includes(step.name);
 
   const displayIcon = (() => {
     if (!step.action) return null;
@@ -128,10 +135,16 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
     if (!activePanels.step) {
       togglePanel("step");
     }
-    // When adding a step, clicking on a terminal step adds the new step after it
+    // When adding a step, clicking on a step either:
+    // - For code steps: toggle selection (multi-select)
+    // - For tool steps: immediately add after
     if (canAddAfter) {
       e.stopPropagation();
-      addStepAfter(step.name);
+      if (addingStepType === "code") {
+        toggleParentStepSelection(step.name);
+      } else {
+        addStepAfter(step.name);
+      }
       return;
     }
     setCurrentStepName(step.name);
@@ -154,18 +167,18 @@ export const StepNode = memo(function StepNode({ data }: NodeProps) {
           "transition-all duration-200",
           canAddAfter && [
             "cursor-pointer",
-            "ring-2 ring-primary ring-offset-2 ring-offset-background",
-            "hover:shadow-lg hover:shadow-primary/20",
-            "hover:scale-[1.02]",
+            "ring-2 ring-offset-2 ring-offset-background",
+            isSelected
+              ? "ring-green-500 bg-green-500/10 border-green-500"
+              : "ring-primary hover:shadow-lg hover:shadow-primary/20 hover:scale-[1.02]",
           ],
           hasFinished &&
-            !isError && ["bg-primary/10 border-primary hover:bg-primary/20"],
+            !isError &&
+            !isSelected && ["bg-primary/10 border-primary hover:bg-primary/20"],
           isError && [
             "bg-destructive/10 border-destructive! hover:bg-destructive/20",
           ],
           isFetching && ["animate-pulse text-primary"],
-          // Dim non-terminal steps when in add-step mode
-          isAddingStep && !canAddAfter && ["opacity-50 cursor-not-allowed"],
           // Normal selection state
           !isAddingStep &&
             currentStepName === step.name &&
