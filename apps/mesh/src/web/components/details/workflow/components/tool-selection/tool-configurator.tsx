@@ -1,6 +1,5 @@
 import { Loader2, SlidersHorizontal } from "lucide-react";
-import { ToolComponent } from "../tool-selector";
-import { useTool } from "../tool-selector";
+import { ToolComponent, useTool } from "../tool-selector";
 import { useToolInput } from "./hooks/use-tool-input";
 import type { ToolStep } from "../types";
 import type { McpTool } from "@/web/hooks/use-mcp";
