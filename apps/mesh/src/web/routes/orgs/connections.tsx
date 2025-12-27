@@ -1,5 +1,4 @@
 import type { ConnectionEntity } from "@/tools/connection/schema";
-import { ConnectionEntitySchema } from "@/tools/connection/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
@@ -75,19 +74,52 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 // Form validation schema derived from ConnectionEntitySchema
 // Pick the relevant fields and adapt for form use
-const connectionFormSchema = ConnectionEntitySchema.pick({
-  title: true,
-  description: true,
-  connection_type: true,
-  connection_url: true,
-  connection_token: true,
-}).partial({
-  // These are optional for form input
-  description: true,
-  connection_token: true,
+const connectionFormSchema = z.object({
+  title: z.string().min(1, "Name is required"),
+  description: z.string().nullable().optional(),
+  // UI type - includes "NPX" which maps to STDIO internally
+  ui_type: z.enum(["HTTP", "SSE", "Websocket", "NPX"]),
+  // For HTTP/SSE/Websocket
+  connection_url: z.string().optional(),
+  connection_token: z.string().nullable().optional(),
+  // For NPX
+  npx_package: z.string().optional(),
+  npx_env_var_name: z.string().optional(),
+  npx_api_key: z.string().optional(),
 });
 
 type ConnectionFormData = z.infer<typeof connectionFormSchema>;
+
+/**
+ * Build a stdio URL from NPX form fields
+ * Note: API key is NOT included in URL - it goes in connection_token
+ */
+function buildStdioUrl(packageName: string): string {
+  const url = new URL("stdio://npx");
+  url.searchParams.append("args", "-y");
+  url.searchParams.append("args", packageName);
+  return url.toString();
+}
+
+/**
+ * Parse a stdio URL back to NPX form fields
+ * Note: envVarName comes from connection_headers, not URL
+ */
+function parseStdioUrlToNpx(url: string): { package: string } | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "stdio:" || parsed.hostname !== "npx") return null;
+
+    const args = parsed.searchParams.getAll("args");
+    // Find the package (skip -y flag)
+    const packageName = args.find((a) => !a.startsWith("-"));
+    if (!packageName) return null;
+
+    return { package: packageName };
+  } catch {
+    return null;
+  }
+}
 
 type DialogState =
   | { mode: "idle" }
@@ -148,11 +180,17 @@ function OrgMcpsContent() {
     defaultValues: {
       title: "",
       description: null,
-      connection_type: "HTTP",
+      ui_type: "HTTP",
       connection_url: "",
       connection_token: null,
+      npx_package: "",
+      npx_env_var_name: "",
+      npx_api_key: "",
     },
   });
+
+  // Watch the ui_type to conditionally render fields
+  const uiType = form.watch("ui_type");
 
   // Reset form when editing connection changes
   const editingConnection =
@@ -161,20 +199,48 @@ function OrgMcpsContent() {
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (editingConnection) {
-      form.reset({
-        title: editingConnection.title,
-        description: editingConnection.description,
-        connection_type: editingConnection.connection_type,
-        connection_url: editingConnection.connection_url,
-        connection_token: null, // Don't pre-fill token for security
-      });
+      // Check if it's an NPX/STDIO connection
+      const isStdio = editingConnection.connection_type === "STDIO";
+      const npxData = isStdio
+        ? parseStdioUrlToNpx(editingConnection.connection_url)
+        : null;
+
+      if (npxData) {
+        // Get env var name from headers
+        const envVarName =
+          editingConnection.connection_headers?.["X-Stdio-Env-Var"] ?? "";
+        form.reset({
+          title: editingConnection.title,
+          description: editingConnection.description,
+          ui_type: "NPX",
+          connection_url: "",
+          connection_token: null,
+          npx_package: npxData.package,
+          npx_env_var_name: envVarName,
+          npx_api_key: "", // Don't pre-fill for security
+        });
+      } else {
+        form.reset({
+          title: editingConnection.title,
+          description: editingConnection.description,
+          ui_type: editingConnection.connection_type as "HTTP" | "SSE" | "Websocket",
+          connection_url: editingConnection.connection_url,
+          connection_token: null, // Don't pre-fill token for security
+          npx_package: "",
+          npx_env_var_name: "",
+          npx_api_key: "",
+        });
+      }
     } else {
       form.reset({
         title: "",
         description: null,
-        connection_type: "HTTP",
+        ui_type: "HTTP",
         connection_url: "",
         connection_token: null,
+        npx_package: "",
+        npx_env_var_name: "",
+        npx_api_key: "",
       });
     }
   }, [editingConnection, form]);
@@ -193,6 +259,30 @@ function OrgMcpsContent() {
   };
 
   const onSubmit = async (data: ConnectionFormData) => {
+    // Determine actual connection_type and connection_url based on ui_type
+    let connectionType: "HTTP" | "SSE" | "Websocket" | "STDIO";
+    let connectionUrl: string;
+    let connectionToken: string | null = null;
+
+    // For NPX, store env var name in headers
+    let connectionHeaders: Record<string, string> | null = null;
+
+    if (data.ui_type === "NPX") {
+      // NPX maps to STDIO with a generated URL (no secrets in URL)
+      connectionType = "STDIO";
+      connectionUrl = buildStdioUrl(data.npx_package || "");
+      // API key goes in connection_token (encrypted)
+      connectionToken = data.npx_api_key || null;
+      // Env var name stored in headers
+      if (data.npx_env_var_name) {
+        connectionHeaders = { "X-Stdio-Env-Var": data.npx_env_var_name };
+      }
+    } else {
+      connectionType = data.ui_type;
+      connectionUrl = data.connection_url || "";
+      connectionToken = data.connection_token || null;
+    }
+
     if (editingConnection) {
       // Update existing connection
       await actions.update.mutateAsync({
@@ -200,11 +290,10 @@ function OrgMcpsContent() {
         data: {
           title: data.title,
           description: data.description || null,
-          connection_type: data.connection_type,
-          connection_url: data.connection_url,
-          ...(data.connection_token && {
-            connection_token: data.connection_token,
-          }),
+          connection_type: connectionType,
+          connection_url: connectionUrl,
+          ...(connectionToken && { connection_token: connectionToken }),
+          ...(connectionHeaders && { connection_headers: connectionHeaders }),
         },
       });
 
@@ -219,9 +308,9 @@ function OrgMcpsContent() {
       id: newId,
       title: data.title,
       description: data.description || null,
-      connection_type: data.connection_type,
-      connection_url: data.connection_url,
-      connection_token: data.connection_token || null,
+      connection_type: connectionType,
+      connection_url: connectionUrl,
+      connection_token: connectionToken,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       created_by: session?.user?.id || "system",
@@ -229,7 +318,7 @@ function OrgMcpsContent() {
       icon: null,
       app_name: null,
       app_id: null,
-      connection_headers: null,
+      connection_headers: connectionHeaders,
       oauth_config: null,
       configuration_state: null,
       metadata: null,
@@ -451,7 +540,7 @@ function OrgMcpsContent() {
 
                 <FormField
                   control={form.control}
-                  name="connection_type"
+                  name="ui_type"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Type *</FormLabel>
@@ -465,6 +554,12 @@ function OrgMcpsContent() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          <SelectItem value="NPX">
+                            <span className="flex items-center gap-2">
+                              <Container className="w-4 h-4" />
+                              NPX Package
+                            </span>
+                          </SelectItem>
                           <SelectItem value="HTTP">HTTP</SelectItem>
                           <SelectItem value="SSE">SSE</SelectItem>
                           <SelectItem value="Websocket">Websocket</SelectItem>
@@ -475,41 +570,108 @@ function OrgMcpsContent() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="connection_url"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>URL *</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="https://example.com/mcp"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* NPX-specific fields */}
+                {uiType === "NPX" && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="npx_package"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>NPM Package *</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="@perplexity-ai/mcp-server"
+                              {...field}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            The npm package to run with npx
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name="connection_token"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Token (optional)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="Bearer token or API key"
-                          {...field}
-                          value={field.value ?? ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="npx_env_var_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Environment Variable</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="PERPLEXITY_API_KEY"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="npx_api_key"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>API Key</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder="pplx-xxx..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* HTTP/SSE/Websocket fields */}
+                {uiType !== "NPX" && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="connection_url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>URL *</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com/mcp"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="connection_token"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Token (optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Bearer token or API key"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
               </div>
 
               <DialogFooter>
