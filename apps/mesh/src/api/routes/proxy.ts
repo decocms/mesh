@@ -8,12 +8,16 @@
  * - Creates MCP Server to handle incoming requests
  * - Creates MCP Client to connect to downstream connections
  * - Uses middleware pipeline for authorization
- * - Supports StreamableHTTP transport
+ * - Supports StreamableHTTP and STDIO transports
  */
 
 import { extractConnectionPermissions } from "@/auth/configuration-scopes";
 import { once } from "@/common";
 import { getMonitoringConfig } from "@/core/config";
+import {
+  parseStdioUrl,
+  stdioManager,
+} from "@/stdio/stdio-manager";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -271,8 +275,35 @@ async function createMCPProxyDoNotUseDirectly(
     return headers;
   };
 
+  // Check if this is a stdio connection
+  const stdioConfig = parseStdioUrl(connection.connection_url);
+
+  // Special header key for STDIO env var name
+  const STDIO_ENV_VAR_HEADER = "X-Stdio-Env-Var";
+
   // Create client factory for downstream MCP
   const createClient = async () => {
+    // STDIO transport - use the managed process
+    if (stdioConfig) {
+      // Merge connection token into env if provided
+      const env = { ...stdioConfig.env };
+      if (connection.connection_token) {
+        // Get env var name from headers, default to MCP_API_TOKEN
+        const envVarName =
+          connection.connection_headers?.[STDIO_ENV_VAR_HEADER] ||
+          "MCP_API_TOKEN";
+        env[envVarName] = connection.connection_token;
+      }
+
+      // Spawn or get existing client from the manager
+      return stdioManager.spawn({
+        ...stdioConfig,
+        id: connectionId,
+        env,
+      });
+    }
+
+    // HTTP transport
     const headers = await buildRequestHeaders();
 
     // Create transport to downstream MCP using StreamableHTTP
@@ -385,7 +416,10 @@ async function createMCPProxyDoNotUseDirectly(
 
             throw error;
           } finally {
-            await client.close();
+            // Only close non-STDIO clients - STDIO connections are managed by stdioManager
+            if (!stdioConfig) {
+              await client.close();
+            }
           }
         },
       );

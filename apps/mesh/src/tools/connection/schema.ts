@@ -60,9 +60,13 @@ export const ConnectionEntitySchema = z.object({
   app_id: z.string().nullable().describe("Associated app ID"),
 
   connection_type: z
-    .enum(["HTTP", "SSE", "Websocket"])
+    .enum(["HTTP", "SSE", "Websocket", "STDIO"])
     .describe("Type of connection"),
-  connection_url: z.string().describe("URL for the connection"),
+  connection_url: z
+    .string()
+    .describe(
+      "URL for the connection. For STDIO: stdio://command?args=arg1&args=arg2&ENV_VAR=value",
+    ),
   connection_token: z.string().nullable().describe("Authentication token"),
   connection_headers: z
     .record(z.string(), z.string())

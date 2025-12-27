@@ -1,0 +1,50 @@
+{
+  "name": "@decocms/studio",
+  "version": "0.1.0",
+  "description": "AI-native TypeScript content editor - Generate rich forms from your types",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"bun run dev:client\" \"bun run dev:server\"",
+    "dev:client": "bun --bun vite dev",
+    "dev:server": "NODE_ENV=development bun --hot run src/server/index.ts",
+    "build:client": "bun --bun vite build",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deco/ui": "workspace:*",
+    "@rjsf/core": "^6.1.2",
+    "@rjsf/utils": "^6.1.2",
+    "@rjsf/validator-ajv8": "^6.1.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.17",
+    "@tanstack/react-query": "^5.90.11",
+    "@tanstack/react-router": "^1.139.7",
+    "@types/bun": "^1.3.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "concurrently": "^9.2.1",
+    "hono": "^4.10.7",
+    "lucide-react": "^0.552.0",
+    "monaco-editor": "^0.52.0",
+    "@monaco-editor/react": "^4.7.0",
+    "nanoid": "^5.1.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.3.1",
+    "tailwindcss": "^4.1.17",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.1",
+    "vite-tsconfig-paths": "^5.1.4",
+    "zod": "^3.25.76"
+  }
+}
+

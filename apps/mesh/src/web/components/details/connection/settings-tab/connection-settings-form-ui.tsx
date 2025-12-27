@@ -101,6 +101,7 @@ export function ConnectionSettingsFormUI({
                         <SelectItem value="HTTP">HTTP</SelectItem>
                         <SelectItem value="SSE">SSE</SelectItem>
                         <SelectItem value="Websocket">Websocket</SelectItem>
+                        <SelectItem value="STDIO">STDIO</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>

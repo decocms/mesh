@@ -130,7 +130,7 @@ export interface MCPConnectionTable {
   app_id: string | null;
 
   // Connection details
-  connection_type: "HTTP" | "SSE" | "Websocket";
+  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO";
   connection_url: string;
   connection_token: string | null; // Encrypted
   connection_headers: JsonObject<Record<string, string>> | null;

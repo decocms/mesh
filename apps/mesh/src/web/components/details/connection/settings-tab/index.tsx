@@ -18,6 +18,7 @@ import { ViewActions } from "../../layout";
 import { ConnectionSettingsFormUI } from "./connection-settings-form-ui";
 import { McpConfigurationForm } from "./mcp-configuration-form";
 import { connectionFormSchema, type ConnectionFormData } from "./schema";
+import { StdioStatusPanel } from "./stdio-status-panel";
 
 interface SettingsTabProps {
   connection: ConnectionEntity;
@@ -157,6 +158,7 @@ function SettingsRightPanel({
   isMCPAuthenticated,
   supportsOAuth,
   hasReadme,
+  connection,
 }: {
   hasMcpBinding: boolean;
   stateSchema?: Record<string, unknown>;
@@ -167,12 +169,16 @@ function SettingsRightPanel({
   isMCPAuthenticated: boolean;
   supportsOAuth: boolean;
   hasReadme: boolean;
+  connection: ConnectionEntity;
 }) {
   const hasProperties =
     stateSchema &&
     stateSchema.properties &&
     typeof stateSchema.properties === "object" &&
     Object.keys(stateSchema.properties).length > 0;
+
+  // For STDIO connections, show the process status panel
+  const isStdio = connection.connection_type === "STDIO";
 
   if (!isMCPAuthenticated) {
     // Show different UI based on whether the server supports OAuth
@@ -188,10 +194,26 @@ function SettingsRightPanel({
   }
 
   if (!hasMcpBinding) {
+    // For STDIO, still show the status panel even without MCP binding
+    if (isStdio) {
+      return (
+        <div className="w-3/5 min-w-0 overflow-auto">
+          <StdioStatusPanel connectionId={connection.id} />
+        </div>
+      );
+    }
     return null;
   }
 
   if (!hasProperties || !stateSchema) {
+    // For STDIO, show the status panel instead of empty state
+    if (isStdio) {
+      return (
+        <div className="w-3/5 min-w-0 overflow-auto">
+          <StdioStatusPanel connectionId={connection.id} />
+        </div>
+      );
+    }
     return (
       <div className="w-3/5 min-w-0 overflow-auto flex items-center justify-center">
         <EmptyState
@@ -204,6 +226,7 @@ function SettingsRightPanel({
 
   return (
     <div className="w-3/5 min-w-0 overflow-auto">
+      {isStdio && <StdioStatusPanel connectionId={connection.id} />}
       <McpConfigurationForm
         stateSchema={stateSchema}
         formState={formState ?? {}}
@@ -334,6 +357,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
               isMCPAuthenticated={props.isMCPAuthenticated}
               supportsOAuth={props.supportsOAuth}
               hasReadme={hasReadme}
+              connection={connection}
             />
           </Suspense>
         </ErrorBoundary>

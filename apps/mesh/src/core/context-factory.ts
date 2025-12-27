@@ -572,8 +572,15 @@ async function authenticateRequest(
       };
     }
   } catch (error) {
-    const err = error as Error;
-    console.error("[Auth] Session check failed:", err);
+    const err = error as Error & { body?: unknown };
+    console.error(
+      "[Auth] Session check failed:",
+      JSON.stringify(
+        { message: err.message, body: err.body, stack: err.stack },
+        null,
+        2,
+      ),
+    );
   }
 
   // No valid authentication found - return empty auth data

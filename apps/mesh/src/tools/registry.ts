@@ -24,7 +24,8 @@ export type ToolCategory =
   | "Gateways"
   | "Monitoring"
   | "API Keys"
-  | "Event Bus";
+  | "Event Bus"
+  | "STDIO";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -73,6 +74,12 @@ const ALL_TOOL_NAMES = [
   "EVENT_ACK",
   "EVENT_SUBSCRIPTION_LIST",
   "EVENT_SYNC_SUBSCRIPTIONS",
+  // STDIO tools
+  "STDIO_LIST",
+  "STDIO_STOP",
+  "STDIO_STOP_ALL",
+  "STDIO_RESTART",
+  "STDIO_LOGS",
 ] as const;
 
 /**
@@ -305,6 +312,33 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Sync subscriptions to desired state",
     category: "Event Bus",
   },
+  // STDIO tools
+  {
+    name: "STDIO_LIST",
+    description: "List running STDIO MCP connections",
+    category: "STDIO",
+  },
+  {
+    name: "STDIO_STOP",
+    description: "Stop a running STDIO MCP connection",
+    category: "STDIO",
+  },
+  {
+    name: "STDIO_STOP_ALL",
+    description: "Stop all running STDIO MCP connections",
+    category: "STDIO",
+    dangerous: true,
+  },
+  {
+    name: "STDIO_RESTART",
+    description: "Restart a STDIO MCP connection",
+    category: "STDIO",
+  },
+  {
+    name: "STDIO_LOGS",
+    description: "Get logs from a STDIO MCP connection",
+    category: "STDIO",
+  },
 ];
 
 /**
@@ -347,6 +381,11 @@ const TOOL_LABELS: Record<ToolName, string> = {
   EVENT_ACK: "Acknowledge event delivery",
   EVENT_SUBSCRIPTION_LIST: "List event subscriptions",
   EVENT_SYNC_SUBSCRIPTIONS: "Sync subscriptions to desired state",
+  STDIO_LIST: "List STDIO connections",
+  STDIO_STOP: "Stop STDIO connection",
+  STDIO_STOP_ALL: "Stop all STDIO connections",
+  STDIO_RESTART: "Restart STDIO connection",
+  STDIO_LOGS: "Get STDIO connection logs",
 };
 
 // ============================================================================
@@ -364,6 +403,7 @@ export function getToolsByCategory() {
     Monitoring: [],
     "API Keys": [],
     "Event Bus": [],
+    STDIO: [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

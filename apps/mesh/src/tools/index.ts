@@ -15,6 +15,7 @@ import * as GatewayTools from "./gateway";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
 import { ToolName } from "./registry";
+import * as StdioTools from "./stdio";
 
 // All available tools - types are inferred
 export const ALL_TOOLS = [
@@ -65,6 +66,13 @@ export const ALL_TOOLS = [
   EventBusTools.EVENT_ACK,
   EventBusTools.EVENT_SUBSCRIPTION_LIST,
   EventBusTools.EVENT_SYNC_SUBSCRIPTIONS,
+
+  // STDIO connection management tools
+  StdioTools.listStdioConnections,
+  StdioTools.stopStdioConnection,
+  StdioTools.stopAllStdioConnections,
+  StdioTools.restartStdioConnection,
+  StdioTools.getStdioLogs,
 ] as const satisfies { name: ToolName }[];
 
 export type MCPMeshTools = typeof ALL_TOOLS;
