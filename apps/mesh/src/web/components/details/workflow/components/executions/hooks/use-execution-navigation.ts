@@ -60,6 +60,10 @@ export function useExecutionNavigation(executions: WorkflowExecution[]) {
   };
 
   const handleItemClick = (executionId: string) => {
+    if (trackingExecutionId === executionId) {
+      setTrackingExecutionId(undefined);
+      return;
+    }
     setTrackingExecutionId(executionId);
     containerRef.current?.focus();
   };
