@@ -9,23 +9,16 @@ import {
   OutputSchemaProvider,
   useOutputSchemaSelection,
 } from "../output-schema/index.ts";
-import {
-  ResizableHandle,
-  ResizablePanel,
-} from "@deco/ui/components/resizable.js";
+import { ResizablePanel } from "@deco/ui/components/resizable.js";
 import { ResizablePanelGroup } from "@deco/ui/components/resizable.js";
 import { ScrollArea } from "@deco/ui/components/scroll-area.js";
-import {
-  useTrackingExecutionId,
-  useWorkflowActions,
-} from "../../stores/workflow.tsx";
+import { useWorkflowActions } from "../../stores/workflow.tsx";
 import { MonacoCodeEditor } from "../monaco-editor.tsx";
 import { ToolCallAction } from "@decocms/bindings/workflow";
 import { useTransformCodeSync } from "../output-schema/hooks/use-transform-code-sync.ts";
 import { PANELS } from "../../stores/panels.ts";
 
 export function ToolStep({ step }: { step: ToolStep }) {
-  const trackingExecutionId = useTrackingExecutionId();
   const { tool, mcp, connection } = useTool(
     step?.action?.toolName ?? "",
     step?.action?.connectionId ?? "",
@@ -68,7 +61,11 @@ export function ToolStep({ step }: { step: ToolStep }) {
       {PANELS.step.panels.map((panel) => {
         if (panel.name === "Input") {
           return (
-            <ResizablePanel order={1} className="mask-b-from-95% pb-1">
+            <ResizablePanel
+              key={panel.name}
+              order={1}
+              className="mask-b-from-95% pb-1"
+            >
               <ScrollArea hideScrollbar className="h-full">
                 <ToolComponent
                   tool={tool as McpTool}
@@ -84,7 +81,7 @@ export function ToolStep({ step }: { step: ToolStep }) {
         }
         if (panel.name === "Output Config") {
           return (
-            <ResizablePanel className="flex-1">
+            <ResizablePanel key={panel.name} order={2} className="flex-1">
               <OutputSchemaProvider schema={outputSchema}>
                 <OutputSchemaSection />
               </OutputSchemaProvider>
@@ -92,7 +89,7 @@ export function ToolStep({ step }: { step: ToolStep }) {
           );
         }
         if (panel.name === "Transform Code") {
-          <ResizablePanel className="flex-1">
+          <ResizablePanel key={panel.name} order={3} className="flex-1">
             <MonacoCodeEditor
               code={transformCode}
               language="typescript"

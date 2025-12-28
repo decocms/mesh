@@ -21,7 +21,7 @@ import {
   useWorkflowSteps,
 } from "@/web/components/details/workflow/stores/workflow";
 import { useWorkflowFlow } from "./use-workflow-flow";
-import { StepNode, TriggerNode } from "./nodes";
+import { StepNode } from "./nodes";
 import { AddFirstStepButton } from "./new-step-button";
 import {
   Tooltip,
@@ -38,7 +38,6 @@ import { useToolActionTab } from "../../stores/step-tabs";
 
 const nodeTypes: NodeTypes = {
   step: StepNode,
-  trigger: TriggerNode,
 };
 
 const defaultEdgeOptions: DefaultEdgeOptions = {

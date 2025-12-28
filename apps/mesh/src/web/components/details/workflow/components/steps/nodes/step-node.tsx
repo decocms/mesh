@@ -47,7 +47,7 @@ function useCurrentTime() {
   return currentTime;
 }
 
-export function Duration({
+function Duration({
   startTime,
   endTime,
   isRunning,

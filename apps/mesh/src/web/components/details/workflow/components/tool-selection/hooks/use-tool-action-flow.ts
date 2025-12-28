@@ -13,7 +13,7 @@ export function useToolActionFlow() {
   const currentStep = useCurrentStep();
   const toolStep = currentStep as ToolStep | null;
   const { updateStep } = useWorkflowActions();
-  const { activeTab, setActiveTab } = useToolActionTab(currentStep);
+  const { activeTab, setActiveTab } = useToolActionTab();
 
   const { tool, connection } = useTool(
     toolStep?.action?.toolName ?? "",

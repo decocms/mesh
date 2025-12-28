@@ -3,7 +3,7 @@ import { Workflow } from "@decocms/bindings/workflow";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 import { WorkflowSteps } from "./components/steps/index";
 import {
-  useCurrentStep,
+  useTrackingExecutionId,
   useWorkflow,
   useWorkflowActions,
   WorkflowStoreProvider,
@@ -11,7 +11,7 @@ import {
 import { StepTabsStoreProvider } from "@/web/components/details/workflow/stores/step-tabs";
 import { useWorkflowCollectionItem } from "./hooks/use-workflow-collection-item";
 import { WorkflowActions } from "./components/actions";
-import { ExecutionsTab, WorkflowTabs } from "./components/tabs";
+import { ExecutionsTab } from "./components/tabs";
 import { toast } from "@deco/ui/components/sonner.tsx";
 import { MonacoCodeEditor } from "./components/monaco-editor";
 import {
@@ -19,15 +19,10 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@deco/ui/components/resizable.js";
-import {
-  PANELS,
-  useActivePanels,
-  useActiveView,
-  usePanelsActions,
-} from "./stores/panels";
+import { PANELS, useActivePanels, useActiveView } from "./stores/panels";
 import { Fragment, Suspense } from "react";
 import { Button } from "@deco/ui/components/button.js";
-import { X } from "lucide-react";
+import { Eye, X } from "lucide-react";
 export interface WorkflowDetailsViewProps {
   itemId: string;
   onBack: () => void;
@@ -131,8 +126,6 @@ export function ExecutionsPanel() {
 
 function RightPanel() {
   const activePanels = useActivePanels();
-  const { togglePanel } = usePanelsActions();
-  const currentStep = useCurrentStep();
   console.log({ activePanels, panels: Object.values(PANELS) });
   return (
     <ResizablePanelGroup direction="vertical" className="flex w-full h-full">
@@ -155,23 +148,6 @@ function RightPanel() {
                 />
               )}
               <ResizablePanel order={i} className="flex-1">
-                <div className="h-10 flex items-center justify-between px-2 border-b border-border bg-muted/50 text-sm font-medium text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <span>{PANELS[panel as keyof typeof PANELS].label}</span>
-                    {PANELS[panel as keyof typeof PANELS].label === "Step" && (
-                      <span className="text-xs text-muted-foreground/50">
-                        {currentStep?.name}
-                      </span>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => togglePanel(panel as keyof typeof PANELS)}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
                 <Component key={panel} />
               </ResizablePanel>
             </Fragment>
@@ -184,6 +160,8 @@ function RightPanel() {
 function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   const activeView = useActiveView();
   const workflow = useWorkflow();
+  const trackingExecutionId = useTrackingExecutionId();
+  const { setTrackingExecutionId } = useWorkflowActions();
   return (
     <ViewLayout onBack={onBack}>
       <ViewTabs>
@@ -198,14 +176,26 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
       </ViewTabs>
 
       <ViewActions>
-        <WorkflowActions onUpdate={onUpdate} />
+        <WorkflowActions />
       </ViewActions>
-
+      {trackingExecutionId && (
+        <div className="h-10 bg-accent flex items-center justify-between border-b border-border">
+          <div className="flex">
+            <div className="flex items-center justify-center h-full w-12">
+              <Eye className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => setTrackingExecutionId(undefined)}
+          >
+            <X className="w-4 h-4 text-muted-foreground" />
+          </Button>
+        </div>
+      )}
       {/* Main Content */}
       <div className="h-full relative">
-        <div className="absolute top-4 left-4 z-50">
-          <WorkflowTabs />
-        </div>
         {activeView === "code" && (
           <WorkflowCode workflow={workflow} onUpdate={onUpdate} />
         )}

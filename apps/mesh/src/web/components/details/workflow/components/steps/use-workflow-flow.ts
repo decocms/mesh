@@ -162,7 +162,6 @@ function useWorkflowNodes(): WorkflowNode[] {
     (pollingExecution?.completed_at_epoch_ms === null &&
       pollingExecution?.status === "running") ||
     pollingExecution?.status === "enqueued";
-  const isPaused = pollingExecution?.status === "cancelled";
 
   const workflowSteps = steps;
   const executionSteps = pollingExecution?.steps ?? workflowSteps;
@@ -189,25 +188,7 @@ function useWorkflowNodes(): WorkflowNode[] {
       ? executionSteps
       : workflowSteps;
 
-  // Find manual trigger step
-  const manualTriggerStep = steps.find((step) => step.name === "Manual");
   const isError = pollingExecution?.status === "error";
-
-  // Create trigger node
-  const triggerNode: WorkflowNode = {
-    id: TRIGGER_NODE_ID,
-    type: "trigger",
-    position: positions.get(TRIGGER_NODE_ID) ?? { x: 0, y: 0 },
-    data: {
-      step: manualTriggerStep ?? null,
-      isFetched: false,
-      isRunning: isRunning,
-      isPending: isPaused,
-      startTime: pollingExecution?.start_at_epoch_ms ?? null,
-      endTime: pollingExecution?.completed_at_epoch_ms ?? null,
-    } as TriggerNodeData,
-    draggable: false,
-  };
 
   // Create step nodes
   const stepNodes: WorkflowNode[] = currentSteps
@@ -239,7 +220,7 @@ function useWorkflowNodes(): WorkflowNode[] {
       };
     });
 
-  return [triggerNode, ...stepNodes];
+  return stepNodes;
 }
 
 // Colors for edges

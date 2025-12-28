@@ -2,7 +2,8 @@ import { useActiveView } from "../../stores/panels";
 import { usePanelsActions } from "../../stores/panels";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { CodeXml, GitBranch } from "lucide-react";
+import { GitBranch01 } from "@untitledui/icons";
+import { CodeXml } from "lucide-react";
 
 export function WorkflowViewSwitcher() {
   const activeView = useActiveView();
@@ -27,7 +28,7 @@ export function WorkflowViewSwitcher() {
         )}
         onClick={() => switchView()}
       >
-        <GitBranch className="w-4 h-4" />
+        <GitBranch01 className="w-4 h-4" />
       </Button>
       <Button
         variant="outline"

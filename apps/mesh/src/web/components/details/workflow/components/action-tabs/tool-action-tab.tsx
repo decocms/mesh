@@ -50,19 +50,7 @@ export function ToolActionTab() {
           />
         </div>
       )}
-      {activeTab === "tool" && connection && (
-        <div className="h-full flex flex-col">
-          <ItemCard
-            backButton
-            onClick={() => setActiveTab("tools")}
-            item={{
-              icon: connection?.icon ?? null,
-              title: connection.title,
-            }}
-          />
-          <ToolStep step={toolStep} />
-        </div>
-      )}
+      {activeTab === "tool" && connection && <ToolStep step={toolStep} />}
     </div>
   );
 }
