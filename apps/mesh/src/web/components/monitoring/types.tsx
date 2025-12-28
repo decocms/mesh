@@ -13,13 +13,10 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { Download01, Check, Copy01, Play } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
-import { lazy, Suspense, useState } from "react";
-import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
+import { useState } from "react";
 import { toast } from "sonner";
 import { MONITORING_CONFIG } from "./config.ts";
-
-// @ts-ignore - style module path
-import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
+import { JsonSyntaxHighlighter } from "@/web/components/json-syntax-highlighter.tsx";
 
 // ============================================================================
 // Types
@@ -96,27 +93,6 @@ export interface MonitoringSearchParams {
 }
 
 // ============================================================================
-// Lazy Syntax Highlighter
-// ============================================================================
-
-const LazySyntaxHighlighter = lazy(() =>
-  // @ts-ignore - prism-light.js has no types but is valid
-  import("react-syntax-highlighter/dist/esm/prism-light.js").then(
-    async (mod) => {
-      // Register only JSON language (much smaller bundle)
-      const json = await import(
-        // @ts-ignore - language module has no types
-        "react-syntax-highlighter/dist/esm/languages/prism/json.js"
-      );
-      mod.default.registerLanguage("json", json.default);
-      return {
-        default: mod.default as React.ComponentType<SyntaxHighlighterProps>,
-      };
-    },
-  ),
-);
-
-// ============================================================================
 // JSON Processing Utilities
 // ============================================================================
 
@@ -153,54 +129,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// ============================================================================
-// JSON Syntax Highlighter Component
-// ============================================================================
-
-const SYNTAX_HIGHLIGHTER_CUSTOM_STYLE = {
-  margin: 0,
-  padding: "1rem",
-  fontSize: "0.75rem",
-  height: "100%",
-} as const;
-
-const SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS = {
-  className: "font-mono",
-  style: {
-    wordBreak: "break-word",
-    overflowWrap: "break-word",
-    whiteSpace: "pre-wrap",
-  },
-} as const;
-
-interface JsonSyntaxHighlighterProps {
-  jsonString: string;
-}
-
-function JsonFallback({ jsonString }: { jsonString: string }) {
-  return (
-    <pre className="font-mono text-xs whitespace-pre-wrap break-words p-4 m-0 h-full text-foreground/80 bg-transparent">
-      {jsonString}
-    </pre>
-  );
-}
-
-function JsonSyntaxHighlighter({ jsonString }: JsonSyntaxHighlighterProps) {
-  return (
-    <Suspense fallback={<JsonFallback jsonString={jsonString} />}>
-      <LazySyntaxHighlighter
-        language="json"
-        style={oneLight}
-        customStyle={SYNTAX_HIGHLIGHTER_CUSTOM_STYLE}
-        codeTagProps={SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS}
-        wrapLongLines
-      >
-        {jsonString}
-      </LazySyntaxHighlighter>
-    </Suspense>
-  );
 }
 
 // ============================================================================

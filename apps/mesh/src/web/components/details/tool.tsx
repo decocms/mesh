@@ -15,7 +15,6 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { Loading01 } from "@untitledui/icons";
-import { cn } from "@deco/ui/lib/utils.ts";
 import { useParams, useSearch } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -27,7 +26,7 @@ import {
   Play,
   XClose,
 } from "@untitledui/icons";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
@@ -37,10 +36,8 @@ import {
 } from "./connection/settings-tab";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { useMcp } from "@/web/hooks/use-mcp";
-import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-// @ts-ignore - style module path
-import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
+import { JsonSyntaxHighlighter } from "@/web/components/json-syntax-highlighter.tsx";
 
 export interface ToolDetailsViewProps {
   itemId: string;
@@ -53,67 +50,6 @@ const beautifyToolName = (toolName: string) => {
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toLocaleLowerCase());
 };
-
-// ============================================================================
-// JSON Syntax Highlighter (same as monitoring)
-// ============================================================================
-
-const LazySyntaxHighlighter = lazy(() =>
-  // @ts-ignore - prism-light.js has no types but is valid
-  import("react-syntax-highlighter/dist/esm/prism-light.js").then(
-    async (mod) => {
-      const json = await import(
-        // @ts-ignore - language module has no types
-        "react-syntax-highlighter/dist/esm/languages/prism/json.js"
-      );
-      mod.default.registerLanguage("json", json.default);
-      return {
-        default: mod.default as React.ComponentType<SyntaxHighlighterProps>,
-      };
-    },
-  ),
-);
-
-const SYNTAX_HIGHLIGHTER_CUSTOM_STYLE = {
-  margin: 0,
-  padding: "1.5rem",
-  fontSize: "0.75rem",
-  height: "100%",
-  background: "transparent",
-} as const;
-
-const SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS = {
-  className: "font-mono",
-  style: {
-    wordBreak: "break-word",
-    overflowWrap: "break-word",
-    whiteSpace: "pre-wrap",
-  },
-} as const;
-
-function JsonFallback({ jsonString }: { jsonString: string }) {
-  return (
-    <pre className="font-mono text-xs whitespace-pre-wrap wrap-break-word p-6 m-0 h-full text-foreground/80 bg-transparent">
-      {jsonString}
-    </pre>
-  );
-}
-
-function JsonSyntaxHighlighter({ jsonString }: { jsonString: string }) {
-  return (
-    <Suspense fallback={<JsonFallback jsonString={jsonString} />}>
-      <LazySyntaxHighlighter
-        language="json"
-        style={oneLight}
-        customStyle={SYNTAX_HIGHLIGHTER_CUSTOM_STYLE}
-        codeTagProps={SYNTAX_HIGHLIGHTER_CODE_TAG_PROPS}
-        wrapLongLines
-      >
-        {jsonString}
-      </LazySyntaxHighlighter>
-    </Suspense>
-  );
-}
 
 function ToolDetailsContent({
   toolName,
@@ -587,6 +523,7 @@ function ToolDetailsAuthenticated({
               <>
                 <JsonSyntaxHighlighter
                   jsonString={JSON.stringify(executionResult, null, 2)}
+                  padding="1.5rem"
                 />
                 <Button
                   size="icon"
