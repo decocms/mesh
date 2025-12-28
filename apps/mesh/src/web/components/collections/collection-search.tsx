@@ -31,7 +31,7 @@ export function CollectionSearch({
     <div
       className={cn("shrink-0 w-full border-b border-border h-12", className)}
     >
-      <div className="flex items-center gap-2.5 h-12 px-4">
+      <label className="flex items-center gap-2.5 h-12 px-4 cursor-text">
         <SearchMd size={16} className="text-muted-foreground shrink-0" />
         <Input
           value={value}
@@ -40,7 +40,7 @@ export function CollectionSearch({
           placeholder={placeholder}
           className="flex-1 border-0 shadow-none focus-visible:ring-0 px-0 h-full text-sm placeholder:text-muted-foreground/50 bg-transparent"
         />
-      </div>
+      </label>
     </div>
   );
 }

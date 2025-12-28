@@ -241,20 +241,17 @@ function ThreadHistoryPopover() {
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">
-        <div className="p-2 border-b">
-          <div className="relative">
-            <SearchMd
-              size={14}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-            />
+        <div className="border-b">
+          <label className="flex items-center gap-2.5 h-12 px-4 cursor-text">
+            <SearchMd size={16} className="text-muted-foreground shrink-0" />
             <input
               type="text"
               placeholder="Search chats..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+              className="flex-1 border-0 shadow-none focus:outline-none px-0 h-full text-sm placeholder:text-muted-foreground/50 bg-transparent"
             />
-          </div>
+          </label>
         </div>
         <div className="max-h-[300px] overflow-y-auto">
           {filteredThreads.length === 0 ? (

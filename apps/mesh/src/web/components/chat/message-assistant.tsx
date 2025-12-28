@@ -74,6 +74,7 @@ function renderPart(
   part: MessageProps<Metadata>["message"]["parts"][number],
   id: string,
   index: number,
+  usageStats?: ReactNode,
 ) {
   const isToolCall =
     part.type.startsWith("tool-") || part.type === "dynamic-tool";
@@ -102,6 +103,7 @@ function renderPart(
           id={id}
           text={part.text}
           copyable={true}
+          extraActions={usageStats}
         />
       );
     case "reasoning":
@@ -156,6 +158,9 @@ export function MessageAssistant<T extends Metadata>({
   const hasContent = parts.length > 0;
   const showThought = hasContent && !isLoading && duration !== null;
 
+  // Create usage stats component to pass to the last text part
+  const usageStats = <UsageStats messages={[message]} />;
+
   return (
     <div
       className={cn(
@@ -164,17 +169,23 @@ export function MessageAssistant<T extends Metadata>({
       )}
     >
       <div className="flex flex-col gap-2 min-w-0 w-full items-start">
-        <div className="w-full min-w-0 not-only:rounded-2xl text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-transparent">
+        <div className="w-full min-w-0 not-only:rounded-2xl text-sm wrap-break-word overflow-wrap-anywhere bg-transparent">
           {hasContent ? (
             <>
               {showThought && <ThoughtSummary duration={duration} />}
-              {parts.map((part, index) => renderPart(part, id, index))}
+              {parts.map((part, index) =>
+                renderPart(
+                  part,
+                  id,
+                  index,
+                  index === parts.length - 1 ? usageStats : undefined,
+                ),
+              )}
             </>
           ) : isLoading ? (
             <TypingIndicator />
           ) : null}
         </div>
-        <UsageStats messages={[message]} />
       </div>
     </div>
   );
