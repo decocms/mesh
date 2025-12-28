@@ -50,6 +50,8 @@ export interface McpOAuthProviderOptions {
   clientUri?: string;
   /** OAuth callback URL */
   callbackUrl?: string;
+  /** OAuth scopes to request (space-separated or array). If not provided, no scope is requested */
+  scope?: string | string[];
 }
 
 /**
@@ -72,13 +74,21 @@ class McpOAuthProvider implements OAuthClientProvider {
     this._redirectUrl =
       options.callbackUrl ?? `${window.location.origin}/oauth/callback`;
 
+    // Build scope string if provided
+    const scopeStr = options.scope
+      ? Array.isArray(options.scope)
+        ? options.scope.join(" ")
+        : options.scope
+      : undefined;
+
     this._clientMetadata = {
       redirect_uris: [this._redirectUrl],
       token_endpoint_auth_method: "none",
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
       client_name: options.clientName ?? "@decocms/mesh MCP client",
-      scope: "mcp",
+      // Only include scope if explicitly provided - some servers have their own scope requirements
+      ...(scopeStr && { scope: scopeStr }),
     };
 
     // Register this session for callback handling
@@ -178,6 +188,8 @@ export async function authenticateMcp(params: {
   clientUri?: string;
   callbackUrl?: string;
   timeout?: number;
+  /** OAuth scopes to request. If not provided, no scope is requested (server decides) */
+  scope?: string | string[];
 }): Promise<AuthenticateMcpResult> {
   const serverUrl = new URL(
     `/mcp/${params.connectionId}`,
@@ -188,6 +200,7 @@ export async function authenticateMcp(params: {
     clientName: params.clientName,
     clientUri: params.clientUri,
     callbackUrl: params.callbackUrl,
+    scope: params.scope,
   });
 
   try {

@@ -266,6 +266,12 @@ export function createApp(options: CreateAppOptions = {}) {
     // 2. Cookies are set on the correct domain
     // 3. The user can interact with the consent screen
     if (endpoint === "authorize") {
+      // IMPORTANT: Rewrite the 'resource' parameter to point to the origin MCP endpoint
+      // Some auth servers (like Supabase) validate that the resource is their actual endpoint,
+      // not our proxy. We keep the proxy URL for redirect_uri since that's where we handle the callback.
+      if (targetUrl.searchParams.has("resource")) {
+        targetUrl.searchParams.set("resource", connection.connection_url);
+      }
       return c.redirect(targetUrl.toString(), 302);
     }
 
@@ -278,14 +284,36 @@ export function createApp(options: CreateAppOptions = {}) {
     const authorization = c.req.header("Authorization");
     if (authorization) headers["Authorization"] = authorization;
 
+    // For token endpoint, we may need to rewrite the 'resource' parameter in the body
+    // (same reason as authorize: auth servers validate it's their actual endpoint)
+    let requestBody: BodyInit | undefined;
+    if (c.req.method !== "GET" && c.req.method !== "HEAD") {
+      if (
+        endpoint === "token" &&
+        contentType?.includes("application/x-www-form-urlencoded")
+      ) {
+        // Parse form body and rewrite resource if present
+        const formData = await c.req.formData();
+        if (formData.has("resource")) {
+          formData.set("resource", connection.connection_url);
+        }
+        // Convert back to URLSearchParams for form-urlencoded
+        const params = new URLSearchParams();
+        for (const [key, value] of formData.entries()) {
+          params.append(key, value.toString());
+        }
+        requestBody = params.toString();
+      } else {
+        // For other content types, pass through as-is
+        requestBody = c.req.raw.body ?? undefined;
+      }
+    }
+
     // Proxy the request (token and register endpoints only)
     const response = await fetch(targetUrl.toString(), {
       method: c.req.method,
       headers,
-      body:
-        c.req.method !== "GET" && c.req.method !== "HEAD"
-          ? c.req.raw.body
-          : undefined,
+      body: requestBody,
       // @ts-expect-error - duplex needed for streaming
       duplex: "half",
       redirect: "manual",
