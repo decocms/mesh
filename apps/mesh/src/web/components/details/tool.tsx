@@ -8,9 +8,14 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { Loading01 } from "@untitledui/icons";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { useParams } from "@tanstack/react-router";
+import { useParams, useSearch } from "@tanstack/react-router";
 import {
   AlertCircle,
   Box,
@@ -19,7 +24,7 @@ import {
   Copy01,
   Database01,
   Play,
-  Plus,
+  XClose,
 } from "@untitledui/icons";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -31,6 +36,8 @@ import {
 } from "./connection/settings-tab";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { useMcp } from "@/web/hooks/use-mcp";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { JsonSyntaxHighlighter } from "@/web/components/json-syntax-highlighter.tsx";
 
 export interface ToolDetailsViewProps {
   itemId: string;
@@ -96,10 +103,49 @@ function ToolDetailsAuthenticated({
   mcpProxyUrl: URL;
   onBack: () => void;
 }) {
+  // Read replayId from search params to check for prefilled input
+  const { replayId } = useSearch({ strict: false }) as { replayId?: string };
+
+  // Read replay input from sessionStorage (one-time, on mount)
+  const replayInput = (() => {
+    if (!replayId) return null;
+    const key = `replay-${replayId}`;
+    const stored = sessionStorage.getItem(key);
+    if (!stored) return null;
+    // Clear after reading (one-time use)
+    sessionStorage.removeItem(key);
+    try {
+      return JSON.parse(stored) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  })();
+
+  // Convert replay input to form-friendly format (stringify objects/arrays)
+  const replayInputForForm = (() => {
+    if (!replayInput) return null;
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(replayInput)) {
+      // Stringify objects and arrays for textarea/input fields
+      if (value !== null && typeof value === "object") {
+        result[key] = JSON.stringify(value, null, 2);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  })();
+
   // Store only user edits; defaults are derived from the schema (no effect-driven initialization).
-  const [editedParams, setEditedParams] = useState<Record<string, unknown>>({});
+  // If replay input exists, use it as initial edited params (with objects/arrays stringified).
+  const [editedParams, setEditedParams] = useState<Record<string, unknown>>(
+    replayInputForForm ?? {},
+  );
   // For tools without `inputSchema.properties`, allow free-form JSON editing (including temporarily invalid JSON while typing).
-  const [rawJsonText, setRawJsonText] = useState("{}");
+  // If replay input exists, stringify it for the raw JSON editor.
+  const [rawJsonText, setRawJsonText] = useState(
+    replayInput ? JSON.stringify(replayInput, null, 2) : "{}",
+  );
   const [executionResult, setExecutionResult] = useState<Record<
     string,
     unknown
@@ -112,8 +158,8 @@ function ToolDetailsAuthenticated({
     bytes?: string;
     cost?: string;
   } | null>(null);
-  const [viewMode, setViewMode] = useState<"json" | "view">("json");
 
+  const connection = useConnection(connectionId);
   const mcp = useMcp({
     url: mcpProxyUrl.href,
   });
@@ -221,6 +267,12 @@ function ToolDetailsAuthenticated({
     setEditedParams((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleClear = () => {
+    setExecutionResult(null);
+    setExecutionError(null);
+    setStats(null);
+  };
+
   return (
     <ViewLayout onBack={onBack}>
       <ViewActions>
@@ -231,229 +283,268 @@ function ToolDetailsAuthenticated({
         />
       </ViewActions>
 
-      <div className="flex flex-col items-center w-full max-w-[1500px] mx-auto p-10 gap-4">
-        {/* Tool Title & Description */}
-        <div className="flex flex-col items-center gap-2 text-center">
-          <h1 className="text-2xl font-medium text-foreground">{toolName}</h1>
-          <p className="text-muted-foreground text-base">
-            {tool?.description || "No description available"}
-          </p>
-        </div>
-
-        {/* Stats Row */}
-        <div className="flex items-center gap-4 py-2">
-          {/* MCP Status */}
-          <div className="flex items-center gap-2">
-            {mcp.state === "ready" ? (
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-            ) : mcp.state === "connecting" ? (
-              <Loading01 size={12} className="animate-spin text-yellow-500" />
-            ) : (
-              <div className="h-2 w-2 rounded-full bg-red-500" />
-            )}
-            <span className="font-mono text-sm capitalize text-muted-foreground">
-              {mcp.state.replace("_", " ")}
-            </span>
-          </div>
-          <div className="w-px h-4 bg-border" />
-
-          {/* Execution Stats */}
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono text-sm">{stats?.duration || "-"}</span>
-          </div>
-          <div className="w-px h-4 bg-border" />
-          <div className="flex items-center gap-2">
-            <Box className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono text-sm">{stats?.tokens || "-"}</span>
-          </div>
-          <div className="w-px h-4 bg-border" />
-          <div className="flex items-center gap-2">
-            <Database01 className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono text-sm">{stats?.bytes || "-"}</span>
-          </div>
-        </div>
-
-        {/* Error Alert */}
-        {executionError && (
-          <Alert
-            variant="destructive"
-            className="max-w-[800px] w-full bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900"
-          >
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Execution Failed</AlertTitle>
-            <AlertDescription>{executionError}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Main Content Area */}
-        <div className="flex flex-col gap-4 w-full max-w-[800px] items-center">
-          {/* Input Section */}
-          <div className="w-full bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded-sm bg-primary/10 flex items-center justify-center">
-                  <Play className="h-3 w-3 text-primary" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
+        {/* Left Panel - Tool Info, Parameters & Execute */}
+        <div className="flex flex-col border-r border-border overflow-hidden">
+          <div className="flex-1 overflow-auto">
+            {/* Tool Header */}
+            <div className="flex flex-col gap-4 p-6 border-b border-border min-h-28">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  <IntegrationIcon
+                    icon={connection?.icon || null}
+                    name={connection?.title || toolName}
+                    size="sm"
+                    className="shadow-sm shrink-0"
+                  />
+                  <h1 className="text-lg font-medium text-foreground leading-none">
+                    {toolName}
+                  </h1>
+                  {/* MCP Status */}
+                  <div className="flex items-center gap-2 px-2.5 py-1 bg-muted/50 rounded-md h-fit">
+                    {mcp.state === "ready" ? (
+                      <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+                    ) : mcp.state === "connecting" ? (
+                      <Loading01
+                        size={10}
+                        className="animate-spin text-yellow-500 shrink-0"
+                      />
+                    ) : (
+                      <div className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                    )}
+                    <span className="font-mono text-xs capitalize text-muted-foreground leading-none">
+                      {mcp.state.replace("_", " ")}
+                    </span>
+                  </div>
                 </div>
-                <span className="font-medium text-sm">Input</span>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {tool?.description || "No description available"}
+                </p>
               </div>
+            </div>
+
+            {/* Parameters Section */}
+            <div className="flex flex-col p-6 gap-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+                  Parameters
+                </h2>
+                {tool?.inputSchema?.required &&
+                  tool.inputSchema.required.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      <span className="text-red-500">*</span> Required
+                    </span>
+                  )}
+              </div>
+
+              <div className="space-y-4">
+                {hasToolProperties && tool?.inputSchema?.properties ? (
+                  Object.entries(tool.inputSchema.properties).map(
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    ([key, prop]: [string, any]) => (
+                      <div key={key} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium leading-none flex items-center gap-1.5">
+                            {key}
+                            {tool.inputSchema?.required?.includes(key) && (
+                              <span className="text-red-500 text-xs">*</span>
+                            )}
+                          </label>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {prop.type}
+                          </span>
+                        </div>
+                        {prop.description && (
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            {prop.description}
+                          </p>
+                        )}
+                        {prop.type === "object" || prop.type === "array" ? (
+                          <Textarea
+                            className="font-mono text-xs"
+                            value={
+                              hasEditedKey(key)
+                                ? ((editedParams[key] as string) ?? "")
+                                : ((defaultParams[key] as string) ?? "")
+                            }
+                            onChange={(e) =>
+                              handleInputChange(key, e.target.value)
+                            }
+                            placeholder={`Enter ${key} as JSON...`}
+                            rows={3}
+                          />
+                        ) : (
+                          <Input
+                            value={
+                              hasEditedKey(key)
+                                ? ((editedParams[key] as string) ?? "")
+                                : ((defaultParams[key] as string) ?? "")
+                            }
+                            onChange={(e) =>
+                              handleInputChange(key, e.target.value)
+                            }
+                            placeholder={`Enter ${key}...`}
+                          />
+                        )}
+                      </div>
+                    ),
+                  )
+                ) : tool?.inputSchema && !hasToolProperties ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Raw JSON Input
+                    </label>
+                    <Textarea
+                      className="font-mono text-xs min-h-[120px]"
+                      value={rawJsonText}
+                      onChange={(e) => setRawJsonText(e.target.value)}
+                      placeholder='e.g. { "foo": "bar" }'
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center p-8 bg-muted/30 rounded-lg border border-dashed border-border">
+                    <p className="text-sm text-muted-foreground">
+                      No parameters required
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel - Results Only */}
+        <div className="flex flex-col h-full overflow-hidden">
+          {/* Results Header */}
+          <div className="flex items-center justify-between px-4 h-14 border-t lg:border-t-0 border-b border-border bg-background">
+            <h2 className="text-sm font-medium text-foreground uppercase tracking-wide">
+              Result
+            </h2>
+
+            {/* Execution Stats */}
+            {stats && (
+              <div className="flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <span className="font-mono text-foreground">
+                    {stats.duration}
+                  </span>
+                </div>
+                {stats.tokens && (
+                  <div className="flex items-center gap-1.5">
+                    <Box className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-mono text-foreground">
+                      {stats.tokens}
+                    </span>
+                  </div>
+                )}
+                {stats.bytes && (
+                  <div className="flex items-center gap-1.5">
+                    <Database01 className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-mono text-foreground">
+                      {stats.bytes}
+                    </span>
+                  </div>
+                )}
+                {stats.cost && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-foreground">
+                      {stats.cost}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Execute Buttons Row */}
+          <div className="flex items-center justify-end lg:justify-between px-4 h-14 border-b border-border bg-background">
+            <div className="flex items-center gap-2 w-full lg:w-auto">
               <Button
                 size="sm"
                 variant="default"
-                className="h-8 gap-2"
+                className="h-8 gap-2 flex-1 lg:flex-none"
                 onClick={handleExecute}
                 disabled={isExecuting}
               >
                 {isExecuting ? (
-                  <Loading01 size={14} className="animate-spin" />
+                  <>
+                    <Loading01 size={14} className="animate-spin" />
+                    Executing...
+                  </>
                 ) : (
-                  <Play className="h-3.5 w-3.5 fill-current" />
+                  <>
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    Execute Tool
+                  </>
                 )}
-                Execute tool
               </Button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                Arguments
-              </div>
-
-              {hasToolProperties && tool?.inputSchema?.properties ? (
-                Object.entries(tool.inputSchema.properties).map(
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  ([key, prop]: [string, any]) => (
-                    <div key={key} className="space-y-2">
-                      <div className="flex items-baseline gap-2">
-                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                          {key}
-                        </label>
-                        {tool.inputSchema?.required?.includes(key) && (
-                          <span className="text-red-500 text-xs">*</span>
-                        )}
-                        <span className="text-xs text-muted-foreground ml-auto">
-                          {prop.type}
-                        </span>
-                      </div>
-                      {prop.description && (
-                        <p className="text-xs text-muted-foreground mb-1">
-                          {prop.description}
-                        </p>
-                      )}
-                      {prop.type === "object" || prop.type === "array" ? (
-                        <Textarea
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
-                          value={
-                            hasEditedKey(key)
-                              ? ((editedParams[key] as string) ?? "")
-                              : ((defaultParams[key] as string) ?? "")
-                          }
-                          onChange={(e) =>
-                            handleInputChange(key, e.target.value)
-                          }
-                          placeholder={`Enter ${key} as JSON...`}
-                        />
-                      ) : (
-                        <Input
-                          value={
-                            hasEditedKey(key)
-                              ? ((editedParams[key] as string) ?? "")
-                              : ((defaultParams[key] as string) ?? "")
-                          }
-                          onChange={(e) =>
-                            handleInputChange(key, e.target.value)
-                          }
-                          placeholder={`Enter ${key}...`}
-                        />
-                      )}
-                    </div>
-                  ),
-                )
-              ) : (
-                <div className="text-sm text-muted-foreground italic">
-                  No arguments defined in schema.
-                </div>
-              )}
-
-              {/* Fallback for no properties but valid schema */}
-              {tool?.inputSchema && !hasToolProperties && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Raw JSON Input</label>
-                  <textarea
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={rawJsonText}
-                    onChange={(e) => setRawJsonText(e.target.value)}
-                    placeholder='e.g. { "foo": "bar" }'
-                  />
-                </div>
-              )}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-8 w-8 shrink-0"
+                      onClick={handleClear}
+                      disabled={!executionResult && !executionError}
+                    >
+                      <XClose size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Clear results</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
 
-          {/* Output Section */}
-          <div className="w-full bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30">
-              <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                Execution Result
-              </span>
-              <div className="flex items-center bg-muted rounded-lg p-1 h-8">
-                <button
-                  onClick={() => setViewMode("json")}
-                  className={cn(
-                    "px-3 py-1 text-xs font-medium rounded-md transition-all",
-                    viewMode === "json"
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
+          {/* Error Alert */}
+          {executionError && (
+            <div className="px-6 py-4 bg-background">
+              <Alert variant="destructive">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle className="mb-0">Execution Failed</AlertTitle>
+                  </div>
+                  <AlertDescription className="text-xs text-destructive">
+                    {executionError}
+                  </AlertDescription>
+                </div>
+              </Alert>
+            </div>
+          )}
+
+          {/* Results Content */}
+          <div className="relative flex-1 overflow-auto bg-muted/50">
+            {executionResult ? (
+              <>
+                <JsonSyntaxHighlighter
+                  jsonString={JSON.stringify(executionResult, null, 2)}
+                  padding="1.5rem"
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="absolute top-4 right-4 h-8 w-8 bg-background/80 hover:bg-background border border-border shadow-sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      JSON.stringify(executionResult, null, 2),
+                    );
+                    toast.success("Copied to clipboard");
+                  }}
                 >
-                  JSON
-                </button>
-                <button
-                  onClick={() => setViewMode("view")}
-                  className={cn(
-                    "px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1",
-                    viewMode === "view"
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                  disabled
-                  title="Coming soon"
-                >
-                  Create view
-                  <Plus className="h-3 w-3" />
-                </button>
+                  <Copy01 className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
+                <Code01 className="h-12 w-12 mb-3 opacity-40" />
+                <p className="text-sm">Run the tool to see results</p>
               </div>
-            </div>
-
-            <div className="relative min-h-[200px] max-h-[500px] overflow-auto bg-zinc-950 text-zinc-50 p-4 font-mono text-xs">
-              {executionResult ? (
-                <pre className="whitespace-pre-wrap break-all">
-                  {JSON.stringify(executionResult, null, 2)}
-                </pre>
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-700">
-                  <Code01 className="h-8 w-8 mb-2 opacity-50" />
-                  <p>Run the tool to see results</p>
-                </div>
-              )}
-
-              {executionResult && (
-                <div className="absolute top-4 right-4 flex gap-2">
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-8 w-8 bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 border-zinc-700"
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        JSON.stringify(executionResult, null, 2),
-                      );
-                      toast.success("Copied to clipboard");
-                    }}
-                  >
-                    <Copy01 className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>

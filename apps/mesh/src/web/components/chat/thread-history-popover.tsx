@@ -1,0 +1,218 @@
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
+import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
+import { useState } from "react";
+import type { Thread } from "@/web/types/chat-threads";
+
+type ThreadSection = {
+  label: string;
+  threads: Thread[];
+  showRelativeTime: boolean;
+};
+
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+
+  if (diffMins < 1) return "now";
+  if (diffMins < 60) return `${diffMins}m`;
+  return `${diffHours}h`;
+}
+
+function groupThreadsByDate(threads: Thread[]): ThreadSection[] {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const last7Days = new Date(today.getTime() - 7 * 86400000);
+  const last30Days = new Date(today.getTime() - 30 * 86400000);
+
+  const todayThreads: Thread[] = [];
+  const yesterdayThreads: Thread[] = [];
+  const last7DaysThreads: Thread[] = [];
+  const last30DaysThreads: Thread[] = [];
+  const olderThreads: Thread[] = [];
+
+  for (const thread of threads) {
+    const date = new Date(thread.updated_at);
+    if (date >= today) {
+      todayThreads.push(thread);
+    } else if (date >= yesterday) {
+      yesterdayThreads.push(thread);
+    } else if (date >= last7Days) {
+      last7DaysThreads.push(thread);
+    } else if (date >= last30Days) {
+      last30DaysThreads.push(thread);
+    } else {
+      olderThreads.push(thread);
+    }
+  }
+
+  const result: ThreadSection[] = [];
+  if (todayThreads.length > 0) {
+    result.push({
+      label: "Today",
+      threads: todayThreads,
+      showRelativeTime: true,
+    });
+  }
+  if (yesterdayThreads.length > 0) {
+    result.push({
+      label: "Yesterday",
+      threads: yesterdayThreads,
+      showRelativeTime: false,
+    });
+  }
+  if (last7DaysThreads.length > 0) {
+    result.push({
+      label: "7 days ago",
+      threads: last7DaysThreads,
+      showRelativeTime: false,
+    });
+  }
+  if (last30DaysThreads.length > 0) {
+    result.push({
+      label: "30 days ago",
+      threads: last30DaysThreads,
+      showRelativeTime: false,
+    });
+  }
+  if (olderThreads.length > 0) {
+    result.push({
+      label: "Older",
+      threads: olderThreads,
+      showRelativeTime: false,
+    });
+  }
+
+  return result;
+}
+
+export function ThreadHistoryPopover({
+  threads,
+  activeThreadId,
+  onSelectThread,
+  onRemoveThread,
+  onOpen,
+}: {
+  threads: Thread[];
+  activeThreadId: string;
+  onSelectThread: (id: string) => void;
+  onRemoveThread: (id: string) => void;
+  onOpen?: () => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredThreads = searchQuery.trim()
+    ? threads.filter((thread) =>
+        (thread.title || "New chat")
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()),
+      )
+    : threads;
+
+  const sections = groupThreadsByDate(filteredThreads);
+
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      onOpen?.();
+    } else {
+      setSearchQuery("");
+    }
+  };
+
+  return (
+    <Popover onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
+          title="Chat history"
+        >
+          <Clock
+            size={16}
+            className="text-muted-foreground group-hover:text-foreground transition-colors"
+          />
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent align="end" className="w-80 p-0">
+        <div className="border-b">
+          <label className="flex items-center gap-2.5 h-12 px-4 cursor-text">
+            <SearchMd size={16} className="text-muted-foreground shrink-0" />
+            <input
+              type="text"
+              placeholder="Search chats..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 border-0 shadow-none focus:outline-none px-0 h-full text-sm placeholder:text-muted-foreground/50 bg-transparent"
+            />
+          </label>
+        </div>
+
+        <div className="max-h-[300px] overflow-y-auto">
+          {filteredThreads.length === 0 ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">
+              {searchQuery.trim() ? "No chats found" : "No chats yet"}
+            </div>
+          ) : (
+            sections.map((section, sectionIndex) => (
+              <div key={section.label}>
+                {sectionIndex > 0 && <div className="border-t mx-3" />}
+                <div className="px-3 py-1">
+                  <span className="text-xs font-medium text-muted-foreground tracking-wide">
+                    {section.label}
+                  </span>
+                </div>
+                {section.threads.map((thread) => {
+                  const isActive = thread.id === activeThreadId;
+                  return (
+                    <div
+                      key={thread.id}
+                      className={`flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer group ${
+                        isActive ? "bg-accent/50" : ""
+                      }`}
+                      onClick={() => onSelectThread(thread.id)}
+                    >
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <span className="text-sm truncate">
+                          {thread.title || "New chat"}
+                        </span>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {isActive
+                            ? "current"
+                            : section.showRelativeTime
+                              ? formatRelativeTime(thread.updated_at)
+                              : null}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveThread(thread.id);
+                        }}
+                        className="opacity-0 cursor-pointer group/trash group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity"
+                        title="Remove chat"
+                      >
+                        <Trash01
+                          size={14}
+                          className="text-muted-foreground group-hover/trash:text-destructive"
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}

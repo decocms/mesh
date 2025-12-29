@@ -155,6 +155,11 @@ const collectionDetailsRoute = createRoute({
   component: lazyRouteComponent(
     () => import("./routes/orgs/collection-detail.tsx"),
   ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      replayId: z.string().optional(), // Random ID to lookup input in sessionStorage
+    }),
+  ),
 });
 
 const orgGatewaysRoute = createRoute({

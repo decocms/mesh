@@ -1,12 +1,16 @@
 /* eslint-disable ban-memoization/ban-memoization */
-import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import {
   ResponsiveSelect,
   ResponsiveSelectContent,
   ResponsiveSelectTrigger,
   ResponsiveSelectValue,
-} from "./responsive-select.tsx";
-import { cn } from "../lib/utils.ts";
+} from "@deco/ui/components/responsive-select.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { memo, useMemo, useState, type ReactNode } from "react";
 import {
   Stars01,
@@ -19,6 +23,9 @@ import {
   LogOut04,
   InfoCircle,
 } from "@untitledui/icons";
+import { useConnections } from "../../hooks/collections/use-connection";
+import { useLLMsFromConnection } from "../../hooks/collections/use-llm";
+import { useBindingConnections } from "../../hooks/use-binding";
 
 export interface ModelInfo {
   id: string;
@@ -31,6 +38,45 @@ export interface ModelInfo {
   outputCost?: number | null;
   outputLimit?: number | null;
   provider?: string | null;
+}
+
+/**
+ * Extended model info that includes connection information
+ */
+export interface ModelInfoWithConnection extends ModelInfo {
+  connectionId: string;
+  connectionName: string;
+}
+
+/**
+ * Hook to fetch and map LLM models from connected model providers.
+ * Returns models with connection information attached.
+ */
+export function useModels(): ModelInfoWithConnection[] {
+  const allConnections = useConnections();
+  const [modelsConnection] = useBindingConnections({
+    connections: allConnections,
+    binding: "LLMS",
+  });
+  const modelsData = useLLMsFromConnection(modelsConnection?.id);
+
+  if (!modelsData || !modelsConnection) {
+    return [];
+  }
+
+  return modelsData
+    .map((m) => ({
+      ...m,
+      name: m.title,
+      contextWindow: m.limits?.contextWindow,
+      outputLimit: m.limits?.maxOutputTokens,
+      inputCost: m.costs?.input,
+      outputCost: m.costs?.output,
+      provider: m.provider,
+      connectionId: modelsConnection.id,
+      connectionName: modelsConnection.title,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 const CAPABILITY_CONFIGS: Record<
@@ -309,34 +355,68 @@ function SelectedModelDisplay({ model }: { model: ModelInfo | undefined }) {
   );
 }
 
-export interface DecoChatModelSelectorRichProps {
-  models: ModelInfo[];
-  selectedModelId?: string;
-  onModelChange: (modelId: string) => void;
+/**
+ * Selected model state shape for controlled components
+ */
+export interface SelectedModelState {
+  id: string;
+  connectionId: string;
+}
+
+/**
+ * Model change callback payload
+ */
+export interface ModelChangePayload {
+  id: string;
+  connectionId: string;
+  provider?: string;
+}
+
+export interface ModelSelectorProps {
+  selectedModel?: SelectedModelState;
+  onModelChange: (model: ModelChangePayload) => void;
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
 }
 
 /**
- * Rich model selector with detailed info panel, capabilities badges, and responsive UI
+ * Rich model selector with detailed info panel, capabilities badges, and responsive UI.
+ * Fetches models internally from the connected LLM provider.
  */
-export function DecoChatModelSelectorRich({
-  models,
-  selectedModelId,
+export function ModelSelector({
+  selectedModel,
   onModelChange,
   variant = "borderless",
   className,
   placeholder = "Select model",
-}: DecoChatModelSelectorRichProps) {
+}: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const [hoveredModel, setHoveredModel] = useState<ModelInfo | null>(null);
   const [showInfoMobile, setShowInfoMobile] = useState(false);
 
+  // Fetch models from hook
+  const models = useModels();
+
+  // Find selected model by matching both id and connectionId
+  const selectedModelId = selectedModel
+    ? models.find(
+        (m) =>
+          m.id === selectedModel.id &&
+          m.connectionId === selectedModel.connectionId,
+      )?.id
+    : undefined;
+
   const currentModel = models.find((m) => m.id === selectedModelId);
 
   const handleModelChange = (modelId: string) => {
-    onModelChange(modelId);
+    const selected = models.find((m) => m.id === modelId);
+    if (!selected) return;
+    onModelChange({
+      id: selected.id,
+      connectionId: selected.connectionId,
+      provider: selected.provider ?? undefined,
+    });
     setOpen(false);
   };
 

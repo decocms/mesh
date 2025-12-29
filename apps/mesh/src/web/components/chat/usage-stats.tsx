@@ -3,6 +3,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@deco/ui/components/tooltip.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
 import { Coins01 } from "@untitledui/icons";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
@@ -19,15 +20,16 @@ export function UsageStats({ messages }: UsageStatsProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="ml-auto shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground/60 font-mono tabular-nums hover:text-muted-foreground transition-colors"
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-foreground pl-1! h-6 gap-1 whitespace-nowrap"
         >
-          <Coins01 size={12} className="opacity-60" />
-          <span className="hidden md:inline">
+          <Coins01 size={12} />
+          <span className="text-[10px] font-mono tabular-nums">
             {totalTokens.toLocaleString()}
           </span>
-        </button>
+        </Button>
       </TooltipTrigger>
       <TooltipContent side="top" className="font-mono text-[11px]">
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">

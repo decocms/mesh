@@ -150,6 +150,7 @@ export function CollectionTab({
     const newItem: BaseCollectionEntity = {
       id: generatePrefixedId("conn"),
       title: "New Item",
+      description: "A brief description of the item",
       created_at: now,
       updated_at: now,
       created_by: userId,

@@ -21,6 +21,22 @@ import {
   Inbox01,
 } from "@untitledui/icons";
 import type { JsonSchema } from "@/web/utils/constants";
+import { IntegrationIcon } from "../integration-icon.tsx";
+
+// Field names that should be rendered as icon columns
+const ICON_FIELD_NAMES = ["icon", "avatar", "logo"];
+
+// Fields that should always appear at the end of the column list
+const TRAILING_FIELDS = ["created_at", "created_by", "id"];
+
+// Helper to find icon field by name (case-insensitive)
+function findIconFieldByName(
+  properties: Record<string, JsonSchema>,
+): string | undefined {
+  return Object.keys(properties).find((key) =>
+    ICON_FIELD_NAMES.includes(key.toLowerCase()),
+  );
+}
 
 // Helper to generate sort options from JSONSchema
 export function generateSortOptionsFromSchema(
@@ -238,19 +254,17 @@ function generateActionsColumn<T extends BaseCollectionEntity>(
 // Helper to check if a JSONSchema field is a primitive type (string, number, boolean)
 function isPrimitiveType(fieldSchema: JsonSchema): boolean {
   const type = fieldSchema.type;
+
+  if (Array.isArray(type)) {
+    return type.every((t) => isPrimitiveType({ type: t }));
+  }
+
   return (
     type === "string" ||
     type === "number" ||
     type === "integer" ||
-    type === "boolean"
-  );
-}
-
-// Helper to check if a JSONSchema string field has URL format
-function isUrlString(fieldSchema: JsonSchema): boolean {
-  return (
-    fieldSchema.type === "string" &&
-    (fieldSchema.format === "url" || fieldSchema.format === "uri")
+    type === "boolean" ||
+    type === "null"
   );
 }
 
@@ -267,72 +281,100 @@ function generateColumnsFromSchema<T extends BaseCollectionEntity>(
     return fieldSchema && isPrimitiveType(fieldSchema);
   });
 
-  // Find the first field that is type: string, format: uri
-  const imageFieldName: string | undefined = primitiveKeys.find((key) => {
-    const fieldSchema = properties[key];
-    return fieldSchema && isUrlString(fieldSchema);
-  });
+  // Find icon field by name (icon, avatar, logo)
+  const iconFieldName = findIconFieldByName(properties);
 
-  // Sort columns by priority:
-  // 1. Image field (if exists)
+  // Build ordered column list following priority:
+  // 1. Icon field (by name: icon, avatar, logo)
   // 2. title
-  // 3. desc (with maxLength <= 100)
+  // 3. description
   // 4. updated_at
   // 5. updated_by
-  // 6. Other columns
-  const priorityOrder = new Set<string>();
+  // 6. Other columns (alphabetically sorted)
+  // 7. Trailing: created_at, created_by, id
+  const orderedKeys: string[] = [];
+  const usedKeys = new Set<string>();
 
-  // Add image field first if found
-  if (imageFieldName) {
-    priorityOrder.add(imageFieldName);
+  // 1. Icon field first (if exists and is primitive)
+  if (iconFieldName && primitiveKeys.includes(iconFieldName)) {
+    orderedKeys.push(iconFieldName);
+    usedKeys.add(iconFieldName);
   }
 
-  const knownFields = ["title", "description", "updated_at", "updated_by"];
-  for (const field of knownFields) {
-    if (
-      primitiveKeys.includes(field) &&
-      imageFieldName !== field &&
-      !priorityOrder.has(field)
-    ) {
-      priorityOrder.add(field);
+  // 2-5. Priority fields in order
+  const priorityFields = ["title", "description", "updated_at", "updated_by"];
+  for (const field of priorityFields) {
+    if (primitiveKeys.includes(field) && !usedKeys.has(field)) {
+      orderedKeys.push(field);
+      usedKeys.add(field);
     }
   }
 
-  // Add remaining keys
-  for (const key of primitiveKeys) {
-    if (!priorityOrder.has(key)) {
-      priorityOrder.add(key);
+  // 5. Other columns (alphabetically sorted), excluding trailing fields
+  const otherKeys = primitiveKeys
+    .filter((key) => !usedKeys.has(key) && !TRAILING_FIELDS.includes(key))
+    .sort((a, b) => a.localeCompare(b));
+  for (const key of otherKeys) {
+    orderedKeys.push(key);
+    usedKeys.add(key);
+  }
+
+  // 7. Trailing fields in order: created_at, created_by, id
+  for (const field of TRAILING_FIELDS) {
+    if (primitiveKeys.includes(field) && !usedKeys.has(field)) {
+      orderedKeys.push(field);
+      usedKeys.add(field);
     }
   }
 
   // Generate columns
-  return [...priorityOrder.values()].map((key) => {
+  return orderedKeys.map((key) => {
     const fieldSchema = properties[key];
-    if (!fieldSchema) {
+    const isSortable = sortableFields
+      ? sortableFields.includes(key)
+      : !["id"].includes(key);
+
+    // Handle icon field (render with IntegrationIcon)
+    if (key === iconFieldName) {
       return {
         id: key,
-        header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
+        header: "",
+        render: (row) => {
+          const val = row[key as keyof T];
+          return (
+            <IntegrationIcon
+              icon={val as string | null | undefined}
+              name={row.title}
+              size="sm"
+              className="shrink-0 shadow-sm"
+            />
+          );
+        },
+        sortable: false,
+        cellClassName: "w-16 shrink-0",
+        wrap: true,
+      };
+    }
+
+    // Handle description field (CSS truncated to ~50 chars)
+    if (key === "description") {
+      return {
+        id: key,
+        header: "Description",
         render: (row) => {
           const val = row[key as keyof T];
           if (val === null || val === undefined) return "—";
           return (
-            <span className="block truncate max-w-full">{String(val)}</span>
+            <span className="block truncate max-w-[50ch]">{String(val)}</span>
           );
         },
-        sortable: sortableFields
-          ? sortableFields.includes(key)
-          : !["id"].includes(key),
-        cellClassName: "max-w-[200px]",
+        sortable: isSortable,
+        cellClassName: "max-w-[50ch]",
       };
     }
 
-    // Determine if this field should be sortable
-    const isSortable = sortableFields
-      ? sortableFields.includes(key)
-      : !["id"].includes(key); // By default, all fields except 'id' are sortable
-
     // Handle date fields
-    if (fieldSchema.format === "date-time" || key.endsWith("_at")) {
+    if (fieldSchema?.format === "date-time" || key.endsWith("_at")) {
       return {
         id: key,
         header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
@@ -350,27 +392,6 @@ function generateColumnsFromSchema<T extends BaseCollectionEntity>(
       };
     }
 
-    // Handle image URL fields
-    if (imageFieldName === key && isUrlString(fieldSchema)) {
-      return {
-        id: key,
-        header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
-        render: (row) => {
-          const val = row[key as keyof T];
-          if (!val) return "—";
-          return (
-            <img
-              src={String(val)}
-              alt={key}
-              className="h-8 w-8 rounded object-cover"
-            />
-          );
-        },
-        sortable: isSortable,
-        cellClassName: "max-w-[200px]",
-      };
-    }
-
     // Handle other primitive types
     return {
       id: key,
@@ -381,7 +402,7 @@ function generateColumnsFromSchema<T extends BaseCollectionEntity>(
         return <span className="block truncate max-w-full">{String(val)}</span>;
       },
       sortable: isSortable,
-      cellClassName: "max-w-[100px]",
+      cellClassName: "max-w-[200px]",
     };
   });
 }
