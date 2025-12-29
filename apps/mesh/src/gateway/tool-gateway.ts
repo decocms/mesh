@@ -110,8 +110,7 @@ export class ToolGateway {
 
         allTools.push({
           ...tool,
-          connectionId,
-          connectionTitle,
+          metadata: { connectionId, connectionTitle },
         });
         mappings.set(tool.name, { connectionId, originalName: tool.name });
       }
@@ -168,7 +167,9 @@ export class ToolGateway {
    */
   async list(): Promise<ListToolsResult> {
     const cache = await this.cache;
-    return { tools: cache.strategyResult.tools };
+    return {
+      tools: cache.strategyResult.tools.map(({ metadata, ...tool }) => tool),
+    };
   }
 
   /**

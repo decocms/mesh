@@ -402,6 +402,7 @@ async function createMCPProxyDoNotUseDirectly(
           name: tool.name,
           description: tool.description,
           inputSchema: tool.inputSchema as Tool["inputSchema"],
+          outputSchema: tool.outputSchema as Tool["outputSchema"],
         })),
       };
     }
