@@ -18,7 +18,7 @@ export function WorkflowStepsCanvas({ className }: WorkflowStepsCanvasProps) {
   const { setCurrentStepName, deleteStep, addToolStep } = useWorkflowActions();
 
   return (
-    <div className={cn("flex-1 flex flex-col p-8 overflow-auto", className)}>
+    <div className={cn("h-full flex flex-col p-8 overflow-auto", className)}>
       {/* Steps Container */}
       <div className="w-full -space-y-1">
         {/* Steps List */}

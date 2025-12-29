@@ -1,3 +1,9 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@deco/ui/components/accordion.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Repeat03, Plus, CornerDownRight } from "@untitledui/icons";
@@ -9,13 +15,13 @@ import {
   CheckSquare,
   X,
   FileText,
+  Minus,
 } from "lucide-react";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useConnection } from "@/web/hooks/collections/use-connection";
 import { useCurrentStep, useWorkflowActions } from "../stores/workflow";
 import { ToolInput } from "./tool-selection/components/tool-input";
 import type { JsonSchema } from "@/web/utils/constants";
-import { useState } from "react";
 import { MonacoCodeEditor } from "./monaco-editor";
 import type { Step } from "@decocms/bindings/workflow";
 
@@ -191,15 +197,28 @@ function InputSection({ step }: { step: Step }) {
   };
 
   return (
-    <div className="border-b border-border p-5 shrink-0">
-      <h3 className="text-sm font-medium text-muted-foreground mb-6">Input</h3>
-      <ToolInput
-        inputSchema={tool.inputSchema as JsonSchema}
-        inputParams={step.input as Record<string, unknown>}
-        setInputParams={handleInputChange}
-        mentions={[]}
-      />
-    </div>
+    <Accordion
+      type="single"
+      collapsible
+      defaultValue="input"
+      className="border-b border-border shrink-0"
+    >
+      <AccordionItem value="input" className="border-b-0">
+        <AccordionTrigger className="px-5 py-5">
+          <span className="text-sm font-medium text-muted-foreground">
+            Input
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="px-5 pt-2">
+          <ToolInput
+            inputSchema={tool.inputSchema as JsonSchema}
+            inputParams={step.input as Record<string, unknown>}
+            setInputParams={handleInputChange}
+            mentions={[]}
+          />
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 }
 
@@ -221,24 +240,37 @@ function OutputSection({ step }: { step: Step }) {
   const propertyEntries = properties ? Object.entries(properties) : [];
 
   return (
-    <div className="border-b border-border p-5 shrink-0">
-      <h3 className="text-sm font-medium text-muted-foreground mb-6">Output</h3>
-      {propertyEntries.length === 0 ? (
-        <div className="text-sm text-muted-foreground italic">
-          No output schema defined
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {propertyEntries.map(([key, propSchema]) => (
-            <OutputProperty
-              key={key}
-              name={key}
-              schema={propSchema as JsonSchema}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    <Accordion
+      type="single"
+      collapsible
+      defaultValue="output"
+      className="border-b border-border shrink-0"
+    >
+      <AccordionItem value="output" className="border-b-0">
+        <AccordionTrigger className="px-5 py-5">
+          <span className="text-sm font-medium text-muted-foreground">
+            Output
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="px-5 pt-2">
+          {propertyEntries.length === 0 ? (
+            <div className="text-sm text-muted-foreground italic">
+              No output schema defined
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {propertyEntries.map(([key, propSchema]) => (
+                <OutputProperty
+                  key={key}
+                  name={key}
+                  schema={propSchema as JsonSchema}
+                />
+              ))}
+            </div>
+          )}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 }
 
@@ -296,7 +328,6 @@ function OutputProperty({
 
 function TransformCodeSection({ step }: { step: Step }) {
   const { updateStep } = useWorkflowActions();
-  const [isExpanded, setIsExpanded] = useState(false);
 
   const isToolStep = "toolName" in step.action;
   const connectionId =
@@ -366,7 +397,15 @@ export default async function(input: Input): Promise<Output> {
         transformCode: defaultCode,
       },
     });
-    setIsExpanded(true);
+  };
+
+  const handleRemoveTransformCode = () => {
+    updateStep(step.name, {
+      action: {
+        ...step.action,
+        transformCode: undefined,
+      },
+    });
   };
 
   const handleCodeSave = (
@@ -384,53 +423,45 @@ export default async function(input: Input): Promise<Output> {
     });
   };
 
-  if (!hasTransformCode && !isExpanded) {
+  // No transform code → show collapsed with Plus
+  if (!hasTransformCode) {
     return (
-      <div className="border-b border-border p-5 shrink-0">
+      <div
+        className="border-b border-border p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={handleAddTransformCode}
+      >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-muted-foreground">
             Transform Code
           </h3>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={handleAddTransformCode}
-          >
-            <Plus size={14} />
-          </Button>
+          <Plus size={14} className="text-muted-foreground" />
         </div>
       </div>
     );
   }
 
+  // Has transform code → show editor with Minus to remove
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="border-b border-border p-5 shrink-0">
+      <div
+        className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={handleRemoveTransformCode}
+      >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-muted-foreground">
             Transform Code
           </h3>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? "−" : "+"}
-          </Button>
+          <Minus size={14} className="text-muted-foreground" />
         </div>
       </div>
-      {isExpanded && (
-        <div className="flex-1 min-h-0">
-          <MonacoCodeEditor
-            code={transformCode || ""}
-            language="typescript"
-            onSave={handleCodeSave}
-            height="100%"
-          />
-        </div>
-      )}
+      <div className="flex-1 min-h-120">
+        <MonacoCodeEditor
+          code={transformCode!}
+          language="typescript"
+          onSave={handleCodeSave}
+          height="100%"
+        />
+      </div>
     </div>
   );
 }
