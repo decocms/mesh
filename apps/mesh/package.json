@@ -1,6 +1,6 @@
 {
   "name": "@decocms/mesh",
-  "version": "1.0.0-alpha.39",
+  "version": "1.0.0-alpha.40",
   "description": "MCP Mesh - Self-hostable MCP Gateway for managing AI connections and tools",
   "license": "MIT",
   "author": "Deco team",
@@ -35,7 +35,6 @@
     "prepublishOnly": "bun run build:client && bun run build:server"
   },
   "dependencies": {
-    "@ai-sdk/mcp": "^1.0.0",
     "@untitledui/icons": "^0.0.19",
     "@jitl/quickjs-wasmfile-release-sync": "^0.31.0",
     "@xyflow/react": "^12.10.0",

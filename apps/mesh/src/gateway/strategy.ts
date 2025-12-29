@@ -25,8 +25,10 @@ interface ToolWithHandler {
 
 /** Extended tool info with connection metadata */
 export interface ToolWithConnection extends Tool {
-  connectionId: string;
-  connectionTitle: string;
+  metadata: {
+    connectionId: string;
+    connectionTitle: string;
+  };
 }
 
 /** Context provided to strategy functions */
@@ -71,7 +73,7 @@ function calculateScore(terms: string[], tool: ToolWithConnection): number {
   let score = 0;
   const nameLower = tool.name.toLowerCase();
   const descLower = (tool.description ?? "").toLowerCase();
-  const connLower = tool.connectionTitle.toLowerCase();
+  const connLower = tool.metadata.connectionTitle.toLowerCase();
 
   for (const term of terms) {
     if (nameLower === term) {
@@ -170,7 +172,7 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
         results: results.map((t) => ({
           name: t.name,
           description: t.description,
-          connection: t.connectionTitle,
+          connection: t.metadata.connectionTitle,
         })),
         totalAvailable: ctx.tools.length,
       });
@@ -208,7 +210,7 @@ function createDescribeTool(ctx: StrategyContext): ToolWithHandler {
         tools: tools.map((t) => ({
           name: t.name,
           description: t.description,
-          connection: t.connectionTitle,
+          connection: t.metadata.connectionTitle,
           inputSchema: t.inputSchema,
           outputSchema: t.outputSchema,
         })),

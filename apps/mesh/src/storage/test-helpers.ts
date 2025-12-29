@@ -1,30 +1,39 @@
 /**
  * Test Helpers for Storage Tests
- * Creates minimal schema for testing without full migrations
+ * Runs production migrations for testing
  */
 
-import type { Kysely } from "kysely";
+import { Migrator, type Kysely } from "kysely";
+import migrations from "../../migrations";
 import type { Database } from "./types";
 
 /**
- * Create minimal test schema for in-memory SQLite
+ * Create Better Auth tables that are normally created by Better Auth migrations
+ * We create these manually because Better Auth uses its own migration system
+ * that's tied to the global auth config/database
  */
-export async function createTestSchema(db: Kysely<Database>): Promise<void> {
-  console.log("Creating test schema...");
-
-  // Organization table (Better Auth managed, but needed for FK constraints)
+export async function createBetterAuthTables(
+  db: Kysely<Database>,
+): Promise<void> {
+  // User table (Better Auth core table - singular name)
   await db.schema
-    .createTable("organization")
+    .createTable("user")
     .ifNotExists()
     .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("email", "text", (col) => col.notNull().unique())
+    .addColumn("emailVerified", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("name", "text", (col) => col.notNull())
-    .addColumn("slug", "text", (col) => col.notNull().unique())
-    .addColumn("logo", "text")
-    .addColumn("metadata", "text")
+    .addColumn("image", "text")
+    .addColumn("role", "text")
+    .addColumn("banned", "integer")
+    .addColumn("banReason", "text")
+    .addColumn("banExpires", "text")
     .addColumn("createdAt", "text", (col) => col.notNull())
+    .addColumn("updatedAt", "text", (col) => col.notNull())
     .execute();
 
-  // Users table - camelCase to match UserTable type
+  // Users table (plural - for application code compatibility)
+  // This matches the Database type's "users" table
   await db.schema
     .createTable("users")
     .ifNotExists()
@@ -36,120 +45,188 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
     .addColumn("updatedAt", "text", (col) => col.notNull())
     .execute();
 
-  // Connections table (organization-scoped) - using snake_case to match actual schema
+  // Session table (Better Auth core table)
   await db.schema
-    .createTable("connections")
+    .createTable("session")
     .ifNotExists()
     .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("organization_id", "text", (col) => col.notNull())
-    .addColumn("created_by", "text", (col) => col.notNull())
-    .addColumn("title", "text", (col) => col.notNull())
-    .addColumn("description", "text")
-    .addColumn("icon", "text")
-    .addColumn("app_name", "text")
-    .addColumn("app_id", "text")
-    .addColumn("connection_type", "text", (col) => col.notNull())
-    .addColumn("connection_url", "text", (col) => col.notNull())
-    .addColumn("connection_token", "text")
-    .addColumn("connection_headers", "text")
-    .addColumn("oauth_config", "text")
-    .addColumn("metadata", "text")
-    .addColumn("tools", "text")
-    .addColumn("bindings", "text")
-    .addColumn("configuration_schema", "text")
-    .addColumn("configuration_state", "text")
-    .addColumn("configuration_scopes", "text")
-    .addColumn("status", "text", (col) => col.notNull().defaultTo("active"))
-    .addColumn("created_at", "text", (col) => col.notNull())
-    .addColumn("updated_at", "text", (col) => col.notNull())
-    .execute();
-
-  await db.schema
-    .createTable("organization_settings")
-    .ifNotExists()
-    .addColumn("organizationId", "text", (col) => col.primaryKey())
+    .addColumn("userId", "text", (col) => col.notNull())
+    .addColumn("token", "text", (col) => col.notNull().unique())
+    .addColumn("expiresAt", "text", (col) => col.notNull())
+    .addColumn("ipAddress", "text")
+    .addColumn("userAgent", "text")
     .addColumn("createdAt", "text", (col) => col.notNull())
     .addColumn("updatedAt", "text", (col) => col.notNull())
     .execute();
 
-  // API Keys table - camelCase to match ApiKeyTable type
+  // Account table (Better Auth core table)
   await db.schema
-    .createTable("api_keys")
+    .createTable("account")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("userId", "text", (col) => col.notNull())
+    .addColumn("accountId", "text", (col) => col.notNull())
+    .addColumn("providerId", "text", (col) => col.notNull())
+    .addColumn("accessToken", "text")
+    .addColumn("refreshToken", "text")
+    .addColumn("accessTokenExpiresAt", "text")
+    .addColumn("refreshTokenExpiresAt", "text")
+    .addColumn("scope", "text")
+    .addColumn("idToken", "text")
+    .addColumn("password", "text")
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .addColumn("updatedAt", "text", (col) => col.notNull())
+    .execute();
+
+  // Verification table (Better Auth core table)
+  await db.schema
+    .createTable("verification")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("identifier", "text", (col) => col.notNull())
+    .addColumn("value", "text", (col) => col.notNull())
+    .addColumn("expiresAt", "text", (col) => col.notNull())
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .addColumn("updatedAt", "text", (col) => col.notNull())
+    .execute();
+
+  // Organization table (Better Auth organization plugin)
+  await db.schema
+    .createTable("organization")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("name", "text", (col) => col.notNull())
+    .addColumn("slug", "text", (col) => col.notNull().unique())
+    .addColumn("logo", "text")
+    .addColumn("metadata", "text")
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .execute();
+
+  // Member table (Better Auth organization plugin)
+  await db.schema
+    .createTable("member")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("userId", "text", (col) => col.notNull())
+    .addColumn("organizationId", "text", (col) => col.notNull())
+    .addColumn("role", "text", (col) => col.notNull())
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .execute();
+
+  // Invitation table (Better Auth organization plugin)
+  await db.schema
+    .createTable("invitation")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("email", "text", (col) => col.notNull())
+    .addColumn("organizationId", "text", (col) => col.notNull())
+    .addColumn("role", "text", (col) => col.notNull())
+    .addColumn("inviterId", "text", (col) => col.notNull())
+    .addColumn("status", "text", (col) => col.notNull())
+    .addColumn("expiresAt", "text", (col) => col.notNull())
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .execute();
+
+  // API Key table (Better Auth API key plugin)
+  await db.schema
+    .createTable("apiKey")
     .ifNotExists()
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("userId", "text", (col) => col.notNull())
     .addColumn("name", "text", (col) => col.notNull())
-    .addColumn("hashedKey", "text", (col) => col.notNull().unique())
-    .addColumn("permissions", "text", (col) => col.notNull())
-    .addColumn("expiresAt", "text")
+    .addColumn("start", "text")
+    .addColumn("prefix", "text")
+    .addColumn("key", "text", (col) => col.notNull())
+    .addColumn("refillInterval", "text")
+    .addColumn("refillAmount", "integer")
+    .addColumn("lastRefillAt", "text")
+    .addColumn("enabled", "integer", (col) => col.notNull().defaultTo(1))
+    .addColumn("rateLimitEnabled", "integer", (col) =>
+      col.notNull().defaultTo(0),
+    )
+    .addColumn("rateLimitTimeWindow", "integer")
+    .addColumn("rateLimitMax", "integer")
+    .addColumn("requestCount", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("remaining", "integer")
+    .addColumn("lastRequest", "text")
+    .addColumn("expiresAt", "text")
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .addColumn("updatedAt", "text", (col) => col.notNull())
+    .addColumn("permissions", "text")
     .addColumn("metadata", "text")
+    .execute();
+
+  // OAuth Application table (Better Auth OAuth plugin)
+  await db.schema
+    .createTable("oauthApplication")
+    .ifNotExists()
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("name", "text", (col) => col.notNull())
+    .addColumn("icon", "text")
+    .addColumn("metadata", "text")
+    .addColumn("clientId", "text", (col) => col.notNull().unique())
+    .addColumn("clientSecret", "text", (col) => col.notNull())
+    .addColumn("redirectURLs", "text", (col) => col.notNull())
+    .addColumn("type", "text", (col) => col.notNull())
+    .addColumn("disabled", "integer", (col) => col.notNull().defaultTo(0))
+    .addColumn("userId", "text")
     .addColumn("createdAt", "text", (col) => col.notNull())
     .addColumn("updatedAt", "text", (col) => col.notNull())
     .execute();
 
-  // Event Bus tables
-  // Events table - stores CloudEvents
+  // OAuth Access Token table
   await db.schema
-    .createTable("events")
+    .createTable("oauthAccessToken")
     .ifNotExists()
     .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("organization_id", "text", (col) => col.notNull())
-    .addColumn("type", "text", (col) => col.notNull())
-    .addColumn("source", "text", (col) => col.notNull())
-    .addColumn("specversion", "text", (col) => col.notNull().defaultTo("1.0"))
-    .addColumn("subject", "text")
-    .addColumn("time", "text", (col) => col.notNull())
-    .addColumn("datacontenttype", "text", (col) =>
-      col.notNull().defaultTo("application/json"),
-    )
-    .addColumn("dataschema", "text")
-    .addColumn("data", "text")
-    .addColumn("cron", "text")
-    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
-    .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
-    .addColumn("last_error", "text")
-    .addColumn("next_retry_at", "text")
-    .addColumn("created_at", "text", (col) => col.notNull())
-    .addColumn("updated_at", "text", (col) => col.notNull())
+    .addColumn("accessToken", "text", (col) => col.notNull())
+    .addColumn("refreshToken", "text")
+    .addColumn("accessTokenExpiresAt", "text", (col) => col.notNull())
+    .addColumn("refreshTokenExpiresAt", "text")
+    .addColumn("clientId", "text", (col) => col.notNull())
+    .addColumn("userId", "text")
+    .addColumn("scopes", "text")
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .addColumn("updatedAt", "text", (col) => col.notNull())
     .execute();
 
-  // Event Subscriptions table
+  // OAuth Consent table
   await db.schema
-    .createTable("event_subscriptions")
+    .createTable("oauthConsent")
     .ifNotExists()
     .addColumn("id", "text", (col) => col.primaryKey())
-    // CASCADE DELETE: When organization is deleted, subscriptions are automatically removed
-    .addColumn("organization_id", "text", (col) =>
-      col.notNull().references("organization.id").onDelete("cascade"),
-    )
-    // CASCADE DELETE: When connection is deleted, subscriptions are automatically removed
-    .addColumn("connection_id", "text", (col) =>
-      col.notNull().references("connections.id").onDelete("cascade"),
-    )
-    .addColumn("publisher", "text")
-    .addColumn("event_type", "text", (col) => col.notNull())
-    .addColumn("filter", "text")
-    .addColumn("enabled", "integer", (col) => col.notNull().defaultTo(1))
-    .addColumn("created_at", "text", (col) => col.notNull())
-    .addColumn("updated_at", "text", (col) => col.notNull())
+    .addColumn("userId", "text", (col) => col.notNull())
+    .addColumn("clientId", "text", (col) => col.notNull())
+    .addColumn("scopes", "text")
+    .addColumn("createdAt", "text", (col) => col.notNull())
+    .addColumn("updatedAt", "text", (col) => col.notNull())
     .execute();
+}
 
-  // Event Deliveries table
-  await db.schema
-    .createTable("event_deliveries")
-    .ifNotExists()
-    .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("event_id", "text", (col) => col.notNull())
-    // CASCADE DELETE: When subscription is deleted, deliveries are automatically removed
-    .addColumn("subscription_id", "text", (col) =>
-      col.notNull().references("event_subscriptions.id").onDelete("cascade"),
-    )
-    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
-    .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
-    .addColumn("last_error", "text")
-    .addColumn("delivered_at", "text")
-    .addColumn("next_retry_at", "text")
-    .addColumn("created_at", "text", (col) => col.notNull())
-    .execute();
+/**
+ * Create test schema by running production migrations
+ * This ensures tests use the same schema as production
+ */
+export async function createTestSchema(db: Kysely<Database>): Promise<void> {
+  console.log("Running migrations for test schema...");
+
+  // First create Better Auth tables (they're not in Kysely migrations)
+  await createBetterAuthTables(db);
+
+  // Then run Kysely migrations
+  const migrator = new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(migrations) },
+  });
+
+  const { error, results } = await migrator.migrateToLatest();
+
+  if (error) {
+    console.error("Migration failed:", error);
+    throw error;
+  }
+
+  const successCount =
+    results?.filter((r) => r.status === "Success").length ?? 0;
+  console.log(`✅ ${successCount} migrations applied`);
 }
