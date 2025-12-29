@@ -59,3 +59,6 @@ kv-wal
 deploy/auth-config.json
 deploy/docs
 deploy/test*
+
+# Data Test files
+apps/benchmark/data

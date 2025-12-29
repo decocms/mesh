@@ -4,10 +4,14 @@
  * Runs Kysely migrations to create/update database schema
  */
 
-import { Migrator } from "kysely";
+import { Migrator, type Kysely } from "kysely";
 import migrations from "../../migrations";
+import { runSeed, type SeedName } from "../../migrations/seeds";
 import { migrateBetterAuth } from "../auth/migrate";
-import { closeDatabase, getDb } from "./index";
+import { closeDatabase, getDb, type MeshDatabase } from "./index";
+import type { Database } from "../storage/types";
+
+export { runSeed, type SeedName };
 
 /**
  * Migration options
@@ -19,33 +23,38 @@ export interface MigrateOptions {
    * Default: false (closes connection after migrations)
    */
   keepOpen?: boolean;
+
+  /**
+   * Custom database instance to migrate.
+   * If not provided, uses the global database from getDb().
+   * When provided, Better Auth migrations are skipped (they use their own connection).
+   */
+  database?: MeshDatabase;
+
+  /**
+   * Skip Better Auth migrations.
+   * Useful when providing a custom database that doesn't need Better Auth tables.
+   * Default: false
+   */
+  skipBetterAuth?: boolean;
+
+  /**
+   * Seed to run after migrations.
+   * Seeds populate the database with initial/test data.
+   */
+  seed?: SeedName;
 }
 
 /**
- * Run all pending migrations
+ * Run Kysely migrations on a specific database instance
  */
-export async function migrateToLatest(options?: MigrateOptions): Promise<void> {
-  const { keepOpen = false } = options ?? {};
-
-  // Run Better Auth migrations programmatically
-  await migrateBetterAuth();
-
-  // Run Kysely migrations
-  console.log("📊 Getting database instance...");
-  const database = getDb();
-  console.log("✅ Database instance obtained");
-
-  console.log("🔧 Creating migrator...");
-
+export async function runKyselyMigrations(db: Kysely<Database>): Promise<void> {
   const migrator = new Migrator({
-    db: database.db,
+    db,
     provider: { getMigrations: () => Promise.resolve(migrations) },
   });
-  console.log("✅ Migrator created");
 
-  console.log("▶️  Running migrations...");
   const { error, results } = await migrator.migrateToLatest();
-  console.log("✅ Migrations executed");
 
   results?.forEach((it) => {
     if (it.status === "Success") {
@@ -58,19 +67,69 @@ export async function migrateToLatest(options?: MigrateOptions): Promise<void> {
   if (error) {
     console.error("Failed to migrate");
     console.error(error);
-    // Close database connection before throwing
-    await closeDatabase(database).catch(() => {});
     throw error;
   }
+}
 
-  console.log("🎉 All Kysely migrations completed successfully");
+/**
+ * Migration result with optional seed data
+ */
+export interface MigrateResult<T = unknown> {
+  seedResult?: T;
+}
 
-  // Only close database connection if not keeping open for server
-  if (!keepOpen) {
-    console.log("🔒 Closing database connection...");
-    await closeDatabase(database).catch((err: unknown) => {
-      console.warn("Warning: Error closing database:", err);
-    });
+/**
+ * Run all pending migrations
+ */
+export async function migrateToLatest<T = unknown>(
+  options?: MigrateOptions,
+): Promise<MigrateResult<T>> {
+  const {
+    keepOpen = false,
+    database: customDb,
+    skipBetterAuth = false,
+    seed,
+  } = options ?? {};
+
+  // Run Better Auth migrations (unless skipped or using custom db)
+  if (!skipBetterAuth && !customDb) {
+    await migrateBetterAuth();
+  }
+
+  // Get database instance
+  const database = customDb ?? getDb();
+
+  // Helper to close database if needed
+  const maybeCloseDatabase = async () => {
+    // Only close database connection if not keeping open for server
+    // and we're using the global database (not a custom one)
+    if (!keepOpen && !customDb) {
+      console.log("🔒 Closing database connection...");
+      await closeDatabase(database).catch((err: unknown) => {
+        console.warn("Warning: Error closing database:", err);
+      });
+    }
+  };
+
+  try {
+    console.log("📊 Running Kysely migrations...");
+    await runKyselyMigrations(database.db);
+    console.log("🎉 All Kysely migrations completed successfully");
+
+    // Run seed if specified
+    let seedResult: T | undefined;
+    if (seed) {
+      seedResult = await runSeed<T>(database.db, seed);
+    }
+
+    // Close database on success if needed
+    await maybeCloseDatabase();
+
+    return { seedResult };
+  } catch (error) {
+    // Ensure database is closed on failure
+    await maybeCloseDatabase();
+    throw error;
   }
 }
 
