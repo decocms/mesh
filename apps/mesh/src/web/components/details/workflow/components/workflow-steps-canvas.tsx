@@ -15,7 +15,8 @@ interface WorkflowStepsCanvasProps {
 export function WorkflowStepsCanvas({ className }: WorkflowStepsCanvasProps) {
   const steps = useWorkflowSteps();
   const currentStepName = useCurrentStepName();
-  const { setCurrentStepName, deleteStep, addToolStep } = useWorkflowActions();
+  const { setCurrentStepName, deleteStep, duplicateStep, addToolStep } =
+    useWorkflowActions();
 
   return (
     <div className={cn("h-full flex flex-col p-8 overflow-auto", className)}>
@@ -31,6 +32,7 @@ export function WorkflowStepsCanvas({ className }: WorkflowStepsCanvasProps) {
               isSelected={step.name === currentStepName}
               onSelect={() => setCurrentStepName(step.name)}
               onDelete={() => deleteStep(step.name)}
+              onDuplicate={() => duplicateStep(step.name)}
             />
           ))}
         </div>

@@ -19,6 +19,7 @@ interface WorkflowStepCardProps {
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
 }
 
 export function WorkflowStepCard({
@@ -27,6 +28,7 @@ export function WorkflowStepCard({
   isSelected,
   onSelect,
   onDelete,
+  onDuplicate,
 }: WorkflowStepCardProps) {
   const isToolStep = "toolName" in step.action;
   const connectionId =
@@ -109,7 +111,12 @@ export function WorkflowStepCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDuplicate();
+                }}
+              >
                 <Copy size={14} />
                 Duplicate
               </DropdownMenuItem>

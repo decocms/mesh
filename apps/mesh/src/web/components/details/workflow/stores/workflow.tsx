@@ -30,6 +30,7 @@ interface Actions {
   appendStep: ({ step, type }: { step?: Step; type: StepType }) => void;
   setIsAddingStep: (isAddingStep: boolean) => void;
   deleteStep: (stepName: string) => void;
+  duplicateStep: (stepName: string) => void;
   setCurrentStepName: (stepName: string | undefined) => void;
   updateStep: (stepName: string, updates: Partial<Step>) => void;
   setTrackingExecutionId: (executionId: string | undefined) => void;
@@ -179,6 +180,33 @@ const createWorkflowStore = (initialState: State) => {
                 ),
               },
             })),
+          duplicateStep: (stepName) =>
+            set((state) => {
+              const stepIndex = state.workflow.steps.findIndex(
+                (step) => step.name === stepName,
+              );
+              if (stepIndex === -1) return state;
+
+              const stepToDuplicate = state.workflow.steps[stepIndex];
+              const duplicatedStep: Step = {
+                ...stepToDuplicate,
+                name: generateUniqueName(
+                  stepToDuplicate.name,
+                  state.workflow.steps,
+                ),
+              };
+
+              const newSteps = [...state.workflow.steps];
+              newSteps.splice(stepIndex + 1, 0, duplicatedStep);
+
+              return {
+                workflow: {
+                  ...state.workflow,
+                  steps: newSteps,
+                },
+                currentStepName: duplicatedStep.name,
+              };
+            }),
           setCurrentStepName: (stepName) =>
             set((state) => ({
               ...state,
