@@ -18,6 +18,7 @@ import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { usePersistedChat } from "../../hooks/use-persisted-chat";
 import { useConnections } from "../../hooks/collections/use-connection";
 import { useBindingConnections } from "../../hooks/use-binding";
+import { useSystemPrompt } from "../../hooks/use-system-prompt";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
@@ -52,13 +53,6 @@ export function ChatPanel() {
   const hasGateways = gateways.length > 0;
   const hasRequiredSetup = hasModelsBinding && hasGateways;
 
-  // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
-  const chat = usePersistedChat({
-    threadId: activeThreadId,
-    onCreateThread: (thread) =>
-      createThread({ id: thread.id, title: thread.title }),
-  });
-
   const [selectedModelState, setSelectedModelState] = useLocalStorage<{
     id: string;
     connectionId: string;
@@ -90,6 +84,17 @@ export function ChatPanel() {
       m.id === effectiveSelectedModelState?.id &&
       m.connectionId === effectiveSelectedModelState?.connectionId,
   );
+
+  // Generate dynamic system prompt based on context
+  const systemPrompt = useSystemPrompt();
+
+  // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
+  const chat = usePersistedChat({
+    threadId: activeThreadId,
+    systemPrompt,
+    onCreateThread: (thread) =>
+      createThread({ id: thread.id, title: thread.title }),
+  });
 
   const handleSendMessage = async (text: string) => {
     if (!selectedModel) {

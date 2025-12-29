@@ -378,7 +378,7 @@ function AssistantDetailContent({
                       <span className="text-xs text-muted-foreground font-normal">
                         •
                       </span>
-                      <span className="text-xs text-muted-foreground font-normal truncate min-w-0">
+                      <span className="text-xs text-muted-foreground font-normal truncate min-w-0 max-w-[20ch]">
                         {assistant.description}
                       </span>
                     </>
