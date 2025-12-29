@@ -217,7 +217,7 @@ app.post("/:org/models/stream", async (c) => {
     const transport = createGatewayTransport(c.req.raw, gatewayConfig.id);
 
     const client = new Client(
-      { name: "mcp-mesh-proxy", version: "1.0.0" },
+      { name: "mcp-mesh-gateway-client", version: "1.0.0" },
       { capabilities: { tools: {} } },
     );
 
