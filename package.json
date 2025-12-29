@@ -17,20 +17,22 @@
     "ui": "npx shadcn@latest add -c ./packages/ui",
     "clean": "rm -f deno.lock package-lock.json bun.lock && rm -rf node_modules apps/*/node_modules packages/*/node_modules",
     "exorcise": "bun run clean && bun install --force",
-    "knip": "knip"
+    "knip": "knip",
+    "benchmark": "bun run --cwd=apps/benchmark benchmark",
+    "benchmark:quick": "bun run --cwd=apps/benchmark benchmark:quick"
   },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "devDependencies": {
-    "deco-cli": "workspace:*",
     "@biomejs/biome": "2.2.5",
     "@types/node": "^24.9.1",
+    "deco-cli": "workspace:*",
     "knip": "^5.73.4",
     "oxlint": "1.23.0",
-    "typescript": "^5.9.3",
-    "react": "^19.2.0"
+    "react": "^19.2.0",
+    "typescript": "^5.9.3"
   },
   "overrides": {
     "zod-to-json-schema": "3.25.0"
