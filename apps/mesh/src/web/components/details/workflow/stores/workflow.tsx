@@ -17,6 +17,8 @@ interface State {
   addingStepType: StepType | null;
   /** Selected parent steps for multi-selection (used for code steps) */
   selectedParentSteps: string[];
+  /** Previous tool info when replacing (for back button) */
+  replacingToolInfo: { connectionId: string; toolName: string } | null;
   workflow: Workflow;
   trackingExecutionId: string | undefined;
   currentStepTab: CurrentStepTab;
@@ -45,6 +47,10 @@ interface Actions {
   confirmAddCodeStep: () => void;
   setOriginalWorkflow: (workflow: Workflow) => void;
   setWorkflow: (workflow: Workflow) => void;
+  /** Start replacing tool (store previous values for back button) */
+  startReplacingTool: (connectionId: string, toolName: string) => void;
+  /** Cancel replacing tool (clear stored values) */
+  cancelReplacingTool: () => void;
 }
 
 interface Store extends State {
@@ -332,6 +338,16 @@ const createWorkflowStore = (initialState: State) => {
               ...state,
               workflow: workflow,
             })),
+          startReplacingTool: (connectionId, toolName) =>
+            set((state) => ({
+              ...state,
+              replacingToolInfo: { connectionId, toolName },
+            })),
+          cancelReplacingTool: () =>
+            set((state) => ({
+              ...state,
+              replacingToolInfo: null,
+            })),
         },
       }),
       {
@@ -348,6 +364,7 @@ const createWorkflowStore = (initialState: State) => {
           isAddingStep: state.isAddingStep,
           addingStepType: state.addingStepType,
           selectedParentSteps: state.selectedParentSteps,
+          replacingToolInfo: state.replacingToolInfo,
         }),
       },
     ),
@@ -370,6 +387,7 @@ export function WorkflowStoreProvider({
       isAddingStep: false,
       addingStepType: null,
       selectedParentSteps: [],
+      replacingToolInfo: null,
       currentStepName: undefined,
       trackingExecutionId,
       currentStepTab: "input",
@@ -428,4 +446,8 @@ export function useIsDirty() {
 
 export function useTrackingExecutionId() {
   return useWorkflowStore((state) => state.trackingExecutionId);
+}
+
+export function useReplacingToolInfo() {
+  return useWorkflowStore((state) => state.replacingToolInfo);
 }

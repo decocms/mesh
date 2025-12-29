@@ -1,6 +1,15 @@
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Repeat03, Plus, CornerDownRight } from "@untitledui/icons";
+import {
+  Type,
+  Hash,
+  Braces,
+  Box,
+  CheckSquare,
+  X,
+  FileText,
+} from "lucide-react";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useConnection } from "@/web/hooks/collections/use-connection";
 import { useCurrentStep, useWorkflowActions } from "../stores/workflow";
@@ -99,6 +108,7 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
 // ============================================================================
 
 function StepHeader({ step }: { step: Step }) {
+  const { updateStep, startReplacingTool } = useWorkflowActions();
   const isToolStep = "toolName" in step.action;
   const connectionId =
     isToolStep && "connectionId" in step.action
@@ -109,9 +119,24 @@ function StepHeader({ step }: { step: Step }) {
 
   const connection = useConnection(connectionId ?? "");
 
+  const handleReplace = () => {
+    // Store current tool info for back button
+    if (connectionId && toolName) {
+      startReplacingTool(connectionId, toolName);
+    }
+    // Clear tool selection to show MCP server selector
+    updateStep(step.name, {
+      action: {
+        ...step.action,
+        connectionId: "",
+        toolName: "",
+      },
+    });
+  };
+
   return (
     <div className="border-b border-border p-5 shrink-0">
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2">
         <IntegrationIcon
           icon={connection?.icon ?? null}
           name={toolName ?? ""}
@@ -121,7 +146,13 @@ function StepHeader({ step }: { step: Step }) {
         <span className="text-base font-medium text-foreground truncate flex-1">
           {toolName}
         </span>
-        <Button variant="ghost" size="icon" className="size-7">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          onClick={handleReplace}
+          title="Replace tool"
+        >
           <Repeat03 size={14} />
         </Button>
       </div>
@@ -211,6 +242,26 @@ function OutputSection({ step }: { step: Step }) {
   );
 }
 
+function getTypeIcon(type: string) {
+  switch (type) {
+    case "string":
+      return { Icon: Type, color: "text-blue-500" };
+    case "number":
+    case "integer":
+      return { Icon: Hash, color: "text-blue-500" };
+    case "array":
+      return { Icon: Braces, color: "text-purple-500" };
+    case "object":
+      return { Icon: Box, color: "text-orange-500" };
+    case "boolean":
+      return { Icon: CheckSquare, color: "text-pink-500" };
+    case "null":
+      return { Icon: X, color: "text-gray-500" };
+    default:
+      return { Icon: FileText, color: "text-muted-foreground" };
+  }
+}
+
 function OutputProperty({
   name,
   schema,
@@ -218,33 +269,25 @@ function OutputProperty({
   name: string;
   schema: JsonSchema;
 }) {
-  // Get the source path from the schema (e.g., "results.campaign.id")
-  const sourcePath = getSourcePath(schema);
+  const currentStep = useCurrentStep();
+  const type = schema.type ?? "unknown";
+  const { Icon, color } = getTypeIcon(type);
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-medium text-foreground flex-1">{name}</span>
-      {sourcePath && (
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <CornerDownRight size={16} className="opacity-50" />
-          <span>results.</span>
-          <span className="px-0.5 py-px bg-blue-500/10 text-blue-500 rounded">
-            {sourcePath}
-          </span>
+      <div className="flex-1 flex items-center gap-2">
+        <Icon size={14} className={cn(color)} />
+        <span className="text-sm font-medium text-foreground">{name}</span>
+      </div>
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <CornerDownRight size={14} className="opacity-50" />
+        <span className="text-muted-foreground">{currentStep?.name}.</span>
+        <div className="bg-blue-500/10 text-blue-500 px-1 py-0.5 rounded">
+          {name}
         </div>
-      )}
+      </div>
     </div>
   );
-}
-
-function getSourcePath(schema: JsonSchema): string | null {
-  // Try to extract source path from schema description or custom field
-  // This is a placeholder - you might have a different way to track this
-  if (schema.description && schema.description.includes("@")) {
-    const match = schema.description.match(/@([\w.]+)/);
-    return match ? (match[1] ?? null) : null;
-  }
-  return null;
 }
 
 // ============================================================================
