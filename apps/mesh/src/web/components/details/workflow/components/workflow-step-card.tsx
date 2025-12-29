@@ -17,7 +17,6 @@ interface WorkflowStepCardProps {
   step: Step;
   index: number;
   isSelected: boolean;
-  isLast: boolean;
   onSelect: () => void;
   onDelete: () => void;
 }
@@ -26,7 +25,6 @@ export function WorkflowStepCard({
   step,
   index,
   isSelected,
-  isLast,
   onSelect,
   onDelete,
 }: WorkflowStepCardProps) {
@@ -39,13 +37,26 @@ export function WorkflowStepCard({
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
   const hasToolSelected = Boolean(toolName);
   const outputSchemaProperties = getOutputSchemaProperties(step);
+  // Connector starts after icon (32px aligns with header 32px)
+  // Just measure: gap-3 (12) + tags (~40 if exist) + pb-3 (12) + spacing (12)
+  const connectorHeight = outputSchemaProperties.length > 0 ? 60 : 12;
 
   return (
     <div
       className={cn(
-        "flex gap-2 items-start px-4 w-full rounded-lg",
-        isSelected && "bg-muted/50",
+        "flex gap-2 items-start border-1 border-transparent px-4 w-full rounded-lg cursor-pointer group hover:bg-accent/30",
+        isSelected &&
+          "bg-background border-1 border-border outline outline-offset-3 outline-border/25",
       )}
+      onClick={onSelect}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
     >
       {/* Line Number */}
       <div className="w-5 flex flex-col items-center justify-center shrink-0 pt-3">
@@ -55,31 +66,23 @@ export function WorkflowStepCard({
       </div>
 
       {/* Icon + Connector */}
-      <div className="flex flex-col items-center shrink-0 pt-3">
+      <div className="flex flex-col items-center shrink-0">
+        {index > 0 ? (
+          <VerticalConnector height={12} />
+        ) : (
+          <div className="h-3" />
+        )}
         <StepIcon
           connectionId={connectionId}
           isToolStep={isToolStep}
           hasToolSelected={hasToolSelected}
           stepName={step.name}
         />
-        {!isLast && <VerticalConnector height={hasToolSelected ? 100 : 12} />}
+        <VerticalConnector height={connectorHeight} />
       </div>
 
       {/* Content */}
-      <div
-        className={cn(
-          "flex-1 flex flex-col gap-3 min-w-0 pt-3 pb-0 cursor-pointer group",
-        )}
-        onClick={onSelect}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onSelect();
-          }
-        }}
-      >
+      <div className="flex-1 flex flex-col gap-3 min-w-0 pt-3 pb-3">
         {/* Header Row */}
         <div className="flex items-center h-8">
           <span
@@ -100,23 +103,24 @@ export function WorkflowStepCard({
                 variant="ghost"
                 size="icon"
                 className="size-7 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
               >
                 <DotsHorizontal size={14} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
                 <Copy size={14} />
                 Duplicate
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
+                className="text-destructive hover:bg-destructive/10! focus:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation();
                   onDelete();
                 }}
               >
-                <Trash2 size={14} />
+                <Trash2 size={14} className="text-destructive" />
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>

@@ -20,16 +20,15 @@ export function WorkflowStepsCanvas({ className }: WorkflowStepsCanvasProps) {
   return (
     <div className={cn("flex-1 flex flex-col p-8 overflow-auto", className)}>
       {/* Steps Container */}
-      <div className="bg-muted/30 rounded-lg w-full">
+      <div className="w-full -space-y-1">
         {/* Steps List */}
-        <div className="pt-3">
+        <div className="pt-3 -space-y-1">
           {steps.map((step, index) => (
             <WorkflowStepCard
               key={step.name}
               step={step}
               index={index}
               isSelected={step.name === currentStepName}
-              isLast={index === steps.length - 1}
               onSelect={() => setCurrentStepName(step.name)}
               onDelete={() => deleteStep(step.name)}
             />
@@ -42,7 +41,7 @@ export function WorkflowStepsCanvas({ className }: WorkflowStepsCanvasProps) {
           <div className="w-5 shrink-0" />
 
           {/* Connector and Add Button */}
-          <div className="flex flex-col items-center shrink-0">
+          <div className="flex flex-col border-1 border-transparent items-center shrink-0">
             <div className="w-px h-3 bg-border" />
             <Button
               variant="outline"
@@ -52,11 +51,19 @@ export function WorkflowStepsCanvas({ className }: WorkflowStepsCanvasProps) {
             >
               <Plus size={14} />
             </Button>
-            <div className="w-px h-8 bg-border" />
+            <div
+              className="w-px h-8"
+              style={{
+                backgroundImage:
+                  "repeating-linear-gradient(180deg, var(--border), var(--border) 4px, transparent 4px, transparent 8px)",
+                backgroundPosition: "left top",
+                backgroundRepeat: "repeat-y",
+                backgroundSize: "2px 100%",
+              }}
+            />
           </div>
         </div>
       </div>
     </div>
   );
 }
-
