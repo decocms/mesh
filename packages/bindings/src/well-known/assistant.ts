@@ -5,7 +5,7 @@
  * Any MCP that implements this binding can provide configurable AI assistants
  * with a system prompt and runtime configuration (gateway + model).
  *
- * This binding uses collection bindings for LIST and GET operations.
+ * This binding uses collection bindings for full CRUD operations.
  */
 
 import { z } from "zod";
@@ -59,8 +59,8 @@ export const AssistantSchema = BaseCollectionEntitySchema.extend({
 /**
  * ASSISTANT Collection Binding
  *
- * Collection bindings for assistants (read-only).
- * Provides LIST and GET operations for AI assistants.
+ * Collection bindings for assistants.
+ * Provides full CRUD operations (LIST, GET, CREATE, UPDATE, DELETE) for AI assistants.
  */
 export const ASSISTANTS_COLLECTION_BINDING = createCollectionBindings(
   "assistant",
@@ -76,6 +76,11 @@ export const ASSISTANTS_COLLECTION_BINDING = createCollectionBindings(
  * Required tools:
  * - COLLECTION_ASSISTANT_LIST: List available AI assistants with their configurations
  * - COLLECTION_ASSISTANT_GET: Get a single assistant by ID (includes system_prompt, gateway_id, model)
+ *
+ * Optional tools:
+ * - COLLECTION_ASSISTANT_CREATE: Create a new assistant
+ * - COLLECTION_ASSISTANT_UPDATE: Update an existing assistant
+ * - COLLECTION_ASSISTANT_DELETE: Delete an assistant
  */
 export const ASSISTANTS_BINDING = [
   ...ASSISTANTS_COLLECTION_BINDING,

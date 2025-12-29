@@ -52,6 +52,13 @@ export function ChatPanel() {
   const hasGateways = gateways.length > 0;
   const hasRequiredSetup = hasModelsBinding && hasGateways;
 
+  // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
+  const chat = usePersistedChat({
+    threadId: activeThreadId,
+    onCreateThread: (thread) =>
+      createThread({ id: thread.id, title: thread.title }),
+  });
+
   const [selectedModelState, setSelectedModelState] = useLocalStorage<{
     id: string;
     connectionId: string;
@@ -74,6 +81,43 @@ export function ChatPanel() {
   const defaultGatewayId = gateways[0]?.id;
   const effectiveSelectedGatewayId =
     selectedGatewayState?.gatewayId ?? defaultGatewayId;
+
+  const selectedGateway = gateways.find(
+    (g) => g.id === effectiveSelectedGatewayId,
+  );
+  const selectedModel = models.find(
+    (m) =>
+      m.id === effectiveSelectedModelState?.id &&
+      m.connectionId === effectiveSelectedModelState?.connectionId,
+  );
+
+  const handleSendMessage = async (text: string) => {
+    if (!selectedModel) {
+      toast.error("No model configured");
+      return;
+    }
+
+    const metadata: Metadata = {
+      created_at: new Date().toISOString(),
+      thread_id: activeThreadId,
+      model: {
+        id: selectedModel.id,
+        connectionId: selectedModel.connectionId,
+        provider: selectedModel.provider ?? undefined,
+      },
+      gateway: selectedGateway ? { id: selectedGateway.id } : undefined,
+      user: {
+        avatar: user?.image ?? undefined,
+        name: user?.name ?? "you",
+      },
+    };
+
+    await chat.sendMessage(text, metadata);
+  };
+
+  const handleModelChange = (m: ModelChangePayload) => {
+    setSelectedModelState({ id: m.id, connectionId: m.connectionId });
+  };
 
   if (!hasRequiredSetup) {
     let title: string;
@@ -148,50 +192,6 @@ export function ChatPanel() {
       </Chat>
     );
   }
-
-  // Use shared persisted chat hook
-  const chat = usePersistedChat({
-    threadId: activeThreadId,
-    onCreateThread: (thread) =>
-      createThread({ id: thread.id, title: thread.title }),
-  });
-
-  const selectedGateway = gateways.find(
-    (g) => g.id === effectiveSelectedGatewayId,
-  );
-  const selectedModel = models.find(
-    (m) =>
-      m.id === effectiveSelectedModelState?.id &&
-      m.connectionId === effectiveSelectedModelState?.connectionId,
-  );
-
-  const handleSendMessage = async (text: string) => {
-    if (!selectedModel) {
-      toast.error("No model configured");
-      return;
-    }
-
-    const metadata: Metadata = {
-      created_at: new Date().toISOString(),
-      thread_id: activeThreadId,
-      model: {
-        id: selectedModel.id,
-        connectionId: selectedModel.connectionId,
-        provider: selectedModel.provider ?? undefined,
-      },
-      gateway: selectedGateway ? { id: selectedGateway.id } : undefined,
-      user: {
-        avatar: user?.image ?? undefined,
-        name: user?.name ?? "you",
-      },
-    };
-
-    await chat.sendMessage(text, metadata);
-  };
-
-  const handleModelChange = (m: ModelChangePayload) => {
-    setSelectedModelState({ id: m.id, connectionId: m.connectionId });
-  };
 
   return (
     <Chat>
