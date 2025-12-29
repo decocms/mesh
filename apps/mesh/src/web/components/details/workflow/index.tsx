@@ -104,12 +104,13 @@ function WorkflowCode({
 function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   const workflow = useWorkflow();
   const trackingExecutionId = useTrackingExecutionId();
-  const { setTrackingExecutionId } = useWorkflowActions();
+  const { setTrackingExecutionId, setOriginalWorkflow } = useWorkflowActions();
   const { viewMode } = useViewModeStore();
   const currentStep = useCurrentStep();
 
-  const handleSave = () => {
-    onUpdate(workflow);
+  const handleSave = async () => {
+    await onUpdate(workflow);
+    setOriginalWorkflow(workflow);
   };
 
   // Determine which sidebar to show

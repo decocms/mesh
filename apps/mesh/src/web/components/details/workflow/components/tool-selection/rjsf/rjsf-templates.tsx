@@ -5,6 +5,37 @@ import type {
   TemplatesType,
 } from "@rjsf/utils";
 import { Button } from "@deco/ui/components/button.tsx";
+import {
+  Type,
+  Hash,
+  Braces,
+  Box,
+  CheckSquare,
+  X,
+  FileText,
+} from "lucide-react";
+import { cn } from "@deco/ui/lib/utils.ts";
+
+function getTypeIcon(type: string | string[] | undefined) {
+  const typeStr = Array.isArray(type) ? type[0] : (type ?? "unknown");
+  switch (typeStr) {
+    case "string":
+      return { Icon: Type, color: "text-blue-500" };
+    case "number":
+    case "integer":
+      return { Icon: Hash, color: "text-blue-500" };
+    case "array":
+      return { Icon: Braces, color: "text-purple-500" };
+    case "object":
+      return { Icon: Box, color: "text-orange-500" };
+    case "boolean":
+      return { Icon: CheckSquare, color: "text-pink-500" };
+    case "null":
+      return { Icon: X, color: "text-gray-500" };
+    default:
+      return { Icon: FileText, color: "text-muted-foreground" };
+  }
+}
 
 /**
  * Custom FieldTemplate - wraps each field with label, description, and type indicator
@@ -20,19 +51,18 @@ function CustomFieldTemplate(props: FieldTemplateProps) {
   }
 
   const schemaType = Array.isArray(schema.type)
-    ? schema.type.join(" | ")
+    ? schema.type[0]
     : (schema.type ?? "string");
+  const { Icon, color } = getTypeIcon(schemaType);
 
   return (
     <div className="space-y-2">
-      <div className="flex items-baseline gap-2">
+      <div className="flex items-center gap-2">
         <label htmlFor={id} className="text-sm font-medium leading-none">
           {label}
         </label>
         {required && <span className="text-red-500 text-xs">*</span>}
-        <span className="text-xs text-muted-foreground ml-auto">
-          {schemaType}
-        </span>
+        <Icon size={14} className={cn(color, "ml-auto")} />
       </div>
       {description && (
         <div className="text-xs text-muted-foreground mb-1">{description}</div>

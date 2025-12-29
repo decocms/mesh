@@ -24,4 +24,3 @@ export function useResolvedRefs() {
       : undefined;
   return resolvedRefs;
 }
-

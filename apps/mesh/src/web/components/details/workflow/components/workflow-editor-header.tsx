@@ -10,11 +10,18 @@ import {
   Play,
 } from "@untitledui/icons";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { useViewModeStore, type WorkflowViewMode } from "../stores/view-mode";
 import {
   useIsDirty,
   useTrackingExecutionId,
   useWorkflowActions,
+  useWorkflowSteps,
 } from "../stores/workflow";
 import { useWorkflowStart, usePollingWorkflowExecution } from "../hooks";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -127,10 +134,28 @@ function RunWorkflowButton() {
   const isExecutionCompleted = useIsExecutionCompleted();
   const trackingExecutionId = useTrackingExecutionId();
   const { handleRunWorkflow } = useWorkflowStart();
+  const steps = useWorkflowSteps();
   const trackingExecutionIsRunning =
     trackingExecutionId && !isExecutionCompleted;
 
-  return (
+  const hasEmptySteps = steps.some(
+    (step) =>
+      "toolName" in step.action &&
+      (!step.action.toolName || step.action.toolName === ""),
+  );
+
+  const isDisabled = trackingExecutionIsRunning || isDirty || hasEmptySteps;
+
+  const getTooltipMessage = () => {
+    if (trackingExecutionIsRunning) return "Workflow is currently running";
+    if (isDirty) return "Save your changes before running";
+    if (hasEmptySteps) return "All steps must have a tool selected";
+    return null;
+  };
+
+  const tooltipMessage = getTooltipMessage();
+
+  const button = (
     <Button
       variant="default"
       size="sm"
@@ -139,7 +164,7 @@ function RunWorkflowButton() {
         !trackingExecutionIsRunning &&
           "bg-primary text-primary-foreground hover:bg-primary/90",
       )}
-      disabled={trackingExecutionIsRunning || isDirty}
+      disabled={isDisabled}
       onClick={handleRunWorkflow}
     >
       {!trackingExecutionIsRunning && <Play size={14} />}
@@ -151,5 +176,17 @@ function RunWorkflowButton() {
         : "Run workflow"}
     </Button>
   );
-}
 
+  if (!tooltipMessage) return button;
+
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <span className="inline-block">{button}</span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{tooltipMessage}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}

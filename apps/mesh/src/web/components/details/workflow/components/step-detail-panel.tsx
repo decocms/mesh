@@ -1,12 +1,27 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@deco/ui/components/accordion.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Repeat03, Plus, CornerDownRight } from "@untitledui/icons";
+import {
+  Type,
+  Hash,
+  Braces,
+  Box,
+  CheckSquare,
+  X,
+  FileText,
+  Minus,
+} from "lucide-react";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useConnection } from "@/web/hooks/collections/use-connection";
 import { useCurrentStep, useWorkflowActions } from "../stores/workflow";
 import { ToolInput } from "./tool-selection/components/tool-input";
 import type { JsonSchema } from "@/web/utils/constants";
-import { useState } from "react";
 import { MonacoCodeEditor } from "./monaco-editor";
 import type { Step } from "@decocms/bindings/workflow";
 
@@ -99,6 +114,7 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
 // ============================================================================
 
 function StepHeader({ step }: { step: Step }) {
+  const { updateStep, startReplacingTool } = useWorkflowActions();
   const isToolStep = "toolName" in step.action;
   const connectionId =
     isToolStep && "connectionId" in step.action
@@ -109,9 +125,24 @@ function StepHeader({ step }: { step: Step }) {
 
   const connection = useConnection(connectionId ?? "");
 
+  const handleReplace = () => {
+    // Store current tool info for back button
+    if (connectionId && toolName) {
+      startReplacingTool(connectionId, toolName);
+    }
+    // Clear tool selection to show MCP server selector
+    updateStep(step.name, {
+      action: {
+        ...step.action,
+        connectionId: "",
+        toolName: "",
+      },
+    });
+  };
+
   return (
     <div className="border-b border-border p-5 shrink-0">
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2">
         <IntegrationIcon
           icon={connection?.icon ?? null}
           name={toolName ?? ""}
@@ -121,7 +152,13 @@ function StepHeader({ step }: { step: Step }) {
         <span className="text-base font-medium text-foreground truncate flex-1">
           {toolName}
         </span>
-        <Button variant="ghost" size="icon" className="size-7">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          onClick={handleReplace}
+          title="Replace tool"
+        >
           <Repeat03 size={14} />
         </Button>
       </div>
@@ -160,15 +197,28 @@ function InputSection({ step }: { step: Step }) {
   };
 
   return (
-    <div className="border-b border-border p-5 shrink-0">
-      <h3 className="text-sm font-medium text-muted-foreground mb-6">Input</h3>
-      <ToolInput
-        inputSchema={tool.inputSchema as JsonSchema}
-        inputParams={step.input as Record<string, unknown>}
-        setInputParams={handleInputChange}
-        mentions={[]}
-      />
-    </div>
+    <Accordion
+      type="single"
+      collapsible
+      defaultValue="input"
+      className="border-b border-border shrink-0"
+    >
+      <AccordionItem value="input" className="border-b-0">
+        <AccordionTrigger className="px-5 py-5">
+          <span className="text-sm font-medium text-muted-foreground">
+            Input
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="px-5 pt-2">
+          <ToolInput
+            inputSchema={tool.inputSchema as JsonSchema}
+            inputParams={step.input as Record<string, unknown>}
+            setInputParams={handleInputChange}
+            mentions={[]}
+          />
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 }
 
@@ -190,25 +240,58 @@ function OutputSection({ step }: { step: Step }) {
   const propertyEntries = properties ? Object.entries(properties) : [];
 
   return (
-    <div className="border-b border-border p-5 shrink-0">
-      <h3 className="text-sm font-medium text-muted-foreground mb-6">Output</h3>
-      {propertyEntries.length === 0 ? (
-        <div className="text-sm text-muted-foreground italic">
-          No output schema defined
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {propertyEntries.map(([key, propSchema]) => (
-            <OutputProperty
-              key={key}
-              name={key}
-              schema={propSchema as JsonSchema}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    <Accordion
+      type="single"
+      collapsible
+      defaultValue="output"
+      className="border-b border-border shrink-0"
+    >
+      <AccordionItem value="output" className="border-b-0">
+        <AccordionTrigger className="px-5 py-5">
+          <span className="text-sm font-medium text-muted-foreground">
+            Output
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="px-5 pt-2">
+          {propertyEntries.length === 0 ? (
+            <div className="text-sm text-muted-foreground italic">
+              No output schema defined
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {propertyEntries.map(([key, propSchema]) => (
+                <OutputProperty
+                  key={key}
+                  name={key}
+                  schema={propSchema as JsonSchema}
+                />
+              ))}
+            </div>
+          )}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
+}
+
+function getTypeIcon(type: string) {
+  switch (type) {
+    case "string":
+      return { Icon: Type, color: "text-blue-500" };
+    case "number":
+    case "integer":
+      return { Icon: Hash, color: "text-blue-500" };
+    case "array":
+      return { Icon: Braces, color: "text-purple-500" };
+    case "object":
+      return { Icon: Box, color: "text-orange-500" };
+    case "boolean":
+      return { Icon: CheckSquare, color: "text-pink-500" };
+    case "null":
+      return { Icon: X, color: "text-gray-500" };
+    default:
+      return { Icon: FileText, color: "text-muted-foreground" };
+  }
 }
 
 function OutputProperty({
@@ -218,33 +301,25 @@ function OutputProperty({
   name: string;
   schema: JsonSchema;
 }) {
-  // Get the source path from the schema (e.g., "results.campaign.id")
-  const sourcePath = getSourcePath(schema);
+  const currentStep = useCurrentStep();
+  const type = schema.type ?? "unknown";
+  const { Icon, color } = getTypeIcon(type);
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-medium text-foreground flex-1">{name}</span>
-      {sourcePath && (
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <CornerDownRight size={16} className="opacity-50" />
-          <span>results.</span>
-          <span className="px-0.5 py-px bg-blue-500/10 text-blue-500 rounded">
-            {sourcePath}
-          </span>
+      <div className="flex-1 flex items-center gap-2">
+        <Icon size={14} className={cn(color)} />
+        <span className="text-sm font-medium text-foreground">{name}</span>
+      </div>
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <CornerDownRight size={14} className="opacity-50" />
+        <span className="text-muted-foreground">{currentStep?.name}.</span>
+        <div className="bg-blue-500/10 text-blue-500 px-1 py-0.5 rounded">
+          {name}
         </div>
-      )}
+      </div>
     </div>
   );
-}
-
-function getSourcePath(schema: JsonSchema): string | null {
-  // Try to extract source path from schema description or custom field
-  // This is a placeholder - you might have a different way to track this
-  if (schema.description && schema.description.includes("@")) {
-    const match = schema.description.match(/@([\w.]+)/);
-    return match ? (match[1] ?? null) : null;
-  }
-  return null;
 }
 
 // ============================================================================
@@ -253,7 +328,6 @@ function getSourcePath(schema: JsonSchema): string | null {
 
 function TransformCodeSection({ step }: { step: Step }) {
   const { updateStep } = useWorkflowActions();
-  const [isExpanded, setIsExpanded] = useState(false);
 
   const isToolStep = "toolName" in step.action;
   const connectionId =
@@ -323,7 +397,15 @@ export default async function(input: Input): Promise<Output> {
         transformCode: defaultCode,
       },
     });
-    setIsExpanded(true);
+  };
+
+  const handleRemoveTransformCode = () => {
+    updateStep(step.name, {
+      action: {
+        ...step.action,
+        transformCode: undefined,
+      },
+    });
   };
 
   const handleCodeSave = (
@@ -341,53 +423,45 @@ export default async function(input: Input): Promise<Output> {
     });
   };
 
-  if (!hasTransformCode && !isExpanded) {
+  // No transform code → show collapsed with Plus
+  if (!hasTransformCode) {
     return (
-      <div className="border-b border-border p-5 shrink-0">
+      <div
+        className="border-b border-border p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={handleAddTransformCode}
+      >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-muted-foreground">
             Transform Code
           </h3>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={handleAddTransformCode}
-          >
-            <Plus size={14} />
-          </Button>
+          <Plus size={14} className="text-muted-foreground" />
         </div>
       </div>
     );
   }
 
+  // Has transform code → show editor with Minus to remove
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="border-b border-border p-5 shrink-0">
+      <div
+        className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={handleRemoveTransformCode}
+      >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-muted-foreground">
             Transform Code
           </h3>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? "−" : "+"}
-          </Button>
+          <Minus size={14} className="text-muted-foreground" />
         </div>
       </div>
-      {isExpanded && (
-        <div className="flex-1 min-h-0">
-          <MonacoCodeEditor
-            code={transformCode || ""}
-            language="typescript"
-            onSave={handleCodeSave}
-            height="100%"
-          />
-        </div>
-      )}
+      <div className="flex-1 min-h-120">
+        <MonacoCodeEditor
+          code={transformCode!}
+          language="typescript"
+          onSave={handleCodeSave}
+          height="100%"
+        />
+      </div>
     </div>
   );
 }

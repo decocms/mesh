@@ -7,7 +7,11 @@ import {
 } from "@/web/hooks/collections/use-connection";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { usePrioritizedList } from "../hooks";
-import { useCurrentStep, useWorkflowActions } from "../stores/workflow";
+import {
+  useCurrentStep,
+  useWorkflowActions,
+  useReplacingToolInfo,
+} from "../stores/workflow";
 
 interface ToolSidebarProps {
   className?: string;
@@ -36,7 +40,8 @@ export function ToolSidebar({ className }: ToolSidebarProps) {
 function ConnectionSelector({ className }: { className?: string }) {
   const connections = useConnections();
   const currentStep = useCurrentStep();
-  const { updateStep } = useWorkflowActions();
+  const { updateStep, cancelReplacingTool } = useWorkflowActions();
+  const replacingToolInfo = useReplacingToolInfo();
 
   const isToolStep = currentStep && "toolName" in currentStep.action;
   const selectedConnectionId =
@@ -64,15 +69,45 @@ function ConnectionSelector({ className }: { className?: string }) {
         toolName: "",
       },
     });
+    // Clear replacing info when selecting new connection
+    cancelReplacingTool();
+  };
+
+  const handleBack = () => {
+    if (!currentStep || !replacingToolInfo) return;
+    // Restore previous tool selection
+    updateStep(currentStep.name, {
+      action: {
+        ...currentStep.action,
+        connectionId: replacingToolInfo.connectionId,
+        toolName: replacingToolInfo.toolName,
+      },
+    });
+    // Clear replacing info
+    cancelReplacingTool();
   };
 
   return (
     <div className={cn("flex flex-col h-full bg-sidebar", className)}>
       {/* Header */}
-      <div className="h-12 flex items-center px-5 border-b border-border">
-        <span className="text-base font-medium text-foreground">
-          Select MCP Server
-        </span>
+      <div className="flex items-start border-b border-border">
+        {replacingToolInfo && (
+          <div className="flex items-center justify-center size-12 border-r border-border">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-10 text-muted-foreground hover:text-foreground"
+              onClick={handleBack}
+            >
+              <ArrowLeft size={14} />
+            </Button>
+          </div>
+        )}
+        <div className="flex-1 flex items-center h-12 px-5">
+          <span className="text-base font-medium text-foreground">
+            Select MCP Server
+          </span>
+        </div>
       </div>
 
       {/* Connection List */}
@@ -104,7 +139,7 @@ function ToolSelector({
 }) {
   const connection = useConnection(connectionId);
   const currentStep = useCurrentStep();
-  const { updateStep } = useWorkflowActions();
+  const { updateStep, cancelReplacingTool } = useWorkflowActions();
 
   const tools = connection?.tools ?? [];
   const isToolStep = currentStep && "toolName" in currentStep.action;
@@ -136,6 +171,8 @@ function ToolSelector({
       // Set the step's outputSchema to the tool's outputSchema
       outputSchema: selectedToolData?.outputSchema ?? {},
     });
+    // Clear replacing info when selecting a tool
+    cancelReplacingTool();
   };
 
   const handleBack = () => {
@@ -147,6 +184,7 @@ function ToolSelector({
         toolName: "",
       },
     });
+    // Don't clear replacingToolInfo here - user is going back to connection selector
   };
 
   return (

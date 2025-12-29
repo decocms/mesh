@@ -17,6 +17,8 @@ interface State {
   addingStepType: StepType | null;
   /** Selected parent steps for multi-selection (used for code steps) */
   selectedParentSteps: string[];
+  /** Previous tool info when replacing (for back button) */
+  replacingToolInfo: { connectionId: string; toolName: string } | null;
   workflow: Workflow;
   trackingExecutionId: string | undefined;
   currentStepTab: CurrentStepTab;
@@ -28,6 +30,7 @@ interface Actions {
   appendStep: ({ step, type }: { step?: Step; type: StepType }) => void;
   setIsAddingStep: (isAddingStep: boolean) => void;
   deleteStep: (stepName: string) => void;
+  duplicateStep: (stepName: string) => void;
   setCurrentStepName: (stepName: string | undefined) => void;
   updateStep: (stepName: string, updates: Partial<Step>) => void;
   setTrackingExecutionId: (executionId: string | undefined) => void;
@@ -45,6 +48,10 @@ interface Actions {
   confirmAddCodeStep: () => void;
   setOriginalWorkflow: (workflow: Workflow) => void;
   setWorkflow: (workflow: Workflow) => void;
+  /** Start replacing tool (store previous values for back button) */
+  startReplacingTool: (connectionId: string, toolName: string) => void;
+  /** Cancel replacing tool (clear stored values) */
+  cancelReplacingTool: () => void;
 }
 
 interface Store extends State {
@@ -173,6 +180,33 @@ const createWorkflowStore = (initialState: State) => {
                 ),
               },
             })),
+          duplicateStep: (stepName) =>
+            set((state) => {
+              const stepIndex = state.workflow.steps.findIndex(
+                (step) => step.name === stepName,
+              );
+              if (stepIndex === -1) return state;
+
+              const stepToDuplicate = state.workflow.steps[stepIndex];
+              const duplicatedStep: Step = {
+                ...stepToDuplicate,
+                name: generateUniqueName(
+                  stepToDuplicate.name,
+                  state.workflow.steps,
+                ),
+              };
+
+              const newSteps = [...state.workflow.steps];
+              newSteps.splice(stepIndex + 1, 0, duplicatedStep);
+
+              return {
+                workflow: {
+                  ...state.workflow,
+                  steps: newSteps,
+                },
+                currentStepName: duplicatedStep.name,
+              };
+            }),
           setCurrentStepName: (stepName) =>
             set((state) => ({
               ...state,
@@ -332,6 +366,16 @@ const createWorkflowStore = (initialState: State) => {
               ...state,
               workflow: workflow,
             })),
+          startReplacingTool: (connectionId, toolName) =>
+            set((state) => ({
+              ...state,
+              replacingToolInfo: { connectionId, toolName },
+            })),
+          cancelReplacingTool: () =>
+            set((state) => ({
+              ...state,
+              replacingToolInfo: null,
+            })),
         },
       }),
       {
@@ -348,6 +392,7 @@ const createWorkflowStore = (initialState: State) => {
           isAddingStep: state.isAddingStep,
           addingStepType: state.addingStepType,
           selectedParentSteps: state.selectedParentSteps,
+          replacingToolInfo: state.replacingToolInfo,
         }),
       },
     ),
@@ -370,6 +415,7 @@ export function WorkflowStoreProvider({
       isAddingStep: false,
       addingStepType: null,
       selectedParentSteps: [],
+      replacingToolInfo: null,
       currentStepName: undefined,
       trackingExecutionId,
       currentStepTab: "input",
@@ -428,4 +474,8 @@ export function useIsDirty() {
 
 export function useTrackingExecutionId() {
   return useWorkflowStore((state) => state.trackingExecutionId);
+}
+
+export function useReplacingToolInfo() {
+  return useWorkflowStore((state) => state.replacingToolInfo);
 }
