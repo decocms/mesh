@@ -5,7 +5,12 @@
  * Main entry point for running benchmarks.
  *
  * Usage:
- *   bun run benchmark/benchmark.ts [--quick|--high|--chained] [--verbose]
+ *   bun run benchmark/benchmark.ts [--quick|--high] [--verbose]
+ *
+ * Options:
+ *   --quick    Run quick benchmark (2 models, 10 & 128 tools)
+ *   --high     Run high tool count benchmark (100, 300, 500 tools)
+ *   --verbose  Show detailed progress output
  *
  * Environment:
  *   OPENROUTER_API_KEY - Required for LLM access

@@ -99,26 +99,38 @@ export async function migrateToLatest<T = unknown>(
   // Get database instance
   const database = customDb ?? getDb();
 
-  console.log("📊 Running Kysely migrations...");
-  await runKyselyMigrations(database.db);
-  console.log("🎉 All Kysely migrations completed successfully");
+  // Helper to close database if needed
+  const maybeCloseDatabase = async () => {
+    // Only close database connection if not keeping open for server
+    // and we're using the global database (not a custom one)
+    if (!keepOpen && !customDb) {
+      console.log("🔒 Closing database connection...");
+      await closeDatabase(database).catch((err: unknown) => {
+        console.warn("Warning: Error closing database:", err);
+      });
+    }
+  };
 
-  // Run seed if specified
-  let seedResult: T | undefined;
-  if (seed) {
-    seedResult = await runSeed<T>(database.db, seed);
+  try {
+    console.log("📊 Running Kysely migrations...");
+    await runKyselyMigrations(database.db);
+    console.log("🎉 All Kysely migrations completed successfully");
+
+    // Run seed if specified
+    let seedResult: T | undefined;
+    if (seed) {
+      seedResult = await runSeed<T>(database.db, seed);
+    }
+
+    // Close database on success if needed
+    await maybeCloseDatabase();
+
+    return { seedResult };
+  } catch (error) {
+    // Ensure database is closed on failure
+    await maybeCloseDatabase();
+    throw error;
   }
-
-  // Only close database connection if not keeping open for server
-  // and we're using the global database (not a custom one)
-  if (!keepOpen && !customDb) {
-    console.log("🔒 Closing database connection...");
-    await closeDatabase(database).catch((err: unknown) => {
-      console.warn("Warning: Error closing database:", err);
-    });
-  }
-
-  return { seedResult };
 }
 
 /**

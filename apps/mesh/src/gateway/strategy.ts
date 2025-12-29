@@ -155,7 +155,6 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
       inputSchema: zodToJsonSchema(inputSchema) as Tool["inputSchema"],
     },
     handler: async (args) => {
-      console.log({ args });
       const parsed = inputSchema.safeParse(args);
       if (!parsed.success) {
         return jsonError({ error: parsed.error.flatten() });

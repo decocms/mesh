@@ -7,22 +7,21 @@ on:
     paths:
       - "apps/mesh/**"
       - "packages/**"
-      - "apps/benchmark/**"
 
   # Manual trigger with options
   workflow_dispatch:
     inputs:
       mode:
-        description: "Benchmark mode"
+        description: 'Benchmark mode'
         required: true
-        default: "quick"
+        default: 'quick'
         type: choice
         options:
           - quick
           - high
           - full
       pr_number:
-        description: "PR number to comment results on (optional)"
+        description: 'PR number to comment results on (optional)'
         required: false
         type: string
 
@@ -117,6 +116,9 @@ jobs:
           fi
 
   # Job 3: Run benchmark (if approved via reaction or manual trigger)
+  # SECURITY: For pull_request_target, we ONLY checkout the trusted base branch code
+  # to prevent Pwn Request attacks where malicious PR code could steal secrets.
+  # The benchmark runs against the base branch's benchmark implementation.
   benchmark:
     name: Run Benchmark
     needs: [check-benchmark-approval]
@@ -129,10 +131,13 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout repository
+      # SECURITY: Always checkout the base branch (trusted code), NOT the PR head
+      # This prevents attackers from modifying package.json or scripts to steal secrets
+      - name: Checkout repository (trusted base branch)
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # For PRs: checkout base branch (main). For workflow_dispatch: checkout default branch
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2

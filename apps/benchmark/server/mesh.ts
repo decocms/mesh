@@ -64,11 +64,6 @@ interface BetterAuthApiKeyResult {
   };
 }
 
-// Store original auth methods for restoration
-let originalGetMcpSession: unknown;
-let originalSetActiveOrganization: unknown;
-let originalVerifyApiKey: unknown;
-
 /**
  * Parse SSE response as JSON (copied from mesh tools/client.ts)
  */
@@ -123,11 +118,11 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
   const apiKey = `benchmark_key_${generateId("key")}`;
 
   // Monkey-patch Better Auth methods for benchmarking
-  // Store originals for restoration
+  // Store originals in closure scope for safe restoration (prevents race conditions)
   const authApi = auth.api as Record<string, unknown>;
-  originalGetMcpSession = authApi.getMcpSession;
-  originalSetActiveOrganization = authApi.setActiveOrganization;
-  originalVerifyApiKey = authApi.verifyApiKey;
+  const originalGetMcpSession = authApi.getMcpSession;
+  const originalSetActiveOrganization = authApi.setActiveOrganization;
+  const originalVerifyApiKey = authApi.verifyApiKey;
 
   // Mock getMcpSession
   authApi.getMcpSession = async () => null;
@@ -288,12 +283,10 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
         // Ignore cleanup errors
       }
 
-      // Restore original auth methods
-      const authApi = auth.api as Record<string, unknown>;
-      if (originalGetMcpSession) authApi.getMcpSession = originalGetMcpSession;
-      if (originalSetActiveOrganization)
-        authApi.setActiveOrganization = originalSetActiveOrganization;
-      if (originalVerifyApiKey) authApi.verifyApiKey = originalVerifyApiKey;
+      // Restore original auth methods (using closure-scoped originals)
+      authApi.getMcpSession = originalGetMcpSession;
+      authApi.setActiveOrganization = originalSetActiveOrganization;
+      authApi.verifyApiKey = originalVerifyApiKey;
     },
   };
 }

@@ -304,18 +304,18 @@ function generateMarkdown(report: BenchmarkReport): string {
     lines.push("");
   }
 
-  // Key Insights
+  // Key Insights (using dashboard aggregation for consistency with Summary table)
   lines.push("## Key Insights");
   lines.push("");
 
-  // Calculate insights
-  const passthroughAt100 = report.aggregated.find(
+  // Calculate insights using dashboard aggregation (averaged across all models)
+  const passthroughAt100 = dashboardAgg.find(
     (a) => a.strategy === "passthrough" && a.toolCount === 100,
   );
-  const smartAt100 = report.aggregated.find(
+  const smartAt100 = dashboardAgg.find(
     (a) => a.strategy === "smart_tool_selection" && a.toolCount === 100,
   );
-  const codeAt100 = report.aggregated.find(
+  const codeAt100 = dashboardAgg.find(
     (a) => a.strategy === "code_execution" && a.toolCount === 100,
   );
 
@@ -345,15 +345,18 @@ function generateMarkdown(report: BenchmarkReport): string {
     }
   }
 
-  // Find best strategy per tool count
+  // Find best strategy per tool count (using dashboard aggregation for consistency)
   for (const tc of toolCounts) {
-    const forToolCount = report.aggregated.filter((a) => a.toolCount === tc);
+    const forToolCount = dashboardAgg.filter((a) => a.toolCount === tc);
     if (forToolCount.length > 0) {
       const best = forToolCount.reduce((a, b) =>
         a.avgTotalTokens < b.avgTotalTokens ? a : b,
       );
+      // Display passthrough as "baseline"
+      const strategyName =
+        best.strategy === "passthrough" ? "baseline" : best.strategy;
       lines.push(
-        `- At ${tc} tools, **${best.strategy}** uses fewest tokens (${formatNumber(best.avgTotalTokens)} avg)`,
+        `- At ${tc} tools, **${strategyName}** uses fewest tokens (${formatNumber(best.avgTotalTokens)} avg)`,
       );
     }
   }

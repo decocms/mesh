@@ -133,17 +133,15 @@ export function createLLMClient(apiKey: string) {
         resultWithToolCalls.toolCalls.length > 0
       ) {
         for (const toolCall of resultWithToolCalls.toolCalls) {
-          // Avoid duplicates
-          const exists = toolCalls.some((tc) => tc.name === toolCall.toolName);
-          if (!exists) {
-            toolCalls.push({
-              name: toolCall.toolName,
-              args: (toolCall.args ?? toolCall.input ?? {}) as Record<
-                string,
-                unknown
-              >,
-            });
-          }
+          // Include all tool calls - the same tool may be called multiple times
+          // with different arguments (e.g., in chained scenarios)
+          toolCalls.push({
+            name: toolCall.toolName,
+            args: (toolCall.args ?? toolCall.input ?? {}) as Record<
+              string,
+              unknown
+            >,
+          });
         }
       }
 
