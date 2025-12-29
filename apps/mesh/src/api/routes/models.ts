@@ -128,7 +128,7 @@ const toolsFromMCP = async (client: Client): Promise<ToolSet> => {
 
             return {
               type: "error-text",
-              value: textContent ?? "Unknown error",
+              value: textContent || "Unknown error",
             };
           }
           if ("structuredContent" in output) {
