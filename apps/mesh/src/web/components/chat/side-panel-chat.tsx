@@ -5,7 +5,7 @@ import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { DecoChatEmptyState } from "@deco/ui/components/deco-chat-empty-state.tsx";
-import { CpuChip02, Plus, X } from "@untitledui/icons";
+import { CpuChip02, Plus, X, Loading01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Chat, useGateways, useModels, type ModelChangePayload } from "./chat";
 import { toast } from "sonner";
@@ -19,10 +19,35 @@ import { usePersistedChat } from "../../hooks/use-persisted-chat";
 import { useConnections } from "../../hooks/collections/use-connection";
 import { useBindingConnections } from "../../hooks/use-binding";
 import { useSystemPrompt } from "../../hooks/use-system-prompt";
+import {
+  useGatewayPrompts,
+  type GatewayPrompt,
+} from "../../hooks/use-gateway-prompts";
+import { IceBreakers } from "./ice-breakers";
+import { Suspense } from "react";
+import { ErrorBoundary } from "../error-boundary";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
   "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
+
+/**
+ * Ice breakers component that uses suspense to fetch gateway prompts
+ */
+function GatewayIceBreakers({
+  gatewayId,
+  onSelect,
+}: {
+  gatewayId: string;
+  onSelect: (prompt: GatewayPrompt) => void;
+}) {
+  const { data: prompts } = useGatewayPrompts(gatewayId);
+  console.log({ prompts });
+
+  if (prompts.length === 0) return null;
+
+  return <IceBreakers prompts={prompts} onSelect={onSelect} className="mt-6" />;
+}
 
 export function ChatPanel() {
   const {
@@ -197,6 +222,9 @@ export function ChatPanel() {
       </Chat>
     );
   }
+  const initialMessages = chat.messages.filter(
+    (message) => message.role !== "system",
+  );
 
   return (
     <Chat>
@@ -246,24 +274,48 @@ export function ChatPanel() {
       </Chat.Header>
 
       <Chat.Main innerClassName="max-w-2xl mx-auto w-full min-w-0">
-        {chat.messages.length === 0 ? (
+        {initialMessages.length === 0 ? (
           <Chat.EmptyState>
-            <DecoChatEmptyState
-              title={selectedGateway?.title || "Ask deco chat"}
-              description={
-                selectedGateway?.description ??
-                "Ask anything about configuring model providers or using MCP Mesh."
-              }
-              avatarNode={
-                <IntegrationIcon
-                  icon={selectedGateway?.icon}
-                  name={selectedGateway?.title || "deco chat"}
-                  size="lg"
-                  fallbackIcon={<CpuChip02 size={32} />}
-                  className="size-[60px]! rounded-[18px]!"
-                />
-              }
-            />
+            <div className="flex flex-col items-center gap-6 w-full max-w-md px-4">
+              <DecoChatEmptyState
+                title={selectedGateway?.title || "Ask deco chat"}
+                description={
+                  selectedGateway?.description ??
+                  "Ask anything about configuring model providers or using MCP Mesh."
+                }
+                avatarNode={
+                  <IntegrationIcon
+                    icon={selectedGateway?.icon}
+                    name={selectedGateway?.title || "deco chat"}
+                    size="lg"
+                    fallbackIcon={<CpuChip02 size={32} />}
+                    className="size-[60px]! rounded-[18px]!"
+                  />
+                }
+              />
+              {effectiveSelectedGatewayId && (
+                <ErrorBoundary key={effectiveSelectedGatewayId} fallback={null}>
+                  <Suspense
+                    fallback={
+                      <div className="flex justify-center">
+                        <Loading01
+                          size={20}
+                          className="animate-spin text-muted-foreground"
+                        />
+                      </div>
+                    }
+                  >
+                    <GatewayIceBreakers
+                      gatewayId={effectiveSelectedGatewayId}
+                      onSelect={(prompt) => {
+                        // Submit the prompt name as the first message
+                        handleSendMessage(prompt.description ?? prompt.name);
+                      }}
+                    />
+                  </Suspense>
+                </ErrorBoundary>
+              )}
+            </div>
           </Chat.EmptyState>
         ) : (
           <Chat.Messages

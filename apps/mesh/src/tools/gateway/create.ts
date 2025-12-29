@@ -60,6 +60,8 @@ export const COLLECTION_GATEWAY_CREATE = defineTool({
       connections: input.data.connections.map((conn) => ({
         connectionId: conn.connection_id,
         selectedTools: conn.selected_tools ?? null,
+        selectedResources: conn.selected_resources ?? null,
+        selectedPrompts: conn.selected_prompts ?? null,
       })),
     };
 
@@ -85,6 +87,8 @@ export const COLLECTION_GATEWAY_CREATE = defineTool({
         connections: gateway.connections.map((conn) => ({
           connection_id: conn.connectionId,
           selected_tools: conn.selectedTools,
+          selected_resources: conn.selectedResources,
+          selected_prompts: conn.selectedPrompts,
         })),
         created_at: gateway.createdAt as string,
         updated_at: gateway.updatedAt as string,

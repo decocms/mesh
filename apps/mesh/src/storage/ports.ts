@@ -90,6 +90,8 @@ export interface GatewayCreateData {
   connections: Array<{
     connectionId: string;
     selectedTools?: string[] | null;
+    selectedResources?: string[] | null;
+    selectedPrompts?: string[] | null;
   }>;
 }
 
@@ -107,6 +109,8 @@ export interface GatewayUpdateData {
   connections?: Array<{
     connectionId: string;
     selectedTools?: string[] | null;
+    selectedResources?: string[] | null;
+    selectedPrompts?: string[] | null;
   }>;
 }
 

@@ -43,6 +43,8 @@ type RawGatewayConnectionRow = {
   gateway_id: string;
   connection_id: string;
   selected_tools: string | string[] | null;
+  selected_resources: string | string[] | null;
+  selected_prompts: string | string[] | null;
   created_at: Date | string;
 };
 
@@ -101,6 +103,12 @@ export class GatewayStorage implements GatewayStoragePort {
                 selected_tools: conn.selectedTools
                   ? JSON.stringify(conn.selectedTools)
                   : null,
+                selected_resources: conn.selectedResources
+                  ? JSON.stringify(conn.selectedResources)
+                  : null,
+                selected_prompts: conn.selectedPrompts
+                  ? JSON.stringify(conn.selectedPrompts)
+                  : null,
                 created_at: now,
               })),
             )
@@ -146,6 +154,12 @@ export class GatewayStorage implements GatewayStoragePort {
             connection_id: conn.connectionId,
             selected_tools: conn.selectedTools
               ? JSON.stringify(conn.selectedTools)
+              : null,
+            selected_resources: conn.selectedResources
+              ? JSON.stringify(conn.selectedResources)
+              : null,
+            selected_prompts: conn.selectedPrompts
+              ? JSON.stringify(conn.selectedPrompts)
               : null,
             created_at: now,
           })),
@@ -360,6 +374,12 @@ export class GatewayStorage implements GatewayStoragePort {
                   selected_tools: conn.selectedTools
                     ? JSON.stringify(conn.selectedTools)
                     : null,
+                  selected_resources: conn.selectedResources
+                    ? JSON.stringify(conn.selectedResources)
+                    : null,
+                  selected_prompts: conn.selectedPrompts
+                    ? JSON.stringify(conn.selectedPrompts)
+                    : null,
                   created_at: now,
                 })),
               )
@@ -392,6 +412,12 @@ export class GatewayStorage implements GatewayStoragePort {
                 connection_id: conn.connectionId,
                 selected_tools: conn.selectedTools
                   ? JSON.stringify(conn.selectedTools)
+                  : null,
+                selected_resources: conn.selectedResources
+                  ? JSON.stringify(conn.selectedResources)
+                  : null,
+                selected_prompts: conn.selectedPrompts
+                  ? JSON.stringify(conn.selectedPrompts)
                   : null,
                 created_at: now,
               })),
@@ -510,6 +536,8 @@ export class GatewayStorage implements GatewayStoragePort {
       connections: connectionRows.map((conn) => ({
         connectionId: conn.connection_id,
         selectedTools: this.parseJson<string[]>(conn.selected_tools),
+        selectedResources: this.parseJson<string[]>(conn.selected_resources),
+        selectedPrompts: this.parseJson<string[]>(conn.selected_prompts),
       })),
     };
   }

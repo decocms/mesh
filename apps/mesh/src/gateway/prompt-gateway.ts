@@ -12,11 +12,17 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import { lazy } from "../common";
 import type { ProxyCollection } from "./proxy-collection";
+import type { ToolSelectionMode } from "../storage/types";
 
 /** Cached data structure */
 interface PromptCache {
   prompts: Prompt[];
   mappings: Map<string, string>; // name -> connectionId
+}
+
+/** Options for PromptGateway */
+export interface PromptGatewayOptions {
+  selectionMode: ToolSelectionMode;
 }
 
 /**
@@ -29,7 +35,10 @@ interface PromptCache {
 export class PromptGateway {
   private cache: Promise<PromptCache>;
 
-  constructor(private proxies: ProxyCollection) {
+  constructor(
+    private proxies: ProxyCollection,
+    private options: PromptGatewayOptions,
+  ) {
     // Create lazy cache - only loads when first awaited
     this.cache = lazy(() => this.loadPrompts());
   }
@@ -43,10 +52,32 @@ export class PromptGateway {
       async (entry, connectionId) => {
         try {
           const result = await entry.proxy.client.listPrompts();
-          return { connectionId, prompts: result.prompts };
+          let prompts = result.prompts;
+
+          // Apply selection based on mode
+          if (this.options.selectionMode === "exclusion") {
+            // Exclusion mode: exclude selected prompts
+            if (entry.selectedPrompts && entry.selectedPrompts.length > 0) {
+              const excludeSet = new Set(entry.selectedPrompts);
+              prompts = prompts.filter((p) => !excludeSet.has(p.name));
+            }
+            // If selectedPrompts is null/empty in exclusion mode, include all prompts
+          } else {
+            // Inclusion mode: include only selected prompts
+            // Unlike tools, prompts require explicit selection (for ice breakers UX)
+            if (!entry.selectedPrompts || entry.selectedPrompts.length === 0) {
+              // No prompts selected = no prompts from this connection
+              prompts = [];
+            } else {
+              const selectedSet = new Set(entry.selectedPrompts);
+              prompts = prompts.filter((p) => selectedSet.has(p.name));
+            }
+          }
+
+          return { connectionId, prompts };
         } catch (error) {
           console.error(
-            `[gateway] Failed to list prompts for connection ${connectionId}:`,
+            `[PromptGateway] Failed to list prompts for connection ${connectionId}:`,
             error,
           );
           return { connectionId, prompts: [] as Prompt[] };

@@ -179,6 +179,11 @@ const gatewayDetailRoute = createRoute({
   component: lazyRouteComponent(
     () => import("./routes/orgs/gateway-detail.tsx"),
   ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      tab: z.string().optional(),
+    }),
+  ),
 });
 
 const oauthCallbackRoute = createRoute({

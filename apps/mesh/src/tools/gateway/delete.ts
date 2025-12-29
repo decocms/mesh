@@ -72,6 +72,8 @@ export const COLLECTION_GATEWAY_DELETE = defineTool({
         connections: existing.connections.map((conn) => ({
           connection_id: conn.connectionId,
           selected_tools: conn.selectedTools,
+          selected_resources: conn.selectedResources,
+          selected_prompts: conn.selectedPrompts,
         })),
         created_at:
           existing.createdAt instanceof Date

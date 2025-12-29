@@ -587,13 +587,15 @@ export interface Gateway {
 
 /**
  * Gateway connection table definition
- * Many-to-many relationship linking gateways to connections with selected tools
+ * Many-to-many relationship linking gateways to connections with selected tools/resources/prompts
  */
 export interface GatewayConnectionTable {
   id: string;
   gateway_id: string;
   connection_id: string;
   selected_tools: JsonArray<string[]> | null; // null = all tools
+  selected_resources: JsonArray<string[]> | null; // null = all resources, supports URI patterns with * and **
+  selected_prompts: JsonArray<string[]> | null; // null = all prompts
   created_at: ColumnType<Date, Date | string, never>;
 }
 
@@ -605,6 +607,8 @@ export interface GatewayConnection {
   gatewayId: string;
   connectionId: string;
   selectedTools: string[] | null;
+  selectedResources: string[] | null; // URI patterns with * and ** wildcards
+  selectedPrompts: string[] | null;
   createdAt: Date | string;
 }
 
@@ -615,6 +619,8 @@ export interface GatewayWithConnections extends Gateway {
   connections: Array<{
     connectionId: string;
     selectedTools: string[] | null;
+    selectedResources: string[] | null;
+    selectedPrompts: string[] | null;
   }>;
 }
 

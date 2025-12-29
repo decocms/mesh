@@ -79,9 +79,13 @@ async function createMCPGateway(
     selectionMode: options.toolSelectionMode,
     strategy: options.toolSelectionStrategy,
   });
-  const resources = new ResourceGateway(proxies);
+  const resources = new ResourceGateway(proxies, {
+    selectionMode: options.toolSelectionMode,
+  });
   const resourceTemplates = new ResourceTemplateGateway(proxies);
-  const prompts = new PromptGateway(proxies);
+  const prompts = new PromptGateway(proxies, {
+    selectionMode: options.toolSelectionMode,
+  });
 
   return {
     client: {
@@ -112,6 +116,8 @@ async function createMCPGatewayFromEntity(
   let connections: Array<{
     connection: ConnectionEntity;
     selectedTools: string[] | null;
+    selectedResources: string[] | null;
+    selectedPrompts: string[] | null;
   }>;
 
   if (gateway.toolSelectionMode === "exclusion") {
@@ -124,9 +130,20 @@ async function createMCPGatewayFromEntity(
     );
 
     // Build a map of connection exclusions
-    const exclusionMap = new Map<string, string[] | null>();
+    const exclusionMap = new Map<
+      string,
+      {
+        selectedTools: string[] | null;
+        selectedResources: string[] | null;
+        selectedPrompts: string[] | null;
+      }
+    >();
     for (const gwConn of gateway.connections) {
-      exclusionMap.set(gwConn.connectionId, gwConn.selectedTools);
+      exclusionMap.set(gwConn.connectionId, {
+        selectedTools: gwConn.selectedTools,
+        selectedResources: gwConn.selectedResources,
+        selectedPrompts: gwConn.selectedPrompts,
+      });
     }
 
     connections = [];
@@ -134,14 +151,31 @@ async function createMCPGatewayFromEntity(
       const exclusionEntry = exclusionMap.get(conn.id);
 
       if (exclusionEntry === undefined) {
-        // Connection NOT in gateway.connections -> include all tools
-        connections.push({ connection: conn, selectedTools: null });
-      } else if (exclusionEntry === null || exclusionEntry.length === 0) {
-        // Connection in gateway.connections with null/empty selectedTools -> exclude entire connection
+        // Connection NOT in gateway.connections -> include all
+        connections.push({
+          connection: conn,
+          selectedTools: null,
+          selectedResources: null,
+          selectedPrompts: null,
+        });
+      } else if (
+        (exclusionEntry.selectedTools === null ||
+          exclusionEntry.selectedTools.length === 0) &&
+        (exclusionEntry.selectedResources === null ||
+          exclusionEntry.selectedResources.length === 0) &&
+        (exclusionEntry.selectedPrompts === null ||
+          exclusionEntry.selectedPrompts.length === 0)
+      ) {
+        // Connection in gateway.connections with all null/empty -> exclude entire connection
         // Skip this connection
       } else {
-        // Connection in gateway.connections with specific tools -> exclude those tools
-        connections.push({ connection: conn, selectedTools: exclusionEntry });
+        // Connection in gateway.connections with specific exclusions
+        connections.push({
+          connection: conn,
+          selectedTools: exclusionEntry.selectedTools,
+          selectedResources: exclusionEntry.selectedResources,
+          selectedPrompts: exclusionEntry.selectedPrompts,
+        });
       }
     }
   } else {
@@ -163,6 +197,8 @@ async function createMCPGatewayFromEntity(
       return {
         connection: conn,
         selectedTools: gwConn?.selectedTools ?? null,
+        selectedResources: gwConn?.selectedResources ?? null,
+        selectedPrompts: gwConn?.selectedPrompts ?? null,
       };
     });
   }
