@@ -47,7 +47,6 @@
     "@ai-sdk/provider": "^3.0.0",
     "@ai-sdk/react": "^3.0.1",
     "@better-auth/sso": "1.4.1",
-    "@dagrejs/dagre": "^1.1.8",
     "@daveyplate/better-auth-ui": "^3.2.7",
     "@deco/ui": "workspace:*",
     "@decocms/better-auth": "1.5.17",

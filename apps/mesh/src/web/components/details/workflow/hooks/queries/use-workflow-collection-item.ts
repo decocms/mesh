@@ -1,13 +1,13 @@
 import { useParams } from "@tanstack/react-router";
 import {
   useCollectionItem,
-  useCollectionList,
 } from "@/web/hooks/use-collections";
 import { Workflow, WorkflowExecution } from "@decocms/bindings/workflow";
 import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
-import { useWorkflowBindingConnection } from "./use-workflow-binding-connection";
+import { useWorkflowBindingConnection } from "../use-workflow-binding-connection";
 import { useToolCallQuery } from "@/web/hooks/use-tool-call";
 import { Query } from "@tanstack/react-query";
+
 export function useWorkflowCollectionItem(itemId: string) {
   const { connectionId } = useParams({
     strict: false,
@@ -27,31 +27,6 @@ export function useWorkflowCollectionItem(itemId: string) {
         data: updates,
       });
     },
-  };
-}
-
-export function useWorkflowExecutionCollectionList({
-  workflowId,
-}: {
-  workflowId: string;
-}) {
-  const { id: connectionId } = useWorkflowBindingConnection();
-  const toolCaller = createToolCaller(connectionId);
-  const list = useCollectionList<WorkflowExecution>(
-    connectionId,
-    "WORKFLOW_EXECUTION",
-    toolCaller,
-    {
-      filters: [
-        {
-          column: "workflow_id",
-          value: workflowId,
-        },
-      ],
-    },
-  );
-  return {
-    list: list.filter((item) => item.workflow_id === workflowId),
   };
 }
 

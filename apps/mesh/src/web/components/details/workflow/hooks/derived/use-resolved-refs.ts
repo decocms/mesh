@@ -1,5 +1,5 @@
-import { usePollingWorkflowExecution } from "../../../hooks/use-workflow-collection-item";
-import { useTrackingExecutionId } from "../../../stores/workflow";
+import { usePollingWorkflowExecution } from "../queries/use-workflow-collection-item";
+import { useTrackingExecutionId } from "../../stores/workflow";
 
 export function useResolvedRefs() {
   const trackingExecutionId = useTrackingExecutionId();

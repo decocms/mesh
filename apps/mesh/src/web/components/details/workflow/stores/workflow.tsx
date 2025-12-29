@@ -429,15 +429,3 @@ export function useIsDirty() {
 export function useTrackingExecutionId() {
   return useWorkflowStore((state) => state.trackingExecutionId);
 }
-
-export function useIsAddingStep() {
-  return useWorkflowStore((state) => state.isAddingStep);
-}
-
-export function useAddingStepType() {
-  return useWorkflowStore((state) => state.addingStepType);
-}
-
-export function useSelectedParentSteps() {
-  return useWorkflowStore((state) => state.selectedParentSteps);
-}
