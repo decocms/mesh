@@ -7,21 +7,22 @@ on:
     paths:
       - "apps/mesh/**"
       - "packages/**"
+      - "apps/benchmark/**"
 
   # Manual trigger with options
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Benchmark mode'
+        description: "Benchmark mode"
         required: true
-        default: 'quick'
+        default: "quick"
         type: choice
         options:
           - quick
           - high
           - full
       pr_number:
-        description: 'PR number to comment results on (optional)'
+        description: "PR number to comment results on (optional)"
         required: false
         type: string
 
