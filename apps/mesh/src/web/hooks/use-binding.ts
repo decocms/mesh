@@ -4,7 +4,7 @@ import {
   BaseCollectionEntitySchema,
   createCollectionBindings,
 } from "@decocms/bindings/collections";
-import { AGENTS_BINDING } from "@decocms/bindings/agent";
+import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
 import { convertJsonSchemaToZod } from "zod-from-json-schema";
@@ -15,7 +15,7 @@ import type { ConnectionEntity } from "@/tools/connection/schema";
  */
 const BUILTIN_BINDINGS: Record<string, Binder> = {
   LLMS: LANGUAGE_MODEL_BINDING,
-  AGENTS: AGENTS_BINDING,
+  ASSISTANTS: ASSISTANTS_BINDING,
   MCP: MCP_BINDING,
 };
 

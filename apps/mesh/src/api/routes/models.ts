@@ -174,9 +174,17 @@ app.post("/:org/models/stream", async (c) => {
 
     mcpClient = client;
 
+    // Extract system message from messages (first message with role "system")
+    const systemMessage = modelMessages.find((m) => m.role === "system");
+    const systemContent =
+      systemMessage?.role === "system" ? systemMessage.content : undefined;
+
+    // Filter out system messages (they go to system param, not messages array)
+    const nonSystemMessages = modelMessages.filter((m) => m.role !== "system");
+
     // Prune messages to reduce context size
     const prunedMessages = pruneMessages({
-      messages: modelMessages,
+      messages: nonSystemMessages,
       reasoning: "before-last-message",
       emptyMessages: "remove",
       toolCalls: "none",
@@ -195,6 +203,7 @@ app.post("/:org/models/stream", async (c) => {
     // Use streamText from AI SDK with pruned messages and parameters
     const result = streamText({
       model: provider,
+      system: systemContent,
       messages: prunedMessages,
       tools,
       temperature,

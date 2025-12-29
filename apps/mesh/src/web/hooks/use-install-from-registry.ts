@@ -67,7 +67,6 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
 
   const toolCaller = createToolCaller(registryId || undefined);
 
-  // Always call useToolCall (Rules of Hooks). Use `enabled` to avoid executing until ready.
   const { data: listResults } = useToolCall<{}, unknown>({
     toolCaller,
     toolName: listToolName,

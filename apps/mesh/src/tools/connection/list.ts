@@ -6,7 +6,7 @@
  */
 
 import { type Binder, createBindingChecker } from "@decocms/bindings";
-import { AGENTS_BINDING } from "@decocms/bindings/agent";
+import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
 import {
   CollectionListInputSchema,
   createCollectionListOutputSchema,
@@ -21,7 +21,7 @@ import { type ConnectionEntity, ConnectionEntitySchema } from "./schema";
 
 const BUILTIN_BINDING_CHECKERS: Record<string, Binder> = {
   LLM: LANGUAGE_MODEL_BINDING,
-  AGENTS: AGENTS_BINDING,
+  ASSISTANTS: ASSISTANTS_BINDING,
 };
 
 /**

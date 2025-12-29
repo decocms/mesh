@@ -1,4 +1,4 @@
-import { ChatPanel } from "@/web/components/chat/chat-panel";
+import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { MeshSidebar } from "@/web/components/mesh-sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
