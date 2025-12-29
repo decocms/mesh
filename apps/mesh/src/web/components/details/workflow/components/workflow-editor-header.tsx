@@ -2,12 +2,12 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
 import {
   ArrowLeft,
-  GitBranch01,
+  ClockFastForward,
   Code02,
   FlipBackward,
-  Save02,
-  ClockFastForward,
+  GitBranch01,
   Play,
+  Save02,
 } from "@untitledui/icons";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import {
@@ -23,7 +23,7 @@ import {
   useWorkflowActions,
   useWorkflowSteps,
 } from "../stores/workflow";
-import { useWorkflowStart, usePollingWorkflowExecution } from "../hooks";
+import { usePollingWorkflowExecution, useWorkflowStart } from "../hooks";
 import { cn } from "@deco/ui/lib/utils.ts";
 
 interface WorkflowEditorHeaderProps {
@@ -39,7 +39,8 @@ export function WorkflowEditorHeader({
   onBack,
   onSave,
 }: WorkflowEditorHeaderProps) {
-  const { viewMode, setViewMode } = useViewModeStore();
+  const { viewMode, setViewMode, showExecutionsList, toggleExecutionsList } =
+    useViewModeStore();
   const { resetToOriginalWorkflow } = useWorkflowActions();
   const isDirty = useIsDirty();
 
@@ -106,12 +107,13 @@ export function WorkflowEditorHeader({
           <Save02 size={14} />
         </Button>
 
-        {/* Schedule Button */}
+        {/* Runs List Toggle */}
         <Button
-          variant="outline"
+          variant={showExecutionsList ? "secondary" : "outline"}
           size="icon"
           className="size-7"
-          title="Schedule workflow"
+          onClick={toggleExecutionsList}
+          title={showExecutionsList ? "Hide runs" : "Show runs"}
         >
           <ClockFastForward size={14} />
         </Button>

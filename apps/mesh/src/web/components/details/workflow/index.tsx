@@ -20,6 +20,7 @@ import { WorkflowEditorHeader } from "./components/workflow-editor-header";
 import { WorkflowStepsCanvas } from "./components/workflow-steps-canvas";
 import { ToolSidebar } from "./components/tool-sidebar";
 import { StepDetailPanel } from "./components/step-detail-panel";
+import { ExecutionsList } from "./components/executions-list";
 import { useViewModeStore } from "./stores/view-mode";
 import { useCurrentStep } from "./stores/workflow";
 
@@ -105,7 +106,7 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   const workflow = useWorkflow();
   const trackingExecutionId = useTrackingExecutionId();
   const { setTrackingExecutionId, setOriginalWorkflow } = useWorkflowActions();
-  const { viewMode } = useViewModeStore();
+  const { viewMode, showExecutionsList } = useViewModeStore();
   const currentStep = useCurrentStep();
 
   const handleSave = async () => {
@@ -165,9 +166,11 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
 
             <ResizableHandle />
 
-            {/* Sidebar Panel */}
+            {/* Right Panel - Executions List OR Step Config */}
             <ResizablePanel defaultSize={50} minSize={25}>
-              {showStepDetail ? (
+              {showExecutionsList ? (
+                <ExecutionsList />
+              ) : showStepDetail ? (
                 <StepDetailPanel className="border-l border-border" />
               ) : (
                 <ToolSidebar className="border-l border-border" />

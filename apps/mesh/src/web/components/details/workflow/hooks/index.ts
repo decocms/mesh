@@ -1,5 +1,6 @@
 // Queries
 export * from "./queries/use-workflow-collection-item";
+export * from "./queries/use-workflow-executions";
 
 // Mutations
 export * from "./mutations/use-workflow-start";
