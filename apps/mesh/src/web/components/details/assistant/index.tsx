@@ -1,5 +1,7 @@
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
-import { ViewActions, ViewLayout, ViewTabs } from "../layout";
+import { Chat } from "@/web/components/chat/chat";
+import { GatewaySelector } from "@/web/components/chat/gateway-selector";
+import { ModelSelector } from "@/web/components/chat/model-selector";
 import { EmptyState } from "@/web/components/empty-state";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
@@ -7,72 +9,202 @@ import {
   useCollectionItem,
 } from "@/web/hooks/use-collections";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { DecoChatSkeleton } from "@deco/ui/components/deco-chat-skeleton.tsx";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from "@deco/ui/components/form.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
+import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { AssistantSchema } from "@decocms/bindings/assistant";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { Edit05, Loading01, Plus, Upload01, Users02 } from "@untitledui/icons";
-import { Chat, type ModelChangePayload } from "@/web/components/chat/chat";
-import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { Suspense, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
+import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 
 type Assistant = z.infer<typeof AssistantSchema>;
+type AssistantForm = UseFormReturn<Assistant>;
+
+function AssistantEditForm({ form }: { form: AssistantForm }) {
+  return (
+    <Form {...form}>
+      <div className="h-full py-6 flex flex-col max-w-2xl mx-auto w-full min-w-0 gap-6 overflow-y-auto">
+        {/* Avatar and Basic Info */}
+        <div className="flex gap-4 items-start">
+          <FormField
+            control={form.control}
+            name="avatar"
+            render={({ field }) => (
+              <SmartAvatarUpload
+                size="md"
+                value={field.value}
+                onChange={field.onChange}
+                alt={form.watch("title")}
+              />
+            )}
+          />
+          <div className="flex flex-col gap-3 flex-1 min-w-0">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-muted-foreground">
+                    Name
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Untitled assistant"
+                      className="h-9 rounded-lg border border-border bg-muted/20 shadow-none focus-visible:ring-0"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-muted-foreground">
+                    Description
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      value={field.value ?? ""}
+                      placeholder="Add a description…"
+                      className="h-9 rounded-lg border border-border bg-muted/20 shadow-none focus-visible:ring-0"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+        </div>
+
+        {/* Gateway and Model Selectors */}
+        <div className="flex gap-4">
+          <FormField
+            control={form.control}
+            name="gateway_id"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel className="text-xs text-muted-foreground">
+                  Gateway
+                </FormLabel>
+                <GatewaySelector
+                  selectedGatewayId={field.value}
+                  onGatewayChange={field.onChange}
+                  placeholder="Select gateway"
+                  variant="bordered"
+                  className="w-full"
+                />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="model"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel className="text-xs text-muted-foreground">
+                  Model
+                </FormLabel>
+                <ModelSelector
+                  selectedModel={
+                    field.value
+                      ? {
+                          id: field.value.id,
+                          connectionId: field.value.connectionId,
+                        }
+                      : undefined
+                  }
+                  onModelChange={(m) =>
+                    field.onChange({ id: m.id, connectionId: m.connectionId })
+                  }
+                  placeholder="Select model"
+                  variant="bordered"
+                  className="w-full"
+                />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* System Prompt */}
+        <FormField
+          control={form.control}
+          name="system_prompt"
+          render={({ field }) => (
+            <FormItem className="flex-1 flex flex-col min-h-0">
+              <FormLabel className="text-xs text-muted-foreground">
+                System prompt
+              </FormLabel>
+              <FormControl>
+                <Textarea
+                  {...field}
+                  placeholder="You are a helpful assistant..."
+                  className="flex-1 min-h-[200px] resize-none text-base leading-relaxed font-normal rounded-xl border border-border bg-muted/20 px-4 py-3 shadow-none focus-visible:ring-0"
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      </div>
+    </Form>
+  );
+}
 
 interface AssistantChatPanelProps {
   activeThreadId: string;
   mode: "chat" | "edit";
-  systemPrompt: string | undefined;
-  onSystemPromptChange: (value: string) => void;
-  gatewayId: string | undefined;
-  model: Assistant["model"] | undefined;
-  onGatewayChange: (id: string) => void;
-  onModelChange: (model: ModelChangePayload) => void;
-  title: string | undefined;
-  description: string | null | undefined;
-  avatar: string | undefined;
+  assistant: Assistant;
+  form: AssistantForm;
 }
 
 function AssistantChatPanel({
   activeThreadId,
   mode,
-  systemPrompt,
-  onSystemPromptChange,
-  gatewayId,
-  model,
-  onGatewayChange,
-  onModelChange,
-  title,
-  description,
-  avatar,
+  assistant,
+  form,
 }: AssistantChatPanelProps) {
   // Use the shared persisted chat hook with system prompt
   const chat = usePersistedChat({
     threadId: activeThreadId,
-    systemPrompt,
+    systemPrompt: assistant.system_prompt,
   });
 
   // Chat config is valid when gateway and model are both configured
   const hasChatConfig =
-    Boolean(gatewayId) && Boolean(model?.id) && Boolean(model?.connectionId);
-
-  const selectorsDisabled = mode !== "edit";
+    Boolean(assistant.gateway_id) &&
+    Boolean(assistant.model?.id) &&
+    Boolean(assistant.model?.connectionId);
 
   const handleSendMessage = async (text: string) => {
-    if (!hasChatConfig || !model) return;
+    if (!hasChatConfig) return;
 
     const metadata: Metadata = {
       created_at: new Date().toISOString(),
       thread_id: activeThreadId,
-      model: { id: model.id, connectionId: model.connectionId },
-      gateway: { id: gatewayId ?? "" },
+      model: {
+        id: assistant.model.id,
+        connectionId: assistant.model.connectionId,
+      },
+      gateway: { id: assistant.gateway_id ?? "" },
       user: { name: "you" },
     };
 
@@ -81,11 +213,11 @@ function AssistantChatPanel({
 
   const emptyState = (
     <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-      {avatar ? (
+      {assistant.avatar ? (
         <div className="size-[60px] rounded-[18px] border border-border shrink-0 overflow-hidden">
           <img
-            src={avatar}
-            alt={title}
+            src={assistant.avatar}
+            alt={assistant.title}
             className="h-full w-full object-cover"
           />
         </div>
@@ -94,83 +226,76 @@ function AssistantChatPanel({
           <Users02 size={28} className="text-muted-foreground" />
         </div>
       )}
-      <h3 className="text-xl font-medium text-foreground">{title}</h3>
-      {description ? (
+      <h3 className="text-xl font-medium text-foreground">{assistant.title}</h3>
+      {assistant.description ? (
         <div className="text-muted-foreground text-center text-sm max-w-md">
-          {description}
+          {assistant.description}
         </div>
       ) : null}
     </div>
   );
 
-  const editContent = (
-    <div className="h-full py-5 flex flex-col max-w-2xl mx-auto w-full min-w-0">
-      <div className="pb-2">
-        <label
-          htmlFor="assistant-system-prompt"
-          className="text-xs font-medium text-muted-foreground"
-        >
-          System prompt
-        </label>
-      </div>
-      <Textarea
-        id="assistant-system-prompt"
-        value={systemPrompt ?? ""}
-        onChange={(e) => onSystemPromptChange(e.target.value)}
-        placeholder="System prompt..."
-        className="flex-1 min-h-[300px] resize-none text-base leading-relaxed font-normal rounded-xl border border-border bg-muted/20 px-4 py-3 shadow-none focus-visible:ring-0"
-      />
-    </div>
-  );
+  const isEditing = mode === "edit";
 
   return (
     <Chat>
       <Chat.Main
-        className="h-full"
-        innerClassName="max-w-2xl mx-auto w-full min-w-0"
+        className="h-full relative overflow-hidden"
+        innerClassName="px-2"
       >
-        {mode === "edit" ? (
-          editContent
-        ) : chat.messages.length === 0 ? (
-          <Chat.EmptyState>{emptyState}</Chat.EmptyState>
-        ) : (
-          <Chat.Messages
-            messages={chat.messages}
-            status={chat.status}
-            minHeightOffset={240}
-          />
-        )}
+        {/* Edit Form - fades in/out */}
+        <div
+          className={cn(
+            "absolute inset-0 px-2 transition-opacity duration-200 ease-out",
+            isEditing
+              ? "opacity-100 pointer-events-auto"
+              : "opacity-0 pointer-events-none",
+          )}
+        >
+          <AssistantEditForm form={form} />
+        </div>
+
+        {/* Chat content - hidden in edit mode */}
+        <div
+          className={cn(
+            "h-full transition-opacity duration-200 ease-out",
+            isEditing ? "opacity-0 pointer-events-none" : "opacity-100",
+          )}
+        >
+          {chat.messages.length === 0 ? (
+            <Chat.EmptyState>{emptyState}</Chat.EmptyState>
+          ) : (
+            <Chat.Messages
+              messages={chat.messages}
+              status={chat.status}
+              minHeightOffset={240}
+            />
+          )}
+        </div>
       </Chat.Main>
 
-      <Chat.Footer>
-        <div className="max-w-2xl mx-auto w-full min-w-0">
-          <Chat.Input
-            onSubmit={handleSendMessage}
-            onStop={chat.stop}
-            disabled={mode === "edit" || !hasChatConfig}
-            isStreaming={
-              chat.status === "submitted" || chat.status === "streaming"
-            }
-            placeholder="Ask anything or @ for context"
-            usageMessages={chat.messages}
-          >
-            <Chat.Input.GatewaySelector
-              disabled={selectorsDisabled}
-              selectedGatewayId={gatewayId}
-              onGatewayChange={onGatewayChange}
-            />
-            <Chat.Input.ModelSelector
-              disabled={selectorsDisabled}
-              selectedModel={
-                model
-                  ? { id: model.id, connectionId: model.connectionId }
-                  : undefined
+      {/* Footer with chat input - slides down in edit mode */}
+      <div
+        className={cn(
+          "transition-transform duration-300 ease-out",
+          isEditing ? "translate-y-full" : "translate-y-0",
+        )}
+      >
+        <Chat.Footer>
+          <div className="max-w-2xl mx-auto w-full min-w-0">
+            <Chat.Input
+              onSubmit={handleSendMessage}
+              onStop={chat.stop}
+              disabled={!hasChatConfig}
+              isStreaming={
+                chat.status === "submitted" || chat.status === "streaming"
               }
-              onModelChange={onModelChange}
+              placeholder="Ask anything or @ for context"
+              usageMessages={chat.messages}
             />
-          </Chat.Input>
-        </div>
-      </Chat.Footer>
+          </div>
+        </Chat.Footer>
+      </div>
     </Chat>
   );
 }
@@ -282,27 +407,14 @@ function AssistantDetailContent({
     assistant?.model.id && assistant?.gateway_id ? "chat" : "edit",
   );
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { isDirty },
-  } = useForm<Assistant>({
+  const form = useForm<Assistant>({
     resolver: zodResolver(AssistantSchema),
     values: assistant ?? undefined,
   });
 
-  const gatewayId = watch("gateway_id");
-  const model = watch("model");
-  const avatarValue = watch("avatar");
-  const systemPrompt = watch("system_prompt");
-
-  const saveAndLock = handleSubmit(async (data: Assistant) => {
-    await actions.update.mutateAsync({
-      id: assistantId,
-      data: data as Assistant,
-    });
+  const saveAndLock = form.handleSubmit(async (data: Assistant) => {
+    const updated = await actions.update.mutateAsync({ id: assistantId, data });
+    form.reset(updated);
     setMode("chat");
   });
 
@@ -327,65 +439,38 @@ function AssistantDetailContent({
     <ErrorBoundary>
       <Suspense fallback={<DecoChatSkeleton />}>
         <ViewLayout onBack={handleBack}>
+          {/* Header is always read-only */}
           <ViewTabs>
-            {mode === "edit" ? (
-              <div className="flex items-center gap-3 min-w-0">
-                <SmartAvatarUpload
-                  size="xs"
-                  value={avatarValue}
-                  onChange={(val) =>
-                    setValue("avatar", val, { shouldDirty: true })
-                  }
-                  alt={watch("title")}
-                />
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <Input
-                    {...register("title")}
-                    placeholder="Untitled assistant"
-                    className="h-auto border-transparent hover:border-input focus:border-input bg-transparent shadow-none px-0 py-0 text-sm font-medium truncate"
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-6 w-6 min-w-6 rounded-lg border border-border bg-muted/20 overflow-hidden shrink-0">
+                {assistant.avatar ? (
+                  <img
+                    src={assistant.avatar}
+                    alt={assistant.title}
+                    className="h-full w-full object-cover"
                   />
-                  <span className="text-xs text-muted-foreground font-normal shrink-0">
-                    •
-                  </span>
-                  <Input
-                    {...register("description")}
-                    placeholder="Add a description…"
-                    className="h-auto border-transparent hover:border-input focus:border-input bg-transparent shadow-none px-0 py-0 text-xs text-muted-foreground min-w-0"
-                  />
-                </div>
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+                    <Users02 size={12} className="text-muted-foreground" />
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="h-6 w-6 min-w-6 rounded-lg border border-border bg-muted/20 overflow-hidden shrink-0">
-                  {assistant.avatar ? (
-                    <img
-                      src={assistant.avatar}
-                      alt={assistant.title}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-muted-foreground">
-                      <Users02 size={12} className="text-muted-foreground" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-sm font-medium text-foreground truncate">
-                    {assistant.title}
-                  </span>
-                  {assistant.description ? (
-                    <>
-                      <span className="text-xs text-muted-foreground font-normal">
-                        •
-                      </span>
-                      <span className="text-xs text-muted-foreground font-normal truncate min-w-0 max-w-[20ch]">
-                        {assistant.description}
-                      </span>
-                    </>
-                  ) : null}
-                </div>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm font-medium text-foreground truncate">
+                  {assistant.title}
+                </span>
+                {assistant.description ? (
+                  <>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      •
+                    </span>
+                    <span className="text-xs text-muted-foreground font-normal truncate min-w-0 max-w-[20ch]">
+                      {assistant.description}
+                    </span>
+                  </>
+                ) : null}
               </div>
-            )}
+            </div>
           </ViewTabs>
 
           <ViewActions>
@@ -429,7 +514,7 @@ function AssistantDetailContent({
                   variant="default"
                   size="sm"
                   className="h-7 gap-1.5"
-                  disabled={!isDirty || isSaving}
+                  disabled={!form.formState.isDirty || isSaving}
                   onClick={() => void saveAndLock()}
                 >
                   {isSaving ? (
@@ -447,27 +532,11 @@ function AssistantDetailContent({
 
           <div className="h-full">
             <AssistantChatPanel
+              key={form.formState.submitCount}
               activeThreadId={activeThreadId}
               mode={mode}
-              systemPrompt={systemPrompt}
-              onSystemPromptChange={(value) =>
-                setValue("system_prompt", value, { shouldDirty: true })
-              }
-              gatewayId={gatewayId}
-              model={model}
-              onGatewayChange={(id) =>
-                setValue("gateway_id", id, { shouldDirty: true })
-              }
-              onModelChange={(m) =>
-                setValue(
-                  "model",
-                  { id: m.id, connectionId: m.connectionId },
-                  { shouldDirty: true },
-                )
-              }
-              title={assistant.title}
-              avatar={assistant.avatar}
-              description={assistant.description}
+              assistant={assistant}
+              form={form}
             />
           </div>
         </ViewLayout>
