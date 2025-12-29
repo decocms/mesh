@@ -1,5 +1,5 @@
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
-import { AgentDetailsView } from "@/web/components/details/agent.tsx";
+import { AssistantDetailsView } from "@/web/components/details/assistant/index.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useCollectionActions } from "@/web/hooks/use-collections";
@@ -19,7 +19,7 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
   string,
   ComponentType<CollectionDetailsProps>
 > = {
-  agent: AgentDetailsView,
+  assistant: AssistantDetailsView,
 };
 
 function ToolDetailsContent() {

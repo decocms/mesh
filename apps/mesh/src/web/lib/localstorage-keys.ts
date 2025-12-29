@@ -11,6 +11,8 @@ export const LOCALSTORAGE_KEYS = {
     `mesh:thread-manager-state:${locator}`,
   chatSelectedModel: (locator: ProjectLocator) =>
     `mesh:chat:selectedModel:${locator}`,
+  assistantChatActiveThread: (locator: ProjectLocator, assistantId: string) =>
+    `mesh:assistant-chat:active-thread:${locator}:${assistantId}`,
   decoChatPanelWidth: () => `mesh:decochat:panel-width`,
   sidebarOpen: () => `mesh:sidebar-open`,
   selectedRegistry: (org: string) => `mesh:store:selected-registry:${org}`,

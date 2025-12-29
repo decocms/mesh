@@ -84,7 +84,7 @@ function IntegrationIconStateful({
       {/* Fallback: muted icon with connection symbol */}
       <div
         className={cn(
-          "h-full w-full flex items-center justify-center bg-muted",
+          "h-full w-full flex items-center justify-center bg-muted/20",
           showImage && "hidden",
         )}
       >

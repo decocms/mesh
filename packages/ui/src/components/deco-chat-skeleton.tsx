@@ -4,30 +4,30 @@ export function DecoChatSkeleton() {
   return (
     <div className="flex h-full w-full flex-col bg-sidebar">
       {/* Header skeleton */}
-      <div className="flex-none border-b border-border/80 px-5 pb-4 pt-6">
-        <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center h-12 flex-none border-b border-border/80 px-4">
+        <div className="flex items-center justify-between gap-3 w-full">
           <div className="flex items-center gap-3">
             {/* Avatar skeleton */}
-            <div className="size-10 rounded-xl bg-muted animate-pulse" />
+            <div className="size-6 rounded-lg bg-muted animate-pulse" />
             <div className="flex flex-col gap-2">
               {/* Title skeleton */}
-              <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+              <div className="h-3.5 w-28 rounded bg-muted animate-pulse" />
               {/* Subtitle skeleton */}
-              <div className="h-3 w-32 rounded bg-muted/60 animate-pulse" />
+              <div className="h-3 w-40 rounded bg-muted/60 animate-pulse" />
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex items-end gap-2">
             {/* Badge skeleton */}
-            <div className="h-5 w-20 rounded-full bg-muted animate-pulse" />
+            <div className="h-6 w-6 rounded-full bg-muted animate-pulse" />
             {/* Model selector skeleton */}
-            <div className="h-8 w-48 rounded-lg bg-muted animate-pulse" />
+            <div className="h-6 w-6 rounded-lg bg-muted animate-pulse" />
           </div>
         </div>
       </div>
 
       {/* Messages area skeleton */}
       <div className="flex-1 overflow-hidden px-4 py-4">
-        <div className="mx-auto flex max-w-2xl flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
           {/* Example message bubbles */}
           <MessageSkeleton align="right" width="w-3/4" />
           <MessageSkeleton align="left" width="w-full" lines={3} />
@@ -37,8 +37,8 @@ export function DecoChatSkeleton() {
       </div>
 
       {/* Input area skeleton */}
-      <div className="flex-none border-t border-border/80 px-5 py-4">
-        <div className="space-y-3">
+      <div className="px-4 py-4">
+        <div className="mx-auto w-full max-w-2xl">
           {/* Input box skeleton */}
           <div className="relative flex min-h-[130px] flex-col rounded-xl border border-border bg-background shadow-sm">
             <div className="relative flex flex-1 flex-col gap-2 p-2.5">

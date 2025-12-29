@@ -9,10 +9,27 @@ import {
 } from "@deco/ui/components/responsive-select.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useState, type ReactNode } from "react";
+import { useGateways as useGatewaysCollection } from "../../hooks/collections/use-gateway";
 
 export interface GatewayInfo
   extends Pick<GatewayEntity, "id" | "title" | "description" | "icon"> {
   fallbackIcon?: ReactNode; // Icon to use when icon is not available
+}
+
+/**
+ * Hook to fetch and map gateways for the selector.
+ * Returns gateway info with fallback icons attached.
+ */
+export function useGateways(): GatewayInfo[] {
+  const gatewaysData = useGatewaysCollection();
+
+  return gatewaysData.map((g) => ({
+    id: g.id,
+    title: g.title,
+    description: g.description ?? null,
+    icon: g.icon ?? null,
+    fallbackIcon: (<CpuChip02 />) as ReactNode,
+  }));
 }
 
 function GatewayItemContent({
@@ -86,7 +103,6 @@ function SelectedGatewayDisplay({
 }
 
 export interface GatewaySelectorProps {
-  gateways: GatewayInfo[];
   selectedGatewayId?: string;
   onGatewayChange: (gatewayId: string) => void;
   variant?: "borderless" | "bordered";
@@ -95,10 +111,10 @@ export interface GatewaySelectorProps {
 }
 
 /**
- * Rich gateway selector with avatar, name, and description
+ * Rich gateway selector with avatar, name, and description.
+ * Fetches gateways internally from the connected gateway providers.
  */
 export function GatewaySelector({
-  gateways,
   selectedGatewayId,
   onGatewayChange,
   variant = "bordered",
@@ -106,6 +122,10 @@ export function GatewaySelector({
   placeholder = "Select gateway",
 }: GatewaySelectorProps) {
   const [open, setOpen] = useState(false);
+
+  // Fetch gateways from hook
+  const gateways = useGateways();
+
   const selectedGateway = gateways.find((g) => g.id === selectedGatewayId);
 
   const handleGatewayChange = (gatewayId: string) => {
