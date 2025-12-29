@@ -19,10 +19,11 @@ export function useWorkflowStart() {
     const startAtEpochMs = Date.now();
     const timeoutMs = 30000;
     const result = await startWorkflow({
-      workflow_id: workflow.id,
-      input: {
-        limit: 15,
+      steps: workflow.steps,
+ input: {
+        
       },
+      gateway_id: 'gw_NVZj-H9VxwOMRt-1M6Ntf',
       start_at_epoch_ms: startAtEpochMs,
       timeout_ms: timeoutMs,
     });

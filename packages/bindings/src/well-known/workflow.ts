@@ -15,7 +15,6 @@ import {
   createCollectionBindings,
 } from "./collections";
 export const ToolCallActionSchema = z.object({
-  connectionId: z.string().describe("ID of the MCP connection to use"),
   toolName: z
     .string()
     .describe("Name of the tool to invoke on that connection"),
@@ -163,19 +162,39 @@ export type WorkflowExecutionStatus = z.infer<
  * Includes lock columns and retry tracking.
  */
 export const WorkflowExecutionSchema = BaseCollectionEntitySchema.extend({
-  workflow_id: z.string(),
-  status: WorkflowExecutionStatusEnum,
-  input: z.record(z.unknown()).optional(),
-  output: z.unknown(),
   steps: z
     .array(StepSchema)
     .describe("Steps that make up the workflow")
-    .optional(),
-  completed_at_epoch_ms: z.number().nullish(),
-  start_at_epoch_ms: z.number().nullish(),
-  timeout_ms: z.number().nullish(),
-  deadline_at_epoch_ms: z.number().nullish(),
-  error: z.unknown(),
+    .describe("Workflow that was executed"),
+  gateway_id: z
+    .string()
+    .describe("ID of the gateway that will be used to execute the workflow"),
+  status: WorkflowExecutionStatusEnum.describe(
+    "Current status of the workflow execution",
+  ),
+  input: z.record(z.unknown()).optional().describe("Input data for the workflow execution"),
+  output: z.unknown().optional().describe("Output data for the workflow execution"),
+  completed_at_epoch_ms: z
+    .number()
+    .nullish()
+    .describe("Timestamp of when the workflow execution completed"),
+  start_at_epoch_ms: z
+    .number()
+    .nullish()
+    .describe("Timestamp of when the workflow execution started or will start"),
+  timeout_ms: z
+    .number()
+    .nullish()
+    .describe("Timeout in milliseconds for the workflow execution"),
+  deadline_at_epoch_ms: z
+    .number()
+    .nullish()
+    .describe(
+      "Deadline for the workflow execution - when the workflow execution will be cancelled if it is not completed. This is read-only and is set by the workflow engine when an execution is created.",
+    ),
+  error: z
+    .unknown()
+    .describe("Error that occurred during the workflow execution"),
 });
 export type WorkflowExecution = z.infer<typeof WorkflowExecutionSchema>;
 
@@ -289,7 +308,6 @@ const DEFAULT_STEP_CONFIG: StepConfig = {
 export const DEFAULT_TOOL_STEP: Omit<Step, "name"> = {
   action: {
     toolName: "LLM_DO_GENERATE",
-    connectionId: "",
     transformCode: `
     interface Input { 
       

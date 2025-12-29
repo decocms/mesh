@@ -104,7 +104,7 @@ function createDefaultStep(type: StepType, index: number): Step {
     case "tool":
       return {
         input: {},
-        action: { toolName: "", connectionId: "" },
+        action: { toolName: "" },
         outputSchema: {},
         name: `Step_${index + 1}`,
       };
@@ -188,6 +188,7 @@ const createWorkflowStore = (initialState: State) => {
               if (stepIndex === -1) return state;
 
               const stepToDuplicate = state.workflow.steps[stepIndex];
+              if (!stepToDuplicate) return state;
               const duplicatedStep: Step = {
                 ...stepToDuplicate,
                 name: generateUniqueName(
