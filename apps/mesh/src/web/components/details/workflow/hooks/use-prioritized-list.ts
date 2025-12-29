@@ -24,3 +24,4 @@ export function usePrioritizedList<T>(
     return compareFn ? compareFn(a, b) : 0;
   });
 }
+

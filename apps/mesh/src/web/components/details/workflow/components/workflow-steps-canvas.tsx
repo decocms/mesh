@@ -59,3 +59,4 @@ export function WorkflowStepsCanvas({ className }: WorkflowStepsCanvasProps) {
     </div>
   );
 }
+
