@@ -1,12 +1,21 @@
-import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { LanguageModelBinding } from "@decocms/bindings/llm";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
+  CallToolResultSchema,
+  type CallToolResult,
+} from "@modelcontextprotocol/sdk/types.js";
+import {
   convertToModelMessages,
+  jsonSchema,
+  JSONSchema7,
+  JSONValue,
   pruneMessages,
   stepCountIs,
   streamText,
+  tool,
+  ToolSet,
 } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -88,6 +97,55 @@ async function getConnectionById(
   return connection;
 }
 
+/** Converts MCP tools to AI SDK tools */
+const toolsFromMCP = async (client: Client): Promise<ToolSet> => {
+  const list = await client.listTools();
+
+  const toolEntries = list.tools.map((t) => {
+    const { name, title, description, inputSchema, outputSchema } = t;
+
+    return [
+      name,
+      tool<Record<string, unknown>, CallToolResult>({
+        title: title ?? name,
+        description,
+        inputSchema: jsonSchema(inputSchema as JSONSchema7),
+        outputSchema: outputSchema
+          ? jsonSchema(outputSchema as JSONSchema7)
+          : undefined,
+        execute: (input, options) =>
+          client.callTool(
+            { name: t.name, arguments: input as Record<string, unknown> },
+            CallToolResultSchema,
+            { signal: options.abortSignal },
+          ) as Promise<CallToolResult>,
+        toModelOutput: ({ output }) => {
+          if (output.isError) {
+            const textContent = output.content
+              .map((c) => (c.type === "text" ? c.text : null))
+              .filter(Boolean)
+              .join("\n");
+
+            return {
+              type: "error-text",
+              value: textContent ?? "Unknown error",
+            };
+          }
+          if ("structuredContent" in output) {
+            return {
+              type: "json",
+              value: output.structuredContent as JSONValue,
+            };
+          }
+          return { type: "content", value: output.content as any };
+        },
+      }),
+    ];
+  });
+
+  return Object.fromEntries(toolEntries);
+};
+
 function createGatewayTransport(
   req: Request,
   gatewayId: string,
@@ -116,7 +174,7 @@ app.post("/:org/models/stream", async (c) => {
   const orgSlug = c.req.param("org");
 
   // MCP client will be initialized after validation
-  let mcpClient: MCPClient | null = null;
+  let mcpClient: Client | null = null;
 
   try {
     const organization = ensureOrganization(ctx, orgSlug);
@@ -158,11 +216,16 @@ app.post("/:org/models/stream", async (c) => {
 
     const transport = createGatewayTransport(c.req.raw, gatewayConfig.id);
 
+    const client = new Client(
+      { name: "mcp-mesh-proxy", version: "1.0.0" },
+      { capabilities: { tools: {} } },
+    );
+
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
-    const [modelMessages, connection, client] = await Promise.all([
+    const [modelMessages, connection] = await Promise.all([
       convertToModelMessages(messages, { ignoreIncompleteToolCalls: true }),
       getConnectionById(ctx, organization.id, modelConfig.connectionId),
-      createMCPClient({ transport }),
+      client.connect(transport),
     ]);
 
     if (!connection) {
@@ -192,7 +255,7 @@ app.post("/:org/models/stream", async (c) => {
 
     const [proxy, tools] = await Promise.all([
       ctx.createMCPProxy(connection),
-      client.tools({ schemas: "automatic" }),
+      toolsFromMCP(client),
     ]);
 
     const llmBinding = LanguageModelBinding.forClient(proxy);
