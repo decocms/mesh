@@ -168,7 +168,7 @@ export class ToolGateway {
   async list(): Promise<ListToolsResult> {
     const cache = await this.cache;
     return {
-      tools: cache.strategyResult.tools.map(({ metadata, ...tool }) => tool),
+      tools: cache.strategyResult.tools.map(({ metadata: _, ...tool }) => tool),
     };
   }
 

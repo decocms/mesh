@@ -128,7 +128,7 @@ const toolsFromMCP = async (client: Client): Promise<ToolSet> => {
 
             return {
               type: "error-text",
-              value: textContent ?? "Unknown error",
+              value: textContent || "Unknown error",
             };
           }
           if ("structuredContent" in output) {
@@ -217,7 +217,7 @@ app.post("/:org/models/stream", async (c) => {
     const transport = createGatewayTransport(c.req.raw, gatewayConfig.id);
 
     const client = new Client(
-      { name: "mcp-mesh-gateway-client", version: "1.0.0" },
+      { name: "mcp-mesh-proxy", version: "1.0.0" },
       { capabilities: { tools: {} } },
     );
 
