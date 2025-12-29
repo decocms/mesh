@@ -4,12 +4,14 @@ export const WellKnownMCPId = {
   SELF: "self",
   REGISTRY: "registry",
   COMMUNITY_REGISTRY: "community-registry",
+  LOCAL_FS: "local-fs",
 };
 export const WellKnownOrgMCPId = {
   SELF: (org: string) => `${org}_${WellKnownMCPId.SELF}`,
   REGISTRY: (org: string) => `${org}_${WellKnownMCPId.REGISTRY}`,
   COMMUNITY_REGISTRY: (org: string) =>
     `${org}_${WellKnownMCPId.COMMUNITY_REGISTRY}`,
+  LOCAL_FS: (org: string) => `${org}_${WellKnownMCPId.LOCAL_FS}`,
 };
 
 /**
@@ -96,6 +98,36 @@ export function getWellKnownSelfConnection(
     metadata: {
       isDefault: true,
       type: WellKnownOrgMCPId.SELF,
+    },
+  };
+}
+
+/**
+ * Get well-known connection definition for Local File Storage.
+ * Stores files in a local storage/ directory where mesh is running.
+ *
+ * @param baseUrl - The base URL for the MCP server
+ * @returns ConnectionCreateData for Local File Storage
+ */
+export function getWellKnownLocalFsConnection(
+  baseUrl: string,
+): ConnectionCreateData {
+  return {
+    id: WellKnownMCPId.LOCAL_FS,
+    title: "Local Files",
+    description: "File storage in the local storage/ directory",
+    connection_type: "HTTP",
+    connection_url: `${baseUrl}/mcp/local-fs`,
+    icon: "https://assets.decocache.com/mcp/folder-open.png",
+    app_name: "@deco/local-fs",
+    connection_token: null,
+    connection_headers: null,
+    oauth_config: null,
+    configuration_state: null,
+    configuration_scopes: null,
+    metadata: {
+      isDefault: true,
+      type: "file-storage",
     },
   };
 }

@@ -628,6 +628,8 @@ export function createMeshContextFactory(
     // Note: Token revocation handled by Better Auth (deleteApiKey)
   };
 
+  // File storage is created per-request with the correct base URL
+
   // Return factory function
   return async (req?: Request): Promise<MeshContext> => {
     const connectionId = req?.headers.get("x-caller-id") ?? undefined;

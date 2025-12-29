@@ -117,4 +117,10 @@ export interface CollectionsListProps<T extends BaseCollectionEntity> {
    * @default [12, 24, 48, 96]
    */
   itemsPerPageOptions?: number[];
+
+  /**
+   * If true, shows only a simple trash icon for delete action
+   * instead of the dropdown menu. Useful for FILES collection.
+   */
+  simpleDeleteOnly?: boolean;
 }

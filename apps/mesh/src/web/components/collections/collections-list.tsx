@@ -82,6 +82,7 @@ export function CollectionsList<T extends BaseCollectionEntity>({
   columns = undefined,
   hideToolbar = false,
   sortableFields = undefined,
+  simpleDeleteOnly = false,
 }: CollectionsListProps<T>) {
   // Generate sort options from columns or schema
   const sortOptions = columns
@@ -155,7 +156,13 @@ export function CollectionsList<T extends BaseCollectionEntity>({
         </div>
       ) : (
         <CollectionTableWrapper
-          columns={getTableColumns(columns, schema, sortableFields, actions)}
+          columns={getTableColumns(
+            columns,
+            schema,
+            sortableFields,
+            actions,
+            simpleDeleteOnly,
+          )}
           data={data}
           sortKey={sortKey}
           sortDirection={sortDirection}
@@ -176,6 +183,31 @@ export function CollectionsList<T extends BaseCollectionEntity>({
       )}
     </div>
   );
+}
+
+// Helper to generate simple delete-only column (just a trash icon)
+function generateSimpleDeleteColumn<T extends BaseCollectionEntity>(
+  onDelete: (item: T) => void | Promise<void>,
+): TableColumn<T> {
+  return {
+    id: "actions",
+    header: "",
+    render: (row) => (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(row);
+        }}
+      >
+        <Trash01 size={16} />
+      </Button>
+    ),
+    cellClassName: "w-[50px]",
+    sortable: false,
+  };
 }
 
 // Helper to generate actions column
@@ -413,6 +445,7 @@ function getTableColumns<T extends BaseCollectionEntity>(
   schema: JsonSchema,
   sortableFields: string[] | undefined,
   actions: Record<string, (item: T) => void | Promise<void>>,
+  simpleDeleteOnly: boolean,
 ): TableColumn<T>[] {
   const baseColumns =
     columns || generateColumnsFromSchema(schema, sortableFields);
@@ -422,6 +455,11 @@ function getTableColumns<T extends BaseCollectionEntity>(
 
   if (hasActionsColumn) {
     return baseColumns;
+  }
+
+  // For simpleDeleteOnly, show only a trash icon if delete action exists
+  if (simpleDeleteOnly && actions.delete) {
+    return [...baseColumns, generateSimpleDeleteColumn(actions.delete)];
   }
 
   // Append actions column only if there are any actions available

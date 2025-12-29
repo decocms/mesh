@@ -5,6 +5,7 @@ import {
   createCollectionBindings,
 } from "@decocms/bindings/collections";
 import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
+import { FILE_STORAGE_BINDING } from "@decocms/bindings/file-storage";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
 import { convertJsonSchemaToZod } from "zod-from-json-schema";
@@ -23,6 +24,7 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
   WORKFLOW_EXECUTION: WORKFLOW_EXECUTION_BINDING,
   ASSISTANTS: ASSISTANTS_BINDING,
   MCP: MCP_BINDING,
+  FILE_STORAGE: FILE_STORAGE_BINDING,
 };
 
 /**
