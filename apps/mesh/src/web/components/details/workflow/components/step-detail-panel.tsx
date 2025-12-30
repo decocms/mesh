@@ -42,14 +42,14 @@ function useSyncOutputSchema(step: Step | undefined) {
   const { updateStep } = useWorkflowActions();
 
   const isToolStep = step && "toolName" in step.action;
-  const toolName = isToolStep && "toolName" in step.action
-    ? step.action.toolName
-    : null;
+  const toolName =
+    isToolStep && "toolName" in step.action ? step.action.toolName : null;
 
   const { tool } = useGatewayTool("gw_NVZj-H9VxwOMRt-1M6Ntf", toolName ?? "");
 
   // Check if step has a tool but outputSchema is empty or missing
-  const hasToolWithNoOutputSchema = step &&
+  const hasToolWithNoOutputSchema =
+    step &&
     toolName &&
     tool?.outputSchema &&
     (!step.outputSchema || Object.keys(step.outputSchema).length === 0);
@@ -82,7 +82,8 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
   }
 
   const isToolStep = "toolName" in currentStep.action;
-  const hasToolSelected = isToolStep &&
+  const hasToolSelected =
+    isToolStep &&
     "toolName" in currentStep.action &&
     currentStep.action.toolName;
 
@@ -115,9 +116,8 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
 function StepHeader({ step }: { step: Step }) {
   const { updateStep, startReplacingTool } = useWorkflowActions();
   const isToolStep = "toolName" in step.action;
-  const toolName = isToolStep && "toolName" in step.action
-    ? step.action.toolName
-    : null;
+  const toolName =
+    isToolStep && "toolName" in step.action ? step.action.toolName : null;
 
   const handleReplace = () => {
     // Store current tool info for back button
@@ -189,9 +189,8 @@ export function useGatewayTool(
 function InputSection({ step }: { step: Step }) {
   const { updateStep } = useWorkflowActions();
   const isToolStep = "toolName" in step.action;
-  const toolName = isToolStep && "toolName" in step.action
-    ? step.action.toolName
-    : null;
+  const toolName =
+    isToolStep && "toolName" in step.action ? step.action.toolName : null;
 
   const { tool } = useGatewayTool("gw_NVZj-H9VxwOMRt-1M6Ntf", toolName ?? "");
 
@@ -239,19 +238,20 @@ function OutputSection({ step }: { step: Step }) {
   const outputSchema = step.outputSchema;
   const trackingExecutionId = useTrackingExecutionId();
   const { step_results } = usePollingWorkflowExecution(trackingExecutionId);
-  const stepResult = step_results?.find((result) =>
-    result.step_id === step.name
+  const stepResult = step_results?.find(
+    (result) => result.step_id === step.name,
   );
   const output = stepResult?.output;
 
   console.log("output", output);
 
   // Always show the Output section (even if empty)
-  const properties = outputSchema && typeof outputSchema === "object"
-    ? ((outputSchema as Record<string, unknown>).properties as
-      | Record<string, unknown>
-      | undefined)
-    : undefined;
+  const properties =
+    outputSchema && typeof outputSchema === "object"
+      ? ((outputSchema as Record<string, unknown>).properties as
+          | Record<string, unknown>
+          | undefined)
+      : undefined;
 
   const propertyEntries = properties ? Object.entries(properties) : [];
 
@@ -269,31 +269,27 @@ function OutputSection({ step }: { step: Step }) {
           </span>
         </AccordionTrigger>
         <AccordionContent className="px-5 pt-2">
-          {propertyEntries.length === 0
-            ? (
-              <div className="text-sm text-muted-foreground italic">
-                No output schema defined
-              </div>
-            )
-            : output
-            ? (
-                <MonacoCodeEditor
-                  code={JSON.stringify(output, null, 2)}
-                  language="json"
-                  height={200}
+          {propertyEntries.length === 0 ? (
+            <div className="text-sm text-muted-foreground italic">
+              No output schema defined
+            </div>
+          ) : output ? (
+            <MonacoCodeEditor
+              code={JSON.stringify(output, null, 2)}
+              language="json"
+              height={200}
+            />
+          ) : (
+            <div className="space-y-2">
+              {propertyEntries.map(([key, propSchema]) => (
+                <OutputProperty
+                  key={key}
+                  name={key}
+                  schema={propSchema as JsonSchema}
                 />
-            )
-            : (
-              <div className="space-y-2">
-                {propertyEntries.map(([key, propSchema]) => (
-                  <OutputProperty
-                    key={key}
-                    name={key}
-                    schema={propSchema as JsonSchema}
-                  />
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
+          )}
         </AccordionContent>
       </AccordionItem>
     </Accordion>
@@ -356,15 +352,15 @@ function TransformCodeSection({ step }: { step: Step }) {
   const { updateStep } = useWorkflowActions();
 
   const isToolStep = "toolName" in step.action;
-  const toolName = isToolStep && "toolName" in step.action
-    ? step.action.toolName
-    : null;
+  const toolName =
+    isToolStep && "toolName" in step.action ? step.action.toolName : null;
 
   const { tool } = useGatewayTool("gw_NVZj-H9VxwOMRt-1M6Ntf", toolName ?? "");
 
-  const transformCode = isToolStep && "transformCode" in step.action
-    ? (step.action.transformCode ?? null)
-    : null;
+  const transformCode =
+    isToolStep && "transformCode" in step.action
+      ? (step.action.transformCode ?? null)
+      : null;
 
   const hasTransformCode = Boolean(transformCode);
 
