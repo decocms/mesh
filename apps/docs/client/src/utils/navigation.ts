@@ -15,16 +15,30 @@ export async function getNavigationLinks(
 
   // Define the correct order for navigation
   const order = [
-    "introduction.mdx",
-    "getting-started/ai-builders.mdx",
-    "getting-started/developers.mdx",
-    "no-code-guides/creating-tools.mdx",
-    "no-code-guides/creating-agents.mdx",
-    "full-code-guides/project-structure.mdx",
-    "full-code-guides/building-tools.mdx",
-    "full-code-guides/building-views.mdx",
-    "full-code-guides/resources.mdx",
-    "full-code-guides/deployment.mdx",
+    "introduction",
+    // MCP Mesh (product docs)
+    "mcp-mesh/overview",
+    "mcp-mesh/quickstart",
+    "mcp-mesh/concepts",
+    "mcp-mesh/connect-clients",
+    "mcp-mesh/authentication",
+    "mcp-mesh/authorization-and-roles",
+    "mcp-mesh/mcp-servers",
+    "mcp-mesh/mcp-gateways",
+    "mcp-mesh/api-keys",
+    "mcp-mesh/monitoring",
+    "mcp-mesh/api-reference",
+    "mcp-mesh/deploy/local-docker-compose",
+    "mcp-mesh/deploy/kubernetes-helm-chart",
+    "getting-started/ai-builders",
+    "getting-started/developers",
+    "no-code-guides/creating-tools",
+    "no-code-guides/creating-agents",
+    "full-code-guides/project-structure",
+    "full-code-guides/building-tools",
+    "full-code-guides/building-views",
+    "full-code-guides/resources",
+    "full-code-guides/deployment",
   ];
 
   // Sort docs according to the defined order

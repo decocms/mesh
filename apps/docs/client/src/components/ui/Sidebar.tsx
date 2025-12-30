@@ -212,11 +212,14 @@ function TreeList({
   const isNodeVisible = (node: FlatNode): boolean => {
     if (node.depth === 0) return true;
 
-    // Find the parent folder
-    const parentPath = node.path.slice(0, -1);
-    const parentId = parentPath.join("/");
+    // A node is visible only if ALL its ancestor folders are expanded.
+    // (This fixes cases where a grandparent folder is collapsed but a child still shows.)
+    for (let i = 1; i < node.path.length; i++) {
+      const ancestorId = node.path.slice(0, i).join("/");
+      if (treeState.get(ancestorId) === false) return false;
+    }
 
-    return treeState.get(parentId) !== false;
+    return true;
   };
 
   // Group nodes to determine when to add separators

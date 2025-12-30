@@ -1,0 +1,38 @@
+---
+title: API Reference
+description: The core HTTP endpoints exposed by the Mesh for MCP, gateways, OAuth, and ops
+icon: Code
+---
+
+## MCP endpoints
+
+### Management MCP
+
+- `POST /mcp`
+
+This endpoint exposes **management tools** via MCP (orgs, connections, gateways, API keys, monitoring, event bus).
+
+### Connection proxy
+
+- `POST /mcp/:connectionId`
+
+Proxies MCP requests to a single upstream connection.
+
+### Gateway (virtual server)
+
+- `POST /mcp/gateway/:gatewayId`
+- `POST /mcp/gateway` (default gateway; requires `x-org-id` or `x-org-slug`)
+
+Aggregates tools/resources/prompts across multiple connections.
+
+## OAuth discovery
+
+- `GET /.well-known/oauth-protected-resource`
+- `GET /.well-known/oauth-authorization-server`
+
+## Ops
+
+- `GET /health`
+- `GET /metrics`
+
+

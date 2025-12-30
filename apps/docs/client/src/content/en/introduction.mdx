@@ -12,7 +12,7 @@ import Callout from "../../components/ui/Callout.astro";
 
 **deco CMS** is an open-source **Context Management System** for AI-native operations.
 
-If MCP is the standard interface for tool access, deco CMS is the **production layer around it**: connect MCP servers, enforce governance, and get observability as usage scales across teams and environments. The broader platform also includes a **builder framework** (MCP Studio — coming soon, replacing the legacy admin) and **distribution capabilities** (pre-built modules and store).
+If MCP is the standard interface for tool access, deco CMS is the **production layer around it**: connect MCP servers, enforce governance, and get observability as usage scales across teams and environments. The broader platform also includes a **builder framework** (MCP Studio — coming soon) and **distribution capabilities** (pre-built modules and store).
 
 **Official links:**
 
@@ -22,15 +22,37 @@ If MCP is the standard interface for tool access, deco CMS is the **production l
 
 If you know us from before (as **deco.cx**) and you’re looking for **headless CMS + storefront** capabilities, visit [deco.cx](https://www.decocms.com/use-case/deco-cx). See the deco.cx docs at [docs.deco.cx](https://docs.deco.cx/en/getting-started/overview).
 
-## Quick start (Mesh)
+## Start with the MCP Mesh
 
-### Option A: one-command local Mesh setup
+Choose one:
+
+### Option A: one-command local setup (npx)
 
 ```bash
 npx @decocms/mesh
 ```
 
-### Option B: run from source
+### Option B: local setup with Docker Compose
+
+```bash
+# 1. Configure environment variables
+# Edit .env and configure BETTER_AUTH_SECRET (required)
+# Generate a secret: openssl rand -base64 32
+cp conf-examples/env.example .env
+
+# 2. Configure authentication
+cp conf-examples/auth-config.json.example auth-config.json
+
+# 3. Start the application
+docker compose up -d
+
+# 4. Access
+open http://localhost:3000
+```
+
+**More details:** [Local: Docker Compose](/en/mcp-mesh/deploy/local-docker-compose)
+
+### Option C: run from source
 
 ```bash
 git clone https://github.com/decocms/mesh.git
@@ -39,10 +61,41 @@ bun install
 bun run dev
 ```
 
-## Deploy (Mesh)
+### Option D: deploy to Kubernetes (Helm)
 
-- **[Local: Docker Compose](/en/mcp-mesh/deploy/local-docker-compose)**
-- **[Kubernetes: Helm Chart](/en/mcp-mesh/deploy/kubernetes-helm-chart)**
+```bash
+# 1. Generate a secure secret for authentication
+SECRET=$(openssl rand -base64 32)
+
+# 2. Install the chart with the generated secret
+helm install deco-mcp-mesh . \
+  --namespace deco-mcp-mesh \
+  --create-namespace \
+  --set secret.BETTER_AUTH_SECRET="$SECRET"
+
+# 3. Wait for pods to be ready
+kubectl wait --for=condition=ready pod \
+  -l app.kubernetes.io/instance=deco-mcp-mesh \
+  -n deco-mcp-mesh \
+  --timeout=300s
+
+# 4. Access via port-forward
+kubectl port-forward svc/deco-mcp-mesh 8080:80 -n deco-mcp-mesh
+```
+
+The application will be available at `http://localhost:8080`.
+
+**More details:** [Kubernetes: Helm Chart](/en/mcp-mesh/deploy/kubernetes-helm-chart)
+
+## Learn the Mesh (concepts + product surfaces)
+
+- **[MCP Mesh Overview](/en/mcp-mesh/overview)**
+- **[Quickstart](/en/mcp-mesh/quickstart)**
+- **[Concepts](/en/mcp-mesh/concepts)**
+- **[MCP Servers (Connections)](/en/mcp-mesh/mcp-servers)**
+- **[MCP Gateways](/en/mcp-mesh/mcp-gateways)**
+- **[API Keys](/en/mcp-mesh/api-keys)**
+- **[Monitoring](/en/mcp-mesh/monitoring)**
 
 <Callout type="warning">
   **Docs split (quick guide):**
@@ -50,21 +103,22 @@ bun run dev
   - **The MCP Mesh** → Self-hosting, deploying, and operating the Mesh (recommended).
   - **Legacy Admin** → If you’re using `admin.decocms.com` (still supported, **deprecated soon**).
 
-  We’re launching **MCP Studio** (on top of Mesh), which will bring the current SaaS admin capabilities to the Mesh (including a hosted option by us) and replace the legacy SaaS over time.
+  We’re launching **MCP Studio** (on top of the Mesh), which will bring the current SaaS admin capabilities to the Mesh (including a hosted option by us) and replace the legacy SaaS over time.
 </Callout>
 
-## Problem (and what the Mesh fixes)
+## Problem: the production gap
 
-When AI moves from demos to production, teams usually hit the same constraints:
+AI is easy to demo and hard to **operate**.
 
-- **Governance gaps**: no single place to enforce SSO/RBAC, approvals, and audit trails
-- **Integration sprawl**: every client wires every tool with its own retries, auth, and config
-- **Operational blind spots**: debugging is slow; failures and costs are hard to trace end-to-end
-- **Context obesity**: bloated prompts and tool lists degrade quality and increase cost
+As tool surfaces and teams grow, most orgs run into the same production constraints:
 
-The MCP Mesh centralizes those cross-cutting concerns **once** so you don’t rebuild them in every agent/app.
+- **Autonomy breaks**: shipping gets bottlenecked by bespoke integrations, security reviews, and platform tickets
+- **Context fragments**: knowledge lives across many systems and teams rebuild connectors and retrieval repeatedly
+- **Governance is inconsistent**: no single place for SSO/RBAC, audit trails, and operational visibility
 
-## Platform structure: Mesh → Studio → Distribution
+For more context on our platform-level thesis, read [The architecture of an AI-native company](https://www.decocms.com/blog/post/ai-native-company).
+
+## Platform structure: Mesh → Studio → Apps & Store
 
 ### The MCP Mesh (foundation)
 An open-source **control plane for MCP traffic**. It sits between your MCP clients (Cursor, Claude, VS Code, custom agents) and your MCP servers, providing a unified layer for auth, policy, and observability.
