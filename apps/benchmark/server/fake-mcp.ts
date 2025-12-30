@@ -5,35 +5,13 @@
  * Uses the MCP SDK to expose tools that return mock responses.
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
   type CallToolRequest,
   type CallToolResult,
   type ListToolsResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import type { FakeMcpHandle, ToolWithHandler } from "../types";
-
-/**
- * Simple HTTP transport for the MCP server
- */
-class SimpleHttpTransport {
-  private messageHandler: ((message: unknown) => Promise<unknown>) | null =
-    null;
-
-  onMessage(handler: (message: unknown) => Promise<unknown>): void {
-    this.messageHandler = handler;
-  }
-
-  async handleRequest(request: unknown): Promise<unknown> {
-    if (!this.messageHandler) {
-      throw new Error("No message handler registered");
-    }
-    return this.messageHandler(request);
-  }
-}
 
 /**
  * Start a fake MCP server with the given tools
@@ -46,12 +24,6 @@ export async function startFakeMCP(
   tools: ToolWithHandler[],
   port: number,
 ): Promise<FakeMcpHandle> {
-  // Create MCP server
-  const mcpServer = new McpServer(
-    { name: "fake-mcp-benchmark", version: "1.0.0" },
-    { capabilities: { tools: {} } },
-  );
-
   // Create tool handler map
   const toolHandlers = new Map(tools.map((t) => [t.tool.name, t.handler]));
 
