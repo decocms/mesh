@@ -29,7 +29,10 @@ export const connectionFormSchema = z
     env_vars: z.array(envVarSchema).optional(),
     // Preserved fields
     configuration_scopes: z.array(z.string()).nullable().optional(),
-    configuration_state: z.record(z.unknown()).nullable().optional(),
+    configuration_state: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .optional(),
   })
   .refine(
     (data) => {
