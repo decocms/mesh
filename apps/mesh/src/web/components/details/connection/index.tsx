@@ -7,6 +7,8 @@ import {
 } from "@/web/hooks/collections/use-connection";
 import { useCollectionBindings } from "@/web/hooks/use-binding";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
+import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
+import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Loading01 } from "@untitledui/icons";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
@@ -19,7 +21,9 @@ import {
 import { Suspense } from "react";
 import { ViewLayout, ViewTabs } from "../layout";
 import { CollectionTab } from "./collection-tab";
+import { PromptsTab } from "./prompts-tab";
 import { ReadmeTab } from "./readme-tab";
+import { ResourcesTab } from "./resources-tab";
 import { SettingsTab } from "./settings-tab";
 import { ToolsTab } from "./tools-tab";
 
@@ -31,6 +35,8 @@ function ConnectionInspectorViewWithConnection({
   collections,
   onUpdate,
   isUpdating,
+  prompts,
+  resources,
 }: {
   connection: ConnectionEntity;
   connectionId: string;
@@ -39,6 +45,13 @@ function ConnectionInspectorViewWithConnection({
   collections: ReturnType<typeof useCollectionBindings>;
   onUpdate: (connection: Partial<ConnectionEntity>) => Promise<void>;
   isUpdating: boolean;
+  prompts: Array<{ name: string; description?: string }>;
+  resources: Array<{
+    uri: string;
+    name?: string;
+    description?: string;
+    mimeType?: string;
+  }>;
 }) {
   const router = useRouter();
   const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
@@ -55,11 +68,19 @@ function ConnectionInspectorViewWithConnection({
   const hasRepository = !!repository?.url;
 
   const toolsCount = connection?.tools?.length ?? 0;
+  const promptsCount = prompts.length;
+  const resourcesCount = resources.length;
 
   const tabs = [
     { id: "settings", label: "Settings" },
     ...(isMCPAuthenticated && toolsCount > 0
       ? [{ id: "tools", label: "Tools", count: toolsCount }]
+      : []),
+    ...(isMCPAuthenticated && promptsCount > 0
+      ? [{ id: "prompts", label: "Prompts", count: promptsCount }]
+      : []),
+    ...(isMCPAuthenticated && resourcesCount > 0
+      ? [{ id: "resources", label: "Resources", count: resourcesCount }]
       : []),
     ...(isMCPAuthenticated
       ? (collections || []).map((c) => ({ id: c.name, label: c.displayName }))
@@ -104,6 +125,18 @@ function ConnectionInspectorViewWithConnection({
               {activeTabId === "tools" ? (
                 <ToolsTab
                   tools={connection.tools ?? undefined}
+                  connectionId={connectionId}
+                  org={org}
+                />
+              ) : activeTabId === "prompts" ? (
+                <PromptsTab
+                  prompts={prompts}
+                  connectionId={connectionId}
+                  org={org}
+                />
+              ) : activeTabId === "resources" ? (
+                <ResourcesTab
+                  resources={resources}
                   connectionId={connectionId}
                   org={org}
                 />
@@ -157,6 +190,13 @@ function ConnectionInspectorViewContent() {
   // Detect collection bindings
   const collections = useCollectionBindings(connection ?? undefined);
 
+  // Fetch prompts and resources for this connection
+  const { promptsMap } = useConnectionsPrompts([connectionId]);
+  const { resourcesMap } = useConnectionsResources([connectionId]);
+
+  const prompts = promptsMap.get(connectionId) ?? [];
+  const resources = resourcesMap.get(connectionId) ?? [];
+
   // Update connection handler
   const handleUpdateConnection = async (
     updatedConnection: Partial<ConnectionEntity>,
@@ -200,6 +240,8 @@ function ConnectionInspectorViewContent() {
       collections={collections}
       onUpdate={handleUpdateConnection}
       isUpdating={actions.update.isPending}
+      prompts={prompts}
+      resources={resources}
     />
   );
 }
