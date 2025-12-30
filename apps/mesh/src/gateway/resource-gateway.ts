@@ -12,11 +12,56 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import { lazy } from "../common";
 import type { ProxyCollection } from "./proxy-collection";
+import type { ToolSelectionMode } from "../storage/types";
 
 /** Cached data structure */
 interface ResourceCache {
   resources: Resource[];
   mappings: Map<string, string>; // uri -> connectionId
+}
+
+/** Options for ResourceGateway */
+export interface ResourceGatewayOptions {
+  selectionMode: ToolSelectionMode;
+}
+
+/**
+ * Check if a URI matches a pattern
+ * Supports:
+ * - Exact match: "file:///path/to/file.txt"
+ * - Single segment wildcard (*): "file:///path/*.txt" matches "file:///path/foo.txt"
+ * - Multi-segment wildcard (**): "file:///**" matches any path under file://
+ */
+function matchesPattern(uri: string, pattern: string): boolean {
+  // Exact match
+  if (uri === pattern) return true;
+
+  // Check if pattern contains wildcards
+  if (!pattern.includes("*")) return false;
+
+  // Convert pattern to regex
+  // Escape special regex chars except * and **
+  let regexPattern = pattern
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&") // Escape special chars
+    .replace(/\*\*/g, "<<<DOUBLE_STAR>>>") // Protect **
+    .replace(/\*/g, "[^/]*") // Single * matches any non-/ sequence
+    .replace(/<<<DOUBLE_STAR>>>/g, ".*"); // ** matches anything
+
+  // Add anchors for full match
+  regexPattern = `^${regexPattern}$`;
+
+  try {
+    return new RegExp(regexPattern).test(uri);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a URI matches any of the patterns (or is an exact match)
+ */
+function matchesAnyPattern(uri: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => matchesPattern(uri, pattern));
 }
 
 /**
@@ -29,7 +74,10 @@ interface ResourceCache {
 export class ResourceGateway {
   private cache: Promise<ResourceCache>;
 
-  constructor(private proxies: ProxyCollection) {
+  constructor(
+    private proxies: ProxyCollection,
+    private options: ResourceGatewayOptions,
+  ) {
     // Create lazy cache - only loads when first awaited
     this.cache = lazy(() => this.loadResources());
   }
@@ -43,7 +91,34 @@ export class ResourceGateway {
       async (entry, connectionId) => {
         try {
           const result = await entry.proxy.client.listResources();
-          return { connectionId, resources: result.resources };
+          let resources = result.resources;
+
+          // Apply selection based on mode
+          if (this.options.selectionMode === "exclusion") {
+            // Exclusion mode: exclude matching resources
+            if (entry.selectedResources && entry.selectedResources.length > 0) {
+              resources = resources.filter(
+                (r) => !matchesAnyPattern(r.uri, entry.selectedResources!),
+              );
+            }
+            // If selectedResources is null/empty in exclusion mode, include all resources
+          } else {
+            // Inclusion mode: include only selected resources
+            // Resources require explicit selection (patterns or URIs)
+            if (
+              !entry.selectedResources ||
+              entry.selectedResources.length === 0
+            ) {
+              // No resources selected = no resources from this connection
+              resources = [];
+            } else {
+              resources = resources.filter((r) =>
+                matchesAnyPattern(r.uri, entry.selectedResources!),
+              );
+            }
+          }
+
+          return { connectionId, resources };
         } catch (error) {
           console.error(
             `[gateway] Failed to list resources for connection ${connectionId}:`,

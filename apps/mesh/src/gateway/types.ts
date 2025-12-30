@@ -32,6 +32,8 @@ export interface ProxyEntry {
   proxy: MCPProxy;
   connection: ConnectionEntity;
   selectedTools: string[] | null;
+  selectedResources: string[] | null;
+  selectedPrompts: string[] | null;
 }
 
 /** Options for creating a gateway */
@@ -39,6 +41,8 @@ export interface GatewayOptions {
   connections: Array<{
     connection: ConnectionEntity;
     selectedTools: string[] | null;
+    selectedResources: string[] | null;
+    selectedPrompts: string[] | null;
   }>;
   toolSelectionMode: ToolSelectionMode;
   toolSelectionStrategy: GatewayToolSelectionStrategy;

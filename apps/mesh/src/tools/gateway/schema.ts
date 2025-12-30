@@ -37,7 +37,7 @@ export type GatewayToolSelectionStrategy = z.infer<
 >;
 
 /**
- * Gateway connection schema - defines which connection and tools are included/excluded
+ * Gateway connection schema - defines which connection and tools/resources/prompts are included/excluded
  */
 const GatewayConnectionSchema = z.object({
   connection_id: z.string().describe("Connection ID"),
@@ -46,6 +46,18 @@ const GatewayConnectionSchema = z.object({
     .nullable()
     .describe(
       "Selected tool names. With 'inclusion' mode: null = all tools included. With 'exclusion' mode: null = entire connection excluded",
+    ),
+  selected_resources: z
+    .array(z.string())
+    .nullable()
+    .describe(
+      "Selected resource URIs or patterns. Supports * and ** wildcards for pattern matching. With 'inclusion' mode: null = all resources included.",
+    ),
+  selected_prompts: z
+    .array(z.string())
+    .nullable()
+    .describe(
+      "Selected prompt names. With 'inclusion' mode: null = all prompts included. With 'exclusion' mode: null = entire connection excluded.",
     ),
 });
 
@@ -135,6 +147,20 @@ export const GatewayCreateDataSchema = z.object({
           .describe(
             "Selected tool names (null/undefined = all tools or full exclusion)",
           ),
+        selected_resources: z
+          .array(z.string())
+          .nullable()
+          .optional()
+          .describe(
+            "Selected resource URIs or patterns with * and ** wildcards (null/undefined = all resources)",
+          ),
+        selected_prompts: z
+          .array(z.string())
+          .nullable()
+          .optional()
+          .describe(
+            "Selected prompt names (null/undefined = all prompts or full exclusion)",
+          ),
       }),
     )
     .describe(
@@ -181,6 +207,20 @@ export const GatewayUpdateDataSchema = z.object({
           .optional()
           .describe(
             "Selected tool names (null/undefined = all tools or full exclusion)",
+          ),
+        selected_resources: z
+          .array(z.string())
+          .nullable()
+          .optional()
+          .describe(
+            "Selected resource URIs or patterns with * and ** wildcards (null/undefined = all resources)",
+          ),
+        selected_prompts: z
+          .array(z.string())
+          .nullable()
+          .optional()
+          .describe(
+            "Selected prompt names (null/undefined = all prompts or full exclusion)",
           ),
       }),
     )

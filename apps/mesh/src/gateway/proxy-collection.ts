@@ -27,24 +27,39 @@ export class ProxyCollection {
     connections: Array<{
       connection: ConnectionEntity;
       selectedTools: string[] | null;
+      selectedResources: string[] | null;
+      selectedPrompts: string[] | null;
     }>,
     ctx: MeshContext,
   ): Promise<ProxyCollection> {
     const collection = new ProxyCollection();
 
     const proxyResults = await Promise.allSettled(
-      connections.map(async ({ connection, selectedTools }) => {
-        try {
-          const proxy = await ctx.createMCPProxy(connection);
-          return { connection, proxy, selectedTools };
-        } catch (error) {
-          console.error(
-            `[gateway] Failed to create proxy for connection ${connection.id}:`,
-            error,
-          );
-          return null;
-        }
-      }),
+      connections.map(
+        async ({
+          connection,
+          selectedTools,
+          selectedResources,
+          selectedPrompts,
+        }) => {
+          try {
+            const proxy = await ctx.createMCPProxy(connection);
+            return {
+              connection,
+              proxy,
+              selectedTools,
+              selectedResources,
+              selectedPrompts,
+            };
+          } catch (error) {
+            console.error(
+              `[gateway] Failed to create proxy for connection ${connection.id}:`,
+              error,
+            );
+            return null;
+          }
+        },
+      ),
     );
 
     for (const result of proxyResults) {

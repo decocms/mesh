@@ -231,6 +231,8 @@ export const COLLECTION_GATEWAY_LIST = defineTool({
       connections: gateway.connections.map((conn) => ({
         connection_id: conn.connectionId,
         selected_tools: conn.selectedTools,
+        selected_resources: conn.selectedResources,
+        selected_prompts: conn.selectedPrompts,
       })),
       created_at: gateway.createdAt as string,
       updated_at: gateway.updatedAt as string,

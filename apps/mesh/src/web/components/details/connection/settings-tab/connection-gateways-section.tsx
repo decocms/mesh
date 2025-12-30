@@ -80,6 +80,8 @@ function CreateGatewayButton({
         {
           connection_id: connectionId,
           selected_tools: null,
+          selected_resources: null,
+          selected_prompts: null,
         },
       ],
     });

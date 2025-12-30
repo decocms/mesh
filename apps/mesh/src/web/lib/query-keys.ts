@@ -106,4 +106,16 @@ export const KEYS = {
     limit?: number;
     offset?: number;
   }) => ["monitoring", "logs", filters] as const,
+
+  // Gateway prompts (for ice breakers in chat)
+  gatewayPrompts: (gatewayId: string) =>
+    ["gateway", gatewayId, "prompts"] as const,
+
+  // Connection prompts (for gateway settings)
+  connectionPrompts: (connectionId: string) =>
+    ["connection", connectionId, "prompts"] as const,
+
+  // Connection resources (for gateway settings)
+  connectionResources: (connectionId: string) =>
+    ["connection", connectionId, "resources"] as const,
 } as const;
