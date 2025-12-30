@@ -115,7 +115,8 @@ export const proxyConnectionForId = (
     headers,
   };
 };
-export const mcpClientForConnectionId = (
+
+const mcpClientForConnectionId = (
   connectionId: string,
   ctx: ClientContext,
   appName?: string,
