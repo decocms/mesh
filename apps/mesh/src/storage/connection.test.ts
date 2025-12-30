@@ -48,10 +48,12 @@ describe("ConnectionStorage", () => {
         title: "With Headers",
         connection_type: "SSE",
         connection_url: "https://sse.com",
-        connection_headers: { "X-Custom": "value" },
+        connection_headers: { headers: { "X-Custom": "value" } },
       });
 
-      expect(connection.connection_headers).toEqual({ "X-Custom": "value" });
+      expect(connection.connection_headers).toEqual({
+        headers: { "X-Custom": "value" },
+      });
     });
 
     it("should serialize OAuth config as JSON", async () => {
@@ -259,7 +261,7 @@ describe("ConnectionStorage", () => {
         title: "JSON Test",
         connection_type: "SSE",
         connection_url: "https://test.com",
-        connection_headers: { "X-Test": "value" },
+        connection_headers: { headers: { "X-Test": "value" } },
         metadata: { key: "value" },
       });
 
@@ -269,7 +271,9 @@ describe("ConnectionStorage", () => {
         bindings: ["CHAT"],
       });
 
-      expect(updated.connection_headers).toEqual({ "X-Test": "value" });
+      expect(updated.connection_headers).toEqual({
+        headers: { "X-Test": "value" },
+      });
       expect(updated.metadata).toEqual({ key: "value" });
       expect(updated.tools).toEqual([{ name: "TEST_TOOL", inputSchema: {} }]);
       expect(updated.bindings).toEqual(["CHAT"]);

@@ -1,5 +1,15 @@
 import { createToolCaller } from "@/tools/client";
-import type { ConnectionEntity } from "@/tools/connection/schema";
+import type {
+  ConnectionEntity,
+  StdioConnectionParameters,
+  HttpConnectionParameters,
+} from "@/tools/connection/schema";
+import { isStdioParameters } from "@/tools/connection/schema";
+import {
+  envVarsToRecord,
+  recordToEnvVars,
+  type EnvVar,
+} from "@/web/components/env-vars-editor";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { useConnectionActions } from "@/web/hooks/collections/use-connection";
@@ -18,6 +28,199 @@ import { ViewActions } from "../../layout";
 import { ConnectionSettingsFormUI } from "./connection-settings-form-ui";
 import { McpConfigurationForm } from "./mcp-configuration-form";
 import { connectionFormSchema, type ConnectionFormData } from "./schema";
+
+/**
+ * Check if STDIO params look like an NPX command
+ */
+function isNpxCommand(params: StdioConnectionParameters): boolean {
+  return params.command === "npx";
+}
+
+/**
+ * Parse STDIO connection_headers back to NPX form fields
+ */
+function parseStdioToNpx(params: StdioConnectionParameters): string {
+  // Find the package (skip -y flag)
+  return params.args?.find((a) => !a.startsWith("-")) ?? "";
+}
+
+/**
+ * Parse STDIO connection_headers to custom command form fields
+ */
+function parseStdioToCustom(params: StdioConnectionParameters): {
+  command: string;
+  args: string;
+  cwd: string;
+} {
+  return {
+    command: params.command,
+    args: params.args?.join(" ") ?? "",
+    cwd: params.cwd ?? "",
+  };
+}
+
+/**
+ * Build STDIO connection_headers from NPX form fields
+ */
+function buildNpxParameters(
+  packageName: string,
+  envVars: EnvVar[],
+): StdioConnectionParameters {
+  const params: StdioConnectionParameters = {
+    command: "npx",
+    args: ["-y", packageName],
+  };
+  const envRecord = envVarsToRecord(envVars);
+  if (Object.keys(envRecord).length > 0) {
+    params.envVars = envRecord;
+  }
+  return params;
+}
+
+/**
+ * Build STDIO connection_headers from custom command form fields
+ */
+function buildCustomStdioParameters(
+  command: string,
+  argsString: string,
+  cwd: string | undefined,
+  envVars: EnvVar[],
+): StdioConnectionParameters {
+  const params: StdioConnectionParameters = {
+    command: command,
+  };
+
+  // Parse args from space-separated string (basic parsing)
+  if (argsString.trim()) {
+    params.args = argsString.trim().split(/\s+/);
+  }
+
+  if (cwd?.trim()) {
+    params.cwd = cwd.trim();
+  }
+
+  const envRecord = envVarsToRecord(envVars);
+  if (Object.keys(envRecord).length > 0) {
+    params.envVars = envRecord;
+  }
+
+  return params;
+}
+
+/**
+ * Convert connection entity to form values
+ */
+function connectionToFormValues(
+  connection: ConnectionEntity,
+  scopes?: string[],
+): ConnectionFormData {
+  const baseFields = {
+    title: connection.title,
+    description: connection.description ?? "",
+    configuration_state: connection.configuration_state ?? {},
+    configuration_scopes: scopes || connection.configuration_scopes || [],
+  };
+
+  // Check if it's a STDIO connection
+  if (
+    connection.connection_type === "STDIO" &&
+    isStdioParameters(connection.connection_headers)
+  ) {
+    const stdioParams = connection.connection_headers;
+    const envVars = recordToEnvVars(stdioParams.envVars);
+
+    // Check if it's an NPX command
+    if (isNpxCommand(stdioParams)) {
+      const npxPackage = parseStdioToNpx(stdioParams);
+      return {
+        ...baseFields,
+        ui_type: "NPX",
+        connection_url: "",
+        connection_token: null,
+        npx_package: npxPackage,
+        stdio_command: "",
+        stdio_args: "",
+        stdio_cwd: "",
+        env_vars: envVars,
+      };
+    }
+
+    // Custom STDIO command
+    const customData = parseStdioToCustom(stdioParams);
+    return {
+      ...baseFields,
+      ui_type: "STDIO",
+      connection_url: "",
+      connection_token: null,
+      npx_package: "",
+      stdio_command: customData.command,
+      stdio_args: customData.args,
+      stdio_cwd: customData.cwd,
+      env_vars: envVars,
+    };
+  }
+
+  // HTTP/SSE/Websocket connection
+  return {
+    ...baseFields,
+    ui_type: connection.connection_type as "HTTP" | "SSE" | "Websocket",
+    connection_url: connection.connection_url ?? "",
+    connection_token: null, // Don't pre-fill token for security
+    npx_package: "",
+    stdio_command: "",
+    stdio_args: "",
+    stdio_cwd: "",
+    env_vars: [],
+  };
+}
+
+/**
+ * Convert form values back to connection entity update
+ */
+function formValuesToConnectionUpdate(
+  data: ConnectionFormData,
+): Partial<ConnectionEntity> {
+  let connectionType: "HTTP" | "SSE" | "Websocket" | "STDIO";
+  let connectionUrl: string | null = null;
+  let connectionToken: string | null = null;
+  let connectionParameters:
+    | StdioConnectionParameters
+    | HttpConnectionParameters
+    | null = null;
+
+  if (data.ui_type === "NPX") {
+    connectionType = "STDIO";
+    connectionUrl = ""; // STDIO doesn't use URL
+    connectionParameters = buildNpxParameters(
+      data.npx_package || "",
+      data.env_vars || [],
+    );
+  } else if (data.ui_type === "STDIO") {
+    connectionType = "STDIO";
+    connectionUrl = ""; // STDIO doesn't use URL
+    connectionParameters = buildCustomStdioParameters(
+      data.stdio_command || "",
+      data.stdio_args || "",
+      data.stdio_cwd,
+      data.env_vars || [],
+    );
+  } else {
+    connectionType = data.ui_type;
+    connectionUrl = data.connection_url || "";
+    connectionToken = data.connection_token || null;
+  }
+
+  return {
+    title: data.title,
+    description: data.description || null,
+    connection_type: connectionType,
+    connection_url: connectionUrl,
+    ...(connectionToken && { connection_token: connectionToken }),
+    ...(connectionParameters && { connection_headers: connectionParameters }),
+    configuration_state: data.configuration_state ?? null,
+    configuration_scopes: data.configuration_scopes ?? null,
+  };
+}
 
 interface SettingsTabProps {
   connection: ConnectionEntity;
@@ -235,15 +438,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
 
   const form = useForm<ConnectionFormData>({
     resolver: zodResolver(connectionFormSchema),
-    values: {
-      title: connection.title,
-      description: connection.description ?? "",
-      connection_type: connection.connection_type,
-      connection_url: connection.connection_url,
-      connection_token: connection.connection_token,
-      configuration_state: connection.configuration_state ?? {},
-      configuration_scopes: scopes || connection.configuration_scopes || [],
-    },
+    values: connectionToFormValues(connection, scopes),
   });
 
   const formState = form.watch("configuration_state");
@@ -258,7 +453,8 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
     if (!isValid) return;
 
     const data = form.getValues();
-    await onUpdate(data);
+    const updateData = formValuesToConnectionUpdate(data);
+    await onUpdate(updateData);
     form.reset(data);
   };
 

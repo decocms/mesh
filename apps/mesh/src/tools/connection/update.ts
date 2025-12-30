@@ -158,6 +158,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     const fetchedTools = await fetchToolsFromMCP({
       id: existing.id,
       title: data.title ?? existing.title,
+      connection_type: data.connection_type ?? existing.connection_type,
       connection_url: data.connection_url ?? existing.connection_url,
       connection_token: data.connection_token ?? existing.connection_token,
       connection_headers:

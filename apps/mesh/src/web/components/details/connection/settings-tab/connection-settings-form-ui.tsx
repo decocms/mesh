@@ -1,5 +1,7 @@
 import type { ConnectionEntity } from "@/tools/connection/schema";
+import { EnvVarsEditor } from "@/web/components/env-vars-editor";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   Form,
@@ -17,10 +19,259 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
+import { Container, Globe02, Terminal } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { ConnectionGatewaysSection } from "./connection-gateways-section";
 import type { ConnectionFormData } from "./schema";
+
+/**
+ * Connection fields component with conditional rendering based on ui_type
+ */
+function ConnectionFields({
+  form,
+  connection,
+}: {
+  form: ReturnType<typeof useForm<ConnectionFormData>>;
+  connection: ConnectionEntity;
+}) {
+  const uiType = useWatch({ control: form.control, name: "ui_type" });
+  const { stdioEnabled } = useAuthConfig();
+
+  // Show STDIO options if:
+  // 1. STDIO is enabled globally, OR
+  // 2. The connection is already an STDIO type (allow viewing/editing existing connections)
+  const showStdioOptions =
+    stdioEnabled || connection.connection_type === "STDIO";
+
+  return (
+    <div className="flex flex-col gap-4 p-5 border-b border-border">
+      {/* Connection Type Selector */}
+      <FormField
+        control={form.control}
+        name="ui_type"
+        render={({ field }) => (
+          <FormItem className="flex flex-col gap-2">
+            <FormLabel className="text-sm font-medium">Type</FormLabel>
+            <Select value={field.value} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger className="h-10 rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="HTTP">
+                  <span className="flex items-center gap-2">
+                    <Globe02 className="w-4 h-4" />
+                    HTTP
+                  </span>
+                </SelectItem>
+                <SelectItem value="SSE">
+                  <span className="flex items-center gap-2">
+                    <Globe02 className="w-4 h-4" />
+                    SSE
+                  </span>
+                </SelectItem>
+                <SelectItem value="Websocket">
+                  <span className="flex items-center gap-2">
+                    <Globe02 className="w-4 h-4" />
+                    Websocket
+                  </span>
+                </SelectItem>
+                {showStdioOptions && (
+                  <>
+                    <SelectItem value="NPX">
+                      <span className="flex items-center gap-2">
+                        <Container className="w-4 h-4" />
+                        NPX Package
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="STDIO">
+                      <span className="flex items-center gap-2">
+                        <Terminal className="w-4 h-4" />
+                        Custom Command
+                      </span>
+                    </SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      {/* NPX-specific fields */}
+      {uiType === "NPX" && (
+        <FormField
+          control={form.control}
+          name="npx_package"
+          render={({ field }) => (
+            <FormItem className="flex flex-col gap-2">
+              <FormLabel className="text-sm font-medium">NPM Package</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="@perplexity-ai/mcp-server"
+                  {...field}
+                  value={field.value || ""}
+                  className="h-10 rounded-lg"
+                />
+              </FormControl>
+              <p className="text-xs text-muted-foreground">
+                The npm package to run with npx
+              </p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {/* STDIO/Custom Command fields */}
+      {uiType === "STDIO" && (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="stdio_command"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel className="text-sm font-medium">Command</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="node, bun, python..."
+                      {...field}
+                      value={field.value || ""}
+                      className="h-10 rounded-lg"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="stdio_args"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel className="text-sm font-medium">
+                    Arguments
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="arg1 arg2 --flag value"
+                      {...field}
+                      value={field.value || ""}
+                      className="h-10 rounded-lg"
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Space-separated arguments (no quotes needed)
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="stdio_cwd"
+            render={({ field }) => (
+              <FormItem className="flex flex-col gap-2">
+                <FormLabel className="text-sm font-medium">
+                  Working Directory
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="/path/to/project (optional)"
+                    {...field}
+                    value={field.value || ""}
+                    className="h-10 rounded-lg"
+                  />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  Directory where the command will be executed
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </>
+      )}
+
+      {/* Shared: Environment Variables for NPX and STDIO */}
+      {(uiType === "NPX" || uiType === "STDIO") && (
+        <FormField
+          control={form.control}
+          name="env_vars"
+          render={({ field }) => (
+            <FormItem className="flex flex-col gap-2">
+              <FormLabel className="text-sm font-medium">
+                Environment Variables
+              </FormLabel>
+              <FormControl>
+                <EnvVarsEditor
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {/* HTTP/SSE/Websocket fields */}
+      {uiType !== "NPX" && uiType !== "STDIO" && (
+        <>
+          <FormField
+            control={form.control}
+            name="connection_url"
+            render={({ field }) => (
+              <FormItem className="flex flex-col gap-2">
+                <FormLabel className="text-sm font-medium">URL</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="https://example.com/mcp"
+                    {...field}
+                    value={field.value ?? ""}
+                    className="h-10 rounded-lg"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="connection_token"
+            render={({ field }) => (
+              <FormItem className="flex flex-col gap-2">
+                <FormLabel className="text-sm font-medium">Token</FormLabel>
+                <FormControl>
+                  <Input
+                    type="password"
+                    placeholder={
+                      connection.connection_token
+                        ? "••••••••"
+                        : "Enter access token..."
+                    }
+                    {...field}
+                    value={field.value || ""}
+                    className="h-10 rounded-lg"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </>
+      )}
+    </div>
+  );
+}
 
 export function ConnectionSettingsFormUI({
   form,
@@ -82,82 +333,7 @@ export function ConnectionSettingsFormUI({
         </div>
 
         {/* Connection section */}
-        <div className="flex flex-col gap-4 p-5 border-b border-border">
-          <div className="flex flex-col gap-2">
-            <FormLabel className="text-sm font-medium">Connection</FormLabel>
-            <div className="flex">
-              <FormField
-                control={form.control}
-                name="connection_type"
-                render={({ field }) => (
-                  <FormItem className="space-y-0">
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="h-10 rounded-r-none border-r-0 bg-muted focus:ring-0 focus:ring-offset-0 rounded-l-lg">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="HTTP">HTTP</SelectItem>
-                        <SelectItem value="SSE">SSE</SelectItem>
-                        <SelectItem value="Websocket">Websocket</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="connection_url"
-                render={({ field }) => (
-                  <FormItem className="flex-1 space-y-0">
-                    <FormControl>
-                      <Input
-                        placeholder="https://example.com/mcp"
-                        {...field}
-                        className="h-10 rounded-l-none rounded-r-xl focus-visible:ring-0 focus-visible:ring-offset-0"
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-            <FormField
-              control={form.control}
-              name="connection_type"
-              render={() => <FormMessage />}
-            />
-            <FormField
-              control={form.control}
-              name="connection_url"
-              render={() => <FormMessage />}
-            />
-          </div>
-
-          <FormField
-            control={form.control}
-            name="connection_token"
-            render={({ field }) => (
-              <FormItem className="flex flex-col gap-2">
-                <FormLabel className="text-sm font-medium">Token</FormLabel>
-                <FormControl>
-                  <Input
-                    type="password"
-                    placeholder={
-                      connection.connection_token
-                        ? "••••••••"
-                        : "Enter access token..."
-                    }
-                    {...field}
-                    value={field.value || ""}
-                    className="h-10 rounded-lg"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        <ConnectionFields form={form} connection={connection} />
 
         {/* Last Updated section */}
         <div className="flex items-center gap-4 p-5 border-b border-border">

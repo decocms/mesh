@@ -59,8 +59,9 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
 
     // Fetch tools from the MCP server before creating the connection
     const fetchedTools = await fetchToolsFromMCP({
-      id: "pending",
+      id: `pending-${Date.now()}`,
       title: connectionData.title,
+      connection_type: connectionData.connection_type,
       connection_url: connectionData.connection_url,
       connection_token: connectionData.connection_token,
       connection_headers: connectionData.connection_headers,

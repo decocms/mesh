@@ -20,6 +20,8 @@ Database migrations live in `apps/mesh/migrations/`, code quality plugins in `pl
 - `bun run build:runtime`: build the runtime package
 - `bun run docs:dev`: run documentation site locally
 
+**IMPORTANT**: Always run `bun run fmt` after making code changes to ensure consistent formatting. A lefthook pre-commit hook is configured to run this automatically. Install with `npx lefthook install`.
+
 ### Mesh-specific commands (from `apps/mesh/`)
 - `bun run dev:client`: Vite dev server (port 4000)
 - `bun run dev:server`: Hono server with hot reload
