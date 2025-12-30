@@ -23,7 +23,7 @@ export interface GatewayInfo
 export function useGateways(): GatewayInfo[] {
   const gatewaysData = useGatewaysCollection();
 
-  return gatewaysData.map((g) => ({
+  return (gatewaysData ?? []).map((g) => ({
     id: g.id,
     title: g.title,
     description: g.description ?? null,
@@ -132,10 +132,6 @@ export function GatewaySelector({
     onGatewayChange(gatewayId);
     setOpen(false);
   };
-
-  if (gateways.length === 0) {
-    return null;
-  }
 
   return (
     <ResponsiveSelect

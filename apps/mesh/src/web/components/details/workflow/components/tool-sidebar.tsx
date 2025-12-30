@@ -1,147 +1,55 @@
-import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { ArrowLeft } from "@untitledui/icons";
-import {
-  useConnections,
-  useConnection,
-} from "@/web/hooks/collections/use-connection";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { usePrioritizedList } from "../hooks";
 import {
   useCurrentStep,
+  useSelectedGatewayId,
   useWorkflowActions,
-  useReplacingToolInfo,
 } from "../stores/workflow";
+import { useMcp, type McpTool } from "@/web/hooks/use-mcp";
+import { Spinner } from "@deco/ui/components/spinner.tsx";
 
 interface ToolSidebarProps {
   className?: string;
 }
 
-export function ToolSidebar({ className }: ToolSidebarProps) {
-  const currentStep = useCurrentStep();
-  const isToolStep = currentStep && "toolName" in currentStep.action;
-  const connectionId =
-    isToolStep && "connectionId" in currentStep.action
-      ? currentStep.action.connectionId
-      : null;
+/**
+ * Hook to get tools from the selected gateway
+ */
+function useGatewayTools() {
+  const gatewayId = useSelectedGatewayId();
+  const mcpProxyUrl = gatewayId
+    ? new URL(`/mcp/gateway/${gatewayId}`, window.location.origin).href
+    : "";
 
-  // If step has a connectionId, show tool selector; otherwise show connection selector
-  if (connectionId) {
-    return <ToolSelector connectionId={connectionId} className={className} />;
-  }
-
-  return <ConnectionSelector className={className} />;
+  return useMcp({ url: mcpProxyUrl, enabled: !!gatewayId });
 }
 
-// ============================================================================
-// Connection Selector
-// ============================================================================
+export function ToolSidebar({ className }: ToolSidebarProps) {
+  const gatewayId = useSelectedGatewayId();
 
-function ConnectionSelector({ className }: { className?: string }) {
-  const connections = useConnections();
-  const currentStep = useCurrentStep();
-  const { updateStep, cancelReplacingTool } = useWorkflowActions();
-  const replacingToolInfo = useReplacingToolInfo();
-
-  const isToolStep = currentStep && "toolName" in currentStep.action;
-  const selectedConnectionId =
-    isToolStep && "connectionId" in currentStep.action
-      ? currentStep.action.connectionId
-      : null;
-
-  const selectedConnection = connections.find(
-    (c) => c.id === selectedConnectionId,
-  );
-
-  const prioritizedConnections = usePrioritizedList(
-    connections,
-    selectedConnection ?? null,
-    (c) => c.title,
-    (a, b) => a.title.localeCompare(b.title),
-  );
-
-  const handleSelectConnection = (connectionId: string) => {
-    if (!currentStep) return;
-    updateStep(currentStep.name, {
-      action: {
-        ...currentStep.action,
-        connectionId,
-        toolName: "",
-      },
-    });
-    // Clear replacing info when selecting new connection
-    cancelReplacingTool();
-  };
-
-  const handleBack = () => {
-    if (!currentStep || !replacingToolInfo) return;
-    // Restore previous tool selection
-    updateStep(currentStep.name, {
-      action: {
-        ...currentStep.action,
-        connectionId: replacingToolInfo.connectionId,
-        toolName: replacingToolInfo.toolName,
-      },
-    });
-    // Clear replacing info
-    cancelReplacingTool();
-  };
-
-  return (
-    <div className={cn("flex flex-col h-full bg-sidebar", className)}>
-      {/* Header */}
-      <div className="flex items-start border-b border-border">
-        {replacingToolInfo && (
-          <div className="flex items-center justify-center size-12 border-r border-border">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10 text-muted-foreground hover:text-foreground"
-              onClick={handleBack}
-            >
-              <ArrowLeft size={14} />
-            </Button>
-          </div>
-        )}
-        <div className="flex-1 flex items-center h-12 px-5">
-          <span className="text-base font-medium text-foreground">
-            Select MCP Server
-          </span>
+  if (!gatewayId) {
+    return (
+      <div className={cn("flex flex-col h-full bg-sidebar", className)}>
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-4 text-center">
+          Select a gateway to see available tools
         </div>
       </div>
+    );
+  }
 
-      {/* Connection List */}
-      <div className="flex-1 overflow-auto">
-        {prioritizedConnections.map((connection) => (
-          <SidebarRow
-            key={connection.id}
-            icon={connection.icon}
-            title={connection.title}
-            isSelected={connection.id === selectedConnectionId}
-            onClick={() => handleSelectConnection(connection.id)}
-          />
-        ))}
-      </div>
-    </div>
-  );
+  return <ToolSelector className={className} />;
 }
 
 // ============================================================================
 // Tool Selector
 // ============================================================================
 
-function ToolSelector({
-  connectionId,
-  className,
-}: {
-  connectionId: string;
-  className?: string;
-}) {
-  const connection = useConnection(connectionId);
+function ToolSelector({ className }: { className?: string }) {
+  const { tools, isLoading, error } = useGatewayTools();
   const currentStep = useCurrentStep();
-  const { updateStep, cancelReplacingTool } = useWorkflowActions();
+  const { updateStep } = useWorkflowActions();
 
-  const tools = connection?.tools ?? [];
   const isToolStep = currentStep && "toolName" in currentStep.action;
   const selectedToolName =
     isToolStep && "toolName" in currentStep.action
@@ -157,70 +65,50 @@ function ToolSelector({
     (a, b) => a.name.localeCompare(b.name),
   );
 
-  const handleSelectTool = (toolName: string) => {
+  const handleSelectTool = (tool: McpTool) => {
     if (!currentStep) return;
-
-    // Find the selected tool to get its outputSchema
-    const selectedToolData = tools.find((t) => t.name === toolName);
 
     updateStep(currentStep.name, {
       action: {
         ...currentStep.action,
-        toolName,
+        toolName: tool.name,
       },
       // Set the step's outputSchema to the tool's outputSchema
-      outputSchema: selectedToolData?.outputSchema ?? {},
+      outputSchema: tool.outputSchema ?? {},
     });
-    // Clear replacing info when selecting a tool
-    cancelReplacingTool();
   };
 
-  const handleBack = () => {
-    if (!currentStep) return;
-    updateStep(currentStep.name, {
-      action: {
-        ...currentStep.action,
-        connectionId: "",
-        toolName: "",
-      },
-    });
-    // Don't clear replacingToolInfo here - user is going back to connection selector
-  };
+  if (isLoading) {
+    return (
+      <div className={cn("flex flex-col h-full bg-sidebar", className)}>
+        <div className="flex-1 flex items-center justify-center">
+          <Spinner size="sm" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={cn("flex flex-col h-full bg-sidebar", className)}>
+        <div className="flex-1 flex items-center justify-center text-sm text-destructive p-4 text-center">
+          Failed to load tools: {error.message}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col h-full bg-sidebar", className)}>
-      {/* Header with back button */}
+      {/* Header */}
       <div className="flex items-start border-b border-border">
-        {/* Back Button */}
-        <div className="flex items-center justify-center size-12 border-r border-border">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-10 text-muted-foreground hover:text-foreground"
-            onClick={handleBack}
-          >
-            <ArrowLeft size={14} />
-          </Button>
-        </div>
-
-        {/* Title and Connection */}
-        <div className="flex-1 flex items-center gap-2 h-12 px-5 min-w-0">
+        <div className="flex-1 flex items-center h-12 px-5">
           <span className="text-base font-medium text-foreground">
             Select tool
           </span>
-
-          {/* Connection Badge */}
-          <div className="flex items-center gap-2 ml-auto">
-            <IntegrationIcon
-              icon={connection?.icon ?? null}
-              name={connection?.title ?? ""}
-              size="xs"
-              className="shadow-sm"
-            />
-            <span className="text-sm font-medium text-foreground truncate">
-              {connection?.title}
-            </span>
-          </div>
+          <span className="ml-2 text-sm text-muted-foreground">
+            ({tools.length})
+          </span>
         </div>
       </div>
 
@@ -229,10 +117,11 @@ function ToolSelector({
         {prioritizedTools.map((tool) => (
           <SidebarRow
             key={tool.name}
-            icon={connection?.icon ?? null}
+            icon={null}
             title={tool.name}
+            description={tool.description}
             isSelected={tool.name === selectedToolName}
-            onClick={() => handleSelectTool(tool.name)}
+            onClick={() => handleSelectTool(tool)}
           />
         ))}
       </div>
@@ -247,15 +136,22 @@ function ToolSelector({
 interface SidebarRowProps {
   icon: string | null;
   title: string;
+  description?: string;
   isSelected: boolean;
   onClick: () => void;
 }
 
-function SidebarRow({ icon, title, isSelected, onClick }: SidebarRowProps) {
+function SidebarRow({
+  icon,
+  title,
+  description,
+  isSelected,
+  onClick,
+}: SidebarRowProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2.5 min-h-14 px-5 py-4 cursor-pointer transition-colors",
+        "flex items-start gap-2.5 min-h-14 px-5 py-4 cursor-pointer transition-colors",
         "hover:bg-muted/50",
         isSelected && "bg-muted/50",
       )}
@@ -273,11 +169,18 @@ function SidebarRow({ icon, title, isSelected, onClick }: SidebarRowProps) {
         icon={icon}
         name={title}
         size="xs"
-        className="shadow-sm"
+        className="shadow-sm mt-0.5"
       />
-      <span className="flex-1 text-sm font-medium text-foreground truncate">
-        {title}
-      </span>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-foreground truncate block">
+          {title}
+        </span>
+        {description && (
+          <span className="text-xs text-muted-foreground line-clamp-2">
+            {description}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

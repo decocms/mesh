@@ -227,11 +227,11 @@ export function useCollectionList<T extends CollectionEntity>(
         input,
       )) as CollectionListOutput<T>;
 
-      return result ?? [];
+      return result?.items ?? [];
     },
   });
 
-  return data.items;
+  return data;
 }
 
 /**

@@ -20,6 +20,7 @@ import {
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import {
   useCurrentStep,
+  useSelectedGatewayId,
   useTrackingExecutionId,
   useWorkflowActions,
 } from "../stores/workflow";
@@ -45,7 +46,7 @@ function useSyncOutputSchema(step: Step | undefined) {
   const toolName =
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
 
-  const { tool } = useGatewayTool("gw_NVZj-H9VxwOMRt-1M6Ntf", toolName ?? "");
+  const { tool } = useGatewayTool(toolName ?? "");
 
   // Check if step has a tool but outputSchema is empty or missing
   const hasToolWithNoOutputSchema =
@@ -162,10 +163,8 @@ function StepHeader({ step }: { step: Step }) {
   );
 }
 
-export function useGatewayTool(
-  gatewayId: string | undefined,
-  toolName: string,
-) {
+function useGatewayTool(toolName: string) {
+  const gatewayId = useSelectedGatewayId();
   const mcpProxyUrl = gatewayId
     ? new URL(`/mcp/gateway/${gatewayId}`, window.location.origin).href
     : "";
@@ -192,7 +191,7 @@ function InputSection({ step }: { step: Step }) {
   const toolName =
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
 
-  const { tool } = useGatewayTool("gw_NVZj-H9VxwOMRt-1M6Ntf", toolName ?? "");
+  const { tool } = useGatewayTool(toolName ?? "");
 
   if (!tool || !tool.inputSchema) {
     return null;
@@ -274,11 +273,7 @@ function OutputSection({ step }: { step: Step }) {
               No output schema defined
             </div>
           ) : output ? (
-            <MonacoCodeEditor
-              code={JSON.stringify(output, null, 2)}
-              language="json"
-              height={200}
-            />
+            <OutputMonacoEditor output={output} />
           ) : (
             <div className="space-y-2">
               {propertyEntries.map(([key, propSchema]) => (
@@ -293,6 +288,17 @@ function OutputSection({ step }: { step: Step }) {
         </AccordionContent>
       </AccordionItem>
     </Accordion>
+  );
+}
+
+function OutputMonacoEditor({ output }: { output: unknown }) {
+  const code = JSON.stringify(output, null, 2);
+  const lineCount = code.split("\n").length;
+  // ~18px per line (fontSize 13 + line spacing) + 24px padding
+  const height = Math.min(Math.max(lineCount * 18 + 24, 80), 400);
+
+  return (
+    <MonacoCodeEditor code={code} language="json" height={height} readOnly />
   );
 }
 
@@ -355,7 +361,7 @@ function TransformCodeSection({ step }: { step: Step }) {
   const toolName =
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
 
-  const { tool } = useGatewayTool("gw_NVZj-H9VxwOMRt-1M6Ntf", toolName ?? "");
+  const { tool } = useGatewayTool(toolName ?? "");
 
   const transformCode =
     isToolStep && "transformCode" in step.action

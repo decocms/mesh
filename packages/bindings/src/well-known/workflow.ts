@@ -105,15 +105,17 @@ type JsonSchema = {
   items?: JsonSchema;
 };
 const JsonSchemaSchema: z.ZodType<JsonSchema> = z.lazy(() =>
-  z.object({
-    type: z.string().optional(),
-    properties: z.record(z.unknown()).optional(),
-    required: z.array(z.string()).optional(),
-    description: z.string().optional(),
-    additionalProperties: z.boolean().optional(),
-    additionalItems: z.boolean().optional(),
-    items: JsonSchemaSchema.optional(),
-  }),
+  z
+    .object({
+      type: z.string().optional(),
+      properties: z.record(z.unknown()).optional(),
+      required: z.array(z.string()).optional(),
+      description: z.string().optional(),
+      additionalProperties: z.boolean().optional(),
+      additionalItems: z.boolean().optional(),
+      items: JsonSchemaSchema.optional(),
+    })
+    .passthrough(),
 );
 
 export const StepSchema = z.object({

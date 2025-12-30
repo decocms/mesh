@@ -19,12 +19,16 @@ import {
 import { useViewModeStore, type WorkflowViewMode } from "../stores/view-mode";
 import {
   useIsDirty,
+  useSelectedGatewayId,
   useTrackingExecutionId,
   useWorkflowActions,
   useWorkflowSteps,
 } from "../stores/workflow";
 import { usePollingWorkflowExecution, useWorkflowStart } from "../hooks";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { GatewaySelector } from "@/web/components/chat/gateway-selector";
+import { Suspense, useState } from "react";
+import { WorkflowInputDialog } from "./workflow-input-dialog";
 
 interface WorkflowEditorHeaderProps {
   title: string;
@@ -41,8 +45,10 @@ export function WorkflowEditorHeader({
 }: WorkflowEditorHeaderProps) {
   const { viewMode, setViewMode, showExecutionsList, toggleExecutionsList } =
     useViewModeStore();
-  const { resetToOriginalWorkflow } = useWorkflowActions();
+  const { resetToOriginalWorkflow, setSelectedGatewayId } =
+    useWorkflowActions();
   const isDirty = useIsDirty();
+  const selectedGatewayId = useSelectedGatewayId();
 
   return (
     <div className="flex items-center h-12 border-b border-border shrink-0 bg-background">
@@ -68,6 +74,17 @@ export function WorkflowEditorHeader({
             {description}
           </p>
         )}
+        {/* Gateway Selector */}
+        <div className="ml-auto">
+          <Suspense fallback={<Spinner size="xs" />}>
+            <GatewaySelector
+              selectedGatewayId={selectedGatewayId}
+              onGatewayChange={setSelectedGatewayId}
+              variant="bordered"
+              placeholder="Select gateway"
+            />
+          </Suspense>
+        </div>
       </div>
 
       {/* Right Actions */}
@@ -135,8 +152,12 @@ function RunWorkflowButton() {
   const isDirty = useIsDirty();
   const isExecutionCompleted = useIsExecutionCompleted();
   const trackingExecutionId = useTrackingExecutionId();
-  const { handleRunWorkflow } = useWorkflowStart();
+  const selectedGatewayId = useSelectedGatewayId();
+  const { handleRunWorkflow, isPending, requiresInput, inputSchema } =
+    useWorkflowStart();
   const steps = useWorkflowSteps();
+  const [showInputDialog, setShowInputDialog] = useState(false);
+
   const trackingExecutionIsRunning =
     trackingExecutionId && !isExecutionCompleted;
 
@@ -146,16 +167,40 @@ function RunWorkflowButton() {
       (!step.action.toolName || step.action.toolName === ""),
   );
 
-  const isDisabled = trackingExecutionIsRunning || isDirty || hasEmptySteps;
+  const hasNoGateway = !selectedGatewayId;
+
+  const isDisabled =
+    trackingExecutionIsRunning || isDirty || hasEmptySteps || hasNoGateway;
 
   const getTooltipMessage = () => {
     if (trackingExecutionIsRunning) return "Workflow is currently running";
     if (isDirty) return "Save your changes before running";
+    if (hasNoGateway) return "Select a gateway first";
     if (hasEmptySteps) return "All steps must have a tool selected";
     return null;
   };
 
   const tooltipMessage = getTooltipMessage();
+
+  const handleClick = () => {
+    if (requiresInput && inputSchema) {
+      setShowInputDialog(true);
+    } else {
+      handleRunWorkflow({});
+    }
+  };
+
+  const handleInputSubmit = async (input: Record<string, unknown>) => {
+    await handleRunWorkflow(input);
+  };
+
+  const buttonLabel = trackingExecutionId
+    ? isExecutionCompleted
+      ? "Replay"
+      : "Running..."
+    : requiresInput
+      ? "Run with input..."
+      : "Run workflow";
 
   const button = (
     <Button
@@ -167,21 +212,15 @@ function RunWorkflowButton() {
           "bg-primary text-primary-foreground hover:bg-primary/90",
       )}
       disabled={isDisabled}
-      onClick={handleRunWorkflow}
+      onClick={handleClick}
     >
       {!trackingExecutionIsRunning && <Play size={14} />}
       {trackingExecutionIsRunning && <Spinner size="xs" />}
-      {trackingExecutionId
-        ? isExecutionCompleted
-          ? "Replay"
-          : "Running..."
-        : "Run workflow"}
+      {buttonLabel}
     </Button>
   );
 
-  if (!tooltipMessage) return button;
-
-  return (
+  const buttonWithTooltip = tooltipMessage ? (
     <TooltipProvider>
       <Tooltip delayDuration={0}>
         <TooltipTrigger asChild>
@@ -190,5 +229,22 @@ function RunWorkflowButton() {
         <TooltipContent side="bottom">{tooltipMessage}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  ) : (
+    button
+  );
+
+  return (
+    <>
+      {buttonWithTooltip}
+      {requiresInput && inputSchema && (
+        <WorkflowInputDialog
+          open={showInputDialog}
+          onOpenChange={setShowInputDialog}
+          inputSchema={inputSchema}
+          onSubmit={handleInputSubmit}
+          isPending={isPending}
+        />
+      )}
+    </>
   );
 }

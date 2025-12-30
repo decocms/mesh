@@ -7,6 +7,7 @@ export * from "./mutations/use-workflow-start";
 
 // Derived
 export * from "./derived/use-resolved-refs";
+export * from "./derived/use-workflow-input-schema";
 
 // Infrastructure
 export * from "./use-workflow-binding-connection";

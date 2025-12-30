@@ -23,6 +23,8 @@ interface State {
   trackingExecutionId: string | undefined;
   currentStepTab: CurrentStepTab;
   currentStepName: string | undefined;
+  /** Selected gateway ID for tool fetching and execution */
+  selectedGatewayId: string | undefined;
 }
 
 interface Actions {
@@ -52,6 +54,8 @@ interface Actions {
   startReplacingTool: (toolName: string) => void;
   /** Cancel replacing tool (clear stored values) */
   cancelReplacingTool: () => void;
+  /** Set the selected gateway ID */
+  setSelectedGatewayId: (gatewayId: string | undefined) => void;
 }
 
 interface Store extends State {
@@ -377,6 +381,11 @@ const createWorkflowStore = (initialState: State) => {
               ...state,
               replacingToolInfo: null,
             })),
+          setSelectedGatewayId: (gatewayId) =>
+            set((state) => ({
+              ...state,
+              selectedGatewayId: gatewayId,
+            })),
         },
       }),
       {
@@ -394,6 +403,7 @@ const createWorkflowStore = (initialState: State) => {
           addingStepType: state.addingStepType,
           selectedParentSteps: state.selectedParentSteps,
           replacingToolInfo: state.replacingToolInfo,
+          selectedGatewayId: state.selectedGatewayId,
         }),
       },
     ),
@@ -420,6 +430,7 @@ export function WorkflowStoreProvider({
       currentStepName: undefined,
       trackingExecutionId,
       currentStepTab: "input",
+      selectedGatewayId: undefined,
     }),
   );
 
@@ -477,6 +488,6 @@ export function useTrackingExecutionId() {
   return useWorkflowStore((state) => state.trackingExecutionId);
 }
 
-export function useReplacingToolInfo() {
-  return useWorkflowStore((state) => state.replacingToolInfo);
+export function useSelectedGatewayId() {
+  return useWorkflowStore((state) => state.selectedGatewayId);
 }
