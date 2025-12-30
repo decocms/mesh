@@ -324,10 +324,7 @@ const executeEventHandlers = async <TEnv, TSchema extends z.ZodTypeAny>(
   // Case 1: Global handler
   if (isGlobalHandler<TEnv>(handlers)) {
     try {
-      return await (handlers as unknown as BatchHandler<TEnv>).handler(
-        { events },
-        env,
-      );
+      return await handlers.handler({ events }, env);
     } catch (error) {
       return {
         success: false,
@@ -384,7 +381,7 @@ const executeEventHandlers = async <TEnv, TSchema extends z.ZodTypeAny>(
     }
 
     // Case 3: Per-event handlers
-    const perEventHandlers = bindingHandler as unknown as Record<
+    const perEventHandlers = bindingHandler as Record<
       string,
       PerEventHandler<TEnv>
     >;

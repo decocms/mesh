@@ -164,9 +164,7 @@ export const withBindings = <TEnv>({
   authToken,
 }: {
   env: TEnv;
-  // The runtime server is generic over schema/binding registries; we intentionally accept
-  // any here to avoid leaking those generics into environment wiring.
-  server: MCPServer<any, any, any>;
+  server: MCPServer<TEnv, any, any>;
   // token is x-mesh-token
   tokenOrContext?: string | RequestContext;
   // authToken is the authorization header
