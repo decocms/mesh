@@ -133,17 +133,21 @@ function tsTypeToJsonSchema(typeStr: string): object {
   }
 
   // Handle union types: A | B | C
-  if (typeStr.includes("|") && !typeStr.startsWith("{")) {
+  // Check if there's a | at depth 0 (not inside braces/brackets/parentheses)
+  if (typeStr.includes("|")) {
     const parts = splitUnion(typeStr);
-    // Check if it's a string literal union
-    const allStringLiterals = parts.every((p) => /^["']/.test(p.trim()));
-    if (allStringLiterals) {
-      return {
-        type: "string",
-        enum: parts.map((p) => p.trim().replace(/^["']|["']$/g, "")),
-      };
+    // Only treat as union if splitUnion actually split it into multiple parts
+    if (parts.length > 1) {
+      // Check if it's a string literal union
+      const allStringLiterals = parts.every((p) => /^["']/.test(p.trim()));
+      if (allStringLiterals) {
+        return {
+          type: "string",
+          enum: parts.map((p) => p.trim().replace(/^["']|["']$/g, "")),
+        };
+      }
+      return { anyOf: parts.map((p) => tsTypeToJsonSchema(p.trim())) };
     }
-    return { anyOf: parts.map((p) => tsTypeToJsonSchema(p.trim())) };
   }
 
   // Handle string/number literals
@@ -171,8 +175,9 @@ function splitUnion(typeStr: string): string[] {
 
   for (let i = 0; i < typeStr.length; i++) {
     const char = typeStr[i];
-    if (char === "{" || char === "<" || char === "(") depth++;
-    else if (char === "}" || char === ">" || char === ")") depth--;
+    if (char === "{" || char === "<" || char === "(" || char === "[") depth++;
+    else if (char === "}" || char === ">" || char === ")" || char === "]")
+      depth--;
     else if (char === "|" && depth === 0) {
       parts.push(current.trim());
       current = "";

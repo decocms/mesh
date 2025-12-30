@@ -143,7 +143,7 @@ const createWorkflowStore = (initialState: State) => {
                 ...state.workflow,
                 steps: state.workflow.steps.map((step) =>
                   "toolName" in step.action &&
-                  step.action.toolName !== toolAction.toolName
+                  step.action.toolName === toolAction.toolName
                     ? { ...step, action: toolAction }
                     : step,
                 ),

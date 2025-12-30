@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import Form from "@rjsf/core";
 import type { RJSFSchema } from "@rjsf/utils";
 import validator from "@rjsf/validator-ajv8";
@@ -47,16 +48,32 @@ export function ToolInput({
   // Convert JsonSchema to RJSFSchema
   const rjsfSchema: RJSFSchema = inputSchema as RJSFSchema;
 
+  // Track previous formData to detect changes
+  const prevFormDataRef = useRef<Record<string, unknown>>(inputParams ?? {});
+
   const handleChange = (data: { formData?: Record<string, unknown> }) => {
     const formData = data.formData ?? {};
+    const prevFormData = prevFormDataRef.current;
     setInputParams?.(formData);
 
     // Call handleInputChange for each changed key
     if (handleInputChange) {
       for (const [key, value] of Object.entries(formData)) {
-        handleInputChange(key, value);
+        // Only call if the value actually changed
+        if (prevFormData[key] !== value) {
+          handleInputChange(key, value);
+        }
+      }
+      // Also check for keys that were removed
+      for (const key of Object.keys(prevFormData)) {
+        if (!(key in formData)) {
+          handleInputChange(key, undefined);
+        }
       }
     }
+
+    // Update the ref for the next change
+    prevFormDataRef.current = formData;
   };
 
   return (
