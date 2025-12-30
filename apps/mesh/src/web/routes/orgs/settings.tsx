@@ -184,9 +184,9 @@ export default function OrgSettings() {
         slug: data.slug,
       };
 
-      // Always include logo to allow clearing it with empty string
-      if (data.logo !== undefined) {
-        updateData.logo = data.logo || null;
+      // Include logo if it has a value (Better Auth expects string or undefined, not null)
+      if (data.logo) {
+        updateData.logo = data.logo;
       }
 
       const result = await authClient.organization.update({
