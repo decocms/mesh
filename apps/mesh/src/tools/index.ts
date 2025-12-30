@@ -3,6 +3,10 @@
  *
  * Central export for all MCP Mesh management tools
  * Types are inferred from ALL_TOOLS - this is the source of truth.
+ *
+ * Note: File Storage tools are NOT included here - they are provided by
+ * external MCPs like mcp-local-fs. The Mesh only provides the binding
+ * definitions and UI for file storage.
  */
 
 import { mcpServer } from "@/api/utils/mcp";
@@ -51,6 +55,7 @@ export const ALL_TOOLS = [
   // Monitoring tools
   MonitoringTools.MONITORING_LOGS_LIST,
   MonitoringTools.MONITORING_STATS,
+
   // API Key tools
   ApiKeyTools.API_KEY_CREATE,
   ApiKeyTools.API_KEY_LIST,

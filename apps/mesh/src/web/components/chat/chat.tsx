@@ -22,6 +22,8 @@ import type {
 } from "./model-selector.tsx";
 import { ModelSelector } from "./model-selector.tsx";
 import { UsageStats } from "./usage-stats.tsx";
+import { useFileDropUpload } from "@/web/components/file-drop-zone";
+import { File06, Folder, X, Loading01 } from "@untitledui/icons";
 
 export { useGateways } from "./gateway-selector";
 export type { GatewayInfo } from "./gateway-selector";
@@ -196,6 +198,17 @@ function ChatInputGatewaySelector(_props: {
   return null;
 }
 
+/** Uploaded file reference for chat context */
+interface UploadedFileRef {
+  id: string;
+  name: string;
+  path: string;
+  connectionId: string;
+  connectionTitle: string;
+  status: "uploading" | "success" | "error";
+  error?: string;
+}
+
 function ChatInput({
   onSubmit,
   onStop,
@@ -213,6 +226,11 @@ function ChatInput({
   usageMessages?: ChatMessage[];
 }>) {
   const [input, setInput] = useState("");
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFileRef[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // File storage upload hook
+  const { uploadFiles, hasStorage, storageConnection } = useFileDropUpload();
 
   const modelSelector = findChild(children, ChatInputModelSelector);
   const gatewaySelector = findChild(children, ChatInputGatewaySelector);
@@ -221,21 +239,119 @@ function ChatInput({
     ChatInputGatewaySelector,
   ]);
 
+  // Build message with file references
+  const buildMessageWithFiles = (text: string): string => {
+    if (uploadedFiles.length === 0) {
+      return text;
+    }
+
+    const successfulFiles = uploadedFiles.filter((f) => f.status === "success");
+    if (successfulFiles.length === 0) {
+      return text;
+    }
+
+    // Add file references at the beginning of the message
+    const fileRefs = successfulFiles
+      .map((f) => `@file:${f.connectionTitle}:${f.path}`)
+      .join(" ");
+
+    return `${fileRefs}\n\n${text}`;
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!input?.trim() || isStreaming) {
       return;
     }
-    const text = input.trim();
+    const text = buildMessageWithFiles(input.trim());
     try {
       await onSubmit(text);
       setInput("");
+      // Clear uploaded files after successful send
+      setUploadedFiles([]);
     } catch (error) {
       console.error("Failed to send message:", error);
       const message =
         error instanceof Error ? error.message : "Failed to send message";
       toast.error(message);
     }
+  };
+
+  // Handle file drop
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    if (!hasStorage) {
+      toast.error(
+        "No file storage configured. Add a File Storage binding first.",
+      );
+      return;
+    }
+
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length === 0) return;
+
+    // Add files to state as uploading
+    const newFiles: UploadedFileRef[] = files.map((f) => ({
+      id: crypto.randomUUID(),
+      name: f.name,
+      path: f.name,
+      connectionId: storageConnection?.id ?? "",
+      connectionTitle: storageConnection?.title ?? "File Storage",
+      status: "uploading" as const,
+    }));
+    setUploadedFiles((prev) => [...prev, ...newFiles]);
+
+    // Upload each file
+    for (const [i, file] of files.entries()) {
+      const fileRef = newFiles[i];
+      if (!fileRef) continue;
+
+      try {
+        await uploadFiles([file]);
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileRef.id ? { ...f, status: "success" as const } : f,
+          ),
+        );
+        toast.success(`Uploaded ${file.name} to ${storageConnection?.title}`);
+      } catch (error) {
+        console.error("Upload failed:", error);
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileRef.id
+              ? {
+                  ...f,
+                  status: "error" as const,
+                  error:
+                    error instanceof Error ? error.message : "Upload failed",
+                }
+              : f,
+          ),
+        );
+        toast.error(`Failed to upload ${file.name}`);
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.types.includes("Files") && hasStorage) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const removeFile = (id: string) => {
+    setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
   const leftActions = (
@@ -279,17 +395,70 @@ function ChatInput({
     </div>
   );
 
+  // File context content showing uploaded files
+  const contextContent =
+    uploadedFiles.length > 0 ? (
+      <div className="flex flex-wrap gap-2">
+        {uploadedFiles.map((file) => (
+          <div
+            key={file.id}
+            className={cn(
+              "flex items-center gap-2 px-2 py-1 rounded-lg text-xs",
+              file.status === "uploading" && "bg-muted text-muted-foreground",
+              file.status === "success" && "bg-primary/10 text-primary",
+              file.status === "error" && "bg-destructive/10 text-destructive",
+            )}
+          >
+            {file.status === "uploading" ? (
+              <Loading01 size={14} className="animate-spin" />
+            ) : (
+              <File06 size={14} />
+            )}
+            <span className="max-w-[150px] truncate">{file.name}</span>
+            <span className="text-muted-foreground">
+              @{file.connectionTitle}
+            </span>
+            <button
+              type="button"
+              onClick={() => removeFile(file.id)}
+              className="hover:text-foreground transition-colors"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+    ) : null;
+
   return (
-    <DecoChatInputV2
-      value={input}
-      onChange={setInput}
-      onSubmit={handleSubmit}
-      onStop={onStop}
-      disabled={disabled}
-      isStreaming={isStreaming}
-      placeholder={placeholder}
-      leftActions={leftActions}
-    />
+    <div
+      className="relative"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drop overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-xl pointer-events-none">
+          <div className="flex items-center gap-2 text-primary text-sm font-medium">
+            <Folder size={20} />
+            <span>Drop to upload to {storageConnection?.title}</span>
+          </div>
+        </div>
+      )}
+
+      <DecoChatInputV2
+        value={input}
+        onChange={setInput}
+        onSubmit={handleSubmit}
+        onStop={onStop}
+        disabled={disabled}
+        isStreaming={isStreaming}
+        placeholder={hasStorage ? placeholder : placeholder}
+        leftActions={leftActions}
+        contextContent={contextContent}
+      />
+    </div>
   );
 }
 
