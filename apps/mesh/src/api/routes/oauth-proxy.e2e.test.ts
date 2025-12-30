@@ -254,6 +254,34 @@ describe("MCP OAuth Proxy E2E", () => {
         expect(location).not.toContain("oauth-proxy"); // Should be origin URL
       });
     }
+
+    for (const server of MCP_SERVERS) {
+      test(`${server.name} - must rewrite resource param to origin URL`, async () => {
+        const connectionId = connectionMap.get(server.url)!;
+        // Pass a proxy resource URL - this is what clients send
+        const proxyResourceUrl = `http://localhost/mcp/${connectionId}`;
+        const res = await app.request(
+          `/oauth-proxy/${connectionId}/authorize?response_type=code&client_id=test&state=test&resource=${encodeURIComponent(proxyResourceUrl)}`,
+          { redirect: "manual" },
+        );
+
+        expect(res.status).toBe(302);
+
+        const location = res.headers.get("location");
+        expect(location).toBeDefined();
+
+        // Parse the redirect URL and check the resource param
+        const redirectUrl = new URL(location!);
+        const resourceParam = redirectUrl.searchParams.get("resource");
+
+        // Resource param MUST be rewritten to the origin server URL, not our proxy
+        // This is critical for auth servers like Supabase that validate the resource
+        expect(resourceParam).toBeDefined();
+        expect(resourceParam).toBe(server.url);
+        expect(resourceParam).not.toContain("oauth-proxy");
+        expect(resourceParam).not.toContain(connectionId);
+      });
+    }
   });
 
   // ===========================================================================
