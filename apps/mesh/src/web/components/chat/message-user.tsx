@@ -1,11 +1,11 @@
-import { type UIMessage } from "ai";
-import { useRef, useContext, useState } from "react";
+import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { MessageTextPart } from "./parts/text-part.tsx";
+import { ChevronDown, ChevronUp } from "@untitledui/icons";
+import { type UIMessage } from "ai";
+import { useContext, useRef, useState } from "react";
 import { MessageListContext } from "./message-list.tsx";
-import { ChevronUp, ChevronDown } from "@untitledui/icons";
-import { Button } from "@deco/ui/components/button.tsx";
+import { MessageTextPart } from "./parts/text-part.tsx";
 
 export interface MessageProps<T extends Metadata> {
   message: UIMessage<T>;
