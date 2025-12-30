@@ -123,4 +123,11 @@ export interface CollectionsListProps<T extends BaseCollectionEntity> {
    * instead of the dropdown menu. Useful for FILES collection.
    */
   simpleDeleteOnly?: boolean;
+
+  /**
+   * Custom icon renderer for collection items.
+   * If provided, renders custom icons instead of the default IntegrationIcon.
+   * Useful for file-specific icons, custom badges, etc.
+   */
+  renderIcon?: (item: T) => ReactNode;
 }
