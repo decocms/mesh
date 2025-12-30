@@ -132,33 +132,27 @@ export function AddBindingModal({ open, onOpenChange }: AddBindingModalProps) {
 
       if (selectedImplementation.connectionType === "STDIO") {
         // Build STDIO connection
-        const pathArg = configValues["path"] ?? "";
-
         let connectionHeaders: StdioConnectionParameters;
 
         // Use localCommand if available (for development), otherwise npx
         if (selectedImplementation.localCommand) {
           connectionHeaders = {
             command: selectedImplementation.localCommand.command,
-            args: [...selectedImplementation.localCommand.args, pathArg].filter(
-              Boolean,
-            ),
+            args: selectedImplementation.localCommand.args,
           };
         } else {
           connectionHeaders = {
             command: "npx",
-            args: ["-y", selectedImplementation.npxPackage!, pathArg].filter(
-              Boolean,
-            ),
+            args: ["-y", selectedImplementation.npxPackage!],
           };
         }
 
-        // Add env vars if there are API keys etc
+        // Add config fields as env vars (e.g., mcpLocalFsPath -> MCP_LOCAL_FS_PATH)
         const envVars: Record<string, string> = {};
         for (const field of selectedImplementation.configFields ?? []) {
           const fieldValue = configValues[field.name];
-          if (field.name !== "path" && fieldValue) {
-            // Convert to env var format (e.g., apiKey -> API_KEY)
+          if (fieldValue) {
+            // Convert to env var format (e.g., mcpLocalFsPath -> MCP_LOCAL_FS_PATH)
             const envKey = field.name
               .replace(/([A-Z])/g, "_$1")
               .toUpperCase()
@@ -170,9 +164,15 @@ export function AddBindingModal({ open, onOpenChange }: AddBindingModalProps) {
           connectionHeaders.envVars = envVars;
         }
 
+        // Build a descriptive title including path if available
+        const pathValue = configValues["mcpLocalFsPath"];
+        const title = pathValue
+          ? `FS - ${pathValue}`
+          : `${selectedBinding?.name ?? "Binding"} (${selectedImplementation.name})`;
+
         await actions.create.mutateAsync({
           id: connectionId,
-          title: `${selectedBinding?.name ?? "Binding"} (${selectedImplementation.name})`,
+          title,
           description:
             selectedImplementation.description ||
             `${selectedBinding?.name} via ${selectedImplementation.name}`,

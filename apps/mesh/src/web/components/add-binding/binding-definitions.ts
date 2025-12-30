@@ -87,7 +87,7 @@ const fileStorageBinding: BindingDefinition = {
       requiresConfig: true,
       configFields: [
         {
-          name: "path",
+          name: "mcpLocalFsPath",
           label: "Root Path",
           type: "path",
           placeholder: "/Users/you/Documents",
