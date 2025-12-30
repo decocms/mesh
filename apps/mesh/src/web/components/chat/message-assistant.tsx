@@ -164,7 +164,7 @@ export function MessageAssistant<T extends Metadata>({
   return (
     <div
       className={cn(
-        "w-full min-w-0 group relative flex items-start gap-4 px-8 z-20 text-foreground flex-row",
+        "w-full min-w-0 group relative flex items-start gap-4 px-4 z-20 text-foreground flex-row",
         className,
       )}
     >

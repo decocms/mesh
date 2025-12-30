@@ -19,7 +19,7 @@ export function DecoChatEmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-4 p-8 text-center",
+        "flex flex-col items-center justify-center gap-4 p-0 text-center",
         className,
       )}
     >
