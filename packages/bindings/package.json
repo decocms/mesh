@@ -20,7 +20,8 @@
     "./mcp": "./src/well-known/mcp.ts",
     "./assistant": "./src/well-known/assistant.ts",
     "./prompt": "./src/well-known/prompt.ts",
-    "./workflow": "./src/well-known/workflow.ts"
+    "./workflow": "./src/well-known/workflow.ts",
+    "./file-storage": "./src/well-known/file-storage.ts"
   },
   "engines": {
     "node": ">=24.0.0"

@@ -1,3 +1,4 @@
+import type React from "react";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
 import { CollectionCard } from "./collection-card.tsx";
 import { CollectionTableWrapper } from "./collection-table-wrapper.tsx";
@@ -82,6 +83,8 @@ export function CollectionsList<T extends BaseCollectionEntity>({
   columns = undefined,
   hideToolbar = false,
   sortableFields = undefined,
+  simpleDeleteOnly = false,
+  renderIcon,
 }: CollectionsListProps<T>) {
   // Generate sort options from columns or schema
   const sortOptions = columns
@@ -147,6 +150,7 @@ export function CollectionsList<T extends BaseCollectionEntity>({
                     schema={schema}
                     readOnly={readOnly}
                     actions={actions}
+                    renderIcon={renderIcon}
                   />
                 </div>
               ))}
@@ -155,7 +159,14 @@ export function CollectionsList<T extends BaseCollectionEntity>({
         </div>
       ) : (
         <CollectionTableWrapper
-          columns={getTableColumns(columns, schema, sortableFields, actions)}
+          columns={getTableColumns(
+            columns,
+            schema,
+            sortableFields,
+            actions,
+            simpleDeleteOnly,
+            renderIcon,
+          )}
           data={data}
           sortKey={sortKey}
           sortDirection={sortDirection}
@@ -176,6 +187,31 @@ export function CollectionsList<T extends BaseCollectionEntity>({
       )}
     </div>
   );
+}
+
+// Helper to generate simple delete-only column (just a trash icon)
+function generateSimpleDeleteColumn<T extends BaseCollectionEntity>(
+  onDelete: (item: T) => void | Promise<void>,
+): TableColumn<T> {
+  return {
+    id: "actions",
+    header: "",
+    render: (row) => (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(row);
+        }}
+      >
+        <Trash01 size={16} />
+      </Button>
+    ),
+    cellClassName: "w-[50px]",
+    sortable: false,
+  };
 }
 
 // Helper to generate actions column
@@ -407,27 +443,52 @@ function generateColumnsFromSchema<T extends BaseCollectionEntity>(
   });
 }
 
+// Helper to generate icon column from renderIcon
+function generateIconColumn<T extends BaseCollectionEntity>(
+  renderIcon: (item: T) => React.ReactNode,
+): TableColumn<T> {
+  return {
+    id: "_icon",
+    header: "",
+    render: (row) => renderIcon(row),
+    cellClassName: "w-[50px] pr-0",
+    sortable: false,
+  };
+}
+
 // Helper to get table columns with actions column appended
 function getTableColumns<T extends BaseCollectionEntity>(
   columns: TableColumn<T>[] | undefined,
   schema: JsonSchema,
   sortableFields: string[] | undefined,
   actions: Record<string, (item: T) => void | Promise<void>>,
+  simpleDeleteOnly: boolean,
+  renderIcon?: (item: T) => React.ReactNode,
 ): TableColumn<T>[] {
   const baseColumns =
     columns || generateColumnsFromSchema(schema, sortableFields);
 
+  // Add icon column at the beginning if renderIcon is provided
+  const columnsWithIcon = renderIcon
+    ? [generateIconColumn(renderIcon), ...baseColumns]
+    : baseColumns;
+
   // Check if actions column already exists
-  const hasActionsColumn = baseColumns.some((col) => col.id === "actions");
+  const hasActionsColumn = columnsWithIcon.some((col) => col.id === "actions");
 
   if (hasActionsColumn) {
-    return baseColumns;
+    return columnsWithIcon;
+  }
+
+  // For simpleDeleteOnly, show only a trash icon if delete action exists
+  if (simpleDeleteOnly && actions.delete) {
+    return [...columnsWithIcon, generateSimpleDeleteColumn(actions.delete)];
   }
 
   // Append actions column only if there are any actions available
   const hasActions = Object.keys(actions).length > 0;
   if (hasActions) {
-    return [...baseColumns, generateActionsColumn(actions)];
+    return [...columnsWithIcon, generateActionsColumn(actions)];
   }
-  return baseColumns;
+  return columnsWithIcon;
 }
