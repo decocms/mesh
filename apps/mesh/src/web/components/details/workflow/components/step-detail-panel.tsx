@@ -6,24 +6,29 @@ import {
 } from "@deco/ui/components/accordion.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Repeat03, Plus, CornerDownRight } from "@untitledui/icons";
+import { CornerDownRight, Plus, Repeat03 } from "@untitledui/icons";
 import {
-  Type,
-  Hash,
-  Braces,
   Box,
+  Braces,
   CheckSquare,
-  X,
   FileText,
+  Hash,
   Minus,
+  Type,
+  X,
 } from "lucide-react";
 import { IntegrationIcon } from "@/web/components/integration-icon";
-import { useConnection } from "@/web/hooks/collections/use-connection";
-import { useCurrentStep, useWorkflowActions } from "../stores/workflow";
+import {
+  useCurrentStep,
+  useTrackingExecutionId,
+  useWorkflowActions,
+} from "../stores/workflow";
 import { ToolInput } from "./tool-selection/components/tool-input";
 import type { JsonSchema } from "@/web/utils/constants";
 import { MonacoCodeEditor } from "./monaco-editor";
 import type { Step } from "@decocms/bindings/workflow";
+import { useMcp } from "@/web/hooks/use-mcp";
+import { usePollingWorkflowExecution } from "../hooks";
 
 interface StepDetailPanelProps {
   className?: string;
@@ -37,19 +42,14 @@ function useSyncOutputSchema(step: Step | undefined) {
   const { updateStep } = useWorkflowActions();
 
   const isToolStep = step && "toolName" in step.action;
-  const connectionId =
-    isToolStep && "connectionId" in step.action
-      ? step.action.connectionId
-      : null;
-  const toolName =
-    isToolStep && "toolName" in step.action ? step.action.toolName : null;
+  const toolName = isToolStep && "toolName" in step.action
+    ? step.action.toolName
+    : null;
 
-  const connection = useConnection(connectionId ?? "");
-  const tool = connection?.tools?.find((t) => t.name === toolName);
+  const { tool } = useGatewayTool("gw_NVZj-H9VxwOMRt-1M6Ntf", toolName ?? "");
 
   // Check if step has a tool but outputSchema is empty or missing
-  const hasToolWithNoOutputSchema =
-    step &&
+  const hasToolWithNoOutputSchema = step &&
     toolName &&
     tool?.outputSchema &&
     (!step.outputSchema || Object.keys(step.outputSchema).length === 0);
@@ -82,8 +82,7 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
   }
 
   const isToolStep = "toolName" in currentStep.action;
-  const hasToolSelected =
-    isToolStep &&
+  const hasToolSelected = isToolStep &&
     "toolName" in currentStep.action &&
     currentStep.action.toolName;
 
@@ -116,25 +115,19 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
 function StepHeader({ step }: { step: Step }) {
   const { updateStep, startReplacingTool } = useWorkflowActions();
   const isToolStep = "toolName" in step.action;
-  const connectionId =
-    isToolStep && "connectionId" in step.action
-      ? step.action.connectionId
-      : null;
-  const toolName =
-    isToolStep && "toolName" in step.action ? step.action.toolName : null;
-
-  const connection = useConnection(connectionId ?? "");
+  const toolName = isToolStep && "toolName" in step.action
+    ? step.action.toolName
+    : null;
 
   const handleReplace = () => {
     // Store current tool info for back button
-    if (connectionId && toolName) {
-      startReplacingTool(connectionId, toolName);
+    if (toolName) {
+      startReplacingTool(toolName);
     }
     // Clear tool selection to show MCP server selector
     updateStep(step.name, {
       action: {
         ...step.action,
-        connectionId: "",
         toolName: "",
       },
     });
@@ -144,7 +137,7 @@ function StepHeader({ step }: { step: Step }) {
     <div className="border-b border-border p-5 shrink-0">
       <div className="flex items-center gap-2">
         <IntegrationIcon
-          icon={connection?.icon ?? null}
+          icon={null}
           name={toolName ?? ""}
           size="xs"
           className="shadow-sm"
@@ -169,6 +162,26 @@ function StepHeader({ step }: { step: Step }) {
   );
 }
 
+export function useGatewayTool(
+  gatewayId: string | undefined,
+  toolName: string,
+) {
+  const mcpProxyUrl = gatewayId
+    ? new URL(`/mcp/gateway/${gatewayId}`, window.location.origin).href
+    : "";
+
+  const mcp = useMcp({ url: mcpProxyUrl, enabled: !!gatewayId });
+
+  const tool = mcp.tools?.find((t) => t.name === toolName);
+
+  return {
+    tool,
+    isLoading: mcp.state === "connecting",
+    isReady: mcp.state === "ready",
+    error: mcp.error,
+  };
+}
+
 // ============================================================================
 // Input Section
 // ============================================================================
@@ -176,15 +189,11 @@ function StepHeader({ step }: { step: Step }) {
 function InputSection({ step }: { step: Step }) {
   const { updateStep } = useWorkflowActions();
   const isToolStep = "toolName" in step.action;
-  const connectionId =
-    isToolStep && "connectionId" in step.action
-      ? step.action.connectionId
-      : null;
-  const toolName =
-    isToolStep && "toolName" in step.action ? step.action.toolName : null;
+  const toolName = isToolStep && "toolName" in step.action
+    ? step.action.toolName
+    : null;
 
-  const connection = useConnection(connectionId ?? "");
-  const tool = connection?.tools?.find((t) => t.name === toolName);
+  const { tool } = useGatewayTool("gw_NVZj-H9VxwOMRt-1M6Ntf", toolName ?? "");
 
   if (!tool || !tool.inputSchema) {
     return null;
@@ -228,14 +237,21 @@ function InputSection({ step }: { step: Step }) {
 
 function OutputSection({ step }: { step: Step }) {
   const outputSchema = step.outputSchema;
+  const trackingExecutionId = useTrackingExecutionId();
+  const { step_results } = usePollingWorkflowExecution(trackingExecutionId);
+  const stepResult = step_results?.find((result) =>
+    result.step_id === step.name
+  );
+  const output = stepResult?.output;
+
+  console.log("output", output);
 
   // Always show the Output section (even if empty)
-  const properties =
-    outputSchema && typeof outputSchema === "object"
-      ? ((outputSchema as Record<string, unknown>).properties as
-          | Record<string, unknown>
-          | undefined)
-      : undefined;
+  const properties = outputSchema && typeof outputSchema === "object"
+    ? ((outputSchema as Record<string, unknown>).properties as
+      | Record<string, unknown>
+      | undefined)
+    : undefined;
 
   const propertyEntries = properties ? Object.entries(properties) : [];
 
@@ -253,21 +269,31 @@ function OutputSection({ step }: { step: Step }) {
           </span>
         </AccordionTrigger>
         <AccordionContent className="px-5 pt-2">
-          {propertyEntries.length === 0 ? (
-            <div className="text-sm text-muted-foreground italic">
-              No output schema defined
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {propertyEntries.map(([key, propSchema]) => (
-                <OutputProperty
-                  key={key}
-                  name={key}
-                  schema={propSchema as JsonSchema}
+          {propertyEntries.length === 0
+            ? (
+              <div className="text-sm text-muted-foreground italic">
+                No output schema defined
+              </div>
+            )
+            : output
+            ? (
+                <MonacoCodeEditor
+                  code={JSON.stringify(output, null, 2)}
+                  language="json"
+                  height={200}
                 />
-              ))}
-            </div>
-          )}
+            )
+            : (
+              <div className="space-y-2">
+                {propertyEntries.map(([key, propSchema]) => (
+                  <OutputProperty
+                    key={key}
+                    name={key}
+                    schema={propSchema as JsonSchema}
+                  />
+                ))}
+              </div>
+            )}
         </AccordionContent>
       </AccordionItem>
     </Accordion>
@@ -330,20 +356,15 @@ function TransformCodeSection({ step }: { step: Step }) {
   const { updateStep } = useWorkflowActions();
 
   const isToolStep = "toolName" in step.action;
-  const connectionId =
-    isToolStep && "connectionId" in step.action
-      ? step.action.connectionId
-      : null;
-  const toolName =
-    isToolStep && "toolName" in step.action ? step.action.toolName : null;
+  const toolName = isToolStep && "toolName" in step.action
+    ? step.action.toolName
+    : null;
 
-  const connection = useConnection(connectionId ?? "");
-  const tool = connection?.tools?.find((t) => t.name === toolName);
+  const { tool } = useGatewayTool("gw_NVZj-H9VxwOMRt-1M6Ntf", toolName ?? "");
 
-  const transformCode =
-    isToolStep && "transformCode" in step.action
-      ? (step.action.transformCode ?? null)
-      : null;
+  const transformCode = isToolStep && "transformCode" in step.action
+    ? (step.action.transformCode ?? null)
+    : null;
 
   const hasTransformCode = Boolean(transformCode);
 

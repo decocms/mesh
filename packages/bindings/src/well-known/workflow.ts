@@ -150,7 +150,7 @@ export type Step = z.infer<typeof StepSchema>;
  */
 
 const WorkflowExecutionStatusEnum = z
-  .enum(["enqueued", "running", "success", "error", "cancelled"])
+  .enum(["enqueued", "running", "success", "error", "failed", "cancelled"])
   .default("enqueued");
 export type WorkflowExecutionStatus = z.infer<
   typeof WorkflowExecutionStatusEnum
@@ -172,8 +172,14 @@ export const WorkflowExecutionSchema = BaseCollectionEntitySchema.extend({
   status: WorkflowExecutionStatusEnum.describe(
     "Current status of the workflow execution",
   ),
-  input: z.record(z.unknown()).optional().describe("Input data for the workflow execution"),
-  output: z.unknown().optional().describe("Output data for the workflow execution"),
+  input: z
+    .record(z.unknown())
+    .optional()
+    .describe("Input data for the workflow execution"),
+  output: z
+    .unknown()
+    .optional()
+    .describe("Output data for the workflow execution"),
   completed_at_epoch_ms: z
     .number()
     .nullish()

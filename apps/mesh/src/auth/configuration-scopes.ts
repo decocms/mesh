@@ -81,8 +81,8 @@ export function extractConnectionPermissions(
   }
 
   for (const scope of scopes) {
-    if (scope === '*') {
-      permissions['*'] = ['*'];
+    if (scope === "*") {
+      permissions["*"] = ["*"];
       continue;
     }
     const parsed = tryParseScope(scope);

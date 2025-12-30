@@ -18,7 +18,7 @@ interface State {
   /** Selected parent steps for multi-selection (used for code steps) */
   selectedParentSteps: string[];
   /** Previous tool info when replacing (for back button) */
-  replacingToolInfo: { connectionId: string; toolName: string } | null;
+  replacingToolInfo: { toolName: string } | null;
   workflow: Workflow;
   trackingExecutionId: string | undefined;
   currentStepTab: CurrentStepTab;
@@ -49,7 +49,7 @@ interface Actions {
   setOriginalWorkflow: (workflow: Workflow) => void;
   setWorkflow: (workflow: Workflow) => void;
   /** Start replacing tool (store previous values for back button) */
-  startReplacingTool: (connectionId: string, toolName: string) => void;
+  startReplacingTool: (toolName: string) => void;
   /** Cancel replacing tool (clear stored values) */
   cancelReplacingTool: () => void;
 }
@@ -367,10 +367,10 @@ const createWorkflowStore = (initialState: State) => {
               ...state,
               workflow: workflow,
             })),
-          startReplacingTool: (connectionId, toolName) =>
+          startReplacingTool: (toolName) =>
             set((state) => ({
               ...state,
-              replacingToolInfo: { connectionId, toolName },
+              replacingToolInfo: { toolName },
             })),
           cancelReplacingTool: () =>
             set((state) => ({

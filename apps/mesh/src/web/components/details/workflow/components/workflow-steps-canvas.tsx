@@ -6,6 +6,7 @@ import {
   useWorkflowActions,
   useWorkflowSteps,
 } from "../stores/workflow";
+import { useStepExecutionStatuses } from "../hooks/derived/use-step-execution-status";
 import { WorkflowStepCard } from "./workflow-step-card";
 
 interface WorkflowStepsCanvasProps {
@@ -15,8 +16,14 @@ interface WorkflowStepsCanvasProps {
 export function WorkflowStepsCanvas({ className }: WorkflowStepsCanvasProps) {
   const steps = useWorkflowSteps();
   const currentStepName = useCurrentStepName();
+  const stepStatuses = useStepExecutionStatuses();
   const { setCurrentStepName, deleteStep, duplicateStep, addToolStep } =
     useWorkflowActions();
+
+  // Find the first error step index to determine which steps should be "skipped"
+  const firstErrorIndex = stepStatuses
+    ? steps.findIndex((step) => stepStatuses[step.name]?.status === "error")
+    : -1;
 
   return (
     <div className={cn("h-full flex flex-col p-8 overflow-auto", className)}>
@@ -24,17 +31,28 @@ export function WorkflowStepsCanvas({ className }: WorkflowStepsCanvasProps) {
       <div className="w-full -space-y-1">
         {/* Steps List */}
         <div className="pt-3 -space-y-1">
-          {steps.map((step, index) => (
-            <WorkflowStepCard
-              key={step.name}
-              step={step}
-              index={index}
-              isSelected={step.name === currentStepName}
-              onSelect={() => setCurrentStepName(step.name)}
-              onDelete={() => deleteStep(step.name)}
-              onDuplicate={() => duplicateStep(step.name)}
-            />
-          ))}
+          {steps.map((step, index) => {
+            const stepStatus = stepStatuses?.[step.name];
+            // Steps after an error are "skipped" (pending but visually different)
+            const isSkipped =
+              firstErrorIndex !== -1 &&
+              index > firstErrorIndex &&
+              stepStatus?.status === "pending";
+
+            return (
+              <WorkflowStepCard
+                key={step.name}
+                step={step}
+                index={index}
+                isSelected={step.name === currentStepName}
+                executionStatus={stepStatus}
+                isSkipped={isSkipped}
+                onSelect={() => setCurrentStepName(step.name)}
+                onDelete={() => deleteStep(step.name)}
+                onDuplicate={() => duplicateStep(step.name)}
+              />
+            );
+          })}
         </div>
 
         {/* Add Step Button */}

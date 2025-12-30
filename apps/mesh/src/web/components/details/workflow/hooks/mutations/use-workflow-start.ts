@@ -20,10 +20,8 @@ export function useWorkflowStart() {
     const timeoutMs = 30000;
     const result = await startWorkflow({
       steps: workflow.steps,
- input: {
-        
-      },
-      gateway_id: 'gw_NVZj-H9VxwOMRt-1M6Ntf',
+      input: {},
+      gateway_id: "gw_NVZj-H9VxwOMRt-1M6Ntf",
       start_at_epoch_ms: startAtEpochMs,
       timeout_ms: timeoutMs,
     });

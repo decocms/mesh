@@ -4,7 +4,6 @@ import { Workflow, WorkflowExecution } from "@decocms/bindings/workflow";
 import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
 import { useWorkflowBindingConnection } from "../use-workflow-binding-connection";
 import { useToolCallQuery } from "@/web/hooks/use-tool-call";
-import { Query } from "@tanstack/react-query";
 
 export function useWorkflowCollectionItem(itemId: string) {
   const { connectionId } = useParams({
@@ -28,10 +27,18 @@ export function useWorkflowCollectionItem(itemId: string) {
   };
 }
 
+type ExecutionQueryResult = {
+  item: WorkflowExecution | null;
+  step_results: Record<string, unknown> | null;
+};
+
 export function usePollingWorkflowExecution(executionId?: string) {
   const connection = useWorkflowBindingConnection();
   const toolCaller = createToolCaller(connection.id);
-  const { data, isLoading } = useToolCallQuery({
+  const { data, isLoading } = useToolCallQuery<
+    { id: string | undefined },
+    ExecutionQueryResult
+  >({
     toolCaller: toolCaller,
     toolName: "COLLECTION_WORKFLOW_EXECUTION_GET",
     toolInputParams: {
@@ -40,25 +47,9 @@ export function usePollingWorkflowExecution(executionId?: string) {
     scope: connection.id,
     enabled: !!executionId,
     refetchInterval: executionId
-      ? (
-          query: Query<
-            {
-              item: WorkflowExecution | null;
-              step_results: Record<string, unknown> | null;
-            },
-            Error,
-            {
-              item: WorkflowExecution | null;
-              step_results: Record<string, unknown> | null;
-            },
-            readonly unknown[]
-          >,
-        ) => {
-          return (query.state?.data?.item?.completed_at_epoch_ms === null &&
-            query.state?.data?.item?.status === "running") ||
-            query.state?.data?.item?.status === "enqueued"
-            ? 2000
-            : false;
+      ? (query) => {
+          const status = query.state?.data?.item?.status;
+          return status === "running" || status === "enqueued" ? 2000 : false;
         }
       : false,
   });

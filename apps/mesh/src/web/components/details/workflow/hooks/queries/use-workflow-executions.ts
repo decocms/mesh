@@ -21,8 +21,12 @@ export function useWorkflowExecutions() {
     toolCaller: toolCaller,
     toolName: "COLLECTION_WORKFLOW_EXECUTION_LIST",
     toolInputParams: {
-      where: `workflow = '${workflow.id}'`,
-      orderBy: "created_at DESC",
+      where: {
+        field: ["workflow"],
+        operator: "eq",
+        value: workflow.id,
+      },
+      orderBy: [{ field: ["created_at"], direction: "desc" }],
       limit: 100,
     },
     scope: `${connection.id}-executions-${workflow.id}`,

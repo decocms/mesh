@@ -32,6 +32,7 @@ function getStatusBadge(status: ExecutionStatus) {
         </Badge>
       );
     case "error":
+    case "failed":
       return (
         <Badge variant="destructive" className="gap-1">
           <AlertOctagon size={11} />
