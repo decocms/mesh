@@ -59,9 +59,16 @@ const DecoBindingSchema = z.union([
 export type DecoBinding = z.infer<typeof DecoBindingSchema>;
 
 const decoConfigSchema = z.object({
-  workspace: z.string({
-    required_error: requiredErrorForProp("workspace"),
-  }),
+  workspace: z
+    .union([
+      z.string().min(1, requiredErrorForProp("workspace")),
+      z.undefined(),
+    ])
+    .refine(
+      (value): value is string => typeof value === "string" && value.length > 0,
+      { message: requiredErrorForProp("workspace") },
+    )
+    .transform((value) => value as string),
   bindings: z.array(DecoBindingSchema).optional().default([]),
   local: z.boolean().optional().default(false),
   enable_workflows: z.boolean().optional().default(true),

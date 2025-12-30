@@ -108,7 +108,7 @@ const JsonSchemaSchema: z.ZodType<JsonSchema> = z.lazy(() =>
   z
     .object({
       type: z.string().optional(),
-      properties: z.record(z.unknown()).optional(),
+      properties: z.record(z.string(), z.unknown()).optional(),
       required: z.array(z.string()).optional(),
       description: z.string().optional(),
       additionalProperties: z.boolean().optional(),
@@ -128,7 +128,7 @@ export const StepSchema = z.object({
   description: z.string().optional().describe("What this step does"),
   action: StepActionSchema,
   input: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .optional()
     .describe(
       "Data passed to the action. Use @ref for dynamic values: @input.field (workflow input), @stepName.field (previous step output), @item/@index (loop context). Example: { 'userId': '@input.user_id', 'data': '@fetch.result' }",
@@ -175,7 +175,7 @@ export const WorkflowExecutionSchema = BaseCollectionEntitySchema.extend({
     "Current status of the workflow execution",
   ),
   input: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .optional()
     .describe("Input data for the workflow execution"),
   output: z

@@ -166,11 +166,15 @@ export async function handleAuthError({
   connectionUrl,
   headers,
 }: HandleAuthErrorOptions): Promise<Response | null> {
+  const message = error.message?.toLowerCase() ?? "";
   const isAuthError =
     error.status === 401 ||
     error.code === 401 ||
     error.message?.includes("401") ||
-    error.message?.toLowerCase().includes("unauthorized");
+    message.includes("unauthorized") ||
+    message.includes("invalid_token") ||
+    message.includes("api key required") ||
+    message.includes("api-key required");
 
   if (!isAuthError) {
     return null;

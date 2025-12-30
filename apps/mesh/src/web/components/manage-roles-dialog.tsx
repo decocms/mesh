@@ -83,7 +83,7 @@ const roleFormSchema = z.object({
   allowAllStaticPermissions: z.boolean(),
   staticPermissions: z.array(z.string()),
   // Connection-specific permissions (MCP permissions)
-  toolSet: z.record(z.array(z.string())),
+  toolSet: z.record(z.string(), z.array(z.string())),
   // Members
   memberIds: z.array(z.string()),
 });

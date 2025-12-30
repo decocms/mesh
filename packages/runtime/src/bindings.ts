@@ -1,4 +1,4 @@
-import { CollectionBinding } from "packages/bindings/src/well-known/collections.ts";
+import type { CollectionBinding } from "@decocms/bindings/collections";
 import type { MCPConnection } from "./connection.ts";
 import type { RequestContext } from "./index.ts";
 import { type MCPClientFetchStub, MCPClient, type ToolBinder } from "./mcp.ts";
@@ -38,7 +38,7 @@ export const BindingOf = <
   name: TName,
 ) => {
   return z.object({
-    __type: z.literal<TName>(name).default(name),
+    __type: z.literal(name as string).default(name as string),
     value: z.string(),
   });
 };

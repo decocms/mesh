@@ -23,6 +23,7 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import {
   CallToolRequestSchema,
   GetPromptRequestSchema,
@@ -48,7 +49,6 @@ import { Hono } from "hono";
 import { issueMeshToken } from "../../auth/jwt";
 import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
-import { HttpServerTransport } from "../http-server-transport";
 import { compose } from "../utils/compose";
 import { handleAuthError } from "./oauth-proxy";
 import {
@@ -659,8 +659,8 @@ async function createMCPProxyDoNotUseDirectly(
       },
     );
 
-    // Create transport (uses HttpServerTransport for fetch Request/Response)
-    const transport = new HttpServerTransport({
+    // Create transport (web-standard Streamable HTTP for fetch Request/Response)
+    const transport = new WebStandardStreamableHTTPServerTransport({
       enableJsonResponse:
         req.headers.get("Accept")?.includes("application/json") ?? false,
     });

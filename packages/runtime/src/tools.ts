@@ -9,7 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport as HttpServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { GetPromptResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import type { ZodRawShape, ZodSchema, ZodTypeAny } from "zod";
 import { BindingRegistry } from "./bindings.ts";
 import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
@@ -30,7 +30,7 @@ export const createRuntimeContext = (prev?: AppContext) => {
 };
 
 export interface ToolExecutionContext<
-  TSchemaIn extends z.ZodTypeAny = z.ZodTypeAny,
+  TSchemaIn extends ZodTypeAny = ZodTypeAny,
 > {
   context: z.infer<TSchemaIn>;
   runtimeContext: AppContext;
@@ -40,8 +40,8 @@ export interface ToolExecutionContext<
  * Tool interface with generic schema types for type-safe tool creation.
  */
 export interface Tool<
-  TSchemaIn extends z.ZodTypeAny = z.ZodTypeAny,
-  TSchemaOut extends z.ZodTypeAny | undefined = undefined,
+  TSchemaIn extends ZodTypeAny = ZodTypeAny,
+  TSchemaOut extends ZodTypeAny | undefined = undefined,
 > {
   id: string;
   description?: string;
@@ -49,7 +49,7 @@ export interface Tool<
   outputSchema?: TSchemaOut;
   execute(
     context: ToolExecutionContext<TSchemaIn>,
-  ): TSchemaOut extends z.ZodSchema
+  ): TSchemaOut extends ZodSchema
     ? Promise<z.infer<TSchemaOut>>
     : Promise<unknown>;
 }
@@ -57,7 +57,7 @@ export interface Tool<
 /**
  * Streamable tool interface for tools that return Response streams.
  */
-export interface StreamableTool<TSchemaIn extends z.ZodSchema = z.ZodSchema> {
+export interface StreamableTool<TSchemaIn extends ZodSchema = ZodSchema> {
   id: string;
   inputSchema: TSchemaIn;
   streamable?: true;
@@ -72,8 +72,8 @@ export interface StreamableTool<TSchemaIn extends z.ZodSchema = z.ZodSchema> {
 export type CreatedTool = {
   id: string;
   description?: string;
-  inputSchema: z.ZodTypeAny;
-  outputSchema?: z.ZodTypeAny;
+  inputSchema: ZodTypeAny;
+  outputSchema?: ZodTypeAny;
   streamable?: true;
   // Use a permissive execute signature - accepts any context shape
   execute(context: {
@@ -90,18 +90,16 @@ export type { GetPromptResult } from "@modelcontextprotocol/sdk/types.js";
  * Unlike tool arguments, prompt arguments are always strings.
  */
 export type PromptArgsRawShape = {
-  [k: string]:
-    | z.ZodType<string, z.ZodTypeDef, string>
-    | z.ZodOptional<z.ZodType<string, z.ZodTypeDef, string>>;
+  [k: string]: z.ZodType<string> | z.ZodOptional<z.ZodType<string>>;
 };
 
 /**
  * Context passed to prompt execute functions.
  */
 export interface PromptExecutionContext<
-  TArgs extends PromptArgsRawShape = PromptArgsRawShape,
+  _TArgs extends PromptArgsRawShape = PromptArgsRawShape,
 > {
-  args: z.objectOutputType<TArgs, z.ZodTypeAny>;
+  args: Record<string, string | undefined>;
   runtimeContext: AppContext;
 }
 
@@ -138,8 +136,8 @@ export type CreatedPrompt = {
  * creates a private tool that always ensure for athentication before being executed
  */
 export function createPrivateTool<
-  TSchemaIn extends z.ZodSchema = z.ZodSchema,
-  TSchemaOut extends z.ZodSchema | undefined = undefined,
+  TSchemaIn extends ZodSchema = ZodSchema,
+  TSchemaOut extends ZodSchema | undefined = undefined,
 >(opts: Tool<TSchemaIn, TSchemaOut>): Tool<TSchemaIn, TSchemaOut> {
   const execute = opts.execute;
   if (typeof execute === "function") {
@@ -154,9 +152,9 @@ export function createPrivateTool<
   return createTool(opts);
 }
 
-export function createStreamableTool<
-  TSchemaIn extends z.ZodSchema = z.ZodSchema,
->(streamableTool: StreamableTool<TSchemaIn>): StreamableTool<TSchemaIn> {
+export function createStreamableTool<TSchemaIn extends ZodSchema = ZodSchema>(
+  streamableTool: StreamableTool<TSchemaIn>,
+): StreamableTool<TSchemaIn> {
   return {
     ...streamableTool,
     execute: (input: ToolExecutionContext<TSchemaIn>) => {
@@ -173,8 +171,8 @@ export function createStreamableTool<
 }
 
 export function createTool<
-  TSchemaIn extends z.ZodSchema = z.ZodSchema,
-  TSchemaOut extends z.ZodSchema | undefined = undefined,
+  TSchemaIn extends ZodSchema = ZodSchema,
+  TSchemaOut extends ZodSchema | undefined = undefined,
 >(opts: Tool<TSchemaIn, TSchemaOut>): Tool<TSchemaIn, TSchemaOut> {
   return {
     ...opts,
@@ -321,7 +319,7 @@ type PickByType<T, Value> = {
 
 export interface CreateMCPServerOptions<
   Env = unknown,
-  TSchema extends z.ZodTypeAny = never,
+  TSchema extends ZodTypeAny = never,
   TBindings extends BindingRegistry = BindingRegistry,
   TEnv extends Env & DefaultEnv<TSchema, TBindings> = Env &
     DefaultEnv<TSchema, TBindings>,
@@ -385,12 +383,12 @@ const getEventBus = (
     : env?.MESH_REQUEST_CONTEXT.state[prop];
 };
 
-const toolsFor = <TSchema extends z.ZodTypeAny = never>({
+const toolsFor = <TSchema extends ZodTypeAny = never>({
   events,
   configuration: { state: schema, scopes, onChange } = {},
 }: CreateMCPServerOptions<any, TSchema> = {}): CreatedTool[] => {
   const jsonSchema = schema
-    ? zodToJsonSchema(schema)
+    ? z.toJSONSchema(schema)
     : { type: "object", properties: {} };
   const busProp = String(events?.bus ?? "EVENT_BUS");
   return [
@@ -409,10 +407,11 @@ const toolsFor = <TSchema extends z.ZodTypeAny = never>({
             }),
             outputSchema: z.object({}),
             execute: async (input) => {
-              const state = input.context.state as z.infer<TSchema>;
+              const state = (input.context as { state: unknown })
+                .state as z.infer<TSchema>;
               await onChange?.(input.runtimeContext.env, {
                 state,
-                scopes: input.context.scopes,
+                scopes: (input.context as { scopes: string[] }).scopes,
               });
               const bus = getEventBus(busProp, input.runtimeContext.env);
               if (events && state && bus) {
@@ -479,7 +478,7 @@ type CallTool = (opts: {
 
 export type MCPServer<
   TEnv = unknown,
-  TSchema extends z.ZodTypeAny = never,
+  TSchema extends ZodTypeAny = never,
   TBindings extends BindingRegistry = BindingRegistry,
 > = {
   fetch: Fetch<TEnv & DefaultEnv<TSchema, TBindings>>;
@@ -488,7 +487,7 @@ export type MCPServer<
 
 export const createMCPServer = <
   Env = unknown,
-  TSchema extends z.ZodTypeAny = never,
+  TSchema extends ZodTypeAny = never,
   TBindings extends BindingRegistry = BindingRegistry,
   TEnv extends Env & DefaultEnv<TSchema, TBindings> = Env &
     DefaultEnv<TSchema, TBindings>,
@@ -535,14 +534,14 @@ export const createMCPServer = <
           description: tool.description,
           inputSchema:
             tool.inputSchema && "shape" in tool.inputSchema
-              ? (tool.inputSchema.shape as z.ZodRawShape)
+              ? (tool.inputSchema.shape as ZodRawShape)
               : z.object({}).shape,
           outputSchema: isStreamableTool(tool)
             ? z.object({ bytes: z.record(z.string(), z.number()) }).shape
             : tool.outputSchema &&
                 typeof tool.outputSchema === "object" &&
                 "shape" in tool.outputSchema
-              ? (tool.outputSchema.shape as z.ZodRawShape)
+              ? (tool.outputSchema.shape as ZodRawShape)
               : z.object({}).shape,
         },
         async (args) => {

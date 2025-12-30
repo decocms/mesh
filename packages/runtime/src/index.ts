@@ -1,6 +1,6 @@
 /* oxlint-disable no-explicit-any */
 import { decodeJwt } from "jose";
-import type { z } from "zod";
+import { z } from "zod";
 import {
   BindingRegistry,
   initializeBindings,
@@ -164,7 +164,9 @@ export const withBindings = <TEnv>({
   authToken,
 }: {
   env: TEnv;
-  server: MCPServer<TEnv, any>;
+  // The runtime server is generic over schema/binding registries; we intentionally accept
+  // any here to avoid leaking those generics into environment wiring.
+  server: MCPServer<any, any, any>;
   // token is x-mesh-token
   tokenOrContext?: string | RequestContext;
   // authToken is the authorization header

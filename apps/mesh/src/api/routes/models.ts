@@ -216,10 +216,7 @@ app.post("/:org/models/stream", async (c) => {
 
     const transport = createGatewayTransport(c.req.raw, gatewayConfig.id);
 
-    const client = new Client(
-      { name: "mcp-mesh-proxy", version: "1.0.0" },
-      { capabilities: {} },
-    );
+    const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
     const [modelMessages, connection] = await Promise.all([

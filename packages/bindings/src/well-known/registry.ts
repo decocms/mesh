@@ -24,8 +24,8 @@ const RegistryToolSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().optional(),
-  inputSchema: z.record(z.unknown()),
-  outputSchema: z.record(z.unknown()).optional(),
+  inputSchema: z.record(z.string(), z.unknown()),
+  outputSchema: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
@@ -44,7 +44,7 @@ export const MCPRegistryServerSchema = BaseCollectionEntitySchema.extend({
           scopeName: z.string(),
           appName: z.string(),
           friendlyName: z.string().nullable().optional(),
-          metadata: z.record(z.unknown()).nullable().optional(),
+          metadata: z.record(z.string(), z.unknown()).nullable().optional(),
           publishedAt: z.string().datetime().optional(),
           updatedAt: z.string().datetime().optional(),
           tools: z
@@ -58,7 +58,7 @@ export const MCPRegistryServerSchema = BaseCollectionEntitySchema.extend({
     .optional(),
   server: z.object({
     $schema: z.string().optional(),
-    _meta: z.record(z.unknown()).optional(),
+    _meta: z.record(z.string(), z.unknown()).optional(),
     name: z.string().describe("The server name (scope/app)"),
     title: z.string().optional().describe("User-friendly title"),
     description: z.string().optional().describe("Server description"),

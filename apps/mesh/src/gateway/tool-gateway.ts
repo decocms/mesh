@@ -9,13 +9,13 @@ import type {
   CallToolResult,
   ListToolsResult,
 } from "@modelcontextprotocol/sdk/types.js";
+import { lazy } from "../common";
 import type {
   GatewayToolSelectionStrategy,
   ToolSelectionMode,
 } from "../storage/types";
-import { lazy } from "../common";
-import { getStrategy, type ToolWithConnection } from "./strategy";
 import type { ProxyCollection } from "./proxy-collection";
+import { getStrategy, type ToolWithConnection } from "./strategy";
 
 /** Maps tool name -> { connectionId, originalName } */
 interface ToolMapping {
@@ -110,7 +110,7 @@ export class ToolGateway {
 
         allTools.push({
           ...tool,
-          metadata: { connectionId, connectionTitle },
+          _meta: { connectionId, connectionTitle },
         });
         mappings.set(tool.name, { connectionId, originalName: tool.name });
       }
@@ -168,7 +168,7 @@ export class ToolGateway {
   async list(): Promise<ListToolsResult> {
     const cache = await this.cache;
     return {
-      tools: cache.strategyResult.tools.map(({ metadata: _, ...tool }) => tool),
+      tools: cache.strategyResult.tools,
     };
   }
 

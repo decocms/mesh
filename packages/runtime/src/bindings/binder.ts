@@ -1,5 +1,6 @@
 /* oxlint-disable no-explicit-any */
 import { z } from "zod";
+import type { ZodType, ZodTypeAny } from "zod";
 import type { MCPConnection } from "../connection.ts";
 import {
   createMCPFetchStub,
@@ -17,8 +18,8 @@ export interface ToolLike<
 > {
   name: TName;
   description: string;
-  inputSchema: z.ZodType<TInput>;
-  outputSchema?: z.ZodType<TReturn>;
+  inputSchema: ZodType<TInput>;
+  outputSchema?: ZodType<TReturn>;
   handler: (props: TInput) => Promise<TReturn> | TReturn;
 }
 
@@ -36,7 +37,7 @@ export type BinderImplementation<
           TDefinition[K]["name"],
           z.infer<TDefinition[K]["inputSchema"]>,
           TDefinition[K] extends { outputSchema: infer Schema }
-            ? Schema extends z.ZodType
+            ? Schema extends ZodTypeAny
               ? z.infer<Schema>
               : never
             : never
@@ -51,7 +52,7 @@ export type BinderImplementation<
             TDefinition[K]["name"],
             z.infer<TDefinition[K]["inputSchema"]>,
             TDefinition[K] extends { outputSchema: infer Schema }
-              ? Schema extends z.ZodType
+              ? Schema extends ZodTypeAny
                 ? z.infer<Schema>
                 : never
               : never

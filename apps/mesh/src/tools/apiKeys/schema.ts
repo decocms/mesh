@@ -26,7 +26,7 @@ import { z } from "zod";
  * - { "self": ["*"] } (all management tools)
  * - { "conn_abc123": ["*"] } (all tools for specific connection)
  */
-const PermissionSchema = z.record(z.array(z.string()));
+const PermissionSchema = z.record(z.string(), z.array(z.string()));
 
 export type Permission = z.infer<typeof PermissionSchema>;
 
@@ -82,7 +82,7 @@ export const ApiKeyCreateInputSchema = z.object({
       "Expiration time in seconds. If not provided, key never expires.",
     ),
   metadata: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .optional()
     .describe("Additional metadata to store with the API key"),
 });
@@ -159,7 +159,7 @@ export const ApiKeyUpdateInputSchema = z.object({
     'New permissions. Format: { resource: [actions] } where resource is "self" for management tools or "conn_<UUID>" for connection-specific tools. Actions are tool names or "*" for all. Example: { "self": ["API_KEY_CREATE"] }. Replaces existing permissions.',
   ),
   metadata: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .optional()
     .describe("New metadata. Replaces existing metadata."),
 });

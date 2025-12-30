@@ -8,7 +8,7 @@ export const State = {
   getStore: () => {
     return asyncLocalStorage.getStore();
   },
-  run: <TEnv extends DefaultEnv, R, TArgs extends unknown[]>(
+  run: <TEnv extends DefaultEnv<any, any>, R, TArgs extends unknown[]>(
     ctx: AppContext<TEnv>,
     f: (...args: TArgs) => R,
     ...args: TArgs

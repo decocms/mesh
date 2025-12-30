@@ -59,7 +59,9 @@ function convertBindingToBinder(bindings: BindingDefinition[]): Binder {
     outputSchema: binding.outputSchema
       ? (() => {
           try {
-            return convertJsonSchemaToZod(binding.outputSchema);
+            return convertJsonSchemaToZod(
+              binding.outputSchema,
+            ) as unknown as z.ZodType<object>;
           } catch (error) {
             console.error(
               `Failed to convert output schema for ${binding.name}:`,

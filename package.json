@@ -7,7 +7,7 @@
     "dev": "bun run --cwd=apps/mesh dev",
     "fmt": "biome format --write",
     "lint": "oxlint",
-    "check": "bun run --workspaces --elide-lines=0 check",
+    "check": "bun run --workspaces check",
     "check:ci": "bun run --workspaces check",
     "fmt:check": "biome format",
     "test": "bun test",
@@ -35,7 +35,7 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
-    "zod-to-json-schema": "3.25.0"
+    "@modelcontextprotocol/sdk": "1.25.1"
   },
   "engines": {
     "node": ">=24.0.0"

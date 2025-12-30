@@ -8,7 +8,6 @@
 
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import zodToJsonSchema from "zod-to-json-schema";
 import { runCode } from "../sandbox/index.ts";
 import type { GatewayToolSelectionStrategy } from "../storage/types";
 
@@ -25,7 +24,7 @@ interface ToolWithHandler {
 
 /** Extended tool info with connection metadata */
 export interface ToolWithConnection extends Tool {
-  metadata: {
+  _meta: {
     connectionId: string;
     connectionTitle: string;
   };
@@ -73,7 +72,7 @@ function calculateScore(terms: string[], tool: ToolWithConnection): number {
   let score = 0;
   const nameLower = tool.name.toLowerCase();
   const descLower = (tool.description ?? "").toLowerCase();
-  const connLower = tool.metadata.connectionTitle.toLowerCase();
+  const connLower = tool._meta.connectionTitle.toLowerCase();
 
   for (const term of terms) {
     if (nameLower === term) {
@@ -154,7 +153,7 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
     tool: {
       name: "GATEWAY_SEARCH_TOOLS",
       description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas.${categoryList} Total tools: ${ctx.tools.length}.`,
-      inputSchema: zodToJsonSchema(inputSchema) as Tool["inputSchema"],
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
     },
     handler: async (args) => {
       const parsed = inputSchema.safeParse(args);
@@ -172,7 +171,7 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
         results: results.map((t) => ({
           name: t.name,
           description: t.description,
-          connection: t.metadata.connectionTitle,
+          connection: t._meta.connectionTitle,
         })),
         totalAvailable: ctx.tools.length,
       });
@@ -193,7 +192,7 @@ function createDescribeTool(ctx: StrategyContext): ToolWithHandler {
       name: "GATEWAY_DESCRIBE_TOOLS",
       description:
         "Get detailed schemas for specific tools. Call after searching to get full input/output schemas.",
-      inputSchema: zodToJsonSchema(inputSchema) as Tool["inputSchema"],
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
     },
     handler: async (args) => {
       const parsed = inputSchema.safeParse(args);
@@ -210,7 +209,7 @@ function createDescribeTool(ctx: StrategyContext): ToolWithHandler {
         tools: tools.map((t) => ({
           name: t.name,
           description: t.description,
-          connection: t.metadata.connectionTitle,
+          connection: t._meta.connectionTitle,
           inputSchema: t.inputSchema,
           outputSchema: t.outputSchema,
         })),
@@ -229,7 +228,7 @@ function createCallTool(ctx: StrategyContext): ToolWithHandler {
       .enum(toolNames as [string, ...string[]])
       .describe("The name of the tool to execute"),
     arguments: z
-      .record(z.unknown())
+      .record(z.string(), z.unknown())
       .default({})
       .describe("Arguments to pass to the tool"),
   });
@@ -239,7 +238,7 @@ function createCallTool(ctx: StrategyContext): ToolWithHandler {
       name: "GATEWAY_CALL_TOOL",
       description:
         "Execute a tool by name. Use GATEWAY_DESCRIBE_TOOLS first to understand the input schema.",
-      inputSchema: zodToJsonSchema(inputSchema) as Tool["inputSchema"],
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
     },
     handler: async (args) => {
       const parsed = inputSchema.safeParse(args);
@@ -285,7 +284,7 @@ function createRunCodeTool(ctx: StrategyContext): ToolWithHandler {
       name: "GATEWAY_RUN_CODE",
       description:
         'Run JavaScript code in a sandbox. Code must be an ES module that `export default`s an async function that receives (tools) as its first parameter. Use GATEWAY_DESCRIBE_TOOLS to understand the input/output schemas for a tool before calling it. Use `await tools.toolName(args)` or `await tools["tool-name"](args)` to call tools.',
-      inputSchema: zodToJsonSchema(inputSchema) as Tool["inputSchema"],
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
     },
     handler: async (args) => {
       const parsed = inputSchema.safeParse(args);

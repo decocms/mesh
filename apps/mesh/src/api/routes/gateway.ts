@@ -15,6 +15,7 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import {
   CallToolRequestSchema,
   GetPromptRequestSchema,
@@ -38,18 +39,17 @@ import {
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import {
+  PromptGateway,
   ProxyCollection,
-  ToolGateway,
   ResourceGateway,
   ResourceTemplateGateway,
-  PromptGateway,
+  ToolGateway,
   type GatewayClient,
   type GatewayOptions,
 } from "../../gateway";
 import type { GatewayWithConnections } from "../../storage/types";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { Env } from "../env";
-import { HttpServerTransport } from "../http-server-transport";
 
 // Define Hono variables type
 const app = new Hono<Env>();
@@ -300,7 +300,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     );
 
     // Create transport
-    const transport = new HttpServerTransport({
+    const transport = new WebStandardStreamableHTTPServerTransport({
       enableJsonResponse:
         c.req.header("Accept")?.includes("application/json") ?? false,
     });

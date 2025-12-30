@@ -28,8 +28,8 @@ export type OAuthConfig = z.infer<typeof OAuthConfigSchema>;
 const ToolDefinitionSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
-  inputSchema: z.record(z.unknown()),
-  outputSchema: z.record(z.unknown()).optional(),
+  inputSchema: z.record(z.string(), z.unknown()),
+  outputSchema: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
@@ -111,7 +111,7 @@ export const ConnectionEntitySchema = z.object({
 
   // New configuration fields (snake_case)
   configuration_state: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .nullable()
     .describe("Configuration state (decrypted)"),
   configuration_scopes: z
@@ -121,7 +121,7 @@ export const ConnectionEntitySchema = z.object({
     .describe("Configuration scopes"),
 
   metadata: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .nullable()
     .describe("Additional metadata (includes repository info)"),
   tools: z

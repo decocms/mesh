@@ -1,4 +1,5 @@
-import { z, type ZodType } from "zod";
+import { z } from "zod";
+import type { ZodType } from "zod";
 import type { ToolBinder } from "../core/binder";
 
 /**
@@ -178,7 +179,7 @@ export function createCollectionUpdateInputSchema<T extends z.ZodTypeAny>(
 ) {
   return z.object({
     id: z.string().describe("ID of the entity to update"),
-    data: (entitySchema as unknown as z.AnyZodObject)
+    data: (entitySchema as unknown as z.ZodObject<z.ZodRawShape>)
       .partial()
       .describe("Partial entity data to update"),
   });
@@ -331,7 +332,7 @@ type ToolBinding<
 export type CollectionBinding<
   TEntitySchema,
   TUpperName extends Uppercase<string> = Uppercase<string>,
-  TEntity = TEntitySchema extends z.AnyZodObject
+  TEntity = TEntitySchema extends z.ZodObject<z.ZodRawShape>
     ? z.infer<TEntitySchema>
     : TEntitySchema,
 > = [
@@ -369,7 +370,7 @@ export type CollectionBinding<
  * Type helper to extract tool names from a collection binding
  */
 export type CollectionTools<
-  TEntitySchema extends z.AnyZodObject,
+  TEntitySchema extends z.ZodObject<z.ZodRawShape>,
   TUpperName extends Uppercase<string> = Uppercase<string>,
 > = CollectionBinding<TEntitySchema, TUpperName>[number]["name"];
 

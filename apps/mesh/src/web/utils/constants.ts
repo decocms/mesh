@@ -1,5 +1,5 @@
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { BaseCollectionEntitySchema } from "@decocms/bindings/collections";
+import { z } from "zod";
 
 export const MCP_REGISTRY_DECOCMS_KEY = "mcp.mesh";
 
@@ -20,11 +20,9 @@ export type JsonSchema = {
 
 /**
  * Base collection JSONSchema
- * Generated from BaseCollectionEntitySchema using zod-to-json-schema
+ * Generated from BaseCollectionEntitySchema using Zod's native JSON Schema conversion.
  */
-export const BaseCollectionJsonSchema: JsonSchema = zodToJsonSchema(
+export const BaseCollectionJsonSchema: JsonSchema = z.toJSONSchema(
   BaseCollectionEntitySchema,
-  {
-    target: "jsonSchema7",
-  },
+  { target: "draft-07" },
 ) as JsonSchema;

@@ -12,7 +12,7 @@ import {
   ConnectionCreateData,
   ToolDefinition,
 } from "@/tools/connection/schema";
-import zodToJsonSchema from "zod-to-json-schema";
+import { z } from "zod";
 import { auth } from "./index";
 
 interface MCPCreationSpec {
@@ -48,12 +48,12 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
           }) => {
             return {
               name: tool.name,
-              inputSchema: zodToJsonSchema(
-                tool.inputSchema as Parameters<typeof zodToJsonSchema>[0],
+              inputSchema: z.toJSONSchema(
+                tool.inputSchema as Parameters<typeof z.toJSONSchema>[0],
               ),
               outputSchema: tool.outputSchema
-                ? zodToJsonSchema(
-                    tool.outputSchema as Parameters<typeof zodToJsonSchema>[0],
+                ? z.toJSONSchema(
+                    tool.outputSchema as Parameters<typeof z.toJSONSchema>[0],
                   )
                 : undefined,
               description: tool.description,

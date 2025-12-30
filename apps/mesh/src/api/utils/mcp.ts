@@ -49,6 +49,7 @@
 
 import type { ServerClient } from "@decocms/bindings/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type {
   ListToolsResult,
   ServerCapabilities,
@@ -57,9 +58,7 @@ import {
   type CallToolRequest,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import z from "zod";
-import zodToJsonSchema from "zod-to-json-schema";
-import { HttpServerTransport } from "../http-server-transport";
+import { z } from "zod";
 import { compose } from "./compose";
 
 // ============================================================================
@@ -271,9 +270,9 @@ class McpServerBuilder {
             tools: this.tools.map((t) => ({
               name: t.name,
               description: t.description ?? "",
-              inputSchema: zodToJsonSchema(t.inputSchema),
+              inputSchema: z.toJSONSchema(t.inputSchema),
               outputSchema: t.outputSchema
-                ? zodToJsonSchema(t.outputSchema)
+                ? z.toJSONSchema(t.outputSchema)
                 : undefined,
             })),
           } as ListToolsResult;
@@ -320,7 +319,7 @@ class McpServerBuilder {
        * Handle fetch requests (MCP protocol over HTTP)
        */
       fetch: async (req: Request): Promise<Response> => {
-        const transport = new HttpServerTransport({
+        const transport = new WebStandardStreamableHTTPServerTransport({
           enableJsonResponse:
             req.headers.get("Accept")?.includes("application/json") ?? false,
         });
