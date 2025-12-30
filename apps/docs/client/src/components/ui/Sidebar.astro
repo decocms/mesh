@@ -65,9 +65,34 @@ function buildTree(docs: any[]): TreeNode[] {
         // Get parent folder to determine which order to use
         const parentPath = a.path[a.path.length - 2];
 
+        // Custom order for MCP Mesh top-level pages
+        if (parentPath === "mcp-mesh") {
+          // NOTE: doc IDs do not include ".mdx" (e.g. "overview", not "overview.mdx")
+          const mcpMeshOrder = [
+            "overview",
+            "quickstart",
+            "concepts",
+            "connect-clients",
+            "authentication",
+            "authorization-and-roles",
+            "mcp-servers",
+            "mcp-gateways",
+            "api-keys",
+            "monitoring",
+            "api-reference",
+          ];
+          const aIndex = mcpMeshOrder.indexOf(a.name);
+          const bIndex = mcpMeshOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
+
         // Custom order for no-code-guides files
         if (parentPath === "no-code-guides") {
-          const noCodeOrder = ["creating-tools.mdx", "creating-agents.mdx"];
+          const noCodeOrder = ["creating-tools", "creating-agents"];
           const aIndex = noCodeOrder.indexOf(a.name);
           const bIndex = noCodeOrder.indexOf(b.name);
           if (aIndex !== -1 && bIndex !== -1) {
@@ -80,11 +105,11 @@ function buildTree(docs: any[]): TreeNode[] {
         // Custom order for full-code-guides files
         if (parentPath === "full-code-guides") {
           const fullCodeOrder = [
-            "project-structure.mdx",
-            "building-tools.mdx",
-            "building-views.mdx",
-            "resources.mdx",
-            "deployment.mdx",
+            "project-structure",
+            "building-tools",
+            "building-views",
+            "resources",
+            "deployment",
           ];
           const aIndex = fullCodeOrder.indexOf(a.name);
           const bIndex = fullCodeOrder.indexOf(b.name);
@@ -98,10 +123,7 @@ function buildTree(docs: any[]): TreeNode[] {
         // Custom order for MCP Mesh deploy docs
         const rootPath = a.path[0];
         if (rootPath === "mcp-mesh" && parentPath === "deploy") {
-          const deployOrder = [
-            "local-docker-compose.mdx",
-            "kubernetes-helm-chart.mdx",
-          ];
+          const deployOrder = ["local-docker-compose", "kubernetes-helm-chart"];
           const aIndex = deployOrder.indexOf(a.name);
           const bIndex = deployOrder.indexOf(b.name);
           if (aIndex !== -1 && bIndex !== -1) {
@@ -115,11 +137,11 @@ function buildTree(docs: any[]): TreeNode[] {
       // For folders - custom ordering
       if (a.type === "folder" && b.type === "folder") {
         const folderOrder: Record<string, number> = {
-          "getting-started": 0,
-          "no-code-guides": 1,
-          "full-code-guides": 2,
-          // Keep new platform docs after the legacy guides (as per the original intent)
-          "mcp-mesh": 3,
+          // Put Mesh docs first
+          "mcp-mesh": 0,
+          "getting-started": 1,
+          "no-code-guides": 2,
+          "full-code-guides": 3,
           "mcp-studio": 4,
         };
 
@@ -176,10 +198,15 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
         }
       : null;
 
-  // Put MCP Mesh and MCP Studio at the top, then group legacy docs under Legacy Admin.
-  const next: TreeNode[] = [...files];
+  // Make "Introduction" the primary entry point, then product docs.
+  const introduction = files.find((f) => f.name === "introduction");
+  const otherFiles = files.filter((f) => f.name !== "introduction");
+
+  const next: TreeNode[] = [];
+  if (introduction) next.push(introduction);
   if (mcpMesh) next.push(mcpMesh);
   if (mcpStudio) next.push(mcpStudio);
+  next.push(...otherFiles);
   if (legacyFolder) next.push(legacyFolder);
   return next;
 }

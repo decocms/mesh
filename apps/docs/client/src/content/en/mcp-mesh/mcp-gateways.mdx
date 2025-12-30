@@ -1,0 +1,87 @@
+---
+title: MCP Gateways
+description: Publish a virtual MCP server that aggregates tools/resources/prompts from multiple connections
+icon: Waypoints
+---
+
+import Callout from "../../../components/ui/Callout.astro";
+
+## What is a gateway?
+
+An **MCP Gateway** is a **virtual MCP server** that aggregates multiple connections into a single MCP surface:
+
+- tools (`tools/list`, `tools/call`)
+- resources (`resources/list`, `resources/read`)
+- prompts (`prompts/list`, `prompts/get`)
+
+This is how you create a curated endpoint for clients without exposing every tool from every connected server.
+
+## Endpoint
+
+- `POST /mcp/gateway/:gatewayId`
+
+You can also omit `:gatewayId` and rely on the organization’s default gateway by providing one of these headers:
+
+- `x-org-id`, or
+- `x-org-slug`
+
+## Selection modes
+
+- **Include**: only the listed connections/tools are exposed.
+- **Exclude**: expose the whole org surface *except* excluded connections/tools.
+
+## Tool exposure strategies
+
+Gateways also control **how tools are exposed** to clients (useful when tool surfaces get large).
+These strategies ship by default:
+
+### Passthrough (baseline)
+
+- Exposes all gateway tools directly via `tools/list`.
+- Best for small tool surfaces and deterministic behavior.
+
+### Smart tool selection
+
+- Exposes meta-tools for discovery and targeted execution:
+  - `GATEWAY_SEARCH_TOOLS` (keyword search)
+  - `GATEWAY_DESCRIBE_TOOLS` (fetch full schemas)
+  - `GATEWAY_CALL_TOOL` (execute a chosen tool)
+- Goal: keep the tool list small and let the client request details on demand.
+
+### Code execution
+
+- Exposes meta-tools for discovery + sandboxed execution:
+  - `GATEWAY_SEARCH_TOOLS`
+  - `GATEWAY_DESCRIBE_TOOLS`
+  - `GATEWAY_RUN_CODE` (run JS in a sandbox that can call tools)
+- Goal: reduce tool exposure overhead on large surfaces by shifting work into a constrained runtime.
+
+## The default gateway (auto-created per org)
+
+Every new organization gets a **Default Gateway**:
+
+- **Strategy**: `passthrough`
+- **Mode**: `exclusion`
+- **Default exclusions**: the built-in **Mesh MCP** connection (management tools) and the **Store/Registry** connection are excluded by default
+- **Default behavior**: everything else in the org is included — so as you connect MCP servers, this endpoint becomes the “all tools in the org” gateway
+
+This is the endpoint most teams use as the single aggregated MCP surface for an org.
+
+## Benchmark: strategy tradeoffs
+
+We ran a gateway strategy benchmark here: [MCP Gateway Benchmark (GitHub Actions run)](https://github.com/decocms/mesh/actions/runs/20584203227).
+
+**Summary (high level):**
+
+- **Small tool surface (~10 tools)**:
+  - **Passthrough** used fewer tokens, but had lower success than **Code execution**
+  - **Smart tool selection** was the least reliable in this run
+- **Large tool surface (~128 tools)**:
+  - **Code execution** reduced token usage substantially vs **Passthrough** and had the highest success
+  - **Smart tool selection** was the most expensive in tokens in this run
+
+If you want the raw numbers, open the run and download the **benchmark-results** artifact.
+
+
+
+

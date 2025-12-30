@@ -24,7 +24,7 @@ export function IceBreakers({
   const displayPrompts = prompts.slice(0, 4);
 
   return (
-    <div className={cn("flex flex-col gap-3 w-full", className)}>
+    <div className={cn("flex flex-col gap-3 flex-1", className)}>
       <p className="text-xs text-muted-foreground text-center">Try asking</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {displayPrompts.map((prompt) => (

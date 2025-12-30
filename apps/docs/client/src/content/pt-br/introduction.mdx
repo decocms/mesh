@@ -22,15 +22,37 @@ Se MCP é a interface padrão para acesso a tools, o deco CMS é a **camada de p
 
 Se você conheceu a gente antes, como **deco.cx**, e está buscando **headless CMS + storefront**, visite [deco.cx](https://www.decocms.com/use-case/deco-cx). Veja a documentação do deco.cx em [docs.deco.cx](https://docs.deco.cx/en/getting-started/overview).
 
-## Início rápido (Mesh)
+## Comece pelo MCP Mesh
 
-### Opção A: setup local do Mesh em um comando
+Escolha uma opção:
+
+### Opção A: setup local com um comando (npx)
 
 ```bash
 npx @decocms/mesh
 ```
 
-### Opção B: rodar a partir do código
+### Opção B: setup local com Docker Compose
+
+```bash
+# 1. Configure variáveis de ambiente
+# Edite .env e configure BETTER_AUTH_SECRET (obrigatório)
+# Gere um secret: openssl rand -base64 32
+cp conf-examples/env.example .env
+
+# 2. Configure autenticação
+cp conf-examples/auth-config.json.example auth-config.json
+
+# 3. Suba a aplicação
+docker compose up -d
+
+# 4. Acesse
+open http://localhost:3000
+```
+
+**Mais detalhes:** [Local: Docker Compose](/pt-br/mcp-mesh/deploy/local-docker-compose)
+
+### Opção C: rodar a partir do código (source)
 
 ```bash
 git clone https://github.com/decocms/mesh.git
@@ -39,10 +61,42 @@ bun install
 bun run dev
 ```
 
-## Deploy (Mesh)
+### Opção D: deploy no Kubernetes (Helm)
 
-- **[Local: Docker Compose](/pt-br/mcp-mesh/deploy/local-docker-compose)**
-- **[Kubernetes: Helm Chart](/pt-br/mcp-mesh/deploy/kubernetes-helm-chart)**
+```bash
+# 1. Gere um secret seguro para autenticação
+SECRET=$(openssl rand -base64 32)
+
+# 2. Instale o chart com o secret gerado
+helm install deco-mcp-mesh . \
+  --namespace deco-mcp-mesh \
+  --create-namespace \
+  --set secret.BETTER_AUTH_SECRET="$SECRET"
+
+# 3. Aguarde os pods ficarem prontos
+kubectl wait --for=condition=ready pod \
+  -l app.kubernetes.io/instance=deco-mcp-mesh \
+  -n deco-mcp-mesh \
+  --timeout=300s
+
+# 4. Acesse via port-forward
+kubectl port-forward svc/deco-mcp-mesh 8080:80 -n deco-mcp-mesh
+```
+
+A aplicação ficará disponível em `http://localhost:8080`.
+
+**Mais detalhes:** [Kubernetes: Helm Chart](/pt-br/mcp-mesh/deploy/kubernetes-helm-chart)
+
+## Aprenda o Mesh (conceitos + superfícies do produto)
+
+- **[Visão geral](/pt-br/mcp-mesh/overview)**
+- **[Quickstart](/pt-br/mcp-mesh/quickstart)**
+- **[Conceitos](/pt-br/mcp-mesh/concepts)**
+- **[MCP Servers](/pt-br/mcp-mesh/mcp-servers)**
+- **[MCP Gateways](/pt-br/mcp-mesh/mcp-gateways)**
+- **[API Keys](/pt-br/mcp-mesh/api-keys)**
+- **[Monitoring](/pt-br/mcp-mesh/monitoring)**
+- **[API Reference](/pt-br/mcp-mesh/api-reference)**
 
 <Callout type="warning">
   **Divisão da documentação (guia rápido):**
@@ -53,18 +107,19 @@ bun run dev
   Estamos lançando o **MCP Studio** (em cima do Mesh), que vai trazer as capacidades do admin SaaS atual para o Mesh (incluindo uma versão hospedada por nós) e substituir o SaaS legado ao longo do tempo.
 </Callout>
 
-## Problema (e o que o Mesh resolve)
+## Problema: a lacuna entre demo e produção
 
-Quando a IA sai de demos e vai para produção, os mesmos limites aparecem:
+IA é fácil de demonstrar e difícil de **operar**.
 
-- **Lacunas de governança**: sem um lugar único para aplicar SSO/RBAC, aprovações e trilhas de auditoria
-- **Proliferação de integrações**: cada cliente integra cada tool com seus próprios retries, auth e config
-- **Pontos cegos operacionais**: debugging é lento; falhas e custos são difíceis de rastrear ponta a ponta
-- **Obesidade de contexto**: prompts e listas de tools incham, piorando qualidade e custo
+À medida que o uso cresce (mais times, mais sistemas, mais tools), a maioria das empresas esbarra em:
 
-O MCP Mesh centraliza essas preocupações transversais **uma vez** para você não reimplementar isso em cada agente/app.
+- **Autonomia que não escala**: cada nova integração vira uma fila de tickets e revisões
+- **Contexto fragmentado**: conhecimento e dados ficam espalhados, e os conectores se repetem
+- **Governança inconsistente**: SSO/RBAC, auditoria e visibilidade operacional variam por app/time
 
-## Estrutura da plataforma: Mesh → Studio → Distribuição
+Para contexto sobre a visão da plataforma, leia [The architecture of an AI-native company](https://www.decocms.com/blog/post/ai-native-company).
+
+## Estrutura da plataforma: Mesh → Studio → Apps & Store
 
 ### O MCP Mesh (fundação)
 Um **control plane** open-source para tráfego MCP. Ele fica entre seus clientes MCP (Cursor, Claude, VS Code, agentes customizados) e seus servidores MCP, oferecendo uma camada unificada de auth, policy e observabilidade.

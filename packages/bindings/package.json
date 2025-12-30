@@ -1,6 +1,6 @@
 {
   "name": "@decocms/bindings",
-  "version": "1.0.1-alpha.27",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",

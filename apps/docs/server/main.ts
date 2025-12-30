@@ -7,11 +7,20 @@ interface Env {
   };
 }
 
+const rootRedirects: Record<string, string> = {
+  "/": "/en/introduction",
+  "/en": "/en/introduction",
+  "/pt-br": "/pt-br/introduction",
+};
+
 const runtime = withRuntime<Env>({
   fetch: async (req, env) => {
     const url = new URL(req.url);
-    if (url.pathname === "/" || url.pathname === "") {
-      return Response.redirect(new URL("/en/introduction", req.url), 302);
+    if (rootRedirects[url.pathname]) {
+      return Response.redirect(
+        new URL(rootRedirects[url.pathname], req.url),
+        302,
+      );
     }
 
     const assetsHandler =

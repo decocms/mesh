@@ -130,6 +130,19 @@ export function createApp(options: CreateAppOptions = {}) {
   // Request logging
   app.use("*", logger());
 
+  // Log response body for 5xx errors
+  app.use("*", async (c, next) => {
+    await next();
+    if (c.res.status >= 500) {
+      const clonedRes = c.res.clone();
+      const body = await clonedRes.text();
+      console.error(
+        `[5xx Response] ${c.req.method} ${c.req.path} - ${c.res.status}:`,
+        body,
+      );
+    }
+  });
+
   // ============================================================================
   // Health Check & Metrics
   // ============================================================================

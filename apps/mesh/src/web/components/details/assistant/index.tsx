@@ -234,7 +234,7 @@ function AssistantChatPanel({
   };
 
   const emptyState = (
-    <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
+    <div className="flex flex-col items-center justify-center gap-4 p-4 text-center">
       <div className="flex flex-col items-center gap-4">
         {assistant.avatar ? (
           <div className="size-[60px] rounded-[18px] border border-border shrink-0 overflow-hidden">
@@ -291,10 +291,7 @@ function AssistantChatPanel({
 
   return (
     <Chat>
-      <Chat.Main
-        className="h-full relative overflow-hidden"
-        innerClassName="px-2"
-      >
+      <Chat.Main className="h-full relative overflow-hidden">
         {/* Edit Form - fades in/out */}
         <div
           className={cn(
