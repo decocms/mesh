@@ -310,12 +310,13 @@ function OrgMcpsContent() {
     {
       id: "connection_url",
       header: "URL",
-      render: (connection) => (
-        <span className="text-sm text-muted-foreground block truncate">
-          {connection.connection_url}
-        </span>
-      ),
-      wrap: true,
+      render: (connection) => {
+        const url = connection.connection_url;
+        const truncated = url.length > 40 ? `${url.slice(0, 40)}...` : url;
+        return (
+          <span className="text-sm text-muted-foreground">{truncated}</span>
+        );
+      },
       cellClassName: "w-48 min-w-0 shrink-0",
     },
     {
