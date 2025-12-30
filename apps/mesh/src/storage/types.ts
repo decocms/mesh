@@ -130,10 +130,10 @@ export interface MCPConnectionTable {
   app_id: string | null;
 
   // Connection details
-  connection_type: "HTTP" | "SSE" | "Websocket";
-  connection_url: string;
+  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO";
+  connection_url: string | null; // Null for STDIO connections
   connection_token: string | null; // Encrypted
-  connection_headers: JsonObject<Record<string, string>> | null;
+  connection_headers: string | null; // JSON - encrypted envVars for STDIO
 
   // OAuth config for downstream MCP (if MCP supports OAuth)
   oauth_config: JsonObject<OAuthConfig> | null;

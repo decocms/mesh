@@ -8,13 +8,18 @@
  * - Creates MCP Server to handle incoming requests
  * - Creates MCP Client to connect to downstream connections
  * - Uses middleware pipeline for authorization
- * - Supports StreamableHTTP transport
+ * - Supports StreamableHTTP and STDIO transports
  */
 
 import { extractConnectionPermissions } from "@/auth/configuration-scopes";
 import { once } from "@/common";
 import { getMonitoringConfig } from "@/core/config";
-import { ConnectionEntity } from "@/tools/connection/schema";
+import { getStableStdioClient } from "@/stdio/stable-transport";
+import {
+  ConnectionEntity,
+  isStdioParameters,
+  type HttpConnectionParameters,
+} from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -263,33 +268,76 @@ async function createMCPProxyDoNotUseDirectly(
       headers["x-mesh-token"] = configurationToken;
     }
 
-    // Add custom headers from connection
-    if (connection.connection_headers) {
-      Object.assign(headers, connection.connection_headers);
-    }
-
     return headers;
   };
 
-  // Create client factory for downstream MCP
+  // Determine connection type and extract parameters
+  const isStdio = connection.connection_type === "STDIO";
+  const stdioParams = isStdioParameters(connection.connection_headers)
+    ? connection.connection_headers
+    : null;
+  const httpParams = !isStdio
+    ? (connection.connection_headers as HttpConnectionParameters | null)
+    : null;
+
+  // Create client factory for downstream MCP based on connection_type
   const createClient = async () => {
-    const headers = await buildRequestHeaders();
+    switch (connection.connection_type) {
+      case "STDIO": {
+        if (!stdioParams) {
+          throw new Error("STDIO connection missing parameters");
+        }
 
-    // Create transport to downstream MCP using StreamableHTTP
-    const transport = new StreamableHTTPClientTransport(
-      new URL(connection.connection_url),
-      { requestInit: { headers } },
-    );
+        // Get or create stable connection - respawns automatically if closed
+        // We want stable local MCP connection - don't spawn new process per request
+        return getStableStdioClient({
+          id: connectionId,
+          command: stdioParams.command,
+          args: stdioParams.args,
+          env: stdioParams.envVars,
+          cwd: stdioParams.cwd,
+        });
+      }
 
-    // Create MCP client
-    const client = new Client({
-      name: "mcp-mesh-proxy",
-      version: "1.0.0",
-    });
+      case "HTTP":
+      case "SSE":
+      case "Websocket": {
+        if (!connection.connection_url) {
+          throw new Error(
+            `${connection.connection_type} connection missing URL`,
+          );
+        }
 
-    await client.connect(transport);
+        // HTTP/SSE/WebSocket - create fresh client per request
+        const client = new Client({
+          name: "mcp-mesh-proxy",
+          version: "1.0.0",
+        });
 
-    return client;
+        const headers = await buildRequestHeaders();
+
+        // Add custom headers from connection_headers
+        if (httpParams?.headers) {
+          Object.assign(headers, httpParams.headers);
+        }
+
+        // Create transport to downstream MCP using StreamableHTTP
+        // TODO: Add SSE transport support when needed
+        const transport = new StreamableHTTPClientTransport(
+          new URL(connection.connection_url),
+          { requestInit: { headers } },
+        );
+
+        await client.connect(transport);
+
+        return client;
+      }
+
+      default:
+        throw new Error(
+          `Unknown connection type: ${connection.connection_type}`,
+        );
+    }
   };
 
   // Create authorization middlewares
@@ -385,6 +433,7 @@ async function createMCPProxyDoNotUseDirectly(
 
             throw error;
           } finally {
+            // Close client - stdio connections ignore close() via stable-transport
             await client.close();
           }
         },
@@ -449,10 +498,16 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Call tool using fetch directly for streaming support
   // Inspired by @deco/api proxy callStreamableTool
+  // Note: Only works for HTTP connections - STDIO doesn't support streaming fetch
   const callStreamableTool = async (
     name: string,
     args: Record<string, unknown>,
   ): Promise<Response> => {
+    if (!connection.connection_url) {
+      throw new Error("Streamable tools require HTTP connection with URL");
+    }
+    const connectionUrl = connection.connection_url;
+
     const request: CallToolRequest = {
       method: "tools/call",
       params: { name, arguments: args },
@@ -460,9 +515,14 @@ async function createMCPProxyDoNotUseDirectly(
     return callStreamableToolPipeline(request, async (): Promise<Response> => {
       const headers = await buildRequestHeaders();
 
+      // Add custom headers from connection_headers
+      if (httpParams?.headers) {
+        Object.assign(headers, httpParams.headers);
+      }
+
       // Use fetch directly to support streaming responses
       // Build URL with tool name appended for call-tool endpoint pattern
-      const url = new URL(connection.connection_url);
+      const url = new URL(connectionUrl);
       url.pathname =
         url.pathname.replace(/\/$/, "") + `/call-tool/${request.params.name}`;
 
@@ -546,13 +606,16 @@ async function createMCPProxyDoNotUseDirectly(
       client = await createClient();
     } catch (error) {
       // Check if this is an auth error - if so, return appropriate 401
-      const authResponse = await handleAuthError({
-        error: error as Error & { status?: number },
-        reqUrl,
-        connectionId,
-        connectionUrl: connection.connection_url,
-        headers: await buildRequestHeaders(),
-      });
+      // Note: This only applies to HTTP connections
+      const authResponse = connection.connection_url
+        ? await handleAuthError({
+            error: error as Error & { status?: number },
+            reqUrl,
+            connectionId,
+            connectionUrl: connection.connection_url,
+            headers: await buildRequestHeaders(),
+          })
+        : null;
       if (authResponse) {
         return authResponse;
       }

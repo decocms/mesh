@@ -1,0 +1,14 @@
+# Lefthook configuration for mesh monorepo
+# Install: npx lefthook install
+
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      glob: "*.{ts,tsx,js,jsx,json,md}"
+      run: bunx biome format --write {staged_files}
+      stage_fixed: true
+    lint:
+      glob: "*.{ts,tsx,js,jsx}"
+      run: bunx oxlint {staged_files}
+

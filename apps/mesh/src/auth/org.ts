@@ -112,6 +112,7 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
           (await fetchToolsFromMCP({
             id: "pending",
             title: mcpConfig.data.title,
+            connection_type: mcpConfig.data.connection_type,
             connection_url: mcpConfig.data.connection_url,
             connection_token: mcpConfig.data.connection_token,
             connection_headers: mcpConfig.data.connection_headers,

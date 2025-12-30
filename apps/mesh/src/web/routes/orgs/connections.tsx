@@ -1,5 +1,4 @@
 import type { ConnectionEntity } from "@/tools/connection/schema";
-import { ConnectionEntitySchema } from "@/tools/connection/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
@@ -55,6 +54,8 @@ import {
   Trash01,
   Loading01,
   Container,
+  Terminal,
+  Globe02,
 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
@@ -73,21 +74,153 @@ import { z } from "zod";
 import { authClient } from "@/web/lib/auth-client";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
-// Form validation schema derived from ConnectionEntitySchema
-// Pick the relevant fields and adapt for form use
-const connectionFormSchema = ConnectionEntitySchema.pick({
-  title: true,
-  description: true,
-  connection_type: true,
-  connection_url: true,
-  connection_token: true,
-}).partial({
-  // These are optional for form input
-  description: true,
-  connection_token: true,
+import type {
+  StdioConnectionParameters,
+  HttpConnectionParameters,
+} from "@/tools/connection/schema";
+import { isStdioParameters } from "@/tools/connection/schema";
+import {
+  EnvVarsEditor,
+  envVarsToRecord,
+  recordToEnvVars,
+  type EnvVar,
+} from "@/web/components/env-vars-editor";
+
+// Environment variable schema
+const envVarSchema = z.object({
+  key: z.string(),
+  value: z.string(),
 });
 
+// Form validation schema derived from ConnectionEntitySchema
+// Pick the relevant fields and adapt for form use
+const connectionFormSchema = z
+  .object({
+    title: z.string().min(1, "Name is required"),
+    description: z.string().nullable().optional(),
+    // UI type - includes "NPX" and "STDIO" which both map to STDIO internally
+    ui_type: z.enum(["HTTP", "SSE", "Websocket", "NPX", "STDIO"]),
+    // For HTTP/SSE/Websocket
+    connection_url: z.string().optional(),
+    connection_token: z.string().nullable().optional(),
+    // For NPX
+    npx_package: z.string().optional(),
+    // For STDIO (custom command)
+    stdio_command: z.string().optional(),
+    stdio_args: z.string().optional(),
+    stdio_cwd: z.string().optional(),
+    // Shared: Environment variables for both NPX and STDIO
+    env_vars: z.array(envVarSchema).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.ui_type === "NPX") {
+        return !!data.npx_package?.trim();
+      }
+      return true;
+    },
+    { message: "NPM package is required", path: ["npx_package"] },
+  )
+  .refine(
+    (data) => {
+      if (data.ui_type === "STDIO") {
+        return !!data.stdio_command?.trim();
+      }
+      return true;
+    },
+    { message: "Command is required", path: ["stdio_command"] },
+  )
+  .refine(
+    (data) => {
+      if (
+        data.ui_type === "HTTP" ||
+        data.ui_type === "SSE" ||
+        data.ui_type === "Websocket"
+      ) {
+        return !!data.connection_url?.trim();
+      }
+      return true;
+    },
+    { message: "URL is required", path: ["connection_url"] },
+  );
+
 type ConnectionFormData = z.infer<typeof connectionFormSchema>;
+
+/**
+ * Build STDIO connection_headers from NPX form fields
+ */
+function buildNpxParameters(
+  packageName: string,
+  envVars: EnvVar[],
+): StdioConnectionParameters {
+  const params: StdioConnectionParameters = {
+    command: "npx",
+    args: ["-y", packageName],
+  };
+  const envRecord = envVarsToRecord(envVars);
+  if (Object.keys(envRecord).length > 0) {
+    params.envVars = envRecord;
+  }
+  return params;
+}
+
+/**
+ * Build STDIO connection_headers from custom command form fields
+ */
+function buildCustomStdioParameters(
+  command: string,
+  argsString: string,
+  cwd: string | undefined,
+  envVars: EnvVar[],
+): StdioConnectionParameters {
+  const params: StdioConnectionParameters = {
+    command: command,
+  };
+
+  if (argsString.trim()) {
+    params.args = argsString.trim().split(/\s+/);
+  }
+
+  if (cwd?.trim()) {
+    params.cwd = cwd.trim();
+  }
+
+  const envRecord = envVarsToRecord(envVars);
+  if (Object.keys(envRecord).length > 0) {
+    params.envVars = envRecord;
+  }
+
+  return params;
+}
+
+/**
+ * Check if STDIO params look like an NPX command
+ */
+function isNpxCommand(params: StdioConnectionParameters): boolean {
+  return params.command === "npx";
+}
+
+/**
+ * Parse STDIO connection_headers back to NPX form fields
+ */
+function parseStdioToNpx(params: StdioConnectionParameters): string {
+  return params.args?.find((a) => !a.startsWith("-")) ?? "";
+}
+
+/**
+ * Parse STDIO connection_headers to custom command form fields
+ */
+function parseStdioToCustom(params: StdioConnectionParameters): {
+  command: string;
+  args: string;
+  cwd: string;
+} {
+  return {
+    command: params.command,
+    args: params.args?.join(" ") ?? "",
+    cwd: params.cwd ?? "",
+  };
+}
 
 type DialogState =
   | { mode: "idle" }
@@ -148,11 +281,19 @@ function OrgMcpsContent() {
     defaultValues: {
       title: "",
       description: null,
-      connection_type: "HTTP",
+      ui_type: "HTTP",
       connection_url: "",
       connection_token: null,
+      npx_package: "",
+      stdio_command: "",
+      stdio_args: "",
+      stdio_cwd: "",
+      env_vars: [],
     },
   });
+
+  // Watch the ui_type to conditionally render fields
+  const uiType = form.watch("ui_type");
 
   // Reset form when editing connection changes
   const editingConnection =
@@ -161,20 +302,77 @@ function OrgMcpsContent() {
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (editingConnection) {
-      form.reset({
-        title: editingConnection.title,
-        description: editingConnection.description,
-        connection_type: editingConnection.connection_type,
-        connection_url: editingConnection.connection_url,
-        connection_token: null, // Don't pre-fill token for security
-      });
+      // Check if it's an STDIO connection
+      const stdioParams = isStdioParameters(
+        editingConnection.connection_headers,
+      )
+        ? editingConnection.connection_headers
+        : null;
+
+      if (stdioParams && editingConnection.connection_type === "STDIO") {
+        const envVars = recordToEnvVars(stdioParams.envVars);
+
+        if (isNpxCommand(stdioParams)) {
+          // NPX connection
+          const npxPackage = parseStdioToNpx(stdioParams);
+          form.reset({
+            title: editingConnection.title,
+            description: editingConnection.description,
+            ui_type: "NPX",
+            connection_url: "",
+            connection_token: null,
+            npx_package: npxPackage,
+            stdio_command: "",
+            stdio_args: "",
+            stdio_cwd: "",
+            env_vars: envVars,
+          });
+        } else {
+          // Custom STDIO connection
+          const customData = parseStdioToCustom(stdioParams);
+          form.reset({
+            title: editingConnection.title,
+            description: editingConnection.description,
+            ui_type: "STDIO",
+            connection_url: "",
+            connection_token: null,
+            npx_package: "",
+            stdio_command: customData.command,
+            stdio_args: customData.args,
+            stdio_cwd: customData.cwd,
+            env_vars: envVars,
+          });
+        }
+      } else {
+        // HTTP/SSE/Websocket connection
+        form.reset({
+          title: editingConnection.title,
+          description: editingConnection.description,
+          ui_type: editingConnection.connection_type as
+            | "HTTP"
+            | "SSE"
+            | "Websocket",
+          connection_url: editingConnection.connection_url ?? "",
+          connection_token: null,
+          npx_package: "",
+          stdio_command: "",
+          stdio_args: "",
+          stdio_cwd: "",
+          env_vars: [],
+        });
+      }
     } else {
       form.reset({
         title: "",
         description: null,
-        connection_type: "HTTP",
+        ui_type: "HTTP",
         connection_url: "",
         connection_token: null,
+        npx_package: "",
+        stdio_command: "",
+        stdio_args: "",
+        stdio_cwd: "",
+        env_vars: [],
       });
     }
   }, [editingConnection, form]);
@@ -193,6 +391,39 @@ function OrgMcpsContent() {
   };
 
   const onSubmit = async (data: ConnectionFormData) => {
+    // Determine actual connection_type, connection_url, and connection_headers based on ui_type
+    let connectionType: "HTTP" | "SSE" | "Websocket" | "STDIO";
+    let connectionUrl: string | null = null;
+    let connectionToken: string | null = null;
+    let connectionParameters:
+      | StdioConnectionParameters
+      | HttpConnectionParameters
+      | null = null;
+
+    if (data.ui_type === "NPX") {
+      // NPX maps to STDIO with parameters (no URL needed)
+      connectionType = "STDIO";
+      connectionUrl = "";
+      connectionParameters = buildNpxParameters(
+        data.npx_package || "",
+        data.env_vars || [],
+      );
+    } else if (data.ui_type === "STDIO") {
+      // Custom STDIO command
+      connectionType = "STDIO";
+      connectionUrl = "";
+      connectionParameters = buildCustomStdioParameters(
+        data.stdio_command || "",
+        data.stdio_args || "",
+        data.stdio_cwd,
+        data.env_vars || [],
+      );
+    } else {
+      connectionType = data.ui_type;
+      connectionUrl = data.connection_url || "";
+      connectionToken = data.connection_token || null;
+    }
+
     if (editingConnection) {
       // Update existing connection
       await actions.update.mutateAsync({
@@ -200,10 +431,11 @@ function OrgMcpsContent() {
         data: {
           title: data.title,
           description: data.description || null,
-          connection_type: data.connection_type,
-          connection_url: data.connection_url,
-          ...(data.connection_token && {
-            connection_token: data.connection_token,
+          connection_type: connectionType,
+          connection_url: connectionUrl,
+          ...(connectionToken && { connection_token: connectionToken }),
+          ...(connectionParameters && {
+            connection_headers: connectionParameters,
           }),
         },
       });
@@ -219,9 +451,9 @@ function OrgMcpsContent() {
       id: newId,
       title: data.title,
       description: data.description || null,
-      connection_type: data.connection_type,
-      connection_url: data.connection_url,
-      connection_token: data.connection_token || null,
+      connection_type: connectionType,
+      connection_url: connectionUrl,
+      connection_token: connectionToken,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       created_by: session?.user?.id || "system",
@@ -229,7 +461,7 @@ function OrgMcpsContent() {
       icon: null,
       app_name: null,
       app_id: null,
-      connection_headers: null,
+      connection_headers: connectionParameters,
       oauth_config: null,
       configuration_state: null,
       metadata: null,
@@ -452,7 +684,7 @@ function OrgMcpsContent() {
 
                 <FormField
                   control={form.control}
-                  name="connection_type"
+                  name="ui_type"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Type *</FormLabel>
@@ -466,9 +698,36 @@ function OrgMcpsContent() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="HTTP">HTTP</SelectItem>
-                          <SelectItem value="SSE">SSE</SelectItem>
-                          <SelectItem value="Websocket">Websocket</SelectItem>
+                          <SelectItem value="HTTP">
+                            <span className="flex items-center gap-2">
+                              <Globe02 className="w-4 h-4" />
+                              HTTP
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="SSE">
+                            <span className="flex items-center gap-2">
+                              <Globe02 className="w-4 h-4" />
+                              SSE
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="Websocket">
+                            <span className="flex items-center gap-2">
+                              <Globe02 className="w-4 h-4" />
+                              Websocket
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="NPX">
+                            <span className="flex items-center gap-2">
+                              <Container className="w-4 h-4" />
+                              NPX Package
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="STDIO">
+                            <span className="flex items-center gap-2">
+                              <Terminal className="w-4 h-4" />
+                              Custom Command
+                            </span>
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -476,41 +735,157 @@ function OrgMcpsContent() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="connection_url"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>URL *</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="https://example.com/mcp"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* NPX-specific fields */}
+                {uiType === "NPX" && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="npx_package"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>NPM Package *</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="@perplexity-ai/mcp-server"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            The npm package to run with npx
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
 
-                <FormField
-                  control={form.control}
-                  name="connection_token"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Token (optional)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="Bearer token or API key"
-                          {...field}
-                          value={field.value ?? ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* STDIO/Custom Command fields */}
+                {uiType === "STDIO" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 items-start">
+                      <FormField
+                        control={form.control}
+                        name="stdio_command"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Command *</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="node, bun, python..."
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="stdio_args"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Arguments</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="arg1 arg2 --flag value"
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="stdio_cwd"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Working Directory</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="/path/to/project (optional)"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            Directory where the command will be executed
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+
+                {/* Shared: Environment Variables for NPX and STDIO */}
+                {(uiType === "NPX" || uiType === "STDIO") && (
+                  <FormField
+                    control={form.control}
+                    name="env_vars"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Environment Variables</FormLabel>
+                        <FormControl>
+                          <EnvVarsEditor
+                            value={field.value ?? []}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* HTTP/SSE/Websocket fields */}
+                {uiType !== "NPX" && uiType !== "STDIO" && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="connection_url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>URL *</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com/mcp"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="connection_token"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Token (optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Bearer token or API key"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
               </div>
 
               <DialogFooter>

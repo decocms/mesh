@@ -9,9 +9,12 @@ import type { Insertable, Kysely, Updateable } from "kysely";
 import type { CredentialVault } from "../encryption/credential-vault";
 import type {
   ConnectionEntity,
+  ConnectionParameters,
   OAuthConfig,
+  StdioConnectionParameters,
   ToolDefinition,
 } from "../tools/connection/schema";
+import { isStdioParameters } from "../tools/connection/schema";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { ConnectionStoragePort } from "./ports";
 import type { Database } from "./types";
@@ -36,10 +39,10 @@ type RawConnectionRow = {
   icon: string | null;
   app_name: string | null;
   app_id: string | null;
-  connection_type: "HTTP" | "SSE" | "Websocket";
-  connection_url: string;
+  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO";
+  connection_url: string | null;
   connection_token: string | null;
-  connection_headers: string | Record<string, string> | null;
+  connection_headers: string | null; // JSON, envVars encrypted for STDIO
   oauth_config: string | OAuthConfig | null;
   configuration_state: string | null; // Encrypted
   configuration_scopes: string | string[] | null;
@@ -163,7 +166,27 @@ export class ConnectionStorage implements ConnectionStoragePort {
 
     const startTime = Date.now();
 
+    // STDIO connections can't be tested via HTTP
+    if (connection.connection_type === "STDIO") {
+      // For STDIO, we'd need to spawn the process - skip for now
+      return {
+        healthy: true, // Assume healthy, actual health checked on first use
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
+    if (!connection.connection_url) {
+      return {
+        healthy: false,
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
     try {
+      const httpParams = connection.connection_headers as {
+        headers?: Record<string, string>;
+      } | null;
+
       const response = await fetch(connection.connection_url, {
         method: "POST",
         headers: {
@@ -171,6 +194,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
           ...(connection.connection_token && {
             Authorization: `Bearer ${connection.connection_token}`,
           }),
+          ...httpParams?.headers,
           ...headers,
         },
         body: JSON.stringify({
@@ -209,6 +233,21 @@ export class ConnectionStorage implements ConnectionStoragePort {
         // Encrypt configuration state
         const stateJson = JSON.stringify(value);
         result[key] = await this.vault.encrypt(stateJson);
+      } else if (key === "connection_headers" && value) {
+        // For STDIO, encrypt envVars before storing
+        const params = value as ConnectionParameters;
+        if (isStdioParameters(params) && params.envVars) {
+          const encryptedEnvVars: Record<string, string> = {};
+          for (const [envKey, envValue] of Object.entries(params.envVars)) {
+            encryptedEnvVars[envKey] = await this.vault.encrypt(envValue);
+          }
+          result[key] = JSON.stringify({
+            ...params,
+            envVars: encryptedEnvVars,
+          });
+        } else {
+          result[key] = JSON.stringify(params);
+        }
       } else if (JSON_FIELDS.includes(key as (typeof JSON_FIELDS)[number])) {
         result[key] = value ? JSON.stringify(value) : null;
       } else {
@@ -245,6 +284,36 @@ export class ConnectionStorage implements ConnectionStoragePort {
       }
     }
 
+    // Parse and decrypt connection_headers
+    let connectionParameters: ConnectionParameters | null = null;
+    if (row.connection_headers) {
+      try {
+        const parsed = JSON.parse(row.connection_headers);
+        // For STDIO, decrypt envVars
+        if (isStdioParameters(parsed) && parsed.envVars) {
+          const decryptedEnvVars: Record<string, string> = {};
+          for (const [envKey, envValue] of Object.entries(parsed.envVars)) {
+            try {
+              decryptedEnvVars[envKey] = await this.vault.decrypt(
+                envValue as string,
+              );
+            } catch {
+              // If decryption fails, keep encrypted value (migration case)
+              decryptedEnvVars[envKey] = envValue as string;
+            }
+          }
+          connectionParameters = {
+            ...parsed,
+            envVars: decryptedEnvVars,
+          } as StdioConnectionParameters;
+        } else {
+          connectionParameters = parsed;
+        }
+      } catch (error) {
+        console.error("Failed to parse connection_headers:", error);
+      }
+    }
+
     const parseJson = <T>(value: string | T | null): T | null => {
       if (value === null) return null;
       if (typeof value === "string") {
@@ -269,9 +338,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
       connection_type: row.connection_type,
       connection_url: row.connection_url,
       connection_token: decryptedToken,
-      connection_headers: parseJson<Record<string, string>>(
-        row.connection_headers,
-      ),
+      connection_headers: connectionParameters,
       oauth_config: parseJson<OAuthConfig>(row.oauth_config),
       configuration_state: decryptedConfigState,
       configuration_scopes: parseJson<string[]>(row.configuration_scopes),

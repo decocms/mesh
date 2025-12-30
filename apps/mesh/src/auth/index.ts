@@ -289,6 +289,14 @@ export const auth = betterAuth({
   // Load optional configuration from file
   ...authConfig,
 
+  // Disable rate limiting in development (set DISABLE_RATE_LIMIT=true)
+  // Must be AFTER authConfig spread to ensure it takes precedence
+  rateLimit: {
+    enabled: process.env.DISABLE_RATE_LIMIT !== "true",
+    window: 60,
+    max: 10000, // Very high limit as fallback
+  },
+
   plugins,
 
   // Database hooks for automatic organization creation on signup

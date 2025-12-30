@@ -35,6 +35,36 @@ const ToolDefinitionSchema = z.object({
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 
 /**
+ * Connection parameters - discriminated by connection_type
+ *
+ * HTTP/SSE/WebSocket: HTTP headers for requests
+ * STDIO: Environment variables + command config
+ */
+const HttpConnectionParametersSchema = z.object({
+  headers: z.record(z.string(), z.string()).optional(),
+});
+
+const StdioConnectionParametersSchema = z.object({
+  command: z.string().describe("Command to run (e.g., 'npx', 'node')"),
+  args: z.array(z.string()).optional().describe("Command arguments"),
+  cwd: z.string().optional().describe("Working directory"),
+  envVars: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe("Environment variables (encrypted in storage)"),
+});
+
+export type HttpConnectionParameters = z.infer<
+  typeof HttpConnectionParametersSchema
+>;
+export type StdioConnectionParameters = z.infer<
+  typeof StdioConnectionParametersSchema
+>;
+export type ConnectionParameters =
+  | HttpConnectionParameters
+  | StdioConnectionParameters;
+
+/**
  * Connection entity schema - single source of truth.
  * Compliant with collections binding pattern.
  */
@@ -60,14 +90,22 @@ export const ConnectionEntitySchema = z.object({
   app_id: z.string().nullable().describe("Associated app ID"),
 
   connection_type: z
-    .enum(["HTTP", "SSE", "Websocket"])
+    .enum(["HTTP", "SSE", "Websocket", "STDIO"])
     .describe("Type of connection"),
-  connection_url: z.string().describe("URL for the connection"),
-  connection_token: z.string().nullable().describe("Authentication token"),
-  connection_headers: z
-    .record(z.string(), z.string())
+  connection_url: z
+    .string()
     .nullable()
-    .describe("Custom headers"),
+    .describe("URL for HTTP/SSE/WebSocket connections. Null for STDIO."),
+  connection_token: z
+    .string()
+    .nullable()
+    .describe("Authentication token (for HTTP connections)"),
+  connection_headers: z
+    .union([StdioConnectionParametersSchema, HttpConnectionParametersSchema])
+    .nullable()
+    .describe(
+      "Connection parameters. HTTP: { headers }. STDIO: { command, args, cwd, envVars }",
+    ),
 
   oauth_config: OAuthConfigSchema.nullable().describe("OAuth configuration"),
 
@@ -118,6 +156,7 @@ export const ConnectionCreateDataSchema = ConnectionEntitySchema.omit({
   icon: true,
   app_name: true,
   app_id: true,
+  connection_url: true,
   connection_token: true,
   connection_headers: true,
   oauth_config: true,
@@ -134,3 +173,12 @@ export type ConnectionCreateData = z.infer<typeof ConnectionCreateDataSchema>;
 export const ConnectionUpdateDataSchema = ConnectionEntitySchema.partial();
 
 export type ConnectionUpdateData = z.infer<typeof ConnectionUpdateDataSchema>;
+
+/**
+ * Type guard to check if parameters are STDIO type
+ */
+export function isStdioParameters(
+  params: ConnectionParameters | null | undefined,
+): params is StdioConnectionParameters {
+  return params !== null && params !== undefined && "command" in params;
+}
