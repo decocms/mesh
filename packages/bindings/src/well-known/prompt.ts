@@ -9,7 +9,10 @@
 
 import { z } from "zod";
 import type { Binder } from "../core/binder";
-import { BaseCollectionEntitySchema, createCollectionBindings } from "./collections";
+import {
+  BaseCollectionEntitySchema,
+  createCollectionBindings,
+} from "./collections";
 
 /**
  * Schema for prompt arguments that can be passed when getting a prompt
@@ -38,7 +41,10 @@ export const PromptMessageContentSchema = z.object({
   type: z.enum(["text", "image", "audio", "resource"]).describe("Content type"),
   text: z.string().optional().describe("Text content"),
   data: z.string().optional().describe("Base64-encoded data for image/audio"),
-  mimeType: z.string().optional().describe("MIME type for image/audio/resource"),
+  mimeType: z
+    .string()
+    .optional()
+    .describe("MIME type for image/audio/resource"),
   resource: z
     .object({
       uri: z.string().describe("Resource URI"),
@@ -99,6 +105,6 @@ export const PROMPTS_COLLECTION_BINDING = createCollectionBindings(
  * - COLLECTION_PROMPT_UPDATE
  * - COLLECTION_PROMPT_DELETE
  */
-export const PROMPTS_BINDING = [...PROMPTS_COLLECTION_BINDING] as const satisfies Binder;
-
-
+export const PROMPTS_BINDING = [
+  ...PROMPTS_COLLECTION_BINDING,
+] as const satisfies Binder;

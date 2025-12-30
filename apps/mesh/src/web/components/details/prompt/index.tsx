@@ -77,7 +77,9 @@ function PromptEditForm({ form }: { form: PromptForm }) {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <div className="text-xs text-muted-foreground">Description</div>
+                  <div className="text-xs text-muted-foreground">
+                    Description
+                  </div>
                   <FormControl>
                     <Input
                       {...field}
@@ -137,7 +139,11 @@ function PromptDetailContent({
     toolCaller,
   );
 
-  const actions = useCollectionActions<Prompt>(providerId, "PROMPT", toolCaller);
+  const actions = useCollectionActions<Prompt>(
+    providerId,
+    "PROMPT",
+    toolCaller,
+  );
   const isSaving = actions.update.isPending;
 
   const form = useForm<PromptEditor>({
@@ -203,7 +209,9 @@ function PromptDetailContent({
           </span>
           {prompt.description ? (
             <>
-              <span className="text-xs text-muted-foreground font-normal">•</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                •
+              </span>
               <span className="text-xs text-muted-foreground font-normal truncate min-w-0 max-w-[20ch]">
                 {prompt.description}
               </span>
@@ -279,5 +287,3 @@ export function PromptDetailsView({ itemId, onBack }: PromptDetailsViewProps) {
     </ErrorBoundary>
   );
 }
-
-
