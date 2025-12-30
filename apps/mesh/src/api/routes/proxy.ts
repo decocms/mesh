@@ -284,6 +284,16 @@ async function createMCPProxyDoNotUseDirectly(
   const createClient = async () => {
     switch (connection.connection_type) {
       case "STDIO": {
+        // Block STDIO connections in production unless explicitly allowed
+        if (
+          process.env.NODE_ENV === "production" &&
+          process.env.UNSAFE_ALLOW_STDIO_TRANSPORT !== "true"
+        ) {
+          throw new Error(
+            "STDIO connections are disabled in production. Set UNSAFE_ALLOW_STDIO_TRANSPORT=true to enable.",
+          );
+        }
+
         if (!stdioParams) {
           throw new Error("STDIO connection missing parameters");
         }

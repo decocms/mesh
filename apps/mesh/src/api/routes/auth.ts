@@ -33,6 +33,11 @@ export type AuthConfig = {
     | {
         enabled: false;
       };
+  /**
+   * Whether STDIO connections are allowed.
+   * Disabled by default in production unless UNSAFE_ALLOW_STDIO_TRANSPORT=true
+   */
+  stdioEnabled: boolean;
 };
 
 /**
@@ -50,6 +55,11 @@ app.get("/config", async (c) => {
       name,
       icon: KNOWN_OAUTH_PROVIDERS[name as OAuthProvider].icon,
     }));
+
+    // STDIO is disabled in production unless explicitly allowed
+    const stdioEnabled =
+      process.env.NODE_ENV !== "production" ||
+      process.env.UNSAFE_ALLOW_STDIO_TRANSPORT === "true";
 
     const config: AuthConfig = {
       emailAndPassword: {
@@ -70,6 +80,7 @@ app.get("/config", async (c) => {
         : {
             enabled: false,
           },
+      stdioEnabled,
     };
 
     return c.json({ success: true, config });

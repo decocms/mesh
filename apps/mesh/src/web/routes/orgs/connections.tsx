@@ -12,6 +12,7 @@ import {
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
 import { useListState } from "@/web/hooks/use-list-state";
+import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   AlertDialog,
@@ -248,6 +249,7 @@ function OrgMcpsContent() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { action?: "create" };
   const { data: session } = authClient.useSession();
+  const { stdioEnabled } = useAuthConfig();
 
   // Consolidated list UI state (search, filters, sorting, view mode)
   const listState = useListState<ConnectionEntity>({
@@ -543,7 +545,7 @@ function OrgMcpsContent() {
       id: "connection_url",
       header: "URL",
       render: (connection) => {
-        const url = connection.connection_url;
+        const url = connection.connection_url ?? "";
         const truncated = url.length > 40 ? `${url.slice(0, 40)}...` : url;
         return (
           <span className="text-sm text-muted-foreground">{truncated}</span>
@@ -716,18 +718,22 @@ function OrgMcpsContent() {
                               Websocket
                             </span>
                           </SelectItem>
-                          <SelectItem value="NPX">
-                            <span className="flex items-center gap-2">
-                              <Container className="w-4 h-4" />
-                              NPX Package
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="STDIO">
-                            <span className="flex items-center gap-2">
-                              <Terminal className="w-4 h-4" />
-                              Custom Command
-                            </span>
-                          </SelectItem>
+                          {stdioEnabled && (
+                            <>
+                              <SelectItem value="NPX">
+                                <span className="flex items-center gap-2">
+                                  <Container className="w-4 h-4" />
+                                  NPX Package
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="STDIO">
+                                <span className="flex items-center gap-2">
+                                  <Terminal className="w-4 h-4" />
+                                  Custom Command
+                                </span>
+                              </SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />

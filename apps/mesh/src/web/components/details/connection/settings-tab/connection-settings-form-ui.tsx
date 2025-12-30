@@ -1,6 +1,7 @@
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { EnvVarsEditor } from "@/web/components/env-vars-editor";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   Form,
@@ -35,6 +36,13 @@ function ConnectionFields({
   connection: ConnectionEntity;
 }) {
   const uiType = useWatch({ control: form.control, name: "ui_type" });
+  const { stdioEnabled } = useAuthConfig();
+
+  // Show STDIO options if:
+  // 1. STDIO is enabled globally, OR
+  // 2. The connection is already an STDIO type (allow viewing/editing existing connections)
+  const showStdioOptions =
+    stdioEnabled || connection.connection_type === "STDIO";
 
   return (
     <div className="flex flex-col gap-4 p-5 border-b border-border">
@@ -70,18 +78,22 @@ function ConnectionFields({
                     Websocket
                   </span>
                 </SelectItem>
-                <SelectItem value="NPX">
-                  <span className="flex items-center gap-2">
-                    <Container className="w-4 h-4" />
-                    NPX Package
-                  </span>
-                </SelectItem>
-                <SelectItem value="STDIO">
-                  <span className="flex items-center gap-2">
-                    <Terminal className="w-4 h-4" />
-                    Custom Command
-                  </span>
-                </SelectItem>
+                {showStdioOptions && (
+                  <>
+                    <SelectItem value="NPX">
+                      <span className="flex items-center gap-2">
+                        <Container className="w-4 h-4" />
+                        NPX Package
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="STDIO">
+                      <span className="flex items-center gap-2">
+                        <Terminal className="w-4 h-4" />
+                        Custom Command
+                      </span>
+                    </SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
             <FormMessage />
