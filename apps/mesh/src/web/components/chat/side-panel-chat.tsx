@@ -191,10 +191,7 @@ export function ChatPanel() {
           </Chat.Header.Right>
         </Chat.Header>
 
-        <Chat.Main
-          className="flex flex-col items-center"
-          innerClassName="max-w-2xl mx-auto w-full min-w-0"
-        >
+        <Chat.Main className="flex flex-col items-center">
           <Chat.EmptyState>
             <EmptyState
               title={title}
@@ -272,10 +269,10 @@ export function ChatPanel() {
         </Chat.Header.Right>
       </Chat.Header>
 
-      <Chat.Main innerClassName="max-w-2xl mx-auto w-full min-w-0">
+      <Chat.Main>
         {initialMessages.length === 0 ? (
           <Chat.EmptyState>
-            <div className="flex flex-col items-center gap-6 w-full max-w-md px-4">
+            <div className="flex flex-col items-center gap-6 w-full px-4">
               <DecoChatEmptyState
                 title={selectedGateway?.title || "Ask deco chat"}
                 description={

@@ -119,24 +119,17 @@ function ChatHeaderRight({ children }: PropsWithChildren) {
 function ChatMain({
   children,
   className,
-  innerClassName,
-}: PropsWithChildren<{ className?: string; innerClassName?: string }>) {
+}: PropsWithChildren<{ className?: string }>) {
   return (
     <DecoChatAside.Content className={className}>
-      {innerClassName ? (
-        <div className={cn("h-full w-full min-w-0", innerClassName)}>
-          {children}
-        </div>
-      ) : (
-        children
-      )}
+      {children}
     </DecoChatAside.Content>
   );
 }
 
 function ChatEmptyState({ children }: PropsWithChildren) {
   return (
-    <div className="h-full w-full flex items-center justify-center">
+    <div className="h-full w-full flex items-center justify-center max-w-2xl mx-auto">
       {children}
     </div>
   );
@@ -178,7 +171,11 @@ function ChatMessages({
 }
 
 function ChatFooter({ children }: PropsWithChildren) {
-  return <DecoChatAside.Footer>{children}</DecoChatAside.Footer>;
+  return (
+    <DecoChatAside.Footer className="max-w-2xl mx-auto w-full min-w-0">
+      {children}
+    </DecoChatAside.Footer>
+  );
 }
 
 function ChatInputModelSelector(_props: {
