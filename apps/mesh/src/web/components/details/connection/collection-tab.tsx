@@ -7,6 +7,7 @@ import {
   generateSortOptionsFromSchema,
 } from "@/web/components/collections/collections-list.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
+import { FileIcon } from "@/web/components/files/file-icon";
 import type { ValidatedCollection } from "@/web/hooks/use-binding";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { useConnection } from "@/web/hooks/collections/use-connection";
@@ -429,6 +430,25 @@ export function CollectionTab({
             onItemClick={(item) => handleEdit(item)}
             readOnly={isReadOnly}
             simpleDeleteOnly={isFilesCollection}
+            renderIcon={
+              isFilesCollection
+                ? (item) => {
+                    const fileItem = item as unknown as {
+                      path?: string;
+                      mimeType?: string;
+                      isDirectory?: boolean;
+                    };
+                    return (
+                      <FileIcon
+                        path={fileItem.path}
+                        mimeType={fileItem.mimeType}
+                        isDirectory={fileItem.isDirectory}
+                        size="sm"
+                      />
+                    );
+                  }
+                : undefined
+            }
             emptyState={
               isFilesCollection ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">

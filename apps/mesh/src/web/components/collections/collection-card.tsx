@@ -10,12 +10,15 @@ import {
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { DotsVertical, Eye, Edit01, Copy01, Trash01 } from "@untitledui/icons";
+import type { ReactNode } from "react";
 
 interface CollectionCardProps<T extends BaseCollectionEntity> {
   item: T;
   schema: JsonSchema;
   readOnly?: boolean;
   actions?: Record<string, (item: T) => void | Promise<void>>;
+  /** Custom icon renderer for the item */
+  renderIcon?: (item: T) => ReactNode;
 }
 
 function findImageField(schema: JsonSchema, item: unknown): string | undefined {
@@ -65,6 +68,7 @@ export function CollectionCard<T extends BaseCollectionEntity>({
   item,
   schema,
   actions,
+  renderIcon,
 }: CollectionCardProps<T>) {
   const iconUrl = findImageField(schema, item);
   const description =
@@ -80,12 +84,16 @@ export function CollectionCard<T extends BaseCollectionEntity>({
   return (
     <Card className="cursor-pointer transition-colors h-full flex flex-col group relative">
       <div className="flex flex-col gap-4 p-6 flex-1">
-        <IntegrationIcon
-          icon={iconUrl}
-          name={item.title}
-          size="md"
-          className="shrink-0 shadow-sm"
-        />
+        {renderIcon ? (
+          renderIcon(item)
+        ) : (
+          <IntegrationIcon
+            icon={iconUrl}
+            name={item.title}
+            size="md"
+            className="shrink-0 shadow-sm"
+          />
+        )}
         <div className="flex flex-col gap-0 flex-1">
           <h3 className="text-base font-medium text-foreground truncate">
             {item.title}

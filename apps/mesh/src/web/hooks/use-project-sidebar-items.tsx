@@ -2,6 +2,8 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js";
 import { Locator } from "@/web/lib/locator";
 import { useNavigate } from "@tanstack/react-router";
+import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useFileStorageConnections } from "@/web/hooks/use-binding";
 import {
   Home02,
   Building02,
@@ -10,6 +12,7 @@ import {
   Users01,
   Settings01,
   BarChart10,
+  Folder,
 } from "@untitledui/icons";
 
 export function useProjectSidebarItems() {
@@ -17,6 +20,11 @@ export function useProjectSidebarItems() {
   const navigate = useNavigate();
   const { org } = Locator.parse(locator);
   const isOrgAdminProject = Locator.isOrgAdminProject(locator);
+
+  // Get file storage connections to conditionally show Files menu
+  const allConnections = useConnections();
+  const fileStorageConnections = useFileStorageConnections(allConnections);
+  const hasFileStorage = fileStorageConnections.length > 0;
 
   const KNOWN_ORG_ADMIN_SIDEBAR_ITEMS: NavigationSidebarItem[] = [
     {
@@ -31,6 +39,17 @@ export function useProjectSidebarItems() {
       icon: <Building02 />,
       onClick: () => navigate({ to: "/$org/store", params: { org } }),
     },
+    // Only show Files menu when there are file storage connections
+    ...(hasFileStorage
+      ? [
+          {
+            key: "files",
+            label: "Files",
+            icon: <Folder />,
+            onClick: () => navigate({ to: "/$org/files", params: { org } }),
+          },
+        ]
+      : []),
     {
       key: "mcps",
       label: "MCP Servers",

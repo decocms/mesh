@@ -7,18 +7,11 @@
 import { useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
-import {
-  ArrowLeft,
-  Folder,
-  File06,
-  FileCode01,
-  Image01,
-  FileCheck02,
-  Loading01,
-} from "@untitledui/icons";
+import { ArrowLeft, Folder, Loading01 } from "@untitledui/icons";
 import { useFileList } from "@/web/hooks/use-file-storage";
 import type { FileEntity } from "@decocms/bindings/file-storage";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { FileIconInline } from "./file-icon";
 
 interface FileBrowserProps {
   connectionId: string;
@@ -35,49 +28,6 @@ function formatBytes(bytes: number): string {
   const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
-
-/**
- * Get icon based on file type
- */
-function getFileIcon(file: FileEntity) {
-  if (file.isDirectory) {
-    return <Folder className="h-5 w-5 text-amber-500" />;
-  }
-
-  const ext = file.path.split(".").pop()?.toLowerCase();
-  const mimeType = file.mimeType;
-
-  // Images
-  if (mimeType?.startsWith("image/")) {
-    return <Image01 className="h-5 w-5 text-pink-500" />;
-  }
-
-  // Code files
-  if (
-    [
-      "js",
-      "jsx",
-      "ts",
-      "tsx",
-      "json",
-      "html",
-      "css",
-      "py",
-      "go",
-      "rs",
-    ].includes(ext ?? "")
-  ) {
-    return <FileCode01 className="h-5 w-5 text-blue-500" />;
-  }
-
-  // Markdown
-  if (["md", "mdx", "markdown"].includes(ext ?? "")) {
-    return <FileCheck02 className="h-5 w-5 text-purple-500" />;
-  }
-
-  // Default file icon
-  return <File06 className="h-5 w-5 text-muted-foreground" />;
 }
 
 /**
@@ -194,7 +144,11 @@ export function FileBrowser({
                 className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left"
                 onClick={() => handleItemClick(file)}
               >
-                {getFileIcon(file)}
+                <FileIconInline
+                  path={file.path}
+                  mimeType={file.mimeType}
+                  isDirectory={file.isDirectory}
+                />
 
                 <div className="flex-1 min-w-0">
                   <div className="truncate font-medium text-sm">

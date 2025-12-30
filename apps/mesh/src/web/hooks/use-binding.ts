@@ -413,3 +413,20 @@ export function useRegistryConnections(
         ),
       );
 }
+
+/**
+ * Hook to filter connections that implement file storage
+ * Returns only connections that have FILES collection
+ *
+ * @param connections - Array of connections to filter
+ * @returns Filtered array of connections with file storage capabilities
+ */
+export function useFileStorageConnections(
+  connections: ConnectionEntity[] | undefined,
+): ConnectionEntity[] {
+  return !connections
+    ? []
+    : connections.filter((conn) =>
+        extractCollectionNames(conn.tools).find((name) => name === "FILES"),
+      );
+}
