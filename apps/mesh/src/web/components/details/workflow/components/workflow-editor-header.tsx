@@ -145,7 +145,7 @@ export function WorkflowEditorHeader({
 function useIsExecutionCompleted() {
   const trackingExecutionId = useTrackingExecutionId();
   const { item } = usePollingWorkflowExecution(trackingExecutionId);
-  return item?.completed_at_epoch_ms !== null;
+  return item?.completed_at_epoch_ms != null;
 }
 
 function RunWorkflowButton() {

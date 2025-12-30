@@ -22,6 +22,8 @@ import {
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { Trash2, Copy } from "lucide-react";
 import type { StepExecutionStatus } from "../hooks/derived/use-step-execution-status";
+import { usePollingWorkflowExecution } from "../hooks/queries/use-workflow-collection-item";
+import { useTrackingExecutionId } from "../stores/workflow";
 
 interface WorkflowStepCardProps {
   step: Step;
@@ -44,6 +46,11 @@ export function WorkflowStepCard({
   onDelete,
   onDuplicate,
 }: WorkflowStepCardProps) {
+  const trackingExecutionId = useTrackingExecutionId();
+  const { item: executionItem } =
+    usePollingWorkflowExecution(trackingExecutionId);
+  const executionCompletedAt = executionItem?.completed_at_epoch_ms;
+
   const isToolStep = "toolName" in step.action;
   const connectionId =
     isToolStep && "connectionId" in step.action
@@ -194,7 +201,9 @@ export function WorkflowStepCard({
         )}
 
         {/* Execution Status Badge */}
-        {status === "success" && <SuccessBadge />}
+        {status === "success" && (
+          <SuccessBadge completedAtEpochMs={executionCompletedAt} />
+        )}
         {status === "error" && <ErrorBadge error={executionStatus?.error} />}
       </div>
     </div>
@@ -278,18 +287,30 @@ function HeaderStatusIcon({
 }
 
 // Success badge showing date/time and cost
-function SuccessBadge() {
-  const now = new Date();
-  const dateStr = now.toISOString().split("T")[0];
-  const timeStr = now.toTimeString().split(" ")[0];
+function SuccessBadge({
+  completedAtEpochMs,
+}: {
+  completedAtEpochMs?: number | null;
+}) {
+  // Only show timestamp if we have the completion time
+  const completionDate =
+    completedAtEpochMs != null ? new Date(completedAtEpochMs) : null;
+  const dateStr = completionDate
+    ? completionDate.toISOString().split("T")[0]
+    : null;
+  const timeStr = completionDate
+    ? completionDate.toTimeString().split(" ")[0]
+    : null;
 
   return (
     <div className="inline-flex items-center gap-3 px-1.5 py-1 bg-success-foreground rounded-lg w-fit">
-      <div className="flex items-center gap-1.5">
-        <Calendar size={16} className="text-success" />
-        <span className="text-xs text-success">{dateStr}</span>
-        <span className="text-xs text-success">{timeStr}</span>
-      </div>
+      {dateStr && timeStr && (
+        <div className="flex items-center gap-1.5">
+          <Calendar size={16} className="text-success" />
+          <span className="text-xs text-success">{dateStr}</span>
+          <span className="text-xs text-success">{timeStr}</span>
+        </div>
+      )}
       <div className="flex items-center gap-1.5">
         <CoinsStacked01 size={16} className="text-success" />
         <span className="text-xs text-success">—</span>
