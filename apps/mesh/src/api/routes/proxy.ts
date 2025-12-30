@@ -42,7 +42,7 @@ import {
   type ListToolsResult,
   type ReadResourceRequest,
   type ReadResourceResult,
-  type Tool
+  type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import { issueMeshToken } from "../../auth/jwt";
