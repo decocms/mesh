@@ -47,7 +47,7 @@ export function IceBreakers({
             </div>
             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
               <span className="text-sm font-medium text-foreground truncate">
-                {prompt.name.replace(/_/g, " ")}
+                {(prompt.title ?? prompt.name).replace(/_/g, " ")}
               </span>
               {prompt.description && (
                 <span className="text-xs text-muted-foreground line-clamp-2">

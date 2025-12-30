@@ -1,5 +1,6 @@
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { AssistantDetailsView } from "@/web/components/details/assistant/index.tsx";
+import { PromptDetailsView } from "@/web/components/details/prompt/index.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useCollectionActions } from "@/web/hooks/use-collections";
@@ -22,6 +23,7 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
 > = {
   workflow: WorkflowDetailsView,
   assistant: AssistantDetailsView,
+  prompt: PromptDetailsView,
 };
 
 function ToolDetailsContent() {

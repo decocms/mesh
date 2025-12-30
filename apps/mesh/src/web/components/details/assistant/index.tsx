@@ -1,6 +1,7 @@
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { Chat } from "@/web/components/chat/chat";
 import { GatewaySelector } from "@/web/components/chat/gateway-selector";
+import { IceBreakers } from "@/web/components/chat/ice-breakers";
 import { ModelSelector } from "@/web/components/chat/model-selector";
 import { EmptyState } from "@/web/components/empty-state";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -8,6 +9,10 @@ import {
   useCollectionActions,
   useCollectionItem,
 } from "@/web/hooks/use-collections";
+import {
+  useGatewayPrompts,
+  type GatewayPrompt,
+} from "@/web/hooks/use-gateway-prompts";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
@@ -30,6 +35,23 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { Edit05, Loading01, Plus, Upload01, Users02 } from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
+
+/**
+ * Ice breakers component that uses suspense to fetch gateway prompts
+ */
+function AssistantIceBreakers({
+  gatewayId,
+  onSelect,
+}: {
+  gatewayId: string;
+  onSelect: (prompt: GatewayPrompt) => void;
+}) {
+  const { data: prompts } = useGatewayPrompts(gatewayId);
+
+  if (prompts.length === 0) return null;
+
+  return <IceBreakers prompts={prompts} onSelect={onSelect} className="mt-6" />;
+}
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
@@ -213,28 +235,58 @@ function AssistantChatPanel({
 
   const emptyState = (
     <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-      {assistant.avatar ? (
-        <div className="size-[60px] rounded-[18px] border border-border shrink-0 overflow-hidden">
-          <img
-            src={assistant.avatar}
-            alt={assistant.title}
-            className="h-full w-full object-cover"
-          />
-        </div>
-      ) : (
-        <div className="size-[60px] rounded-[18px] border border-border shrink-0 overflow-hidden bg-muted/20 flex items-center justify-center">
-          <Users02 size={28} className="text-muted-foreground" />
-        </div>
+      <div className="flex flex-col items-center gap-4">
+        {assistant.avatar ? (
+          <div className="size-[60px] rounded-[18px] border border-border shrink-0 overflow-hidden">
+            <img
+              src={assistant.avatar}
+              alt={assistant.title}
+              className="h-full w-full object-cover"
+            />
+          </div>
+        ) : (
+          <div className="size-[60px] rounded-[18px] border border-border shrink-0 overflow-hidden bg-muted/20 flex items-center justify-center">
+            <Users02 size={28} className="text-muted-foreground" />
+          </div>
+        )}
+        <h3 className="text-xl font-medium text-foreground">
+          {assistant.title}
+        </h3>
+        {assistant.description ? (
+          <div className="text-muted-foreground text-center text-sm max-w-md">
+            {assistant.description}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Ice Breakers */}
+      {assistant.gateway_id && (
+        <ErrorBoundary fallback={null}>
+          <Suspense
+            fallback={
+              <div className="flex justify-center mt-6">
+                <Loading01
+                  size={20}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            }
+          >
+            <AssistantIceBreakers
+              gatewayId={assistant.gateway_id}
+              onSelect={(prompt) => {
+                handleSendMessage(prompt.description ?? prompt.name);
+              }}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
-      <h3 className="text-xl font-medium text-foreground">{assistant.title}</h3>
-      {assistant.description ? (
-        <div className="text-muted-foreground text-center text-sm max-w-md">
-          {assistant.description}
-        </div>
-      ) : null}
     </div>
   );
 
+  const initialMessages = chat.messages.filter(
+    (message) => message.role !== "system",
+  );
   const isEditing = mode === "edit";
 
   return (
@@ -262,7 +314,7 @@ function AssistantChatPanel({
             isEditing ? "opacity-0 pointer-events-none" : "opacity-100",
           )}
         >
-          {chat.messages.length === 0 ? (
+          {initialMessages.length === 0 ? (
             <Chat.EmptyState>{emptyState}</Chat.EmptyState>
           ) : (
             <Chat.Messages

@@ -115,5 +115,5 @@ export function getReferencedConnectionIds(
   scopes: string[] | null | undefined,
 ): Set<string> {
   const permissions = extractConnectionPermissions(state, scopes);
-  return new Set(Object.keys(permissions));
+  return new Set(Object.keys(permissions).filter((id) => id !== "*"));
 }

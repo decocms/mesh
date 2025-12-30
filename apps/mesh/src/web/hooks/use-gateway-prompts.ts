@@ -3,6 +3,7 @@ import { KEYS } from "../lib/query-keys";
 
 export interface GatewayPrompt {
   name: string;
+  title?: string;
   description?: string;
   arguments?: Array<{
     name: string;
