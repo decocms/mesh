@@ -1,6 +1,6 @@
 {
   "name": "@decocms/bindings",
-  "version": "1.0.1-alpha.26",
+  "version": "1.0.1-alpha.27",
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
@@ -19,6 +19,7 @@
     "./client": "./src/core/client/index.ts",
     "./mcp": "./src/well-known/mcp.ts",
     "./assistant": "./src/well-known/assistant.ts",
+    "./prompt": "./src/well-known/prompt.ts",
     "./workflow": "./src/well-known/workflow.ts"
   },
   "engines": {
