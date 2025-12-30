@@ -302,6 +302,7 @@ async function createMCPProxyDoNotUseDirectly(
         // We want stable local MCP connection - don't spawn new process per request
         return getStableStdioClient({
           id: connectionId,
+          name: connection.title,
           command: stdioParams.command,
           args: stdioParams.args,
           env: stdioParams.envVars,

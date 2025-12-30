@@ -20,6 +20,8 @@ import {
 export interface StableStdioConfig extends StdioServerParameters {
   /** Unique ID for this connection (for logging) */
   id: string;
+  /** Human-readable name for the MCP (for logging) */
+  name?: string;
 }
 
 /**
@@ -163,9 +165,16 @@ export async function getStableStdioClient(
         // Don't remove from pool - next request will respawn
       };
 
-      // Handle stderr for debugging
+      // Handle stderr for debugging - pass through MCP logs with subtle connection reference
+      const label = config.name || config.id;
+      const dim = "\x1b[2m";
+      const reset = "\x1b[0m";
       transport.stderr?.on("data", (data: Buffer) => {
-        console.error(`[stdio:${config.id}] stderr:`, data.toString());
+        const output = data.toString().trimEnd();
+        if (output) {
+          // Print MCP output first, then subtle connection reference
+          console.error(`${output} ${dim}[${label}]${reset}`);
+        }
       });
 
       // Connect with timeout - use AbortController to clean up on success
