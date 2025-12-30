@@ -50,7 +50,7 @@ function getConnectionIdFromPathname(): string | undefined {
 function PromptEditForm({ form }: { form: PromptForm }) {
   return (
     <Form {...form}>
-      <div className="h-full py-6 flex flex-col max-w-3xl mx-auto w-full min-w-0 gap-8 overflow-y-auto">
+      <div className="h-full py-6 flex flex-col max-w-3xl mx-auto w-full min-w-0 gap-8 overflow-y-auto px-4">
         <div className="flex flex-col gap-4">
           <div className="text-sm font-medium text-foreground">Details</div>
 

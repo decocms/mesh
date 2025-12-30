@@ -42,7 +42,6 @@ function GatewayIceBreakers({
   onSelect: (prompt: GatewayPrompt) => void;
 }) {
   const { data: prompts } = useGatewayPrompts(gatewayId);
-  console.log({ prompts });
 
   if (prompts.length === 0) return null;
 
