@@ -415,7 +415,12 @@ async function createMCPProxyDoNotUseDirectly(
   // List resources from downstream connection
   const listResources = async (): Promise<ListResourcesResult> => {
     const client = await createClient();
-    return await client.listResources();
+    if (client.getServerCapabilities()?.resources) {
+      return await client.listResources();
+    }
+    return {
+      resources: [],
+    };
   };
 
   // Read a specific resource from downstream connection
@@ -430,13 +435,23 @@ async function createMCPProxyDoNotUseDirectly(
   const listResourceTemplates =
     async (): Promise<ListResourceTemplatesResult> => {
       const client = await createClient();
-      return await client.listResourceTemplates();
+      if (client.getServerCapabilities()?.resourceTemplates) {
+        return await client.listResourceTemplates();
+      }
+      return {
+        resourceTemplates: [],
+      };
     };
 
   // List prompts from downstream connection
   const listPrompts = async (): Promise<ListPromptsResult> => {
     const client = await createClient();
-    return await client.listPrompts();
+    if (client.getServerCapabilities()?.prompts) {
+      return await client.listPrompts();
+    }
+    return {
+      prompts: [],
+    };
   };
 
   // Get a specific prompt from downstream connection
