@@ -83,14 +83,6 @@ const fileStorageBinding: BindingDefinition = {
       description: "Access files on your local machine",
       icon: "💻",
       npxPackage: "@decocms/mcp-local-fs",
-      // Use local dev path until package is published with structuredContent fix
-      localCommand: {
-        command: "bun",
-        args: [
-          "run",
-          "/Users/guilherme/Projects/mcps/local-fs/server/stdio.ts",
-        ],
-      },
       connectionType: "STDIO",
       requiresConfig: true,
       configFields: [
