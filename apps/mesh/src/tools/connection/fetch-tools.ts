@@ -69,7 +69,10 @@ export async function fetchToolsFromMCP(
       name: tool.name,
       description: tool.description ?? undefined,
       inputSchema: tool.inputSchema ?? {},
-      outputSchema: tool.outputSchema ?? undefined,
+      outputSchema: tool.outputSchema
+        ? // We strive to have lenient output schemas, so allow additional properties
+          { ...tool.outputSchema, additionalProperties: true }
+        : undefined,
     }));
   } catch (error) {
     console.error(
