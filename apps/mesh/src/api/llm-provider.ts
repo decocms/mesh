@@ -7,6 +7,45 @@ import type {
 import type { LanguageModelBinding } from "@decocms/bindings/llm";
 import { lazy } from "../common";
 
+function parseStreamLineToPart(
+  rawLine: string,
+): LanguageModelV2StreamPart | null | undefined {
+  const line = rawLine.trim();
+  if (!line) return null;
+
+  // Support SSE ("text/event-stream") and NDJSON.
+  // SSE lines often look like:
+  //   event: message
+  //   data: {"type":"text-delta",...}
+  // and terminate with:
+  //   data: [DONE]
+  if (line.startsWith("event:")) return null;
+  if (line.startsWith("id:")) return null;
+  if (line.startsWith("retry:")) return null;
+
+  let payload = line;
+  if (payload.startsWith("data:")) {
+    payload = payload.slice("data:".length).trim();
+    if (!payload) return null;
+    if (payload === "[DONE]") return null;
+  }
+
+  try {
+    return JSON.parse(payload) as LanguageModelV2StreamPart;
+  } catch (error) {
+    // Important: do NOT throw here; upstream providers can emit occasional
+    // non-JSON lines (or partial lines) and Bun streaming can chunk oddly.
+    // Throwing here errors the whole model stream and can cause the AI SDK
+    // agent loop to restart mid-step (the "what the fuck is happening" symptom).
+    console.warn(
+      "[llm-provider] Failed to parse stream line as JSON. Skipping line.",
+      { line: payload.slice(0, 200) },
+      error,
+    );
+    return null;
+  }
+}
+
 function responseToStream(
   response: Response,
 ): ReadableStream<LanguageModelV2StreamPart> {
@@ -27,31 +66,25 @@ function responseToStream(
 
         for (const line of lines) {
           if (line.trim()) {
-            try {
-              const parsed = JSON.parse(line) as LanguageModelV2StreamPart;
-              controller.enqueue(parsed);
-            } catch (error) {
-              console.error("Failed to parse stream chunk:", error, chunk);
-              throw error;
-            }
+            const parsed = parseStreamLineToPart(line);
+            if (parsed) controller.enqueue(parsed);
           }
         }
       },
       flush(controller) {
         // Process any remaining data in the buffer when the stream ends
         if (buffer.trim()) {
-          try {
-            const parsed = JSON.parse(buffer) as LanguageModelV2StreamPart;
-            controller.enqueue(parsed);
-          } catch (error) {
-            console.error("Failed to parse final stream chunk:", error);
-            throw error;
-          }
+          const parsed = parseStreamLineToPart(buffer);
+          if (parsed) controller.enqueue(parsed);
         }
       },
     }),
   );
 }
+
+// Test-only export: allows verifying stream parsing behavior (NDJSON + SSE)
+// without wiring a full LLM binding implementation.
+export const __testOnly_responseToStream = responseToStream;
 
 const toRegExp = (supportedUrls: Record<string, string[]>) => {
   return Object.fromEntries(
