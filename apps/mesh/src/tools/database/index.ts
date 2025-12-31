@@ -142,6 +142,10 @@ async function createSchemaAndRole(
     await sql`CREATE ROLE ${sql.id(roleName)} NOLOGIN`.execute(db);
   }
 
+  // Grant the role to the current user so SET ROLE works
+  // Required for Cloud SQL where the connecting user isn't a true superuser
+  await sql`GRANT ${sql.id(roleName)} TO CURRENT_USER`.execute(db);
+
   // Grant access to the connection's schema only
   await sql`GRANT USAGE, CREATE ON SCHEMA ${sql.id(schemaName)} TO ${sql.id(roleName)}`.execute(
     db,
