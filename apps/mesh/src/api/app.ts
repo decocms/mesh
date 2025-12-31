@@ -214,17 +214,30 @@ export function createApp(options: CreateAppOptions = {}) {
       return c.json({ error: "Connection not found" }, 404);
     }
 
-    // Get origin auth server - uses shared function that tries all 3 well-known URL formats
+    // Get origin auth server - tries Protected Resource Metadata first, then falls back to origin root
     const resourceRes = await fetchProtectedResourceMetadata(
       connection.connection_url,
     );
-    if (!resourceRes.ok) {
-      return c.json({ error: "Failed to get resource metadata" }, 502);
+
+    let originAuthServer: string | undefined;
+
+    if (resourceRes.ok) {
+      // Origin has Protected Resource Metadata - use authorization_servers from it
+      const resourceData = (await resourceRes.json()) as {
+        authorization_servers?: string[];
+      };
+      originAuthServer = resourceData.authorization_servers?.[0];
+    } else {
+      // Origin doesn't have Protected Resource Metadata (like Apify)
+      // Fall back to using the origin server's root as the auth server
+      // Many servers expose /.well-known/oauth-authorization-server at the root even without RFC 9728
+      const connUrl = new URL(connection.connection_url);
+      originAuthServer = connUrl.origin;
+      console.log(
+        `[oauth-proxy] Origin ${connection.connection_url} lacks Protected Resource Metadata, trying auth server at origin root: ${originAuthServer}`,
+      );
     }
-    const resourceData = (await resourceRes.json()) as {
-      authorization_servers?: string[];
-    };
-    const originAuthServer = resourceData.authorization_servers?.[0];
+
     if (!originAuthServer) {
       return c.json({ error: "No authorization server found" }, 404);
     }
