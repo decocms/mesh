@@ -92,7 +92,7 @@ export type EventHandlers<
 > = [TSchema] extends [never]
   ? Record<string, never>
   :
-      | BatchHandler<z.infer<TSchema>> // Global handler with events
+      | BatchHandler<Env> // Global handler with events
       | {
           [K in keyof z.infer<TSchema> as z.infer<TSchema>[K] extends {
             __type: string;

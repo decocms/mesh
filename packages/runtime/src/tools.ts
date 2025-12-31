@@ -331,7 +331,7 @@ export interface CreateMCPServerOptions<
   before?: (env: TEnv) => Promise<void> | void;
   oauth?: OAuthConfig;
   events?: {
-    bus?: keyof PickByType<TEnv, EventBusBindingClient>;
+    bus?: keyof PickByType<State, EventBusBindingClient>;
     handlers?: EventHandlers<TEnv, TSchema>;
   };
   configuration?: {
