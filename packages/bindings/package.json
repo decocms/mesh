@@ -1,13 +1,13 @@
 {
   "name": "@decocms/bindings",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
     "test": "bun test"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.20.2",
+    "@modelcontextprotocol/sdk": "1.25.1",
     "zod": "^3.25.76",
     "zod-from-json-schema": "^0.0.5"
   },

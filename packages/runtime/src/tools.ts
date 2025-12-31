@@ -1,12 +1,12 @@
 /* oxlint-disable no-explicit-any */
 /* oxlint-disable ban-types */
-import { HttpServerTransport } from "@deco/mcp/http";
 import {
   OnEventsInputSchema,
   OnEventsOutputSchema,
   type EventBusBindingClient,
 } from "@decocms/bindings";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { WebStandardStreamableHTTPServerTransport as HttpServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { GetPromptResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
@@ -594,7 +594,9 @@ export const createMCPServer = <
         {
           title: prompt.title,
           description: prompt.description,
-          argsSchema: prompt.argsSchema,
+          argsSchema: prompt.argsSchema
+            ? (prompt.argsSchema as unknown as z.ZodRawShape)
+            : z.object({}).shape,
         },
         async (args) => {
           return await prompt.execute({
@@ -614,7 +616,7 @@ export const createMCPServer = <
 
     await server.connect(transport);
 
-    return await transport.handleMessage(req);
+    return await transport.handleRequest(req);
   };
 
   const callTool: CallTool = async ({ toolCallId, toolCallInput }) => {

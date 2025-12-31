@@ -140,7 +140,7 @@ async function ensureContext(c: {
 
 export interface HandleAuthErrorOptions {
   /** The error from the MCP client connection attempt */
-  error: Error & { status?: number };
+  error: Error & { status?: number; code?: number };
   /** The request URL (used to build the OAuth proxy URL) */
   reqUrl: URL;
   /** The connection ID */
@@ -168,6 +168,7 @@ export async function handleAuthError({
 }: HandleAuthErrorOptions): Promise<Response | null> {
   const isAuthError =
     error.status === 401 ||
+    error.code === 401 ||
     error.message?.includes("401") ||
     error.message?.toLowerCase().includes("unauthorized");
 

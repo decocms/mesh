@@ -254,7 +254,7 @@ export const genEnv = async ({
             ignoreCache:
               "ignoreCache" in binding ? binding.ignoreCache : undefined,
           },
-        })) as {
+        })) as unknown as {
           structuredContent: {
             tools: {
               name: string;

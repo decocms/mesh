@@ -218,7 +218,7 @@ app.post("/:org/models/stream", async (c) => {
 
     const client = new Client(
       { name: "mcp-mesh-proxy", version: "1.0.0" },
-      { capabilities: { tools: {} } },
+      { capabilities: {} },
     );
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel

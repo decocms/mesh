@@ -495,7 +495,7 @@ async function createMCPProxyDoNotUseDirectly(
   const listResourceTemplates =
     async (): Promise<ListResourceTemplatesResult> => {
       const client = await createClient();
-      if (client.getServerCapabilities()?.resourceTemplates) {
+      if (client.getServerCapabilities()?.resources) {
         return await client.listResourceTemplates();
       }
       return {
@@ -702,7 +702,7 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(
       ListResourceTemplatesRequestSchema,
       async (): Promise<ListResourceTemplatesResult> => {
-        if (client.getServerCapabilities()?.resourceTemplates) {
+        if (client.getServerCapabilities()?.resources) {
           return await client.listResourceTemplates();
         }
         return {
@@ -732,7 +732,7 @@ async function createMCPProxyDoNotUseDirectly(
     );
 
     // Handle the incoming message
-    return await transport.handleMessage(req);
+    return await transport.handleRequest(req);
   };
 
   return {

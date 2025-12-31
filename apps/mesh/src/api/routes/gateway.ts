@@ -367,9 +367,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     );
 
     // Handle the incoming MCP message
-    return await transport.handleMessage(c.req.raw).then(async (res) => {
-      return res;
-    });
+    return await transport.handleRequest(c.req.raw);
   } catch (error) {
     const err = error as Error;
     console.error("[gateway] Error handling gateway request:", err);

@@ -47,7 +47,7 @@ export interface StrategyContext {
 /** Result from a strategy - the tools to expose and how to handle calls */
 export interface StrategyResult {
   /** Tools to expose via list_tools */
-  tools: Tool[];
+  tools: (Tool & { metadata?: unknown })[];
   /** Handler for call_tool requests */
   callTool: (
     name: string,
