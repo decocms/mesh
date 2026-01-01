@@ -31,6 +31,7 @@ export function useWorkflowStart() {
       input,
       gateway_id: selectedGatewayId,
       start_at_epoch_ms: startAtEpochMs,
+      workflow_collection_id: workflow.id,
       timeout_ms: timeoutMs,
     });
 
