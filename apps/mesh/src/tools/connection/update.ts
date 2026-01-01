@@ -185,11 +185,19 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     ) {
       try {
         const proxy = await ctx.createMCPProxy(id);
+        // Get configuration token and mesh URL for STDIO connections
+        // HTTP connections receive these via headers, but STDIO needs them in arguments
+        const meshToken = await proxy.getConfigurationToken();
+        const meshUrl = proxy.getMeshUrl();
+
         await proxy.client.callTool({
           name: "ON_MCP_CONFIGURATION",
           arguments: {
             state: finalState,
             scopes: finalScopes,
+            // Include mesh context for STDIO connections that can't receive headers
+            meshToken,
+            meshUrl,
           },
         });
       } catch (error) {
