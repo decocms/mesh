@@ -744,6 +744,21 @@ async function createMCPProxyDoNotUseDirectly(
       getPrompt,
     },
     callStreamableTool,
+    /**
+     * Get the configuration token for this proxy.
+     * This is the JWT that downstream MCPs can use to call back to Mesh.
+     * Useful for STDIO connections that can't receive headers per-request.
+     */
+    getConfigurationToken: async (): Promise<string | undefined> => {
+      await ensureConfigurationToken();
+      return configurationToken;
+    },
+    /**
+     * Get the Mesh URL that downstream MCPs should call back to.
+     */
+    getMeshUrl: (): string => {
+      return process.env.MESH_URL ?? ctx.baseUrl;
+    },
   };
 }
 
