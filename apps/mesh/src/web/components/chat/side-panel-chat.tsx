@@ -305,7 +305,7 @@ export function ChatPanel() {
                     />
                     {isInstallingOpenRouter
                       ? "Installing..."
-                      : "Install Openrouter"}
+                      : "Install OpenRouter"}
                   </Button>
                   <Button
                     variant="outline"
