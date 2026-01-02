@@ -398,6 +398,15 @@ function SettingsRightPanel({
     return (
       <div className="w-3/5 min-w-0 overflow-auto flex items-center justify-center">
         <EmptyState
+          image={
+            <img
+              src="/empty-state-success-muted.svg"
+              alt=""
+              width={220}
+              height={200}
+              aria-hidden="true"
+            />
+          }
           title="This server is all set!"
           description="No additional configuration is needed. Everything is ready to go."
         />
