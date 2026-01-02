@@ -66,24 +66,37 @@ export interface MeshTokenPayload {
 
 export type MeshJwtPayload = JWTPayload & MeshTokenPayload;
 
+export interface IssueMeshTokenOptions {
+  /** Expiration time (default: "5m"). Ignored if noExpiration is true. */
+  expiresIn?: string;
+  /** If true, issues a token with no expiration. Use for STDIO connections. */
+  noExpiration?: boolean;
+}
+
 /**
  * Issue a signed JWT with mesh token payload
  *
  * @param payload - The token payload
- * @param expiresIn - Expiration time (default: 5 minutes)
+ * @param options - Token options (expiresIn, noExpiration)
  * @returns Signed JWT string
  */
 export async function issueMeshToken(
   payload: MeshTokenPayload,
-  expiresIn: string = "5m",
+  options: IssueMeshTokenOptions = {},
 ): Promise<string> {
+  const { expiresIn = "5m", noExpiration = false } = options;
   const secret = getSecret();
 
-  return await new SignJWT(payload as unknown as JWTPayload)
+  const jwt = new SignJWT(payload as unknown as JWTPayload)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuedAt()
-    .setExpirationTime(expiresIn)
-    .sign(secret);
+    .setIssuedAt();
+
+  // STDIO connections get infinite tokens - they persist them locally
+  if (!noExpiration) {
+    jwt.setExpirationTime(expiresIn);
+  }
+
+  return await jwt.sign(secret);
 }
 
 /**
