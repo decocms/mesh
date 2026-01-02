@@ -96,6 +96,23 @@ Gateways are configurable and extensible. You can add new strategies and also cu
 
 ---
 
+## STDIO Connections (Local MCPs)
+
+Run npx packages or custom scripts as MCP servers. Mesh passes credentials via environment variables:
+
+```bash
+# Mesh spawns your MCP with these env vars:
+MESH_TOKEN=<jwt>        # Infinite-expiry JWT for mesh API calls
+MESH_URL=<url>          # Mesh instance URL
+MESH_STATE=<json>       # Binding values as JSON
+```
+
+Your MCP just reads `process.env.MESH_TOKEN` — no special configuration tools needed. This mirrors how HTTP connections receive `x-mesh-token` headers.
+
+→ See [Building STDIO MCPs](https://docs.deco.page/en/mcp-mesh/mcp-servers) for examples in [decocms/mcps](https://github.com/decocms/mcps).
+
+---
+
 ## Define Tools
 
 Tools are first-class citizens. Type-safe, audited, observable, and callable via MCP.

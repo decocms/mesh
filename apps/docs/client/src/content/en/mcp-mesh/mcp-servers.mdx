@@ -8,7 +8,69 @@ import Callout from "../../../components/ui/Callout.astro";
 
 ## What is a connection?
 
-An **MCP Server** in the Mesh is a configured upstream MCP endpoint (typically HTTP). The Mesh stores its configuration and (optionally) credentials, and can then proxy MCP requests to it.
+An **MCP Server** in the Mesh is a configured upstream MCP endpoint. The Mesh stores its configuration and (optionally) credentials, and can then proxy MCP requests to it.
+
+## Connection Types
+
+The Mesh supports two types of connections:
+
+### HTTP Connections
+
+HTTP connections are the most common type. They connect to remote MCP servers via HTTP/SSE endpoints.
+
+- **Use cases**: Cloud-hosted MCP servers, SaaS integrations, production deployments
+- **Token handling**: Short-lived tokens (5 minutes) issued per request
+
+### STDIO Connections (Local Commands)
+
+STDIO connections spawn a local process (like `npx` or custom scripts) and communicate via stdin/stdout.
+
+- **Use cases**: Local tools, npx packages, development, private MCPs
+- **Token handling**: Infinite-expiry tokens persisted locally by the MCP server
+
+<Callout type="tip">
+  STDIO connections are perfect for running npm packages as MCP servers. Example: `npx @decocms/local-fs` runs a file system MCP locally.
+</Callout>
+
+## STDIO Credentials via Environment Variables
+
+When mesh spawns an STDIO MCP process, it passes credentials as environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `MESH_TOKEN` | JWT token for authenticating with Mesh API (infinite expiry) |
+| `MESH_URL` | Base URL of the Mesh instance |
+| `MESH_STATE` | JSON-encoded state with binding values |
+
+This is analogous to how HTTP connections receive `x-mesh-token` headers.
+
+<Callout type="tip">
+  **No special tools needed!** Just read `process.env.MESH_TOKEN` on startup. No need to implement `ON_MCP_CONFIGURATION` or any configuration protocol.
+</Callout>
+
+### Example (Node.js/Bun)
+
+```typescript
+// Read mesh credentials from env
+const meshToken = process.env.MESH_TOKEN;
+const meshUrl = process.env.MESH_URL;
+const state = process.env.MESH_STATE ? JSON.parse(process.env.MESH_STATE) : {};
+
+// Use token for mesh API calls
+const response = await fetch(`${meshUrl}/mcp/${connectionId}`, {
+  headers: { Authorization: `Bearer ${meshToken}` },
+  // ...
+});
+```
+
+## Building STDIO-Compatible MCPs
+
+See examples in the [decocms/mcps](https://github.com/decocms/mcps) repository:
+
+- `template-minimal/` - Minimal MCP without view
+- `template-with-view/` - MCP with web interface
+- `local-fs/` - File system MCP (runs via npx)
+- `perplexity/`, `openrouter/` - Production MCPs
 
 ## In the UI
 
