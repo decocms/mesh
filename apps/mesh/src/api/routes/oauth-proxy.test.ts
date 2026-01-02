@@ -271,6 +271,117 @@ describe("OAuth Proxy Routes", () => {
 
       expect(res.status).toBe(401);
     });
+
+    test("generates synthetic metadata when origin has no metadata but supports OAuth via WWW-Authenticate", async () => {
+      mockConnectionStorage({
+        connection_url: "https://mcp.example.com",
+      });
+
+      global.fetch = mock((url: string, options?: RequestInit) => {
+        // First 3 calls: Protected Resource Metadata discovery (returns 404)
+        if (
+          (url as string).includes("oauth-protected-resource") &&
+          options?.method === "GET"
+        ) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: "Not found" }), {
+              status: 404,
+              statusText: "Not Found",
+            }),
+          );
+        }
+
+        // 4th call: checkOriginSupportsOAuth - returns 401 with WWW-Authenticate
+        if (options?.method === "POST") {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                error: "invalid_token",
+                error_description: "Missing or invalid access token",
+              }),
+              {
+                status: 401,
+                headers: {
+                  "WWW-Authenticate":
+                    'Bearer realm="OAuth", error="invalid_token"',
+                  "Content-Type": "application/json",
+                },
+              },
+            ),
+          );
+        }
+
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "Unexpected request" }), {
+            status: 500,
+          }),
+        );
+      }) as unknown as typeof fetch;
+
+      const res = await app.request(
+        "http://localhost:3000/.well-known/oauth-protected-resource/mcp/conn_123",
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        resource: string;
+        authorization_servers: string[];
+        bearer_methods_supported: string[];
+        scopes_supported: string[];
+      };
+      expect(body.resource).toBe("http://localhost:3000/mcp/conn_123");
+      expect(body.authorization_servers).toEqual([
+        "http://localhost:3000/oauth-proxy/conn_123",
+      ]);
+      expect(body.bearer_methods_supported).toEqual(["header"]);
+      expect(body.scopes_supported).toEqual(["*"]);
+    });
+
+    test("returns 404 when origin has no metadata and does not support OAuth", async () => {
+      mockConnectionStorage({
+        connection_url: "https://mcp.example.com",
+      });
+
+      global.fetch = mock((url: string, options?: RequestInit) => {
+        // Protected Resource Metadata discovery (returns 404)
+        if (
+          (url as string).includes("oauth-protected-resource") &&
+          options?.method === "GET"
+        ) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: "Not found" }), {
+              status: 404,
+              statusText: "Not Found",
+            }),
+          );
+        }
+
+        // checkOriginSupportsOAuth - returns 401 WITHOUT WWW-Authenticate (no OAuth support)
+        if (options?.method === "POST") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: "Unauthorized" }), {
+              status: 401,
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }),
+          );
+        }
+
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "Unexpected request" }), {
+            status: 500,
+          }),
+        );
+      }) as unknown as typeof fetch;
+
+      const res = await app.request(
+        "http://localhost:3000/.well-known/oauth-protected-resource/mcp/conn_123",
+      );
+
+      // Should pass through the 404 since origin doesn't support OAuth
+      expect(res.status).toBe(404);
+    });
   });
 
   describe("Authorization Server Metadata Proxy", () => {
@@ -320,23 +431,74 @@ describe("OAuth Proxy Routes", () => {
       expect(res.status).toBe(404);
     });
 
-    test("returns 404 when no auth server in protected resource metadata", async () => {
-      mockConnectionWithAuthServer(
-        { connection_url: "https://origin.example.com/mcp" },
-        new Response(
-          JSON.stringify({
-            resource: "https://origin.example.com/mcp",
-            authorization_servers: [], // Empty
+    test("falls back to origin root when protected resource metadata has empty auth servers", async () => {
+      // When Protected Resource Metadata has empty authorization_servers,
+      // we should fall back to the origin's root and try to fetch auth server metadata from there
+      (ContextFactory.create as ReturnType<typeof mock>).mockImplementation(
+        () =>
+          Promise.resolve({
+            storage: {
+              connections: {
+                findById: mock(() =>
+                  Promise.resolve({
+                    connection_url: "https://origin.example.com/mcp",
+                  }),
+                ),
+              },
+            },
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
       );
+
+      global.fetch = mock((url: string) => {
+        if ((url as string).includes("oauth-protected-resource")) {
+          // Return metadata with empty auth servers
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                resource: "https://origin.example.com/mcp",
+                authorization_servers: [], // Empty - should trigger fallback
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        }
+        // Auth server metadata at origin root
+        if ((url as string).includes("oauth-authorization-server")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                issuer: "https://origin.example.com",
+                authorization_endpoint: "https://origin.example.com/authorize",
+                token_endpoint: "https://origin.example.com/token",
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "Unexpected" }), {
+            status: 500,
+          }),
+        );
+      }) as unknown as typeof fetch;
 
       const res = await app.request(
-        "/.well-known/oauth-authorization-server/oauth-proxy/conn_123",
+        "http://localhost:3000/.well-known/oauth-authorization-server/oauth-proxy/conn_123",
       );
 
-      expect(res.status).toBe(404);
+      // Should succeed by falling back to origin root
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        authorization_endpoint: string;
+        token_endpoint: string;
+      };
+      // URLs should be rewritten to go through our proxy
+      expect(body.authorization_endpoint).toBe(
+        "http://localhost:3000/oauth-proxy/conn_123/authorize",
+      );
+      expect(body.token_endpoint).toBe(
+        "http://localhost:3000/oauth-proxy/conn_123/token",
+      );
     });
 
     test("proxies and rewrites authorization server metadata", async () => {
