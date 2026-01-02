@@ -29,10 +29,9 @@ import {
 import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
 import { EmptyState } from "@/web/components/empty-state";
 
-export interface WorkflowDetailsViewProps {
+interface WorkflowDetailsViewProps {
   itemId: string;
   onBack: () => void;
-  onUpdate: (updates: Partial<Workflow>) => Promise<void>;
 }
 
 export function WorkflowDetailsView({
