@@ -23,6 +23,7 @@ export type ToolCategory =
   | "Connections"
   | "Gateways"
   | "Monitoring"
+  | "Users"
   | "API Keys"
   | "Event Bus";
 
@@ -73,6 +74,8 @@ const ALL_TOOL_NAMES = [
   "EVENT_ACK",
   "EVENT_SUBSCRIPTION_LIST",
   "EVENT_SYNC_SUBSCRIPTIONS",
+  // User tools
+  "USER_GET",
 ] as const;
 
 /**
@@ -305,6 +308,12 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Sync subscriptions to desired state",
     category: "Event Bus",
   },
+  // User tools
+  {
+    name: "USER_GET",
+    description: "Get a user by id",
+    category: "Users",
+  },
 ];
 
 /**
@@ -347,6 +356,8 @@ const TOOL_LABELS: Record<ToolName, string> = {
   EVENT_ACK: "Acknowledge event delivery",
   EVENT_SUBSCRIPTION_LIST: "List event subscriptions",
   EVENT_SYNC_SUBSCRIPTIONS: "Sync subscriptions to desired state",
+
+  USER_GET: "Get user by id",
 };
 
 // ============================================================================
@@ -362,6 +373,7 @@ export function getToolsByCategory() {
     Connections: [],
     Gateways: [],
     Monitoring: [],
+    Users: [],
     "API Keys": [],
     "Event Bus": [],
   };
