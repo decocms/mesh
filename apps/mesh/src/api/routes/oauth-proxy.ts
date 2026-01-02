@@ -161,33 +161,32 @@ async function getOriginAuthServer(
   const connectionUrl = await getConnectionUrl(connectionId, ctx);
   if (!connectionUrl) return null;
 
+  // Parse URL upfront - if invalid, bail early
+  let origin: string;
+  try {
+    origin = new URL(connectionUrl).origin;
+  } catch {
+    return null;
+  }
+
   try {
     const response = await fetchProtectedResourceMetadata(connectionUrl);
-
     if (response.ok) {
       const data = (await response.json()) as {
         authorization_servers?: string[];
       };
-      const authServer = data.authorization_servers?.[0];
-      if (authServer) return authServer;
+      if (data.authorization_servers?.[0]) {
+        return data.authorization_servers[0];
+      }
     }
-
-    // Fall back to origin's root if Protected Resource Metadata doesn't exist
-    // Many servers (like Apify) expose auth server metadata at the root
-    const connUrl = new URL(connectionUrl);
-    console.log(
-      `[oauth-proxy] getOriginAuthServer: Protected Resource Metadata unavailable for ${connectionUrl}, falling back to origin root: ${connUrl.origin}`,
-    );
-    return connUrl.origin;
   } catch {
-    // On error, try falling back to origin's root
-    try {
-      const connUrl = new URL(connectionUrl);
-      return connUrl.origin;
-    } catch {
-      return null;
-    }
+    // Fetch failed, fall through to origin fallback
   }
+
+  // Fall back to origin's root if Protected Resource Metadata doesn't exist
+  // or doesn't have authorization_servers. Many servers (like Apify) expose
+  // auth server metadata at the root.
+  return origin;
 }
 
 /**
@@ -343,10 +342,6 @@ const protectedResourceMetadataHandler = async (c: {
       if (wwwAuth) {
         // Server supports OAuth but doesn't have metadata endpoint
         // Generate synthetic metadata pointing to our proxy
-        console.log(
-          `[oauth-proxy] Origin ${connectionUrl} supports OAuth via WWW-Authenticate but lacks metadata, generating synthetic metadata`,
-        );
-
         const syntheticData = {
           resource: proxyResourceUrl,
           authorization_servers: [proxyAuthServer],
