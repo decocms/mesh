@@ -9,6 +9,7 @@ import {
   RegistryItemsSection,
 } from "./registry-items-section";
 import { StoreFilters } from "./store-filters";
+import type { FilterItem } from "./store-discovery";
 
 /**
  * Filter items by search term across name and description
@@ -85,8 +86,8 @@ interface StoreDiscoveryUIProps {
   hasMore?: boolean;
   onLoadMore?: () => void;
   totalCount?: number | null;
-  availableTags?: string[];
-  availableCategories?: string[];
+  availableTags?: FilterItem[];
+  availableCategories?: FilterItem[];
 }
 
 export function StoreDiscoveryUI({

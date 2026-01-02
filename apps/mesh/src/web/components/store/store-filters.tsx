@@ -1,9 +1,10 @@
 import { Button } from "@deco/ui/components/button.tsx";
 import { XClose } from "@untitledui/icons";
+import type { FilterItem } from "./store-discovery";
 
 interface StoreFiltersProps {
-  availableTags?: string[];
-  availableCategories?: string[];
+  availableTags?: FilterItem[];
+  availableCategories?: FilterItem[];
   selectedTags: string[];
   selectedCategories: string[];
   onTagChange: (tags: string[]) => void;
@@ -59,18 +60,21 @@ export function StoreFilters({
             Categories:
           </span>
           {availableCategories.map((category) => {
-            const isSelected = selectedCategories.includes(category);
+            const isSelected = selectedCategories.includes(category.value);
             return (
               <button
-                key={category}
-                onClick={() => toggleCategory(category)}
+                key={category.value}
+                onClick={() => toggleCategory(category.value)}
                 className={`text-xs px-2.5 py-1 rounded-full transition-colors cursor-pointer ${
                   isSelected
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted hover:bg-muted/80 text-muted-foreground"
                 }`}
               >
-                {category}
+                {category.value}
+                {category.count > 0 && (
+                  <span className="ml-1 opacity-70">({category.count})</span>
+                )}
               </button>
             );
           })}
@@ -84,18 +88,21 @@ export function StoreFilters({
             Tags:
           </span>
           {availableTags.map((tag) => {
-            const isSelected = selectedTags.includes(tag);
+            const isSelected = selectedTags.includes(tag.value);
             return (
               <button
-                key={tag}
-                onClick={() => toggleTag(tag)}
+                key={tag.value}
+                onClick={() => toggleTag(tag.value)}
                 className={`text-xs px-2.5 py-1 rounded-full transition-colors cursor-pointer ${
                   isSelected
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted hover:bg-muted/80 text-muted-foreground"
                 }`}
               >
-                {tag}
+                {tag.value}
+                {tag.count > 0 && (
+                  <span className="ml-1 opacity-70">({tag.count})</span>
+                )}
               </button>
             );
           })}

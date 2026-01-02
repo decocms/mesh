@@ -10,10 +10,16 @@ import {
   flattenPaginatedItems,
 } from "@/web/utils/registry-utils";
 
+/** Filter item with value and count */
+export interface FilterItem {
+  value: string;
+  count: number;
+}
+
 /** Response from COLLECTION_REGISTRY_APP_FILTERS tool */
 export interface RegistryFiltersResponse {
-  tags?: string[];
-  categories?: string[];
+  tags?: FilterItem[];
+  categories?: FilterItem[];
 }
 
 interface StoreDiscoveryProps {
