@@ -10,6 +10,11 @@ import {
 import { Hono } from "hono";
 import oauthProxyRoutes from "./oauth-proxy";
 import { ContextFactory } from "../../core/context-factory";
+import {
+  isDecoHostedMcp,
+  DECO_STORE_URL,
+  DECO_CMS_API_HOST,
+} from "../../core/well-known-mcp";
 
 describe("OAuth Proxy Routes", () => {
   let app: Hono;
@@ -658,5 +663,48 @@ describe("OAuth URL Path Construction", () => {
     expect(result).toBe(
       "/.well-known/oauth-authorization-server/v1/oauth/server",
     );
+  });
+});
+
+describe("Deco-Hosted MCP Detection", () => {
+  test("DECO_CMS_API_HOST is correct", () => {
+    expect(DECO_CMS_API_HOST).toBe("api.decocms.com");
+  });
+
+  test("DECO_STORE_URL is correct", () => {
+    expect(DECO_STORE_URL).toBe("https://api.decocms.com/mcp/registry");
+  });
+
+  describe("isDecoHostedMcp", () => {
+    test("returns true for deco-hosted MCP URLs", () => {
+      expect(
+        isDecoHostedMcp("https://api.decocms.com/apps/deco/github/mcp"),
+      ).toBe(true);
+      expect(isDecoHostedMcp("https://api.decocms.com/mcp/some-app")).toBe(
+        true,
+      );
+      expect(isDecoHostedMcp("https://api.decocms.com/apps/xyz/abc/mcp")).toBe(
+        true,
+      );
+    });
+
+    test("returns false for Deco Store registry (public, no OAuth)", () => {
+      expect(isDecoHostedMcp(DECO_STORE_URL)).toBe(false);
+      expect(isDecoHostedMcp("https://api.decocms.com/mcp/registry")).toBe(
+        false,
+      );
+    });
+
+    test("returns false for non-deco-hosted URLs", () => {
+      expect(isDecoHostedMcp("https://stripe.mcp.run/mcp")).toBe(false);
+      expect(isDecoHostedMcp("https://mcp.example.com/api")).toBe(false);
+      expect(isDecoHostedMcp("https://other.decocms.com/mcp")).toBe(false);
+    });
+
+    test("returns false for null or invalid URLs", () => {
+      expect(isDecoHostedMcp(null)).toBe(false);
+      expect(isDecoHostedMcp("")).toBe(false);
+      expect(isDecoHostedMcp("not-a-url")).toBe(false);
+    });
   });
 });

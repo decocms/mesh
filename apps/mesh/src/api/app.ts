@@ -30,9 +30,58 @@ import oauthProxyRoutes, {
   fetchProtectedResourceMetadata,
 } from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
+import { isDecoHostedMcp, DECO_STORE_URL } from "../core/well-known-mcp";
+import type { MeshContext } from "../core/mesh-context";
 
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
+
+// ============================================================================
+// Deco Store OAuth Helpers
+// ============================================================================
+
+/**
+ * Get project_locator from the Deco Store registry connection.
+ * Returns the locator string or null if not found/configured.
+ *
+ * @param ctx - The mesh context
+ * @param organizationId - The organization ID to search for the registry connection
+ */
+async function getDecoStoreProjectLocator(
+  ctx: MeshContext,
+  organizationId: string,
+): Promise<string | null> {
+  // Find registry connection by URL within the organization
+  const connections = await ctx.storage.connections.list(organizationId);
+  const registryConn = connections.find(
+    (c) => c.connection_url === DECO_STORE_URL,
+  );
+
+  if (!registryConn?.configuration_state) {
+    return null;
+  }
+
+  return (registryConn.configuration_state as Record<string, unknown>)
+    .project_locator as string | null;
+}
+
+/**
+ * Build OAuth query params for deco-hosted MCPs.
+ * Uses project_locator from Deco Store registry or falls back to auto_personal.
+ */
+function buildDecoOAuthParams(projectLocator: string | null): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (projectLocator) {
+    const [org, project] = projectLocator.split("/");
+    if (org) params.set("workspace_hint", org);
+    if (project) params.set("project_hint", project);
+  } else {
+    params.set("auto_personal", "true");
+  }
+
+  return params;
+}
 
 // Create serializer for Prometheus text format (shared across instances)
 const prometheusSerializer = new PrometheusSerializer();
@@ -281,6 +330,19 @@ export function createApp(options: CreateAppOptions = {}) {
       if (targetUrl.searchParams.has("resource")) {
         targetUrl.searchParams.set("resource", connection.connection_url);
       }
+
+      // Add smart OAuth params for deco-hosted MCPs to skip org/project selection
+      if (isDecoHostedMcp(connection.connection_url)) {
+        const projectLocator = await getDecoStoreProjectLocator(
+          ctx,
+          connection.organization_id,
+        );
+        const smartParams = buildDecoOAuthParams(projectLocator);
+        for (const [key, value] of smartParams) {
+          targetUrl.searchParams.set(key, value);
+        }
+      }
+
       return c.redirect(targetUrl.toString(), 302);
     }
 

@@ -1,5 +1,25 @@
 import type { ConnectionCreateData } from "@/tools/connection/schema";
 
+/** Deco CMS API host for detecting deco-hosted MCPs */
+export const DECO_CMS_API_HOST = "api.decocms.com";
+
+/** The Deco Store registry URL (public, no OAuth) */
+export const DECO_STORE_URL = "https://api.decocms.com/mcp/registry";
+
+/**
+ * Check if a connection URL is a deco-hosted MCP (excluding the registry itself).
+ * Used to determine if smart OAuth params should be added.
+ */
+export function isDecoHostedMcp(connectionUrl: string | null): boolean {
+  if (!connectionUrl) return false;
+  try {
+    const url = new URL(connectionUrl);
+    return url.host === DECO_CMS_API_HOST && connectionUrl !== DECO_STORE_URL;
+  } catch {
+    return false;
+  }
+}
+
 export const WellKnownMCPId = {
   SELF: "self",
   REGISTRY: "registry",
@@ -26,7 +46,7 @@ export function getWellKnownRegistryConnection(
     title: "Deco Store",
     description: "Official deco MCP registry with curated integrations",
     connection_type: "HTTP",
-    connection_url: "https://api.decocms.com/mcp/registry",
+    connection_url: DECO_STORE_URL,
     icon: "https://assets.decocache.com/decocms/00ccf6c3-9e13-4517-83b0-75ab84554bb9/596364c63320075ca58483660156b6d9de9b526e.png",
     app_name: "deco-registry",
     app_id: null,
