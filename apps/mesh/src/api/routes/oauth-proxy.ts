@@ -111,9 +111,12 @@ export async function fetchProtectedResourceMetadata(
 
   if (response.ok) return response;
 
-  // If format 1 returns 404, try format 2 (Smithery-style: well-known prefix)
-  // For other errors (401, 500, etc.), return immediately to preserve error info
-  if (response.status !== 404 && response.status !== 401) return response;
+  // If format 1 returns 404/401/406, try format 2 (Smithery-style: well-known prefix)
+  // 406 is included because some servers (like Grain) return 406 Not Acceptable
+  // when their MCP endpoints don't support the .well-known path format.
+  // For other errors (500, etc.), return immediately to preserve error info
+  const RETRY_STATUSES = [404, 401, 406];
+  if (!RETRY_STATUSES.includes(response.status)) return response;
 
   const format2Url = new URL(connectionUrl);
   format2Url.pathname = `/.well-known/oauth-protected-resource${resourcePath}`;
@@ -123,7 +126,7 @@ export async function fetchProtectedResourceMetadata(
     headers: { Accept: "application/json" },
   });
 
-  if (response.status !== 404 && response.status !== 401) return response;
+  if (!RETRY_STATUSES.includes(response.status)) return response;
 
   const format3Url = new URL(connectionUrl);
   format3Url.pathname = `/.well-known/oauth-protected-resource`;
@@ -323,9 +326,11 @@ const protectedResourceMetadataHandler = async (c: {
     // Fetch from origin, trying both well-known URL formats
     const response = await fetchProtectedResourceMetadata(connectionUrl);
 
-    // If origin returns 404 or 401, check if it still supports OAuth via WWW-Authenticate
-    // Many servers (like Apify) support OAuth but don't implement RFC 9728 metadata
-    if (!response.ok && (response.status === 404 || response.status === 401)) {
+    // If origin returns 404, 401, or 406, check if it still supports OAuth via WWW-Authenticate
+    // Many servers (like Apify, Grain) support OAuth but don't implement RFC 9728 metadata
+    // 406 is included because some servers return 406 Not Acceptable for .well-known paths
+    const NO_METADATA_STATUSES = [404, 401, 406];
+    if (!response.ok && NO_METADATA_STATUSES.includes(response.status)) {
       const wwwAuth = await checkOriginSupportsOAuth(connectionUrl);
       if (wwwAuth) {
         // Server supports OAuth but doesn't have metadata endpoint
