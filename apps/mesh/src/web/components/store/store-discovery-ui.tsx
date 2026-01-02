@@ -53,6 +53,7 @@ interface StoreDiscoveryUIProps {
   items: RegistryItem[];
   isLoadingMore?: boolean;
   isFiltering?: boolean;
+  isInitialLoading?: boolean;
   registryId: string;
   hasMore?: boolean;
   onLoadMore?: () => void;
@@ -69,6 +70,7 @@ export function StoreDiscoveryUI({
   items,
   isLoadingMore = false,
   isFiltering = false,
+  isInitialLoading = false,
   registryId,
   hasMore = false,
   onLoadMore,
@@ -160,15 +162,15 @@ export function StoreDiscoveryUI({
       >
         <div className="p-5">
           <div>
-            {/* Loading state when filtering */}
-            {isFiltering ? (
+            {/* Initial loading state */}
+            {isInitialLoading ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Loading01
                   size={32}
                   className="animate-spin text-muted-foreground mb-4"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Filtering results...
+                  Loading items...
                 </p>
               </div>
             ) : items.length === 0 && !hasActiveFilters ? (
@@ -197,6 +199,14 @@ export function StoreDiscoveryUI({
               </div>
             ) : (
               <div className="flex flex-col gap-8">
+                {/* Filtering indicator - shows while keeping cards visible */}
+                {isFiltering && (
+                  <div className="flex items-center gap-2 text-muted-foreground py-2">
+                    <Loading01 size={16} className="animate-spin" />
+                    <span className="text-sm">Updating results...</span>
+                  </div>
+                )}
+
                 {verifiedItems.length > 0 && (
                   <RegistryItemsSection
                     items={verifiedItems}
