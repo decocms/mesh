@@ -242,8 +242,6 @@ function OutputSection({ step }: { step: Step }) {
   );
   const output = stepResult?.output;
 
-  console.log("output", output);
-
   // Always show the Output section (even if empty)
   const properties =
     outputSchema && typeof outputSchema === "object"

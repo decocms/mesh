@@ -1,4 +1,3 @@
-import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { Workflow } from "@decocms/bindings/workflow";
 import {
   useTrackingExecutionId,
@@ -6,8 +5,6 @@ import {
   useWorkflowActions,
   WorkflowStoreProvider,
 } from "@/web/components/details/workflow/stores/workflow";
-import { useWorkflowCollectionItem } from "./hooks";
-import { toast } from "@deco/ui/components/sonner.tsx";
 import { MonacoCodeEditor } from "./components/monaco-editor";
 import {
   ResizableHandle,
@@ -24,52 +21,74 @@ import { ExecutionsList } from "./components/executions-list";
 import { useViewModeStore } from "./stores/view-mode";
 import { useCurrentStep } from "./stores/workflow";
 import { ViewLayout } from "../layout";
+import { useParams } from "@tanstack/react-router";
+import {
+  useCollectionActions,
+  useCollectionItem,
+} from "@/web/hooks/use-collections";
+import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
+import { EmptyState } from "@/web/components/empty-state";
 
 export interface WorkflowDetailsViewProps {
   itemId: string;
   onBack: () => void;
-  onUpdate: (updates: Record<string, unknown>) => Promise<void>;
+  onUpdate: (updates: Partial<Workflow>) => Promise<void>;
 }
 
 export function WorkflowDetailsView({
   itemId,
   onBack,
 }: WorkflowDetailsViewProps) {
-  const { item, update } = useWorkflowCollectionItem(itemId);
+  const { connectionId } = useParams({
+    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+  });
+  const connId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(connId);
+  const item = useCollectionItem<Workflow>(
+    connId,
+    "WORKFLOW",
+    itemId,
+    toolCaller,
+  );
+  const actions = useCollectionActions<Workflow>(
+    connId,
+    "WORKFLOW",
+    toolCaller,
+  );
+
+  /** This makes it so when the workflow is update on the server, the store is updated */
+  const keyFlow = JSON.stringify(item);
+
+  const update = async (updates: Partial<Workflow>): Promise<void> => {
+    await actions.update.mutateAsync({
+      id: itemId,
+      data: updates,
+    });
+  };
 
   if (!item) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner />
-      </div>
+      <ViewLayout onBack={onBack}>
+        <div className="flex h-full w-full bg-background">
+          <EmptyState
+            title="Workflow not found"
+            description="This workflow may have been deleted or you may not have access to it."
+          />
+        </div>
+      </ViewLayout>
     );
   }
 
   return (
-    <WorkflowStoreProvider workflow={item}>
-      <WorkflowDetails
-        onBack={onBack}
-        onUpdate={async (updates) => {
-          try {
-            update(updates);
-            toast.success("Workflow updated successfully");
-          } catch (error) {
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : "Failed to update workflow",
-            );
-            throw error;
-          }
-        }}
-      />
+    <WorkflowStoreProvider key={keyFlow} workflow={item}>
+      <WorkflowDetails onBack={onBack} onUpdate={update} />
     </WorkflowStoreProvider>
   );
 }
 
 interface WorkflowDetailsProps {
   onBack: () => void;
-  onUpdate: (updates: Record<string, unknown>) => Promise<void>;
+  onUpdate: (updates: Partial<Workflow>) => Promise<void>;
 }
 
 function WorkflowCode({
@@ -77,7 +96,7 @@ function WorkflowCode({
   onUpdate,
 }: {
   workflow: Workflow;
-  onUpdate: (updates: Record<string, unknown>) => Promise<void>;
+  onUpdate: (updates: Partial<Workflow>) => Promise<void>;
 }) {
   const { setWorkflow } = useWorkflowActions();
   const wf = {

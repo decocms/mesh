@@ -140,9 +140,9 @@ export function ChatPanel() {
   const chat = usePersistedChat({
     threadId: activeThreadId,
     systemPrompt,
+    onToolCall,
     onCreateThread: (thread) =>
       createThread({ id: thread.id, title: thread.title }),
-    onToolCall,
   });
 
   const handleSendMessage = async (text: string) => {

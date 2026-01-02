@@ -25,8 +25,6 @@ export function useInvalidateCollectionsOnToolCall() {
   return (event: { toolCall: { toolName: string } }) => {
     const toolName = event.toolCall.toolName;
 
-    console.log("[useInvalidateCollectionsOnToolCall] Tool call:", toolName);
-
     // Match COLLECTION_<NAME>_(CREATE|UPDATE|DELETE) pattern
     const match = toolName.match(
       /^COLLECTION_([A-Z_]+)_(CREATE|UPDATE|DELETE)$/,
@@ -41,20 +39,10 @@ export function useInvalidateCollectionsOnToolCall() {
     // Matches routes like /:org/mcps/:connectionId or /:org/mcps/:connectionId/:collectionName/:itemId
     const connectionId = params.connectionId;
 
-    console.log(
-      "[useInvalidateCollectionsOnToolCall] Connection ID:",
-      connectionId,
-    );
-
     if (!connectionId) {
       // No connectionId in URL, can't invalidate
       return;
     }
-
-    console.log(
-      "[useInvalidateCollectionsOnToolCall] Collection name:",
-      collectionName,
-    );
 
     // Invalidate all queries for this collection using the base prefix
     // This will invalidate both list and item queries

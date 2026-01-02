@@ -1,10 +1,15 @@
+import {
+  CodeAction,
+  DEFAULT_CODE_STEP,
+  Step,
+  ToolCallAction,
+  Workflow,
+} from "@decocms/bindings/workflow";
+import { createContext, PropsWithChildren, useContext, useState } from "react";
 import { createStore, StoreApi } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/vanilla/shallow";
-import { Workflow, DEFAULT_CODE_STEP } from "@decocms/bindings/workflow";
-import { Step, ToolCallAction, CodeAction } from "@decocms/bindings/workflow";
-import { createContext, useContext, useState } from "react";
 import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
 
 type CurrentStepTab = "input" | "output" | "action" | "executions";
@@ -414,11 +419,7 @@ export function WorkflowStoreProvider({
   children,
   workflow,
   trackingExecutionId,
-}: {
-  children: React.ReactNode;
-  workflow: Workflow;
-  trackingExecutionId?: string;
-}) {
+}: PropsWithChildren<{ workflow: Workflow; trackingExecutionId?: string }>) {
   const [store] = useState(() =>
     createWorkflowStore({
       originalWorkflow: workflow,

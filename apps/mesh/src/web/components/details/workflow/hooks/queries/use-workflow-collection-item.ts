@@ -1,31 +1,7 @@
-import { useParams } from "@tanstack/react-router";
-import { useCollectionItem } from "@/web/hooks/use-collections";
-import { Workflow, WorkflowExecution } from "@decocms/bindings/workflow";
-import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
+import { WorkflowExecution } from "@decocms/bindings/workflow";
+import { createToolCaller } from "@/tools/client";
 import { useWorkflowBindingConnection } from "../use-workflow-binding-connection";
 import { useToolCallQuery } from "@/web/hooks/use-tool-call";
-
-export function useWorkflowCollectionItem(itemId: string) {
-  const { connectionId } = useParams({
-    strict: false,
-  });
-  const toolCaller = createToolCaller(connectionId ?? UNKNOWN_CONNECTION_ID);
-  const item = useCollectionItem<Workflow>(
-    connectionId ?? UNKNOWN_CONNECTION_ID,
-    "workflow",
-    itemId,
-    toolCaller,
-  );
-  return {
-    item,
-    update: (updates: Record<string, unknown>) => {
-      toolCaller("COLLECTION_WORKFLOW_UPDATE", {
-        id: itemId,
-        data: updates,
-      });
-    },
-  };
-}
 
 type ExecutionQueryResult = {
   item: WorkflowExecution | null;
