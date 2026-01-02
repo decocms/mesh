@@ -20,8 +20,8 @@ function StackedCardsIllustration() {
     <img
       src="/empty-state-cards.png"
       alt=""
-      width={218}
-      height={190}
+      width={336}
+      height={320}
       aria-hidden="true"
     />
   );

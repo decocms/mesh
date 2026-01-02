@@ -987,8 +987,8 @@ function OrgMcpsContent() {
                 <img
                   src="/emptystate-mcp.svg"
                   alt=""
-                  width={500}
-                  height={223}
+                  width={336}
+                  height={320}
                   aria-hidden="true"
                 />
               }
@@ -1001,6 +1001,21 @@ function OrgMcpsContent() {
                 listState.search
                   ? `No MCP Servers match "${listState.search}"`
                   : "Create a connection to get started."
+              }
+              actions={
+                !listState.search && (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      navigate({
+                        to: "/$org/store",
+                        params: { org: org.slug },
+                      })
+                    }
+                  >
+                    Browse Store
+                  </Button>
+                )
               }
             />
           ) : (
@@ -1086,8 +1101,8 @@ function OrgMcpsContent() {
                   <img
                     src="/emptystate-mcp.svg"
                     alt=""
-                    width={500}
-                    height={223}
+                    width={400}
+                    height={178}
                     aria-hidden="true"
                   />
                 }
@@ -1100,13 +1115,26 @@ function OrgMcpsContent() {
                   <img
                     src="/emptystate-mcp.svg"
                     alt=""
-                    width={500}
-                    height={223}
+                    width={400}
+                    height={178}
                     aria-hidden="true"
                   />
                 }
                 title="No MCP Servers found"
                 description="Create a connection to get started."
+                actions={
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      navigate({
+                        to: "/$org/store",
+                        params: { org: org.slug },
+                      })
+                    }
+                  >
+                    Browse Store
+                  </Button>
+                }
               />
             )
           }
