@@ -40,7 +40,15 @@ import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { AssistantSchema } from "@decocms/bindings/assistant";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams, useRouter, useRouterState } from "@tanstack/react-router";
-import { Edit05, Loading01, Plus, Upload01, Users02 } from "@untitledui/icons";
+import {
+  Edit05,
+  FlipBackward,
+  Loading01,
+  Plus,
+  Save02,
+  Upload01,
+  Users02,
+} from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
@@ -576,31 +584,49 @@ function AssistantDetailContent({
               </>
             ) : (
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1.5"
-                  disabled={isSaving}
-                  onClick={() => setMode("chat")}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="h-7 gap-1.5"
-                  disabled={!form.formState.isDirty || isSaving}
-                  onClick={() => void saveAndLock()}
-                >
-                  {isSaving ? (
-                    <>
-                      <Loading01 size={14} className="animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save"
-                  )}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <span className="inline-block">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="size-7 border border-input"
+                          disabled={isSaving}
+                          onClick={() => setMode("chat")}
+                          aria-label="Cancel"
+                        >
+                          <FlipBackward size={14} />
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Cancel</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <span className="inline-block">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="size-7 border border-input"
+                          disabled={!form.formState.isDirty || isSaving}
+                          onClick={() => void saveAndLock()}
+                          aria-label="Save"
+                        >
+                          {isSaving ? (
+                            <Loading01 size={14} className="animate-spin" />
+                          ) : (
+                            <Save02 size={14} />
+                          )}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Save</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </>
             )}
           </ViewActions>
