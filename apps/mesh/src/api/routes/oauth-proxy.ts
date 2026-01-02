@@ -46,7 +46,7 @@ async function getConnectionUrl(
  * This is useful for servers that support OAuth but don't implement RFC 9728 Protected Resource Metadata.
  * Returns the WWW-Authenticate header value if OAuth is supported, null otherwise.
  */
-export async function checkOriginSupportsOAuth(
+async function checkOriginSupportsOAuth(
   connectionUrl: string,
 ): Promise<string | null> {
   try {
