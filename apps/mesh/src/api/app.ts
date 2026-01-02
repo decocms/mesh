@@ -53,8 +53,8 @@ async function getDecoStoreProjectLocator(
 ): Promise<string | null> {
   // Find registry connection by URL within the organization
   const connections = await ctx.storage.connections.list(organizationId);
-  const registryConn = connections.find(
-    (c) => c.connection_url === DECO_STORE_URL,
+  const registryConn = connections.find((c) =>
+    c.connection_url?.startsWith(DECO_STORE_URL),
   );
 
   if (!registryConn?.configuration_state) {
@@ -337,6 +337,7 @@ export function createApp(options: CreateAppOptions = {}) {
           ctx,
           connection.organization_id,
         );
+        console.log({ projectLocator });
         const smartParams = buildDecoOAuthParams(projectLocator);
         for (const [key, value] of smartParams) {
           targetUrl.searchParams.set(key, value);
