@@ -551,7 +551,7 @@ function AssistantDetailContent({
                         size="icon"
                         className="size-7 border border-input"
                       >
-                        <Plus size={16} className="text-muted-foreground" />
+                        <Plus size={16} />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>New thread</TooltipContent>
@@ -569,7 +569,7 @@ function AssistantDetailContent({
                         size="icon"
                         className="size-7 border border-input"
                       >
-                        <Edit05 size={16} className="text-muted-foreground" />
+                        <Edit05 size={16} />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Edit</TooltipContent>
