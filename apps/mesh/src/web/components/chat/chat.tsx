@@ -1,4 +1,4 @@
-import { useChat as useAiChat } from "@ai-sdk/react";
+import type { UseChatHelpers } from "@ai-sdk/react";
 import { DecoChatAside } from "@deco/ui/components/deco-chat-aside.tsx";
 import { DecoChatInputV2 } from "@deco/ui/components/deco-chat-input-v2.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -35,9 +35,7 @@ export type {
 
 export type ChatMessage = UIMessage<Metadata>;
 
-export type ChatStatus = ReturnType<
-  typeof useAiChat<UIMessage<Metadata>>
->["status"];
+export type ChatStatus = UseChatHelpers<UIMessage<Metadata>>["status"];
 
 function useChatAutoScroll({
   messageCount,

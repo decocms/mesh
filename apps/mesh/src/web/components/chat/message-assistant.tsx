@@ -1,6 +1,6 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import type { DynamicToolUIPart, ToolUIPart } from "ai";
+import type { ToolUIPart } from "ai";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Target04, Stars01, Lightbulb01 } from "@untitledui/icons";
 import { MessageProps } from "./message-user.tsx";
@@ -70,46 +70,39 @@ function ThoughtSummary({ duration }: { duration: number }) {
   );
 }
 
-function renderPart(
-  part: MessageProps<Metadata>["message"]["parts"][number],
-  id: string,
-  index: number,
-  usageStats?: ReactNode,
-) {
-  const isToolCall =
-    part.type.startsWith("tool-") || part.type === "dynamic-tool";
-  const shouldSkip =
-    part.type === "step-start" ||
-    part.type === "file" ||
-    part.type === "source-url" ||
-    part.type === "source-document";
-  if (shouldSkip) {
-    return null;
-  }
-  if (isToolCall) {
-    return (
-      <ToolCallPart
-        key={`${id}-${index}`}
-        part={part as ToolUIPart | DynamicToolUIPart}
-        id={id}
-      />
-    );
-  }
+type MessagePart = MessageProps<Metadata>["message"]["parts"][number];
+
+interface MessagePartProps {
+  part: MessagePart;
+  id: string;
+  usageStats?: ReactNode;
+}
+
+function MessagePart({ part, id, usageStats }: MessagePartProps) {
   switch (part.type) {
+    case "dynamic-tool":
+      return <ToolCallPart part={part} id={id} />;
     case "text":
       return (
         <MessageTextPart
-          key={`${id}-${index}`}
           id={id}
-          text={part.text}
-          copyable={true}
+          part={part}
           extraActions={usageStats}
+          copyable
         />
       );
     case "reasoning":
-      return (
-        <MessageReasoningPart key={`${id}-${index}`} part={part} id={id} />
-      );
+      return <MessageReasoningPart part={part} id={id} />;
+    case "step-start":
+    case "file":
+    case "source-url":
+    case "source-document":
+      return null;
+    default: {
+      if (part.type.startsWith("tool-")) {
+        return <ToolCallPart part={part as ToolUIPart} id={id} />;
+      }
+    }
   }
 
   throw new Error(`Unknown part type: ${part.type}`);
@@ -173,14 +166,16 @@ export function MessageAssistant<T extends Metadata>({
           {hasContent ? (
             <>
               {showThought && <ThoughtSummary duration={duration} />}
-              {parts.map((part, index) =>
-                renderPart(
-                  part,
-                  id,
-                  index,
-                  index === parts.length - 1 ? usageStats : undefined,
-                ),
-              )}
+              {parts.map((part, index) => (
+                <MessagePart
+                  key={`${id}-${index}`}
+                  part={part}
+                  id={id}
+                  usageStats={
+                    index === parts.length - 1 ? usageStats : undefined
+                  }
+                />
+              ))}
             </>
           ) : isLoading ? (
             <TypingIndicator />

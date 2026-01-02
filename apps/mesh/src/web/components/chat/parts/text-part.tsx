@@ -3,17 +3,18 @@ import { useCopy } from "@deco/ui/hooks/use-copy.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import { MemoizedMarkdown } from "@deco/ui/components/chat/chat-markdown.tsx";
 import { Check, Copy01 } from "@untitledui/icons";
+import type { TextUIPart } from "ai";
 
 interface MessageTextPartProps {
   id: string;
-  text: string;
+  part: TextUIPart;
   copyable?: boolean;
   extraActions?: ReactNode;
 }
 
 export function MessageTextPart({
   id,
-  text,
+  part,
   copyable = false,
   extraActions,
 }: MessageTextPartProps) {
@@ -21,7 +22,7 @@ export function MessageTextPart({
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopyMessage = async () => {
-    await handleCopy(text);
+    await handleCopy(part.text);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
@@ -30,7 +31,7 @@ export function MessageTextPart({
 
   return (
     <div className="group/part relative">
-      <MemoizedMarkdown id={id} text={text} />
+      <MemoizedMarkdown id={id} text={part.text} />
       {showActions && (
         <div className="flex w-full items-center text-xs text-muted-foreground opacity-0 pointer-events-none transition-all duration-200 group-hover/part:opacity-100 group-hover/part:pointer-events-auto mt-2">
           <div className="flex items-center gap-1">

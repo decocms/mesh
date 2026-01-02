@@ -55,7 +55,7 @@ export function MessageUser<T extends Metadata>({
       {" "}
       <div
         onClick={handleClick}
-        className="w-full border min-w-0 shadow-[0_3px_6px_-1px_rgba(0,0,0,0.1)] rounded-lg text-[0.9375rem] break-words overflow-wrap-anywhere bg-muted px-4 py-2 cursor-pointer transition-colors"
+        className="w-full border min-w-0 shadow-[0_3px_6px_-1px_rgba(0,0,0,0.1)] rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-muted px-4 py-2 cursor-pointer transition-colors"
       >
         <div
           className={cn(
@@ -67,17 +67,13 @@ export function MessageUser<T extends Metadata>({
           {parts.map((part, index) => {
             if (part.type === "text") {
               return (
-                <MessageTextPart
-                  key={`${id}-${index}`}
-                  id={id}
-                  text={part.text}
-                />
+                <MessageTextPart key={`${id}-${index}`} id={id} part={part} />
               );
             }
             return null;
           })}
           {isLongMessage && !isExpanded && (
-            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-muted to-transparent pointer-events-none" />
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-linear-to-t from-muted to-transparent pointer-events-none" />
           )}
         </div>
         {isLongMessage && (
