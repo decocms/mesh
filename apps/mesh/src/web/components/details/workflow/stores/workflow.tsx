@@ -390,6 +390,10 @@ const createWorkflowStore = (initialState: State) => {
             set((state) => ({
               ...state,
               selectedGatewayId: gatewayId,
+              workflow: {
+                ...state.workflow,
+                gateway_id: gatewayId,
+              },
             })),
         },
       }),
@@ -431,7 +435,7 @@ export function WorkflowStoreProvider({
       currentStepName: undefined,
       trackingExecutionId,
       currentStepTab: "input",
-      selectedGatewayId: undefined,
+      selectedGatewayId: workflow.gateway_id,
     }),
   );
 

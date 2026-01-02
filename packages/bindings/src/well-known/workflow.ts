@@ -279,6 +279,11 @@ export const WorkflowSchema = BaseCollectionEntitySchema.extend({
     .describe(
       "Ordered list of steps. Execution order is auto-determined by @ref dependencies: steps with no @ref dependencies run in parallel; steps referencing @stepName wait for that step to complete.",
     ),
+
+  gateway_id: z
+    .string()
+    .optional()
+    .describe("Default gateway ID to use when executing this workflow"),
 });
 
 export type Workflow = z.infer<typeof WorkflowSchema>;
