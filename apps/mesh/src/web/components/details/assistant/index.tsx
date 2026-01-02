@@ -15,6 +15,11 @@ import {
   type GatewayPrompt,
 } from "@/web/hooks/use-gateway-prompts";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import {
+  ChatInputProvider,
+  BranchPreview,
+  useChatInputState,
+} from "@/web/components/chat/chat-input-context";
 import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -206,8 +211,41 @@ function AssistantEditForm({ form }: { form: AssistantForm }) {
   );
 }
 
+function AssistantInputField({
+  onSubmit,
+  onStop,
+  isStreaming,
+  disabled,
+  usageMessages,
+}: {
+  onSubmit: (text: string) => Promise<void>;
+  onStop: () => void;
+  isStreaming: boolean;
+  disabled: boolean;
+  usageMessages: ReturnType<typeof usePersistedChat>["messages"];
+}) {
+  const { inputValue, handleInputChange, handleSubmit, branchContext } =
+    useChatInputState();
+
+  return (
+    <Chat.Input
+      onSubmit={(text) => handleSubmit(text, onSubmit)}
+      onStop={onStop}
+      disabled={disabled}
+      isStreaming={isStreaming}
+      placeholder={
+        branchContext ? "Edit your message..." : "Ask anything or @ for context"
+      }
+      usageMessages={usageMessages}
+      value={inputValue}
+      onValueChange={handleInputChange}
+    />
+  );
+}
+
 interface AssistantChatPanelProps {
   activeThreadId: string;
+  setActiveThreadId: (id: string) => void;
   mode: "chat" | "edit";
   assistant: Assistant;
   form: AssistantForm;
@@ -215,6 +253,7 @@ interface AssistantChatPanelProps {
 
 function AssistantChatPanel({
   activeThreadId,
+  setActiveThreadId,
   mode,
   assistant,
   form,
@@ -223,7 +262,16 @@ function AssistantChatPanel({
   const chat = usePersistedChat({
     threadId: activeThreadId,
     systemPrompt: assistant.system_prompt,
+    onThreadChange: setActiveThreadId,
   });
+
+  // Destructure branching-related values from the hook
+  const {
+    inputController,
+    branchContext,
+    clearBranchContext,
+    branchFromMessage,
+  } = chat;
 
   // Chat config is valid when gateway and model are both configured
   const hasChatConfig =
@@ -245,7 +293,19 @@ function AssistantChatPanel({
       user: { name: "you" },
     };
 
+    // Clear editing state after sending
+    clearBranchContext();
+
     await chat.sendMessage(text, metadata);
+  };
+
+  // Handle clicking on the branch preview to go back to original thread
+  const handleGoToOriginalMessage = () => {
+    if (!branchContext) return;
+    setActiveThreadId(branchContext.originalThreadId);
+    // Clear the branch context since we're going back
+    clearBranchContext();
+    inputController.setValue("");
   };
 
   const emptyState = (
@@ -333,6 +393,7 @@ function AssistantChatPanel({
               messages={chat.messages}
               status={chat.status}
               minHeightOffset={240}
+              onBranchFromMessage={branchFromMessage}
             />
           )}
         </div>
@@ -346,18 +407,25 @@ function AssistantChatPanel({
         )}
       >
         <Chat.Footer>
-          <div className="max-w-2xl mx-auto w-full min-w-0">
-            <Chat.Input
-              onSubmit={handleSendMessage}
-              onStop={chat.stop}
-              disabled={!hasChatConfig}
-              isStreaming={
-                chat.status === "submitted" || chat.status === "streaming"
-              }
-              placeholder="Ask anything or @ for context"
-              usageMessages={chat.messages}
-            />
-          </div>
+          <ChatInputProvider
+            inputController={inputController}
+            branchContext={branchContext}
+            clearBranchContext={clearBranchContext}
+            onGoToOriginalMessage={handleGoToOriginalMessage}
+          >
+            <div className="max-w-2xl mx-auto w-full min-w-0 flex flex-col gap-2">
+              <BranchPreview />
+              <AssistantInputField
+                onSubmit={handleSendMessage}
+                onStop={chat.stop}
+                isStreaming={
+                  chat.status === "submitted" || chat.status === "streaming"
+                }
+                disabled={!hasChatConfig}
+                usageMessages={chat.messages}
+              />
+            </div>
+          </ChatInputProvider>
         </Chat.Footer>
       </div>
     </Chat>
@@ -635,6 +703,7 @@ function AssistantDetailContent({
             <AssistantChatPanel
               key={form.formState.submitCount}
               activeThreadId={activeThreadId}
+              setActiveThreadId={setActiveThreadId}
               mode={mode}
               assistant={assistant}
               form={form}

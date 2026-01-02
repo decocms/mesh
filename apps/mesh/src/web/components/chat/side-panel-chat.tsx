@@ -16,6 +16,11 @@ import {
   useConnections,
 } from "../../hooks/collections/use-connection";
 import { useBindingConnections } from "../../hooks/use-binding";
+import {
+  ChatInputProvider,
+  BranchPreview,
+  useChatInputState,
+} from "./chat-input-context";
 import { useThreads } from "../../hooks/use-chat-store";
 import {
   useGatewayPrompts,
@@ -49,6 +54,57 @@ function OpenRouterIllustration() {
       aria-hidden="true"
       className="w-xs h-auto mask-radial-[100%_100%] mask-radial-from-20% mask-radial-to-50% mask-radial-at-center"
     />
+  );
+}
+
+function ChatInputField({
+  onSubmit,
+  onStop,
+  isStreaming,
+  disabled,
+  placeholder,
+  usageMessages,
+  selectedGatewayId,
+  onGatewayChange,
+  selectedModel,
+  onModelChange,
+}: {
+  onSubmit: (text: string) => Promise<void>;
+  onStop: () => void;
+  isStreaming: boolean;
+  disabled: boolean;
+  placeholder: string;
+  usageMessages: ReturnType<typeof usePersistedChat>["messages"];
+  selectedGatewayId?: string;
+  onGatewayChange: (gatewayId: string) => void;
+  selectedModel?: { id: string; connectionId: string };
+  onModelChange: (model: ModelChangePayload) => void;
+}) {
+  const { inputValue, handleInputChange, handleSubmit, branchContext } =
+    useChatInputState();
+
+  return (
+    <Chat.Input
+      onSubmit={(text) => handleSubmit(text, onSubmit)}
+      onStop={onStop}
+      disabled={disabled}
+      isStreaming={isStreaming}
+      placeholder={branchContext ? "Edit your message..." : placeholder}
+      usageMessages={usageMessages}
+      value={inputValue}
+      onValueChange={handleInputChange}
+    >
+      <Chat.Input.GatewaySelector
+        disabled={false}
+        selectedGatewayId={selectedGatewayId}
+        onGatewayChange={(id) => id && onGatewayChange(id)}
+      />
+      <Chat.Input.ModelSelector
+        disabled={false}
+        selectedModel={selectedModel}
+        onModelChange={onModelChange}
+      />
+    </Chat.Input>
   );
 }
 
@@ -143,7 +199,25 @@ export function ChatPanel() {
     onToolCall,
     onCreateThread: (thread) =>
       createThread({ id: thread.id, title: thread.title }),
+    onThreadChange: setActiveThreadId,
   });
+
+  // Destructure branching-related values from the hook
+  const {
+    inputController,
+    branchContext,
+    clearBranchContext,
+    branchFromMessage,
+  } = chat;
+
+  // Handle clicking on the branch preview to go back to original thread
+  const handleGoToOriginalMessage = () => {
+    if (!branchContext) return;
+    setActiveThreadId(branchContext.originalThreadId);
+    // Clear the branch context since we're going back
+    clearBranchContext();
+    inputController.setValue("");
+  };
 
   const handleSendMessage = async (text: string) => {
     if (!selectedModel) {
@@ -165,6 +239,9 @@ export function ChatPanel() {
         name: user?.name ?? "you",
       },
     };
+
+    // Clear editing state after sending
+    clearBranchContext();
 
     await chat.sendMessage(text, metadata);
   };
@@ -434,41 +511,42 @@ export function ChatPanel() {
             messages={chat.messages}
             status={chat.status}
             minHeightOffset={240}
+            onBranchFromMessage={branchFromMessage}
           />
         )}
       </Chat.Main>
 
       <Chat.Footer>
-        <div>
-          <Chat.Input
-            onSubmit={handleSendMessage}
-            onStop={chat.stop}
-            disabled={models.length === 0 || !effectiveSelectedModelState}
-            isStreaming={
-              chat.status === "submitted" || chat.status === "streaming"
-            }
-            placeholder={
-              models.length === 0
-                ? "Add an LLM binding connection to start chatting"
-                : "Ask anything or @ for context"
-            }
-            usageMessages={chat.messages}
-          >
-            <Chat.Input.GatewaySelector
-              disabled={false}
+        <ChatInputProvider
+          inputController={inputController}
+          branchContext={branchContext}
+          clearBranchContext={clearBranchContext}
+          onGoToOriginalMessage={handleGoToOriginalMessage}
+        >
+          <div className="flex flex-col gap-2">
+            <BranchPreview />
+            <ChatInputField
+              onSubmit={handleSendMessage}
+              onStop={chat.stop}
+              isStreaming={
+                chat.status === "submitted" || chat.status === "streaming"
+              }
+              disabled={models.length === 0 || !effectiveSelectedModelState}
+              placeholder={
+                models.length === 0
+                  ? "Add an LLM binding connection to start chatting"
+                  : "Ask anything or @ for context"
+              }
+              usageMessages={chat.messages}
               selectedGatewayId={effectiveSelectedGatewayId}
-              onGatewayChange={(gatewayId) => {
-                if (!gatewayId) return;
-                setSelectedGatewayState({ gatewayId });
-              }}
-            />
-            <Chat.Input.ModelSelector
-              disabled={false}
+              onGatewayChange={(gatewayId) =>
+                setSelectedGatewayState({ gatewayId })
+              }
               selectedModel={effectiveSelectedModelState ?? undefined}
               onModelChange={handleModelChange}
             />
-          </Chat.Input>
-        </div>
+          </div>
+        </ChatInputProvider>
       </Chat.Footer>
     </Chat>
   );
