@@ -17,10 +17,12 @@ import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
+import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Key01, File06, Loading01 } from "@untitledui/icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -438,6 +440,8 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
 
   const connectionActions = useConnectionActions();
   const queryClient = useQueryClient();
+  const routerState = useRouterState();
+  const url = routerState.location.href;
 
   // Check if connection has README
   const repository = connection?.metadata?.repository as
@@ -496,6 +500,11 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   return (
     <>
       <ViewActions>
+        <PinToSidebarButton
+          title={`${connection.title}: Settings`}
+          url={url}
+          icon={connection.icon ?? "settings"}
+        />
         {hasAnyChanges && (
           <Button
             onClick={handleSave}

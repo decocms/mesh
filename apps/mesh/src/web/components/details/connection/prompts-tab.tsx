@@ -3,8 +3,10 @@ import { CollectionSearch } from "@/web/components/collections/collection-search
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
+import { useConnection } from "@/web/hooks/collections/use-connection";
 import { Card } from "@deco/ui/components/card.tsx";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { ViewActions } from "@/web/components/details/layout";
 import type { McpPrompt } from "@/web/hooks/use-connection-prompts";
@@ -16,6 +18,10 @@ export interface PromptsListProps {
   connectionId?: string;
   /** Organization slug for navigation */
   org?: string;
+  /** Connection title for display */
+  connectionTitle?: string;
+  /** Connection icon for pinning */
+  connectionIcon?: string | null;
   /** Custom click handler - if provided, overrides default navigation */
   onPromptClick?: (prompt: McpPrompt) => void;
   /** Whether to show the ViewActions toolbar (default: true) */
@@ -31,11 +37,15 @@ function PromptsList({
   prompts,
   connectionId,
   org,
+  connectionTitle,
+  connectionIcon,
   onPromptClick,
   showToolbar = true,
   emptyMessage = "This connection doesn't have any prompts yet.",
 }: PromptsListProps) {
   const navigate = useNavigate();
+  const routerState = useRouterState();
+  const url = routerState.location.href;
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [sortKey, setSortKey] = useState<string | undefined>("name");
@@ -139,6 +149,11 @@ function PromptsList({
             onSort={handleSort}
             sortOptions={sortOptions}
           />
+          <PinToSidebarButton
+            title={connectionTitle ? `${connectionTitle}: Prompts` : "Prompts"}
+            url={url}
+            icon={connectionIcon ?? "description"}
+          />
         </ViewActions>
       )}
 
@@ -228,7 +243,15 @@ interface PromptsTabProps {
 }
 
 export function PromptsTab({ prompts, connectionId, org }: PromptsTabProps) {
+  const connection = useConnection(connectionId);
+
   return (
-    <PromptsList prompts={prompts} connectionId={connectionId} org={org} />
+    <PromptsList
+      prompts={prompts}
+      connectionId={connectionId}
+      org={org}
+      connectionTitle={connection?.title}
+      connectionIcon={connection?.icon}
+    />
   );
 }

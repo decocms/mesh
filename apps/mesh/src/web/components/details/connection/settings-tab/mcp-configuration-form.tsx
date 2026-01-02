@@ -4,6 +4,7 @@ import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-fro
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Loading01, Plus } from "@untitledui/icons";
+import { Button } from "@deco/ui/components/button.tsx";
 import {
   Select,
   SelectContent,
@@ -280,14 +281,15 @@ function BindingSelector({
         )}
         {(onAddNew || canInstallInline) && (
           <div className="border-t border-border">
-            <button
+            <Button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 handleCreateConnection();
               }}
               disabled={isInstalling}
-              className="w-full flex items-center gap-2 px-2 py-2 hover:bg-muted rounded-md text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="ghost"
+              className="w-full justify-start gap-2 px-2 py-2 h-auto hover:bg-muted rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               type="button"
             >
               {isInstalling ? (
@@ -305,7 +307,7 @@ function BindingSelector({
                   </span>
                 </>
               )}
-            </button>
+            </Button>
           </div>
         )}
       </SelectContent>

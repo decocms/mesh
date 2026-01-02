@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { Loading01 } from "@untitledui/icons";
-import { useParams, useSearch } from "@tanstack/react-router";
+import { useParams, useRouterState, useSearch } from "@tanstack/react-router";
 import {
   AlertCircle,
   Box,
@@ -103,6 +103,8 @@ function ToolDetailsAuthenticated({
   mcpProxyUrl: URL;
   onBack: () => void;
 }) {
+  const routerState = useRouterState();
+  const url = routerState.location.href;
   // Read replayId from search params to check for prefilled input
   const { replayId } = useSearch({ strict: false }) as { replayId?: string };
 
@@ -277,8 +279,8 @@ function ToolDetailsAuthenticated({
     <ViewLayout onBack={onBack}>
       <ViewActions>
         <PinToSidebarButton
-          connectionId={connectionId}
           title={tool?.name ?? beautifyToolName(toolName)}
+          url={url}
           icon="build"
         />
       </ViewActions>

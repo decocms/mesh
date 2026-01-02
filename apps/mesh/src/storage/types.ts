@@ -97,7 +97,6 @@ export interface Organization {
 export interface SidebarItem {
   title: string;
   url: string;
-  connectionId: string;
   icon: string;
 }
 

@@ -49,6 +49,7 @@ import {
   useNavigate,
   useParams,
   useRouter,
+  useRouterState,
   useSearch,
 } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
@@ -57,6 +58,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { slugify } from "@/web/utils/slugify";
+import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { ViewLayout, ViewActions, ViewTabs } from "../layout";
 
 type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
@@ -449,15 +451,18 @@ function GatewaySettingsTab({
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <button
+                              <Button
                                 type="button"
-                                className="cursor-help flex items-center"
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                aria-label="Selection mode help"
                               >
                                 <InfoCircle
                                   size={14}
                                   className="text-muted-foreground"
                                 />
-                              </button>
+                              </Button>
                             </TooltipTrigger>
                             <TooltipContent side="left" className="max-w-sm">
                               <div className="text-xs space-y-1">
@@ -510,15 +515,18 @@ function GatewaySettingsTab({
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <button
+                              <Button
                                 type="button"
-                                className="cursor-help flex items-center"
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                aria-label="Gateway strategy help"
                               >
                                 <InfoCircle
                                   size={14}
                                   className="text-muted-foreground"
                                 />
-                              </button>
+                              </Button>
                             </TooltipTrigger>
                             <TooltipContent side="left" className="max-w-sm">
                               <div className="text-xs space-y-1">
@@ -604,6 +612,8 @@ function GatewayInspectorViewWithGateway({
   gatewayId: string;
   requestedTabId: GatewayTabId;
 }) {
+  const routerState = useRouterState();
+  const url = routerState.location.href;
   const router = useRouter();
   const navigate = useNavigate({ from: "/$org/gateways/$gatewayId" });
   const actions = useGatewayActions();
@@ -735,6 +745,11 @@ function GatewayInspectorViewWithGateway({
         />
       </ViewTabs>
       <ViewActions>
+        <PinToSidebarButton
+          title={gateway.title}
+          url={url}
+          icon={gateway.icon ?? "cpu_chip"}
+        />
         {hasAnyChanges && (
           <Button
             onClick={handleSave}

@@ -6,7 +6,6 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { Pin01 } from "@untitledui/icons";
-import { useRouterState } from "@tanstack/react-router";
 import {
   useOrganizationSettings,
   useOrganizationSettingsActions,
@@ -14,8 +13,8 @@ import {
 import { useProjectContext } from "../providers/project-context-provider";
 
 interface PinToSidebarButtonProps {
-  connectionId: string;
   title: string;
+  url: string;
   icon: string;
 }
 
@@ -23,12 +22,10 @@ interface PinToSidebarButtonProps {
  * Reusable button component for pinning/unpinning views to the sidebar
  */
 export function PinToSidebarButton({
-  connectionId,
   title,
+  url,
   icon,
 }: PinToSidebarButtonProps) {
-  const routerState = useRouterState();
-  const url = routerState.location.href;
   const { org } = useProjectContext();
   const settings = useOrganizationSettings(org.id);
   const actions = useOrganizationSettingsActions(org.id);
@@ -44,7 +41,7 @@ export function PinToSidebarButton({
       updatedItems = currentItems.filter((item) => item.url !== url);
     } else {
       // Insert new item
-      updatedItems = [...currentItems, { title, url, connectionId, icon }];
+      updatedItems = [...currentItems, { title, url, icon }];
     }
 
     await actions.update.mutateAsync({

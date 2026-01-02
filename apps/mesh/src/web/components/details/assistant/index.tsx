@@ -5,6 +5,7 @@ import { IceBreakers } from "@/web/components/chat/ice-breakers";
 import { ModelSelector } from "@/web/components/chat/model-selector";
 import { EmptyState } from "@/web/components/empty-state";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import {
   useCollectionActions,
   useCollectionItem,
@@ -28,13 +29,22 @@ import {
 } from "@deco/ui/components/form.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { AssistantSchema } from "@decocms/bindings/assistant";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useParams, useRouter } from "@tanstack/react-router";
+import { useParams, useRouter, useRouterState } from "@tanstack/react-router";
 import { Edit05, Loading01, Plus, Upload01, Users02 } from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
+import { useForm, type UseFormReturn } from "react-hook-form";
+import { z } from "zod";
+import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 
 /**
  * Ice breakers component that uses suspense to fetch gateway prompts
@@ -52,9 +62,6 @@ function AssistantIceBreakers({
 
   return <IceBreakers prompts={prompts} onSelect={onSelect} className="mt-6" />;
 }
-import { useForm, type UseFormReturn } from "react-hook-form";
-import { z } from "zod";
-import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 
 type Assistant = z.infer<typeof AssistantSchema>;
 type AssistantForm = UseFormReturn<Assistant>;
@@ -428,6 +435,8 @@ function AssistantDetailContent({
   assistantId: string;
   onBack?: () => void;
 }) {
+  const routerState = useRouterState();
+  const url = routerState.location.href;
   const router = useRouter();
   const handleBack = onBack ?? (() => router.history.back());
   const { locator } = useProjectContext();
@@ -523,30 +532,49 @@ function AssistantDetailContent({
           </ViewTabs>
 
           <ViewActions>
+            <PinToSidebarButton
+              title={assistant.title}
+              url={url}
+              icon={assistant.avatar ?? "assistant"}
+            />
             {mode === "chat" ? (
               <>
-                <button
-                  type="button"
-                  onClick={() => setActiveThreadId(crypto.randomUUID())}
-                  title="New thread"
-                  className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
-                >
-                  <Plus
-                    size={16}
-                    className="text-muted-foreground group-hover:text-foreground transition-colors"
-                  />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("edit")}
-                  title="Edit"
-                  className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
-                >
-                  <Edit05
-                    size={16}
-                    className="text-muted-foreground group-hover:text-foreground transition-colors"
-                  />
-                </button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        onClick={() => setActiveThreadId(crypto.randomUUID())}
+                        title="New thread"
+                        aria-label="New thread"
+                        variant="outline"
+                        size="icon"
+                        className="size-7 border border-input"
+                      >
+                        <Plus size={16} className="text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>New thread</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        onClick={() => setMode("edit")}
+                        title="Edit"
+                        aria-label="Edit"
+                        variant="outline"
+                        size="icon"
+                        className="size-7 border border-input"
+                      >
+                        <Edit05 size={16} className="text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Edit</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </>
             ) : (
               <>

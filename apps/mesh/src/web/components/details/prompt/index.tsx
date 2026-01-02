@@ -5,6 +5,7 @@ import {
   useCollectionActions,
   useCollectionItem,
 } from "@/web/hooks/use-collections";
+import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Form,
@@ -16,6 +17,7 @@ import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { PromptSchema } from "@decocms/bindings/prompt";
 import { Loading01 } from "@untitledui/icons";
+import { useRouterState } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
@@ -130,6 +132,8 @@ function PromptDetailContent({
   promptId: string;
   onBack: () => void;
 }) {
+  const routerState = useRouterState();
+  const url = routerState.location.href;
   const toolCaller = createToolCaller(providerId || UNKNOWN_CONNECTION_ID);
 
   const prompt = useCollectionItem<Prompt>(
@@ -221,6 +225,7 @@ function PromptDetailContent({
       </ViewTabs>
 
       <ViewActions>
+        <PinToSidebarButton title={prompt.title} url={url} icon="description" />
         <Button
           variant="ghost"
           size="sm"

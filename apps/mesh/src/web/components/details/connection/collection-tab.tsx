@@ -29,7 +29,7 @@ import {
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Plus } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -52,6 +52,8 @@ export function CollectionTab({
   const hasUpdateTool = activeCollection.hasUpdateTool;
   const hasDeleteTool = activeCollection.hasDeleteTool;
   const navigate = useNavigate();
+  const routerState = useRouterState();
+  const url = routerState.location.href;
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id || "unknown";
   const connection = useConnection(connectionId);
@@ -207,8 +209,8 @@ export function CollectionTab({
           sortOptions={sortOptions}
         />
         <PinToSidebarButton
-          connectionId={connectionId}
           title={`${collectionName}s`}
+          url={url}
           icon={connection?.icon ?? "grid_view"}
         />
         {showCreateInToolbar && createButton}
