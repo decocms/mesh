@@ -3,6 +3,7 @@ import { createToolCaller } from "@/tools/client";
 import { StoreDiscoveryUI } from "./store-discovery-ui";
 import type { RegistryItem } from "./registry-items-section";
 import {
+  useInfiniteQuery,
   useSuspenseInfiniteQuery,
   useSuspenseQuery,
   keepPreviousData,
@@ -75,44 +76,50 @@ function StoreDiscoveryContent({
     ...(selectedCategories.length > 0 && { categories: selectedCategories }),
   };
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching } =
-    useSuspenseInfiniteQuery({
-      // Include filters in query key so it refetches when filters change
-      queryKey: KEYS.toolCall(
-        registryId,
-        listToolName,
-        JSON.stringify(filterParams),
-      ),
-      queryFn: async ({ pageParam }) => {
-        // Use cursor if available, otherwise fallback to offset for backward compatibility
-        const params = pageParam
-          ? { ...filterParams, cursor: pageParam }
-          : filterParams;
-        const result = await toolCaller(listToolName, params);
-        return result;
-      },
-      initialPageParam: undefined as string | undefined,
-      getNextPageParam: (lastPage) => {
-        // Only proceed with pagination if API provides a cursor
-        // If no cursor is available, return undefined to stop pagination
-        if (typeof lastPage === "object" && lastPage !== null) {
-          const nextCursor =
-            (lastPage as { nextCursor?: string; cursor?: string }).nextCursor ||
-            (lastPage as { nextCursor?: string; cursor?: string }).cursor;
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetching,
+    isLoading,
+  } = useInfiniteQuery({
+    // Include filters in query key so it refetches when filters change
+    queryKey: KEYS.toolCall(
+      registryId,
+      listToolName,
+      JSON.stringify(filterParams),
+    ),
+    queryFn: async ({ pageParam }) => {
+      // Use cursor if available, otherwise fallback to offset for backward compatibility
+      const params = pageParam
+        ? { ...filterParams, cursor: pageParam }
+        : filterParams;
+      const result = await toolCaller(listToolName, params);
+      return result;
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => {
+      // Only proceed with pagination if API provides a cursor
+      // If no cursor is available, return undefined to stop pagination
+      if (typeof lastPage === "object" && lastPage !== null) {
+        const nextCursor =
+          (lastPage as { nextCursor?: string; cursor?: string }).nextCursor ||
+          (lastPage as { nextCursor?: string; cursor?: string }).cursor;
 
-          // Only return cursor if API explicitly provides one
-          if (nextCursor) {
-            return nextCursor;
-          }
+        // Only return cursor if API explicitly provides one
+        if (nextCursor) {
+          return nextCursor;
         }
+      }
 
-        // No cursor available - stop pagination
-        return undefined;
-      },
-      staleTime: 60 * 60 * 1000, // 1 hour - keep data fresh longer
-      // Keep previous data visible while fetching new filtered results
-      placeholderData: keepPreviousData,
-    });
+      // No cursor available - stop pagination
+      return undefined;
+    },
+    staleTime: 60 * 60 * 1000, // 1 hour - keep data fresh longer
+    // Keep previous data visible while fetching new filtered results
+    placeholderData: keepPreviousData,
+  });
 
   // Extract totalCount from first page if available
   const totalCount = (() => {
@@ -141,11 +148,16 @@ function StoreDiscoveryContent({
   const hasActiveFilters =
     selectedTags.length > 0 || selectedCategories.length > 0;
 
+  // Show filtering indicator when fetching due to filter change (not pagination, not initial load)
+  const isFilteringData =
+    isFetching && !isFetchingNextPage && !isLoading && hasActiveFilters;
+
   return (
     <StoreDiscoveryUI
       items={flattenedItems}
       isLoadingMore={isFetchingNextPage}
-      isFiltering={isFetching && !isFetchingNextPage && hasActiveFilters}
+      isFiltering={isFilteringData}
+      isInitialLoading={isLoading}
       registryId={registryId}
       hasMore={hasNextPage ?? false}
       onLoadMore={handleLoadMore}
@@ -201,7 +213,6 @@ function StoreDiscoveryWithoutFilters({
         return undefined;
       },
       staleTime: 60 * 60 * 1000,
-      placeholderData: keepPreviousData,
     });
 
   const totalCount = (() => {
@@ -231,6 +242,7 @@ function StoreDiscoveryWithoutFilters({
       items={flattenedItems}
       isLoadingMore={isFetchingNextPage}
       isFiltering={false}
+      isInitialLoading={false}
       registryId={registryId}
       hasMore={hasNextPage ?? false}
       onLoadMore={handleLoadMore}
