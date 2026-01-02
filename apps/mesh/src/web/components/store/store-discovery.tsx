@@ -5,6 +5,7 @@ import type { RegistryItem } from "./registry-items-section";
 import {
   useSuspenseInfiniteQuery,
   useSuspenseQuery,
+  keepPreviousData,
 } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
 import { useState } from "react";
@@ -109,6 +110,8 @@ function StoreDiscoveryContent({
         return undefined;
       },
       staleTime: 60 * 60 * 1000, // 1 hour - keep data fresh longer
+      // Keep previous data visible while fetching new filtered results
+      placeholderData: keepPreviousData,
     });
 
   // Extract totalCount from first page if available
@@ -198,6 +201,7 @@ function StoreDiscoveryWithoutFilters({
         return undefined;
       },
       staleTime: 60 * 60 * 1000,
+      placeholderData: keepPreviousData,
     });
 
   const totalCount = (() => {
