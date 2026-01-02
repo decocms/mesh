@@ -348,6 +348,15 @@ function MonitoringLogsTableContent({
     return (
       <div className="flex-1 flex items-center justify-center">
         <EmptyState
+          image={
+            <img
+              src="/empty-state-logs.svg"
+              alt=""
+              width={336}
+              height={320}
+              aria-hidden="true"
+            />
+          }
           title="No logs found"
           description={
             searchQuery ||
