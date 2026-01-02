@@ -8,6 +8,7 @@ import {
   type RegistryItem,
   RegistryItemsSection,
 } from "./registry-items-section";
+import { StoreFilters } from "./store-filters";
 
 /**
  * Filter items by search term across name and description
@@ -25,6 +26,37 @@ function filterItemsBySearch(
         .toLowerCase()
         .includes(searchLower),
   );
+}
+
+/**
+ * Filter items by selected tags and categories
+ */
+function filterItemsByTagsAndCategories(
+  items: RegistryItem[],
+  selectedTags: string[],
+  selectedCategories: string[],
+): RegistryItem[] {
+  if (selectedTags.length === 0 && selectedCategories.length === 0) {
+    return items;
+  }
+
+  return items.filter((item) => {
+    const itemMeta = item._meta?.["mcp.mesh"];
+    const itemTags = itemMeta?.tags || [];
+    const itemCategories = itemMeta?.categories || [];
+
+    // If tags are selected, item must have at least one matching tag
+    const matchesTags =
+      selectedTags.length === 0 ||
+      selectedTags.some((tag) => itemTags.includes(tag));
+
+    // If categories are selected, item must have at least one matching category
+    const matchesCategories =
+      selectedCategories.length === 0 ||
+      selectedCategories.some((cat) => itemCategories.includes(cat));
+
+    return matchesTags && matchesCategories;
+  });
 }
 
 /**
@@ -53,6 +85,8 @@ interface StoreDiscoveryUIProps {
   hasMore?: boolean;
   onLoadMore?: () => void;
   totalCount?: number | null;
+  availableTags?: string[];
+  availableCategories?: string[];
 }
 
 export function StoreDiscoveryUI({
@@ -61,14 +95,25 @@ export function StoreDiscoveryUI({
   registryId,
   hasMore = false,
   onLoadMore,
+  availableTags,
+  availableCategories,
 }: StoreDiscoveryUIProps) {
   const [search, setSearch] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Filtered items based on search
-  const filteredItems = filterItemsBySearch(items, search);
+  const searchFilteredItems = filterItemsBySearch(items, search);
+
+  // Filtered items based on tags and categories
+  const filteredItems = filterItemsByTagsAndCategories(
+    searchFilteredItems,
+    selectedTags,
+    selectedCategories,
+  );
 
   // Verified items
   const verifiedItems = filteredItems.filter(isItemVerified);
@@ -120,6 +165,16 @@ export function StoreDiscoveryUI({
             setSearch(e.currentTarget.value);
           }
         }}
+      />
+
+      {/* Filters */}
+      <StoreFilters
+        availableTags={availableTags}
+        availableCategories={availableCategories}
+        selectedTags={selectedTags}
+        selectedCategories={selectedCategories}
+        onTagChange={setSelectedTags}
+        onCategoryChange={setSelectedCategories}
       />
 
       {/* Content */}

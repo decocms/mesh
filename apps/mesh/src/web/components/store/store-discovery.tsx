@@ -2,12 +2,19 @@ import { useConnection } from "@/web/hooks/collections/use-connection";
 import { createToolCaller } from "@/tools/client";
 import { StoreDiscoveryUI } from "./store-discovery-ui";
 import type { RegistryItem } from "./registry-items-section";
-import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useSuspenseInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
 import {
   findListToolName,
+  findFiltersToolName,
   flattenPaginatedItems,
 } from "@/web/utils/registry-utils";
+
+/** Response from COLLECTION_REGISTRY_APP_FILTERS tool */
+export interface RegistryFiltersResponse {
+  tags?: string[];
+  categories?: string[];
+}
 
 interface StoreDiscoveryProps {
   registryId: string;
@@ -24,7 +31,21 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
     throw new Error("This registry does not support listing store items.");
   }
 
+  // Find the FILTERS tool (optional - not all registries support it)
+  const filtersToolName = findFiltersToolName(registryConnection?.tools);
+
   const toolCaller = createToolCaller(registryId);
+
+  // Fetch available filters (tags/categories) - only if registry supports it
+  const { data: filtersData } = useQuery<RegistryFiltersResponse>({
+    queryKey: KEYS.toolCall(registryId, filtersToolName, "{}"),
+    queryFn: async () => {
+      const result = await toolCaller(filtersToolName, {});
+      return result as RegistryFiltersResponse;
+    },
+    enabled: !!filtersToolName,
+    staleTime: 60 * 60 * 1000, // 1 hour - filters don't change often
+  });
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useSuspenseInfiniteQuery({
@@ -94,6 +115,8 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
       hasMore={hasNextPage ?? false}
       onLoadMore={handleLoadMore}
       totalCount={totalCount}
+      availableTags={filtersData?.tags}
+      availableCategories={filtersData?.categories}
     />
   );
 }
