@@ -71,7 +71,7 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
     ...(selectedCategories.length > 0 && { categories: selectedCategories }),
   };
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching } =
     useSuspenseInfiniteQuery({
       // Include filters in query key so it refetches when filters change
       queryKey: KEYS.toolCall(
@@ -132,13 +132,14 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
     }
   };
 
-  const hasActiveFilters = selectedTags.length > 0 || selectedCategories.length > 0;
+  const hasActiveFilters =
+    selectedTags.length > 0 || selectedCategories.length > 0;
 
   return (
     <StoreDiscoveryUI
       items={flattenedItems}
       isLoadingMore={isFetchingNextPage}
-      isFiltering={isLoading && hasActiveFilters}
+      isFiltering={isFetching && !isFetchingNextPage && hasActiveFilters}
       registryId={registryId}
       hasMore={hasNextPage ?? false}
       onLoadMore={handleLoadMore}
