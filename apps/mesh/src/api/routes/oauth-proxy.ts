@@ -26,6 +26,19 @@ type HonoEnv = { Variables: Variables };
 const app = new Hono<HonoEnv>();
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/**
+ * HTTP status codes that indicate the server doesn't have OAuth metadata at this path,
+ * but might support OAuth via an alternative path or WWW-Authenticate header.
+ * - 404: Path not found (most common)
+ * - 401: Unauthorized (some servers return this for metadata endpoints)
+ * - 406: Not Acceptable (Grain returns this when MCP endpoints don't support .well-known paths)
+ */
+const NO_METADATA_STATUSES = [404, 401, 406];
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -111,12 +124,9 @@ export async function fetchProtectedResourceMetadata(
 
   if (response.ok) return response;
 
-  // If format 1 returns 404/401/406, try format 2 (Smithery-style: well-known prefix)
-  // 406 is included because some servers (like Grain) return 406 Not Acceptable
-  // when their MCP endpoints don't support the .well-known path format.
+  // If format 1 returns a "no metadata" status, try format 2 (Smithery-style: well-known prefix)
   // For other errors (500, etc.), return immediately to preserve error info
-  const RETRY_STATUSES = [404, 401, 406];
-  if (!RETRY_STATUSES.includes(response.status)) return response;
+  if (!NO_METADATA_STATUSES.includes(response.status)) return response;
 
   const format2Url = new URL(connectionUrl);
   format2Url.pathname = `/.well-known/oauth-protected-resource${resourcePath}`;
@@ -126,7 +136,7 @@ export async function fetchProtectedResourceMetadata(
     headers: { Accept: "application/json" },
   });
 
-  if (!RETRY_STATUSES.includes(response.status)) return response;
+  if (!NO_METADATA_STATUSES.includes(response.status)) return response;
 
   const format3Url = new URL(connectionUrl);
   format3Url.pathname = `/.well-known/oauth-protected-resource`;
@@ -326,10 +336,8 @@ const protectedResourceMetadataHandler = async (c: {
     // Fetch from origin, trying both well-known URL formats
     const response = await fetchProtectedResourceMetadata(connectionUrl);
 
-    // If origin returns 404, 401, or 406, check if it still supports OAuth via WWW-Authenticate
+    // If origin returns a "no metadata" status, check if it still supports OAuth via WWW-Authenticate
     // Many servers (like Apify, Grain) support OAuth but don't implement RFC 9728 metadata
-    // 406 is included because some servers return 406 Not Acceptable for .well-known paths
-    const NO_METADATA_STATUSES = [404, 401, 406];
     if (!response.ok && NO_METADATA_STATUSES.includes(response.status)) {
       const wwwAuth = await checkOriginSupportsOAuth(connectionUrl);
       if (wwwAuth) {
