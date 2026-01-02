@@ -3,6 +3,7 @@ import type { RegistryItem } from "@/web/components/store/registry-items-section
 export interface AppData {
   name: string;
   description: string;
+  shortDescription: string | null;
   icon: string | null;
   verified?: boolean;
   publisher: string;
@@ -13,6 +14,8 @@ export interface AppData {
   connectionType: string | null;
   connectionUrl: string | null;
   remoteUrl: string | null;
+  tags: string[];
+  categories: string[];
   tools: unknown[];
   models: unknown[];
   emails: unknown[];
