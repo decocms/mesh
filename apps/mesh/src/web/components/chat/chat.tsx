@@ -139,10 +139,12 @@ function ChatMessages({
   messages,
   status,
   minHeightOffset = 240,
+  onBranchFromMessage,
 }: {
   messages: ChatMessage[];
   status?: ChatStatus;
   minHeightOffset?: number;
+  onBranchFromMessage?: (messageId: string, messageText: string) => void;
 }) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   useChatAutoScroll({ messageCount: messages.length, sentinelRef });
@@ -154,6 +156,7 @@ function ChatMessages({
           <MessageUser
             key={message.id}
             message={message as UIMessage<Metadata>}
+            onBranchFromMessage={onBranchFromMessage}
           />
         ) : message.role === "assistant" ? (
           <MessageAssistant
@@ -204,6 +207,8 @@ function ChatInput({
   placeholder,
   usageMessages,
   children,
+  value,
+  onValueChange,
 }: PropsWithChildren<{
   onSubmit: (text: string) => Promise<void>;
   onStop: () => void;
@@ -211,8 +216,14 @@ function ChatInput({
   isStreaming: boolean;
   placeholder: string;
   usageMessages?: ChatMessage[];
+  value?: string;
+  onValueChange?: (value: string) => void;
 }>) {
-  const [input, setInput] = useState("");
+  const [internalInput, setInternalInput] = useState("");
+
+  // Use controlled value if provided, otherwise use internal state
+  const input = value !== undefined ? value : internalInput;
+  const setInput = onValueChange ?? setInternalInput;
 
   const modelSelector = findChild(children, ChatInputModelSelector);
   const gatewaySelector = findChild(children, ChatInputGatewaySelector);

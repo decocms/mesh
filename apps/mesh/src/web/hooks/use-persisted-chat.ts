@@ -67,6 +67,8 @@ export interface PersistedChatResult {
   sendMessage: (text: string, metadata: Metadata) => Promise<void>;
   /** Stop the current streaming response */
   stop: () => void;
+  /** Set messages directly (for reverting, clearing, etc.) */
+  setMessages: (messages: ChatMessage[]) => void;
 }
 
 /**
@@ -216,5 +218,6 @@ export function usePersistedChat(
     status: chat.status,
     sendMessage,
     stop: chat.stop.bind(chat),
+    setMessages: chat.setMessages,
   };
 }
