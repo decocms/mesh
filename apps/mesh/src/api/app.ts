@@ -332,14 +332,22 @@ export function createApp(options: CreateAppOptions = {}) {
       }
 
       // Add smart OAuth params for deco-hosted MCPs to skip org/project selection
+      // Wrapped in try-catch to ensure OAuth redirect proceeds even if smart params fail
       if (isDecoHostedMcp(connection.connection_url)) {
-        const projectLocator = await getDecoStoreProjectLocator(
-          ctx,
-          connection.organization_id,
-        );
-        const smartParams = buildDecoOAuthParams(projectLocator);
-        for (const [key, value] of smartParams) {
-          targetUrl.searchParams.set(key, value);
+        try {
+          const projectLocator = await getDecoStoreProjectLocator(
+            ctx,
+            connection.organization_id,
+          );
+          const smartParams = buildDecoOAuthParams(projectLocator);
+          for (const [key, value] of smartParams) {
+            targetUrl.searchParams.set(key, value);
+          }
+        } catch (error) {
+          console.warn(
+            "[oauth-proxy] Failed to get smart OAuth params, proceeding without:",
+            error,
+          );
         }
       }
 
