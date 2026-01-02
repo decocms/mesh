@@ -62,14 +62,17 @@ export function ViewLayout({ children, onBack, title }: ViewLayoutProps) {
           )}
 
           {/* Tabs and Actions */}
-          <div className="flex justify-between px-4 items-center gap-4 flex-1">
+          <div className="flex px-4 items-center gap-0 flex-1 min-w-0">
             {/* Tabs Slot */}
-            <div ref={setTabsEl} className="flex items-center gap-2" />
+            <div
+              ref={setTabsEl}
+              className="flex items-center gap-2 overflow-x-auto min-w-0"
+            />
 
             {/* Actions Slot */}
             <div
               ref={setActionsEl}
-              className="flex items-center gap-2 ml-auto"
+              className="flex items-center gap-2 ml-auto shrink-0 border-l border-border pl-4"
             />
           </div>
         </div>
