@@ -100,14 +100,14 @@ export function extractCardDisplayData(
 ): Omit<RegistryItemCardProps, "onClick"> {
   const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
   const meshMeta = item._meta?.["mcp.mesh"];
-  
+
   // Description priority: short_description > mesh_description > server.description
   const description =
     meshMeta?.short_description ||
     meshMeta?.mesh_description ||
     item.server.description ||
     null;
-  
+
   const icon =
     item.server.icons?.[0]?.src ||
     getGitHubAvatarUrl(item.server.repository) ||

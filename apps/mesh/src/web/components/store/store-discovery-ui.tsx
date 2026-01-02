@@ -95,7 +95,8 @@ export function StoreDiscoveryUI({
     (item) => !verifiedItems.find((v) => v.id === item.id),
   );
 
-  const hasActiveFilters = selectedTags.length > 0 || selectedCategories.length > 0;
+  const hasActiveFilters =
+    selectedTags.length > 0 || selectedCategories.length > 0;
 
   const handleItemClick = (item: RegistryItem) => {
     const appNameSlug = slugify(
@@ -162,7 +163,10 @@ export function StoreDiscoveryUI({
             {/* Loading state when filtering */}
             {isFiltering ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Loading01 size={32} className="animate-spin text-muted-foreground mb-4" />
+                <Loading01
+                  size={32}
+                  className="animate-spin text-muted-foreground mb-4"
+                />
                 <p className="text-sm text-muted-foreground">
                   Filtering results...
                 </p>
