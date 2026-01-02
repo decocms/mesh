@@ -23,6 +23,7 @@ import { StepDetailPanel } from "./components/step-detail-panel";
 import { ExecutionsList } from "./components/executions-list";
 import { useViewModeStore } from "./stores/view-mode";
 import { useCurrentStep } from "./stores/workflow";
+import { ViewLayout } from "../layout";
 
 export interface WorkflowDetailsViewProps {
   itemId: string;
@@ -123,62 +124,62 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   const showStepDetail = hasToolSelected;
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <WorkflowEditorHeader
-        title={workflow.title}
-        description={workflow.description}
-        onBack={onBack}
-        onSave={handleSave}
-      />
+    <ViewLayout onBack={onBack}>
+      <div className="flex flex-col h-full overflow-hidden bg-background">
+        <WorkflowEditorHeader
+          title={workflow.title}
+          description={workflow.description}
+          onSave={handleSave}
+        />
 
-      {/* Tracking Execution Bar */}
-      {trackingExecutionId && (
-        <div className="h-10 bg-accent flex items-center justify-between border-b border-border">
-          <div className="flex">
-            <div className="flex items-center justify-center h-full w-12">
-              <Eye className="w-4 h-4 text-muted-foreground" />
+        {/* Tracking Execution Bar */}
+        {trackingExecutionId && (
+          <div className="h-10 bg-accent flex items-center justify-between border-b border-border">
+            <div className="flex">
+              <div className="flex items-center justify-center h-full w-12">
+                <Eye className="w-4 h-4 text-muted-foreground" />
+              </div>
             </div>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setTrackingExecutionId(undefined)}
+            >
+              <X className="w-4 h-4 text-muted-foreground" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => setTrackingExecutionId(undefined)}
-          >
-            <X className="w-4 h-4 text-muted-foreground" />
-          </Button>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        {viewMode === "code" ? (
-          <WorkflowCode workflow={workflow} onUpdate={onUpdate} />
-        ) : (
-          <ResizablePanelGroup
-            direction="horizontal"
-            className="flex w-full h-full"
-          >
-            {/* Steps Canvas Panel */}
-            <ResizablePanel defaultSize={50} minSize={30}>
-              <WorkflowStepsCanvas />
-            </ResizablePanel>
-
-            <ResizableHandle />
-
-            {/* Right Panel - Executions List OR Step Config */}
-            <ResizablePanel defaultSize={50} minSize={25}>
-              {showExecutionsList ? (
-                <ExecutionsList />
-              ) : showStepDetail ? (
-                <StepDetailPanel className="border-l border-border" />
-              ) : (
-                <ToolSidebar className="border-l border-border" />
-              )}
-            </ResizablePanel>
-          </ResizablePanelGroup>
         )}
+
+        {/* Main Content */}
+        <div className="flex-1 overflow-hidden">
+          {viewMode === "code" ? (
+            <WorkflowCode workflow={workflow} onUpdate={onUpdate} />
+          ) : (
+            <ResizablePanelGroup
+              direction="horizontal"
+              className="flex w-full h-full"
+            >
+              {/* Steps Canvas Panel */}
+              <ResizablePanel defaultSize={50} minSize={30}>
+                <WorkflowStepsCanvas />
+              </ResizablePanel>
+
+              <ResizableHandle />
+
+              {/* Right Panel - Executions List OR Step Config */}
+              <ResizablePanel defaultSize={50} minSize={25}>
+                {showExecutionsList ? (
+                  <ExecutionsList />
+                ) : showStepDetail ? (
+                  <StepDetailPanel className="border-l border-border" />
+                ) : (
+                  <ToolSidebar className="border-l border-border" />
+                )}
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          )}
+        </div>
       </div>
-    </div>
+    </ViewLayout>
   );
 }

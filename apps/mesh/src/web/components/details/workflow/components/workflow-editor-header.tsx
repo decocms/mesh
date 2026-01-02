@@ -1,14 +1,6 @@
+import { GatewaySelector } from "@/web/components/chat/gateway-selector";
+import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { Button } from "@deco/ui/components/button.tsx";
-import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
-import {
-  ArrowLeft,
-  ClockFastForward,
-  Code02,
-  FlipBackward,
-  GitBranch01,
-  Play,
-  Save02,
-} from "@untitledui/icons";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import {
   Tooltip,
@@ -16,6 +8,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
+import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { useRouterState } from "@tanstack/react-router";
+import {
+  ClockFastForward,
+  Code02,
+  FlipBackward,
+  GitBranch01,
+  Play,
+  Save02,
+} from "@untitledui/icons";
+import { Suspense, useState } from "react";
+import { ViewActions, ViewTabs } from "../../layout";
+import { usePollingWorkflowExecution, useWorkflowStart } from "../hooks";
 import { useViewModeStore, type WorkflowViewMode } from "../stores/view-mode";
 import {
   useIsDirty,
@@ -24,25 +30,21 @@ import {
   useWorkflowActions,
   useWorkflowSteps,
 } from "../stores/workflow";
-import { usePollingWorkflowExecution, useWorkflowStart } from "../hooks";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { GatewaySelector } from "@/web/components/chat/gateway-selector";
-import { Suspense, useState } from "react";
 import { WorkflowInputDialog } from "./workflow-input-dialog";
 
 interface WorkflowEditorHeaderProps {
   title: string;
   description?: string;
-  onBack: () => void;
   onSave: () => void;
 }
 
 export function WorkflowEditorHeader({
   title,
   description,
-  onBack,
   onSave,
 }: WorkflowEditorHeaderProps) {
+  const routerState = useRouterState();
+  const url = routerState.location.href;
   const { viewMode, setViewMode, showExecutionsList, toggleExecutionsList } =
     useViewModeStore();
   const { resetToOriginalWorkflow, setSelectedGatewayId } =
@@ -51,45 +53,37 @@ export function WorkflowEditorHeader({
   const selectedGatewayId = useSelectedGatewayId();
 
   return (
-    <div className="flex items-center h-12 border-b border-border shrink-0 bg-background">
-      {/* Back Button */}
-      <div className="flex items-center justify-center size-12 border-r border-border">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-10 text-muted-foreground hover:text-foreground"
-          onClick={onBack}
-        >
-          <ArrowLeft size={16} />
-        </Button>
-      </div>
-
-      {/* Title and Description */}
-      <div className="flex-1 flex items-center gap-3 px-4 min-w-0">
-        <h2 className="text-sm font-medium text-foreground truncate">
-          {title}
-        </h2>
-        {description && (
-          <p className="text-sm text-muted-foreground truncate">
-            {description}
-          </p>
-        )}
-        {/* Gateway Selector */}
-        <div className="ml-auto">
-          <Suspense fallback={<Spinner size="xs" />}>
-            <GatewaySelector
-              selectedGatewayId={selectedGatewayId}
-              onGatewayChange={setSelectedGatewayId}
-              variant="bordered"
-              placeholder="Select gateway"
-            />
-          </Suspense>
+    <>
+      <ViewTabs>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-foreground truncate">
+            {title}
+          </span>
+          {description ? (
+            <>
+              <span className="text-xs text-muted-foreground font-normal">
+                •
+              </span>
+              <span className="text-xs text-muted-foreground font-normal truncate min-w-0 max-w-[20ch]">
+                {description}
+              </span>
+            </>
+          ) : null}
         </div>
-      </div>
+      </ViewTabs>
 
-      {/* Right Actions */}
-      <div className="flex items-center gap-2 px-4">
-        {/* View Mode Toggle */}
+      <ViewActions>
+        <PinToSidebarButton title={title} url={url} icon="workflow" />
+
+        <Suspense fallback={<Spinner size="xs" />}>
+          <GatewaySelector
+            selectedGatewayId={selectedGatewayId}
+            onGatewayChange={setSelectedGatewayId}
+            variant="bordered"
+            placeholder="Select gateway"
+          />
+        </Suspense>
+
         <ViewModeToggle<WorkflowViewMode>
           value={viewMode}
           onValueChange={setViewMode}
@@ -100,11 +94,10 @@ export function WorkflowEditorHeader({
           ]}
         />
 
-        {/* Undo Button */}
         <Button
           variant="outline"
           size="icon"
-          className="size-7"
+          className="size-7 border border-input"
           onClick={resetToOriginalWorkflow}
           disabled={!isDirty}
           title="Reset changes"
@@ -112,11 +105,10 @@ export function WorkflowEditorHeader({
           <FlipBackward size={14} />
         </Button>
 
-        {/* Save Button */}
         <Button
           variant="outline"
           size="icon"
-          className="size-7"
+          className="size-7 border border-input"
           onClick={onSave}
           disabled={!isDirty}
           title="Save workflow"
@@ -124,21 +116,19 @@ export function WorkflowEditorHeader({
           <Save02 size={14} />
         </Button>
 
-        {/* Runs List Toggle */}
         <Button
           variant={showExecutionsList ? "secondary" : "outline"}
           size="icon"
-          className="size-7"
+          className="size-7 border border-input"
           onClick={toggleExecutionsList}
           title={showExecutionsList ? "Hide runs" : "Show runs"}
         >
           <ClockFastForward size={14} />
         </Button>
 
-        {/* Run Workflow Button */}
         <RunWorkflowButton />
-      </div>
-    </div>
+      </ViewActions>
+    </>
   );
 }
 

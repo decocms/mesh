@@ -545,7 +545,6 @@ function AssistantDetailContent({
                       <Button
                         type="button"
                         onClick={() => setActiveThreadId(crypto.randomUUID())}
-                        title="New thread"
                         aria-label="New thread"
                         variant="outline"
                         size="icon"
@@ -563,7 +562,6 @@ function AssistantDetailContent({
                       <Button
                         type="button"
                         onClick={() => setMode("edit")}
-                        title="Edit"
                         aria-label="Edit"
                         variant="outline"
                         size="icon"
@@ -579,7 +577,7 @@ function AssistantDetailContent({
             ) : (
               <>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   className="h-7 gap-1.5"
                   disabled={isSaving}
