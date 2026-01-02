@@ -58,6 +58,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { slugify } from "@/web/utils/slugify";
 import { ViewLayout, ViewActions, ViewTabs } from "../layout";
+import { GatewayKeySection } from "@/web/components/gateway/gateway-key-section";
 
 type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
 
@@ -570,12 +571,20 @@ function GatewaySettingsTab({
         </Form>
       </div>
 
-      {/* Right panel - IDE Integration */}
+      {/* Right panel - IDE Integration & Gateway Keys */}
       <div className="flex flex-col overflow-auto">
         <div className="p-5">
           <IDEIntegration
             serverName={gateway.title || `gateway-${gateway.id.slice(0, 8)}`}
             gatewayUrl={`${window.location.origin}/mcp/gateway/${gateway.id}`}
+          />
+        </div>
+
+        {/* Gateway Keys section */}
+        <div className="p-5 border-t border-border">
+          <GatewayKeySection
+            gatewayId={gateway.id}
+            gatewayTitle={gateway.title || `Gateway ${gateway.id.slice(0, 8)}`}
           />
         </div>
 
