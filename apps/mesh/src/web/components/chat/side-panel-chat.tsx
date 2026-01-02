@@ -5,7 +5,7 @@ import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { DecoChatEmptyState } from "@deco/ui/components/deco-chat-empty-state.tsx";
-import { CpuChip02, Plus, X, Loading01 } from "@untitledui/icons";
+import { CpuChip02, Plus, X, Loading01, CornerUpLeft } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Chat, useGateways, useModels, type ModelChangePayload } from "./chat";
 import { toast } from "sonner";
@@ -112,11 +112,18 @@ export function ChatPanel() {
   // Generate dynamic system prompt based on context
   const systemPrompt = useSystemPrompt();
 
-  // Message actions for deleting messages
+  // Message actions for copying messages to new thread
   const messageActions = useMessageActions();
 
-  // State for inline editing
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  // State for controlled input (when branching)
+  const [inputValue, setInputValue] = useState("");
+
+  // State to track if we're editing from a branch (shows the original message preview)
+  const [branchContext, setBranchContext] = useState<{
+    originalThreadId: string;
+    originalMessageId: string;
+    originalMessageText: string;
+  } | null>(null);
 
   // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
   const chat = usePersistedChat({
@@ -126,44 +133,72 @@ export function ChatPanel() {
       createThread({ id: thread.id, title: thread.title }),
   });
 
-  // Handle starting inline edit
-  const handleStartEdit = (messageId: string) => {
-    setEditingMessageId(messageId);
-  };
-
-  // Handle canceling inline edit
-  const handleCancelEdit = () => {
-    setEditingMessageId(null);
-  };
-
-  // Handle submitting inline edit
-  const handleSubmitEdit = async (messageId: string, newText: string) => {
-    // Find the index of the message being edited
+  // Handle branching from a specific message
+  const handleBranchFromMessage = async (
+    messageId: string,
+    messageText: string,
+  ) => {
+    // Find the index of the message to branch from
     const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
     if (messageIndex === -1) return;
 
-    // Get messages to keep (before the edited message)
-    const messagesToKeep = chat.messages.slice(0, messageIndex);
+    // Save the original thread context before switching
+    const originalThreadId = activeThreadId;
 
-    // Get all message IDs from this message onwards (including the edited message)
-    const messageIdsToDelete = chat.messages
-      .slice(messageIndex)
-      .filter((m) => m.role !== "system")
-      .map((m) => m.id);
+    // Get messages to copy (before the clicked message, excluding system)
+    const messagesToCopy = chat.messages
+      .slice(0, messageIndex)
+      .filter((m) => m.role !== "system");
 
-    if (messageIdsToDelete.length > 0) {
-      // Delete messages from IndexedDB
-      await messageActions.deleteMany.mutateAsync(messageIdsToDelete);
+    // Create a new thread
+    const newThreadId = crypto.randomUUID();
+
+    // Copy messages to the new thread with new IDs and updated thread_id
+    if (messagesToCopy.length > 0) {
+      const copiedMessages = messagesToCopy.map((msg) => ({
+        ...msg,
+        id: crypto.randomUUID(),
+        metadata: {
+          ...msg.metadata,
+          thread_id: newThreadId,
+          created_at: msg.metadata?.created_at || new Date().toISOString(),
+        },
+      }));
+
+      // Insert copied messages into IndexedDB
+      await messageActions.insertMany.mutateAsync(copiedMessages);
     }
 
-    // Update the chat state immediately to reflect the deletion
-    chat.setMessages(messagesToKeep);
+    // Switch to the new thread
+    setActiveThreadId(newThreadId);
 
-    // Clear editing state
-    setEditingMessageId(null);
+    // Set the message text in the input for editing
+    setInputValue(messageText);
 
-    // Send the edited message
-    await handleSendMessage(newText);
+    // Track the original context for the preview (allows navigating back)
+    setBranchContext({
+      originalThreadId,
+      originalMessageId: messageId,
+      originalMessageText: messageText,
+    });
+  };
+
+  // Handle clicking on the branch preview to go back to original thread
+  const handleGoToOriginalMessage = () => {
+    if (!branchContext) return;
+    setActiveThreadId(branchContext.originalThreadId);
+    // Clear the branch context since we're going back
+    setBranchContext(null);
+    setInputValue("");
+  };
+
+  // Clear editing state when message is sent
+  const handleInputChange = (value: string) => {
+    setInputValue(value);
+    // If user clears the input, clear the editing state
+    if (!value.trim()) {
+      setBranchContext(null);
+    }
   };
 
   const handleSendMessage = async (text: string) => {
@@ -186,6 +221,9 @@ export function ChatPanel() {
         name: user?.name ?? "you",
       },
     };
+
+    // Clear editing state after sending
+    setBranchContext(null);
 
     await chat.sendMessage(text, metadata);
   };
@@ -364,35 +402,63 @@ export function ChatPanel() {
             messages={chat.messages}
             status={chat.status}
             minHeightOffset={240}
-            editingMessageId={editingMessageId}
-            onStartEdit={handleStartEdit}
-            onCancelEdit={handleCancelEdit}
-            onSubmitEdit={handleSubmitEdit}
+            onBranchFromMessage={handleBranchFromMessage}
           />
         )}
       </Chat.Main>
 
       <Chat.Footer>
-        <div>
+        <div className="flex flex-col gap-2">
+          {/* Original message preview when editing from a branch */}
+          {branchContext && (
+            <button
+              type="button"
+              onClick={handleGoToOriginalMessage}
+              className="flex items-start gap-2 px-2 py-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/50 text-sm hover:bg-muted transition-colors cursor-pointer text-left w-full"
+              title="Click to view original message"
+            >
+              <CornerUpLeft
+                size={14}
+                className="text-muted-foreground mt-0.5 shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-muted-foreground mb-1">
+                  Editing message (click to view original):
+                </div>
+                <div className="text-muted-foreground/70 line-clamp-2">
+                  {branchContext.originalMessageText}
+                </div>
+              </div>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setBranchContext(null);
+                  setInputValue("");
+                }}
+                className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                title="Cancel editing"
+              >
+                <X size={14} />
+              </span>
+            </button>
+          )}
           <Chat.Input
             onSubmit={handleSendMessage}
             onStop={chat.stop}
-            disabled={
-              models.length === 0 ||
-              !effectiveSelectedModelState ||
-              editingMessageId !== null
-            }
+            disabled={models.length === 0 || !effectiveSelectedModelState}
             isStreaming={
               chat.status === "submitted" || chat.status === "streaming"
             }
             placeholder={
-              editingMessageId
-                ? "Editing message above..."
+              branchContext
+                ? "Edit your message..."
                 : models.length === 0
                   ? "Add an LLM binding connection to start chatting"
                   : "Ask anything or @ for context"
             }
             usageMessages={chat.messages}
+            value={inputValue}
+            onValueChange={handleInputChange}
           >
             <Chat.Input.GatewaySelector
               disabled={false}

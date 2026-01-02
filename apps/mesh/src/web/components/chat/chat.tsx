@@ -139,18 +139,12 @@ function ChatMessages({
   messages,
   status,
   minHeightOffset = 240,
-  editingMessageId,
-  onStartEdit,
-  onCancelEdit,
-  onSubmitEdit,
+  onBranchFromMessage,
 }: {
   messages: ChatMessage[];
   status?: ChatStatus;
   minHeightOffset?: number;
-  editingMessageId?: string | null;
-  onStartEdit?: (messageId: string) => void;
-  onCancelEdit?: () => void;
-  onSubmitEdit?: (messageId: string, newText: string) => void;
+  onBranchFromMessage?: (messageId: string, messageText: string) => void;
 }) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   useChatAutoScroll({ messageCount: messages.length, sentinelRef });
@@ -162,10 +156,7 @@ function ChatMessages({
           <MessageUser
             key={message.id}
             message={message as UIMessage<Metadata>}
-            isEditing={editingMessageId === message.id}
-            onStartEdit={onStartEdit}
-            onCancelEdit={onCancelEdit}
-            onSubmitEdit={onSubmitEdit}
+            onBranchFromMessage={onBranchFromMessage}
           />
         ) : message.role === "assistant" ? (
           <MessageAssistant

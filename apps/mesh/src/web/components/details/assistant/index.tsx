@@ -33,7 +33,15 @@ import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { AssistantSchema } from "@decocms/bindings/assistant";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams, useRouter } from "@tanstack/react-router";
-import { Edit05, Loading01, Plus, Upload01, Users02 } from "@untitledui/icons";
+import {
+  CornerUpLeft,
+  Edit05,
+  Loading01,
+  Plus,
+  Upload01,
+  Users02,
+  X,
+} from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
 import { useMessageActions } from "@/web/hooks/use-chat-store";
 
@@ -194,6 +202,7 @@ function AssistantEditForm({ form }: { form: AssistantForm }) {
 
 interface AssistantChatPanelProps {
   activeThreadId: string;
+  setActiveThreadId: (id: string) => void;
   mode: "chat" | "edit";
   assistant: Assistant;
   form: AssistantForm;
@@ -201,6 +210,7 @@ interface AssistantChatPanelProps {
 
 function AssistantChatPanel({
   activeThreadId,
+  setActiveThreadId,
   mode,
   assistant,
   form,
@@ -211,11 +221,18 @@ function AssistantChatPanel({
     systemPrompt: assistant.system_prompt,
   });
 
-  // Message actions for deleting messages
+  // Message actions for copying messages to new thread
   const messageActions = useMessageActions();
 
-  // State for inline editing
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  // State for controlled input (when branching)
+  const [inputValue, setInputValue] = useState("");
+
+  // State to track if we're editing from a branch (shows the original message preview)
+  const [branchContext, setBranchContext] = useState<{
+    originalThreadId: string;
+    originalMessageId: string;
+    originalMessageText: string;
+  } | null>(null);
 
   // Chat config is valid when gateway and model are both configured
   const hasChatConfig =
@@ -237,47 +254,78 @@ function AssistantChatPanel({
       user: { name: "you" },
     };
 
+    // Clear editing state after sending
+    setBranchContext(null);
+
     await chat.sendMessage(text, metadata);
   };
 
-  // Handle starting inline edit
-  const handleStartEdit = (messageId: string) => {
-    setEditingMessageId(messageId);
+  // Handle input change
+  const handleInputChange = (value: string) => {
+    setInputValue(value);
+    // If user clears the input, clear the editing state
+    if (!value.trim()) {
+      setBranchContext(null);
+    }
   };
 
-  // Handle canceling inline edit
-  const handleCancelEdit = () => {
-    setEditingMessageId(null);
+  // Handle clicking on the branch preview to go back to original thread
+  const handleGoToOriginalMessage = () => {
+    if (!branchContext) return;
+    setActiveThreadId(branchContext.originalThreadId);
+    // Clear the branch context since we're going back
+    setBranchContext(null);
+    setInputValue("");
   };
 
-  // Handle submitting inline edit
-  const handleSubmitEdit = async (messageId: string, newText: string) => {
-    // Find the index of the message being edited
+  // Handle branching from a specific message
+  const handleBranchFromMessage = async (
+    messageId: string,
+    messageText: string,
+  ) => {
+    // Find the index of the message to branch from
     const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
     if (messageIndex === -1) return;
 
-    // Get messages to keep (before the edited message)
-    const messagesToKeep = chat.messages.slice(0, messageIndex);
+    // Save the original thread context before switching
+    const originalThreadId = activeThreadId;
 
-    // Get all message IDs from this message onwards (including the edited message)
-    const messageIdsToDelete = chat.messages
-      .slice(messageIndex)
-      .filter((m) => m.role !== "system")
-      .map((m) => m.id);
+    // Get messages to copy (before the clicked message, excluding system)
+    const messagesToCopy = chat.messages
+      .slice(0, messageIndex)
+      .filter((m) => m.role !== "system");
 
-    if (messageIdsToDelete.length > 0) {
-      // Delete messages from IndexedDB
-      await messageActions.deleteMany.mutateAsync(messageIdsToDelete);
+    // Create a new thread
+    const newThreadId = crypto.randomUUID();
+
+    // Copy messages to the new thread with new IDs and updated thread_id
+    if (messagesToCopy.length > 0) {
+      const copiedMessages = messagesToCopy.map((msg) => ({
+        ...msg,
+        id: crypto.randomUUID(),
+        metadata: {
+          ...msg.metadata,
+          thread_id: newThreadId,
+          created_at: msg.metadata?.created_at || new Date().toISOString(),
+        },
+      }));
+
+      // Insert copied messages into IndexedDB
+      await messageActions.insertMany.mutateAsync(copiedMessages);
     }
 
-    // Update the chat state immediately to reflect the deletion
-    chat.setMessages(messagesToKeep);
+    // Switch to the new thread
+    setActiveThreadId(newThreadId);
 
-    // Clear editing state
-    setEditingMessageId(null);
+    // Set the message text in the input for editing
+    setInputValue(messageText);
 
-    // Send the edited message
-    await handleSendMessage(newText);
+    // Track the original context for the preview (allows navigating back)
+    setBranchContext({
+      originalThreadId,
+      originalMessageId: messageId,
+      originalMessageText: messageText,
+    });
   };
 
   const emptyState = (
@@ -365,10 +413,7 @@ function AssistantChatPanel({
               messages={chat.messages}
               status={chat.status}
               minHeightOffset={240}
-              editingMessageId={editingMessageId}
-              onStartEdit={handleStartEdit}
-              onCancelEdit={handleCancelEdit}
-              onSubmitEdit={handleSubmitEdit}
+              onBranchFromMessage={handleBranchFromMessage}
             />
           )}
         </div>
@@ -382,20 +427,55 @@ function AssistantChatPanel({
         )}
       >
         <Chat.Footer>
-          <div className="max-w-2xl mx-auto w-full min-w-0">
+          <div className="max-w-2xl mx-auto w-full min-w-0 flex flex-col gap-2">
+            {/* Original message preview when editing from a branch */}
+            {branchContext && (
+              <button
+                type="button"
+                onClick={handleGoToOriginalMessage}
+                className="flex items-start gap-2 px-2 py-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/50 text-sm hover:bg-muted transition-colors cursor-pointer text-left w-full"
+                title="Click to view original message"
+              >
+                <CornerUpLeft
+                  size={14}
+                  className="text-muted-foreground mt-0.5 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground mb-1">
+                    Editing message (click to view original):
+                  </div>
+                  <div className="text-muted-foreground/70 line-clamp-2">
+                    {branchContext.originalMessageText}
+                  </div>
+                </div>
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setBranchContext(null);
+                    setInputValue("");
+                  }}
+                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  title="Cancel editing"
+                >
+                  <X size={14} />
+                </span>
+              </button>
+            )}
             <Chat.Input
               onSubmit={handleSendMessage}
               onStop={chat.stop}
-              disabled={!hasChatConfig || editingMessageId !== null}
+              disabled={!hasChatConfig}
               isStreaming={
                 chat.status === "submitted" || chat.status === "streaming"
               }
               placeholder={
-                editingMessageId
-                  ? "Editando mensagem acima..."
+                branchContext
+                  ? "Edit your message..."
                   : "Ask anything or @ for context"
               }
               usageMessages={chat.messages}
+              value={inputValue}
+              onValueChange={handleInputChange}
             />
           </div>
         </Chat.Footer>
@@ -638,6 +718,7 @@ function AssistantDetailContent({
             <AssistantChatPanel
               key={form.formState.submitCount}
               activeThreadId={activeThreadId}
+              setActiveThreadId={setActiveThreadId}
               mode={mode}
               assistant={assistant}
               form={form}
