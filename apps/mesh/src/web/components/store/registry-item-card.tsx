@@ -28,6 +28,11 @@ export interface MCPRegistryServerMeta {
     appName?: string;
     publishedAt?: string;
     updatedAt?: string;
+    friendly_name?: string;
+    short_description?: string;
+    mesh_description?: string;
+    tags?: string[];
+    categories?: string[];
   };
   "mcp.mesh/publisher-provided"?: {
     friendlyName?: string | null;
@@ -94,12 +99,20 @@ export function extractCardDisplayData(
   item: RegistryItem,
 ): Omit<RegistryItemCardProps, "onClick"> {
   const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
-  const description = item.server.description || null;
+  const meshMeta = item._meta?.["mcp.mesh"];
+  
+  // Description priority: short_description > mesh_description > server.description
+  const description =
+    meshMeta?.short_description ||
+    meshMeta?.mesh_description ||
+    item.server.description ||
+    null;
+  
   const icon =
     item.server.icons?.[0]?.src ||
     getGitHubAvatarUrl(item.server.repository) ||
     null;
-  const isVerified = item._meta?.["mcp.mesh"]?.verified ?? false;
+  const isVerified = meshMeta?.verified ?? false;
   const version = item.server.version;
   const hasRemotes = (item.server.remotes?.length ?? 0) > 0;
   const canInstall = hasRemotes;
@@ -119,13 +132,18 @@ export function extractCardDisplayData(
 
   // Fallback to _meta if scopeName wasn't extracted from title
   if (!scopeName) {
-    const metaScopeName = item._meta?.["mcp.mesh"]?.scopeName;
-    const metaAppName = item._meta?.["mcp.mesh"]?.appName;
+    const metaScopeName = meshMeta?.scopeName;
+    const metaAppName = meshMeta?.appName;
     if (metaScopeName && metaAppName) {
       scopeName = `${metaScopeName}/${metaAppName}`;
     } else if (metaScopeName) {
       scopeName = metaScopeName;
     }
+  }
+
+  // PRIORITY: Use friendly_name if available, otherwise use displayName
+  if (meshMeta?.friendly_name) {
+    displayName = meshMeta.friendly_name;
   }
 
   return {

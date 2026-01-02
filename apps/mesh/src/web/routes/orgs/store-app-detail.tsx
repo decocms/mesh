@@ -122,10 +122,28 @@ function extractItemData(item: RegistryItem): AppData {
     item.name || item.title || item.server?.title || "Unnamed Item";
   const displayName = extractDisplayNameFromDomain(rawName);
 
+  // PRIORITY: Use friendly_name if available
+  const finalName = decoMeta?.friendly_name || displayName;
+
+  // Description priority: mesh_description > server.description
+  const description =
+    decoMeta?.mesh_description ||
+    item.description ||
+    item.summary ||
+    server?.description ||
+    "";
+
+  // Extract short_description
+  const shortDescription = decoMeta?.short_description || null;
+
+  // Extract tags and categories
+  const tags = decoMeta?.tags || [];
+  const categories = decoMeta?.categories || [];
+
   return {
-    name: displayName,
-    description:
-      item.description || item.summary || item.server?.description || "",
+    name: finalName,
+    description: description,
+    shortDescription: shortDescription,
     icon: icon,
     verified: item.verified || decoMeta?.verified,
     publisher: publisher,
@@ -136,6 +154,8 @@ function extractItemData(item: RegistryItem): AppData {
     connectionType: connectionType,
     connectionUrl: null,
     remoteUrl: null,
+    tags: tags,
+    categories: categories,
     tools: item.tools || server.tools || publisherMeta?.tools || [],
     models: item.models || server.models || publisherMeta?.models || [],
     emails: item.emails || server.emails || publisherMeta?.emails || [],

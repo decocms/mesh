@@ -56,6 +56,11 @@ export function AppHeroSection({
               />
             )}
           </div>
+          {data.shortDescription && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {data.shortDescription}
+            </p>
+          )}
         </div>
 
         {/* Install Button */}

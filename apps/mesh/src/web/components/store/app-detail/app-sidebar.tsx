@@ -92,6 +92,38 @@ export function AppSidebar({
           </div>
         )}
 
+        {data.tags && data.tags.length > 0 && (
+          <div className="flex justify-between items-start text-sm">
+            <span className="text-foreground text-sm">Tags</span>
+            <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
+              {data.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="text-xs bg-muted px-2 py-0.5 rounded"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {data.categories && data.categories.length > 0 && (
+          <div className="flex justify-between items-start text-sm">
+            <span className="text-foreground text-sm">Categories</span>
+            <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
+              {data.categories.map((cat) => (
+                <span
+                  key={cat}
+                  className="text-xs bg-muted px-2 py-0.5 rounded"
+                >
+                  {cat}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {data.connectionType && (
           <div className="flex justify-between items-center text-sm">
             <span className="text-foreground text-sm">Connection Type</span>
