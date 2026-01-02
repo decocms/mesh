@@ -9,7 +9,7 @@ import { CpuChip02, Plus, X, Loading01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Chat, useGateways, useModels, type ModelChangePayload } from "./chat";
 import { toast } from "sonner";
-import { useThreads } from "../../hooks/use-chat-store";
+import { useThreads, useMessageActions } from "../../hooks/use-chat-store";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { useChat } from "../../providers/chat-provider";
@@ -24,7 +24,7 @@ import {
   type GatewayPrompt,
 } from "../../hooks/use-gateway-prompts";
 import { IceBreakers } from "./ice-breakers";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
 
 // Capybara avatar URL from decopilotAgent
@@ -112,6 +112,12 @@ export function ChatPanel() {
   // Generate dynamic system prompt based on context
   const systemPrompt = useSystemPrompt();
 
+  // Message actions for deleting messages
+  const messageActions = useMessageActions();
+
+  // State for inline editing
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+
   // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
   const chat = usePersistedChat({
     threadId: activeThreadId,
@@ -119,6 +125,46 @@ export function ChatPanel() {
     onCreateThread: (thread) =>
       createThread({ id: thread.id, title: thread.title }),
   });
+
+  // Handle starting inline edit
+  const handleStartEdit = (messageId: string) => {
+    setEditingMessageId(messageId);
+  };
+
+  // Handle canceling inline edit
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+  };
+
+  // Handle submitting inline edit
+  const handleSubmitEdit = async (messageId: string, newText: string) => {
+    // Find the index of the message being edited
+    const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
+    if (messageIndex === -1) return;
+
+    // Get messages to keep (before the edited message)
+    const messagesToKeep = chat.messages.slice(0, messageIndex);
+
+    // Get all message IDs from this message onwards (including the edited message)
+    const messageIdsToDelete = chat.messages
+      .slice(messageIndex)
+      .filter((m) => m.role !== "system")
+      .map((m) => m.id);
+
+    if (messageIdsToDelete.length > 0) {
+      // Delete messages from IndexedDB
+      await messageActions.deleteMany.mutateAsync(messageIdsToDelete);
+    }
+
+    // Update the chat state immediately to reflect the deletion
+    chat.setMessages(messagesToKeep);
+
+    // Clear editing state
+    setEditingMessageId(null);
+
+    // Send the edited message
+    await handleSendMessage(newText);
+  };
 
   const handleSendMessage = async (text: string) => {
     if (!selectedModel) {
@@ -318,6 +364,10 @@ export function ChatPanel() {
             messages={chat.messages}
             status={chat.status}
             minHeightOffset={240}
+            editingMessageId={editingMessageId}
+            onStartEdit={handleStartEdit}
+            onCancelEdit={handleCancelEdit}
+            onSubmitEdit={handleSubmitEdit}
           />
         )}
       </Chat.Main>
@@ -327,14 +377,20 @@ export function ChatPanel() {
           <Chat.Input
             onSubmit={handleSendMessage}
             onStop={chat.stop}
-            disabled={models.length === 0 || !effectiveSelectedModelState}
+            disabled={
+              models.length === 0 ||
+              !effectiveSelectedModelState ||
+              editingMessageId !== null
+            }
             isStreaming={
               chat.status === "submitted" || chat.status === "streaming"
             }
             placeholder={
-              models.length === 0
-                ? "Add an LLM binding connection to start chatting"
-                : "Ask anything or @ for context"
+              editingMessageId
+                ? "Editing message above..."
+                : models.length === 0
+                  ? "Add an LLM binding connection to start chatting"
+                  : "Ask anything or @ for context"
             }
             usageMessages={chat.messages}
           >

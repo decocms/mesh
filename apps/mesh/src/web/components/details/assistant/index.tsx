@@ -35,6 +35,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { Edit05, Loading01, Plus, Upload01, Users02 } from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
+import { useMessageActions } from "@/web/hooks/use-chat-store";
 
 /**
  * Ice breakers component that uses suspense to fetch gateway prompts
@@ -210,6 +211,12 @@ function AssistantChatPanel({
     systemPrompt: assistant.system_prompt,
   });
 
+  // Message actions for deleting messages
+  const messageActions = useMessageActions();
+
+  // State for inline editing
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+
   // Chat config is valid when gateway and model are both configured
   const hasChatConfig =
     Boolean(assistant.gateway_id) &&
@@ -231,6 +238,46 @@ function AssistantChatPanel({
     };
 
     await chat.sendMessage(text, metadata);
+  };
+
+  // Handle starting inline edit
+  const handleStartEdit = (messageId: string) => {
+    setEditingMessageId(messageId);
+  };
+
+  // Handle canceling inline edit
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+  };
+
+  // Handle submitting inline edit
+  const handleSubmitEdit = async (messageId: string, newText: string) => {
+    // Find the index of the message being edited
+    const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
+    if (messageIndex === -1) return;
+
+    // Get messages to keep (before the edited message)
+    const messagesToKeep = chat.messages.slice(0, messageIndex);
+
+    // Get all message IDs from this message onwards (including the edited message)
+    const messageIdsToDelete = chat.messages
+      .slice(messageIndex)
+      .filter((m) => m.role !== "system")
+      .map((m) => m.id);
+
+    if (messageIdsToDelete.length > 0) {
+      // Delete messages from IndexedDB
+      await messageActions.deleteMany.mutateAsync(messageIdsToDelete);
+    }
+
+    // Update the chat state immediately to reflect the deletion
+    chat.setMessages(messagesToKeep);
+
+    // Clear editing state
+    setEditingMessageId(null);
+
+    // Send the edited message
+    await handleSendMessage(newText);
   };
 
   const emptyState = (
@@ -318,6 +365,10 @@ function AssistantChatPanel({
               messages={chat.messages}
               status={chat.status}
               minHeightOffset={240}
+              editingMessageId={editingMessageId}
+              onStartEdit={handleStartEdit}
+              onCancelEdit={handleCancelEdit}
+              onSubmitEdit={handleSubmitEdit}
             />
           )}
         </div>
@@ -335,11 +386,15 @@ function AssistantChatPanel({
             <Chat.Input
               onSubmit={handleSendMessage}
               onStop={chat.stop}
-              disabled={!hasChatConfig}
+              disabled={!hasChatConfig || editingMessageId !== null}
               isStreaming={
                 chat.status === "submitted" || chat.status === "streaming"
               }
-              placeholder="Ask anything or @ for context"
+              placeholder={
+                editingMessageId
+                  ? "Editando mensagem acima..."
+                  : "Ask anything or @ for context"
+              }
               usageMessages={chat.messages}
             />
           </div>
