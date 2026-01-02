@@ -8,12 +8,13 @@
 
 // Import observability module early to initialize OpenTelemetry SDK
 import "./observability";
+
+import {
+  createAssetHandler,
+  resolveClientDir,
+} from "@decocms/runtime/asset-server";
 import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
-import {
-  resolveClientDir,
-  createAssetHandler,
-} from "@decocms/runtime/asset-server";
 
 const port = parseInt(process.env.PORT || "3000", 10);
 

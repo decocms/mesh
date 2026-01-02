@@ -8,7 +8,6 @@
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.20250617.0",
-    "@deco/mcp": "npm:@jsr/deco__mcp@0.7.8",
     "@decocms/bindings": "workspace:*",
     "@modelcontextprotocol/sdk": "1.25.1",
     "@ai-sdk/provider": "^2.0.0",
