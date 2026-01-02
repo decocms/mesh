@@ -337,7 +337,6 @@ export function createApp(options: CreateAppOptions = {}) {
           ctx,
           connection.organization_id,
         );
-        console.log({ projectLocator });
         const smartParams = buildDecoOAuthParams(projectLocator);
         for (const [key, value] of smartParams) {
           targetUrl.searchParams.set(key, value);
