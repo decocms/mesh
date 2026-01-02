@@ -22,6 +22,7 @@ import {
 } from "@untitledui/icons";
 import type { JsonSchema } from "@/web/utils/constants";
 import { IntegrationIcon } from "../integration-icon.tsx";
+import { User } from "../user/user.tsx";
 
 // Field names that should be rendered as icon columns
 const ICON_FIELD_NAMES = ["icon", "avatar", "logo"];
@@ -370,6 +371,21 @@ function generateColumnsFromSchema<T extends BaseCollectionEntity>(
         },
         sortable: isSortable,
         cellClassName: "max-w-[50ch]",
+      };
+    }
+
+    // Handle user fields (created_by, updated_by, etc.)
+    if (key.endsWith("_by")) {
+      return {
+        id: key,
+        header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
+        render: (row) => {
+          const val = row[key as keyof T];
+          if (!val) return "—";
+          return <User id={String(val)} size="xs" />;
+        },
+        sortable: isSortable,
+        cellClassName: "max-w-[250px]",
       };
     }
 

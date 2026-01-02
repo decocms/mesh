@@ -135,4 +135,7 @@ export const KEYS = {
   // Connection resources (for gateway settings)
   connectionResources: (connectionId: string) =>
     ["connection", connectionId, "resources"] as const,
+
+  // User data
+  user: (userId: string) => ["user", userId] as const,
 } as const;

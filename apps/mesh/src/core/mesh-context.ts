@@ -224,6 +224,7 @@ import type { ConnectionStorage } from "../storage/connection";
 import type { GatewayStorage } from "../storage/gateway";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
+import type { UserStorage } from "../storage/user";
 
 // Better Auth instance type - flexible for testing
 // In production, this is the actual Better Auth instance
@@ -243,6 +244,7 @@ export interface MeshStorage {
   organizationSettings: OrganizationSettingsStorage;
   monitoring: SqlMonitoringStorage;
   gateways: GatewayStorage;
+  users: UserStorage;
 }
 
 // ============================================================================
