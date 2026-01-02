@@ -236,9 +236,6 @@ export function createApp(options: CreateAppOptions = {}) {
     // Many servers expose /.well-known/oauth-authorization-server at the root even without RFC 9728
     if (!originAuthServer) {
       originAuthServer = connUrl.origin;
-      console.log(
-        `[oauth-proxy] Origin ${connection.connection_url} lacks authorization_servers in metadata, trying auth server at origin root: ${originAuthServer}`,
-      );
     }
 
     // Get OAuth endpoints from auth server metadata - uses shared function that tries all formats

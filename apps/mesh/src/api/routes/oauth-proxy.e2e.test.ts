@@ -44,6 +44,8 @@ const MCP_SERVERS = [
   { url: "https://mcp.vercel.com", name: "Vercel" },
   { url: "https://mcp.prisma.io/sse", name: "Prisma" },
   { url: "https://mcp.supabase.com/mcp", name: "Supabase" },
+  { url: "https://api.grain.com/_/mcp", name: "Grain" },
+  { url: "https://mcp.apify.com/", name: "Apify" },
 ];
 
 /** MCP servers that DON'T support OAuth - should return 401 without WWW-Authenticate */
