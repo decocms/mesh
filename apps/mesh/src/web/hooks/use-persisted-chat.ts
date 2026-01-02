@@ -50,6 +50,8 @@ export interface UsePersistedChatOptions {
   onCreateThread?: (thread: { id: string; title: string }) => void;
   /** Called when an error occurs */
   onError?: (error: Error) => void;
+  /** Called when a tool is invoked during chat */
+  onToolCall?: (event: { toolCall: { toolName: string } }) => void;
 }
 
 /**
@@ -84,7 +86,8 @@ export interface PersistedChatResult {
 export function usePersistedChat(
   options: UsePersistedChatOptions,
 ): PersistedChatResult {
-  const { threadId, systemPrompt, onCreateThread, onError } = options;
+  const { threadId, systemPrompt, onCreateThread, onError, onToolCall } =
+    options;
 
   const {
     org: { slug: orgSlug },
@@ -184,6 +187,7 @@ export function usePersistedChat(
     messages: allMessages,
     transport,
     onFinish,
+    onToolCall,
     onError: (error: Error) => {
       console.error("[chat] Chat error:", error);
       onError?.(error);

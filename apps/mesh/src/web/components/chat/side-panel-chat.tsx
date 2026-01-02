@@ -1,3 +1,4 @@
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { EmptyState } from "@/web/components/empty-state";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
@@ -5,29 +6,31 @@ import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { DecoChatEmptyState } from "@deco/ui/components/deco-chat-empty-state.tsx";
-import { CpuChip02, Plus, X, Loading01 } from "@untitledui/icons";
-import { useNavigate } from "@tanstack/react-router";
-import { Chat, useGateways, useModels, type ModelChangePayload } from "./chat";
-import { toast } from "sonner";
-import { useThreads } from "../../hooks/use-chat-store";
-import { useLocalStorage } from "../../hooks/use-local-storage";
-import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import { useChat } from "../../providers/chat-provider";
-import { ThreadHistoryPopover } from "./thread-history-popover";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { usePersistedChat } from "../../hooks/use-persisted-chat";
-import { useConnections } from "../../hooks/collections/use-connection";
+import { useNavigate } from "@tanstack/react-router";
+import { CpuChip02, Loading01, Plus, X } from "@untitledui/icons";
+import { Suspense, useState } from "react";
+import { toast } from "sonner";
+import {
+  useConnectionActions,
+  useConnections,
+} from "../../hooks/collections/use-connection";
 import { useBindingConnections } from "../../hooks/use-binding";
-import { useSystemPrompt } from "../../hooks/use-system-prompt";
+import { useThreads } from "../../hooks/use-chat-store";
 import {
   useGatewayPrompts,
   type GatewayPrompt,
 } from "../../hooks/use-gateway-prompts";
-import { IceBreakers } from "./ice-breakers";
-import { Suspense, useState } from "react";
+import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
+import { useLocalStorage } from "../../hooks/use-local-storage";
+import { usePersistedChat } from "../../hooks/use-persisted-chat";
+import { useSystemPrompt } from "../../hooks/use-system-prompt";
+import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
+import { useChat } from "../../providers/chat-provider";
 import { ErrorBoundary } from "../error-boundary";
-import { useConnectionActions } from "../../hooks/collections/use-connection";
-import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { Chat, useGateways, useModels, type ModelChangePayload } from "./chat";
+import { IceBreakers } from "./ice-breakers";
+import { ThreadHistoryPopover } from "./thread-history-popover";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
@@ -130,12 +133,16 @@ export function ChatPanel() {
   // Generate dynamic system prompt based on context
   const systemPrompt = useSystemPrompt();
 
+  // Get the onToolCall handler for invalidating collection queries
+  const onToolCall = useInvalidateCollectionsOnToolCall();
+
   // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
   const chat = usePersistedChat({
     threadId: activeThreadId,
     systemPrompt,
     onCreateThread: (thread) =>
       createThread({ id: thread.id, title: thread.title }),
+    onToolCall,
   });
 
   const handleSendMessage = async (text: string) => {

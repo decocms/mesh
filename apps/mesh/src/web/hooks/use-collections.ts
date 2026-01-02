@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import type { ToolCaller } from "../../tools/client";
 import { KEYS } from "../lib/query-keys";
+import { useProjectContext } from "../providers/project-context-provider";
 
 /**
  * Collection entity base type that matches the collection binding pattern
@@ -141,7 +142,7 @@ function buildOrderByExpression<T extends CollectionEntity>(
 /**
  * Get a single item by ID from a collection
  *
- * @param scopeKey - The scope key (connectionId for connection-scoped, org.slug for mesh-scoped)
+ * @param scopeKey - The scope key (connectionId for connection-scoped, gatewayId for gateway-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
  * @param itemId - The ID of the item to fetch
  * @param toolCaller - The tool caller function for making API calls
@@ -153,11 +154,17 @@ export function useCollectionItem<T extends CollectionEntity>(
   itemId: string | undefined,
   toolCaller: ToolCaller,
 ) {
+  const { org } = useProjectContext();
   const upperName = collectionName.toUpperCase();
   const getToolName = `COLLECTION_${upperName}_GET`;
 
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.collectionItem(scopeKey, collectionName, itemId ?? ""),
+    queryKey: KEYS.collectionItem(
+      org.slug,
+      scopeKey,
+      collectionName,
+      itemId ?? "",
+    ),
     queryFn: async () => {
       if (!itemId) {
         return { item: null } as CollectionGetOutput<T>;
@@ -178,7 +185,7 @@ export function useCollectionItem<T extends CollectionEntity>(
 /**
  * Get a paginated list of items from a collection
  *
- * @param scopeKey - The scope key (connectionId for connection-scoped, org.slug for mesh-scoped)
+ * @param scopeKey - The scope key (connectionId for connection-scoped, gatewayId for gateway-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
  * @param toolCaller - The tool caller function for making API calls
  * @param options - Filter and configuration options
@@ -190,6 +197,7 @@ export function useCollectionList<T extends CollectionEntity>(
   toolCaller: ToolCaller,
   options: UseCollectionListOptions<T> = {},
 ) {
+  const { org } = useProjectContext();
   const {
     searchTerm,
     filters,
@@ -214,7 +222,12 @@ export function useCollectionList<T extends CollectionEntity>(
   const paramsKey = JSON.stringify({ where, orderBy, limit: pageSize });
 
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.collectionList(scopeKey, collectionName, paramsKey),
+    queryKey: KEYS.collectionList(
+      org.slug,
+      scopeKey,
+      collectionName,
+      paramsKey,
+    ),
     queryFn: async () => {
       const input: CollectionListInput = {
         ...(where && { where }),
@@ -237,7 +250,7 @@ export function useCollectionList<T extends CollectionEntity>(
 /**
  * Get mutation actions for create, update, and delete operations
  *
- * @param scopeKey - The scope key (connectionId for connection-scoped, org.slug for mesh-scoped)
+ * @param scopeKey - The scope key (connectionId for connection-scoped, gatewayId for gateway-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
  * @param toolCaller - The tool caller function for making API calls
  * @returns Object with create, update, and delete mutation hooks
@@ -247,6 +260,7 @@ export function useCollectionActions<T extends CollectionEntity>(
   collectionName: string,
   toolCaller: ToolCaller,
 ) {
+  const { org } = useProjectContext();
   const queryClient = useQueryClient();
   const upperName = collectionName.toUpperCase();
   const createToolName = `COLLECTION_${upperName}_CREATE`;
@@ -262,12 +276,9 @@ export function useCollectionActions<T extends CollectionEntity>(
       return result.item;
     },
     onSuccess: () => {
-      // Invalidate all list queries for this collection
+      // Invalidate all queries for this collection using the base prefix
       queryClient.invalidateQueries({
-        queryKey: KEYS.collectionListPrefix(scopeKey, collectionName),
-      });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.collectionListInfinitePrefix(scopeKey, collectionName),
+        queryKey: KEYS.collection(org.slug, scopeKey, collectionName),
       });
       toast.success("Item created successfully");
     },
@@ -286,16 +297,10 @@ export function useCollectionActions<T extends CollectionEntity>(
 
       return result.item;
     },
-    onSuccess: (item: T) => {
-      // Invalidate list queries and the specific item query
+    onSuccess: () => {
+      // Invalidate all queries for this collection using the base prefix
       queryClient.invalidateQueries({
-        queryKey: KEYS.collectionListPrefix(scopeKey, collectionName),
-      });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.collectionListInfinitePrefix(scopeKey, collectionName),
-      });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.collectionItem(scopeKey, collectionName, item.id),
+        queryKey: KEYS.collection(org.slug, scopeKey, collectionName),
       });
       toast.success("Item updated successfully");
     },
@@ -314,12 +319,9 @@ export function useCollectionActions<T extends CollectionEntity>(
       return result.item.id;
     },
     onSuccess: () => {
-      // Invalidate all list queries for this collection
+      // Invalidate all queries for this collection using the base prefix
       queryClient.invalidateQueries({
-        queryKey: KEYS.collectionListPrefix(scopeKey, collectionName),
-      });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.collectionListInfinitePrefix(scopeKey, collectionName),
+        queryKey: KEYS.collection(org.slug, scopeKey, collectionName),
       });
       toast.success("Item deleted successfully");
     },

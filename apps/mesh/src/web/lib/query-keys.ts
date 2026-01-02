@@ -69,27 +69,42 @@ export const KEYS = {
   collectionItems: (connectionId: string, collectionName: string) =>
     ["collection", connectionId, collectionName] as const,
 
-  // Collection CRUD queries (scoped by scopeKey and collection name)
-  // scopeKey is connectionId for connection-scoped tools, org.slug for mesh-scoped collections
-  collectionItem: (scopeKey: string, collectionName: string, itemId: string) =>
-    ["collection-item", scopeKey, collectionName, itemId] as const,
-  // Prefix keys (used for invalidating all variants regardless of paramsKey)
-  collectionListPrefix: (scopeKey: string, collectionName: string) =>
-    ["collection-list", scopeKey, collectionName] as const,
-  collectionList: (
+  // Collection CRUD queries (scoped by org, scopeKey and collection name)
+  // org: organization slug
+  // scopeKey: connectionId for connection-scoped tools, gatewayId for gateway-scoped, etc.
+  // Base prefix for invalidating all collection variants
+  collection: (org: string, scopeKey: string, collectionName: string) =>
+    [org, scopeKey, "collection", collectionName] as const,
+  // Item query
+  collectionItem: (
+    org: string,
     scopeKey: string,
     collectionName: string,
-    paramsKey: string,
-  ) => ["collection-list", scopeKey, collectionName, paramsKey] as const,
-  // Prefix keys (used for invalidating all variants regardless of paramsKey)
-  collectionListInfinitePrefix: (scopeKey: string, collectionName: string) =>
-    ["collection-list-infinite", scopeKey, collectionName] as const,
-  collectionListInfinite: (
+    itemId: string,
+  ) => [org, scopeKey, "collection", collectionName, itemId] as const,
+  // List query
+  collectionList: (
+    org: string,
     scopeKey: string,
     collectionName: string,
     paramsKey: string,
   ) =>
-    ["collection-list-infinite", scopeKey, collectionName, paramsKey] as const,
+    [org, scopeKey, "collection", collectionName, "list", paramsKey] as const,
+  // Infinite list query
+  collectionListInfinite: (
+    org: string,
+    scopeKey: string,
+    collectionName: string,
+    paramsKey: string,
+  ) =>
+    [
+      org,
+      scopeKey,
+      "collection",
+      collectionName,
+      "list-infinite",
+      paramsKey,
+    ] as const,
 
   // GitHub README (scoped by owner and repo)
   githubReadme: (
