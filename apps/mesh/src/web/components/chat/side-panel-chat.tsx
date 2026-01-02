@@ -24,12 +24,30 @@ import {
   type GatewayPrompt,
 } from "../../hooks/use-gateway-prompts";
 import { IceBreakers } from "./ice-breakers";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
+import { useConnectionActions } from "../../hooks/collections/use-connection";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
   "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
+
+/**
+ * OpenRouter illustration with radial mask for empty state
+ */
+function OpenRouterIllustration() {
+  return (
+    <img
+      src="/empty-state-openrouter.svg"
+      alt=""
+      width={336}
+      height={320}
+      aria-hidden="true"
+      className="w-xs h-auto mask-radial-[100%_100%] mask-radial-from-20% mask-radial-to-50% mask-radial-at-center"
+    />
+  );
+}
 
 /**
  * Ice breakers component that uses suspense to fetch gateway prompts
@@ -50,7 +68,7 @@ function GatewayIceBreakers({
 
 export function ChatPanel() {
   const {
-    org: { slug: orgSlug },
+    org: { slug: orgSlug, id: orgId },
     locator,
   } = useProjectContext();
   const [, setOpen] = useDecoChatOpen();
@@ -148,6 +166,82 @@ export function ChatPanel() {
     setSelectedModelState({ id: m.id, connectionId: m.connectionId });
   };
 
+  // OpenRouter installation - create directly or use existing
+  const [isInstallingOpenRouter, setIsInstallingOpenRouter] = useState(false);
+  const actions = useConnectionActions();
+
+  const handleInstallOpenRouter = async () => {
+    if (!orgId || !user?.id) {
+      toast.error("Not authenticated");
+      return;
+    }
+
+    setIsInstallingOpenRouter(true);
+    try {
+      const openrouterUrl = "https://sites-openrouter.decocache.com/mcp";
+
+      // Check if OpenRouter already exists
+      const existingConnection = allConnections?.find(
+        (conn) => conn.connection_url === openrouterUrl,
+      );
+
+      if (existingConnection) {
+        // Navigate to existing connection
+        navigate({
+          to: "/$org/mcps/$connectionId",
+          params: { org: orgSlug, connectionId: existingConnection.id },
+        });
+        return;
+      }
+
+      // Create new OpenRouter connection
+      const now = new Date().toISOString();
+      const connectionData = {
+        id: generatePrefixedId("conn"),
+        title: "OpenRouter",
+        description: "Access hundreds of LLM models from a single API",
+        icon: "https://openrouter.ai/favicon.ico",
+        app_name: "openrouter",
+        app_id: "openrouter",
+        connection_type: "HTTP" as const,
+        connection_url: openrouterUrl,
+        connection_token: null as string | null,
+        connection_headers: null,
+        oauth_config: null,
+        configuration_state: null,
+        configuration_scopes: null,
+        metadata: {
+          source: "chat",
+          verified: false,
+          scopeName: "deco",
+          toolsCount: 0,
+          publishedAt: null,
+          repository: null,
+        },
+        created_at: now,
+        updated_at: now,
+        created_by: user.id,
+        organization_id: orgId,
+        tools: null,
+        bindings: null,
+        status: "inactive" as const,
+      };
+
+      const result = await actions.create.mutateAsync(connectionData);
+
+      navigate({
+        to: "/$org/mcps/$connectionId",
+        params: { org: orgSlug, connectionId: result.id },
+      });
+    } catch (error) {
+      toast.error(
+        `Failed to connect OpenRouter: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setIsInstallingOpenRouter(false);
+    }
+  };
+
   if (!hasRequiredSetup) {
     let title: string;
     let description: string;
@@ -194,23 +288,38 @@ export function ChatPanel() {
         <Chat.Main className="flex flex-col items-center">
           <Chat.EmptyState>
             <EmptyState
+              image={<OpenRouterIllustration />}
               title={title}
               description={description}
               actions={
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigate({
-                      to: hasModelsBinding ? "/$org/gateways" : "/$org/mcps",
-                      params: { org: orgSlug },
-                      search: hasModelsBinding
-                        ? undefined
-                        : { action: "create" },
-                    })
-                  }
-                >
-                  {hasModelsBinding ? "Create gateway" : "Add connection"}
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={handleInstallOpenRouter}
+                    disabled={isInstallingOpenRouter}
+                  >
+                    <img
+                      src="https://openrouter.ai/favicon.ico"
+                      alt="OpenRouter"
+                      className="size-4"
+                    />
+                    {isInstallingOpenRouter
+                      ? "Installing..."
+                      : "Install Openrouter"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      navigate({
+                        to: "/$org/mcps",
+                        params: { org: orgSlug },
+                        search: { action: "create" },
+                      })
+                    }
+                  >
+                    Install MCP Server
+                  </Button>
+                </>
               }
             />
           </Chat.EmptyState>
