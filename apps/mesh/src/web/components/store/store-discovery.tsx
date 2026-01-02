@@ -4,6 +4,7 @@ import { StoreDiscoveryUI } from "./store-discovery-ui";
 import type { RegistryItem } from "./registry-items-section";
 import { useSuspenseInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
+import { useState } from "react";
 import {
   findListToolName,
   findFiltersToolName,
@@ -22,6 +23,12 @@ export interface RegistryFiltersResponse {
   categories?: FilterItem[];
 }
 
+/** Active filters state */
+export interface ActiveFilters {
+  tags: string[];
+  categories: string[];
+}
+
 interface StoreDiscoveryProps {
   registryId: string;
 }
@@ -30,6 +37,10 @@ const PAGE_SIZE = 24;
 
 export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
   const registryConnection = useConnection(registryId);
+
+  // Filter state - lifted here so we can use it in the query
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   // Find the LIST tool from the registry connection
   const listToolName = findListToolName(registryConnection?.tools);
@@ -53,18 +64,26 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
     staleTime: 60 * 60 * 1000, // 1 hour - filters don't change often
   });
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  // Build filter params for the LIST API call
+  const filterParams = {
+    limit: PAGE_SIZE,
+    ...(selectedTags.length > 0 && { tags: selectedTags }),
+    ...(selectedCategories.length > 0 && { categories: selectedCategories }),
+  };
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useSuspenseInfiniteQuery({
+      // Include filters in query key so it refetches when filters change
       queryKey: KEYS.toolCall(
         registryId,
         listToolName,
-        JSON.stringify({ limit: PAGE_SIZE }),
+        JSON.stringify(filterParams),
       ),
       queryFn: async ({ pageParam }) => {
         // Use cursor if available, otherwise fallback to offset for backward compatibility
         const params = pageParam
-          ? { cursor: pageParam, limit: PAGE_SIZE }
-          : { limit: PAGE_SIZE };
+          ? { ...filterParams, cursor: pageParam }
+          : filterParams;
         const result = await toolCaller(listToolName, params);
         return result;
       },
@@ -113,16 +132,23 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
     }
   };
 
+  const hasActiveFilters = selectedTags.length > 0 || selectedCategories.length > 0;
+
   return (
     <StoreDiscoveryUI
       items={flattenedItems}
       isLoadingMore={isFetchingNextPage}
+      isFiltering={isLoading && hasActiveFilters}
       registryId={registryId}
       hasMore={hasNextPage ?? false}
       onLoadMore={handleLoadMore}
       totalCount={totalCount}
       availableTags={filtersData?.tags}
       availableCategories={filtersData?.categories}
+      selectedTags={selectedTags}
+      selectedCategories={selectedCategories}
+      onTagChange={setSelectedTags}
+      onCategoryChange={setSelectedCategories}
     />
   );
 }
