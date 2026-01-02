@@ -1,27 +1,87 @@
 ---
-title: Conexões
-description: Conexões com MCP servers upstream (HTTP) que o Mesh faz proxy e observa
+title: MCP Servers
+description: Conexões com MCP servers upstream que o Mesh faz proxy e observa
 icon: Server
 ---
 
-## O que é uma Conexão (no Mesh)?
+import Callout from "../../../components/ui/Callout.astro";
 
-No Mesh, uma **Conexão** é uma **connection** para um MCP upstream (normalmente um endpoint MCP via HTTP).
+## O que é um MCP Server (no Mesh)?
+
+No Mesh, um **MCP Server** é uma **connection** para um MCP upstream.
 
 Cada connection guarda:
 
-- **URL do MCP**
+- **URL do MCP** (para HTTP) ou **comando** (para STDIO)
 - **credenciais/config** (quando necessário, armazenadas no vault)
 - metadados para operação (nome, status, etc.)
 
-## Quando usar vs Hub
+## Tipos de Conexão
+
+### Conexões HTTP
+
+Conexões HTTP conectam a servidores MCP remotos via endpoints HTTP/SSE.
+
+- **Casos de uso**: MCPs em nuvem, integrações SaaS, produção
+- **Tokens**: JWT com expiração curta (5 minutos)
+
+### Conexões STDIO (Comandos Locais)
+
+Conexões STDIO iniciam um processo local (como `npx` ou scripts) e comunicam via stdin/stdout.
+
+- **Casos de uso**: Ferramentas locais, pacotes npx, desenvolvimento
+- **Tokens**: JWT sem expiração, persistido localmente
+
+<Callout type="tip">
+  Conexões STDIO são perfeitas para rodar pacotes npm como MCPs. Exemplo: `npx @decocms/local-fs` roda um MCP de sistema de arquivos localmente.
+</Callout>
+
+## Credenciais STDIO via Variáveis de Ambiente
+
+Quando o mesh inicia um processo MCP STDIO, ele passa credenciais como variáveis de ambiente:
+
+| Variável | Descrição |
+|----------|-----------|
+| `MESH_TOKEN` | Token JWT para autenticação com a API do Mesh (sem expiração) |
+| `MESH_URL` | URL base da instância Mesh |
+| `MESH_STATE` | Estado com valores de bindings em JSON |
+
+Isso é análogo a como conexões HTTP recebem headers `x-mesh-token`.
+
+<Callout type="tip">
+  **Nenhuma ferramenta especial necessária!** Apenas leia `process.env.MESH_TOKEN` na inicialização. Não precisa implementar `ON_MCP_CONFIGURATION` ou qualquer protocolo de configuração.
+</Callout>
+
+### Exemplo (Node.js/Bun)
+
+```typescript
+// Ler credenciais mesh das env vars
+const meshToken = process.env.MESH_TOKEN;
+const meshUrl = process.env.MESH_URL;
+const state = process.env.MESH_STATE ? JSON.parse(process.env.MESH_STATE) : {};
+
+// Usar token para chamadas à API mesh
+const response = await fetch(`${meshUrl}/mcp/${connectionId}`, {
+  headers: { Authorization: `Bearer ${meshToken}` },
+  // ...
+});
+```
+
+## Quando usar vs Gateway
 
 - Use **connection** para isolar e depurar um upstream específico.
 - Use **Hub** para expor um surface agregado/curado para os clients.
+
+## Construindo MCPs STDIO
+
+Veja exemplos no repositório [decocms/mcps](https://github.com/decocms/mcps):
+
+- `template-minimal/` - MCP mínimo sem view
+- `template-with-view/` - MCP com interface web
+- `local-fs/` - MCP de sistema de arquivos (roda via npx)
+- `perplexity/`, `openrouter/` - MCPs em produção
 
 ## Boas práticas
 
 - Mantenha URLs e credenciais por ambiente (dev/staging/prod).
 - Evite expor uma connection diretamente em produção; prefira um Hub para governança.
-
-
