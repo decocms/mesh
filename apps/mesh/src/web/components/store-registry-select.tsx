@@ -33,7 +33,7 @@ export function StoreRegistrySelect({
 }: StoreRegistrySelectProps) {
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className="w-[200px] h-8!">
+      <SelectTrigger size="xs" className="w-[200px]">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
