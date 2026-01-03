@@ -22,6 +22,7 @@ import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import { createEventBus, type EventBus } from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
 import authRoutes from "./routes/auth";
+import downstreamTokenRoutes from "./routes/downstream-token";
 import gatewayRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
@@ -523,6 +524,9 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // LLM API routes (OpenAI-compatible)
   app.route("/api", modelsRoutes);
+
+  // Downstream token management routes
+  app.route("/api", downstreamTokenRoutes);
 
   // ============================================================================
   // 404 Handler
