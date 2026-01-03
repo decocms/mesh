@@ -472,10 +472,22 @@ async function authenticateRequest(
     try {
       const meshJwtPayload = await verifyMeshToken(token);
       if (meshJwtPayload) {
+        // Look up user's organization role for admin/owner bypass
+        let role: string | undefined;
+        if (meshJwtPayload.sub) {
+          const membership = await db
+            .selectFrom("member")
+            .select(["member.role"])
+            .where("member.userId", "=", meshJwtPayload.sub)
+            .executeTakeFirst();
+          role = membership?.role;
+        }
+
         return {
           user: {
             id: meshJwtPayload.sub,
             connectionId: meshJwtPayload.metadata?.connectionId,
+            role,
           },
           permissions: meshJwtPayload.permissions,
           organization: meshJwtPayload.metadata?.organizationId
@@ -504,9 +516,20 @@ async function authenticateRequest(
         // API keys have permissions stored directly on them
         const permissions = result.key.permissions as Permission | undefined;
 
+        // Look up user's organization role for admin/owner bypass
+        let role: string | undefined;
+        if (result.key.userId) {
+          const membership = await db
+            .selectFrom("member")
+            .select(["member.role"])
+            .where("member.userId", "=", result.key.userId)
+            .executeTakeFirst();
+          role = membership?.role;
+        }
+
         return {
           apiKeyId: result.key.id,
-          user: { id: result.key.userId }, // Include userId from API key
+          user: { id: result.key.userId, role }, // Include userId and role from membership
           permissions, // Store the API key's permissions
           organization: orgMetadata
             ? {
