@@ -13,6 +13,7 @@ import * as migration011gatewayicon from "./011-gateway-icon.ts";
 import * as migration012gatewaytoolselectionmode from "./012-gateway-tool-selection-mode.ts";
 import * as migration013monitoringuseragentgateway from "./013-monitoring-user-agent-gateway.ts";
 import * as migration014gatewayresourcesprompts from "./014-gateway-resources-prompts.ts";
+import * as migration015downstreamtokenclientinfo from "./015-downstream-token-client-info.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -29,6 +30,7 @@ const migrations = {
   "012-gateway-tool-selection-mode": migration012gatewaytoolselectionmode,
   "013-monitoring-user-agent-gateway": migration013monitoringuseragentgateway,
   "014-gateway-resources-prompts": migration014gatewayresourcesprompts,
+  "015-downstream-token-client-info": migration015downstreamtokenclientinfo,
 } satisfies Record<string, Migration>;
 
 export default migrations;

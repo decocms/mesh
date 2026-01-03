@@ -171,11 +171,37 @@ class McpOAuthProvider implements OAuthClientProvider {
 }
 
 /**
+ * Full OAuth token info for persistence
+ */
+export interface OAuthTokenInfo {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresIn: number | null;
+  scope: string | null;
+  // Dynamic Client Registration info
+  clientId: string | null;
+  clientSecret: string | null;
+  tokenEndpoint: string | null;
+}
+
+/**
  * Result from authenticateMcp
  */
 export interface AuthenticateMcpResult {
   token: string | null;
+  /** Full token info for persistence (includes refresh token) */
+  tokenInfo: OAuthTokenInfo | null;
   error: string | null;
+}
+
+/**
+ * Extended token result with all info needed for persistence
+ */
+interface FullTokenResult {
+  tokens: OAuthTokens;
+  clientId: string | null;
+  clientSecret: string | null;
+  tokenEndpoint: string | null;
 }
 
 /**
@@ -206,142 +232,179 @@ export async function authenticateMcp(params: {
   try {
     // Wait for OAuth callback message from popup and handle token exchange
     // Uses both postMessage (primary) and localStorage (fallback for when opener is lost)
-    const oauthCompletePromise = new Promise<OAuthTokens>((resolve, reject) => {
-      const timeout = params.timeout || 120000;
-      let timeoutId: ReturnType<typeof setTimeout>;
-      let resolved = false;
-      // Use the OAuth state as the storage key - it's already unique per flow
-      // and will be available to the callback page via URL params
-      const oauthState = provider.state();
-      const storageKey = `${OAUTH_CALLBACK_STORAGE_KEY}${oauthState}`;
+    const oauthCompletePromise = new Promise<FullTokenResult>(
+      (resolve, reject) => {
+        const timeout = params.timeout || 120000;
+        let timeoutId: ReturnType<typeof setTimeout>;
+        let resolved = false;
+        // Use the OAuth state as the storage key - it's already unique per flow
+        // and will be available to the callback page via URL params
+        const oauthState = provider.state();
+        const storageKey = `${OAUTH_CALLBACK_STORAGE_KEY}${oauthState}`;
 
-      const cleanup = () => {
-        if (resolved) return;
-        resolved = true;
-        window.removeEventListener("message", handleMessage);
-        window.removeEventListener("storage", handleStorageEvent);
-        clearTimeout(timeoutId);
-        // Clean up storage key
-        try {
-          localStorage.removeItem(storageKey);
-        } catch {
-          // Ignore storage errors
-        }
-      };
+        const cleanup = () => {
+          if (resolved) return;
+          resolved = true;
+          window.removeEventListener("message", handleMessage);
+          window.removeEventListener("storage", handleStorageEvent);
+          clearTimeout(timeoutId);
+          // Clean up storage key
+          try {
+            localStorage.removeItem(storageKey);
+          } catch {
+            // Ignore storage errors
+          }
+        };
 
-      const processCallback = async (data: {
-        success: boolean;
-        code?: string;
-        state?: string;
-        error?: string;
-      }) => {
-        if (resolved) return;
+        const processCallback = async (data: {
+          success: boolean;
+          code?: string;
+          state?: string;
+          error?: string;
+        }) => {
+          if (resolved) return;
 
-        if (!data.success) {
-          cleanup();
-          reject(new Error(data.error || "OAuth authentication failed"));
-          return;
-        }
-
-        const { code, state } = data;
-
-        if (!code) {
-          cleanup();
-          reject(new Error("Missing authorization code"));
-          return;
-        }
-
-        // Verify state matches
-        const storedState = provider.getStoredState();
-        if (storedState !== state) {
-          cleanup();
-          reject(new Error("OAuth state mismatch - possible CSRF attack"));
-          return;
-        }
-
-        try {
-          // Do token exchange in parent window (we have provider in memory)
-          const resourceMetadata =
-            await discoverOAuthProtectedResourceMetadata(serverUrl);
-          const authServerUrl =
-            resourceMetadata?.authorization_servers?.[0] || serverUrl;
-          const authServerMetadata =
-            await discoverAuthorizationServerMetadata(authServerUrl);
-
-          const clientInfo = provider.clientInformation();
-          if (!clientInfo) {
+          if (!data.success) {
             cleanup();
-            reject(new Error("Client information not found"));
+            reject(new Error(data.error || "OAuth authentication failed"));
             return;
           }
 
-          const codeVerifier = provider.codeVerifier();
+          const { code, state } = data;
 
-          const tokens = await exchangeAuthorization(authServerUrl, {
-            metadata: authServerMetadata,
-            clientInformation: clientInfo,
-            authorizationCode: code,
-            codeVerifier,
-            redirectUri: provider.redirectUrl,
-            resource: new URL(serverUrl),
-          });
+          if (!code) {
+            cleanup();
+            reject(new Error("Missing authorization code"));
+            return;
+          }
 
+          // Verify state matches
+          const storedState = provider.getStoredState();
+          if (storedState !== state) {
+            cleanup();
+            reject(new Error("OAuth state mismatch - possible CSRF attack"));
+            return;
+          }
+
+          try {
+            // Do token exchange in parent window (we have provider in memory)
+            const resourceMetadata =
+              await discoverOAuthProtectedResourceMetadata(serverUrl);
+            const authServerUrl =
+              resourceMetadata?.authorization_servers?.[0] || serverUrl;
+            const authServerMetadata =
+              await discoverAuthorizationServerMetadata(authServerUrl);
+
+            const clientInfo = provider.clientInformation();
+            if (!clientInfo) {
+              cleanup();
+              reject(new Error("Client information not found"));
+              return;
+            }
+
+            const codeVerifier = provider.codeVerifier();
+
+            const tokens = await exchangeAuthorization(authServerUrl, {
+              metadata: authServerMetadata,
+              clientInformation: clientInfo,
+              authorizationCode: code,
+              codeVerifier,
+              redirectUri: provider.redirectUrl,
+              resource: new URL(serverUrl),
+            });
+
+            cleanup();
+
+            // Resolve with full result including client info for token refresh
+            resolve({
+              tokens,
+              clientId: clientInfo.client_id ?? null,
+              clientSecret:
+                "client_secret" in clientInfo
+                  ? (clientInfo.client_secret as string)
+                  : null,
+              tokenEndpoint: authServerMetadata?.token_endpoint ?? null,
+            });
+          } catch (err) {
+            cleanup();
+            reject(err);
+          }
+        };
+
+        // Primary: Listen for postMessage from popup
+        const handleMessage = async (event: MessageEvent) => {
+          if (event.origin !== window.location.origin) return;
+          if (event.data?.type === "mcp:oauth:callback") {
+            await processCallback(event.data);
+          }
+        };
+
+        // Fallback: Listen for localStorage events (when window.opener is lost)
+        const handleStorageEvent = async (event: StorageEvent) => {
+          if (event.key !== storageKey || !event.newValue) return;
+          try {
+            const data = JSON.parse(event.newValue);
+            await processCallback(data);
+          } catch {
+            // Ignore parse errors
+          }
+        };
+
+        window.addEventListener("message", handleMessage);
+        window.addEventListener("storage", handleStorageEvent);
+
+        timeoutId = setTimeout(() => {
           cleanup();
-          resolve(tokens);
-        } catch (err) {
-          cleanup();
-          reject(err);
-        }
-      };
-
-      // Primary: Listen for postMessage from popup
-      const handleMessage = async (event: MessageEvent) => {
-        if (event.origin !== window.location.origin) return;
-        if (event.data?.type === "mcp:oauth:callback") {
-          await processCallback(event.data);
-        }
-      };
-
-      // Fallback: Listen for localStorage events (when window.opener is lost)
-      const handleStorageEvent = async (event: StorageEvent) => {
-        if (event.key !== storageKey || !event.newValue) return;
-        try {
-          const data = JSON.parse(event.newValue);
-          await processCallback(data);
-        } catch {
-          // Ignore parse errors
-        }
-      };
-
-      window.addEventListener("message", handleMessage);
-      window.addEventListener("storage", handleStorageEvent);
-
-      timeoutId = setTimeout(() => {
-        cleanup();
-        reject(new Error("OAuth authentication timeout"));
-      }, timeout);
-    });
+          reject(new Error("OAuth authentication timeout"));
+        }, timeout);
+      },
+    );
 
     // Start the auth flow
     const result: AuthResult = await auth(provider, { serverUrl });
 
     if (result === "REDIRECT") {
-      const tokens = await oauthCompletePromise;
+      const fullResult = await oauthCompletePromise;
       return {
-        token: tokens.access_token,
+        token: fullResult.tokens.access_token,
+        tokenInfo: {
+          accessToken: fullResult.tokens.access_token,
+          refreshToken: fullResult.tokens.refresh_token ?? null,
+          expiresIn: fullResult.tokens.expires_in ?? null,
+          scope: fullResult.tokens.scope ?? null,
+          clientId: fullResult.clientId,
+          clientSecret: fullResult.clientSecret,
+          tokenEndpoint: fullResult.tokenEndpoint,
+        },
         error: null,
       };
     }
 
     // If we got here without redirect, check for tokens
     const tokens = provider.tokens();
+    const clientInfo = provider.clientInformation();
     return {
       token: tokens?.access_token || null,
+      tokenInfo: tokens
+        ? {
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token ?? null,
+            expiresIn: tokens.expires_in ?? null,
+            scope: tokens.scope ?? null,
+            clientId: clientInfo?.client_id ?? null,
+            clientSecret:
+              clientInfo && "client_secret" in clientInfo
+                ? (clientInfo.client_secret as string)
+                : null,
+            tokenEndpoint: null, // Would need to be passed through
+          }
+        : null,
       error: null,
     };
   } catch (error) {
     return {
       token: null,
+      tokenInfo: null,
       error: error instanceof Error ? error.message : String(error),
     };
   } finally {
