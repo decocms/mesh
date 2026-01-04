@@ -118,6 +118,17 @@ export class EventBus implements IEventBus {
 
     // Find matching subscriptions and create delivery records
     const subscriptions = await this.storage.getMatchingSubscriptions(event);
+
+    console.log(
+      `[EventBus] Event ${event.type} from ${event.source}: ${subscriptions.length} matching subscriptions`,
+    );
+    if (subscriptions.length > 0) {
+      console.log(
+        `[EventBus] Subscribers:`,
+        subscriptions.map((s) => s.connectionId).join(", "),
+      );
+    }
+
     if (subscriptions.length > 0) {
       // Determine when to deliver:
       // - deliverAt: use specified time
@@ -134,6 +145,9 @@ export class EventBus implements IEventBus {
       // Only notify strategy for immediate delivery (no scheduled time and no cron)
       // Scheduled events will be picked up by the polling worker at the right time
       if (this.notifyStrategy && !deliverAt) {
+        console.log(
+          `[EventBus] Triggering immediate processing for ${event.type}`,
+        );
         await this.notifyStrategy.notify(eventId).catch((error) => {
           console.warn("[EventBus] Notify failed (non-critical):", error);
         });
