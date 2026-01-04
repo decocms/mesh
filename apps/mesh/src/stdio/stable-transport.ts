@@ -344,6 +344,51 @@ async function forceCloseAllStdioConnections(): Promise<void> {
 }
 
 /**
+ * Kill orphaned STDIO processes that might be left from previous Mesh instances.
+ * This handles cases where the connection pool is empty but old processes are still running.
+ */
+async function killOrphanedStdioProcesses(): Promise<void> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  // Patterns for processes spawned by Mesh that might be orphaned
+  // These are common command patterns for STDIO MCPs
+  const patterns = [
+    "mesh-bridge.*server", // Mesh bridge server
+    "pilot.*server/main", // Pilot server
+  ];
+
+  for (const pattern of patterns) {
+    try {
+      // Use pkill with -f to match full command line
+      // -9 for SIGKILL to ensure termination
+      await execAsync(`pkill -9 -f "${pattern}" 2>/dev/null || true`);
+    } catch {
+      // Ignore errors - process might not exist
+    }
+  }
+
+  // Also kill anything listening on port 9999 (Bridge WebSocket)
+  try {
+    const { stdout } = await execAsync(`lsof -t -i:9999 2>/dev/null || true`);
+    const pids = stdout.trim().split("\n").filter(Boolean);
+    for (const pid of pids) {
+      try {
+        process.kill(Number(pid), "SIGKILL");
+        console.log(
+          `[StableStdio] Killed orphaned process on port 9999: PID ${pid}`,
+        );
+      } catch {
+        // Process might already be dead
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+}
+
+/**
  * Force close all connections and clear the pool
  * Used on app startup/HMR to ensure fresh processes with new credentials
  */
@@ -352,6 +397,7 @@ export async function resetStdioConnectionPool(): Promise<void> {
     `[StableStdio] Reset requested. Pool size: ${connectionPool.size}, keys: [${Array.from(connectionPool.keys()).join(", ")}]`,
   );
 
+  // First, close connections we know about in the pool
   if (connectionPool.size > 0) {
     console.log(
       `[StableStdio] Resetting ${connectionPool.size} connections (killing processes)`,
@@ -360,9 +406,11 @@ export async function resetStdioConnectionPool(): Promise<void> {
     console.log(
       `[StableStdio] Reset complete. Pool size: ${connectionPool.size}`,
     );
-  } else {
-    console.log(`[StableStdio] Pool was empty, nothing to reset`);
   }
+
+  // Then, kill any orphaned processes that might be left from previous runs
+  // (handles case where pool was empty but old processes are still running)
+  await killOrphanedStdioProcesses();
 }
 
 // Register shutdown handlers - clean up connections before exit
