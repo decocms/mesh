@@ -9,7 +9,7 @@ import { CpuChip02, Plus, X, Loading01, CornerUpLeft } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Chat, useGateways, useModels, type ModelChangePayload } from "./chat";
 import { toast } from "sonner";
-import { useThreads, useMessageActions } from "../../hooks/use-chat-store";
+import { useThreads } from "../../hooks/use-chat-store";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { useChat } from "../../providers/chat-provider";
@@ -24,7 +24,7 @@ import {
   type GatewayPrompt,
 } from "../../hooks/use-gateway-prompts";
 import { IceBreakers } from "./ice-breakers";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { ErrorBoundary } from "../error-boundary";
 
 // Capybara avatar URL from decopilotAgent
@@ -112,83 +112,30 @@ export function ChatPanel() {
   // Generate dynamic system prompt based on context
   const systemPrompt = useSystemPrompt();
 
-  // Message actions for copying messages to new thread
-  const messageActions = useMessageActions();
-
-  // State for controlled input (when branching)
-  const [inputValue, setInputValue] = useState("");
-
-  // State to track if we're editing from a branch (shows the original message preview)
-  const [branchContext, setBranchContext] = useState<{
-    originalThreadId: string;
-    originalMessageId: string;
-    originalMessageText: string;
-  } | null>(null);
-
   // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
   const chat = usePersistedChat({
     threadId: activeThreadId,
     systemPrompt,
     onCreateThread: (thread) =>
       createThread({ id: thread.id, title: thread.title }),
+    onThreadChange: setActiveThreadId,
   });
 
-  // Handle branching from a specific message
-  const handleBranchFromMessage = async (
-    messageId: string,
-    messageText: string,
-  ) => {
-    // Find the index of the message to branch from
-    const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
-    if (messageIndex === -1) return;
-
-    // Save the original thread context before switching
-    const originalThreadId = activeThreadId;
-
-    // Get messages to copy (before the clicked message, excluding system)
-    const messagesToCopy = chat.messages
-      .slice(0, messageIndex)
-      .filter((m) => m.role !== "system");
-
-    // Create a new thread
-    const newThreadId = crypto.randomUUID();
-
-    // Copy messages to the new thread with new IDs and updated thread_id
-    if (messagesToCopy.length > 0) {
-      const copiedMessages = messagesToCopy.map((msg) => ({
-        ...msg,
-        id: crypto.randomUUID(),
-        metadata: {
-          ...msg.metadata,
-          thread_id: newThreadId,
-          created_at: msg.metadata?.created_at || new Date().toISOString(),
-        },
-      }));
-
-      // Insert copied messages into IndexedDB
-      await messageActions.insertMany.mutateAsync(copiedMessages);
-    }
-
-    // Switch to the new thread
-    setActiveThreadId(newThreadId);
-
-    // Set the message text in the input for editing
-    setInputValue(messageText);
-
-    // Track the original context for the preview (allows navigating back)
-    setBranchContext({
-      originalThreadId,
-      originalMessageId: messageId,
-      originalMessageText: messageText,
-    });
-  };
+  // Destructure branching-related values from the hook
+  const {
+    inputValue,
+    setInputValue,
+    branchContext,
+    clearBranchContext,
+    branchFromMessage,
+  } = chat;
 
   // Handle clicking on the branch preview to go back to original thread
   const handleGoToOriginalMessage = () => {
     if (!branchContext) return;
     setActiveThreadId(branchContext.originalThreadId);
     // Clear the branch context since we're going back
-    setBranchContext(null);
+    clearBranchContext();
     setInputValue("");
   };
 
@@ -197,7 +144,7 @@ export function ChatPanel() {
     setInputValue(value);
     // If user clears the input, clear the editing state
     if (!value.trim()) {
-      setBranchContext(null);
+      clearBranchContext();
     }
   };
 
@@ -223,7 +170,7 @@ export function ChatPanel() {
     };
 
     // Clear editing state after sending
-    setBranchContext(null);
+    clearBranchContext();
 
     await chat.sendMessage(text, metadata);
   };
@@ -402,7 +349,7 @@ export function ChatPanel() {
             messages={chat.messages}
             status={chat.status}
             minHeightOffset={240}
-            onBranchFromMessage={handleBranchFromMessage}
+            onBranchFromMessage={branchFromMessage}
           />
         )}
       </Chat.Main>
@@ -432,7 +379,7 @@ export function ChatPanel() {
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  setBranchContext(null);
+                  clearBranchContext();
                   setInputValue("");
                 }}
                 className="text-muted-foreground hover:text-foreground transition-colors shrink-0"

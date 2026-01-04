@@ -43,7 +43,6 @@ import {
   X,
 } from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
-import { useMessageActions } from "@/web/hooks/use-chat-store";
 
 /**
  * Ice breakers component that uses suspense to fetch gateway prompts
@@ -219,20 +218,17 @@ function AssistantChatPanel({
   const chat = usePersistedChat({
     threadId: activeThreadId,
     systemPrompt: assistant.system_prompt,
+    onThreadChange: setActiveThreadId,
   });
 
-  // Message actions for copying messages to new thread
-  const messageActions = useMessageActions();
-
-  // State for controlled input (when branching)
-  const [inputValue, setInputValue] = useState("");
-
-  // State to track if we're editing from a branch (shows the original message preview)
-  const [branchContext, setBranchContext] = useState<{
-    originalThreadId: string;
-    originalMessageId: string;
-    originalMessageText: string;
-  } | null>(null);
+  // Destructure branching-related values from the hook
+  const {
+    inputValue,
+    setInputValue,
+    branchContext,
+    clearBranchContext,
+    branchFromMessage,
+  } = chat;
 
   // Chat config is valid when gateway and model are both configured
   const hasChatConfig =
@@ -255,7 +251,7 @@ function AssistantChatPanel({
     };
 
     // Clear editing state after sending
-    setBranchContext(null);
+    clearBranchContext();
 
     await chat.sendMessage(text, metadata);
   };
@@ -265,7 +261,7 @@ function AssistantChatPanel({
     setInputValue(value);
     // If user clears the input, clear the editing state
     if (!value.trim()) {
-      setBranchContext(null);
+      clearBranchContext();
     }
   };
 
@@ -274,58 +270,8 @@ function AssistantChatPanel({
     if (!branchContext) return;
     setActiveThreadId(branchContext.originalThreadId);
     // Clear the branch context since we're going back
-    setBranchContext(null);
+    clearBranchContext();
     setInputValue("");
-  };
-
-  // Handle branching from a specific message
-  const handleBranchFromMessage = async (
-    messageId: string,
-    messageText: string,
-  ) => {
-    // Find the index of the message to branch from
-    const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
-    if (messageIndex === -1) return;
-
-    // Save the original thread context before switching
-    const originalThreadId = activeThreadId;
-
-    // Get messages to copy (before the clicked message, excluding system)
-    const messagesToCopy = chat.messages
-      .slice(0, messageIndex)
-      .filter((m) => m.role !== "system");
-
-    // Create a new thread
-    const newThreadId = crypto.randomUUID();
-
-    // Copy messages to the new thread with new IDs and updated thread_id
-    if (messagesToCopy.length > 0) {
-      const copiedMessages = messagesToCopy.map((msg) => ({
-        ...msg,
-        id: crypto.randomUUID(),
-        metadata: {
-          ...msg.metadata,
-          thread_id: newThreadId,
-          created_at: msg.metadata?.created_at || new Date().toISOString(),
-        },
-      }));
-
-      // Insert copied messages into IndexedDB
-      await messageActions.insertMany.mutateAsync(copiedMessages);
-    }
-
-    // Switch to the new thread
-    setActiveThreadId(newThreadId);
-
-    // Set the message text in the input for editing
-    setInputValue(messageText);
-
-    // Track the original context for the preview (allows navigating back)
-    setBranchContext({
-      originalThreadId,
-      originalMessageId: messageId,
-      originalMessageText: messageText,
-    });
   };
 
   const emptyState = (
@@ -413,7 +359,7 @@ function AssistantChatPanel({
               messages={chat.messages}
               status={chat.status}
               minHeightOffset={240}
-              onBranchFromMessage={handleBranchFromMessage}
+              onBranchFromMessage={branchFromMessage}
             />
           )}
         </div>
@@ -451,7 +397,7 @@ function AssistantChatPanel({
                 <span
                   onClick={(e) => {
                     e.stopPropagation();
-                    setBranchContext(null);
+                    clearBranchContext();
                     setInputValue("");
                   }}
                   className="text-muted-foreground hover:text-foreground transition-colors shrink-0"

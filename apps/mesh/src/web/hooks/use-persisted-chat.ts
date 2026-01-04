@@ -7,6 +7,7 @@
 
 import { useChat as useAiChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
+import { useState } from "react";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import {
   getThreadFromIndexedDB,
@@ -36,6 +37,18 @@ const createModelsTransport = (
   });
 
 /**
+ * Context for tracking a branch operation in progress
+ */
+export interface BranchContext {
+  /** The original thread ID before branching */
+  originalThreadId: string;
+  /** The original message ID that was branched from */
+  originalMessageId: string;
+  /** The original message text for editing */
+  originalMessageText: string;
+}
+
+/**
  * Options for the usePersistedChat hook
  */
 export interface UsePersistedChatOptions {
@@ -50,6 +63,8 @@ export interface UsePersistedChatOptions {
   onCreateThread?: (thread: { id: string; title: string }) => void;
   /** Called when an error occurs */
   onError?: (error: Error) => void;
+  /** Called when the active thread changes (for branching) */
+  onThreadChange?: (newThreadId: string) => void;
 }
 
 /**
@@ -69,6 +84,19 @@ export interface PersistedChatResult {
   stop: () => void;
   /** Set messages directly (for reverting, clearing, etc.) */
   setMessages: (messages: ChatMessage[]) => void;
+  /** Controlled input value (for branching) */
+  inputValue: string;
+  /** Set the input value */
+  setInputValue: (value: string) => void;
+  /** Current branch context if branching is in progress */
+  branchContext: BranchContext | null;
+  /** Clear the branch context */
+  clearBranchContext: () => void;
+  /**
+   * Branch from a specific message - creates a new thread with messages
+   * before the specified message, and sets up input for editing.
+   */
+  branchFromMessage: (messageId: string, messageText: string) => Promise<void>;
 }
 
 /**
@@ -86,7 +114,8 @@ export interface PersistedChatResult {
 export function usePersistedChat(
   options: UsePersistedChatOptions,
 ): PersistedChatResult {
-  const { threadId, systemPrompt, onCreateThread, onError } = options;
+  const { threadId, systemPrompt, onCreateThread, onError, onThreadChange } =
+    options;
 
   const {
     org: { slug: orgSlug },
@@ -96,6 +125,14 @@ export function usePersistedChat(
   // Thread and message actions for persistence
   const threadActions = useThreadActions();
   const messageActions = useMessageActions();
+
+  // State for controlled input (for branching)
+  const [inputValue, setInputValue] = useState("");
+
+  // State to track if we're editing from a branch (shows the original message preview)
+  const [branchContext, setBranchContext] = useState<BranchContext | null>(
+    null,
+  );
 
   // Load persisted messages for this thread
   const persistedMessages = useThreadMessages(threadId) as unknown as Message[];
@@ -213,11 +250,68 @@ export function usePersistedChat(
     );
   };
 
+  // Branch from a specific message - creates a new thread with messages
+  // before the specified message, and sets up input for editing.
+  const branchFromMessage = async (messageId: string, messageText: string) => {
+    // Find the index of the message to branch from
+    const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
+    if (messageIndex === -1) return;
+
+    // Save the original thread context before switching
+    const originalThreadId = threadId;
+
+    // Get messages to copy (before the clicked message, excluding system)
+    const messagesToCopy = chat.messages
+      .slice(0, messageIndex)
+      .filter((m) => m.role !== "system");
+
+    // Create a new thread
+    const newThreadId = crypto.randomUUID();
+
+    // Copy messages to the new thread with new IDs and updated thread_id
+    if (messagesToCopy.length > 0) {
+      const copiedMessages = messagesToCopy.map((msg) => ({
+        ...msg,
+        id: crypto.randomUUID(),
+        metadata: {
+          ...msg.metadata,
+          thread_id: newThreadId,
+          created_at: msg.metadata?.created_at || new Date().toISOString(),
+        },
+      }));
+
+      // Insert copied messages into IndexedDB
+      await messageActions.insertMany.mutateAsync(
+        copiedMessages as unknown as Message[],
+      );
+    }
+
+    // Switch to the new thread
+    onThreadChange?.(newThreadId);
+
+    // Set the message text in the input for editing
+    setInputValue(messageText);
+
+    // Track the original context for the preview (allows navigating back)
+    setBranchContext({
+      originalThreadId,
+      originalMessageId: messageId,
+      originalMessageText: messageText,
+    });
+  };
+
+  const clearBranchContext = () => setBranchContext(null);
+
   return {
     messages: chat.messages,
     status: chat.status,
     sendMessage,
     stop: chat.stop.bind(chat),
     setMessages: chat.setMessages,
+    inputValue,
+    setInputValue,
+    branchContext,
+    clearBranchContext,
+    branchFromMessage,
   };
 }
