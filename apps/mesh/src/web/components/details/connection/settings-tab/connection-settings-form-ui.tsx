@@ -23,6 +23,7 @@ import { Container, Globe02, Terminal } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useForm, useWatch } from "react-hook-form";
 import { ConnectionGatewaysSection } from "./connection-gateways-section";
+import { ConnectionPermissionsSection } from "./connection-permissions-section";
 import type { ConnectionFormData } from "./schema";
 
 /**
@@ -334,6 +335,9 @@ export function ConnectionSettingsFormUI({
 
         {/* Connection section */}
         <ConnectionFields form={form} connection={connection} />
+
+        {/* Permissions section - for STDIO/NPX connections */}
+        <ConnectionPermissionsSection form={form} />
 
         {/* Last Updated section */}
         <div className="flex items-center gap-4 p-5 border-b border-border">

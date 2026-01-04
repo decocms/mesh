@@ -351,6 +351,19 @@ async function createMCPProxyDoNotUseDirectly(
   const stdioParams = isStdioParameters(connection.connection_headers)
     ? connection.connection_headers
     : null;
+
+  // Debug: log raw connection_headers for STDIO
+  if (isStdio) {
+    const rawHeaders = connection.connection_headers as Record<string, unknown>;
+    console.log(
+      `[STDIO] ${connection.title} raw connection_headers keys:`,
+      rawHeaders ? Object.keys(rawHeaders) : "null",
+    );
+    if (rawHeaders?.envVars) {
+      const envVarKeys = Object.keys(rawHeaders.envVars as object);
+      console.log(`[STDIO] ${connection.title} envVars keys:`, envVarKeys);
+    }
+  }
   const httpParams = !isStdio
     ? (connection.connection_headers as HttpConnectionParameters | null)
     : null;
@@ -404,6 +417,19 @@ async function createMCPProxyDoNotUseDirectly(
         // Build env with mesh credentials - STDIO servers read MESH_TOKEN/MESH_URL/MESH_STATE
         const meshEnv = await buildStdioEnv();
         const env = { ...stdioParams.envVars, ...meshEnv };
+
+        // Debug: log env vars being passed (excluding sensitive values)
+        const envKeys = Object.keys(env).filter(
+          (k) =>
+            !k.includes("TOKEN") && !k.includes("KEY") && !k.includes("SECRET"),
+        );
+        const sensitiveKeys = Object.keys(env).filter(
+          (k) =>
+            k.includes("TOKEN") || k.includes("KEY") || k.includes("SECRET"),
+        );
+        console.log(
+          `[STDIO] Env for ${connection.title}: ${envKeys.join(", ")} + ${sensitiveKeys.length} secret(s): ${sensitiveKeys.join(", ")}`,
+        );
 
         // Get or create stable connection - respawns automatically if closed
         // We want stable local MCP connection - don't spawn new process per request
