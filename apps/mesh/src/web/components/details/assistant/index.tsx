@@ -15,6 +15,11 @@ import {
 } from "@/web/hooks/use-gateway-prompts";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
+import {
+  ChatInputProvider,
+  BranchPreview,
+  useChatInputState,
+} from "@/web/components/chat/chat-input-context";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -33,15 +38,7 @@ import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { AssistantSchema } from "@decocms/bindings/assistant";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams, useRouter } from "@tanstack/react-router";
-import {
-  CornerUpLeft,
-  Edit05,
-  Loading01,
-  Plus,
-  Upload01,
-  Users02,
-  X,
-} from "@untitledui/icons";
+import { Edit05, Loading01, Plus, Upload01, Users02 } from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
 
 /**
@@ -199,6 +196,41 @@ function AssistantEditForm({ form }: { form: AssistantForm }) {
   );
 }
 
+/**
+ * Isolated input field for assistant - only this component re-renders on keystroke
+ */
+function AssistantInputField({
+  onSubmit,
+  onStop,
+  isStreaming,
+  disabled,
+  usageMessages,
+}: {
+  onSubmit: (text: string) => Promise<void>;
+  onStop: () => void;
+  isStreaming: boolean;
+  disabled: boolean;
+  usageMessages: ReturnType<typeof usePersistedChat>["messages"];
+}) {
+  const { inputValue, handleInputChange, handleSubmit, branchContext } =
+    useChatInputState();
+
+  return (
+    <Chat.Input
+      onSubmit={(text) => handleSubmit(text, onSubmit)}
+      onStop={onStop}
+      disabled={disabled}
+      isStreaming={isStreaming}
+      placeholder={
+        branchContext ? "Edit your message..." : "Ask anything or @ for context"
+      }
+      usageMessages={usageMessages}
+      value={inputValue}
+      onValueChange={handleInputChange}
+    />
+  );
+}
+
 interface AssistantChatPanelProps {
   activeThreadId: string;
   setActiveThreadId: (id: string) => void;
@@ -223,8 +255,7 @@ function AssistantChatPanel({
 
   // Destructure branching-related values from the hook
   const {
-    inputValue,
-    setInputValue,
+    inputController,
     branchContext,
     clearBranchContext,
     branchFromMessage,
@@ -256,22 +287,13 @@ function AssistantChatPanel({
     await chat.sendMessage(text, metadata);
   };
 
-  // Handle input change
-  const handleInputChange = (value: string) => {
-    setInputValue(value);
-    // If user clears the input, clear the editing state
-    if (!value.trim()) {
-      clearBranchContext();
-    }
-  };
-
   // Handle clicking on the branch preview to go back to original thread
   const handleGoToOriginalMessage = () => {
     if (!branchContext) return;
     setActiveThreadId(branchContext.originalThreadId);
     // Clear the branch context since we're going back
     clearBranchContext();
-    setInputValue("");
+    inputController.setValue("");
   };
 
   const emptyState = (
@@ -373,57 +395,25 @@ function AssistantChatPanel({
         )}
       >
         <Chat.Footer>
-          <div className="max-w-2xl mx-auto w-full min-w-0 flex flex-col gap-2">
-            {/* Original message preview when editing from a branch */}
-            {branchContext && (
-              <button
-                type="button"
-                onClick={handleGoToOriginalMessage}
-                className="flex items-start gap-2 px-2 py-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/50 text-sm hover:bg-muted transition-colors cursor-pointer text-left w-full"
-                title="Click to view original message"
-              >
-                <CornerUpLeft
-                  size={14}
-                  className="text-muted-foreground mt-0.5 shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground mb-1">
-                    Editing message (click to view original):
-                  </div>
-                  <div className="text-muted-foreground/70 line-clamp-2">
-                    {branchContext.originalMessageText}
-                  </div>
-                </div>
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    clearBranchContext();
-                    setInputValue("");
-                  }}
-                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                  title="Cancel editing"
-                >
-                  <X size={14} />
-                </span>
-              </button>
-            )}
-            <Chat.Input
-              onSubmit={handleSendMessage}
-              onStop={chat.stop}
-              disabled={!hasChatConfig}
-              isStreaming={
-                chat.status === "submitted" || chat.status === "streaming"
-              }
-              placeholder={
-                branchContext
-                  ? "Edit your message..."
-                  : "Ask anything or @ for context"
-              }
-              usageMessages={chat.messages}
-              value={inputValue}
-              onValueChange={handleInputChange}
-            />
-          </div>
+          <ChatInputProvider
+            inputController={inputController}
+            branchContext={branchContext}
+            clearBranchContext={clearBranchContext}
+            onGoToOriginalMessage={handleGoToOriginalMessage}
+          >
+            <div className="max-w-2xl mx-auto w-full min-w-0 flex flex-col gap-2">
+              <BranchPreview />
+              <AssistantInputField
+                onSubmit={handleSendMessage}
+                onStop={chat.stop}
+                isStreaming={
+                  chat.status === "submitted" || chat.status === "streaming"
+                }
+                disabled={!hasChatConfig}
+                usageMessages={chat.messages}
+              />
+            </div>
+          </ChatInputProvider>
         </Chat.Footer>
       </div>
     </Chat>
