@@ -121,6 +121,18 @@ export const EventSubscribeInputSchema = z.object({
     .max(1000)
     .optional()
     .describe("JSONPath filter expression on event data"),
+
+  /**
+   * Optional: Override the subscriber connection ID.
+   * When calling through a gateway, use this to specify which connection
+   * should receive the events (defaults to the caller's connection ID).
+   */
+  subscriberId: z
+    .string()
+    .optional()
+    .describe(
+      "Override subscriber connection ID (for subscriptions via gateway)",
+    ),
 });
 
 export type EventSubscribeInput = z.infer<typeof EventSubscribeInputSchema>;

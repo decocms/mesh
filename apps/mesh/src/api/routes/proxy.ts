@@ -302,6 +302,10 @@ async function createMCPProxyDoNotUseDirectly(
       env.MESH_URL = meshUrl;
     }
 
+    // Pass the connection ID so STDIO servers can identify themselves
+    // (needed for event bus subscriptions via gateway)
+    env.MESH_CONNECTION_ID = connectionId;
+
     // Pass state as JSON for bindings
     const state = connection.configuration_state;
     if (state && Object.keys(state).length > 0) {
