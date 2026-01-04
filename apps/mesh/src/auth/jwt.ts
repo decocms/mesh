@@ -6,39 +6,51 @@
  * - Verified by downstream services using the shared secret
  *
  * The secret is loaded from MESH_JWT_SECRET environment variable.
- * If not set, a random secret is generated (not persistent across restarts).
+ * If not set, a random secret is generated (persisted via globalThis for HMR).
  */
 
 import { decodeJwt, type JWTPayload, jwtVerify, SignJWT } from "jose";
 import { randomBytes } from "crypto";
 import { authConfig } from "./index";
 
-// JWT signing secret - loaded from env or generated
-let jwtSecret: Uint8Array | null = null;
+// Use globalThis to persist JWT secret across HMR (hot module reload)
+// This prevents tokens from becoming invalid during development
+const JWT_SECRET_KEY = "__mesh_jwt_secret__";
+
+declare global {
+  var __mesh_jwt_secret__: Uint8Array | undefined;
+}
 
 /**
  * Get or generate the JWT signing secret
+ * Uses globalThis to survive HMR reloads in development
  */
 function getSecret(): Uint8Array {
-  if (jwtSecret) {
-    return jwtSecret;
+  // Check globalThis first (survives HMR)
+  if (globalThis[JWT_SECRET_KEY]) {
+    return globalThis[JWT_SECRET_KEY];
   }
 
   const envSecret =
     process.env.MESH_JWT_SECRET ??
     authConfig.jwt?.secret ??
     process.env.BETTER_AUTH_SECRET;
+
+  let secret: Uint8Array;
   if (envSecret) {
-    jwtSecret = new TextEncoder().encode(envSecret);
+    secret = new TextEncoder().encode(envSecret);
   } else {
-    // Generate a random secret - note: not persistent across restarts
+    // Generate a random secret - note: not persistent across full restarts
+    // but will survive HMR reloads via globalThis
     console.warn(
-      "MESH_JWT_SECRET not set - generating random secret (not persistent)",
+      "MESH_JWT_SECRET not set - generating random secret (survives HMR, not full restart)",
     );
-    jwtSecret = new Uint8Array(randomBytes(32));
+    secret = new Uint8Array(randomBytes(32));
   }
 
-  return jwtSecret;
+  // Store in globalThis to survive HMR
+  globalThis[JWT_SECRET_KEY] = secret;
+  return secret;
 }
 
 /**
