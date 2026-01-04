@@ -160,10 +160,16 @@ export class EventBusWorker {
    * Called by the NotifyStrategy when events are available
    */
   async processNow(): Promise<void> {
-    if (!this.running) return;
+    if (!this.running) {
+      console.log("[EventBus] processNow: not running, skipping");
+      return;
+    }
 
     // Prevent concurrent processing
-    if (this.processing) return;
+    if (this.processing) {
+      console.log("[EventBus] processNow: already processing, skipping");
+      return;
+    }
 
     this.processing = true;
     try {
@@ -186,6 +192,8 @@ export class EventBusWorker {
     );
     if (pendingDeliveries.length === 0) return;
 
+    console.log(`[EventBus] Processing ${pendingDeliveries.length} deliveries`);
+
     // Group by subscription (connection)
     const grouped = groupByConnection(pendingDeliveries);
 
@@ -194,10 +202,19 @@ export class EventBusWorker {
 
     for (const [subscriptionId, batch] of grouped) {
       try {
+        console.log(
+          `[EventBus] Delivering ${batch.events.length} events to ${batch.connectionId}`,
+        );
+
         // Call ON_EVENTS on the subscriber connection
         const result = await this.notifySubscriber(
           batch.connectionId,
           batch.events,
+        );
+
+        console.log(
+          `[EventBus] Delivery result for ${batch.connectionId}:`,
+          JSON.stringify(result).slice(0, 200),
         );
 
         // Check if per-event results were provided
