@@ -288,9 +288,10 @@ async function killProcessTree(pid: number): Promise<void> {
 
 /**
  * Force close a stable stdio connection
- * Used for explicit shutdown (e.g., server shutdown)
+ * Used for explicit shutdown (e.g., server shutdown, config changes)
+ * After closing, the next request will spawn a fresh process with new config.
  */
-async function forceCloseStdioConnection(id: string): Promise<void> {
+export async function forceCloseStdioConnection(id: string): Promise<void> {
   const connection = connectionPool.get(id);
   if (!connection) return;
 

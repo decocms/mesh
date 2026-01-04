@@ -175,6 +175,22 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     };
     const connection = await ctx.storage.connections.update(id, updatePayload);
 
+    // Restart STDIO connections to pick up new env vars/config
+    // The stable transport caches processes, so without restart, old env vars would persist
+    if (
+      connection.connection_type === "STDIO" &&
+      (data.connection_headers !== undefined ||
+        data.connection_url !== undefined)
+    ) {
+      const { forceCloseStdioConnection } = await import(
+        "@/stdio/stable-transport"
+      );
+      await forceCloseStdioConnection(id);
+      console.log(
+        `[Update] Restarted STDIO connection ${id} to pick up new config`,
+      );
+    }
+
     // Invoke ON_MCP_CONFIGURATION callback if configuration was updated
     // Ignore errors but await for the response before responding
     if (
