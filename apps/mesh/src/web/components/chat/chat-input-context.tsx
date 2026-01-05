@@ -15,7 +15,7 @@ interface ChatInputContextValue {
 
 const ChatInputContext = createContext<ChatInputContextValue | null>(null);
 
-export function useChatInputContext() {
+function useChatInputContext() {
   const ctx = use(ChatInputContext);
   if (!ctx) {
     throw new Error(
