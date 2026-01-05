@@ -24,5 +24,5 @@ export type JsonSchema = {
  */
 export const BaseCollectionJsonSchema: JsonSchema = z.toJSONSchema(
   BaseCollectionEntitySchema,
-  { target: "draft-07" },
+  { target: "draft-07", unrepresentable: "any" },
 ) as JsonSchema;

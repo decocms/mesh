@@ -58,7 +58,7 @@ const TextPartSchema = z.object({
  * File data can be Uint8Array (as base64 string), base64 encoded string, or URL string
  */
 const DataContentSchema = z
-  .union([z.string(), z.instanceof(Uint8Array)])
+  .string()
   .describe("File data as base64 encoded string, URL string, or Uint8Array");
 
 /**
@@ -336,7 +336,7 @@ export const LanguageModelCallOptionsSchema = z.object({
 
   // Additional options
   headers: z
-    .record(z.string(), z.union([z.string(), z.undefined()]))
+    .record(z.string(), z.string().optional())
     .optional()
     .describe("Additional HTTP headers to be sent with the request"),
   providerOptions: z
@@ -378,14 +378,7 @@ export const LanguageModelGenerateOutputSchema = z.object({
       totalTokens: z.number().optional(),
       reasoningTokens: z.number().optional(),
     })
-    .passthrough()
-    .transform((val) => ({
-      inputTokens: val.inputTokens,
-      outputTokens: val.outputTokens,
-      totalTokens: val.totalTokens,
-      reasoningTokens: val.reasoningTokens,
-      ...val,
-    }))
+    .loose()
     .describe("Usage information for the language model call"),
 
   // Provider metadata
@@ -410,7 +403,7 @@ export const LanguageModelGenerateOutputSchema = z.object({
     .object({
       id: z.string().optional().describe("ID for the generated response"),
       timestamp: z
-        .date()
+        .string()
         .optional()
         .describe("Timestamp for the start of the generated response"),
       modelId: z

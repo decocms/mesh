@@ -153,7 +153,9 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
     tool: {
       name: "GATEWAY_SEARCH_TOOLS",
       description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas.${categoryList} Total tools: ${ctx.tools.length}.`,
-      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+      inputSchema: z.toJSONSchema(inputSchema, {
+        unrepresentable: "any",
+      }) as Tool["inputSchema"],
     },
     handler: async (args) => {
       const parsed = inputSchema.safeParse(args);
@@ -192,7 +194,9 @@ function createDescribeTool(ctx: StrategyContext): ToolWithHandler {
       name: "GATEWAY_DESCRIBE_TOOLS",
       description:
         "Get detailed schemas for specific tools. Call after searching to get full input/output schemas.",
-      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+      inputSchema: z.toJSONSchema(inputSchema, {
+        unrepresentable: "any",
+      }) as Tool["inputSchema"],
     },
     handler: async (args) => {
       const parsed = inputSchema.safeParse(args);
@@ -238,7 +242,9 @@ function createCallTool(ctx: StrategyContext): ToolWithHandler {
       name: "GATEWAY_CALL_TOOL",
       description:
         "Execute a tool by name. Use GATEWAY_DESCRIBE_TOOLS first to understand the input schema.",
-      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+      inputSchema: z.toJSONSchema(inputSchema, {
+        unrepresentable: "any",
+      }) as Tool["inputSchema"],
     },
     handler: async (args) => {
       const parsed = inputSchema.safeParse(args);
@@ -284,7 +290,9 @@ function createRunCodeTool(ctx: StrategyContext): ToolWithHandler {
       name: "GATEWAY_RUN_CODE",
       description:
         'Run JavaScript code in a sandbox. Code must be an ES module that `export default`s an async function that receives (tools) as its first parameter. Use GATEWAY_DESCRIBE_TOOLS to understand the input/output schemas for a tool before calling it. Use `await tools.toolName(args)` or `await tools["tool-name"](args)` to call tools.',
-      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+      inputSchema: z.toJSONSchema(inputSchema, {
+        unrepresentable: "any",
+      }) as Tool["inputSchema"],
     },
     handler: async (args) => {
       const parsed = inputSchema.safeParse(args);
