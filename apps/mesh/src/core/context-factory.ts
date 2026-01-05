@@ -475,11 +475,16 @@ async function authenticateRequest(
       if (meshJwtPayload) {
         // Look up user's organization role for admin/owner bypass
         let role: string | undefined;
-        if (meshJwtPayload.sub) {
+        if (meshJwtPayload.sub && meshJwtPayload.metadata?.organizationId) {
           const membership = await db
             .selectFrom("member")
             .select(["member.role"])
             .where("member.userId", "=", meshJwtPayload.sub)
+            .where(
+              "member.organizationId",
+              "=",
+              meshJwtPayload.metadata.organizationId,
+            )
             .executeTakeFirst();
           role = membership?.role;
         }
@@ -519,11 +524,12 @@ async function authenticateRequest(
 
         // Look up user's organization role for admin/owner bypass
         let role: string | undefined;
-        if (result.key.userId) {
+        if (result.key.userId && orgMetadata?.id) {
           const membership = await db
             .selectFrom("member")
             .select(["member.role"])
             .where("member.userId", "=", result.key.userId)
+            .where("member.organizationId", "=", orgMetadata.id)
             .executeTakeFirst();
           role = membership?.role;
         }
