@@ -536,7 +536,7 @@ export function createApp(options: CreateAppOptions = {}) {
       WellKnownOrgMCPId.SELF(orgId),
       {
         data: await c.req.json(),
-        type: c.req.param("type"),
+        type: `public:${c.req.param("type")}`,
         subject: c.req.query("subject"),
         deliverAt: c.req.query("deliverAt"),
         cron: c.req.query("cron"),
