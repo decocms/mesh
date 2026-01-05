@@ -511,11 +511,14 @@ function OrgMcpsContent() {
       id: "title",
       header: "Name",
       render: (connection) => (
-        <span className="text-sm font-medium text-foreground truncate">
+        <span
+          className="text-sm font-medium text-foreground truncate block"
+          title={connection.title}
+        >
           {connection.title}
         </span>
       ),
-      cellClassName: "w-48 min-w-0 shrink-0",
+      cellClassName: "w-48 max-w-48 min-w-0 shrink-0",
       sortable: true,
     },
     {
