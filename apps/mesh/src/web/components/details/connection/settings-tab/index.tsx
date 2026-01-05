@@ -340,7 +340,7 @@ export function ManualAuthRequiredState({
   );
 }
 
-export function ServerErrorState() {
+function ServerErrorState() {
   return (
     <div className="w-3/5 min-w-0 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4 max-w-md text-center">
