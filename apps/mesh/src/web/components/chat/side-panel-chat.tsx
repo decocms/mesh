@@ -76,7 +76,7 @@ function parseRouteContext(pathname: string): RouteContext {
 /**
  * Hook that generates a dynamic system prompt based on context
  */
-function useSystemPrompt(gatewayId: string): string {
+function useSystemPrompt(gatewayId?: string): string {
   const routerState = useRouterState();
   const { connectionId, collectionName, itemId } = parseRouteContext(
     routerState.location.pathname,
