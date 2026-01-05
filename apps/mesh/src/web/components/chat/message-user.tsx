@@ -16,7 +16,7 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { ChevronDown, ChevronUp, ReverseLeft } from "@untitledui/icons";
+import { ReverseLeft } from "@untitledui/icons";
 import { type UIMessage } from "ai";
 import { useContext, useRef, useState } from "react";
 import { MessageListContext } from "./message-list.tsx";
@@ -38,23 +38,15 @@ export function MessageUser<T extends Metadata>({
 }: MessageProps<T>) {
   const { id, parts } = message;
   const messageRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const messageListContext = useContext(MessageListContext);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [showBranchDialog, setShowBranchDialog] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   // Early return if no parts
   if (!parts || parts.length === 0) {
     return null;
   }
-
-  const totalTextLength = parts.reduce((acc, part) => {
-    if (part.type === "text") {
-      return acc + part.text.length;
-    }
-    return acc;
-  }, 0);
-
-  const isLongMessage = totalTextLength > 60;
 
   // Extract the full text from all text parts
   const messageText = parts
@@ -91,19 +83,22 @@ export function MessageUser<T extends Metadata>({
       >
         <div
           onClick={handleClick}
-          className="w-full border min-w-0 shadow-xs rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-background px-4 py-2 cursor-pointer transition-colors relative overflow-hidden"
+          className="w-full border min-w-0 shadow-xs rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-background cursor-pointer transition-colors relative flex flex-col"
         >
           <div className="absolute inset-0 bg-muted/50 pointer-events-none" />
           <div
+            ref={contentRef}
+            tabIndex={0}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             className={cn(
-              "relative z-10",
-              isLongMessage &&
-                !isExpanded &&
-                "overflow-hidden max-h-[60px] mask-b-from-0%",
-              !isLongMessage && "flex items-center",
+              "relative z-10 px-4 py-2 transition-opacity outline-none max-h-[120px]",
+              isFocused
+                ? "overflow-auto opacity-100"
+                : "overflow-hidden opacity-60 mask-b-from-0%",
             )}
           >
-            <div className={cn(!isLongMessage && "-mb-2")}>
+            <div>
               {parts.map((part, index) => {
                 if (part.type === "text") {
                   return (
@@ -118,42 +113,22 @@ export function MessageUser<T extends Metadata>({
               })}
             </div>
           </div>
-          {isLongMessage && (
-            <div className="flex justify-center relative z-10">
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsExpanded(!isExpanded);
-                }}
-                variant="ghost"
-                size="xs"
-                className="text-xs w-full text-muted-foreground hover:text-foreground"
-              >
-                {isExpanded ? (
-                  <ChevronUp className="text-sm" />
-                ) : (
-                  <ChevronDown className="text-sm" />
-                )}
-              </Button>
-            </div>
-          )}
           {canBranch && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={handleBranchClick}
-                  variant="ghost"
-                  size="xs"
-                  className={cn(
-                    "absolute right-4 z-10 opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground aspect-square w-6 h-6 p-0",
-                    isLongMessage ? "bottom-2" : "top-1/2 -translate-y-1/2",
-                  )}
-                >
-                  <ReverseLeft size={16} className="p-0.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Edit from here</TooltipContent>
-            </Tooltip>
+            <div className="relative z-10 flex justify-end px-2 pb-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleBranchClick}
+                    variant="ghost"
+                    size="xs"
+                    className="opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground aspect-square w-6 h-6 p-0"
+                  >
+                    <ReverseLeft size={16} className="p-0.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Edit from here</TooltipContent>
+              </Tooltip>
+            </div>
           )}
         </div>
       </div>
