@@ -295,7 +295,7 @@ export function useMessageActions() {
       queryClient.invalidateQueries({
         predicate: (query) =>
           Array.isArray(query.queryKey) &&
-          query.queryKey[0] === "threadMessages" &&
+          query.queryKey[0] === "thread-messages" &&
           query.queryKey[1] === locator,
       });
     },

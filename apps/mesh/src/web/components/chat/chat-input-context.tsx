@@ -80,10 +80,20 @@ export function BranchPreview() {
         </div>
       </div>
       <span
+        role="button"
+        tabIndex={0}
         onClick={(e) => {
           e.stopPropagation();
           clearBranchContext();
           inputController.setValue("");
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            clearBranchContext();
+            inputController.setValue("");
+          }
         }}
         className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
         title="Cancel editing"
