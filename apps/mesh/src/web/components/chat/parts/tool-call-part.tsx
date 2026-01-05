@@ -2,7 +2,6 @@ import { AlertCircle, Terminal, ChevronRight } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { ToolOutputRenderer } from "./tool-outputs/tool-output-renderer.tsx";
-import { Spinner } from "@deco/ui/components/spinner.js";
 import { useState } from "react";
 import { JsonSyntaxHighlighter } from "../../json-syntax-highlighter.tsx";
 
@@ -30,12 +29,21 @@ export function ToolCallPart({ part }: ToolCallPartProps) {
             {state === "output-error" ? (
               <AlertCircle className="size-4 text-destructive shrink-0" />
             ) : (
-              <Terminal className="size-4 text-muted-foreground shrink-0" />
+              <Terminal
+                className={cn(
+                  "size-4 text-muted-foreground shrink-0",
+                  (state === "input-streaming" ||
+                    state === "input-available") &&
+                    "shimmer",
+                )}
+              />
             )}
             <span
               className={cn(
                 "text-xs font-medium text-muted-foreground truncate",
                 state === "output-error" && "text-destructive/90",
+                (state === "input-streaming" || state === "input-available") &&
+                  "shimmer",
               )}
             >
               {state === "input-streaming" && `Streaming ${toolName} arguments`}
@@ -45,9 +53,6 @@ export function ToolCallPart({ part }: ToolCallPartProps) {
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {(state === "input-streaming" || state === "input-available") && (
-              <Spinner size="xs" />
-            )}
             <ChevronRight
               className={cn(
                 "size-4 text-muted-foreground transition-transform",

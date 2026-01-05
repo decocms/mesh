@@ -91,29 +91,35 @@ export function MessageUser<T extends Metadata>({
       >
         <div
           onClick={handleClick}
-          className="w-full border min-w-0 shadow-[0_3px_6px_-1px_rgba(0,0,0,0.1)] rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-muted px-4 py-2 cursor-pointer transition-colors"
+          className="w-full border min-w-0 shadow-xs rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-background px-4 py-2 cursor-pointer transition-colors relative overflow-hidden"
         >
+          <div className="absolute inset-0 bg-muted/50 pointer-events-none" />
           <div
             className={cn(
+              "relative z-10",
               isLongMessage &&
                 !isExpanded &&
-                "overflow-hidden relative max-h-[60px]",
+                "overflow-hidden max-h-[60px] mask-b-from-0%",
+              !isLongMessage && "flex items-center",
             )}
           >
-            {parts.map((part, index) => {
-              if (part.type === "text") {
-                return (
-                  <MessageTextPart key={`${id}-${index}`} id={id} part={part} />
-                );
-              }
-              return null;
-            })}
-            {isLongMessage && !isExpanded && (
-              <div className="absolute bottom-0 left-0 right-0 h-12 bg-linear-to-t from-muted to-transparent pointer-events-none" />
-            )}
+            <div className={cn(!isLongMessage && "-mb-2")}>
+              {parts.map((part, index) => {
+                if (part.type === "text") {
+                  return (
+                    <MessageTextPart
+                      key={`${id}-${index}`}
+                      id={id}
+                      part={part}
+                    />
+                  );
+                }
+                return null;
+              })}
+            </div>
           </div>
           {isLongMessage && (
-            <div className="flex justify-center">
+            <div className="flex justify-center relative z-10">
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -132,21 +138,22 @@ export function MessageUser<T extends Metadata>({
             </div>
           )}
           {canBranch && (
-            <div className="flex justify-end">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={handleBranchClick}
-                    variant="ghost"
-                    size="xs"
-                    className="opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground"
-                  >
-                    <ReverseLeft size={16} className="p-0.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Edit from here</TooltipContent>
-              </Tooltip>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleBranchClick}
+                  variant="ghost"
+                  size="xs"
+                  className={cn(
+                    "absolute right-4 z-10 opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground aspect-square w-6 h-6 p-0",
+                    isLongMessage ? "bottom-2" : "top-1/2 -translate-y-1/2",
+                  )}
+                >
+                  <ReverseLeft size={16} className="p-0.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Edit from here</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>

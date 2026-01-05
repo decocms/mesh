@@ -33,7 +33,7 @@ export function DecoChatInputV2({
   isStreaming,
   placeholder = "Ask anything or @ for context",
   className,
-  centered = false,
+  centered: _centered = false,
   contextContent,
   leftActions,
   rightActions,

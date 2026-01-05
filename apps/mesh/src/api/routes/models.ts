@@ -270,14 +270,6 @@ app.post("/:org/models/stream", async (c) => {
       maxOutputTokens,
       abortSignal: c.req.raw.signal,
       stopWhen: stepCountIs(30), // Stop after 30 steps with tool calls
-      experimental_providerOptions: {
-        anthropic: {
-          thinking: {
-            type: "enabled",
-            budget_tokens: 10000,
-          },
-        },
-      },
       onError: async (error) => {
         console.error("[models:stream] Error", error);
         await client.close().catch(console.error);

@@ -5,6 +5,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { LinkExternal01, Copy01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { JsonSyntaxHighlighter } from "@/web/components/json-syntax-highlighter.tsx";
 
 interface ToolOutputRendererProps {
   toolName: string;
@@ -17,7 +18,7 @@ export function ToolOutputRenderer({
   toolName,
   input,
   output,
-  isError,
+  isError: _isError,
 }: ToolOutputRendererProps) {
   const stringifiedOutput = JSON.stringify(output, null, 2);
   const isLargeOutput = stringifiedOutput.length > 2000;
@@ -41,37 +42,35 @@ export function ToolOutputRenderer({
         {connectionId && (
           <ConnectionRenderer connectionId={connectionId} compact />
         )}
-        <div className="relative bg-muted rounded-md p-2 text-xs font-mono overflow-auto max-h-[200px]">
+        <div className="relative bg-muted rounded-md overflow-auto max-h-[200px]">
           <div className="absolute top-1 right-1 z-10">
             <CopyButton text={JSON.stringify(output, null, 2)} />
           </div>
-          <div className="font-semibold text-muted-foreground mb-0.5 text-[10px] uppercase tracking-wider">
+          <div className="font-semibold text-muted-foreground mb-0.5 text-[10px] uppercase tracking-wider px-2 pt-2">
             Input
           </div>
-          <pre className="whitespace-pre-wrap break-all text-muted-foreground mb-2">
-            {JSON.stringify(input, null, 2)}
-          </pre>
-          <div className="font-semibold text-muted-foreground mb-0.5 text-[10px] uppercase tracking-wider">
+          <div className="mb-2">
+            <JsonSyntaxHighlighter
+              jsonString={JSON.stringify(input, null, 2)}
+              padding="0.5rem"
+            />
+          </div>
+          <div className="font-semibold text-muted-foreground mb-0.5 text-[10px] uppercase tracking-wider px-2">
             Output
           </div>
-          <pre
-            className={`whitespace-pre-wrap break-all ${
-              isError ? "text-destructive" : "text-foreground"
-            }`}
-          >
-            {outputContent}
-          </pre>
+          <div>
+            <JsonSyntaxHighlighter
+              jsonString={outputContent}
+              padding="0.5rem"
+            />
+          </div>
         </div>
       </div>
     );
   }
 
   // Default fallback
-  return (
-    <div className="bg-muted rounded-md p-2 text-xs font-mono overflow-auto max-h-[200px]">
-      <pre className="whitespace-pre-wrap break-all">{outputContent}</pre>
-    </div>
-  );
+  return <JsonSyntaxHighlighter jsonString={outputContent} padding="0" />;
 }
 
 function ConnectionRenderer({
