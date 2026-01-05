@@ -15,7 +15,8 @@ import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
 
-// Re-export EventHandlers type for external use
+// Re-export EventHandlers type and SELF constant for external use
+export { SELF } from "./events.ts";
 export type { EventHandlers } from "./events.ts";
 
 export const createRuntimeContext = (prev?: AppContext) => {
@@ -415,10 +416,14 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
               });
               const bus = getEventBus(busProp, input.runtimeContext.env);
               if (events && state && bus) {
+                // Get connectionId for SELF subscriptions
+                const connectionId =
+                  input.runtimeContext.env.MESH_REQUEST_CONTEXT?.connectionId;
                 // Sync subscriptions - always call to handle deletions too
                 const subscriptions = Event.subscriptions(
                   events?.handlers ?? ({} as Record<string, never>),
                   state,
+                  connectionId,
                 );
                 await bus.EVENT_SYNC_SUBSCRIPTIONS({ subscriptions });
               }
@@ -440,11 +445,14 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
               const env = input.runtimeContext.env;
               // Get state from MESH_REQUEST_CONTEXT - this has the binding values
               const state = env.MESH_REQUEST_CONTEXT?.state as z.infer<TSchema>;
+              // Get connectionId for SELF handlers
+              const connectionId = env.MESH_REQUEST_CONTEXT?.connectionId;
               return Event.execute(
                 events.handlers!,
                 input.context.events,
                 env,
                 state,
+                connectionId,
               );
             },
           }),

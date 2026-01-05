@@ -7,6 +7,17 @@ import { z } from "zod";
 import { isBinding } from "./bindings.ts";
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/**
+ * SELF is a well-known property key for event handlers that represents
+ * the current connection. When used, subscriptions are created with the
+ * current connection's ID as the publisher.
+ */
+export const SELF = "SELF" as const;
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -34,12 +45,27 @@ export type BatchHandlerFn<TEnv> = (
 ) => OnEventsOutput | Promise<OnEventsOutput>;
 
 /**
- * Batch handler with explicit event types for subscription
+ * Batch handler with explicit event types for subscription.
+ *
+ * When used as a global handler, events must be prefixed with binding name:
+ * - "SELF::order.created" - subscribe to order.created from current connection
+ * - "DATABASE::record.updated" - subscribe to record.updated from DATABASE binding
+ *
+ * @example
+ * ```ts
+ * {
+ *   handler: async ({ events }, env) => ({ success: true }),
+ *   events: ["SELF::order.created", "DATABASE::record.updated"]
+ * }
+ * ```
  */
 export interface BatchHandler<TEnv> {
   /** Handler function */
   handler: BatchHandlerFn<TEnv>;
-  /** Event types to subscribe to */
+  /**
+   * Event types to subscribe to.
+   * Format: "BINDING::EVENT_TYPE" (e.g., "SELF::order.created")
+   */
   events: string[];
 }
 
@@ -69,11 +95,24 @@ export type CronHandlers<Binding, Env = unknown> = Binding extends {
     }
   : {};
 /**
- * EventHandlers type supports three granularity levels:
+ * Handlers for SELF - the current connection.
+ * SELF handlers can subscribe to any event type, including cron events.
+ */
+export type SelfHandlers<TEnv> =
+  | BatchHandler<TEnv>
+  | (Record<string, PerEventHandler<TEnv>> & {
+      [key in `cron/${string}`]?: (env: TEnv) => Promise<void>;
+    });
+
+/**
+ * EventHandlers type supports four handler formats:
  *
- * @example Global handler with explicit events
+ * @example Global handler with prefixed events (BINDING::EVENT_TYPE)
  * ```ts
- * { handler: (ctx, env) => result, events: ["order.created"] }
+ * {
+ *   handler: (ctx, env) => result,
+ *   events: ["SELF::order.created", "DATABASE::record.updated"]
+ * }
  * ```
  *
  * @example Per-binding batch handler
@@ -85,22 +124,31 @@ export type CronHandlers<Binding, Env = unknown> = Binding extends {
  * ```ts
  * { DATABASE: { "order.created": (ctx, env) => result } }
  * ```
+ *
+ * @example SELF handlers for self-subscription (events from current connection)
+ * ```ts
+ * { SELF: { "order.created": (ctx, env) => result } }
+ * ```
  */
 export type EventHandlers<
   Env = unknown,
   TSchema extends z.ZodTypeAny = never,
 > = [TSchema] extends [never]
-  ? Record<string, never>
+  ? // When no schema, only SELF is available
+    BatchHandler<Env> | { SELF?: SelfHandlers<Env> }
   :
       | BatchHandler<Env> // Global handler with events
-      | {
+      | ({
           [K in keyof z.infer<TSchema> as z.infer<TSchema>[K] extends {
             __type: string;
             value: string;
           }
             ? K
             : never]?: BindingHandlers<Env, z.infer<TSchema>[K]>;
-        };
+        } & {
+          /** SELF: Subscribe to events from the current connection */
+          SELF?: SelfHandlers<Env>;
+        });
 
 /**
  * Extract only the keys from T where the value is a Binding shape.
@@ -151,6 +199,31 @@ const isBatchHandler = <TEnv>(
 // ============================================================================
 
 /**
+ * Event subscription separator - used in global handlers to specify binding
+ * Format: BINDING::EVENT_TYPE (e.g., "SELF::order.created", "DATABASE::record.updated")
+ */
+const EVENT_SEPARATOR = "::" as const;
+
+/**
+ * Parse a prefixed event type into binding and event type
+ * @param prefixedEvent - Event in format "BINDING::EVENT_TYPE"
+ * @returns Tuple of [binding, eventType] or null if not prefixed
+ */
+const parseEventPrefix = (
+  prefixedEvent: string,
+): [binding: string, eventType: string] | null => {
+  const separatorIndex = prefixedEvent.indexOf(EVENT_SEPARATOR);
+  if (separatorIndex === -1) {
+    return null;
+  }
+  const binding = prefixedEvent.substring(0, separatorIndex);
+  const eventType = prefixedEvent.substring(
+    separatorIndex + EVENT_SEPARATOR.length,
+  );
+  return [binding, eventType];
+};
+
+/**
  * Get binding keys from event handlers object
  */
 const getBindingKeys = <TEnv, TSchema extends z.ZodTypeAny>(
@@ -185,39 +258,83 @@ const getEventTypesForBinding = <TEnv, TSchema extends z.ZodTypeAny>(
 };
 
 /**
+ * Resolve a binding name to its publisher (connection ID)
+ * Handles SELF specially by using the current connectionId
+ */
+const resolvePublisher = (
+  binding: string,
+  state: Record<string, unknown>,
+  connectionId?: string,
+): string | null => {
+  if (binding === SELF) {
+    if (!connectionId) {
+      console.warn("[Event] SELF binding used but no connectionId available");
+      return null;
+    }
+    return connectionId;
+  }
+
+  const bindingValue = state[binding];
+  if (!isBinding(bindingValue)) {
+    console.warn(`[Event] Binding "${binding}" not found in state`);
+    return null;
+  }
+  return bindingValue.value;
+};
+
+/**
  * Get subscriptions from event handlers and state
  * Returns flat array of { eventType, publisher } for EVENT_SYNC_SUBSCRIPTIONS
+ *
+ * For global handlers, events must be prefixed with binding name:
+ * - "SELF::order.created" - subscribe to order.created from current connection
+ * - "DATABASE::record.updated" - subscribe to record.updated from DATABASE binding
+ *
+ * @param handlers - Event handlers configuration
+ * @param state - Resolved bindings state (can be unknown when only SELF is used)
+ * @param connectionId - Current connection ID (used for SELF subscriptions)
  */
 const eventsSubscriptions = <TEnv, TSchema extends z.ZodTypeAny = never>(
   handlers: EventHandlers<TEnv, TSchema>,
-  state: z.infer<TSchema>,
+  state: z.infer<TSchema> | Record<string, unknown>,
+  connectionId?: string,
 ): EventSubscription[] => {
+  const stateRecord = state as Record<string, unknown>;
+
   if (isGlobalHandler<TEnv>(handlers)) {
-    // Global handler - subscribe to all bindings with the explicit events
+    // Global handler - events must be prefixed with BINDING::EVENT_TYPE
     const subscriptions: EventSubscription[] = [];
-    for (const [, value] of Object.entries(state as Record<string, unknown>)) {
-      if (isBinding(value)) {
-        for (const eventType of handlers.events) {
-          subscriptions.push({
-            eventType,
-            publisher: value.value,
-          });
-        }
+    for (const prefixedEvent of handlers.events) {
+      const parsed = parseEventPrefix(prefixedEvent);
+      if (!parsed) {
+        console.warn(
+          `[Event] Global handler event "${prefixedEvent}" must be prefixed with BINDING:: (e.g., "SELF::${prefixedEvent}" or "DATABASE::${prefixedEvent}")`,
+        );
+        continue;
       }
+
+      const [binding, eventType] = parsed;
+      const publisher = resolvePublisher(binding, stateRecord, connectionId);
+      if (!publisher) continue;
+
+      subscriptions.push({
+        eventType,
+        publisher,
+      });
     }
     return subscriptions;
   }
 
   const subscriptions: EventSubscription[] = [];
   for (const binding of getBindingKeys(handlers)) {
-    const bindingValue = state[binding as keyof typeof state];
-    if (!isBinding(bindingValue)) continue;
+    const publisher = resolvePublisher(binding, stateRecord, connectionId);
+    if (!publisher) continue;
 
     const eventTypes = getEventTypesForBinding(handlers, binding);
     for (const eventType of eventTypes) {
       subscriptions.push({
         eventType,
-        publisher: bindingValue.value,
+        publisher,
       });
     }
   }
@@ -310,21 +427,55 @@ const mergeResults = (results: OnEventsOutput[]): OnEventsOutput => {
 /**
  * Execute event handlers and return merged result
  *
- * Supports three handler formats:
- * 1. Global: `(context, env) => result` - handles all events
- * 2. Per-binding: `{ BINDING: (context, env) => result }` - handles all events from binding
- * 3. Per-event: `{ BINDING: { "event.type": (context, env) => result } }` - handles specific events
+ * Supports four handler formats:
+ * 1. Global: `{ handler: fn, events: ["SELF::order.created", "DB::record.updated"] }` - prefixed events
+ * 2. Per-binding batch: `{ BINDING: { handler: fn, events: [...] } }` - handles all events from binding
+ * 3. Per-event: `{ BINDING: { "event.type": handler } }` - handles specific events
+ * 4. SELF: `{ SELF: { "event.type": handler } }` - handles events from current connection
+ *
+ * @param handlers - Event handlers configuration
+ * @param events - CloudEvents to process
+ * @param env - Environment
+ * @param state - Resolved bindings state (can be unknown when only SELF is used)
+ * @param connectionId - Current connection ID (used for SELF handlers)
  */
 const executeEventHandlers = async <TEnv, TSchema extends z.ZodTypeAny>(
   handlers: EventHandlers<TEnv, TSchema>,
   events: CloudEvent[],
   env: TEnv,
-  state: z.infer<TSchema>,
+  state: z.infer<TSchema> | Record<string, unknown>,
+  connectionId?: string,
 ): Promise<OnEventsOutput> => {
-  // Case 1: Global handler
+  const stateRecord = state as Record<string, unknown>;
+
+  // Case 1: Global handler with prefixed events
   if (isGlobalHandler<TEnv>(handlers)) {
+    // Build a set of valid (publisher, eventType) pairs from prefixed events
+    const validSubscriptions = new Set<string>();
+    for (const prefixedEvent of handlers.events) {
+      const parsed = parseEventPrefix(prefixedEvent);
+      if (!parsed) continue;
+
+      const [binding, eventType] = parsed;
+      const publisher = resolvePublisher(binding, stateRecord, connectionId);
+      if (!publisher) continue;
+
+      // Create a key for quick lookup: "publisher:eventType"
+      validSubscriptions.add(`${publisher}:${eventType}`);
+    }
+
+    // Filter events to only those that match our subscriptions
+    const matchingEvents = events.filter((event) => {
+      const key = `${event.source}:${event.type}`;
+      return validSubscriptions.has(key);
+    });
+
+    if (matchingEvents.length === 0) {
+      return { success: true };
+    }
+
     try {
-      return await handlers.handler({ events }, env);
+      return await handlers.handler({ events: matchingEvents }, env);
     } catch (error) {
       return {
         success: false,
@@ -336,9 +487,9 @@ const executeEventHandlers = async <TEnv, TSchema extends z.ZodTypeAny>(
   // Build a map from connectionId -> binding key
   const connectionToBinding = new Map<string, string>();
   for (const binding of getBindingKeys(handlers)) {
-    const bindingValue = state[binding as keyof typeof state];
-    if (isBinding(bindingValue)) {
-      connectionToBinding.set(bindingValue.value, binding);
+    const publisher = resolvePublisher(binding, stateRecord, connectionId);
+    if (publisher) {
+      connectionToBinding.set(publisher, binding);
     }
   }
 
