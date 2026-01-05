@@ -495,6 +495,7 @@ async function authenticateRequest(
             connectionId: meshJwtPayload.metadata?.connectionId,
             role,
           },
+          role,
           permissions: meshJwtPayload.permissions,
           organization: meshJwtPayload.metadata?.organizationId
             ? {
@@ -537,6 +538,7 @@ async function authenticateRequest(
         return {
           apiKeyId: result.key.id,
           user: { id: result.key.userId, role }, // Include userId and role from membership
+          role,
           permissions, // Store the API key's permissions
           organization: orgMetadata
             ? {
