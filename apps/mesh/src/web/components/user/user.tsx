@@ -6,7 +6,7 @@
  */
 
 import { Avatar, type AvatarProps } from "@deco/ui/components/avatar.tsx";
-import { useUser } from "../../hooks/use-user";
+import { useUserById } from "../../hooks/use-user";
 
 export interface UserProps {
   /**
@@ -38,7 +38,7 @@ export function User({
   showEmail = false,
   className,
 }: UserProps) {
-  const { data: user, isLoading, isError } = useUser(id);
+  const { data: user, isLoading, isError } = useUserById(id);
 
   // Loading state
   if (isLoading) {

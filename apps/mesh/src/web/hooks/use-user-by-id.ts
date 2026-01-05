@@ -27,7 +27,7 @@ type UserGetOutput = { user: UserData | null };
  * @param userId - The user ID to fetch
  * @returns React Query result with user data
  */
-export function useUser(userId: string) {
+export function useUserById(userId: string) {
   const toolCaller = createToolCaller<{ id: string }, UserGetOutput>();
 
   return useQuery({
