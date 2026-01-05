@@ -389,7 +389,7 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
   configuration: { state: schema, scopes, onChange } = {},
 }: CreateMCPServerOptions<any, TSchema> = {}): CreatedTool[] => {
   const jsonSchema = schema
-    ? z.toJSONSchema(schema)
+    ? z.toJSONSchema(schema, { unrepresentable: "any" })
     : { type: "object", properties: {} };
   const busProp = String(events?.bus ?? "EVENT_BUS");
   return [

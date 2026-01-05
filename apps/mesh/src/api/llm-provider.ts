@@ -134,20 +134,28 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
         modelId,
         supportedUrls,
         doGenerate: async (options: LanguageModelV2CallOptions) => {
-          const response = await binding.LLM_DO_GENERATE({
+          const result = await binding.LLM_DO_GENERATE({
             callOptions: options as Parameters<
               LLMBindingClient["LLM_DO_GENERATE"]
             >[0]["callOptions"],
             modelId,
           });
           return {
-            ...response,
+            ...result,
             usage: {
-              inputTokens: response.usage.inputTokens ?? undefined,
-              outputTokens: response.usage.outputTokens ?? undefined,
-              totalTokens: response.usage.totalTokens ?? undefined,
-              reasoningTokens: response.usage.reasoningTokens ?? undefined,
+              inputTokens: result.usage.inputTokens ?? undefined,
+              outputTokens: result.usage.outputTokens ?? undefined,
+              totalTokens: result.usage.totalTokens ?? undefined,
+              reasoningTokens: result.usage.reasoningTokens ?? undefined,
             },
+            response: result.response
+              ? {
+                  ...result.response,
+                  timestamp: result.response.timestamp
+                    ? new Date(result.response.timestamp)
+                    : undefined,
+                }
+              : undefined,
           };
         },
         doStream: async (options: LanguageModelV2CallOptions) => {

@@ -270,9 +270,11 @@ class McpServerBuilder {
             tools: this.tools.map((t) => ({
               name: t.name,
               description: t.description ?? "",
-              inputSchema: z.toJSONSchema(t.inputSchema),
+              inputSchema: z.toJSONSchema(t.inputSchema, {
+                unrepresentable: "any",
+              }),
               outputSchema: t.outputSchema
-                ? z.toJSONSchema(t.outputSchema)
+                ? z.toJSONSchema(t.outputSchema, { unrepresentable: "any" })
                 : undefined,
             })),
           } as ListToolsResult;
