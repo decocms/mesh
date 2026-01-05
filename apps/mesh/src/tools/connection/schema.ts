@@ -131,6 +131,11 @@ export const ConnectionEntitySchema = z.object({
   bindings: z.array(z.string()).nullable().describe("Detected bindings"),
 
   status: z.enum(["active", "inactive", "error"]).describe("Current status"),
+  folder_id: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Folder ID for organization"),
 });
 
 /**

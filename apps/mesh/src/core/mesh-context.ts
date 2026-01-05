@@ -221,6 +221,7 @@ import type { createMCPProxy } from "@/api/routes/proxy";
 import type { BetterAuthInstance } from "@/auth";
 import type { EventBus } from "../event-bus/interface";
 import type { ConnectionStorage } from "../storage/connection";
+import type { FolderStorage } from "../storage/folder";
 import type { GatewayStorage } from "../storage/gateway";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
@@ -243,6 +244,7 @@ export interface MeshStorage {
   organizationSettings: OrganizationSettingsStorage;
   monitoring: SqlMonitoringStorage;
   gateways: GatewayStorage;
+  folders: FolderStorage;
 }
 
 // ============================================================================

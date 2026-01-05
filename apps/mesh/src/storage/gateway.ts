@@ -31,6 +31,7 @@ type RawGatewayRow = {
   icon: string | null;
   status: "active" | "inactive";
   is_default: number;
+  folder_id: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   created_by: string;
@@ -84,6 +85,7 @@ export class GatewayStorage implements GatewayStoragePort {
             icon: data.icon ?? null,
             status: data.status ?? "active",
             is_default: 1,
+            folder_id: data.folderId ?? null,
             created_at: now,
             updated_at: now,
             created_by: userId,
@@ -136,6 +138,7 @@ export class GatewayStorage implements GatewayStoragePort {
         icon: data.icon ?? null,
         status: data.status ?? "active",
         is_default: 0,
+        folder_id: data.folderId ?? null,
         created_at: now,
         updated_at: now,
         created_by: userId,
@@ -331,6 +334,9 @@ export class GatewayStorage implements GatewayStoragePort {
     }
     if (data.isDefault === true) {
       updateData.is_default = 1;
+    }
+    if (data.folderId !== undefined) {
+      updateData.folder_id = data.folderId;
     }
 
     // If setting as default, handle transactionally to unset old default
@@ -558,6 +564,7 @@ export class GatewayStorage implements GatewayStoragePort {
       icon: row.icon,
       status: row.status,
       isDefault: row.is_default === 1,
+      folderId: row.folder_id,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
       createdBy: row.created_by,

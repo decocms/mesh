@@ -32,6 +32,14 @@ export const KEYS = {
   organizationRoles: (locator: ProjectLocator) =>
     [locator, "organization-roles"] as const,
 
+  // Folders (scoped by org and type)
+  folders: (orgSlug: string, type: "connections" | "gateways") =>
+    ["folders", orgSlug, type] as const,
+
+  // Generic collection key (for invalidation)
+  collection: (orgSlug: string, collectionName: string) =>
+    ["collection-list", orgSlug, collectionName] as const,
+
   // Connections (scoped by project)
   connections: (locator: ProjectLocator) => [locator, "connections"] as const,
   connectionsByBinding: (locator: ProjectLocator, binding: string) =>

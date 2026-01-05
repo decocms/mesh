@@ -22,6 +22,7 @@ export type ToolCategory =
   | "Organizations"
   | "Connections"
   | "Gateways"
+  | "Folders"
   | "Monitoring"
   | "API Keys"
   | "Event Bus";
@@ -55,6 +56,12 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_GATEWAY_GET",
   "COLLECTION_GATEWAY_UPDATE",
   "COLLECTION_GATEWAY_DELETE",
+  // Folder tools
+  "FOLDER_CREATE",
+  "FOLDER_LIST",
+  "FOLDER_GET",
+  "FOLDER_UPDATE",
+  "FOLDER_DELETE",
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
@@ -237,6 +244,33 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Gateways",
     dangerous: true,
   },
+  // Folder tools
+  {
+    name: "FOLDER_CREATE",
+    description: "Create folders",
+    category: "Folders",
+  },
+  {
+    name: "FOLDER_LIST",
+    description: "List folders",
+    category: "Folders",
+  },
+  {
+    name: "FOLDER_GET",
+    description: "View folder details",
+    category: "Folders",
+  },
+  {
+    name: "FOLDER_UPDATE",
+    description: "Update folders",
+    category: "Folders",
+  },
+  {
+    name: "FOLDER_DELETE",
+    description: "Delete folders",
+    category: "Folders",
+    dangerous: true,
+  },
   // Monitoring tools
   {
     name: "MONITORING_LOGS_LIST",
@@ -334,6 +368,11 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_GATEWAY_GET: "View gateway details",
   COLLECTION_GATEWAY_UPDATE: "Update gateways",
   COLLECTION_GATEWAY_DELETE: "Delete gateways",
+  FOLDER_CREATE: "Create folders",
+  FOLDER_LIST: "List folders",
+  FOLDER_GET: "View folder details",
+  FOLDER_UPDATE: "Update folders",
+  FOLDER_DELETE: "Delete folders",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
   API_KEY_CREATE: "Create API key",
@@ -361,6 +400,7 @@ export function getToolsByCategory() {
     Organizations: [],
     Connections: [],
     Gateways: [],
+    Folders: [],
     Monitoring: [],
     "API Keys": [],
     "Event Bus": [],

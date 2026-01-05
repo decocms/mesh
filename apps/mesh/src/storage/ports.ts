@@ -7,6 +7,7 @@
 
 import type { ConnectionEntity } from "../tools/connection/schema";
 import type {
+  Folder,
   Gateway,
   GatewayWithConnections,
   MonitoringLog,
@@ -87,6 +88,7 @@ export interface GatewayCreateData {
   icon?: string | null;
   status?: Gateway["status"];
   isDefault?: boolean;
+  folderId?: string | null;
   connections: Array<{
     connectionId: string;
     selectedTools?: string[] | null;
@@ -106,6 +108,7 @@ export interface GatewayUpdateData {
   icon?: string | null;
   status?: Gateway["status"];
   isDefault?: boolean;
+  folderId?: string | null;
   connections?: Array<{
     connectionId: string;
     selectedTools?: string[] | null;
@@ -140,4 +143,45 @@ export interface GatewayStoragePort {
     gatewayId: string,
     userId: string,
   ): Promise<GatewayWithConnections>;
+}
+
+// ============================================================================
+// Folder Storage Port
+// ============================================================================
+
+import type { FolderType } from "./types";
+
+/**
+ * Data for creating a folder
+ */
+export interface FolderCreateData {
+  type: FolderType;
+  title: string;
+  description?: string | null;
+  icon?: string | null;
+  color?: string | null;
+  sortOrder?: number;
+}
+
+/**
+ * Data for updating a folder
+ */
+export interface FolderUpdateData {
+  title?: string;
+  description?: string | null;
+  icon?: string | null;
+  color?: string | null;
+  sortOrder?: number;
+}
+
+export interface FolderStoragePort {
+  create(
+    organizationId: string,
+    userId: string,
+    data: FolderCreateData,
+  ): Promise<Folder>;
+  findById(id: string): Promise<Folder | null>;
+  list(organizationId: string, type: FolderType): Promise<Folder[]>;
+  update(id: string, data: FolderUpdateData): Promise<Folder>;
+  delete(id: string): Promise<void>;
 }

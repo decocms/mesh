@@ -6,11 +6,13 @@ import { CollectionTableWrapper } from "@/web/components/collections/collection-
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { FolderSidebar } from "@/web/components/folder-sidebar.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   useConnections,
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
+import { useFolders } from "@/web/hooks/collections/use-folder";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -39,6 +41,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import {
@@ -57,6 +63,8 @@ import {
   Container,
   Terminal,
   Globe02,
+  Folder,
+  FolderMinus,
 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
@@ -69,7 +77,7 @@ import {
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Suspense, useEffect, useReducer } from "react";
+import { Suspense, useEffect, useReducer, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { authClient } from "@/web/lib/auth-client";
@@ -251,6 +259,10 @@ function OrgMcpsContent() {
   const { data: session } = authClient.useSession();
   const { stdioEnabled } = useAuthConfig();
 
+  // Folder state
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const { data: folders } = useFolders("connections");
+
   // Consolidated list UI state (search, filters, sorting, view mode)
   const listState = useListState<ConnectionEntity>({
     namespace: org.slug,
@@ -258,7 +270,12 @@ function OrgMcpsContent() {
   });
 
   const actions = useConnectionActions();
-  const connections = useConnections(listState);
+  const allConnections = useConnections(listState);
+
+  // Filter connections by folder
+  const connections = selectedFolderId
+    ? allConnections.filter((c) => c.folder_id === selectedFolderId)
+    : allConnections;
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 
@@ -491,6 +508,17 @@ function OrgMcpsContent() {
     }
   };
 
+  // Helper to move connection to folder
+  const moveToFolder = async (
+    connectionId: string,
+    folderId: string | null,
+  ) => {
+    await actions.update.mutateAsync({
+      id: connectionId,
+      data: { folder_id: folderId },
+    });
+  };
+
   const columns: TableColumn<ConnectionEntity>[] = [
     {
       id: "icon",
@@ -592,6 +620,44 @@ function OrgMcpsContent() {
               <Eye size={16} />
               Inspect
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {connection.folder_id ? (
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  moveToFolder(connection.id, null);
+                }}
+              >
+                <FolderMinus size={16} />
+                Remove from folder
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()}>
+                <Folder size={16} />
+                Move to folder
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {folders.length === 0 ? (
+                  <DropdownMenuItem disabled>No folders yet</DropdownMenuItem>
+                ) : (
+                  folders.map((folder) => (
+                    <DropdownMenuItem
+                      key={folder.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveToFolder(connection.id, folder.id);
+                      }}
+                      disabled={connection.folder_id === folder.id}
+                    >
+                      <Folder size={14} />
+                      {folder.title}
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
               onClick={(e) => {
@@ -633,513 +699,591 @@ function OrgMcpsContent() {
 
   return (
     <CollectionPage>
-      <Dialog
-        open={isCreating || dialogState.mode === "editing"}
-        onOpenChange={handleDialogClose}
-      >
-        <DialogContent className="sm:max-w-[525px]">
-          <DialogHeader>
-            <DialogTitle>
-              {editingConnection ? "Edit Connection" : "Create New Connection"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingConnection
-                ? "Update the connection details below."
-                : "Add a new connection to your organization. Fill in the details below."}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-              <div className="grid gap-4 py-4">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="My Connection" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+      {/* Folder Sidebar */}
+      <div className="flex h-full">
+        <div className="w-56 shrink-0 border-r border-border p-3 overflow-auto">
+          <FolderSidebar
+            type="connections"
+            items={allConnections}
+            selectedFolderId={selectedFolderId}
+            onSelectFolder={setSelectedFolderId}
+            onItemClick={(connection) =>
+              navigate({
+                to: "/$org/mcps/$connectionId",
+                params: { org: org.slug, connectionId: connection.id },
+              })
+            }
+            renderItemIcon={(connection) => (
+              <IntegrationIcon
+                icon={connection.icon}
+                name={connection.title}
+                size="xs"
+                className="shrink-0"
+                fallbackIcon={<Container />}
+              />
+            )}
+          />
+        </div>
 
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="A brief description of this connection"
-                          rows={3}
-                          {...field}
-                          value={field.value ?? ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+        <div className="flex-1 flex flex-col min-w-0">
+          <Dialog
+            open={isCreating || dialogState.mode === "editing"}
+            onOpenChange={handleDialogClose}
+          >
+            <DialogContent className="sm:max-w-[525px]">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingConnection
+                    ? "Edit Connection"
+                    : "Create New Connection"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingConnection
+                    ? "Update the connection details below."
+                    : "Add a new connection to your organization. Fill in the details below."}
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)}>
+                  <div className="grid gap-4 py-4">
+                    <FormField
+                      control={form.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="My Connection" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name="ui_type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type *</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="HTTP">
-                            <span className="flex items-center gap-2">
-                              <Globe02 className="w-4 h-4" />
-                              HTTP
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="SSE">
-                            <span className="flex items-center gap-2">
-                              <Globe02 className="w-4 h-4" />
-                              SSE
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="Websocket">
-                            <span className="flex items-center gap-2">
-                              <Globe02 className="w-4 h-4" />
-                              Websocket
-                            </span>
-                          </SelectItem>
-                          {stdioEnabled && (
-                            <>
-                              <SelectItem value="NPX">
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="A brief description of this connection"
+                              rows={3}
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="ui_type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Type *</FormLabel>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="HTTP">
                                 <span className="flex items-center gap-2">
-                                  <Container className="w-4 h-4" />
-                                  NPX Package
+                                  <Globe02 className="w-4 h-4" />
+                                  HTTP
                                 </span>
                               </SelectItem>
-                              <SelectItem value="STDIO">
+                              <SelectItem value="SSE">
                                 <span className="flex items-center gap-2">
-                                  <Terminal className="w-4 h-4" />
-                                  Custom Command
+                                  <Globe02 className="w-4 h-4" />
+                                  SSE
                                 </span>
                               </SelectItem>
-                            </>
+                              <SelectItem value="Websocket">
+                                <span className="flex items-center gap-2">
+                                  <Globe02 className="w-4 h-4" />
+                                  Websocket
+                                </span>
+                              </SelectItem>
+                              {stdioEnabled && (
+                                <>
+                                  <SelectItem value="NPX">
+                                    <span className="flex items-center gap-2">
+                                      <Container className="w-4 h-4" />
+                                      NPX Package
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="STDIO">
+                                    <span className="flex items-center gap-2">
+                                      <Terminal className="w-4 h-4" />
+                                      Custom Command
+                                    </span>
+                                  </SelectItem>
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* NPX-specific fields */}
+                    {uiType === "NPX" && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="npx_package"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>NPM Package *</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="@perplexity-ai/mcp-server"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <p className="text-xs text-muted-foreground">
+                                The npm package to run with npx
+                              </p>
+                              <FormMessage />
+                            </FormItem>
                           )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* NPX-specific fields */}
-                {uiType === "NPX" && (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="npx_package"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>NPM Package *</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="@perplexity-ai/mcp-server"
-                              {...field}
-                              value={field.value ?? ""}
-                            />
-                          </FormControl>
-                          <p className="text-xs text-muted-foreground">
-                            The npm package to run with npx
-                          </p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                )}
-
-                {/* STDIO/Custom Command fields */}
-                {uiType === "STDIO" && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4 items-start">
-                      <FormField
-                        control={form.control}
-                        name="stdio_command"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Command *</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="node, bun, python..."
-                                {...field}
-                                value={field.value ?? ""}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="stdio_args"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Arguments</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="arg1 arg2 --flag value"
-                                {...field}
-                                value={field.value ?? ""}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="stdio_cwd"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Working Directory</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="/path/to/project (optional)"
-                              {...field}
-                              value={field.value ?? ""}
-                            />
-                          </FormControl>
-                          <p className="text-xs text-muted-foreground">
-                            Directory where the command will be executed
-                          </p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                )}
-
-                {/* Shared: Environment Variables for NPX and STDIO */}
-                {(uiType === "NPX" || uiType === "STDIO") && (
-                  <FormField
-                    control={form.control}
-                    name="env_vars"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Environment Variables</FormLabel>
-                        <FormControl>
-                          <EnvVarsEditor
-                            value={field.value ?? []}
-                            onChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                        />
+                      </>
                     )}
-                  />
-                )}
 
-                {/* HTTP/SSE/Websocket fields */}
-                {uiType !== "NPX" && uiType !== "STDIO" && (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="connection_url"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>URL *</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="https://example.com/mcp"
-                              {...field}
-                              value={field.value ?? ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {/* STDIO/Custom Command fields */}
+                    {uiType === "STDIO" && (
+                      <>
+                        <div className="grid grid-cols-2 gap-4 items-start">
+                          <FormField
+                            control={form.control}
+                            name="stdio_command"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Command *</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="node, bun, python..."
+                                    {...field}
+                                    value={field.value ?? ""}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
-                    <FormField
-                      control={form.control}
-                      name="connection_token"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Token (optional)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="password"
-                              placeholder="Bearer token or API key"
-                              {...field}
-                              value={field.value ?? ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                )}
-              </div>
+                          <FormField
+                            control={form.control}
+                            name="stdio_args"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Arguments</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="arg1 arg2 --flag value"
+                                    {...field}
+                                    value={field.value ?? ""}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
 
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleDialogClose(false)}
+                        <FormField
+                          control={form.control}
+                          name="stdio_cwd"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Working Directory</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="/path/to/project (optional)"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <p className="text-xs text-muted-foreground">
+                                Directory where the command will be executed
+                              </p>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+
+                    {/* Shared: Environment Variables for NPX and STDIO */}
+                    {(uiType === "NPX" || uiType === "STDIO") && (
+                      <FormField
+                        control={form.control}
+                        name="env_vars"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Environment Variables</FormLabel>
+                            <FormControl>
+                              <EnvVarsEditor
+                                value={field.value ?? []}
+                                onChange={field.onChange}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    {/* HTTP/SSE/Websocket fields */}
+                    {uiType !== "NPX" && uiType !== "STDIO" && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="connection_url"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>URL *</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="https://example.com/mcp"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="connection_token"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Token (optional)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="password"
+                                  placeholder="Bearer token or API key"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+                  </div>
+
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleDialogClose(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={form.formState.isSubmitting}
+                      className="min-w-40"
+                    >
+                      {form.formState.isSubmitting
+                        ? "Saving..."
+                        : editingConnection
+                          ? "Update Connection"
+                          : "Create Connection"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Confirmation Dialog */}
+          <AlertDialog
+            open={dialogState.mode === "deleting"}
+            onOpenChange={(open) => !open && dispatch({ type: "close" })}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Connection?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete{" "}
+                  <span className="font-medium text-foreground">
+                    {dialogState.mode === "deleting" &&
+                      dialogState.connection.title}
+                  </span>
+                  .
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={form.formState.isSubmitting}
-                  className="min-w-40"
-                >
-                  {form.formState.isSubmitting
-                    ? "Saving..."
-                    : editingConnection
-                      ? "Update Connection"
-                      : "Create Connection"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        open={dialogState.mode === "deleting"}
-        onOpenChange={(open) => !open && dispatch({ type: "close" })}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Connection?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete{" "}
-              <span className="font-medium text-foreground">
-                {dialogState.mode === "deleting" &&
-                  dialogState.connection.title}
-              </span>
-              .
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          {/* Collection Header */}
+          <CollectionHeader
+            title="MCP Servers"
+            viewMode={listState.viewMode}
+            onViewModeChange={listState.setViewMode}
+            sortKey={listState.sortKey}
+            sortDirection={listState.sortDirection}
+            onSort={listState.handleSort}
+            sortOptions={[
+              { id: "title", label: "Name" },
+              { id: "description", label: "Description" },
+              { id: "connection_type", label: "Type" },
+              { id: "status", label: "Status" },
+            ]}
+            ctaButton={ctaButton}
+          />
 
-      {/* Collection Header */}
-      <CollectionHeader
-        title="MCP Servers"
-        viewMode={listState.viewMode}
-        onViewModeChange={listState.setViewMode}
-        sortKey={listState.sortKey}
-        sortDirection={listState.sortDirection}
-        onSort={listState.handleSort}
-        sortOptions={[
-          { id: "title", label: "Name" },
-          { id: "description", label: "Description" },
-          { id: "connection_type", label: "Type" },
-          { id: "status", label: "Status" },
-        ]}
-        ctaButton={ctaButton}
-      />
+          {/* Search Bar */}
+          <CollectionSearch
+            value={listState.search}
+            onChange={listState.setSearch}
+            placeholder="Search for an MCP Server..."
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                listState.setSearch("");
+                (event.target as HTMLInputElement).blur();
+              }
+            }}
+          />
 
-      {/* Search Bar */}
-      <CollectionSearch
-        value={listState.search}
-        onChange={listState.setSearch}
-        placeholder="Search for an MCP Server..."
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            listState.setSearch("");
-            (event.target as HTMLInputElement).blur();
-          }
-        }}
-      />
-
-      {/* Content: Cards or Table */}
-      {listState.viewMode === "cards" ? (
-        <div className="flex-1 overflow-auto p-5">
-          {connections.length === 0 ? (
-            <EmptyState
-              image={
-                <img
-                  src="/emptystate-mcp.svg"
-                  alt=""
-                  width={336}
-                  height={320}
-                  aria-hidden="true"
+          {/* Content: Cards or Table */}
+          {listState.viewMode === "cards" ? (
+            <div className="flex-1 overflow-auto p-5">
+              {connections.length === 0 ? (
+                <EmptyState
+                  image={
+                    <img
+                      src="/emptystate-mcp.svg"
+                      alt=""
+                      width={336}
+                      height={320}
+                      aria-hidden="true"
+                    />
+                  }
+                  title={
+                    listState.search
+                      ? "No MCP Servers found"
+                      : "No MCP Servers found"
+                  }
+                  description={
+                    listState.search
+                      ? `No MCP Servers match "${listState.search}"`
+                      : "Create a connection to get started."
+                  }
+                  actions={
+                    !listState.search && (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          navigate({
+                            to: "/$org/store",
+                            params: { org: org.slug },
+                          })
+                        }
+                      >
+                        Browse Store
+                      </Button>
+                    )
+                  }
                 />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {connections.map((connection) => (
+                    <ConnectionCard
+                      key={connection.id}
+                      connection={connection}
+                      fallbackIcon={<Container />}
+                      onClick={() =>
+                        navigate({
+                          to: "/$org/mcps/$connectionId",
+                          params: {
+                            org: org.slug,
+                            connectionId: connection.id,
+                          },
+                        })
+                      }
+                      headerActions={
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <DotsVertical size={20} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate({
+                                  to: "/$org/mcps/$connectionId",
+                                  params: {
+                                    org: org.slug,
+                                    connectionId: connection.id,
+                                  },
+                                });
+                              }}
+                            >
+                              <Eye size={16} />
+                              Inspect
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {connection.folder_id ? (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  moveToFolder(connection.id, null);
+                                }}
+                              >
+                                <FolderMinus size={16} />
+                                Remove from folder
+                              </DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Folder size={16} />
+                                Move to folder
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                {folders.length === 0 ? (
+                                  <DropdownMenuItem disabled>
+                                    No folders yet
+                                  </DropdownMenuItem>
+                                ) : (
+                                  folders.map((folder) => (
+                                    <DropdownMenuItem
+                                      key={folder.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        moveToFolder(connection.id, folder.id);
+                                      }}
+                                      disabled={
+                                        connection.folder_id === folder.id
+                                      }
+                                    >
+                                      <Folder size={14} />
+                                      {folder.title}
+                                    </DropdownMenuItem>
+                                  ))
+                                )}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                dispatch({ type: "delete", connection });
+                              }}
+                            >
+                              <Trash01 size={16} />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <CollectionTableWrapper
+              columns={columns}
+              data={connections}
+              isLoading={false}
+              sortKey={listState.sortKey}
+              sortDirection={listState.sortDirection}
+              onSort={listState.handleSort}
+              onRowClick={(connection) =>
+                navigate({
+                  to: "/$org/mcps/$connectionId",
+                  params: { org: org.slug, connectionId: connection.id },
+                })
               }
-              title={
-                listState.search
-                  ? "No MCP Servers found"
-                  : "No MCP Servers found"
-              }
-              description={
-                listState.search
-                  ? `No MCP Servers match "${listState.search}"`
-                  : "Create a connection to get started."
-              }
-              actions={
-                !listState.search && (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      navigate({
-                        to: "/$org/store",
-                        params: { org: org.slug },
-                      })
+              emptyState={
+                listState.search ? (
+                  <EmptyState
+                    image={
+                      <img
+                        src="/emptystate-mcp.svg"
+                        alt=""
+                        width={400}
+                        height={178}
+                        aria-hidden="true"
+                      />
                     }
-                  >
-                    Browse Store
-                  </Button>
+                    title="No MCP Servers found"
+                    description={`No MCP Servers match "${listState.search}"`}
+                  />
+                ) : (
+                  <EmptyState
+                    image={
+                      <img
+                        src="/emptystate-mcp.svg"
+                        alt=""
+                        width={400}
+                        height={178}
+                        aria-hidden="true"
+                      />
+                    }
+                    title="No MCP Servers found"
+                    description="Create a connection to get started."
+                    actions={
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          navigate({
+                            to: "/$org/store",
+                            params: { org: org.slug },
+                          })
+                        }
+                      >
+                        Browse Store
+                      </Button>
+                    }
+                  />
                 )
               }
             />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {connections.map((connection) => (
-                <ConnectionCard
-                  key={connection.id}
-                  connection={connection}
-                  fallbackIcon={<Container />}
-                  onClick={() =>
-                    navigate({
-                      to: "/$org/mcps/$connectionId",
-                      params: { org: org.slug, connectionId: connection.id },
-                    })
-                  }
-                  headerActions={
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <DotsVertical size={20} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate({
-                              to: "/$org/mcps/$connectionId",
-                              params: {
-                                org: org.slug,
-                                connectionId: connection.id,
-                              },
-                            });
-                          }}
-                        >
-                          <Eye size={16} />
-                          Inspect
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            dispatch({ type: "delete", connection });
-                          }}
-                        >
-                          <Trash01 size={16} />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  }
-                />
-              ))}
-            </div>
           )}
         </div>
-      ) : (
-        <CollectionTableWrapper
-          columns={columns}
-          data={connections}
-          isLoading={false}
-          sortKey={listState.sortKey}
-          sortDirection={listState.sortDirection}
-          onSort={listState.handleSort}
-          onRowClick={(connection) =>
-            navigate({
-              to: "/$org/mcps/$connectionId",
-              params: { org: org.slug, connectionId: connection.id },
-            })
-          }
-          emptyState={
-            listState.search ? (
-              <EmptyState
-                image={
-                  <img
-                    src="/emptystate-mcp.svg"
-                    alt=""
-                    width={400}
-                    height={178}
-                    aria-hidden="true"
-                  />
-                }
-                title="No MCP Servers found"
-                description={`No MCP Servers match "${listState.search}"`}
-              />
-            ) : (
-              <EmptyState
-                image={
-                  <img
-                    src="/emptystate-mcp.svg"
-                    alt=""
-                    width={400}
-                    height={178}
-                    aria-hidden="true"
-                  />
-                }
-                title="No MCP Servers found"
-                description="Create a connection to get started."
-                actions={
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      navigate({
-                        to: "/$org/store",
-                        params: { org: org.slug },
-                      })
-                    }
-                  >
-                    Browse Store
-                  </Button>
-                }
-              />
-            )
-          }
-        />
-      )}
+      </div>
     </CollectionPage>
   );
 }

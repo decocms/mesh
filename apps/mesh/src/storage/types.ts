@@ -148,6 +148,7 @@ export interface MCPConnectionTable {
   bindings: JsonArray<string[]> | null; // Detected bindings (CHAT, EMAIL, etc.)
 
   status: "active" | "inactive" | "error";
+  folder_id: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -525,6 +526,47 @@ export interface EventDelivery {
 }
 
 // ============================================================================
+// Folder Table Definitions
+// ============================================================================
+
+/**
+ * Folder table definition
+ * Folders can contain connections and/or gateways for organization
+ */
+export type FolderType = "connections" | "gateways";
+
+export interface FolderTable {
+  id: string;
+  organization_id: string;
+  type: FolderType;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  color: string | null;
+  sort_order: number;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+  created_by: string;
+}
+
+/**
+ * Folder entity - Runtime representation
+ */
+export interface Folder {
+  id: string;
+  organizationId: string;
+  type: FolderType;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  color: string | null;
+  sortOrder: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  createdBy: string;
+}
+
+// ============================================================================
 // Gateway Table Definitions
 // ============================================================================
 
@@ -560,6 +602,7 @@ export interface GatewayTable {
   icon: string | null;
   status: "active" | "inactive";
   is_default: number; // SQLite uses INTEGER for boolean (0 = false, 1 = true)
+  folder_id: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string;
@@ -579,6 +622,7 @@ export interface Gateway {
   icon: string | null;
   status: "active" | "inactive";
   isDefault: boolean;
+  folderId: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
   createdBy: string;
@@ -658,4 +702,7 @@ export interface Database {
   // Gateway tables
   gateways: GatewayTable;
   gateway_connections: GatewayConnectionTable;
+
+  // Folder tables
+  folders: FolderTable;
 }

@@ -96,6 +96,13 @@ export const GatewayEntitySchema = z.object({
     .boolean()
     .describe("Whether this is the default gateway for the organization"),
 
+  // Folder organization
+  folder_id: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Folder ID for organization"),
+
   // Nested connections
   connections: z
     .array(GatewayConnectionSchema)
@@ -136,6 +143,11 @@ export const GatewayCreateDataSchema = z.object({
     .optional()
     .default(false)
     .describe("Whether this is the default gateway for the organization"),
+  folder_id: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Folder ID for organization"),
   connections: z
     .array(
       z.object({
@@ -197,6 +209,11 @@ export const GatewayUpdateDataSchema = z.object({
     .boolean()
     .optional()
     .describe("Set as default gateway for the organization"),
+  folder_id: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Folder ID for organization (null to remove from folder)"),
   connections: z
     .array(
       z.object({

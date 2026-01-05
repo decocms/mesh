@@ -50,6 +50,7 @@ type RawConnectionRow = {
   tools: string | ToolDefinition[] | null;
   bindings: string | string[] | null;
   status: "active" | "inactive" | "error";
+  folder_id: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -346,6 +347,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
       tools: parseJson<ToolDefinition[]>(row.tools),
       bindings: parseJson<string[]>(row.bindings),
       status: row.status,
+      folder_id: row.folder_id,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
     };

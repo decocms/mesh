@@ -11,6 +11,7 @@ import * as ApiKeyTools from "./apiKeys";
 import * as ConnectionTools from "./connection";
 import * as DatabaseTools from "./database";
 import * as EventBusTools from "./eventbus";
+import * as FolderTools from "./folder";
 import * as GatewayTools from "./gateway";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
@@ -44,6 +45,13 @@ export const ALL_TOOLS = [
   GatewayTools.COLLECTION_GATEWAY_GET,
   GatewayTools.COLLECTION_GATEWAY_UPDATE,
   GatewayTools.COLLECTION_GATEWAY_DELETE,
+
+  // Folder tools
+  FolderTools.FOLDER_CREATE,
+  FolderTools.FOLDER_LIST,
+  FolderTools.FOLDER_GET,
+  FolderTools.FOLDER_UPDATE,
+  FolderTools.FOLDER_DELETE,
 
   // Database tools
   DatabaseTools.DATABASES_RUN_SQL,
