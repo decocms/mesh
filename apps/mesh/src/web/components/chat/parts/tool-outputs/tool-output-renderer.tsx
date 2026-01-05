@@ -11,14 +11,12 @@ interface ToolOutputRendererProps {
   toolName: string;
   input: unknown;
   output: unknown;
-  isError?: boolean;
 }
 
 export function ToolOutputRenderer({
   toolName,
   input,
   output,
-  isError: _isError,
 }: ToolOutputRendererProps) {
   const stringifiedOutput = JSON.stringify(output, null, 2);
   const isLargeOutput = stringifiedOutput.length > 2000;

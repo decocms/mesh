@@ -69,10 +69,10 @@ export function ToolCallPart({ part }: ToolCallPartProps) {
             isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0",
           )}
         >
-          <div className="flex gap-2 ml-[7px] px-3 pb-3">
+          <div className="flex ml-[7px] px-3 pb-3">
             {/* Left border line */}
             <div className="w-4 relative shrink-0">
-              <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-border" />
+              <div className="absolute left-0 top-0 bottom-0 w-0.25 bg-border" />
             </div>
 
             {/* Input and Output sections */}

@@ -142,8 +142,8 @@ export function GatewaySelector({
     >
       <ResponsiveSelectTrigger
         className={cn(
-          "h-7! text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
-          variant === "borderless" && "md:border-none",
+          "h-7! text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
+          variant === "borderless" && "border-0 md:border-none",
           className,
         )}
       >

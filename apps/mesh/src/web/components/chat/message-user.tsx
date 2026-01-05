@@ -85,7 +85,7 @@ export function MessageUser<T extends Metadata>({
       <div
         ref={messageRef}
         className={cn(
-          "message-block w-full min-w-0 group relative flex items-start gap-4 px-2 text-foreground flex-row-reverse",
+          "message-block w-full min-w-0 group relative flex items-start gap-4 px-2.5 text-foreground flex-row-reverse",
           className,
         )}
       >
