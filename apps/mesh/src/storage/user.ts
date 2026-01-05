@@ -6,13 +6,16 @@
  */
 
 import type { Kysely } from "kysely";
-import type { Database, User } from "./types";
+import type { Database, UserWithImage } from "./types";
 
 /**
  * User storage interface
  */
 export interface UserStoragePort {
-  findById(userId: string, requestingUserId: string): Promise<User | null>;
+  findById(
+    userId: string,
+    requestingUserId: string,
+  ): Promise<UserWithImage | null>;
 }
 
 /**
@@ -31,7 +34,7 @@ export class UserStorage implements UserStoragePort {
   async findById(
     userId: string,
     requestingUserId: string,
-  ): Promise<User | null> {
+  ): Promise<UserWithImage | null> {
     // Query the user table, but only if the requesting user shares an organization
     // with the target user (via the member table)
     const result = await this.db
@@ -67,8 +70,7 @@ export class UserStorage implements UserStoragePort {
       role: "", // Not exposed in this context
       createdAt: result.createdAt,
       updatedAt: result.updatedAt,
-      // Include image field from Better Auth
       image: result.image ?? undefined,
-    } as User & { image?: string };
+    };
   }
 }

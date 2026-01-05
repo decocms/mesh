@@ -43,14 +43,12 @@ export const USER_GET = defineTool({
       return { user: null };
     }
 
-    const image = (user as { image?: string }).image ?? null;
-
     return {
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        image,
+        image: user.image ?? null,
       },
     };
   },

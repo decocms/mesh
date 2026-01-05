@@ -99,6 +99,13 @@ export interface User {
 }
 
 /**
+ * User entity with image - Extended representation including Better Auth avatar
+ */
+export interface UserWithImage extends User {
+  image?: string;
+}
+
+/**
  * Organization entity - Runtime representation (from Better Auth)
  * Better Auth organization plugin provides this data
  */
