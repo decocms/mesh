@@ -291,10 +291,10 @@ function ChatPanelContent() {
       },
     };
 
-    await chat.sendMessage(text, metadata);
-
-    // Clear editing state after successful send
+    // Clear branch context immediately after sending message
     clearBranchContext();
+
+    await chat.sendMessage(text, metadata);
   };
 
   const handleModelChange = (m: ModelChangePayload) => {

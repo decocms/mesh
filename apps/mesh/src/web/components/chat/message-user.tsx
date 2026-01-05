@@ -28,7 +28,7 @@ export interface MessageProps<T extends Metadata> {
   status?: "streaming" | "submitted" | "ready" | "error";
   className?: string;
   pairIndex?: number;
-  onBranchFromMessage?: (messageId: string, messageText: string) => void;
+  onBranchFromMessage?: (messageId: string) => Promise<string | undefined>;
 }
 
 export function MessageUser<T extends Metadata>({
@@ -58,12 +58,6 @@ export function MessageUser<T extends Metadata>({
 
   const isLongMessage = totalTextLength > 60;
 
-  // Extract the full text from all text parts
-  const messageText = parts
-    .filter((part) => part.type === "text")
-    .map((part) => (part as { type: "text"; text: string }).text)
-    .join("\n");
-
   const handleClick = () => {
     if (pairIndex !== undefined) {
       messageListContext?.scrollToPair(pairIndex);
@@ -78,8 +72,10 @@ export function MessageUser<T extends Metadata>({
   const handleConfirmBranch = async () => {
     setShowBranchDialog(false);
     if (onBranchFromMessage) {
-      await onBranchFromMessage(id, messageText);
-      setInputValue(messageText);
+      const messageText = await onBranchFromMessage(id);
+      if (messageText) {
+        setInputValue(messageText);
+      }
     }
   };
 

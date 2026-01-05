@@ -283,10 +283,10 @@ function AssistantChatPanel({
       user: { name: "you" },
     };
 
-    await chat.sendMessage(text, metadata);
-
-    // Clear editing state after successful send
+    // Clear editing state immediately after sending message
     clearBranchContext();
+
+    await chat.sendMessage(text, metadata);
   };
 
   // Handle clicking on the branch preview to go back to original thread

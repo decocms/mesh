@@ -141,7 +141,7 @@ function ChatMessages({
   messages: ChatMessage[];
   status?: ChatStatus;
   minHeightOffset?: number;
-  onBranchFromMessage?: (messageId: string, messageText: string) => void;
+  onBranchFromMessage?: (messageId: string) => Promise<string | undefined>;
 }) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   useChatAutoScroll({ messageCount: messages.length, sentinelRef });

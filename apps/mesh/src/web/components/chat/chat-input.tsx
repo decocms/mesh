@@ -83,7 +83,9 @@ export function ChatInput({
         {/* Bottom Actions Row */}
         <div className="flex items-center justify-between px-2.5 pb-2.5">
           {/* Left Actions (model selector, gateway selector, usage stats, etc) */}
-          <div className="flex items-center gap-2 overflow-hidden">{leftActions}</div>
+          <div className="flex items-center gap-2 overflow-hidden">
+            {leftActions}
+          </div>
 
           {/* Send Button */}
           <div className="flex items-center gap-1">

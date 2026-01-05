@@ -84,8 +84,6 @@ export interface PersistedChatResult {
   sendMessage: (text: string, metadata: Metadata) => Promise<void>;
   /** Stop the current streaming response */
   stop: () => void;
-  /** Set messages directly (for reverting, clearing, etc.) */
-  setMessages: (messages: ChatMessage[]) => void;
   /** Current branch context if branching is in progress */
   branchContext: BranchContext | null;
   /** Clear the branch context */
@@ -93,8 +91,9 @@ export interface PersistedChatResult {
   /**
    * Branch from a specific message - creates a new thread with messages
    * before the specified message, and sets up input for editing.
+   * Returns the message text for the input field.
    */
-  branchFromMessage: (messageId: string, messageText: string) => Promise<void>;
+  branchFromMessage: (messageId: string) => Promise<string | undefined>;
 }
 
 /**
@@ -136,7 +135,7 @@ export function usePersistedChat(
   );
 
   // Load persisted messages for this thread
-  const persistedMessages = useThreadMessages(threadId) as unknown as Message[];
+  const persistedMessages = useThreadMessages(threadId);
 
   // Use provided system prompt or default
   const effectiveSystemPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
@@ -253,11 +252,21 @@ export function usePersistedChat(
   };
 
   // Branch from a specific message - creates a new thread with messages
-  // before the specified message.
-  const branchFromMessage = async (messageId: string, messageText: string) => {
-    // Find the index of the message to branch from
+  // before the specified message. Returns the message text.
+  const branchFromMessage = async (messageId: string) => {
+    // Find the message to branch from
     const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
-    if (messageIndex === -1) return;
+    if (messageIndex === -1) return undefined;
+
+    const message = chat.messages[messageIndex];
+    if (!message) return undefined;
+
+    // Extract the full text from all text parts
+    const messageText =
+      message.parts
+        ?.filter((part) => part.type === "text")
+        .map((part) => (part as { type: "text"; text: string }).text)
+        .join("\n") || "";
 
     // Save the original thread context before switching
     const originalThreadId = threadId;
@@ -297,6 +306,8 @@ export function usePersistedChat(
       originalMessageId: messageId,
       originalMessageText: messageText,
     });
+
+    return messageText;
   };
 
   const clearBranchContext = () => setBranchContext(null);
@@ -306,7 +317,6 @@ export function usePersistedChat(
     status: chat.status,
     sendMessage,
     stop: chat.stop.bind(chat),
-    setMessages: chat.setMessages,
     branchContext,
     clearBranchContext,
     branchFromMessage,
