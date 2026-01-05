@@ -86,6 +86,19 @@ export class EventBus implements IEventBus {
           `Invalid cron expression: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
+
+      // Idempotent cron publishing: check if an active cron event already exists
+      const existingCron = await this.storage.findActiveCronEvent(
+        organizationId,
+        input.type,
+        sourceConnectionId,
+        input.cron,
+      );
+
+      if (existingCron) {
+        // Return existing cron event - idempotent
+        return existingCron;
+      }
     }
 
     const eventId = crypto.randomUUID();
