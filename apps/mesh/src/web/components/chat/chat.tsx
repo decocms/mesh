@@ -242,42 +242,45 @@ function ChatInput({
   };
 
   const leftActions = (
-    <div className="flex items-center gap-2 min-w-0">
-      {gatewaySelector ? (
-        <div
-          className={cn(
-            "flex items-center gap-2 flex-wrap min-w-0",
-            gatewaySelector.props.disabled && "pointer-events-none opacity-60",
-          )}
-        >
-          <GatewaySelector
-            selectedGatewayId={gatewaySelector.props.selectedGatewayId}
-            onGatewayChange={gatewaySelector.props.onGatewayChange}
-            placeholder="Gateway"
-            variant="bordered"
-            className={gatewaySelector.props.className}
-          />
-        </div>
-      ) : null}
+    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+      <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+        {gatewaySelector ? (
+          <div
+            className={cn(
+              "flex items-center min-w-0",
+              gatewaySelector.props.disabled &&
+                "pointer-events-none opacity-60",
+            )}
+          >
+            <GatewaySelector
+              selectedGatewayId={gatewaySelector.props.selectedGatewayId}
+              onGatewayChange={gatewaySelector.props.onGatewayChange}
+              placeholder="Gateway"
+              variant="borderless"
+              className={gatewaySelector.props.className}
+            />
+          </div>
+        ) : null}
 
-      {modelSelector ? (
-        <div
-          className={cn(
-            "flex items-center gap-2 flex-wrap min-w-0",
-            modelSelector.props.disabled && "pointer-events-none opacity-60",
-          )}
-        >
-          <ModelSelector
-            selectedModel={modelSelector.props.selectedModel}
-            onModelChange={modelSelector.props.onModelChange}
-            placeholder="Model"
-            variant="borderless"
-            className={modelSelector.props.className}
-          />
-        </div>
-      ) : null}
+        {modelSelector ? (
+          <div
+            className={cn(
+              "flex items-center min-w-0",
+              modelSelector.props.disabled && "pointer-events-none opacity-60",
+            )}
+          >
+            <ModelSelector
+              selectedModel={modelSelector.props.selectedModel}
+              onModelChange={modelSelector.props.onModelChange}
+              placeholder="Model"
+              variant="borderless"
+              className={modelSelector.props.className}
+            />
+          </div>
+        ) : null}
 
-      {rest}
+        {rest}
+      </div>
       {usageMessages ? <UsageStats messages={usageMessages} /> : null}
     </div>
   );

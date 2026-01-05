@@ -344,11 +344,15 @@ function SelectedModelDisplay({ model }: { model: ModelInfo | undefined }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 min-w-0 max-w-full">
       {model.logo && (
-        <img src={model.logo} className="w-4 h-4" alt={model.name} />
+        <img
+          src={model.logo}
+          className="w-5 h-5 shrink-0 rounded-sm"
+          alt={model.name}
+        />
       )}
-      <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+      <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 max-w-[200px] hidden sm:inline-block">
         {model.name}
       </span>
     </div>
@@ -433,12 +437,15 @@ export function ModelSelector({
     >
       <ResponsiveSelectTrigger
         className={cn(
-          "h-8! text-sm hover:bg-accent rounded-lg py-1 px-2 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0",
+          "h-7! text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
           variant === "borderless" && "md:border-none",
           className,
         )}
       >
-        <ResponsiveSelectValue placeholder={placeholder}>
+        <ResponsiveSelectValue
+          placeholder={placeholder}
+          className="min-w-0 max-w-full"
+        >
           <SelectedModelDisplay model={currentModel} />
         </ResponsiveSelectValue>
       </ResponsiveSelectTrigger>

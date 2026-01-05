@@ -1,5 +1,5 @@
 import { CornerUpLeft, X } from "@untitledui/icons";
-import { createContext, use, type PropsWithChildren } from "react";
+import { createContext, useContext, type PropsWithChildren } from "react";
 import {
   useInputValue,
   type InputController,
@@ -16,7 +16,7 @@ interface ChatInputContextValue {
 const ChatInputContext = createContext<ChatInputContextValue | null>(null);
 
 function useChatInputContext() {
-  const ctx = use(ChatInputContext);
+  const ctx = useContext(ChatInputContext);
   if (!ctx) {
     throw new Error(
       "useChatInputContext must be used within ChatInputProvider",

@@ -89,7 +89,6 @@ export function MessageUser<T extends Metadata>({
           className,
         )}
       >
-        {" "}
         <div
           onClick={handleClick}
           className="w-full border min-w-0 shadow-[0_3px_6px_-1px_rgba(0,0,0,0.1)] rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-muted px-4 py-2 cursor-pointer transition-colors"

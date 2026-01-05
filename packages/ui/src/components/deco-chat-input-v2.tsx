@@ -64,7 +64,6 @@ export function DecoChatInputV2({
       <div
         className={cn(
           "relative rounded-xl border border-border bg-background w-full min-h-[130px] flex flex-col",
-          centered ? "shadow-md" : "shadow-sm",
         )}
       >
         <div className="relative flex flex-col gap-2 p-2.5 flex-1">
@@ -97,7 +96,7 @@ export function DecoChatInputV2({
         </div>
 
         {/* Bottom Actions Row */}
-        <div className="flex items-center justify-between px-2.5 pb-2.5">
+        <div className="flex items-center justify-between p-2.5">
           {/* Left Actions (add context, files, etc) */}
           <div className="flex items-center overflow-hidden">{leftActions}</div>
 
