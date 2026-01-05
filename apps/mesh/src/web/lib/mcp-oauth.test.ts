@@ -109,6 +109,46 @@ describe("isConnectionAuthenticated", () => {
     expect(result.supportsOAuth).toBe(true);
   });
 
+  test("returns isServerError:true when server returns 5xx error", async () => {
+    global.fetch = mock(() =>
+      Promise.resolve({
+        status: 500,
+        ok: false,
+        headers: new Headers(),
+        json: () => Promise.resolve({ error: "Internal server error" }),
+      } as unknown as Response),
+    ) as unknown as typeof fetch;
+
+    const result = await isConnectionAuthenticated({
+      url: "https://example.com/mcp",
+      token: null,
+    });
+
+    expect(result.isAuthenticated).toBe(false);
+    expect(result.isServerError).toBe(true);
+    expect(result.error).toBe("Internal server error");
+  });
+
+  test("returns isServerError:true for 502 Bad Gateway", async () => {
+    global.fetch = mock(() =>
+      Promise.resolve({
+        status: 502,
+        ok: false,
+        headers: new Headers(),
+        json: () => Promise.reject(new Error("Not JSON")),
+      } as unknown as Response),
+    ) as unknown as typeof fetch;
+
+    const result = await isConnectionAuthenticated({
+      url: "https://example.com/mcp",
+      token: null,
+    });
+
+    expect(result.isAuthenticated).toBe(false);
+    expect(result.isServerError).toBe(true);
+    expect(result.error).toBe("HTTP 502");
+  });
+
   describe("edge cases and error handling", () => {
     test("returns isAuthenticated:false when fetch throws network error", async () => {
       global.fetch = mock(() =>
