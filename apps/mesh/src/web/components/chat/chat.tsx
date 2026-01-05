@@ -10,7 +10,7 @@ import type {
   ReactNode,
   RefObject,
 } from "react";
-import { Children, isValidElement, useRef, useState } from "react";
+import { Children, isValidElement, useRef } from "react";
 import { toast } from "sonner";
 import { GatewaySelector } from "./gateway-selector";
 import { MessageAssistant } from "./message-assistant.tsx";
