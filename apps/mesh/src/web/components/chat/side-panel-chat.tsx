@@ -21,11 +21,6 @@ import {
   useConnections,
 } from "../../hooks/collections/use-connection";
 import { useBindingConnections } from "../../hooks/use-binding";
-import {
-  ChatInputProvider,
-  BranchPreview,
-  useChatInputState,
-} from "./chat-input-context";
 import { useThreads } from "../../hooks/use-chat-store";
 import {
   useGatewayPrompts,
@@ -38,6 +33,11 @@ import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { useChat } from "../../providers/chat-provider";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useGateways, useModels, type ModelChangePayload } from "./chat";
+import {
+  BranchPreview,
+  ChatInputProvider,
+  useChatInputState,
+} from "./chat-input-context";
 import { IceBreakers } from "./ice-breakers";
 import { ThreadHistoryPopover } from "./thread-history-popover";
 
@@ -76,7 +76,7 @@ function parseRouteContext(pathname: string): RouteContext {
 /**
  * Hook that generates a dynamic system prompt based on context
  */
-function useSystemPrompt(): string {
+function useSystemPrompt(gatewayId: string): string {
   const routerState = useRouterState();
   const { connectionId, collectionName, itemId } = parseRouteContext(
     routerState.location.pathname,
@@ -91,11 +91,13 @@ The Model Context Protocol (MCP) Mesh allows users to connect external MCP serve
 - All tool calls are logged and audited for security and compliance
 - You have access to the tools exposed through the selected gateway
 - MCPs may expose resources that users can browse and edit
+- You have context to the current gateway and its tools, resources, and prompts
 
 ## Current Editing Context
 ${connectionId ? `- Connection ID: ${connectionId}` : ""}
 ${collectionName ? `- Collection Name: ${collectionName}` : ""}
 ${itemId ? `- Item ID: ${itemId}` : ""}
+${gatewayId ? `- Gateway ID: ${gatewayId}` : ""}
 
 Help the user understand and work with this resource.
 `;
@@ -247,7 +249,7 @@ export function ChatPanel() {
   );
 
   // Generate dynamic system prompt based on context
-  const systemPrompt = useSystemPrompt();
+  const systemPrompt = useSystemPrompt(effectiveSelectedGatewayId);
 
   // Get the onToolCall handler for invalidating collection queries
   const onToolCall = useInvalidateCollectionsOnToolCall();
