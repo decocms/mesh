@@ -6,7 +6,7 @@
  */
 
 import { Avatar, type AvatarProps } from "@deco/ui/components/avatar.tsx";
-import { useUserById } from "../../hooks/use-user";
+import { useUserById } from "../../hooks/use-user-by-id";
 
 export interface UserProps {
   /**
