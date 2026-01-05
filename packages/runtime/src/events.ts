@@ -82,27 +82,9 @@ export interface BatchHandler<TEnv> {
  * { handler: fn, events: ["order.created", "order.updated"] }
  * ```
  */
-export type BindingHandlers<TEnv, Binding = unknown> =
+export type BindingHandlers<TEnv> =
   | BatchHandler<TEnv>
-  | (Record<string, PerEventHandler<TEnv>> & CronHandlers<Binding, TEnv>);
-
-export type CronHandlers<Binding, Env = unknown> = Binding extends {
-  __type: "@deco/event-bus";
-  value: string;
-}
-  ? {
-      [key in `cron/${string}`]: (env: Env) => Promise<void>;
-    }
-  : {};
-/**
- * Handlers for SELF - the current connection.
- * SELF handlers can subscribe to any event type, including cron events.
- */
-export type SelfHandlers<TEnv> =
-  | BatchHandler<TEnv>
-  | (Record<string, PerEventHandler<TEnv>> & {
-      [key in `cron/${string}`]?: (env: TEnv) => Promise<void>;
-    });
+  | Record<string, PerEventHandler<TEnv>>;
 
 /**
  * EventHandlers type supports four handler formats:
@@ -135,7 +117,7 @@ export type EventHandlers<
   TSchema extends z.ZodTypeAny = never,
 > = [TSchema] extends [never]
   ? // When no schema, only SELF is available
-    BatchHandler<Env> | { SELF?: SelfHandlers<Env> }
+    BatchHandler<Env> | { SELF?: BindingHandlers<Env> }
   :
       | BatchHandler<Env> // Global handler with events
       | ({
@@ -144,10 +126,10 @@ export type EventHandlers<
             value: string;
           }
             ? K
-            : never]?: BindingHandlers<Env, z.infer<TSchema>[K]>;
+            : never]?: BindingHandlers<Env>;
         } & {
           /** SELF: Subscribe to events from the current connection */
-          SELF?: SelfHandlers<Env>;
+          SELF?: BindingHandlers<Env>;
         });
 
 /**
@@ -221,6 +203,24 @@ const parseEventPrefix = (
     separatorIndex + EVENT_SEPARATOR.length,
   );
   return [binding, eventType];
+};
+
+/**
+ * Parse a cron event type into name and expression
+ * Format: cron/NAME/EXPRESSION (e.g., "cron/daily-cleanup/0 9 * * 1")
+ * @param eventType - Event type that may be a cron event
+ * @returns Tuple of [name, cronExpression] or null if not a cron event
+ */
+const parseCronEvent = (
+  eventType: string,
+): [name: string, cron: string] | null => {
+  if (!eventType.startsWith("cron/")) return null;
+  const parts = eventType.substring(5); // Remove "cron/"
+  const slashIndex = parts.indexOf("/");
+  if (slashIndex === -1) return null;
+  const name = parts.substring(0, slashIndex);
+  const cron = parts.substring(slashIndex + 1);
+  return [name, cron];
 };
 
 /**
@@ -545,33 +545,7 @@ const executeEventHandlers = async <TEnv, TSchema extends z.ZodTypeAny>(
         continue;
       }
 
-      // Case 3a: Cron handlers (event type starts with "cron/")
-      // - Handler signature: (env) => Promise<void>
-      // - Fire and forget (don't await)
-      // - Always return success immediately
-      if (eventType.startsWith("cron/")) {
-        const cronHandler = eventHandler as unknown as (
-          env: TEnv,
-        ) => Promise<void>;
-
-        // Fire and forget - don't await, just log errors
-        cronHandler(env).catch((error) => {
-          console.error(
-            `[Event] Cron handler error for ${eventType}:`,
-            error instanceof Error ? error.message : String(error),
-          );
-        });
-
-        // Immediately return success for all cron events
-        const results: Record<string, EventResult> = {};
-        for (const event of typedEvents) {
-          results[event.id] = { success: true };
-        }
-        promises.push(Promise.resolve({ results }));
-        continue;
-      }
-
-      // Case 3b: Regular per-event handlers
+      // Case 3: Per-event handlers
       // Call handler for each event type (handler receives all events of that type)
       promises.push(
         (async () => {
@@ -620,4 +594,5 @@ const executeEventHandlers = async <TEnv, TSchema extends z.ZodTypeAny>(
 export const Event = {
   subscriptions: eventsSubscriptions,
   execute: executeEventHandlers,
+  parseCron: parseCronEvent,
 };

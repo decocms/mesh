@@ -205,6 +205,23 @@ export interface EventBusStorage {
   getEvent(eventId: string, organizationId: string): Promise<Event | null>;
 
   /**
+   * Find an active cron event by type, source, and cron expression.
+   * Used for idempotent cron event publishing.
+   *
+   * @param organizationId - Organization scope
+   * @param type - Event type
+   * @param source - Source connection ID
+   * @param cron - Cron expression
+   * @returns Existing active event or null
+   */
+  findActiveCronEvent(
+    organizationId: string,
+    type: string,
+    source: string,
+    cron: string,
+  ): Promise<Event | null>;
+
+  /**
    * Cancel a recurring event (sets status to 'failed' to stop future deliveries)
    * Only the publisher can cancel their own events.
    *
@@ -809,6 +826,48 @@ class KyselyEventBusStorage implements EventBusStorage {
       .selectAll()
       .where("id", "=", eventId)
       .where("organization_id", "=", organizationId)
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      type: row.type,
+      source: row.source,
+      specversion: row.specversion,
+      subject: row.subject,
+      time: row.time,
+      datacontenttype: row.datacontenttype,
+      dataschema: row.dataschema,
+      data: row.data ? JSON.parse(row.data as string) : null,
+      cron: row.cron,
+      status: row.status as EventStatus,
+      attempts: row.attempts,
+      lastError: row.last_error,
+      nextRetryAt: row.next_retry_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  async findActiveCronEvent(
+    organizationId: string,
+    type: string,
+    source: string,
+    cron: string,
+  ): Promise<Event | null> {
+    // Find an active cron event with matching type, source, and cron expression
+    // Active means not failed/cancelled
+    const row = await this.db
+      .selectFrom("events")
+      .selectAll()
+      .where("organization_id", "=", organizationId)
+      .where("type", "=", type)
+      .where("source", "=", source)
+      .where("cron", "=", cron)
+      .where("status", "in", ["pending", "processing", "delivered"])
+      .orderBy("created_at", "desc")
       .executeTakeFirst();
 
     if (!row) return null;

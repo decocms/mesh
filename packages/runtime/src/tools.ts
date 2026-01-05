@@ -426,6 +426,29 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
                   connectionId,
                 );
                 await bus.EVENT_SYNC_SUBSCRIPTIONS({ subscriptions });
+
+                // Publish cron events for SELF cron subscriptions
+                // Publishing is idempotent - if cron event already exists, it returns existing
+                if (connectionId) {
+                  const cronSubscriptions = subscriptions.filter(
+                    (sub) =>
+                      sub.eventType.startsWith("cron/") &&
+                      sub.publisher === connectionId,
+                  );
+
+                  await Promise.all(
+                    cronSubscriptions.map(async (sub) => {
+                      const parsed = Event.parseCron(sub.eventType);
+                      if (parsed) {
+                        const [, cronExpression] = parsed;
+                        await bus.EVENT_PUBLISH({
+                          type: sub.eventType,
+                          cron: cronExpression,
+                        });
+                      }
+                    }),
+                  );
+                }
               }
               return Promise.resolve({});
             },
