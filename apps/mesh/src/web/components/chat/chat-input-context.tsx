@@ -121,8 +121,8 @@ export function useChatInputState() {
     text: string,
     onSubmit: (text: string) => Promise<void>,
   ) => {
-    await onSubmit(text);
     setInputValue("");
+    await onSubmit(text);
   };
 
   return {
