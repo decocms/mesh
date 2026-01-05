@@ -230,6 +230,7 @@ interface SettingsTabProps {
   isUpdating: boolean;
   isMCPAuthenticated: boolean;
   supportsOAuth: boolean;
+  isServerError?: boolean;
   onViewReadme?: () => void;
 }
 
@@ -339,6 +340,29 @@ export function ManualAuthRequiredState({
   );
 }
 
+export function ServerErrorState() {
+  return (
+    <div className="w-3/5 min-w-0 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4 max-w-md text-center">
+        <img
+          src="/empty-state-error.svg"
+          alt=""
+          width={160}
+          height={160}
+          aria-hidden="true"
+        />
+        <div className="flex flex-col gap-2">
+          <h3 className="text-lg font-semibold">Server Error</h3>
+          <p className="text-sm text-muted-foreground max-w-md text-center">
+            The MCP server is currently experiencing issues. Please try again
+            later or check the server's status.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsTabContentWithMcpBinding(
   props: SettingsTabWithMcpBindingProps,
 ) {
@@ -361,6 +385,7 @@ function SettingsRightPanel({
   onViewReadme,
   isMCPAuthenticated,
   supportsOAuth,
+  isServerError,
   hasReadme,
 }: {
   hasMcpBinding: boolean;
@@ -371,6 +396,7 @@ function SettingsRightPanel({
   onViewReadme?: () => void;
   isMCPAuthenticated: boolean;
   supportsOAuth: boolean;
+  isServerError?: boolean;
   hasReadme: boolean;
 }) {
   const hasProperties =
@@ -380,6 +406,10 @@ function SettingsRightPanel({
     Object.keys(stateSchema.properties).length > 0;
 
   if (!isMCPAuthenticated) {
+    // Show server error state if there was a 5xx error
+    if (isServerError) {
+      return <ServerErrorState />;
+    }
     // Show different UI based on whether the server supports OAuth
     if (supportsOAuth) {
       return <OAuthAuthenticationState onAuthenticate={onAuthenticate} />;
@@ -547,6 +577,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
               onViewReadme={onViewReadme}
               isMCPAuthenticated={props.isMCPAuthenticated}
               supportsOAuth={props.supportsOAuth}
+              isServerError={props.isServerError}
               hasReadme={hasReadme}
             />
           </Suspense>

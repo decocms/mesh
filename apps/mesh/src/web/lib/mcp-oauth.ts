@@ -483,6 +483,8 @@ export interface McpAuthStatus {
   supportsOAuth: boolean;
   /** Error message if authentication failed */
   error?: string;
+  /** Whether this was a server error (5xx) - OAuth support is unknown in this case */
+  isServerError?: boolean;
 }
 
 /**
@@ -525,10 +527,6 @@ export async function isConnectionAuthenticated({
       return { isAuthenticated: true, supportsOAuth: true };
     }
 
-    // Check if server supports OAuth by looking for WWW-Authenticate header
-    const wwwAuth = response.headers.get("WWW-Authenticate");
-    const supportsOAuth = !!wwwAuth;
-
     // Try to get error message from response body
     let error: string | undefined;
     try {
@@ -537,6 +535,20 @@ export async function isConnectionAuthenticated({
     } catch {
       // Ignore JSON parse errors
     }
+
+    // Handle 5xx server errors separately - we can't determine OAuth support
+    if (response.status >= 500) {
+      return {
+        isAuthenticated: false,
+        supportsOAuth: false,
+        error: error || `HTTP ${response.status}`,
+        isServerError: true,
+      };
+    }
+
+    // For 401/403, check if server supports OAuth by looking for WWW-Authenticate header
+    const wwwAuth = response.headers.get("WWW-Authenticate");
+    const supportsOAuth = !!wwwAuth;
 
     return {
       isAuthenticated: false,
