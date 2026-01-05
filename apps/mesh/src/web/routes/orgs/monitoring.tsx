@@ -22,6 +22,7 @@ import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
+import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -517,11 +518,10 @@ function MonitoringDashboardContent({
   // Use React Query's infinite query for automatic accumulation
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useSuspenseInfiniteQuery({
-      queryKey: [
-        "monitoring-logs-infinite",
+      queryKey: KEYS.monitoringLogsInfinite(
         locator,
         JSON.stringify(baseParams),
-      ],
+      ),
       queryFn: async ({ pageParam = 0 }) => {
         const result = await toolCaller("MONITORING_LOGS_LIST", {
           ...baseParams,

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useRef } from "react";
 
 /**
  * Hook for infinite scroll functionality using IntersectionObserver.
@@ -41,8 +41,8 @@ export function useInfiniteScroll(
   hasMoreRef.current = hasMore;
   isLoadingRef.current = isLoading;
 
-  // Memoize the ref callback to prevent unnecessary observer recreation
-  const lastElementRef = useCallback((node: HTMLElement | null) => {
+  // Ref callback for the last element - React Compiler handles memoization
+  const lastElementRef = (node: HTMLElement | null) => {
     if (observerRef.current) {
       observerRef.current.disconnect();
     }
@@ -60,7 +60,7 @@ export function useInfiniteScroll(
     if (node) {
       observerRef.current.observe(node);
     }
-  }, []);
+  };
 
   return lastElementRef;
 }
