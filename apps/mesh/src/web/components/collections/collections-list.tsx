@@ -374,8 +374,8 @@ function generateColumnsFromSchema<T extends BaseCollectionEntity>(
       };
     }
 
-    // Handle user fields (created_by, updated_by, etc.)
-    if (key.endsWith("_by")) {
+    // Handle user fields (created_by, updated_by)
+    if (key === "created_by" || key === "updated_by") {
       return {
         id: key,
         header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
