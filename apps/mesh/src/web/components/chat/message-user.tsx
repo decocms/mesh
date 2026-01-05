@@ -18,7 +18,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { ReverseLeft } from "@untitledui/icons";
 import { type UIMessage } from "ai";
-import { useContext, useRef, useState } from "react";
+import { useContext, useState } from "react";
 import { MessageListContext } from "./message-list.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 
@@ -37,8 +37,6 @@ export function MessageUser<T extends Metadata>({
   onBranchFromMessage,
 }: MessageProps<T>) {
   const { id, parts } = message;
-  const messageRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
   const messageListContext = useContext(MessageListContext);
   const [showBranchDialog, setShowBranchDialog] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -55,6 +53,7 @@ export function MessageUser<T extends Metadata>({
     .join("\n");
 
   const handleClick = () => {
+    setIsFocused(true);
     if (pairIndex !== undefined) {
       messageListContext?.scrollToPair(pairIndex);
     }
@@ -75,24 +74,22 @@ export function MessageUser<T extends Metadata>({
   return (
     <>
       <div
-        ref={messageRef}
         className={cn(
           "message-block w-full min-w-0 group relative flex items-start gap-4 px-2.5 text-foreground flex-row-reverse",
           className,
         )}
       >
         <div
+          tabIndex={0}
           onClick={handleClick}
-          className="w-full border min-w-0 shadow-xs rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-background cursor-pointer transition-colors relative flex flex-col"
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          className="w-full border min-w-0 shadow-xs rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-background cursor-pointer transition-colors relative flex flex-col outline-none"
         >
           <div className="absolute inset-0 bg-muted/50 pointer-events-none" />
           <div
-            ref={contentRef}
-            tabIndex={0}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
             className={cn(
-              "relative z-10 px-4 py-2 transition-opacity outline-none max-h-[120px]",
+              "relative z-10 px-4 py-2 transition-opacity max-h-[120px]",
               isFocused
                 ? "overflow-auto opacity-100"
                 : "overflow-hidden opacity-60 mask-b-from-0%",
