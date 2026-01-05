@@ -1,28 +1,22 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { DecoChatAside } from "@deco/ui/components/deco-chat-aside.tsx";
-import { DecoChatInputV2 } from "@deco/ui/components/deco-chat-input-v2.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import type { UIMessage } from "ai";
+import { CornerUpLeft, X } from "@untitledui/icons";
 import type {
   PropsWithChildren,
   ReactElement,
   ReactNode,
   RefObject,
 } from "react";
-import { Children, isValidElement, useRef } from "react";
-import { toast } from "sonner";
-import { GatewaySelector } from "./gateway-selector";
+import { Children, isValidElement, use, useRef } from "react";
+import type { BranchContext } from "../../hooks/use-persisted-chat";
+import { ChatInput as ChatInputComponent } from "./chat-input";
+import { ChatInputContext } from "./chat-input-context";
 import { MessageAssistant } from "./message-assistant.tsx";
 import { MessageFooter, MessageList } from "./message-list.tsx";
 import { MessageUser } from "./message-user.tsx";
-import type {
-  ModelChangePayload,
-  SelectedModelState,
-} from "./model-selector.tsx";
-import { ModelSelector } from "./model-selector.tsx";
-import { UsageStats } from "./usage-stats.tsx";
-
 export { useGateways } from "./gateway-selector";
 export type { GatewayInfo } from "./gateway-selector";
 export { useModels } from "./model-selector.tsx";
@@ -36,6 +30,18 @@ export type {
 export type ChatMessage = UIMessage<Metadata>;
 
 export type ChatStatus = UseChatHelpers<UIMessage<Metadata>>["status"];
+
+/**
+ * Hook to access chat input state from context.
+ * Must be used within ChatInputProvider.
+ */
+export function useChatInput() {
+  const ctx = use(ChatInputContext);
+  if (!ctx) {
+    throw new Error("useChatInput must be used within ChatInputProvider");
+  }
+  return ctx;
+}
 
 function useChatAutoScroll({
   messageCount,
@@ -74,13 +80,6 @@ function findChild<T>(
     }
   }
   return null;
-}
-
-function filterChildren(children: ReactNode, excludedTypes: unknown[]) {
-  return Children.toArray(children).filter((child) => {
-    if (!isValidElement(child)) return true;
-    return !excludedTypes.includes(child.type);
-  });
 }
 
 function ChatRoot({
@@ -179,22 +178,73 @@ function ChatFooter({ children }: PropsWithChildren) {
   );
 }
 
-function ChatInputModelSelector(_props: {
-  disabled?: boolean;
-  selectedModel?: SelectedModelState;
-  onModelChange: (model: ModelChangePayload) => void;
-  className?: string;
+/**
+ * Branch preview banner - shows when editing a message from a branch.
+ * Manages input clearing internally.
+ */
+function ChatBranchPreview({
+  branchContext,
+  clearBranchContext,
+  onGoToOriginalMessage,
+}: {
+  branchContext: BranchContext | null;
+  clearBranchContext: () => void;
+  onGoToOriginalMessage: () => void;
 }) {
-  return null;
-}
+  const { setInputValue } = useChatInput();
 
-function ChatInputGatewaySelector(_props: {
-  disabled?: boolean;
-  selectedGatewayId?: string;
-  onGatewayChange: (gatewayId: string) => void;
-  className?: string;
-}) {
-  return null;
+  if (!branchContext) return null;
+
+  const handleGoToOriginal = () => {
+    setInputValue("");
+    onGoToOriginalMessage();
+  };
+
+  const handleCancel = () => {
+    clearBranchContext();
+    setInputValue("");
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleGoToOriginal}
+      className="flex items-start gap-2 px-2 py-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/50 text-sm hover:bg-muted transition-colors cursor-pointer text-left w-full"
+      title="Click to view original message"
+    >
+      <CornerUpLeft
+        size={14}
+        className="text-muted-foreground mt-0.5 shrink-0"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-muted-foreground mb-1">
+          Editing message (click to view original):
+        </div>
+        <div className="text-muted-foreground/70 line-clamp-2">
+          {branchContext.originalMessageText}
+        </div>
+      </div>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleCancel();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            handleCancel();
+          }
+        }}
+        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        title="Cancel editing"
+      >
+        <X size={14} />
+      </span>
+    </button>
+  );
 }
 
 function ChatInput({
@@ -203,95 +253,39 @@ function ChatInput({
   disabled,
   isStreaming,
   placeholder,
-  usageMessages,
   children,
-  value,
-  onValueChange,
 }: PropsWithChildren<{
   onSubmit: (text: string) => Promise<void>;
   onStop: () => void;
   disabled: boolean;
   isStreaming: boolean;
   placeholder: string;
-  usageMessages?: ChatMessage[];
-  value?: string;
-  onValueChange?: (value: string) => void;
 }>) {
-  const modelSelector = findChild(children, ChatInputModelSelector);
-  const gatewaySelector = findChild(children, ChatInputGatewaySelector);
-  const rest = filterChildren(children, [
-    ChatInputModelSelector,
-    ChatInputGatewaySelector,
-  ]);
+  const { inputValue, setInputValue } = useChatInput();
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!value?.trim() || isStreaming) {
+  const handleSubmit = async () => {
+    if (!inputValue?.trim() || isStreaming) {
       return;
     }
-    const text = value.trim();
+    const text = inputValue.trim();
     try {
       await onSubmit(text);
-      onValueChange?.("");
+      setInputValue("");
     } catch (error) {
       console.error("Failed to send message:", error);
-      const message =
-        error instanceof Error ? error.message : "Failed to send message";
-      toast.error(message);
     }
   };
 
-  const leftActions = (
-    <div className="flex items-center gap-2 min-w-0">
-      {gatewaySelector ? (
-        <div
-          className={cn(
-            "flex items-center gap-2 flex-wrap min-w-0",
-            gatewaySelector.props.disabled && "pointer-events-none opacity-60",
-          )}
-        >
-          <GatewaySelector
-            selectedGatewayId={gatewaySelector.props.selectedGatewayId}
-            onGatewayChange={gatewaySelector.props.onGatewayChange}
-            placeholder="Gateway"
-            variant="bordered"
-            className={gatewaySelector.props.className}
-          />
-        </div>
-      ) : null}
-
-      {modelSelector ? (
-        <div
-          className={cn(
-            "flex items-center gap-2 flex-wrap min-w-0",
-            modelSelector.props.disabled && "pointer-events-none opacity-60",
-          )}
-        >
-          <ModelSelector
-            selectedModel={modelSelector.props.selectedModel}
-            onModelChange={modelSelector.props.onModelChange}
-            placeholder="Model"
-            variant="borderless"
-            className={modelSelector.props.className}
-          />
-        </div>
-      ) : null}
-
-      {rest}
-      {usageMessages ? <UsageStats messages={usageMessages} /> : null}
-    </div>
-  );
-
   return (
-    <DecoChatInputV2
-      value={value ?? ""}
-      onChange={onValueChange ?? (() => {})}
+    <ChatInputComponent
+      value={inputValue}
+      onChange={setInputValue}
       onSubmit={handleSubmit}
       onStop={onStop}
       disabled={disabled}
       isStreaming={isStreaming}
       placeholder={placeholder}
-      leftActions={leftActions}
+      leftActions={children}
     />
   );
 }
@@ -305,8 +299,6 @@ export const Chat = Object.assign(ChatRoot, {
   Messages: ChatMessages,
   EmptyState: ChatEmptyState,
   Footer: ChatFooter,
-  Input: Object.assign(ChatInput, {
-    ModelSelector: ChatInputModelSelector,
-    GatewaySelector: ChatInputGatewaySelector,
-  }),
+  BranchPreview: ChatBranchPreview,
+  Input: ChatInput,
 });

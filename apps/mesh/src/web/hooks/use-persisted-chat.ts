@@ -7,7 +7,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { useState, useRef, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import type { ChatMessage } from "../components/chat/chat";
 import { useProjectContext } from "../providers/project-context-provider";
@@ -70,18 +70,6 @@ export interface UsePersistedChatOptions {
 }
 
 /**
- * Input controller for managing input state without re-rendering parent
- */
-export interface InputController {
-  /** Get the current input value */
-  getValue: () => string;
-  /** Set the input value (triggers subscriber) */
-  setValue: (value: string) => void;
-  /** Subscribe to value changes (returns unsubscribe function) */
-  subscribe: (callback: (value: string) => void) => () => void;
-}
-
-/**
  * Return type for usePersistedChat hook
  */
 export interface PersistedChatResult {
@@ -98,8 +86,6 @@ export interface PersistedChatResult {
   stop: () => void;
   /** Set messages directly (for reverting, clearing, etc.) */
   setMessages: (messages: ChatMessage[]) => void;
-  /** Input controller for managing input state without re-rendering parent */
-  inputController: InputController;
   /** Current branch context if branching is in progress */
   branchContext: BranchContext | null;
   /** Clear the branch context */
@@ -109,21 +95,6 @@ export interface PersistedChatResult {
    * before the specified message, and sets up input for editing.
    */
   branchFromMessage: (messageId: string, messageText: string) => Promise<void>;
-}
-
-/**
- * Hook to subscribe to an InputController's value.
- * Only re-renders the component using this hook, not the parent.
- */
-export function useInputValue(
-  controller: InputController,
-): [string, (value: string) => void] {
-  const value = useSyncExternalStore(
-    controller.subscribe,
-    controller.getValue,
-    controller.getValue,
-  );
-  return [value, controller.setValue];
 }
 
 /**
@@ -158,27 +129,6 @@ export function usePersistedChat(
   // Thread and message actions for persistence
   const threadActions = useThreadActions();
   const messageActions = useMessageActions();
-
-  // Input controller using ref + pub/sub pattern (no re-renders on input change)
-  const inputControllerRef = useRef<InputController | null>(null);
-  if (!inputControllerRef.current) {
-    let value = "";
-    const subscribers = new Set<(value: string) => void>();
-    inputControllerRef.current = {
-      getValue: () => value,
-      setValue: (newValue: string) => {
-        value = newValue;
-        for (const callback of subscribers) {
-          callback(newValue);
-        }
-      },
-      subscribe: (callback: (value: string) => void) => {
-        subscribers.add(callback);
-        return () => subscribers.delete(callback);
-      },
-    };
-  }
-  const inputController = inputControllerRef.current;
 
   // State to track if we're editing from a branch (shows the original message preview)
   const [branchContext, setBranchContext] = useState<BranchContext | null>(
@@ -303,7 +253,7 @@ export function usePersistedChat(
   };
 
   // Branch from a specific message - creates a new thread with messages
-  // before the specified message, and sets up input for editing.
+  // before the specified message.
   const branchFromMessage = async (messageId: string, messageText: string) => {
     // Find the index of the message to branch from
     const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
@@ -341,9 +291,6 @@ export function usePersistedChat(
     // Switch to the new thread
     onThreadChange?.(newThreadId);
 
-    // Set the message text in the input for editing
-    inputController.setValue(messageText);
-
     // Track the original context for the preview (allows navigating back)
     setBranchContext({
       originalThreadId,
@@ -360,7 +307,6 @@ export function usePersistedChat(
     sendMessage,
     stop: chat.stop.bind(chat),
     setMessages: chat.setMessages,
-    inputController,
     branchContext,
     clearBranchContext,
     branchFromMessage,

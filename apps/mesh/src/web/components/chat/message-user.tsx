@@ -19,6 +19,7 @@ import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { ChevronDown, ChevronUp, ReverseLeft } from "@untitledui/icons";
 import { type UIMessage } from "ai";
 import { useContext, useRef, useState } from "react";
+import { useChatInput } from "./chat";
 import { MessageListContext } from "./message-list.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 
@@ -41,6 +42,7 @@ export function MessageUser<T extends Metadata>({
   const messageListContext = useContext(MessageListContext);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showBranchDialog, setShowBranchDialog] = useState(false);
+  const { setInputValue } = useChatInput();
 
   // Early return if no parts
   if (!parts || parts.length === 0) {
@@ -73,9 +75,12 @@ export function MessageUser<T extends Metadata>({
     setShowBranchDialog(true);
   };
 
-  const handleConfirmBranch = () => {
+  const handleConfirmBranch = async () => {
     setShowBranchDialog(false);
-    onBranchFromMessage?.(id, messageText);
+    if (onBranchFromMessage) {
+      await onBranchFromMessage(id, messageText);
+      setInputValue(messageText);
+    }
   };
 
   const canBranch = Boolean(onBranchFromMessage);
