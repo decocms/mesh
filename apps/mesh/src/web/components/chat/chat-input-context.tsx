@@ -105,7 +105,6 @@ export function useChatInputState() {
 
   const handleInputChange = (value: string) => {
     setInputValue(value);
-    if (!value.trim()) clearBranchContext();
   };
 
   const handleSubmit = async (

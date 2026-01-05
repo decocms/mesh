@@ -16,7 +16,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { ChevronDown, ChevronUp, CornerUpLeft } from "@untitledui/icons";
+import { ChevronDown, ChevronUp, ReverseLeft } from "@untitledui/icons";
 import { type UIMessage } from "ai";
 import { useContext, useRef, useState } from "react";
 import { MessageListContext } from "./message-list.tsx";
@@ -147,9 +147,9 @@ export function MessageUser<T extends Metadata>({
                     onClick={handleBranchClick}
                     variant="ghost"
                     size="xs"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                    className="opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground"
                   >
-                    <CornerUpLeft size={14} />
+                    <ReverseLeft size={16} className="p-0.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">Edit from here</TooltipContent>
