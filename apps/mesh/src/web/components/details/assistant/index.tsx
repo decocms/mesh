@@ -196,9 +196,6 @@ function AssistantEditForm({ form }: { form: AssistantForm }) {
   );
 }
 
-/**
- * Isolated input field for assistant - only this component re-renders on keystroke
- */
 function AssistantInputField({
   onSubmit,
   onStop,

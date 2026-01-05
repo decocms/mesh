@@ -53,9 +53,6 @@ function GatewayIceBreakers({
   return <IceBreakers prompts={prompts} onSelect={onSelect} className="mt-6" />;
 }
 
-/**
- * Isolated input field - only this component re-renders on keystroke
- */
 function ChatInputField({
   onSubmit,
   onStop,
