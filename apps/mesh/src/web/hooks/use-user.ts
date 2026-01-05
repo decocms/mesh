@@ -38,5 +38,6 @@ export function useUser(userId: string) {
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - users don't change frequently
     retry: 1,
+    enabled: !!userId,
   });
 }
