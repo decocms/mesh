@@ -30,7 +30,11 @@ import oauthProxyRoutes, {
   fetchProtectedResourceMetadata,
 } from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
-import { isDecoHostedMcp, DECO_STORE_URL } from "../core/well-known-mcp";
+import {
+  isDecoHostedMcp,
+  DECO_STORE_URL,
+  WellKnownOrgMCPId,
+} from "../core/well-known-mcp";
 import type { MeshContext } from "../core/mesh-context";
 
 // Track current event bus instance for cleanup during HMR
@@ -523,6 +527,23 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // LLM API routes (OpenAI-compatible)
   app.route("/api", modelsRoutes);
+
+  // Public Events endpoint
+  app.post("/org/:organizationId/events/:type", async (c) => {
+    const orgId = c.req.param("organizationId");
+    await c.var.meshContext.eventBus.publish(
+      orgId,
+      WellKnownOrgMCPId.SELF(orgId),
+      {
+        data: await c.req.json(),
+        type: c.req.param("type"),
+        subject: c.req.query("subject"),
+        deliverAt: c.req.query("deliverAt"),
+        cron: c.req.query("cron"),
+      },
+    );
+    return c.json({ success: true });
+  });
 
   // ============================================================================
   // 404 Handler
