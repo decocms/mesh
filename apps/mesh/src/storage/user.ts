@@ -53,6 +53,7 @@ export class UserStorage implements UserStoragePort {
           eb
             .selectFrom("member as m1")
             .innerJoin("member as m2", "m1.organizationId", "m2.organizationId")
+            .select("m1.id")
             .where("m1.userId", "=", userId)
             .where("m2.userId", "=", requestingUserId),
         ),
