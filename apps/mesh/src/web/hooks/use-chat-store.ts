@@ -278,34 +278,10 @@ export function useMessageActions() {
     },
   });
 
-  const deleteMany = useMutation({
-    mutationFn: async (ids: string[]) => {
-      await Promise.all(
-        ids.map((id) => {
-          const key = `${locator}:messages:${id}`;
-          return del(key);
-        }),
-      );
-      return ids;
-    },
-    onSuccess: () => {
-      // Invalidate all message queries since we don't know which threads are affected
-      queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
-      // Also invalidate thread messages for any thread
-      queryClient.invalidateQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey) &&
-          query.queryKey[0] === "thread-messages" &&
-          query.queryKey[1] === locator,
-      });
-    },
-  });
-
   return {
     insert,
     insertMany,
     update,
     delete: delete_,
-    deleteMany,
   };
 }
