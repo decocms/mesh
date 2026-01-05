@@ -1,4 +1,8 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import {
+  getWellKnownOpenRouterConnection,
+  OPENROUTER_MCP_URL,
+} from "@/core/well-known-mcp";
 import { EmptyState } from "@/web/components/empty-state";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
@@ -7,7 +11,7 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { DecoChatEmptyState } from "@deco/ui/components/deco-chat-empty-state.tsx";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { CpuChip02, Loading01, Plus, X } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
@@ -24,7 +28,6 @@ import {
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { usePersistedChat } from "../../hooks/use-persisted-chat";
-import { useSystemPrompt } from "../../hooks/use-system-prompt";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { useChat } from "../../providers/chat-provider";
 import { ErrorBoundary } from "../error-boundary";
@@ -35,6 +38,62 @@ import { ThreadHistoryPopover } from "./thread-history-popover";
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
   "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
+
+/**
+ * Route context extracted from collection detail routes
+ */
+interface RouteContext {
+  connectionId: string | null;
+  collectionName: string | null;
+  itemId: string | null;
+}
+
+/**
+ * Parse route context from the current URL pathname
+ * Looks for pattern: /:org/mcps/:connectionId/:collectionName/:itemId
+ */
+function parseRouteContext(pathname: string): RouteContext {
+  const mcpsPattern = /\/[^/]+\/mcps\/([^/]+)\/([^/]+)\/([^/]+)/;
+  const match = pathname.match(mcpsPattern);
+
+  if (match && match[1] && match[2] && match[3]) {
+    return {
+      connectionId: decodeURIComponent(match[1]),
+      collectionName: decodeURIComponent(match[2]),
+      itemId: decodeURIComponent(match[3]),
+    };
+  }
+
+  return { connectionId: null, collectionName: null, itemId: null };
+}
+
+/**
+ * Hook that generates a dynamic system prompt based on context
+ */
+function useSystemPrompt(): string {
+  const routerState = useRouterState();
+  const { connectionId, collectionName, itemId } = parseRouteContext(
+    routerState.location.pathname,
+  );
+
+  return `You are an AI assistant running in an MCP Mesh environment.
+
+## About MCP Mesh
+The Model Context Protocol (MCP) Mesh allows users to connect external MCP servers and expose their capabilities through gateways. Each gateway provides access to a curated set of tools from connected MCP servers.
+
+## Important Notes
+- All tool calls are logged and audited for security and compliance
+- You have access to the tools exposed through the selected gateway
+- MCPs may expose resources that users can browse and edit
+
+## Current Editing Context
+${connectionId ? `- Connection ID: ${connectionId}` : ""}
+${collectionName ? `- Collection Name: ${collectionName}` : ""}
+${itemId ? `- Item ID: ${itemId}` : ""}
+
+Help the user understand and work with this resource.
+`;
+}
 
 /**
  * OpenRouter illustration with radial mask for empty state
@@ -185,11 +244,10 @@ export function ChatPanel() {
 
     setIsInstallingOpenRouter(true);
     try {
-      const openrouterUrl = "https://sites-openrouter.decocache.com/mcp";
-
       // Check if OpenRouter already exists
       const existingConnection = allConnections?.find(
-        (conn) => conn.connection_url === openrouterUrl,
+        (conn: { connection_url?: string | null }) =>
+          conn.connection_url === OPENROUTER_MCP_URL,
       );
 
       if (existingConnection) {
@@ -202,37 +260,9 @@ export function ChatPanel() {
       }
 
       // Create new OpenRouter connection
-      const now = new Date().toISOString();
-      const connectionData = {
+      const connectionData = getWellKnownOpenRouterConnection({
         id: generatePrefixedId("conn"),
-        title: "OpenRouter",
-        description: "Access hundreds of LLM models from a single API",
-        icon: "https://openrouter.ai/favicon.ico",
-        app_name: "openrouter",
-        app_id: "openrouter",
-        connection_type: "HTTP" as const,
-        connection_url: openrouterUrl,
-        connection_token: null as string | null,
-        connection_headers: null,
-        oauth_config: null,
-        configuration_state: null,
-        configuration_scopes: null,
-        metadata: {
-          source: "chat",
-          verified: false,
-          scopeName: "deco",
-          toolsCount: 0,
-          publishedAt: null,
-          repository: null,
-        },
-        created_at: now,
-        updated_at: now,
-        created_by: user.id,
-        organization_id: orgId,
-        tools: null,
-        bindings: null,
-        status: "inactive" as const,
-      };
+      });
 
       const result = await actions.create.mutateAsync(connectionData);
 
