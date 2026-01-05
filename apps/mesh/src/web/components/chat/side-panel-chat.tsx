@@ -1,8 +1,9 @@
-import { generatePrefixedId } from "@/shared/utils/generate-id";
 import {
   getWellKnownOpenRouterConnection,
+  OPENROUTER_ICON_URL,
   OPENROUTER_MCP_URL,
 } from "@/core/well-known-mcp";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { EmptyState } from "@/web/components/empty-state";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
@@ -336,7 +337,7 @@ export function ChatPanel() {
                     disabled={isInstallingOpenRouter}
                   >
                     <img
-                      src="https://openrouter.ai/favicon.ico"
+                      src={OPENROUTER_ICON_URL}
                       alt="OpenRouter"
                       className="size-4"
                     />
