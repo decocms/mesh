@@ -44,7 +44,7 @@ export function User({
   if (isLoading) {
     return (
       <div className={`flex items-center gap-2 ${className || ""}`}>
-        <Avatar.Skeleton />
+        <Avatar.Skeleton shape="circle" size={size} />
         <div className="flex flex-col gap-1">
           <div className="h-3 w-24 bg-muted animate-pulse rounded" />
           {showEmail && (
