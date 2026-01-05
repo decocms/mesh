@@ -22,7 +22,6 @@ import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
-import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -46,6 +45,7 @@ import {
   type TimeRange as TimeRangeValue,
 } from "@deco/ui/components/time-range-picker.tsx";
 import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
+import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
 import {
@@ -61,22 +61,24 @@ import {
 interface MonitoringStatsProps {
   displayDateRange: DateRange;
   connectionIds: string[];
-  logsData: MonitoringLogsResponse;
+  logs: MonitoringLogsResponse["logs"];
+  total?: number;
 }
 
 function MonitoringStatsContent({
   displayDateRange,
   connectionIds,
-  logsData,
+  logs: allLogs,
+  total,
 }: MonitoringStatsProps) {
   // Filter logs by multiple connection IDs (client-side if more than one selected)
-  let logs = logsData?.logs ?? [];
+  let logs = allLogs;
   if (connectionIds.length > 1) {
     logs = logs.filter((log) => connectionIds.includes(log.connectionId));
   }
 
   // Use server total for stats calculation (logs are paginated, so we need the total)
-  const totalCalls = connectionIds.length > 1 ? undefined : logsData?.total;
+  const totalCalls = connectionIds.length > 1 ? undefined : total;
   const stats = calculateStats(logs, displayDateRange, undefined, totalCalls);
 
   return (
@@ -248,10 +250,10 @@ interface MonitoringLogsTableProps {
   tool: string;
   status: string;
   search: string;
-  pageSize: number;
-  page: number;
-  logsData: MonitoringLogsResponse;
-  onPageChange: (page: number) => void;
+  logs: MonitoringLogsResponse["logs"];
+  hasMore: boolean;
+  onLoadMore: () => void;
+  isLoadingMore: boolean;
   connections: ReturnType<typeof useConnections>;
   gateways: ReturnType<typeof useGateways>;
   membersData: ReturnType<typeof useMembers>["data"];
@@ -263,10 +265,10 @@ function MonitoringLogsTableContent({
   tool,
   status,
   search: searchQuery,
-  pageSize,
-  page,
-  logsData,
-  onPageChange,
+  logs,
+  hasMore,
+  onLoadMore,
+  isLoadingMore,
   connections: connectionsData,
   gateways: gatewaysData,
   membersData,
@@ -275,14 +277,8 @@ function MonitoringLogsTableContent({
   const gateways = gatewaysData ?? [];
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
-  // Get logs from the current page
-  const logs = logsData?.logs ?? [];
-
-  // Check if there are more pages available
-  const hasMore = logs.length >= pageSize;
-
-  // Use the infinite scroll hook
-  const lastLogRef = useInfiniteScroll(() => onPageChange(page + 1), hasMore);
+  // Use the infinite scroll hook with loading guard
+  const lastLogRef = useInfiniteScroll(onLoadMore, hasMore, isLoadingMore);
 
   const members = membersData?.data?.members ?? [];
   const userMap = new Map(members.map((m) => [m.userId, m.user]));
@@ -469,7 +465,6 @@ interface MonitoringDashboardContentProps {
   activeFiltersCount: number;
   from: string;
   to: string;
-  page: number;
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
   onTimeRangeChange: (range: TimeRangeValue) => void;
   onStreamingToggle: () => void;
@@ -487,7 +482,6 @@ function MonitoringDashboardContent({
   activeFiltersCount,
   from,
   to,
-  page,
   onUpdateFilters,
   onTimeRangeChange,
   onStreamingToggle,
@@ -506,39 +500,58 @@ function MonitoringDashboardContent({
   }));
 
   const { pageSize, streamingRefetchInterval } = MONITORING_CONFIG;
-  const offset = page * pageSize;
-
-  // Single fetch for current page logs
   const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
 
-  const logsParams = {
+  // Base params for filtering (without pagination)
+  const baseParams = {
     startDate: dateRange.startDate.toISOString(),
     endDate: dateRange.endDate.toISOString(),
-    // Only pass single connection/gateway to API; multi-selection is filtered client-side
     connectionId: connectionIds.length === 1 ? connectionIds[0] : undefined,
     gatewayId: gatewayIds.length === 1 ? gatewayIds[0] : undefined,
     toolName: tool || undefined,
     isError:
       status === "errors" ? true : status === "success" ? false : undefined,
-    limit: pageSize,
-    offset,
   };
 
-  const { data: logsData } = useToolCall<
-    typeof logsParams,
-    MonitoringLogsResponse
-  >({
-    toolCaller,
-    toolName: "MONITORING_LOGS_LIST",
-    toolInputParams: logsParams,
-    scope: locator,
-    staleTime: 0,
-    refetchInterval: isStreaming ? streamingRefetchInterval : false,
-  });
+  // Use React Query's infinite query for automatic accumulation
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useSuspenseInfiniteQuery({
+      queryKey: [
+        "monitoring-logs-infinite",
+        locator,
+        JSON.stringify(baseParams),
+      ],
+      queryFn: async ({ pageParam = 0 }) => {
+        const result = await toolCaller("MONITORING_LOGS_LIST", {
+          ...baseParams,
+          limit: pageSize,
+          offset: pageParam,
+        });
+        return result as MonitoringLogsResponse;
+      },
+      initialPageParam: 0,
+      getNextPageParam: (lastPage, allPages) => {
+        // If we got fewer logs than pageSize, there are no more pages
+        if ((lastPage?.logs?.length ?? 0) < pageSize) {
+          return undefined;
+        }
+        // Otherwise, return the next offset
+        return allPages.length * pageSize;
+      },
+      staleTime: 0,
+      refetchInterval: isStreaming ? streamingRefetchInterval : false,
+    });
 
-  const handlePageChange = (newPage: number) => {
-    onUpdateFilters({ page: newPage });
+  // Flatten all pages into a single array
+  const allLogs = data?.pages.flatMap((page) => page?.logs ?? []) ?? [];
+  const total = data?.pages[0]?.total;
+
+  // Handler for loading more
+  const handleLoadMore = () => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
   };
 
   return (
@@ -590,7 +603,8 @@ function MonitoringDashboardContent({
         <MonitoringStats
           displayDateRange={displayDateRange}
           connectionIds={connectionIds}
-          logsData={logsData}
+          logs={allLogs}
+          total={total}
         />
 
         {/* Search Bar */}
@@ -615,10 +629,10 @@ function MonitoringDashboardContent({
             tool={tool}
             status={status}
             search={searchQuery}
-            pageSize={pageSize}
-            page={page}
-            logsData={logsData}
-            onPageChange={handlePageChange}
+            logs={allLogs}
+            hasMore={hasNextPage ?? false}
+            onLoadMore={handleLoadMore}
+            isLoadingMore={isFetchingNextPage}
             connections={allConnections}
             gateways={allGateways}
             membersData={membersData}
@@ -644,30 +658,17 @@ export default function MonitoringDashboard() {
     tool,
     search: searchQuery,
     status,
-    page = 0,
     streaming = true,
   } = search;
 
-  // Update URL with new filter values
+  // Update URL with new filter values (pagination is handled internally, not in URL)
   const updateFilters = (updates: Partial<MonitoringSearchParams>) => {
-    // Reset page to 0 when filters change (unless page is explicitly updated)
-    const shouldResetPage =
-      !("page" in updates) &&
-      ("from" in updates ||
-        "to" in updates ||
-        "connectionId" in updates ||
-        "gatewayId" in updates ||
-        "tool" in updates ||
-        "status" in updates ||
-        "search" in updates);
-
     navigate({
       to: "/$org/monitoring",
       params: { org: org.slug },
       search: {
         ...search,
         ...updates,
-        ...(shouldResetPage && { page: 0 }),
       },
     });
   };
@@ -747,7 +748,6 @@ export default function MonitoringDashboard() {
             activeFiltersCount={activeFiltersCount}
             from={from}
             to={to}
-            page={page}
             onUpdateFilters={updateFilters}
             onTimeRangeChange={handleTimeRangeChange}
             onStreamingToggle={() => updateFilters({ streaming: !streaming })}
