@@ -217,12 +217,6 @@ function ChatInput({
   value?: string;
   onValueChange?: (value: string) => void;
 }>) {
-  const [internalInput, setInternalInput] = useState("");
-
-  // Use controlled value if provided, otherwise use internal state
-  const input = value !== undefined ? value : internalInput;
-  const setInput = onValueChange ?? setInternalInput;
-
   const modelSelector = findChild(children, ChatInputModelSelector);
   const gatewaySelector = findChild(children, ChatInputGatewaySelector);
   const rest = filterChildren(children, [
@@ -232,13 +226,13 @@ function ChatInput({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!input?.trim() || isStreaming) {
+    if (!value?.trim() || isStreaming) {
       return;
     }
-    const text = input.trim();
+    const text = value.trim();
     try {
       await onSubmit(text);
-      setInput("");
+      onValueChange?.("");
     } catch (error) {
       console.error("Failed to send message:", error);
       const message =
@@ -290,8 +284,8 @@ function ChatInput({
 
   return (
     <DecoChatInputV2
-      value={input}
-      onChange={setInput}
+      value={value ?? ""}
+      onChange={onValueChange ?? (() => {})}
       onSubmit={handleSubmit}
       onStop={onStop}
       disabled={disabled}
