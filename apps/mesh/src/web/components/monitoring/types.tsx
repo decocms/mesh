@@ -437,9 +437,15 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                       variant="ghost"
                       size="sm"
                       className="justify-start h-8 px-2 text-xs font-normal focus-visible:ring-0 focus-visible:ring-offset-0"
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${key}=${value}`);
-                        toast.success("Copied filter to clipboard");
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(
+                            `${key}=${value}`,
+                          );
+                          toast.success("Copied filter to clipboard");
+                        } catch {
+                          toast.error("Failed to copy to clipboard");
+                        }
                       }}
                     >
                       <Copy01 size={14} className="mr-2" />
@@ -449,9 +455,13 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                       variant="ghost"
                       size="sm"
                       className="justify-start h-8 px-2 text-xs font-normal focus-visible:ring-0 focus-visible:ring-offset-0"
-                      onClick={() => {
-                        navigator.clipboard.writeText(key);
-                        toast.success("Copied key to clipboard");
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(key);
+                          toast.success("Copied key to clipboard");
+                        } catch {
+                          toast.error("Failed to copy to clipboard");
+                        }
                       }}
                     >
                       <Key01 size={14} className="mr-2" />
@@ -461,9 +471,13 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                       variant="ghost"
                       size="sm"
                       className="justify-start h-8 px-2 text-xs font-normal focus-visible:ring-0 focus-visible:ring-offset-0"
-                      onClick={() => {
-                        navigator.clipboard.writeText(value);
-                        toast.success("Copied value to clipboard");
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(value);
+                          toast.success("Copied value to clipboard");
+                        } catch {
+                          toast.error("Failed to copy to clipboard");
+                        }
                       }}
                     >
                       <Type01 size={14} className="mr-2" />
