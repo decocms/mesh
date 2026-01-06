@@ -232,58 +232,59 @@ export function createApp(options: CreateAppOptions = {}) {
     }
 
     // For MCP calls, extract tool/method info
-    // Note: We clone the request body here for logging. This could be optimized
-    // by moving detailed parsing deeper in the call stack where the body is
-    // already parsed (e.g., in proxy routes), but keeping it here for now
-    // to maintain visibility at the middleware level.
+    // Note: In production, we skip body cloning for performance. Detailed parsing
+    // happens deeper in the call stack where the body is already parsed (e.g., in proxy routes).
     let mcpInfo = "";
     let isMcpCall = false;
     if (path.startsWith("/mcp") && method === "POST") {
       isMcpCall = true;
-      try {
-        // Only attempt to parse if Content-Type suggests JSON and body exists
-        const contentType = c.req.header("Content-Type");
-        if (contentType?.includes("application/json")) {
-          const cloned = c.req.raw.clone();
-          const body = (await cloned.json()) as {
-            method?: string;
-            params?: {
-              name?: string;
-              arguments?: Record<string, unknown>;
+      // Skip expensive body cloning in production
+      if (process.env.NODE_ENV !== "production") {
+        try {
+          // Only attempt to parse if Content-Type suggests JSON and body exists
+          const contentType = c.req.header("Content-Type");
+          if (contentType?.includes("application/json")) {
+            const cloned = c.req.raw.clone();
+            const body = (await cloned.json()) as {
+              method?: string;
+              params?: {
+                name?: string;
+                arguments?: Record<string, unknown>;
+              };
             };
-          };
-          if (body.method === "tools/call" && body.params?.name) {
-            // Sanitize all user-provided fields before logging
-            const toolName = sanitizeForLog(body.params.name);
-            const args = body.params.arguments || {};
+            if (body.method === "tools/call" && body.params?.name) {
+              // Sanitize all user-provided fields before logging
+              const toolName = sanitizeForLog(body.params.name);
+              const args = body.params.arguments || {};
 
-            // For event bus calls, show the event type prominently
-            if (toolName === "EVENT_PUBLISH" && args.type) {
-              const eventType = sanitizeForLog(String(args.type));
-              mcpInfo = `${colors.tool}EVENT_PUBLISH${colors.reset} ${colors.bold}→ ${eventType}${colors.reset}`;
-            } else if (toolName === "EVENT_SUBSCRIBE" && args.eventType) {
-              const eventType = sanitizeForLog(String(args.eventType));
-              mcpInfo = `${colors.tool}EVENT_SUBSCRIBE${colors.reset} ${colors.bold}← ${eventType}${colors.reset}`;
-            } else if (toolName === "EVENT_UNSUBSCRIBE" && args.eventType) {
-              const eventType = sanitizeForLog(String(args.eventType));
-              mcpInfo = `${colors.tool}EVENT_UNSUBSCRIBE${colors.reset} ${colors.dim}✕ ${eventType}${colors.reset}`;
-            } else {
-              // Default: show tool name with arg keys (sanitized)
-              const argKeys = Object.keys(args).map((k) => sanitizeForLog(k));
-              const argsStr =
-                argKeys.length > 0
-                  ? argKeys.slice(0, 3).join(",") +
-                    (argKeys.length > 3 ? "…" : "")
-                  : "";
-              mcpInfo = `${colors.tool}${toolName}${colors.dim}(${argsStr})${colors.reset}`;
+              // For event bus calls, show the event type prominently
+              if (toolName === "EVENT_PUBLISH" && args.type) {
+                const eventType = sanitizeForLog(String(args.type));
+                mcpInfo = `${colors.tool}EVENT_PUBLISH${colors.reset} ${colors.bold}→ ${eventType}${colors.reset}`;
+              } else if (toolName === "EVENT_SUBSCRIBE" && args.eventType) {
+                const eventType = sanitizeForLog(String(args.eventType));
+                mcpInfo = `${colors.tool}EVENT_SUBSCRIBE${colors.reset} ${colors.bold}← ${eventType}${colors.reset}`;
+              } else if (toolName === "EVENT_UNSUBSCRIBE" && args.eventType) {
+                const eventType = sanitizeForLog(String(args.eventType));
+                mcpInfo = `${colors.tool}EVENT_UNSUBSCRIBE${colors.reset} ${colors.dim}✕ ${eventType}${colors.reset}`;
+              } else {
+                // Default: show tool name with arg keys (sanitized)
+                const argKeys = Object.keys(args).map((k) => sanitizeForLog(k));
+                const argsStr =
+                  argKeys.length > 0
+                    ? argKeys.slice(0, 3).join(",") +
+                      (argKeys.length > 3 ? "…" : "")
+                    : "";
+                mcpInfo = `${colors.tool}${toolName}${colors.dim}(${argsStr})${colors.reset}`;
+              }
+            } else if (body.method) {
+              mcpInfo = `${colors.dim}${sanitizeForLog(body.method)}${colors.reset}`;
             }
-          } else if (body.method) {
-            mcpInfo = `${colors.dim}${sanitizeForLog(body.method)}${colors.reset}`;
           }
+        } catch {
+          // Ignore parse errors - body parsing failures shouldn't break the request
+          // Detailed error logging happens deeper in the stack
         }
-      } catch {
-        // Ignore parse errors - body parsing failures shouldn't break the request
-        // Detailed error logging happens deeper in the stack
       }
     }
 
