@@ -224,7 +224,7 @@ export function getDbDialect(databaseUrl?: string): Dialect {
     return new PostgresDialect({
       pool: new Pool({
         connectionString: config.connectionString,
-        max: 3000,
+        max: config.options?.maxConnections || 10,
         ssl: process.env.DATABASE_PG_SSL === "true" ? true : false,
       }),
     });
