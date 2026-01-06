@@ -15,7 +15,7 @@ export interface StepExecutionStatus {
 /**
  * Returns execution status for all steps when tracking an execution.
  * Determines step status based on:
-bu * - If step name is in completed_steps.success -> success
+ * - If step name is in completed_steps.success -> success
  * - If step name is in completed_steps.error -> error
  * - If execution is running and step is next in line -> running
  * - Otherwise -> pending
