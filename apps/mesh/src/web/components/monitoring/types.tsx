@@ -195,6 +195,16 @@ export function parseRawPropertyFilters(raw: string): PropertyFilter[] {
           value: "",
         };
       }
+      // Check for equals first (key=value) - must come before contains
+      // to handle values containing ~ (e.g., url=https://example.com/~user)
+      if (line.includes("=")) {
+        const [key, ...valueParts] = line.split("=");
+        return {
+          key: key || "",
+          operator: "eq" as PropertyFilterOperator,
+          value: valueParts.join("="),
+        };
+      }
       // Check for contains (key~value)
       if (line.includes("~")) {
         const [key, ...valueParts] = line.split("~");
@@ -202,15 +212,6 @@ export function parseRawPropertyFilters(raw: string): PropertyFilter[] {
           key: key || "",
           operator: "contains" as PropertyFilterOperator,
           value: valueParts.join("~"),
-        };
-      }
-      // Default to equals (key=value)
-      if (line.includes("=")) {
-        const [key, ...valueParts] = line.split("=");
-        return {
-          key: key || "",
-          operator: "eq" as PropertyFilterOperator,
-          value: valueParts.join("="),
         };
       }
       // Just a key without operator - treat as exists
