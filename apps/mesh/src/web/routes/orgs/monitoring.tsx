@@ -408,21 +408,21 @@ function FiltersPopover({
                           <Trash01 size={12} />
                         </Button>
                       </div>
-                      <Input
-                        placeholder="Property key (e.g., thread_id)"
-                        value={filter.key}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                          updatePropertyFilter(index, { key: e.target.value })
-                        }
-                        onBlur={applyPropertyFilters}
-                        onKeyDown={(
-                          e: React.KeyboardEvent<HTMLInputElement>,
-                        ) => {
-                          if (e.key === "Enter") applyPropertyFilters();
-                        }}
-                        className="font-mono text-sm"
-                      />
                       <div className="flex gap-2">
+                        <Input
+                          placeholder="Key (e.g., thread_id)"
+                          value={filter.key}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            updatePropertyFilter(index, { key: e.target.value })
+                          }
+                          onBlur={applyPropertyFilters}
+                          onKeyDown={(
+                            e: React.KeyboardEvent<HTMLInputElement>,
+                          ) => {
+                            if (e.key === "Enter") applyPropertyFilters();
+                          }}
+                          className="flex-1 font-mono text-sm"
+                        />
                         <Select
                           value={filter.operator}
                           onValueChange={(value: PropertyFilterOperator) => {
@@ -447,27 +447,25 @@ function FiltersPopover({
                             ))}
                           </SelectContent>
                         </Select>
-                        {filter.operator !== "exists" && (
-                          <Input
-                            placeholder="Value"
-                            value={filter.value}
-                            onChange={(
-                              e: React.ChangeEvent<HTMLInputElement>,
-                            ) =>
-                              updatePropertyFilter(index, {
-                                value: e.target.value,
-                              })
-                            }
-                            onBlur={applyPropertyFilters}
-                            onKeyDown={(
-                              e: React.KeyboardEvent<HTMLInputElement>,
-                            ) => {
-                              if (e.key === "Enter") applyPropertyFilters();
-                            }}
-                            className="flex-1 font-mono text-sm"
-                          />
-                        )}
                       </div>
+                      {filter.operator !== "exists" && (
+                        <Input
+                          placeholder="Value"
+                          value={filter.value}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            updatePropertyFilter(index, {
+                              value: e.target.value,
+                            })
+                          }
+                          onBlur={applyPropertyFilters}
+                          onKeyDown={(
+                            e: React.KeyboardEvent<HTMLInputElement>,
+                          ) => {
+                            if (e.key === "Enter") applyPropertyFilters();
+                          }}
+                          className="w-full font-mono text-sm"
+                        />
+                      )}
                     </div>
                   ))}
                   <Button
