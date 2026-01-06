@@ -164,8 +164,18 @@ async function fetchToolsFromStdioMCP(
       setTimeout(() => reject(new Error("Tool fetch timeout")), 10_000);
     });
 
+    console.log(
+      `[STDIO tool fetch] Connecting to ${connection.id}: ${stdioParams.command} ${stdioParams.args?.join(" ")}`,
+    );
+
     await Promise.race([client.connect(transport), timeoutPromise]);
+    console.log(`[STDIO tool fetch] Connected, listing tools...`);
+
     const result = await Promise.race([client.listTools(), timeoutPromise]);
+    console.log(
+      `[STDIO tool fetch] Got ${result.tools?.length ?? 0} tools:`,
+      result.tools?.map((t) => t.name),
+    );
 
     if (!result.tools || result.tools.length === 0) {
       return null;
