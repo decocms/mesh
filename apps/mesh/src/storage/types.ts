@@ -397,6 +397,7 @@ export interface MonitoringLogTable {
   request_id: string;
   user_agent: string | null; // x-mesh-client header
   gateway_id: string | null; // Gateway ID if routed through gateway
+  properties: JsonObject<Record<string, string>> | null; // Custom key-value metadata
 }
 
 /**
@@ -418,6 +419,7 @@ export interface MonitoringLog {
   requestId: string;
   userAgent?: string | null; // x-mesh-client header
   gatewayId?: string | null; // Gateway ID if routed through gateway
+  properties?: Record<string, string> | null; // Custom key-value metadata
 }
 
 // ============================================================================

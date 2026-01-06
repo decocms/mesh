@@ -48,18 +48,32 @@ export interface OrganizationSettingsStoragePort {
 // Monitoring Storage Interface
 // ============================================================================
 
+/**
+ * Property filter options for querying monitoring logs
+ */
+export interface PropertyFilters {
+  /** Exact match: filter logs where property key equals value */
+  properties?: Record<string, string>;
+  /** Exists: filter logs that have these property keys */
+  propertyKeys?: string[];
+  /** Pattern match: filter logs where property value matches pattern (SQL LIKE) */
+  propertyPatterns?: Record<string, string>;
+}
+
 export interface MonitoringStorage {
   log(event: MonitoringLog): Promise<void>;
   logBatch(events: MonitoringLog[]): Promise<void>;
   query(filters: {
     organizationId?: string;
     connectionId?: string;
+    gatewayId?: string;
     toolName?: string;
     isError?: boolean;
     startDate?: Date;
     endDate?: Date;
     limit?: number;
     offset?: number;
+    propertyFilters?: PropertyFilters;
   }): Promise<{ logs: MonitoringLog[]; total: number }>;
   getStats(filters: {
     organizationId: string;

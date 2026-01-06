@@ -453,6 +453,7 @@ export function createApp(options: CreateAppOptions = {}) {
   ContextFactory.set(
     createMeshContextFactory({
       db: database.db,
+      databaseType: database.type,
       auth,
       encryption: {
         key: process.env.ENCRYPTION_KEY || "",

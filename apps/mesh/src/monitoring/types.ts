@@ -21,6 +21,7 @@ export interface RawMonitoringEvent {
   timestamp: Date;
   userId?: string;
   requestId: string;
+  properties?: Record<string, string>; // Custom key-value metadata
 }
 
 // ============================================================================

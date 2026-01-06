@@ -6,8 +6,9 @@
  */
 
 import type { Kysely } from "kysely";
+import { sql } from "kysely";
 import { RegexRedactor } from "../monitoring/redactor";
-import type { MonitoringStorage } from "./ports";
+import type { MonitoringStorage, PropertyFilters } from "./ports";
 import type { Database, MonitoringLog } from "./types";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
@@ -17,9 +18,29 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 export class SqlMonitoringStorage implements MonitoringStorage {
   private redactor: RegexRedactor;
+  private databaseType: "sqlite" | "postgres";
 
-  constructor(private db: Kysely<Database>) {
+  constructor(
+    private db: Kysely<Database>,
+    databaseType: "sqlite" | "postgres" = "sqlite",
+  ) {
     this.redactor = new RegexRedactor();
+    this.databaseType = databaseType;
+  }
+
+  /**
+   * Get JSON property value extraction SQL fragment.
+   * SQLite uses json_extract(col, '$.key'), PostgreSQL uses (col::jsonb)->>'key'.
+   * Note: properties column is stored as text, so PostgreSQL needs a cast to jsonb.
+   */
+  private jsonExtract(column: string, key: string) {
+    if (this.databaseType === "postgres") {
+      // PostgreSQL: cast text to jsonb, then use ->> operator for text extraction
+      return sql`(${sql.ref(column)}::jsonb)->>${key}`;
+    }
+    // SQLite: use json_extract with JSON path
+    const jsonPath = `$.${key}`;
+    return sql`json_extract(${sql.ref(column)}, ${jsonPath})`;
   }
 
   async log(event: MonitoringLog): Promise<void> {
@@ -55,6 +76,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     endDate?: Date;
     limit?: number;
     offset?: number;
+    propertyFilters?: PropertyFilters;
   }): Promise<{ logs: MonitoringLog[]; total: number }> {
     let query = this.db.selectFrom("monitoring_logs").selectAll();
     let countQuery = this.db
@@ -109,6 +131,49 @@ export class SqlMonitoringStorage implements MonitoringStorage {
         "<=",
         filters.endDate.toISOString() as never,
       );
+    }
+
+    // Apply property filters
+    if (filters.propertyFilters) {
+      const { properties, propertyKeys, propertyPatterns } =
+        filters.propertyFilters;
+
+      // Exact match: property key=value
+      if (properties) {
+        for (const [key, value] of Object.entries(properties)) {
+          const jsonExpr = this.jsonExtract("properties", key);
+          query = query.where(jsonExpr as never, "=", value as never);
+          countQuery = countQuery.where(jsonExpr as never, "=", value as never);
+        }
+      }
+
+      // Exists: check if property key exists
+      if (propertyKeys && propertyKeys.length > 0) {
+        for (const key of propertyKeys) {
+          const jsonExpr = this.jsonExtract("properties", key);
+          query = query.where(jsonExpr as never, "is not", null as never);
+          countQuery = countQuery.where(
+            jsonExpr as never,
+            "is not",
+            null as never,
+          );
+        }
+      }
+
+      // Pattern match: property value matches pattern (using LIKE)
+      if (propertyPatterns) {
+        for (const [key, pattern] of Object.entries(propertyPatterns)) {
+          const jsonExpr = this.jsonExtract("properties", key);
+          // Use ILIKE for PostgreSQL (case-insensitive), LIKE for SQLite
+          const likeOp = this.databaseType === "postgres" ? "ilike" : "like";
+          query = query.where(jsonExpr as never, likeOp, pattern as never);
+          countQuery = countQuery.where(
+            jsonExpr as never,
+            likeOp,
+            pattern as never,
+          );
+        }
+      }
     }
 
     // Order by timestamp descending (most recent first)
@@ -208,6 +273,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       request_id: log.requestId,
       user_agent: log.userAgent || null,
       gateway_id: log.gatewayId || null,
+      properties: log.properties ? JSON.stringify(log.properties) : null,
     };
   }
 
@@ -227,6 +293,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     request_id: string;
     user_agent: string | null;
     gateway_id: string | null;
+    properties: string | Record<string, string> | null;
   }): MonitoringLog {
     const input =
       typeof row.input === "string" ? JSON.parse(row.input) : row.input;
@@ -236,6 +303,11 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       typeof row.timestamp === "string"
         ? new Date(row.timestamp)
         : row.timestamp;
+    const properties = row.properties
+      ? typeof row.properties === "string"
+        ? JSON.parse(row.properties)
+        : row.properties
+      : null;
 
     return {
       id: row.id,
@@ -253,6 +325,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       requestId: row.request_id,
       userAgent: row.user_agent,
       gatewayId: row.gateway_id,
+      properties,
     };
   }
 }

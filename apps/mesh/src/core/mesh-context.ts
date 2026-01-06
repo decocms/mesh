@@ -210,6 +210,8 @@ export interface RequestMetadata {
   timestamp: Date;
   userAgent?: string;
   ipAddress?: string;
+  /** Custom properties from x-mesh-properties header (string key-value pairs) */
+  properties?: Record<string, string>;
 }
 
 // ============================================================================

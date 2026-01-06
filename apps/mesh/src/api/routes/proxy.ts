@@ -386,6 +386,14 @@ async function createMCPProxyDoNotUseDirectly(
       const client = await createClient();
       const startTime = Date.now();
 
+      // Strip _meta from arguments before forwarding to upstream server
+      // (_meta is used for internal monitoring properties and should not be sent upstream)
+      const forwardParams = { ...request.params };
+      if (forwardParams.arguments && "_meta" in forwardParams.arguments) {
+        const { _meta, ...restArgs } = forwardParams.arguments;
+        forwardParams.arguments = restArgs;
+      }
+
       // Start span for tracing
       return await ctx.tracer.startActiveSpan(
         "mcp.proxy.callTool",
@@ -397,7 +405,7 @@ async function createMCPProxyDoNotUseDirectly(
         },
         async (span) => {
           try {
-            const result = await client.callTool(request.params);
+            const result = await client.callTool(forwardParams);
             const duration = Date.now() - startTime;
 
             // Record duration histogram

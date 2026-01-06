@@ -48,12 +48,26 @@ import {
 import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import {
   type EnrichedMonitoringLog,
   type MonitoringLogsResponse,
   type MonitoringSearchParams,
+  type PropertyFilter,
+  type PropertyFilterOperator,
+  deserializePropertyFilters,
+  serializePropertyFilters,
+  propertyFiltersToApiParams,
+  propertyFiltersToRaw,
+  parseRawPropertyFilters,
 } from "@/web/components/monitoring";
+import { Plus, Trash01, Code01, Grid01 } from "@untitledui/icons";
+import { Textarea } from "@deco/ui/components/textarea.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 
 // ============================================================================
 // Stats Component
@@ -104,23 +118,123 @@ interface FiltersPopoverProps {
   gatewayIds: string[];
   tool: string;
   status: string;
+  propertyFilters: PropertyFilter[];
   connectionOptions: Array<{ value: string; label: string }>;
   gatewayOptions: Array<{ value: string; label: string }>;
   activeFiltersCount: number;
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
 }
 
+const OPERATOR_OPTIONS: Array<{
+  value: PropertyFilterOperator;
+  label: string;
+}> = [
+  { value: "eq", label: "equals" },
+  { value: "contains", label: "contains" },
+  { value: "exists", label: "exists" },
+];
+
 function FiltersPopover({
   connectionIds,
   gatewayIds,
   tool,
   status,
+  propertyFilters,
   connectionOptions,
   gatewayOptions,
   activeFiltersCount,
   onUpdateFilters,
 }: FiltersPopoverProps) {
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+  const [propertyFilterMode, setPropertyFilterMode] = useState<"raw" | "form">(
+    "raw",
+  );
+
+  // Local state for text inputs to prevent focus loss during typing
+  const [localTool, setLocalTool] = useState(tool);
+  const [localPropertyFilters, setLocalPropertyFilters] =
+    useState<PropertyFilter[]>(propertyFilters);
+  const [localRawFilters, setLocalRawFilters] = useState(
+    propertyFiltersToRaw(propertyFilters),
+  );
+
+  // Track previous prop values to detect external changes
+  const prevToolRef = useRef(tool);
+  const prevPropertyFiltersRef = useRef(
+    serializePropertyFilters(propertyFilters),
+  );
+
+  // Sync local state when props change externally (not from our own updates)
+  if (prevToolRef.current !== tool) {
+    prevToolRef.current = tool;
+    if (localTool !== tool) {
+      setLocalTool(tool);
+    }
+  }
+
+  const currentSerialized = serializePropertyFilters(propertyFilters);
+  if (prevPropertyFiltersRef.current !== currentSerialized) {
+    prevPropertyFiltersRef.current = currentSerialized;
+    setLocalPropertyFilters(propertyFilters);
+    setLocalRawFilters(propertyFiltersToRaw(propertyFilters));
+  }
+
+  const updatePropertyFilter = (
+    index: number,
+    updates: Partial<PropertyFilter>,
+  ) => {
+    const newFilters = [...localPropertyFilters];
+    const existing = newFilters[index];
+    if (!existing) return;
+    newFilters[index] = {
+      key: updates.key ?? existing.key,
+      operator: updates.operator ?? existing.operator,
+      value: updates.value ?? existing.value,
+    };
+    setLocalPropertyFilters(newFilters);
+  };
+
+  const addPropertyFilter = () => {
+    setLocalPropertyFilters([
+      ...localPropertyFilters,
+      { key: "", operator: "eq", value: "" },
+    ]);
+  };
+
+  const removePropertyFilter = (index: number) => {
+    const newFilters = localPropertyFilters.filter((_, i) => i !== index);
+    setLocalPropertyFilters(newFilters);
+    setLocalRawFilters(propertyFiltersToRaw(newFilters));
+    // Immediately sync when removing
+    onUpdateFilters({ propertyFilters: serializePropertyFilters(newFilters) });
+  };
+
+  const applyPropertyFilters = () => {
+    onUpdateFilters({
+      propertyFilters: serializePropertyFilters(localPropertyFilters),
+    });
+  };
+
+  const applyRawFilters = () => {
+    const parsed = parseRawPropertyFilters(localRawFilters);
+    setLocalPropertyFilters(parsed);
+    onUpdateFilters({
+      propertyFilters: serializePropertyFilters(parsed),
+    });
+  };
+
+  const toggleMode = () => {
+    if (propertyFilterMode === "raw") {
+      // Switching to form mode - parse raw
+      const parsed = parseRawPropertyFilters(localRawFilters);
+      setLocalPropertyFilters(parsed);
+      setPropertyFilterMode("form");
+    } else {
+      // Switching to raw mode - serialize form
+      setLocalRawFilters(propertyFiltersToRaw(localPropertyFilters));
+      setPropertyFilterMode("raw");
+    }
+  };
 
   return (
     <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
@@ -184,11 +298,22 @@ function FiltersPopover({
                 Tool Name
               </label>
               <Input
+                id="filter-tool"
                 placeholder="Filter by tool..."
-                value={tool}
+                value={localTool}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  onUpdateFilters({ tool: e.target.value })
+                  setLocalTool(e.target.value)
                 }
+                onBlur={() => {
+                  if (localTool !== tool) {
+                    onUpdateFilters({ tool: localTool });
+                  }
+                }}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === "Enter" && localTool !== tool) {
+                    onUpdateFilters({ tool: localTool });
+                  }
+                }}
                 className="w-full"
               />
             </div>
@@ -215,6 +340,159 @@ function FiltersPopover({
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Property Filters
+                </label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={toggleMode}
+                    >
+                      {propertyFilterMode === "raw" ? (
+                        <Grid01 size={14} />
+                      ) : (
+                        <Code01 size={14} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {propertyFilterMode === "raw"
+                      ? "Switch to form view"
+                      : "Switch to raw text"}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+
+              {propertyFilterMode === "raw" ? (
+                <div className="space-y-1.5">
+                  <Textarea
+                    placeholder={`Paste property filters here:\nthread_id=abc123\nuser~test\ndebug?`}
+                    value={localRawFilters}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                      setLocalRawFilters(e.target.value)
+                    }
+                    onBlur={applyRawFilters}
+                    onKeyDown={(
+                      e: React.KeyboardEvent<HTMLTextAreaElement>,
+                    ) => {
+                      if (e.key === "Enter" && e.metaKey) {
+                        applyRawFilters();
+                      }
+                    }}
+                    className="font-mono text-sm min-h-[80px] resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    One per line:{" "}
+                    <code className="bg-muted px-1 rounded">key=value</code>{" "}
+                    <code className="bg-muted px-1 rounded">key~contains</code>{" "}
+                    <code className="bg-muted px-1 rounded">key?</code>
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {localPropertyFilters.map((filter, index) => (
+                    <div
+                      key={index}
+                      className="p-2.5 rounded-md border border-border bg-muted/30 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          Filter {index + 1}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => removePropertyFilter(index)}
+                        >
+                          <Trash01 size={12} />
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Key (e.g., thread_id)"
+                          value={filter.key}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            updatePropertyFilter(index, { key: e.target.value })
+                          }
+                          onBlur={applyPropertyFilters}
+                          onKeyDown={(
+                            e: React.KeyboardEvent<HTMLInputElement>,
+                          ) => {
+                            if (e.key === "Enter") applyPropertyFilters();
+                          }}
+                          className="flex-1 font-mono text-sm"
+                        />
+                        <Select
+                          value={filter.operator}
+                          onValueChange={(value: PropertyFilterOperator) => {
+                            // Compute new filters directly to avoid stale closure
+                            const newFilters = [...localPropertyFilters];
+                            const existing = newFilters[index];
+                            if (existing) {
+                              newFilters[index] = {
+                                ...existing,
+                                operator: value,
+                                value: value === "exists" ? "" : existing.value,
+                              };
+                              setLocalPropertyFilters(newFilters);
+                              onUpdateFilters({
+                                propertyFilters:
+                                  serializePropertyFilters(newFilters),
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-28">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {OPERATOR_OPTIONS.map((op) => (
+                              <SelectItem key={op.value} value={op.value}>
+                                {op.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {filter.operator !== "exists" && (
+                        <Input
+                          placeholder="Value"
+                          value={filter.value}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            updatePropertyFilter(index, {
+                              value: e.target.value,
+                            })
+                          }
+                          onBlur={applyPropertyFilters}
+                          onKeyDown={(
+                            e: React.KeyboardEvent<HTMLInputElement>,
+                          ) => {
+                            if (e.key === "Enter") applyPropertyFilters();
+                          }}
+                          className="w-full font-mono text-sm"
+                        />
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={addPropertyFilter}
+                  >
+                    <Plus size={14} className="mr-1.5" />
+                    Add filter
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
 
           {activeFiltersCount > 0 && (
@@ -223,11 +501,15 @@ function FiltersPopover({
               size="sm"
               className="w-full"
               onClick={() => {
+                setLocalTool("");
+                setLocalPropertyFilters([]);
+                setLocalRawFilters("");
                 onUpdateFilters({
                   connectionId: [],
                   gatewayId: [],
                   tool: "",
                   status: "all",
+                  propertyFilters: "",
                 });
                 setFilterPopoverOpen(false);
               }}
@@ -466,6 +748,7 @@ interface MonitoringDashboardContentProps {
   activeFiltersCount: number;
   from: string;
   to: string;
+  propertyFilters: PropertyFilter[];
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
   onTimeRangeChange: (range: TimeRangeValue) => void;
   onStreamingToggle: () => void;
@@ -483,6 +766,7 @@ function MonitoringDashboardContent({
   activeFiltersCount,
   from,
   to,
+  propertyFilters,
   onUpdateFilters,
   onTimeRangeChange,
   onStreamingToggle,
@@ -504,6 +788,9 @@ function MonitoringDashboardContent({
   const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
 
+  // Convert property filters to API params
+  const propertyApiParams = propertyFiltersToApiParams(propertyFilters);
+
   // Base params for filtering (without pagination)
   const baseParams = {
     startDate: dateRange.startDate.toISOString(),
@@ -513,6 +800,7 @@ function MonitoringDashboardContent({
     toolName: tool || undefined,
     isError:
       status === "errors" ? true : status === "success" ? false : undefined,
+    ...propertyApiParams,
   };
 
   // Use React Query's infinite query for automatic accumulation
@@ -566,6 +854,7 @@ function MonitoringDashboardContent({
               gatewayIds={gatewayIds}
               tool={tool}
               status={status}
+              propertyFilters={propertyFilters}
               connectionOptions={connectionOptions}
               gatewayOptions={gatewayOptions}
               activeFiltersCount={activeFiltersCount}
@@ -659,7 +948,11 @@ export default function MonitoringDashboard() {
     search: searchQuery,
     status,
     streaming = true,
+    propertyFilters: propertyFiltersStr = "",
   } = search;
+
+  // Parse property filters from URL string
+  const propertyFilters = deserializePropertyFilters(propertyFiltersStr);
 
   // Update URL with new filter values (pagination is handled internally, not in URL)
   const updateFilters = (updates: Partial<MonitoringSearchParams>) => {
@@ -702,6 +995,10 @@ export default function MonitoringDashboard() {
   if (gatewayIds.length > 0) activeFiltersCount++;
   if (tool) activeFiltersCount++;
   if (status !== "all") activeFiltersCount++;
+  // Count property filters with non-empty keys
+  const validPropertyFilters = propertyFilters.filter((f) => f.key.trim());
+  if (validPropertyFilters.length > 0)
+    activeFiltersCount += validPropertyFilters.length;
 
   return (
     <CollectionPage>
@@ -748,6 +1045,7 @@ export default function MonitoringDashboard() {
             activeFiltersCount={activeFiltersCount}
             from={from}
             to={to}
+            propertyFilters={propertyFilters}
             onUpdateFilters={updateFilters}
             onTimeRangeChange={handleTimeRangeChange}
             onStreamingToggle={() => updateFilters({ streaming: !streaming })}
