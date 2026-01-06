@@ -1,6 +1,6 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
-import { ArrowUp, Plus, Stop } from "@untitledui/icons";
+import { ArrowUp, Stop } from "@untitledui/icons";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import type {
   FormEvent,
@@ -138,33 +138,5 @@ export function ChatInput({
         </div>
       </div>
     </form>
-  );
-}
-
-// Composable helper for the "Add" button dropdown trigger
-interface AddContextButtonProps {
-  onClick?: () => void;
-  className?: string;
-}
-
-export function AddContextButton({
-  onClick,
-  className,
-}: AddContextButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex size-8 items-center justify-center rounded-full p-1 hover:bg-transparent transition-colors group cursor-pointer focus-visible:outline-none focus-visible:ring-0",
-        className,
-      )}
-      title="Add context"
-    >
-      <Plus
-        size={20}
-        className="text-muted-foreground group-hover:text-foreground transition-colors"
-      />
-    </button>
   );
 }

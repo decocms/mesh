@@ -192,17 +192,3 @@ export function useChat() {
     hideThread: context.hideThread,
   };
 }
-
-/**
- * @deprecated Use useChat instead
- * Kept for backward compatibility during migration
- */
-export function useChatInteraction() {
-  return useChat();
-}
-
-/**
- * @deprecated Use ChatProvider instead
- * Kept for backward compatibility during migration
- */
-export const ChatInteractionProvider = ChatProvider;
