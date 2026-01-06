@@ -1,10 +1,11 @@
-import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { MeshSidebar } from "@/web/components/mesh-sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
 import { SplashScreen } from "@/web/components/splash-screen";
+import { ToolboxSidebar } from "@/web/components/toolbox-sidebar";
+import { ToolboxSwitcher } from "@/web/components/toolbox-switcher";
 import { MeshUserMenu } from "@/web/components/user-menu";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { useGateway } from "@/web/hooks/collections/use-gateway";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
@@ -14,44 +15,46 @@ import {
   ProjectContextProvider,
   ProjectContextProviderProps,
 } from "@/web/providers/project-context-provider";
+import { ToolboxContextProvider } from "@/web/providers/toolbox-context-provider";
 import { AppTopbar } from "@deco/ui/components/app-topbar.tsx";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { DecoChatSkeleton } from "@/web/components/chat/deco-chat-skeleton";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@deco/ui/components/resizable.tsx";
 import { SidebarToggleButton } from "@deco/ui/components/sidebar-toggle-button.tsx";
 import {
   SidebarInset,
   SidebarLayout,
   SidebarProvider,
 } from "@deco/ui/components/sidebar.tsx";
-import { cn } from "@deco/ui/lib/utils.js";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Outlet, useParams } from "@tanstack/react-router";
-import { PropsWithChildren, Suspense, useTransition } from "react";
+import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
+import { ChevronRight } from "@untitledui/icons";
+import { PropsWithChildren, Suspense } from "react";
 import { KEYS } from "../lib/query-keys";
 
-// Capybara avatar URL from decopilotAgent
-const CAPYBARA_AVATAR_URL =
-  "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
+/**
+ * Check if we're in a toolbox route by examining the current path
+ */
+function useIsToolboxRoute(): { isToolbox: boolean; toolboxId: string | null } {
+  const routerState = useRouterState();
+  const pathname = routerState.location.pathname;
+
+  // Match /$org/toolbox/$toolboxId pattern
+  const match = pathname.match(/^\/[^/]+\/toolbox\/([^/]+)/);
+
+  if (match && match[1]) {
+    return { isToolbox: true, toolboxId: match[1] };
+  }
+
+  return { isToolbox: false, toolboxId: null };
+}
 
 function Topbar({
   showSidebarToggle = false,
   showOrgSwitcher = false,
-  showDecoChat = false,
+  toolboxId,
 }: {
   showSidebarToggle?: boolean;
   showOrgSwitcher?: boolean;
-  showDecoChat?: boolean;
+  toolboxId?: string | null;
 }) {
-  const [_isOpen, setChatOpen] = useDecoChatOpen();
-
-  const toggleChat = () => setChatOpen((prev) => !prev);
-
   return (
     <AppTopbar>
       {showSidebarToggle && (
@@ -60,24 +63,24 @@ function Topbar({
         </AppTopbar.Sidebar>
       )}
       <AppTopbar.Left>
-        {showOrgSwitcher && (
-          <Suspense fallback={<MeshOrgSwitcher.Skeleton />}>
-            <MeshOrgSwitcher />
-          </Suspense>
-        )}
+        <div className="flex items-center gap-1">
+          {showOrgSwitcher && (
+            <Suspense fallback={<MeshOrgSwitcher.Skeleton />}>
+              <MeshOrgSwitcher />
+            </Suspense>
+          )}
+          {/* Show toolbox switcher when in toolbox mode */}
+          {toolboxId && (
+            <>
+              <ChevronRight size={14} className="text-muted-foreground" />
+              <Suspense fallback={<ToolboxSwitcher.Skeleton />}>
+                <ToolboxSwitcherWrapper toolboxId={toolboxId} />
+              </Suspense>
+            </>
+          )}
+        </div>
       </AppTopbar.Left>
       <AppTopbar.Right className="gap-2">
-        {showDecoChat && (
-          <Button size="sm" variant="default" onClick={toggleChat}>
-            <Avatar
-              url={CAPYBARA_AVATAR_URL}
-              fallback="DC"
-              size="2xs"
-              className="rounded-sm"
-            />
-            deco chat
-          </Button>
-        )}
         <MeshUserMenu />
       </AppTopbar.Right>
     </AppTopbar>
@@ -85,37 +88,24 @@ function Topbar({
 }
 
 /**
- * This component persists the width of the chat panel across reloads.
- * Also, it's important to keep it like this to avoid unnecessary re-renders.
+ * Wrapper that fetches toolbox data and provides context for the switcher
  */
-function PersistentResizablePanel({
-  children,
-  className,
-}: PropsWithChildren<{ className?: string }>) {
-  const [_isPending, startTransition] = useTransition();
-  const [chatPanelWidth, setChatPanelWidth] = useLocalStorage(
-    LOCALSTORAGE_KEYS.decoChatPanelWidth(),
-    30,
-  );
+function ToolboxSwitcherWrapper({ toolboxId }: { toolboxId: string }) {
+  const toolbox = useGateway(toolboxId);
 
-  const handleResize = (size: number) =>
-    startTransition(() => setChatPanelWidth(size));
+  if (!toolbox) {
+    return <ToolboxSwitcher.Skeleton />;
+  }
 
   return (
-    <ResizablePanel
-      defaultSize={chatPanelWidth}
-      minSize={20}
-      className={cn("min-w-0", className)}
-      onResize={handleResize}
-    >
-      {children}
-    </ResizablePanel>
+    <ToolboxContextProvider toolbox={toolbox}>
+      <ToolboxSwitcher />
+    </ToolboxContextProvider>
   );
 }
 
 /**
  * This component persists the open state of the sidebar across reloads.
- * Also, it's important to keep it like this to avoid unnecessary re-renders.
  */
 function PersistentSidebarProvider({ children }: PropsWithChildren) {
   const [sidebarOpen, setSidebarOpen] = useLocalStorage(
@@ -131,31 +121,40 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
 }
 
 /**
- * This component renders the chat panel and the main content.
- * It's important to keep it like this to avoid unnecessary re-renders.
+ * Sidebar that adapts based on route
  */
-function ChatPanels() {
-  const [chatOpen] = useDecoChatOpen();
+function AdaptiveSidebar({ toolboxId }: { toolboxId: string | null }) {
+  if (toolboxId) {
+    return (
+      <Suspense fallback={null}>
+        <ToolboxSidebarWrapper toolboxId={toolboxId} />
+      </Suspense>
+    );
+  }
+
+  return <MeshSidebar />;
+}
+
+/**
+ * Wrapper that fetches toolbox data and provides context for the sidebar
+ */
+function ToolboxSidebarWrapper({ toolboxId }: { toolboxId: string }) {
+  const toolbox = useGateway(toolboxId);
+
+  if (!toolbox) {
+    return null;
+  }
 
   return (
-    <ResizablePanelGroup direction="horizontal">
-      <ResizablePanel className="bg-background">
-        <Outlet />
-      </ResizablePanel>
-      <ResizableHandle withHandle={chatOpen} />
-      <PersistentResizablePanel className={chatOpen ? "max-w-none" : "max-w-0"}>
-        <ErrorBoundary>
-          <Suspense fallback={<DecoChatSkeleton />}>
-            <ChatPanel />
-          </Suspense>
-        </ErrorBoundary>
-      </PersistentResizablePanel>
-    </ResizablePanelGroup>
+    <ToolboxContextProvider toolbox={toolbox}>
+      <ToolboxSidebar />
+    </ToolboxContextProvider>
   );
 }
 
 function ShellLayoutContent() {
   const { org } = useParams({ strict: false });
+  const { isToolbox, toolboxId } = useIsToolboxRoute();
 
   const { data: projectContext } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),
@@ -195,7 +194,11 @@ function ShellLayoutContent() {
     <ProjectContextProvider {...projectContext}>
       <PersistentSidebarProvider>
         <div className="flex flex-col h-screen">
-          <Topbar showSidebarToggle showOrgSwitcher showDecoChat />
+          <Topbar
+            showSidebarToggle
+            showOrgSwitcher
+            toolboxId={isToolbox ? toolboxId : null}
+          />
           <SidebarLayout
             className="flex-1 bg-sidebar"
             style={
@@ -205,9 +208,11 @@ function ShellLayoutContent() {
               } as Record<string, string>
             }
           >
-            <MeshSidebar />
+            <AdaptiveSidebar toolboxId={isToolbox ? toolboxId : null} />
             <SidebarInset className="pt-12">
-              <ChatPanels />
+              <ErrorBoundary>
+                <Outlet />
+              </ErrorBoundary>
             </SidebarInset>
           </SidebarLayout>
         </div>

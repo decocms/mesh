@@ -4,7 +4,6 @@
  * Contains shared types and the ExpandedLogContent component used by LogRow.
  */
 
-import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
@@ -12,11 +11,11 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { Download01, Check, Copy01, Play } from "@untitledui/icons";
-import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { MONITORING_CONFIG } from "./config.ts";
 import { JsonSyntaxHighlighter } from "@/web/components/json-syntax-highlighter.tsx";
+import { useToolboxNavigation } from "@/web/hooks/use-toolbox-navigation";
 
 // ============================================================================
 // Types
@@ -142,8 +141,7 @@ interface ExpandedLogContentProps {
 export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
   const [copiedInput, setCopiedInput] = useState(false);
   const [copiedOutput, setCopiedOutput] = useState(false);
-  const navigate = useNavigate();
-  const { org } = useProjectContext();
+  const { navigateToCollectionDetail } = useToolboxNavigation();
 
   // Process JSON for display (React 19 compiler handles optimization)
   const inputJson = truncateJsonForDisplay(log.input);
@@ -187,15 +185,11 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
     // Store input in sessionStorage
     sessionStorage.setItem(`replay-${replayId}`, JSON.stringify(log.input));
     // Navigate to tool page with replayId
-    navigate({
-      to: "/$org/mcps/$connectionId/$collectionName/$itemId",
-      params: {
-        org: org.slug,
-        connectionId: log.connectionId,
-        collectionName: "tools",
-        itemId: encodeURIComponent(log.toolName),
-      },
-      search: { replayId },
+    navigateToCollectionDetail({
+      connectionId: log.connectionId,
+      collectionName: "tools",
+      itemId: encodeURIComponent(log.toolName),
+      replayId,
     });
   };
 

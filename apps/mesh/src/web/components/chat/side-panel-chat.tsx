@@ -392,7 +392,7 @@ function ChatPanelContent() {
                       })
                     }
                   >
-                    Install MCP Server
+                    Install Connection
                   </Button>
                 </>
               }

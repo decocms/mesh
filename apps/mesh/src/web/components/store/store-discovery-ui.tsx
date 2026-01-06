@@ -1,13 +1,12 @@
-import { useProjectContext } from "@/web/providers/project-context-provider";
 import { slugify } from "@/web/utils/slugify";
 import { Inbox01, SearchMd, Loading01 } from "@untitledui/icons";
-import { useNavigate } from "@tanstack/react-router";
 import { useState, useRef } from "react";
 import { CollectionSearch } from "../collections/collection-search";
 import {
   type RegistryItem,
   RegistryItemsSection,
 } from "./registry-items-section";
+import { useToolboxNavigation } from "@/web/hooks/use-toolbox-navigation";
 
 /**
  * Filter items by search term across name and description
@@ -63,8 +62,7 @@ export function StoreDiscoveryUI({
   onLoadMore,
 }: StoreDiscoveryUIProps) {
   const [search, setSearch] = useState("");
-  const navigate = useNavigate();
-  const { org } = useProjectContext();
+  const { navigateToStoreDetail } = useToolboxNavigation();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Filtered items based on search
@@ -84,13 +82,10 @@ export function StoreDiscoveryUI({
     );
     const serverName = item.server.name;
 
-    navigate({
-      to: "/$org/store/$appName",
-      params: { org: org.slug, appName: appNameSlug },
-      search: {
-        registryId,
-        serverName,
-      } satisfies StoreAppDetailSearchParams,
+    navigateToStoreDetail({
+      appName: appNameSlug,
+      registryId,
+      serverName,
     });
   };
 
@@ -114,7 +109,7 @@ export function StoreDiscoveryUI({
       <CollectionSearch
         value={search}
         onChange={setSearch}
-        placeholder="Search for an MCP Server..."
+        placeholder="Search for an MCP server..."
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             setSearch(e.currentTarget.value);

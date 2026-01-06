@@ -6,10 +6,11 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { useConnection } from "@/web/hooks/collections/use-connection";
 import { Card } from "@deco/ui/components/card.tsx";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { ViewActions } from "@/web/components/details/layout";
 import type { McpPrompt } from "@/web/hooks/use-connection-prompts";
+import { useToolboxNavigation } from "@/web/hooks/use-toolbox-navigation";
 
 export interface PromptsListProps {
   /** Array of prompts to display */
@@ -43,7 +44,7 @@ function PromptsList({
   showToolbar = true,
   emptyMessage = "This connection doesn't have any prompts yet.",
 }: PromptsListProps) {
-  const navigate = useNavigate();
+  const { navigateToCollectionDetail } = useToolboxNavigation();
   const routerState = useRouterState();
   const url = routerState.location.href;
   const [search, setSearch] = useState("");
@@ -69,14 +70,10 @@ function PromptsList({
     if (onPromptClick) {
       onPromptClick(prompt);
     } else if (connectionId && org) {
-      navigate({
-        to: "/$org/mcps/$connectionId/$collectionName/$itemId",
-        params: {
-          org: org,
-          connectionId: connectionId,
-          collectionName: "prompts",
-          itemId: encodeURIComponent(prompt.name),
-        },
+      navigateToCollectionDetail({
+        connectionId,
+        collectionName: "prompts",
+        itemId: encodeURIComponent(prompt.name),
       });
     }
   };

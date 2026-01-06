@@ -180,7 +180,7 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
 
   const handleTitleClick = () => {
     navigate({
-      to: "/$org/gateways",
+      to: "/$org/toolbox",
       params: { org: org.slug },
     });
   };
@@ -196,7 +196,7 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
     <>
       <div className="border-t border-border/60" />
       <HomeGridCell
-        title={<p className="text-sm text-muted-foreground">MCP Gateways</p>}
+        title={<p className="text-sm text-muted-foreground">Toolboxes</p>}
         onTitleClick={handleTitleClick}
       >
         {gatewaysWithMetrics.length === 0 ? (
@@ -251,7 +251,7 @@ function TopGatewaysSkeleton() {
     <>
       <div className="border-t border-border/60" />
       <HomeGridCell
-        title={<p className="text-sm text-muted-foreground">MCP Gateways</p>}
+        title={<p className="text-sm text-muted-foreground">Toolboxes</p>}
       >
         <div className="space-y-3 w-full">
           {Array.from({ length: 5 }).map((_, i) => (

@@ -29,11 +29,12 @@ import {
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import { Plus } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ViewActions } from "../layout";
+import { useToolboxNavigation } from "@/web/hooks/use-toolbox-navigation";
 
 interface CollectionTabProps {
   connectionId: string;
@@ -51,7 +52,7 @@ export function CollectionTab({
   const hasCreateTool = activeCollection.hasCreateTool;
   const hasUpdateTool = activeCollection.hasUpdateTool;
   const hasDeleteTool = activeCollection.hasDeleteTool;
-  const navigate = useNavigate();
+  const { navigateToCollectionDetail } = useToolboxNavigation();
   const routerState = useRouterState();
   const url = routerState.location.href;
   const { data: session } = authClient.useSession();
@@ -96,14 +97,10 @@ export function CollectionTab({
 
   // Create action handlers
   const handleEdit = (item: BaseCollectionEntity) => {
-    navigate({
-      to: "/$org/mcps/$connectionId/$collectionName/$itemId",
-      params: {
-        org,
-        connectionId,
-        collectionName,
-        itemId: item.id,
-      },
+    navigateToCollectionDetail({
+      connectionId,
+      collectionName,
+      itemId: item.id,
     });
   };
 
@@ -163,14 +160,10 @@ export function CollectionTab({
       const createdItem = await actions.create.mutateAsync(newItem);
 
       // Navigate to the new item's detail page
-      navigate({
-        to: "/$org/mcps/$connectionId/$collectionName/$itemId",
-        params: {
-          org,
-          connectionId,
-          collectionName,
-          itemId: createdItem.id,
-        },
+      navigateToCollectionDetail({
+        connectionId,
+        collectionName,
+        itemId: createdItem.id,
       });
     } catch (error) {
       // Error toast is handled by the mutation's onError

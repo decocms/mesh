@@ -296,7 +296,7 @@ export function ItemSetSelector({
         <CollectionSearch
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search MCP Servers..."
+          placeholder="Search connections..."
         />
 
         {/* Filter Buttons */}

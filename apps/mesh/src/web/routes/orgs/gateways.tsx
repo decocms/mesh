@@ -80,7 +80,7 @@ function OrgGatewaysContent() {
   const handleCreateGateway = async () => {
     // Check if there are any connections available
     if (connections.length === 0) {
-      toast.error("Create at least one MCP connection first");
+      toast.error("Create at least one connection first");
       return;
     }
 
@@ -88,7 +88,7 @@ function OrgGatewaysContent() {
     const result = await actions.create.mutateAsync({
       title: "New Gateway",
       description:
-        "Gateways let you securely expose integrated tools to the outside world.",
+        "Toolboxes let you securely expose integrated tools to the outside world.",
       status: "active",
       tool_selection_strategy: "passthrough",
       tool_selection_mode: "inclusion",
@@ -98,8 +98,8 @@ function OrgGatewaysContent() {
     // Navigate to the created gateway settings
 
     navigate({
-      to: "/$org/gateways/$gatewayId",
-      params: { org: org.slug, gatewayId: result.id },
+      to: "/$org/toolbox/$toolboxId",
+      params: { org: org.slug, toolboxId: result.id },
     });
   };
 
@@ -206,8 +206,8 @@ function OrgGatewaysContent() {
               onClick={(e) => {
                 e.stopPropagation();
                 navigate({
-                  to: "/$org/gateways/$gatewayId",
-                  params: { org: org.slug, gatewayId: gateway.id },
+                  to: "/$org/toolbox/$toolboxId",
+                  params: { org: org.slug, toolboxId: gateway.id },
                 });
               }}
             >
@@ -238,7 +238,7 @@ function OrgGatewaysContent() {
       className="h-7 px-3 rounded-lg text-sm font-medium"
       disabled={actions.create.isPending}
     >
-      {actions.create.isPending ? "Creating..." : "Create MCP Gateway"}
+      {actions.create.isPending ? "Creating..." : "Create Toolbox"}
     </Button>
   );
 
@@ -274,7 +274,7 @@ function OrgGatewaysContent() {
 
       {/* Collection Header */}
       <CollectionHeader
-        title="MCP Gateways"
+        title="Toolboxes"
         viewMode={listState.viewMode}
         onViewModeChange={listState.setViewMode}
         sortKey={listState.sortKey}
@@ -292,7 +292,7 @@ function OrgGatewaysContent() {
       <CollectionSearch
         value={listState.search}
         onChange={listState.setSearch}
-        placeholder="Search for a gateway..."
+        placeholder="Search for a toolbox..."
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             listState.setSearch("");
@@ -307,11 +307,13 @@ function OrgGatewaysContent() {
           {gateways.length === 0 ? (
             <EmptyState
               image={<CpuChip02 size={36} className="text-muted-foreground" />}
-              title={listState.search ? "No gateways found" : "No gateways yet"}
+              title={
+                listState.search ? "No toolboxes found" : "No toolboxes yet"
+              }
               description={
                 listState.search
-                  ? `No gateways match "${listState.search}"`
-                  : "Create a gateway to aggregate tools from multiple MCP connections."
+                  ? `No toolboxes match "${listState.search}"`
+                  : "Create a toolbox to aggregate tools from multiple connections."
               }
             />
           ) : (
@@ -329,8 +331,8 @@ function OrgGatewaysContent() {
                   fallbackIcon={<CpuChip02 />}
                   onClick={() =>
                     navigate({
-                      to: "/$org/gateways/$gatewayId",
-                      params: { org: org.slug, gatewayId: gateway.id },
+                      to: "/$org/toolbox/$toolboxId",
+                      params: { org: org.slug, toolboxId: gateway.id },
                     })
                   }
                   footer={
@@ -367,10 +369,10 @@ function OrgGatewaysContent() {
                           onClick={(e) => {
                             e.stopPropagation();
                             navigate({
-                              to: "/$org/gateways/$gatewayId",
+                              to: "/$org/toolbox/$toolboxId",
                               params: {
                                 org: org.slug,
-                                gatewayId: gateway.id,
+                                toolboxId: gateway.id,
                               },
                             });
                           }}
@@ -406,8 +408,8 @@ function OrgGatewaysContent() {
           onSort={listState.handleSort}
           onRowClick={(gateway) =>
             navigate({
-              to: "/$org/gateways/$gatewayId",
-              params: { org: org.slug, gatewayId: gateway.id },
+              to: "/$org/toolbox/$toolboxId",
+              params: { org: org.slug, toolboxId: gateway.id },
             })
           }
           emptyState={
@@ -416,16 +418,16 @@ function OrgGatewaysContent() {
                 image={
                   <CpuChip02 size={36} className="text-muted-foreground" />
                 }
-                title="No gateways found"
-                description={`No gateways match "${listState.search}"`}
+                title="No toolboxes found"
+                description={`No toolboxes match "${listState.search}"`}
               />
             ) : (
               <EmptyState
                 image={
                   <CpuChip02 size={36} className="text-muted-foreground" />
                 }
-                title="No gateways yet"
-                description="Create a gateway to aggregate tools from multiple MCP connections."
+                title="No toolboxes yet"
+                description="Create a toolbox to aggregate tools from multiple connections."
               />
             )
           }

@@ -4,9 +4,9 @@ import { CollectionTableWrapper } from "@/web/components/collections/collection-
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
-import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ViewActions } from "@/web/components/details/layout";
+import { useToolboxNavigation } from "@/web/hooks/use-toolbox-navigation";
 
 export interface Tool {
   name: string;
@@ -40,7 +40,7 @@ export function ToolsList({
   showToolbar = true,
   emptyMessage = "This connection doesn't have any tools yet.",
 }: ToolsListProps) {
-  const navigate = useNavigate();
+  const { navigateToCollectionDetail } = useToolboxNavigation();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [sortKey, setSortKey] = useState<string | undefined>("name");
@@ -64,14 +64,10 @@ export function ToolsList({
     if (onToolClick) {
       onToolClick(tool);
     } else if (connectionId && org) {
-      navigate({
-        to: "/$org/mcps/$connectionId/$collectionName/$itemId",
-        params: {
-          org: org,
-          connectionId: connectionId,
-          collectionName: "tools",
-          itemId: encodeURIComponent(tool.name),
-        },
+      navigateToCollectionDetail({
+        connectionId,
+        collectionName: "tools",
+        itemId: encodeURIComponent(tool.name),
       });
     }
   };

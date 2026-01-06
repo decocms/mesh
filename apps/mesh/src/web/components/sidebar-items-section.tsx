@@ -13,6 +13,7 @@ import {
   useOrganizationSettingsActions,
 } from "../hooks/collections/use-organization-settings";
 import { useProjectContext } from "../providers/project-context-provider";
+import { useOptionalToolboxContext } from "../providers/toolbox-context-provider";
 
 /**
  * Individual sidebar item
@@ -79,12 +80,25 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
 }
 
 /**
+ * Check if a sidebar item URL belongs to a specific connection
+ * URL pattern: /:org/mcps/:connectionId/...
+ */
+function extractConnectionIdFromUrl(url: string): string | null {
+  const match = url.match(/\/[^/]+\/mcps\/([^/]+)/);
+  return match?.[1] ?? null;
+}
+
+/**
  * Sidebar items section content - renders above Recent Threads
  * Only shows when there are pinned sidebar items
+ *
+ * When in a toolbox context, filters to only show items from connections
+ * that are included in the toolbox.
  */
 function SidebarItemsSectionContent() {
   const { org } = useProjectContext();
   const settings = useOrganizationSettings(org.id);
+  const toolboxContext = useOptionalToolboxContext();
 
   const sidebarItems = settings?.sidebar_items;
 
@@ -92,9 +106,26 @@ function SidebarItemsSectionContent() {
     return null;
   }
 
+  // If in toolbox context, filter to only show items from toolbox connections
+  let filteredItems = sidebarItems;
+  if (toolboxContext) {
+    const toolboxConnectionIds = new Set(
+      toolboxContext.toolbox.connections.map((c) => c.connection_id),
+    );
+    filteredItems = sidebarItems.filter((item) => {
+      const connectionId = extractConnectionIdFromUrl(item.url);
+      // Show item if it's from a connection in the toolbox, or if we can't determine the connection
+      return connectionId === null || toolboxConnectionIds.has(connectionId);
+    });
+  }
+
+  if (!filteredItems?.length) {
+    return null;
+  }
+
   return (
     <SidebarItemLayout>
-      {sidebarItems.map((item) => (
+      {filteredItems.map((item) => (
         <SidebarItemListItem key={item.url} item={item} />
       ))}
     </SidebarItemLayout>
@@ -130,6 +161,7 @@ function SidebarItemLayout({ children }: PropsWithChildren) {
 
 /**
  * Sidebar items section - renders above Recent Threads
+ * Scoped to toolbox context when available
  */
 export function SidebarItemsSection() {
   return (

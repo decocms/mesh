@@ -301,9 +301,7 @@ function BindingSelector({
                 <>
                   <Plus size={16} />
                   <span>
-                    {canInstallInline
-                      ? "Connect MCP Server"
-                      : "Create connection"}
+                    {canInstallInline ? "Connect" : "Create connection"}
                   </span>
                 </>
               )}

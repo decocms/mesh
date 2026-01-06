@@ -28,11 +28,13 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
 
 function ToolDetailsContent() {
   const router = useRouter();
-  const params = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
-  });
+  const params = useParams({ strict: false }) as {
+    itemId?: string;
+    connectionId?: string;
+    collectionName?: string;
+  };
 
-  const itemId = decodeURIComponent(params.itemId);
+  const itemId = params.itemId ? decodeURIComponent(params.itemId) : "";
 
   const handleBack = () => {
     router.history.back();
@@ -55,13 +57,17 @@ function ToolDetailsContent() {
 
 function CollectionDetailsContent() {
   const router = useRouter();
-  const params = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
-  });
+  const params = useParams({ strict: false }) as {
+    itemId?: string;
+    connectionId?: string;
+    collectionName?: string;
+  };
 
   const connectionId = params.connectionId;
-  const collectionName = decodeURIComponent(params.collectionName);
-  const itemId = decodeURIComponent(params.itemId);
+  const collectionName = params.collectionName
+    ? decodeURIComponent(params.collectionName)
+    : "";
+  const itemId = params.itemId ? decodeURIComponent(params.itemId) : "";
 
   const handleBack = () => {
     router.history.back();
@@ -116,11 +122,15 @@ function CollectionDetailsContent() {
 }
 
 function CollectionDetailsRouter() {
-  const params = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
-  });
+  const params = useParams({ strict: false }) as {
+    itemId?: string;
+    connectionId?: string;
+    collectionName?: string;
+  };
 
-  const collectionName = decodeURIComponent(params.collectionName);
+  const collectionName = params.collectionName
+    ? decodeURIComponent(params.collectionName)
+    : "";
 
   const isTools = collectionName === "tools";
 

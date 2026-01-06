@@ -70,7 +70,7 @@ export function AppHeroSection({
                   className="shrink-0 rounded-r-none cursor-pointer"
                 >
                   <Plus size={20} />
-                  {isInstalling ? "Connecting..." : "Connect MCP Server"}
+                  {isInstalling ? "Connecting..." : "Connect"}
                 </Button>
 
                 <DropdownMenu>

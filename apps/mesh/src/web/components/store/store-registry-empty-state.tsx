@@ -58,7 +58,7 @@ export function StoreRegistryEmptyState({
         />
       }
       title="Connect to registry"
-      description="Connect to discover and use MCP Servers from the community."
+      description="Connect to discover and use MCP servers from the community."
       actions={
         <>
           <Button
@@ -72,7 +72,7 @@ export function StoreRegistryEmptyState({
             {isInstalling ? "Installing..." : "Install Registry"}
           </Button>
           <Button variant="outline" onClick={handleInstallMcpServer}>
-            Install MCP Server
+            Install Connection
           </Button>
         </>
       }

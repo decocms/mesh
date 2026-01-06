@@ -24,8 +24,8 @@ function GatewayListItem({
 }) {
   return (
     <Link
-      to="/$org/gateways/$gatewayId"
-      params={{ org, gatewayId: gateway.id }}
+      to="/$org/toolbox/$toolboxId"
+      params={{ org, toolboxId: gateway.id }}
       className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors group"
     >
       {gateway.icon ? (
@@ -87,8 +87,8 @@ function CreateGatewayButton({
     });
 
     navigate({
-      to: "/$org/gateways/$gatewayId",
-      params: { org, gatewayId: result.id },
+      to: "/$org/toolbox/$toolboxId",
+      params: { org, toolboxId: result.id },
     });
   };
 
@@ -123,7 +123,7 @@ function CreateGatewayButton({
       ) : (
         <CpuChip02 size={20} />
       )}
-      Expose via MCP Gateway
+      Expose via Toolbox
     </Button>
   );
 }

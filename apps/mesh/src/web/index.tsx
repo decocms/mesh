@@ -7,6 +7,7 @@ import {
   createRouter,
   lazyRouteComponent,
   Outlet,
+  redirect,
   RouterProvider,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
@@ -162,9 +163,10 @@ const collectionDetailsRoute = createRoute({
   ),
 });
 
-const orgGatewaysRoute = createRoute({
+// Toolboxes list page (renamed from gateways)
+const orgToolboxesRoute = createRoute({
   getParentRoute: () => shellLayout,
-  path: "/$org/gateways",
+  path: "/$org/toolbox",
   component: lazyRouteComponent(() => import("./routes/orgs/gateways.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
@@ -173,15 +175,97 @@ const orgGatewaysRoute = createRoute({
   ),
 });
 
-const gatewayDetailRoute = createRoute({
+// Legacy gateway routes - redirect to toolbox
+const legacyGatewaysRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/gateways",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/toolbox",
+      params: { org: params.org },
+    });
+  },
+});
+
+const legacyGatewayDetailRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/gateways/$gatewayId",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/toolbox/$toolboxId",
+      params: { org: params.org, toolboxId: params.gatewayId },
+    });
+  },
+});
+
+// Toolbox focus mode layout
+const toolboxLayout = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/toolbox/$toolboxId",
+  component: lazyRouteComponent(() => import("./layouts/toolbox-layout.tsx")),
+});
+
+// Toolbox sub-routes
+const toolboxHomeRoute = createRoute({
+  getParentRoute: () => toolboxLayout,
+  path: "/",
+  component: lazyRouteComponent(() => import("./routes/toolbox/home.tsx")),
+});
+
+const toolboxConnectionsRoute = createRoute({
+  getParentRoute: () => toolboxLayout,
+  path: "/connections",
   component: lazyRouteComponent(
-    () => import("./routes/orgs/gateway-detail.tsx"),
+    () => import("./routes/toolbox/connections.tsx"),
+  ),
+});
+
+const toolboxSettingsRoute = createRoute({
+  getParentRoute: () => toolboxLayout,
+  path: "/settings",
+  component: lazyRouteComponent(() => import("./routes/toolbox/settings.tsx")),
+});
+
+const toolboxMonitoringRoute = createRoute({
+  getParentRoute: () => toolboxLayout,
+  path: "/monitoring",
+  component: lazyRouteComponent(
+    () => import("./routes/toolbox/monitoring.tsx"),
+  ),
+});
+
+// Toolbox-scoped collection detail route
+const toolboxCollectionDetailsRoute = createRoute({
+  getParentRoute: () => toolboxLayout,
+  path: "/mcps/$connectionId/$collectionName/$itemId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/collection-detail.tsx"),
   ),
   validateSearch: z.lazy(() =>
     z.object({
-      tab: z.string().optional(),
+      replayId: z.string().optional(),
+    }),
+  ),
+});
+
+// Toolbox-scoped store detail route
+const toolboxStoreRoute = createRoute({
+  getParentRoute: () => toolboxLayout,
+  path: "/store",
+  component: lazyRouteComponent(() => import("./routes/toolbox/store.tsx")),
+});
+
+const toolboxStoreAppDetailRoute = createRoute({
+  getParentRoute: () => toolboxStoreRoute,
+  path: "/$appName",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/store-app-detail.tsx"),
+  ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      registryId: z.string().optional(),
+      serverName: z.string().optional(),
+      itemId: z.string().optional(),
     }),
   ),
 });
@@ -196,13 +280,29 @@ const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
   storeAppDetailRoute,
 ]);
 
+const toolboxStoreRouteWithChildren = toolboxStoreRoute.addChildren([
+  toolboxStoreAppDetailRoute,
+]);
+
+// Toolbox layout with its sub-routes
+const toolboxLayoutWithChildren = toolboxLayout.addChildren([
+  toolboxHomeRoute,
+  toolboxConnectionsRoute,
+  toolboxSettingsRoute,
+  toolboxMonitoringRoute,
+  toolboxCollectionDetailsRoute,
+  toolboxStoreRouteWithChildren,
+]);
+
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
   orgHomeRoute,
   orgMembersRoute,
   orgConnectionsRoute,
-  orgGatewaysRoute,
-  gatewayDetailRoute,
+  orgToolboxesRoute,
+  toolboxLayoutWithChildren,
+  legacyGatewaysRoute,
+  legacyGatewayDetailRoute,
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
   orgSettingsRoute,
