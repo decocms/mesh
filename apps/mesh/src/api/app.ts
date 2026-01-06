@@ -207,6 +207,18 @@ export function createApp(options: CreateAppOptions = {}) {
     return colors[method as keyof typeof colors] || colors.reset;
   };
 
+  /**
+   * Sanitize strings for safe logging by removing control characters
+   * Prevents log forging and terminal escape injection attacks
+   */
+  const sanitizeForLog = (str: string): string => {
+    return str
+      .replace(/\r/g, "") // Remove carriage returns
+      .replace(/\n/g, "") // Remove newlines
+      .replace(/\x1b\[[0-9;]*m/g, "") // Remove ANSI escape sequences
+      .replace(/[\x00-\x1f\x7f-\x9f]/g, ""); // Remove other control characters
+  };
+
   // Request logging - enhanced for MCP calls with colors
   app.use("*", async (c, next) => {
     const start = Date.now();
@@ -220,53 +232,66 @@ export function createApp(options: CreateAppOptions = {}) {
     }
 
     // For MCP calls, extract tool/method info
+    // Note: We clone the request body here for logging. This could be optimized
+    // by moving detailed parsing deeper in the call stack where the body is
+    // already parsed (e.g., in proxy routes), but keeping it here for now
+    // to maintain visibility at the middleware level.
     let mcpInfo = "";
     let isMcpCall = false;
     if (path.startsWith("/mcp") && method === "POST") {
       isMcpCall = true;
       try {
-        const cloned = c.req.raw.clone();
-        const body = (await cloned.json()) as {
-          method?: string;
-          params?: {
-            name?: string;
-            arguments?: Record<string, unknown>;
+        // Only attempt to parse if Content-Type suggests JSON and body exists
+        const contentType = c.req.header("Content-Type");
+        if (contentType?.includes("application/json")) {
+          const cloned = c.req.raw.clone();
+          const body = (await cloned.json()) as {
+            method?: string;
+            params?: {
+              name?: string;
+              arguments?: Record<string, unknown>;
+            };
           };
-        };
-        if (body.method === "tools/call" && body.params?.name) {
-          const toolName = body.params.name;
-          const args = body.params.arguments || {};
+          if (body.method === "tools/call" && body.params?.name) {
+            // Sanitize all user-provided fields before logging
+            const toolName = sanitizeForLog(body.params.name);
+            const args = body.params.arguments || {};
 
-          // For event bus calls, show the event type prominently
-          if (toolName === "EVENT_PUBLISH" && args.type) {
-            mcpInfo = `${colors.tool}EVENT_PUBLISH${colors.reset} ${colors.bold}→ ${args.type}${colors.reset}`;
-          } else if (toolName === "EVENT_SUBSCRIBE" && args.eventType) {
-            mcpInfo = `${colors.tool}EVENT_SUBSCRIBE${colors.reset} ${colors.bold}← ${args.eventType}${colors.reset}`;
-          } else if (toolName === "EVENT_UNSUBSCRIBE" && args.eventType) {
-            mcpInfo = `${colors.tool}EVENT_UNSUBSCRIBE${colors.reset} ${colors.dim}✕ ${args.eventType}${colors.reset}`;
-          } else {
-            // Default: show tool name with arg keys
-            const argKeys = Object.keys(args);
-            const argsStr =
-              argKeys.length > 0
-                ? argKeys.slice(0, 3).join(",") +
-                  (argKeys.length > 3 ? "…" : "")
-                : "";
-            mcpInfo = `${colors.tool}${toolName}${colors.dim}(${argsStr})${colors.reset}`;
+            // For event bus calls, show the event type prominently
+            if (toolName === "EVENT_PUBLISH" && args.type) {
+              const eventType = sanitizeForLog(String(args.type));
+              mcpInfo = `${colors.tool}EVENT_PUBLISH${colors.reset} ${colors.bold}→ ${eventType}${colors.reset}`;
+            } else if (toolName === "EVENT_SUBSCRIBE" && args.eventType) {
+              const eventType = sanitizeForLog(String(args.eventType));
+              mcpInfo = `${colors.tool}EVENT_SUBSCRIBE${colors.reset} ${colors.bold}← ${eventType}${colors.reset}`;
+            } else if (toolName === "EVENT_UNSUBSCRIBE" && args.eventType) {
+              const eventType = sanitizeForLog(String(args.eventType));
+              mcpInfo = `${colors.tool}EVENT_UNSUBSCRIBE${colors.reset} ${colors.dim}✕ ${eventType}${colors.reset}`;
+            } else {
+              // Default: show tool name with arg keys (sanitized)
+              const argKeys = Object.keys(args).map((k) => sanitizeForLog(k));
+              const argsStr =
+                argKeys.length > 0
+                  ? argKeys.slice(0, 3).join(",") +
+                    (argKeys.length > 3 ? "…" : "")
+                  : "";
+              mcpInfo = `${colors.tool}${toolName}${colors.dim}(${argsStr})${colors.reset}`;
+            }
+          } else if (body.method) {
+            mcpInfo = `${colors.dim}${sanitizeForLog(body.method)}${colors.reset}`;
           }
-        } else if (body.method) {
-          mcpInfo = `${colors.dim}${body.method}${colors.reset}`;
         }
       } catch {
-        // Ignore parse errors
+        // Ignore parse errors - body parsing failures shouldn't break the request
+        // Detailed error logging happens deeper in the stack
       }
     }
 
-    // Format path - shorten connection IDs
-    let displayPath = path;
+    // Format path - shorten connection IDs (sanitize path for safety)
+    let displayPath = sanitizeForLog(path);
     if (path.startsWith("/mcp/conn_")) {
       const connId = path.split("/")[2] ?? "";
-      displayPath = `/mcp/${colors.mcp}${connId.slice(0, 12)}…${colors.reset}`;
+      displayPath = `/mcp/${colors.mcp}${sanitizeForLog(connId.slice(0, 12))}…${colors.reset}`;
     } else if (path === "/mcp") {
       displayPath = `${colors.mcp}/mcp${colors.reset}`;
     } else if (path === "/mcp/registry") {
@@ -280,18 +305,22 @@ export function createApp(options: CreateAppOptions = {}) {
       `${colors.dim}${arrow}${colors.reset} ${methodColor}${method}${colors.reset} ${displayPath}${mcpInfo ? ` ${mcpInfo}` : ""}`,
     );
 
-    await next();
+    // Wrap next() in try/finally to ensure completion logs always run
+    // even if downstream throws an error
+    try {
+      await next();
+    } finally {
+      const duration = Date.now() - start;
+      const status = c.res.status;
+      const statusColor = getStatusColor(status);
+      const durationStr =
+        duration < 1000 ? `${duration}ms` : `${(duration / 1000).toFixed(1)}s`;
+      const outArrow = isMcpCall ? "▶" : "→";
 
-    const duration = Date.now() - start;
-    const status = c.res.status;
-    const statusColor = getStatusColor(status);
-    const durationStr =
-      duration < 1000 ? `${duration}ms` : `${(duration / 1000).toFixed(1)}s`;
-    const outArrow = isMcpCall ? "▶" : "→";
-
-    console.log(
-      `${colors.dim}${outArrow}${colors.reset} ${methodColor}${method}${colors.reset} ${displayPath}${mcpInfo ? ` ${mcpInfo}` : ""} ${statusColor}${status}${colors.reset} ${colors.duration}${durationStr}${colors.reset}`,
-    );
+      console.log(
+        `${colors.dim}${outArrow}${colors.reset} ${methodColor}${method}${colors.reset} ${displayPath}${mcpInfo ? ` ${mcpInfo}` : ""} ${statusColor}${status}${colors.reset} ${colors.duration}${durationStr}${colors.reset}`,
+      );
+    }
   });
 
   // Log response body for 5xx errors
