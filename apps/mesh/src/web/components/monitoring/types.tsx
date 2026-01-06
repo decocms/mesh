@@ -64,10 +64,6 @@ export interface MonitoringLogsWithGatewayResponse {
   total: number;
 }
 
-export function hasMonitoringActivity(stats?: MonitoringStats | null): boolean {
-  return (stats?.totalCalls ?? 0) > 0;
-}
-
 // ----------------------------------------------------------------------------
 // Full Monitoring Page Types
 // ----------------------------------------------------------------------------
