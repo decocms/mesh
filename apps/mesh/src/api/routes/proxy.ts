@@ -452,7 +452,7 @@ async function createMCPProxyDoNotUseDirectly(
             throw error;
           } finally {
             // Close client - stdio connections ignore close() via stable-transport
-            client.close();
+            client.close().catch(console.error);
           }
         },
       );

@@ -205,7 +205,7 @@ function InputSection({ step }: { step: Step }) {
   const isToolStep = "toolName" in step.action;
   const toolName =
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
-
+  const trackingExecutionId = useTrackingExecutionId();
   const { tool } = useGatewayTool(toolName ?? "");
 
   if (!tool || !tool.inputSchema) {
@@ -222,7 +222,7 @@ function InputSection({ step }: { step: Step }) {
     <Accordion
       type="single"
       collapsible
-      defaultValue="input"
+      defaultValue={trackingExecutionId ? "output" : "input"}
       className="border-b border-border shrink-0"
     >
       <AccordionItem value="input" className="border-b-0">

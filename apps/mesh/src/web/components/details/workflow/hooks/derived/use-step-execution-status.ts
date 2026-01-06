@@ -15,8 +15,8 @@ export interface StepExecutionStatus {
 /**
  * Returns execution status for all steps when tracking an execution.
  * Determines step status based on:
- * - If step has output in step_results -> success
- * - If step has error in step_results -> error
+bu * - If step name is in completed_steps.success -> success
+ * - If step name is in completed_steps.error -> error
  * - If execution is running and step is next in line -> running
  * - Otherwise -> pending
  */
@@ -34,31 +34,26 @@ export function useStepExecutionStatuses():
 
   const statuses: Record<string, StepExecutionStatus> = {};
 
-  // Build a map of step results by step_id
-  const resultsByStepId = new Map<
-    string,
-    { output?: unknown; error?: unknown }
-  >();
+  // Get completed step names from the execution
+  const successSteps = new Set(executionItem.completed_steps?.success ?? []);
+  const errorSteps = new Set(executionItem.completed_steps?.error ?? []);
 
   // Find the last completed step index to determine which step is currently running
   let lastCompletedIndex = -1;
 
   steps.forEach((step, index) => {
-    const result = resultsByStepId.get(step.name);
-    if (result?.output !== undefined || result?.error !== undefined) {
+    if (successSteps.has(step.name) || errorSteps.has(step.name)) {
       lastCompletedIndex = index;
     }
   });
 
   // Determine status for each step
   steps.forEach((step, index) => {
-    const result = resultsByStepId.get(step.name);
-
     let status: StepExecutionStatus["status"] = "pending";
 
-    if (result?.error !== undefined) {
+    if (errorSteps.has(step.name)) {
       status = "error";
-    } else if (result?.output !== undefined) {
+    } else if (successSteps.has(step.name)) {
       status = "success";
     } else if (
       executionItem.status === "running" &&
@@ -70,8 +65,9 @@ export function useStepExecutionStatuses():
 
     statuses[step.name] = {
       status,
-      output: result?.output,
-      error: typeof result?.error === "string" ? result.error : undefined,
+      // Note: output/error details need to be fetched separately via useExecutionCompletedStep
+      output: undefined,
+      error: undefined,
       stepIndex: index,
     };
   });
