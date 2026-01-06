@@ -31,8 +31,8 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Outlet, useParams } from "@tanstack/react-router";
-import { PropsWithChildren, Suspense, useTransition } from "react";
+import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
+import { PropsWithChildren, Suspense, useTransition, useRef } from "react";
 import { KEYS } from "../lib/query-keys";
 
 // Capybara avatar URL from decopilotAgent
@@ -43,14 +43,27 @@ function Topbar({
   showSidebarToggle = false,
   showOrgSwitcher = false,
   showDecoChat = false,
+  disableDecoChat = false,
 }: {
   showSidebarToggle?: boolean;
   showOrgSwitcher?: boolean;
   showDecoChat?: boolean;
+  disableDecoChat?: boolean;
 }) {
-  const [_isOpen, setChatOpen] = useDecoChatOpen();
+  const [isOpen, setChatOpen] = useDecoChatOpen();
+  const prevDisableRef = useRef(disableDecoChat);
 
-  const toggleChat = () => setChatOpen((prev) => !prev);
+  // Close chat panel if disabled (synchronous check)
+  if (disableDecoChat && isOpen && prevDisableRef.current !== disableDecoChat) {
+    setChatOpen(false);
+  }
+  prevDisableRef.current = disableDecoChat;
+
+  const toggleChat = () => {
+    if (!disableDecoChat) {
+      setChatOpen((prev) => !prev);
+    }
+  };
 
   return (
     <AppTopbar>
@@ -67,7 +80,7 @@ function Topbar({
         )}
       </AppTopbar.Left>
       <AppTopbar.Right className="gap-2">
-        {showDecoChat && (
+        {showDecoChat && !disableDecoChat && (
           <Button size="sm" variant="default" onClick={toggleChat}>
             <Avatar
               url={CAPYBARA_AVATAR_URL}
@@ -134,16 +147,19 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
  * This component renders the chat panel and the main content.
  * It's important to keep it like this to avoid unnecessary re-renders.
  */
-function ChatPanels() {
+function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
   const [chatOpen] = useDecoChatOpen();
+  const shouldShowChat = chatOpen && !disableChat;
 
   return (
     <ResizablePanelGroup direction="horizontal">
       <ResizablePanel className="bg-background">
         <Outlet />
       </ResizablePanel>
-      <ResizableHandle withHandle={chatOpen} />
-      <PersistentResizablePanel className={chatOpen ? "max-w-none" : "max-w-0"}>
+      {!disableChat && <ResizableHandle withHandle={shouldShowChat} />}
+      <PersistentResizablePanel
+        className={shouldShowChat ? "max-w-none" : "max-w-0"}
+      >
         <ErrorBoundary>
           <Suspense fallback={<DecoChatSkeleton />}>
             <ChatPanel />
@@ -156,6 +172,12 @@ function ChatPanels() {
 
 function ShellLayoutContent() {
   const { org } = useParams({ strict: false });
+  const routerState = useRouterState();
+
+  // Check if we're on the home route (/$org)
+  const isHomeRoute =
+    routerState.location.pathname === `/${org}` ||
+    routerState.location.pathname === `/${org}/`;
 
   const { data: projectContext } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),
@@ -195,7 +217,12 @@ function ShellLayoutContent() {
     <ProjectContextProvider {...projectContext}>
       <PersistentSidebarProvider>
         <div className="flex flex-col h-screen">
-          <Topbar showSidebarToggle showOrgSwitcher showDecoChat />
+          <Topbar
+            showSidebarToggle
+            showOrgSwitcher
+            showDecoChat
+            disableDecoChat={isHomeRoute}
+          />
           <SidebarLayout
             className="flex-1 bg-sidebar"
             style={
@@ -207,7 +234,7 @@ function ShellLayoutContent() {
           >
             <MeshSidebar />
             <SidebarInset className="pt-12">
-              <ChatPanels />
+              <ChatPanels disableChat={isHomeRoute} />
             </SidebarInset>
           </SidebarLayout>
         </div>
