@@ -92,8 +92,91 @@ export interface MonitoringSearchParams {
   search?: string;
   page?: number;
   streaming?: boolean;
-  // Property filter (key=value format, e.g., "thread_id=abc123")
-  propertyFilter?: string;
+  // Property filters (serialized as "key:operator:value,key2:operator2:value2")
+  // Operators: eq (equals), contains, exists
+  propertyFilters?: string;
+}
+
+// ============================================================================
+// Property Filter Types
+// ============================================================================
+
+export type PropertyFilterOperator = "eq" | "contains" | "exists";
+
+export interface PropertyFilter {
+  key: string;
+  operator: PropertyFilterOperator;
+  value: string; // Empty for "exists" operator
+}
+
+/**
+ * Serialize property filters to URL-safe string.
+ * Format: "key:operator:value,key2:operator2:value2"
+ */
+export function serializePropertyFilters(filters: PropertyFilter[]): string {
+  return filters
+    .filter((f) => f.key.trim()) // Skip empty keys
+    .map((f) => {
+      const key = encodeURIComponent(f.key.trim());
+      const value = encodeURIComponent(f.value || "");
+      return `${key}:${f.operator}:${value}`;
+    })
+    .join(",");
+}
+
+/**
+ * Deserialize property filters from URL string.
+ */
+export function deserializePropertyFilters(str: string): PropertyFilter[] {
+  if (!str) return [];
+  return str.split(",").map((part) => {
+    const [key, operator, ...valueParts] = part.split(":");
+    return {
+      key: decodeURIComponent(key || ""),
+      operator: (operator as PropertyFilterOperator) || "eq",
+      value: decodeURIComponent(valueParts.join(":") || ""),
+    };
+  });
+}
+
+/**
+ * Convert property filters to API params.
+ */
+export function propertyFiltersToApiParams(filters: PropertyFilter[]): {
+  properties?: Record<string, string>;
+  propertyPatterns?: Record<string, string>;
+  propertyKeys?: string[];
+} {
+  const properties: Record<string, string> = {};
+  const propertyPatterns: Record<string, string> = {};
+  const propertyKeys: string[] = [];
+
+  for (const filter of filters) {
+    if (!filter.key.trim()) continue;
+
+    switch (filter.operator) {
+      case "eq":
+        if (filter.value) {
+          properties[filter.key] = filter.value;
+        }
+        break;
+      case "contains":
+        if (filter.value) {
+          propertyPatterns[filter.key] = `%${filter.value}%`;
+        }
+        break;
+      case "exists":
+        propertyKeys.push(filter.key);
+        break;
+    }
+  }
+
+  return {
+    properties: Object.keys(properties).length > 0 ? properties : undefined,
+    propertyPatterns:
+      Object.keys(propertyPatterns).length > 0 ? propertyPatterns : undefined,
+    propertyKeys: propertyKeys.length > 0 ? propertyKeys : undefined,
+  };
 }
 
 // ============================================================================
