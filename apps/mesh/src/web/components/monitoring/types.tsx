@@ -8,11 +8,24 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { Download01, Check, Copy01, Play } from "@untitledui/icons";
+import {
+  Download01,
+  Check,
+  Copy01,
+  Play,
+  Key01,
+  Type01,
+  FilterLines,
+} from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -387,21 +400,78 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {Object.entries(log.properties).map(([key, value]) => (
-              <Tooltip key={key}>
-                <TooltipTrigger asChild>
+              <Popover key={key}>
+                <PopoverTrigger asChild>
                   <Badge
                     variant="secondary"
                     className="font-mono text-xs px-2 py-0.5 cursor-pointer hover:bg-secondary/80 transition-colors"
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${key}=${value}`);
-                      toast.success("Copied to clipboard");
-                    }}
                   >
                     {key}={value}
                   </Badge>
-                </TooltipTrigger>
-                <TooltipContent>Click to copy</TooltipContent>
-              </Tooltip>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-1" align="end">
+                  <div className="flex flex-col gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start h-8 px-2 text-xs font-normal focus-visible:ring-0 focus-visible:ring-offset-0"
+                      onClick={() => {
+                        const filter: PropertyFilter = {
+                          key,
+                          operator: "eq",
+                          value,
+                        };
+                        navigate({
+                          to: "/$org/monitoring",
+                          params: { org: org.slug },
+                          search: {
+                            propertyFilters: serializePropertyFilters([filter]),
+                          },
+                        });
+                      }}
+                    >
+                      <FilterLines size={14} className="mr-2" />
+                      Filter by this property
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start h-8 px-2 text-xs font-normal focus-visible:ring-0 focus-visible:ring-offset-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${key}=${value}`);
+                        toast.success("Copied filter to clipboard");
+                      }}
+                    >
+                      <Copy01 size={14} className="mr-2" />
+                      Copy filter
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start h-8 px-2 text-xs font-normal focus-visible:ring-0 focus-visible:ring-offset-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(key);
+                        toast.success("Copied key to clipboard");
+                      }}
+                    >
+                      <Key01 size={14} className="mr-2" />
+                      Copy key
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start h-8 px-2 text-xs font-normal focus-visible:ring-0 focus-visible:ring-offset-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(value);
+                        toast.success("Copied value to clipboard");
+                      }}
+                    >
+                      <Type01 size={14} className="mr-2" />
+                      Copy value
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             ))}
           </div>
         </div>
