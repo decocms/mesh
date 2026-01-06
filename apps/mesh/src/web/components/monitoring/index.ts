@@ -24,4 +24,6 @@ export {
   serializePropertyFilters,
   deserializePropertyFilters,
   propertyFiltersToApiParams,
+  propertyFiltersToRaw,
+  parseRawPropertyFilters,
 } from "./types.tsx";

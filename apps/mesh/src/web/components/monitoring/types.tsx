@@ -140,6 +140,76 @@ export function deserializePropertyFilters(str: string): PropertyFilter[] {
 }
 
 /**
+ * Convert property filters to raw text format.
+ * Format: one filter per line as "key=value" or "key~value" or "key?"
+ */
+export function propertyFiltersToRaw(filters: PropertyFilter[]): string {
+  return filters
+    .filter((f) => f.key.trim())
+    .map((f) => {
+      switch (f.operator) {
+        case "eq":
+          return `${f.key}=${f.value}`;
+        case "contains":
+          return `${f.key}~${f.value}`;
+        case "exists":
+          return `${f.key}?`;
+      }
+    })
+    .join("\n");
+}
+
+/**
+ * Parse raw text format into property filters.
+ * Supports:
+ * - "key=value" → equals
+ * - "key~value" → contains
+ * - "key?" → exists
+ */
+export function parseRawPropertyFilters(raw: string): PropertyFilter[] {
+  if (!raw.trim()) return [];
+
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      // Check for exists (key?)
+      if (line.endsWith("?")) {
+        return {
+          key: line.slice(0, -1),
+          operator: "exists" as PropertyFilterOperator,
+          value: "",
+        };
+      }
+      // Check for contains (key~value)
+      if (line.includes("~")) {
+        const [key, ...valueParts] = line.split("~");
+        return {
+          key: key || "",
+          operator: "contains" as PropertyFilterOperator,
+          value: valueParts.join("~"),
+        };
+      }
+      // Default to equals (key=value)
+      if (line.includes("=")) {
+        const [key, ...valueParts] = line.split("=");
+        return {
+          key: key || "",
+          operator: "eq" as PropertyFilterOperator,
+          value: valueParts.join("="),
+        };
+      }
+      // Just a key without operator - treat as exists
+      return {
+        key: line,
+        operator: "exists" as PropertyFilterOperator,
+        value: "",
+      };
+    });
+}
+
+/**
  * Convert property filters to API params.
  */
 export function propertyFiltersToApiParams(filters: PropertyFilter[]): {

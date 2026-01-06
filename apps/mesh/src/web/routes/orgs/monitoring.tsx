@@ -58,8 +58,16 @@ import {
   deserializePropertyFilters,
   serializePropertyFilters,
   propertyFiltersToApiParams,
+  propertyFiltersToRaw,
+  parseRawPropertyFilters,
 } from "@/web/components/monitoring";
-import { Plus, Trash01 } from "@untitledui/icons";
+import { Plus, Trash01, Code01, Grid01 } from "@untitledui/icons";
+import { Textarea } from "@deco/ui/components/textarea.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 
 // ============================================================================
 // Stats Component
@@ -138,11 +146,17 @@ function FiltersPopover({
   onUpdateFilters,
 }: FiltersPopoverProps) {
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+  const [propertyFilterMode, setPropertyFilterMode] = useState<"raw" | "form">(
+    "raw",
+  );
 
   // Local state for text inputs to prevent focus loss during typing
   const [localTool, setLocalTool] = useState(tool);
   const [localPropertyFilters, setLocalPropertyFilters] =
     useState<PropertyFilter[]>(propertyFilters);
+  const [localRawFilters, setLocalRawFilters] = useState(
+    propertyFiltersToRaw(propertyFilters),
+  );
 
   // Track previous prop values to detect external changes
   const prevToolRef = useRef(tool);
@@ -162,6 +176,7 @@ function FiltersPopover({
   if (prevPropertyFiltersRef.current !== currentSerialized) {
     prevPropertyFiltersRef.current = currentSerialized;
     setLocalPropertyFilters(propertyFilters);
+    setLocalRawFilters(propertyFiltersToRaw(propertyFilters));
   }
 
   const updatePropertyFilter = (
@@ -183,6 +198,7 @@ function FiltersPopover({
   const removePropertyFilter = (index: number) => {
     const newFilters = localPropertyFilters.filter((_, i) => i !== index);
     setLocalPropertyFilters(newFilters);
+    setLocalRawFilters(propertyFiltersToRaw(newFilters));
     // Immediately sync when removing
     onUpdateFilters({ propertyFilters: serializePropertyFilters(newFilters) });
   };
@@ -191,6 +207,27 @@ function FiltersPopover({
     onUpdateFilters({
       propertyFilters: serializePropertyFilters(localPropertyFilters),
     });
+  };
+
+  const applyRawFilters = () => {
+    const parsed = parseRawPropertyFilters(localRawFilters);
+    setLocalPropertyFilters(parsed);
+    onUpdateFilters({
+      propertyFilters: serializePropertyFilters(parsed),
+    });
+  };
+
+  const toggleMode = () => {
+    if (propertyFilterMode === "raw") {
+      // Switching to form mode - parse raw
+      const parsed = parseRawPropertyFilters(localRawFilters);
+      setLocalPropertyFilters(parsed);
+      setPropertyFilterMode("form");
+    } else {
+      // Switching to raw mode - serialize form
+      setLocalRawFilters(propertyFiltersToRaw(localPropertyFilters));
+      setPropertyFilterMode("raw");
+    }
   };
 
   return (
@@ -299,56 +336,83 @@ function FiltersPopover({
             </div>
 
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Property Filters
-              </label>
-              <div className="space-y-2">
-                {localPropertyFilters.map((filter, index) => (
-                  <div key={index} className="flex items-center gap-1.5">
-                    <Input
-                      placeholder="key"
-                      value={filter.key}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        updatePropertyFilter(index, { key: e.target.value })
-                      }
-                      onBlur={applyPropertyFilters}
-                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                        if (e.key === "Enter") applyPropertyFilters();
-                      }}
-                      className="flex-1 font-mono text-sm h-8"
-                    />
-                    <Select
-                      value={filter.operator}
-                      onValueChange={(value: PropertyFilterOperator) => {
-                        updatePropertyFilter(index, { operator: value });
-                        // Clear value if switching to "exists"
-                        if (value === "exists") {
-                          updatePropertyFilter(index, {
-                            operator: value,
-                            value: "",
-                          });
-                        }
-                        // Apply immediately on operator change
-                        setTimeout(applyPropertyFilters, 0);
-                      }}
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Property Filters
+                </label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={toggleMode}
                     >
-                      <SelectTrigger className="w-24 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {OPERATOR_OPTIONS.map((op) => (
-                          <SelectItem key={op.value} value={op.value}>
-                            {op.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {filter.operator !== "exists" && (
+                      {propertyFilterMode === "raw" ? (
+                        <Grid01 size={14} />
+                      ) : (
+                        <Code01 size={14} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {propertyFilterMode === "raw"
+                      ? "Switch to form view"
+                      : "Switch to raw text"}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+
+              {propertyFilterMode === "raw" ? (
+                <div className="space-y-1.5">
+                  <Textarea
+                    placeholder={`Paste property filters here:\nthread_id=abc123\nuser~test\ndebug?`}
+                    value={localRawFilters}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                      setLocalRawFilters(e.target.value)
+                    }
+                    onBlur={applyRawFilters}
+                    onKeyDown={(
+                      e: React.KeyboardEvent<HTMLTextAreaElement>,
+                    ) => {
+                      if (e.key === "Enter" && e.metaKey) {
+                        applyRawFilters();
+                      }
+                    }}
+                    className="font-mono text-sm min-h-[80px] resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    One per line:{" "}
+                    <code className="bg-muted px-1 rounded">key=value</code>{" "}
+                    <code className="bg-muted px-1 rounded">key~contains</code>{" "}
+                    <code className="bg-muted px-1 rounded">key?</code>
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {localPropertyFilters.map((filter, index) => (
+                    <div
+                      key={index}
+                      className="p-2.5 rounded-md border border-border bg-muted/30 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          Filter {index + 1}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => removePropertyFilter(index)}
+                        >
+                          <Trash01 size={12} />
+                        </Button>
+                      </div>
                       <Input
-                        placeholder="value"
-                        value={filter.value}
+                        placeholder="Property key (e.g., thread_id)"
+                        value={filter.key}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                          updatePropertyFilter(index, { value: e.target.value })
+                          updatePropertyFilter(index, { key: e.target.value })
                         }
                         onBlur={applyPropertyFilters}
                         onKeyDown={(
@@ -356,29 +420,67 @@ function FiltersPopover({
                         ) => {
                           if (e.key === "Enter") applyPropertyFilters();
                         }}
-                        className="flex-1 font-mono text-sm h-8"
+                        className="font-mono text-sm"
                       />
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      onClick={() => removePropertyFilter(index)}
-                    >
-                      <Trash01 size={14} />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-8 text-xs"
-                  onClick={addPropertyFilter}
-                >
-                  <Plus size={14} className="mr-1" />
-                  Add property filter
-                </Button>
-              </div>
+                      <div className="flex gap-2">
+                        <Select
+                          value={filter.operator}
+                          onValueChange={(value: PropertyFilterOperator) => {
+                            updatePropertyFilter(index, { operator: value });
+                            if (value === "exists") {
+                              updatePropertyFilter(index, {
+                                operator: value,
+                                value: "",
+                              });
+                            }
+                            setTimeout(applyPropertyFilters, 0);
+                          }}
+                        >
+                          <SelectTrigger className="w-28">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {OPERATOR_OPTIONS.map((op) => (
+                              <SelectItem key={op.value} value={op.value}>
+                                {op.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {filter.operator !== "exists" && (
+                          <Input
+                            placeholder="Value"
+                            value={filter.value}
+                            onChange={(
+                              e: React.ChangeEvent<HTMLInputElement>,
+                            ) =>
+                              updatePropertyFilter(index, {
+                                value: e.target.value,
+                              })
+                            }
+                            onBlur={applyPropertyFilters}
+                            onKeyDown={(
+                              e: React.KeyboardEvent<HTMLInputElement>,
+                            ) => {
+                              if (e.key === "Enter") applyPropertyFilters();
+                            }}
+                            className="flex-1 font-mono text-sm"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={addPropertyFilter}
+                  >
+                    <Plus size={14} className="mr-1.5" />
+                    Add filter
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -390,6 +492,7 @@ function FiltersPopover({
               onClick={() => {
                 setLocalTool("");
                 setLocalPropertyFilters([]);
+                setLocalRawFilters("");
                 onUpdateFilters({
                   connectionId: [],
                   gatewayId: [],
