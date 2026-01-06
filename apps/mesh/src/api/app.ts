@@ -11,7 +11,6 @@
 import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import { auth } from "../auth";
 import {
   ContextFactory,
@@ -176,8 +175,124 @@ export function createApp(options: CreateAppOptions = {}) {
     }),
   );
 
-  // Request logging
-  app.use("*", logger());
+  // ANSI color codes for elegant logging
+  const colors = {
+    reset: "\x1b[0m",
+    dim: "\x1b[2m",
+    bold: "\x1b[1m",
+    // Request methods
+    GET: "\x1b[36m", // cyan
+    POST: "\x1b[33m", // yellow
+    PUT: "\x1b[35m", // magenta
+    DELETE: "\x1b[31m", // red
+    // Status codes
+    ok: "\x1b[32m", // green
+    redirect: "\x1b[36m", // cyan
+    clientError: "\x1b[33m", // yellow
+    serverError: "\x1b[31m", // red
+    // Special
+    mcp: "\x1b[35m", // magenta for MCP
+    tool: "\x1b[96m", // bright cyan for tool names
+    duration: "\x1b[90m", // gray
+  };
+
+  const getStatusColor = (status: number) => {
+    if (status >= 500) return colors.serverError;
+    if (status >= 400) return colors.clientError;
+    if (status >= 300) return colors.redirect;
+    return colors.ok;
+  };
+
+  const getMethodColor = (method: string) => {
+    return colors[method as keyof typeof colors] || colors.reset;
+  };
+
+  // Request logging - enhanced for MCP calls with colors
+  app.use("*", async (c, next) => {
+    const start = Date.now();
+    const method = c.req.method;
+    const path = c.req.path;
+
+    // Skip noisy paths
+    if (path === "/api/auth/get-session" || path.includes("favicon")) {
+      await next();
+      return;
+    }
+
+    // For MCP calls, extract tool/method info
+    let mcpInfo = "";
+    let isMcpCall = false;
+    if (path.startsWith("/mcp") && method === "POST") {
+      isMcpCall = true;
+      try {
+        const cloned = c.req.raw.clone();
+        const body = (await cloned.json()) as {
+          method?: string;
+          params?: {
+            name?: string;
+            arguments?: Record<string, unknown>;
+          };
+        };
+        if (body.method === "tools/call" && body.params?.name) {
+          const toolName = body.params.name;
+          const args = body.params.arguments || {};
+
+          // For event bus calls, show the event type prominently
+          if (toolName === "EVENT_PUBLISH" && args.type) {
+            mcpInfo = `${colors.tool}EVENT_PUBLISH${colors.reset} ${colors.bold}→ ${args.type}${colors.reset}`;
+          } else if (toolName === "EVENT_SUBSCRIBE" && args.eventType) {
+            mcpInfo = `${colors.tool}EVENT_SUBSCRIBE${colors.reset} ${colors.bold}← ${args.eventType}${colors.reset}`;
+          } else if (toolName === "EVENT_UNSUBSCRIBE" && args.eventType) {
+            mcpInfo = `${colors.tool}EVENT_UNSUBSCRIBE${colors.reset} ${colors.dim}✕ ${args.eventType}${colors.reset}`;
+          } else {
+            // Default: show tool name with arg keys
+            const argKeys = Object.keys(args);
+            const argsStr =
+              argKeys.length > 0
+                ? argKeys.slice(0, 3).join(",") +
+                  (argKeys.length > 3 ? "…" : "")
+                : "";
+            mcpInfo = `${colors.tool}${toolName}${colors.dim}(${argsStr})${colors.reset}`;
+          }
+        } else if (body.method) {
+          mcpInfo = `${colors.dim}${body.method}${colors.reset}`;
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    // Format path - shorten connection IDs
+    let displayPath = path;
+    if (path.startsWith("/mcp/conn_")) {
+      const connId = path.split("/")[2] ?? "";
+      displayPath = `/mcp/${colors.mcp}${connId.slice(0, 12)}…${colors.reset}`;
+    } else if (path === "/mcp") {
+      displayPath = `${colors.mcp}/mcp${colors.reset}`;
+    } else if (path === "/mcp/registry") {
+      displayPath = `${colors.mcp}/mcp/registry${colors.reset}`;
+    }
+
+    // Log incoming request
+    const methodColor = getMethodColor(method);
+    const arrow = isMcpCall ? "◀" : "←";
+    console.log(
+      `${colors.dim}${arrow}${colors.reset} ${methodColor}${method}${colors.reset} ${displayPath}${mcpInfo ? ` ${mcpInfo}` : ""}`,
+    );
+
+    await next();
+
+    const duration = Date.now() - start;
+    const status = c.res.status;
+    const statusColor = getStatusColor(status);
+    const durationStr =
+      duration < 1000 ? `${duration}ms` : `${(duration / 1000).toFixed(1)}s`;
+    const outArrow = isMcpCall ? "▶" : "→";
+
+    console.log(
+      `${colors.dim}${outArrow}${colors.reset} ${methodColor}${method}${colors.reset} ${displayPath}${mcpInfo ? ` ${mcpInfo}` : ""} ${statusColor}${status}${colors.reset} ${colors.duration}${durationStr}${colors.reset}`,
+    );
+  });
 
   // Log response body for 5xx errors
   app.use("*", async (c, next) => {
