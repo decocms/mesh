@@ -285,6 +285,29 @@ app.all("/gateway/:gatewayId?", async (c) => {
       };
     }
 
+    // Authorization check:
+    // - API keys: Must have gw_<gatewayId> permission
+    // - Browser sessions: Must belong to the gateway's organization
+    if (ctx.auth.apiKey?.id) {
+      // API key flow - check gateway-specific permission
+      const hasAccess = await ctx.boundAuth.hasPermission({
+        [`gw_${gateway.id}`]: ["*"],
+      });
+
+      if (!hasAccess) {
+        return c.json(
+          { error: `Access denied: No permission for gateway ${gateway.id}` },
+          403,
+        );
+      }
+    } else if (ctx.auth.user?.id) {
+      // Browser session flow - check organization membership
+      if (ctx.organization && gateway.organizationId !== ctx.organization.id) {
+        // Return 404 to prevent leaking gateway existence across organizations
+        return c.json({ error: "Gateway not found" }, 404);
+      }
+    }
+
     // Create gateway from entity
     const gatewayClient = await createMCPGatewayFromEntity(gateway, ctx);
 

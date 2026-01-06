@@ -1,5 +1,6 @@
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
+import { SettingsSidebar } from "@/web/components/settings/settings-sidebar.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -242,6 +243,9 @@ export default function OrgSettings() {
 
       <div className="flex-1 overflow-auto">
         <div className="flex h-full">
+          {/* Sidebar */}
+          <SettingsSidebar activeSection="organization" />
+
           {/* Content */}
           <div className="flex-1 overflow-auto">
             <div className="p-5 max-w-2xl">
