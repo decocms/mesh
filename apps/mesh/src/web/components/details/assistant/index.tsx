@@ -406,6 +406,24 @@ function AssistantChatPanelContent({
       >
         <Chat.Footer>
           <div className="max-w-2xl mx-auto w-full min-w-0 flex flex-col gap-2">
+            <Chat.ErrorBanner
+              error={chat.error}
+              onFixInChat={() => {
+                if (chat.error) {
+                  handleSendMessage(
+                    `I encountered this error: ${chat.error.message}. Can you help me fix it?`,
+                  );
+                }
+              }}
+              onDismiss={chat.clearError}
+            />
+            <Chat.FinishReasonWarning
+              finishReason={chat.finishReason}
+              onContinue={() => {
+                handleSendMessage("Please continue.");
+              }}
+              onDismiss={chat.clearFinishReason}
+            />
             <Chat.BranchPreview
               branchContext={branchContext}
               clearBranchContext={clearBranch}

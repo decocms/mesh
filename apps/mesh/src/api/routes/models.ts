@@ -224,6 +224,8 @@ app.post("/:org/models/stream", async (c) => {
     } = payload;
 
     // Use limits from model config, fallback to default
+    const maxOutputTokens =
+      modelConfig.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
     const transport = createGatewayTransport(c.req.raw, gatewayConfig.id);
 

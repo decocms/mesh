@@ -2,7 +2,7 @@ import type { UseChatHelpers } from "@ai-sdk/react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { AlertCircle, CornerUpLeft, X } from "@untitledui/icons";
+import { AlertCircle, AlertTriangle, CornerUpLeft, X } from "@untitledui/icons";
 import type { UIMessage } from "ai";
 import type {
   PropsWithChildren,
@@ -137,6 +137,7 @@ function ChatMessages({
   minHeightOffset?: number;
 }) {
   const sentinelRef = useRef<HTMLDivElement>(null);
+
   useChatAutoScroll({ messageCount: messages.length, sentinelRef });
 
   return (
@@ -184,7 +185,7 @@ function ChatHighlight({
   title?: string;
   description?: string;
   icon?: ReactNode;
-  variant?: "default" | "danger";
+  variant?: "default" | "danger" | "warning";
   onDismiss?: () => void;
   children?: ReactNode;
 }) {
@@ -200,6 +201,12 @@ function ChatHighlight({
       container: "border-destructive/30 bg-destructive/5",
       icon: "text-destructive",
       title: "text-destructive font-medium",
+      description: "text-muted-foreground",
+    },
+    warning: {
+      container: "border-amber-500/30 bg-amber-500/5",
+      icon: "text-amber-600 dark:text-amber-500",
+      title: "text-amber-600 dark:text-amber-500 font-medium",
       description: "text-muted-foreground",
     },
   };
@@ -321,6 +328,53 @@ function ChatErrorBanner({
   );
 }
 
+/**
+ * Finish reason warning - shows when completion stops for non-"stop" reasons.
+ */
+function ChatFinishReasonWarning({
+  finishReason,
+  onContinue,
+  onDismiss,
+}: {
+  finishReason: string | null;
+  onContinue: () => void;
+  onDismiss: () => void;
+}) {
+  if (!finishReason || finishReason === "stop") return null;
+
+  const getMessage = (reason: string): string => {
+    switch (reason) {
+      case "length":
+        return "Response reached the model's output limit. Different models have different limits. Try switching models or asking it to continue.";
+      case "content-filter":
+        return "Response was filtered due to content policy.";
+      case "tool-calls":
+        return "Response paused after tool execution to prevent infinite loops and save costs. Click continue to keep working.";
+      default:
+        return `Response stopped unexpectedly: ${reason}`;
+    }
+  };
+
+  return (
+    <ChatHighlight
+      variant="warning"
+      title="Response incomplete"
+      description={getMessage(finishReason)}
+      icon={<AlertTriangle size={16} />}
+      onDismiss={onDismiss}
+    >
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onContinue}
+        className="h-7 text-xs"
+      >
+        Continue
+      </Button>
+    </ChatHighlight>
+  );
+}
+
 export const Chat = Object.assign(ChatRoot, {
   Header: Object.assign(ChatHeader, {
     Left: ChatHeaderLeft,
@@ -333,5 +387,6 @@ export const Chat = Object.assign(ChatRoot, {
   Input: ChatInput,
   BranchPreview: ChatBranchPreview,
   ErrorBanner: ChatErrorBanner,
+  FinishReasonWarning: ChatFinishReasonWarning,
   Provider: ChatProvider,
 });

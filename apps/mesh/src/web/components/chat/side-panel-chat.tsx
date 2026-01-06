@@ -534,6 +534,13 @@ function ChatPanelContent() {
             }}
             onDismiss={chat.clearError}
           />
+          <Chat.FinishReasonWarning
+            finishReason={chat.finishReason}
+            onContinue={() => {
+              handleSendMessage("Please continue.");
+            }}
+            onDismiss={chat.clearFinishReason}
+          />
           <Chat.BranchPreview
             branchContext={branchContext}
             clearBranchContext={clearBranch}
