@@ -98,70 +98,11 @@ import {
 import { MiddlewareHandler } from "hono/types";
 import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
 import { Env } from "./env";
-import { dangerouslyCreateSuperUserMCPProxy } from "./routes/proxy";
 import { resetStdioConnectionPool } from "../stdio/stable-transport";
 
 const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
 const getHandleOAuthDiscoveryMetadata = () => oAuthDiscoveryMetadata(auth);
-
-/**
- * Auto-start STDIO connections by title
- * Used with AUTO_START_CONNECTIONS env var
- *
- * Uses dangerouslyCreateSuperUserMCPProxy to create a system-level proxy
- * that spawns the STDIO process with proper credentials.
- */
-async function autoStartConnectionsByTitle(
-  database: MeshDatabase,
-  titles: string[],
-) {
-  const db = database.db;
-
-  // Query all STDIO connections matching the titles
-  const connections = await db
-    .selectFrom("connections")
-    .selectAll()
-    .where("connection_type", "=", "STDIO")
-    .where("title", "in", titles)
-    .execute();
-
-  if (connections.length === 0) {
-    console.log(`[AutoStart] No matching STDIO connections found`);
-    return;
-  }
-
-  console.log(
-    `[AutoStart] Found ${connections.length} connections to start: ${connections.map((c) => c.title).join(", ")}`,
-  );
-
-  for (const conn of connections) {
-    try {
-      console.log(`[AutoStart] Starting: ${conn.title} (${conn.id})`);
-
-      // Create system context and use the superuser proxy
-      const ctx = await ContextFactory.create();
-
-      const proxy = await dangerouslyCreateSuperUserMCPProxy(conn.id, {
-        ...ctx,
-        auth: { ...ctx.auth, user: { id: "auto-start" } },
-      });
-
-      // listTools() uses cached DB data, doesn't spawn STDIO
-      // listPrompts() forces actual client connection, triggering spawn
-      // Ignore "Method not found" - some MCPs don't implement prompts
-      try {
-        await proxy.client.listPrompts();
-      } catch {
-        // Ignore - the spawn happened, that's what matters
-      }
-
-      console.log(`[AutoStart] ✓ ${conn.title} started`);
-    } catch (error) {
-      console.error(`[AutoStart] ✗ ${conn.title} failed:`, error);
-    }
-  }
-}
 
 /**
  * Resource server metadata type
@@ -192,8 +133,7 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // Kill and respawn STDIO connections on restart/HMR
   // Old processes have stale credentials, need fresh spawn with new tokens
-  // IMPORTANT: Track this promise so autoStart waits for it to complete
-  const poolResetPromise = resetStdioConnectionPool().catch((err) => {
+  resetStdioConnectionPool().catch((err) => {
     console.error("[StableStdio] Error resetting pool:", err);
   });
 
@@ -542,35 +482,6 @@ export function createApp(options: CreateAppOptions = {}) {
   Promise.resolve(eventBus.start()).then(() => {
     console.log("[EventBus] Worker started");
   });
-
-  // Auto-start connections specified in AUTO_START_CONNECTIONS env var
-  // Format: comma-separated connection titles, e.g. "Bridge,Pilot"
-  const autoStartConnections = process.env.AUTO_START_CONNECTIONS;
-  if (autoStartConnections) {
-    const connectionTitles = autoStartConnections
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (connectionTitles.length > 0) {
-      console.log(
-        `[AutoStart] Will start connections: ${connectionTitles.join(", ")}`,
-      );
-      // Wait for pool reset to complete before starting new connections
-      // This prevents race conditions where old processes haven't been killed yet
-      // Also add a small delay to let the app fully initialize
-      (async () => {
-        try {
-          // Wait for pool reset to finish (kills old STDIO processes)
-          await poolResetPromise;
-          // Small delay to ensure ports are released
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          await autoStartConnectionsByTitle(database, connectionTitles);
-        } catch (error) {
-          console.error("[AutoStart] Failed:", error);
-        }
-      })();
-    }
-  }
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext
