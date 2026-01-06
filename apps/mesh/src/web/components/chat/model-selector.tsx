@@ -187,7 +187,7 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
   // Compact mobile version - just the details without header
   if (compact) {
     return (
-      <div className="flex flex-col gap-2.5 pt-3 pb-3 px-3 rounded-b-xl text-xs">
+      <div className="flex flex-col gap-2.5 pt-3 pb-3 px-3 rounded-b-lg text-xs">
         {model.contextWindow && (
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Context</span>
@@ -311,7 +311,7 @@ const ModelItemContent = memo(function ModelItemContent({
     <div
       className={cn(
         "flex items-center gap-2 h-10 py-4 px-3 hover:bg-accent cursor-pointer",
-        hasExpandedInfo ? "rounded-t-xl" : "rounded-xl",
+        hasExpandedInfo ? "rounded-t-lg" : "rounded-lg",
       )}
       onMouseEnter={() => onHover(model)}
     >
@@ -436,8 +436,9 @@ export function ModelSelector({
       onValueChange={handleModelChange}
     >
       <ResponsiveSelectTrigger
+        size="sm"
         className={cn(
-          "h-7! text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
+          "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
           variant === "borderless" && "md:border-none",
           className,
         )}
@@ -476,7 +477,7 @@ export function ModelSelector({
                 key={m.id}
                 onClick={() => handleModelChange(m.id)}
                 className={cn(
-                  "rounded-xl mb-1",
+                  "rounded-lg mb-1",
                   m.id === selectedModelId && "bg-accent",
                 )}
               >

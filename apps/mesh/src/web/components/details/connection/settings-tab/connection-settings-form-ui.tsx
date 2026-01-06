@@ -55,7 +55,7 @@ function ConnectionFields({
             <FormLabel className="text-sm font-medium">Type</FormLabel>
             <Select value={field.value} onValueChange={field.onChange}>
               <FormControl>
-                <SelectTrigger className="h-10 rounded-lg">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
               </FormControl>

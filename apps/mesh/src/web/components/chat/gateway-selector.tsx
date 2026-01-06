@@ -42,7 +42,7 @@ function GatewayItemContent({
   return (
     <div
       className={cn(
-        "flex items-start gap-3 py-3 px-3 hover:bg-accent cursor-pointer rounded-xl",
+        "flex items-start gap-3 py-3 px-3 hover:bg-accent cursor-pointer rounded-lg",
         isSelected && "bg-accent",
       )}
     >
@@ -141,8 +141,9 @@ export function GatewaySelector({
       onValueChange={handleGatewayChange}
     >
       <ResponsiveSelectTrigger
+        size="sm"
         className={cn(
-          "h-7! text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
+          "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
           variant === "borderless" && "border-0 md:border-none",
           className,
         )}

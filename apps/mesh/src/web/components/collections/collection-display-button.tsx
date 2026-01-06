@@ -73,7 +73,7 @@ export function CollectionDisplayButton({
 
         {/* Sort Options */}
         {sortOptions.length > 0 && onSort && (
-          <div className="p-2">
+          <div className="p-1 flex flex-col gap-0.5">
             <div className="px-2 py-1.5 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
               Sort by
             </div>

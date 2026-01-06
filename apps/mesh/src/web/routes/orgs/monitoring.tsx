@@ -125,7 +125,7 @@ function FiltersPopover({
   return (
     <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-7 px-3 gap-1.5">
+        <Button variant="outline" size="sm">
           <FilterLines size={16} />
           Filters
           {activeFiltersCount > 0 && (
