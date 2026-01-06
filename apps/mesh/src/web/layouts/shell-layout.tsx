@@ -1,4 +1,3 @@
-import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { MeshSidebar } from "@/web/components/mesh-sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
@@ -34,6 +33,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition, useRef } from "react";
 import { KEYS } from "../lib/query-keys";
+import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
