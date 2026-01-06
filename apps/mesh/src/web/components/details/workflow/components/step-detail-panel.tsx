@@ -30,7 +30,8 @@ import type { JsonSchema } from "@/web/utils/constants";
 import { MonacoCodeEditor } from "./monaco-editor";
 import type { Step, ToolCallAction } from "@decocms/bindings/workflow";
 import { useMcp } from "@/web/hooks/use-mcp";
-import { usePollingWorkflowExecution } from "../hooks";
+import { useExecutionCompletedStep } from "../hooks";
+import { useState } from "react";
 
 interface StepDetailPanelProps {
   className?: string;
@@ -101,6 +102,7 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
       <InputSection step={currentStep} />
       <OutputSection step={currentStep} />
       <TransformCodeSection step={currentStep} />
+      <StepCodeSection step={currentStep} />
     </div>
   );
 }
@@ -231,6 +233,7 @@ function InputSection({ step }: { step: Step }) {
         </AccordionTrigger>
         <AccordionContent className="px-5 pt-2">
           <ToolInput
+            key={step.name}
             inputSchema={tool.inputSchema as JsonSchema}
             inputParams={step.input as Record<string, unknown>}
             setInputParams={handleInputChange}
@@ -249,11 +252,11 @@ function InputSection({ step }: { step: Step }) {
 function OutputSection({ step }: { step: Step }) {
   const outputSchema = step.outputSchema;
   const trackingExecutionId = useTrackingExecutionId();
-  const { step_results } = usePollingWorkflowExecution(trackingExecutionId);
-  const stepResult = step_results?.find(
-    (result) => result.step_id === step.name,
+  const { output, error } = useExecutionCompletedStep(
+    trackingExecutionId,
+    step.name,
   );
-  const output = stepResult?.output;
+  const content = output ? output : error ? { error: error } : null;
 
   // Always show the Output section (even if empty)
   const properties =
@@ -283,8 +286,8 @@ function OutputSection({ step }: { step: Step }) {
             <div className="text-sm text-muted-foreground italic">
               No output schema defined
             </div>
-          ) : output ? (
-            <OutputMonacoEditor output={output} />
+          ) : content ? (
+            <OutputMonacoEditor output={content} />
           ) : (
             <div className="space-y-2">
               {propertyEntries.map(([key, propSchema]) => (
@@ -458,6 +461,10 @@ export default async function(input: Input): Promise<Output> {
     });
   };
 
+  if ("code" in step.action && step.action.code) {
+    return null;
+  }
+
   // No transform code → show collapsed with Plus
   if (!hasTransformCode) {
     return (
@@ -499,6 +506,60 @@ export default async function(input: Input): Promise<Output> {
           height="100%"
         />
       </div>
+    </div>
+  );
+}
+
+function StepCodeSection({ step }: { step: Step }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const { updateStep } = useWorkflowActions();
+  const code =
+    "code" in step.action && step.action.code ? step.action.code : null;
+  const trackingExecutionId = useTrackingExecutionId();
+  const handleCodeSave = (
+    code: string,
+    outputSchema: Record<string, unknown> | null,
+  ) => {
+    updateStep(step.name, {
+      action: {
+        ...step.action,
+        code: code,
+      },
+      ...(outputSchema ? { outputSchema } : {}),
+    });
+  };
+  if (!code) {
+    return null;
+  }
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <div
+        className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-muted-foreground">
+            Step Code
+          </h3>
+          {isOpen ? (
+            <Minus size={14} className="text-muted-foreground" />
+          ) : (
+            <Plus size={14} className="text-muted-foreground" />
+          )}
+        </div>
+      </div>
+      {isOpen && (
+        <div className="flex-1 min-h-120 h-full">
+          <MonacoCodeEditor
+            onSave={(code, outputSchema) => handleCodeSave(code, outputSchema)}
+            key={`step-code-${step.name}-${trackingExecutionId}`}
+            code={code}
+            language="typescript"
+            height="100%"
+            readOnly={trackingExecutionId !== undefined}
+          />
+        </div>
+      )}
     </div>
   );
 }

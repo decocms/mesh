@@ -164,10 +164,7 @@ export type WorkflowExecutionStatus = z.infer<
  * Includes lock columns and retry tracking.
  */
 export const WorkflowExecutionSchema = BaseCollectionEntitySchema.extend({
-  steps: z
-    .array(StepSchema)
-    .describe("Steps that make up the workflow")
-    .describe("Workflow that was executed"),
+  steps: z.array(StepSchema).describe("Steps that make up the workflow"),
   gateway_id: z
     .string()
     .describe("ID of the gateway that will be used to execute the workflow"),
@@ -203,6 +200,15 @@ export const WorkflowExecutionSchema = BaseCollectionEntitySchema.extend({
   error: z
     .unknown()
     .describe("Error that occurred during the workflow execution"),
+  completed_steps: z
+    .object({
+      success: z
+        .array(z.string())
+        .describe("Names of the steps that were completed successfully"),
+      error: z.array(z.string()).describe("Names of the steps that errored"),
+    })
+    .optional()
+    .describe("Names of the steps that were completed and their status"),
 });
 export type WorkflowExecution = z.infer<typeof WorkflowExecutionSchema>;
 

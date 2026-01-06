@@ -25,7 +25,7 @@ export function useStepExecutionStatuses():
   | undefined {
   const trackingExecutionId = useTrackingExecutionId();
   const steps = useWorkflowSteps();
-  const { step_results, item: executionItem } =
+  const { item: executionItem } =
     usePollingWorkflowExecution(trackingExecutionId);
 
   if (!trackingExecutionId || !executionItem) {
@@ -39,17 +39,6 @@ export function useStepExecutionStatuses():
     string,
     { output?: unknown; error?: unknown }
   >();
-  if (step_results) {
-    for (const result of step_results) {
-      const stepId = result.step_id as string | undefined;
-      if (stepId) {
-        resultsByStepId.set(stepId, {
-          output: result.output,
-          error: result.error,
-        });
-      }
-    }
-  }
 
   // Find the last completed step index to determine which step is currently running
   let lastCompletedIndex = -1;

@@ -17,30 +17,30 @@ import { getMonitoringConfig } from "@/core/config";
 import { getStableStdioClient } from "@/stdio/stable-transport";
 import {
   ConnectionEntity,
-  isStdioParameters,
   type HttpConnectionParameters,
+  isStdioParameters,
 } from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import {
-  CallToolRequestSchema,
-  GetPromptRequestSchema,
-  ListPromptsRequestSchema,
-  ListResourcesRequestSchema,
-  ListResourceTemplatesRequestSchema,
-  ListToolsRequestSchema,
-  ReadResourceRequestSchema,
   type CallToolRequest,
+  CallToolRequestSchema,
   type CallToolResult,
   type GetPromptRequest,
+  GetPromptRequestSchema,
   type GetPromptResult,
+  ListPromptsRequestSchema,
   type ListPromptsResult,
+  ListResourcesRequestSchema,
   type ListResourcesResult,
+  ListResourceTemplatesRequestSchema,
   type ListResourceTemplatesResult,
+  ListToolsRequestSchema,
   type ListToolsResult,
   type ReadResourceRequest,
+  ReadResourceRequestSchema,
   type ReadResourceResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
@@ -452,7 +452,7 @@ async function createMCPProxyDoNotUseDirectly(
             throw error;
           } finally {
             // Close client - stdio connections ignore close() via stable-transport
-            await client.close();
+            client.close();
           }
         },
       );
@@ -476,7 +476,10 @@ async function createMCPProxyDoNotUseDirectly(
 
     // Fall back to client for connections without indexed tools
     const client = await createClient();
-    return await client.listTools();
+    return await client.listTools().then((result) => {
+      client.close().catch(console.error);
+      return result;
+    });
   };
 
   // List resources from downstream connection
@@ -502,8 +505,16 @@ async function createMCPProxyDoNotUseDirectly(
 
   // List prompts from downstream connection
   const listPrompts = async (): Promise<ListPromptsResult> => {
-    const client = await createClient();
-    return await client.listPrompts();
+    let client: Awaited<ReturnType<typeof createClient>> | undefined;
+    try {
+      client = await createClient();
+      return await client.listPrompts();
+    } catch (error) {
+      console.error("[proxy:listPrompts] Error listing prompts:", error);
+      throw error;
+    } finally {
+      client?.close().catch(console.error);
+    }
   };
 
   // Get a specific prompt from downstream connection

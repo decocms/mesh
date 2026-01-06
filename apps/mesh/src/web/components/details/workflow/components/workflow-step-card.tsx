@@ -51,6 +51,10 @@ export function WorkflowStepCard({
   const { item: executionItem } =
     usePollingWorkflowExecution(trackingExecutionId);
   const executionCompletedAt = executionItem?.completed_at_epoch_ms;
+  const isCompletedSuccessfully =
+    executionItem?.completed_steps?.success.includes(step.name) ?? false;
+  const isCompletedWithError =
+    executionItem?.completed_steps?.error.includes(step.name) ?? false;
 
   const isToolStep = "toolName" in step.action;
   const connectionId =
@@ -62,7 +66,11 @@ export function WorkflowStepCard({
   const hasToolSelected = Boolean(toolName);
   const outputSchemaProperties = getOutputSchemaProperties(step);
 
-  const status = executionStatus?.status;
+  const status = isCompletedSuccessfully
+    ? "success"
+    : isCompletedWithError
+      ? "error"
+      : executionStatus?.status;
   const isTracking = executionStatus !== undefined;
   const hasStatusIndicator = status === "success" || status === "error";
 
