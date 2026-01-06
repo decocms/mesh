@@ -1,10 +1,15 @@
-import { cn } from "../lib/utils.ts";
-import { Button } from "./button.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { Button } from "@deco/ui/components/button.tsx";
 import { ArrowUp, Plus, Stop } from "@untitledui/icons";
-import { Textarea } from "./textarea.tsx";
-import type { FormEvent, KeyboardEvent, ReactNode } from "react";
+import { Textarea } from "@deco/ui/components/textarea.tsx";
+import type {
+  FormEvent,
+  KeyboardEvent,
+  PropsWithChildren,
+  ReactNode,
+} from "react";
 
-interface DecoChatInputV2Props {
+interface ChatInputProps extends PropsWithChildren {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -24,7 +29,7 @@ interface DecoChatInputV2Props {
   maxTextHeight?: string;
 }
 
-export function DecoChatInputV2({
+export function ChatInput({
   value,
   onChange,
   onSubmit,
@@ -38,7 +43,8 @@ export function DecoChatInputV2({
   leftActions,
   rightActions,
   maxTextHeight = "164px",
-}: DecoChatInputV2Props) {
+  children,
+}: ChatInputProps) {
   const canSubmit = !disabled && !isStreaming && value.trim().length > 0;
 
   const handleSubmit = (e: FormEvent) => {
@@ -98,7 +104,10 @@ export function DecoChatInputV2({
         {/* Bottom Actions Row */}
         <div className="flex items-center justify-between p-2.5">
           {/* Left Actions (add context, files, etc) */}
-          <div className="flex items-center overflow-hidden">{leftActions}</div>
+          <div className="flex items-center overflow-hidden gap-2 min-w-0">
+            {leftActions}
+            {children}
+          </div>
 
           {/* Right Actions (model selector, audio, send) */}
           <div className="flex items-center gap-1">

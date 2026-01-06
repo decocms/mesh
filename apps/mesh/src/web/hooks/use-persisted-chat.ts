@@ -7,9 +7,8 @@
 
 import { useChat } from "@ai-sdk/react";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { useState, useRef, useSyncExternalStore } from "react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import type { ChatMessage } from "../components/chat/chat";
+import type { ChatMessage } from "../components/chat";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message, Thread } from "../types/chat-threads";
 import {
@@ -20,18 +19,6 @@ import {
 } from "./use-chat-store";
 
 const DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant.";
-
-/**
- * Context for tracking a branch operation in progress
- */
-export interface BranchContext {
-  /** The original thread ID before branching */
-  originalThreadId: string;
-  /** The original message ID that was branched from */
-  originalMessageId: string;
-  /** The original message text for editing */
-  originalMessageText: string;
-}
 
 const createModelsTransport = (
   org: string,
@@ -65,20 +52,6 @@ export interface UsePersistedChatOptions {
   onError?: (error: Error) => void;
   /** Called when a tool is invoked during chat */
   onToolCall?: (event: { toolCall: { toolName: string } }) => void;
-  /** Called when the active thread changes (for branching) */
-  onThreadChange?: (newThreadId: string) => void;
-}
-
-/**
- * Input controller for managing input state without re-rendering parent
- */
-export interface InputController {
-  /** Get the current input value */
-  getValue: () => string;
-  /** Set the input value (triggers subscriber) */
-  setValue: (value: string) => void;
-  /** Subscribe to value changes (returns unsubscribe function) */
-  subscribe: (callback: (value: string) => void) => () => void;
 }
 
 /**
@@ -98,32 +71,8 @@ export interface PersistedChatResult {
   stop: () => void;
   /** Set messages directly (for reverting, clearing, etc.) */
   setMessages: (messages: ChatMessage[]) => void;
-  /** Input controller for managing input state without re-rendering parent */
-  inputController: InputController;
-  /** Current branch context if branching is in progress */
-  branchContext: BranchContext | null;
-  /** Clear the branch context */
-  clearBranchContext: () => void;
-  /**
-   * Branch from a specific message - creates a new thread with messages
-   * before the specified message, and sets up input for editing.
-   */
-  branchFromMessage: (messageId: string, messageText: string) => Promise<void>;
-}
-
-/**
- * Hook to subscribe to an InputController's value.
- * Only re-renders the component using this hook, not the parent.
- */
-export function useInputValue(
-  controller: InputController,
-): [string, (value: string) => void] {
-  const value = useSyncExternalStore(
-    controller.subscribe,
-    controller.getValue,
-    controller.getValue,
-  );
-  return [value, controller.setValue];
+  /** Whether the chat is empty (no user/assistant messages) */
+  isEmpty: boolean;
 }
 
 /**
@@ -141,14 +90,8 @@ export function useInputValue(
 export function usePersistedChat(
   options: UsePersistedChatOptions,
 ): PersistedChatResult {
-  const {
-    threadId,
-    systemPrompt,
-    onCreateThread,
-    onError,
-    onThreadChange,
-    onToolCall,
-  } = options;
+  const { threadId, systemPrompt, onCreateThread, onError, onToolCall } =
+    options;
 
   const {
     org: { slug: orgSlug },
@@ -158,32 +101,6 @@ export function usePersistedChat(
   // Thread and message actions for persistence
   const threadActions = useThreadActions();
   const messageActions = useMessageActions();
-
-  // Input controller using ref + pub/sub pattern (no re-renders on input change)
-  const inputControllerRef = useRef<InputController | null>(null);
-  if (!inputControllerRef.current) {
-    let value = "";
-    const subscribers = new Set<(value: string) => void>();
-    inputControllerRef.current = {
-      getValue: () => value,
-      setValue: (newValue: string) => {
-        value = newValue;
-        for (const callback of subscribers) {
-          callback(newValue);
-        }
-      },
-      subscribe: (callback: (value: string) => void) => {
-        subscribers.add(callback);
-        return () => subscribers.delete(callback);
-      },
-    };
-  }
-  const inputController = inputControllerRef.current;
-
-  // State to track if we're editing from a branch (shows the original message preview)
-  const [branchContext, setBranchContext] = useState<BranchContext | null>(
-    null,
-  );
 
   // Load persisted messages for this thread
   const persistedMessages = useThreadMessages(threadId) as unknown as Message[];
@@ -302,57 +219,11 @@ export function usePersistedChat(
     );
   };
 
-  // Branch from a specific message - creates a new thread with messages
-  // before the specified message, and sets up input for editing.
-  const branchFromMessage = async (messageId: string, messageText: string) => {
-    // Find the index of the message to branch from
-    const messageIndex = chat.messages.findIndex((m) => m.id === messageId);
-    if (messageIndex === -1) return;
-
-    // Save the original thread context before switching
-    const originalThreadId = threadId;
-
-    // Get messages to copy (before the clicked message, excluding system)
-    const messagesToCopy = chat.messages
-      .slice(0, messageIndex)
-      .filter((m) => m.role !== "system");
-
-    // Create a new thread
-    const newThreadId = crypto.randomUUID();
-
-    // Copy messages to the new thread with new IDs and updated thread_id
-    if (messagesToCopy.length > 0) {
-      const copiedMessages = messagesToCopy.map((msg) => ({
-        ...msg,
-        id: crypto.randomUUID(),
-        metadata: {
-          ...msg.metadata,
-          thread_id: newThreadId,
-          created_at: msg.metadata?.created_at || new Date().toISOString(),
-        },
-      }));
-
-      // Insert copied messages into IndexedDB
-      await messageActions.insertMany.mutateAsync(
-        copiedMessages as unknown as Message[],
-      );
-    }
-
-    // Switch to the new thread
-    onThreadChange?.(newThreadId);
-
-    // Set the message text in the input for editing
-    inputController.setValue(messageText);
-
-    // Track the original context for the preview (allows navigating back)
-    setBranchContext({
-      originalThreadId,
-      originalMessageId: messageId,
-      originalMessageText: messageText,
-    });
-  };
-
-  const clearBranchContext = () => setBranchContext(null);
+  // Check if chat is empty (no user/assistant messages)
+  const isEmpty =
+    chat.messages[0]?.role === "system"
+      ? chat.messages.length === 1
+      : chat.messages.length === 0;
 
   return {
     messages: chat.messages,
@@ -360,9 +231,6 @@ export function usePersistedChat(
     sendMessage,
     stop: chat.stop.bind(chat),
     setMessages: chat.setMessages,
-    inputController,
-    branchContext,
-    clearBranchContext,
-    branchFromMessage,
+    isEmpty,
   };
 }

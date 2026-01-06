@@ -10,7 +10,6 @@ import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
-import { DecoChatEmptyState } from "@deco/ui/components/deco-chat-empty-state.tsx";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { CpuChip02, Loading01, Plus, X } from "@untitledui/icons";
@@ -30,15 +29,17 @@ import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-c
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { usePersistedChat } from "../../hooks/use-persisted-chat";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import { useChat } from "../../providers/chat-provider";
 import { ErrorBoundary } from "../error-boundary";
-import { Chat, useGateways, useModels, type ModelChangePayload } from "./chat";
-import {
-  BranchPreview,
-  ChatInputProvider,
-  useChatInputState,
-} from "./chat-input-context";
+import { useChat } from "./chat-context";
 import { IceBreakers } from "./ice-breakers";
+import {
+  Chat,
+  GatewaySelector,
+  ModelSelector,
+  UsageStats,
+  useGateways,
+  useModels,
+} from "./index";
 import { ThreadHistoryPopover } from "./thread-history-popover";
 
 // Capybara avatar URL from decopilotAgent
@@ -119,57 +120,6 @@ function OpenRouterIllustration() {
   );
 }
 
-function ChatInputField({
-  onSubmit,
-  onStop,
-  isStreaming,
-  disabled,
-  placeholder,
-  usageMessages,
-  selectedGatewayId,
-  onGatewayChange,
-  selectedModel,
-  onModelChange,
-}: {
-  onSubmit: (text: string) => Promise<void>;
-  onStop: () => void;
-  isStreaming: boolean;
-  disabled: boolean;
-  placeholder: string;
-  usageMessages: ReturnType<typeof usePersistedChat>["messages"];
-  selectedGatewayId?: string;
-  onGatewayChange: (gatewayId: string) => void;
-  selectedModel?: { id: string; connectionId: string };
-  onModelChange: (model: ModelChangePayload) => void;
-}) {
-  const { inputValue, handleInputChange, handleSubmit, branchContext } =
-    useChatInputState();
-
-  return (
-    <Chat.Input
-      onSubmit={(text) => handleSubmit(text, onSubmit)}
-      onStop={onStop}
-      disabled={disabled}
-      isStreaming={isStreaming}
-      placeholder={branchContext ? "Edit your message..." : placeholder}
-      usageMessages={usageMessages}
-      value={inputValue}
-      onValueChange={handleInputChange}
-    >
-      <Chat.Input.GatewaySelector
-        disabled={false}
-        selectedGatewayId={selectedGatewayId}
-        onGatewayChange={(id) => id && onGatewayChange(id)}
-      />
-      <Chat.Input.ModelSelector
-        disabled={false}
-        selectedModel={selectedModel}
-        onModelChange={onModelChange}
-      />
-    </Chat.Input>
-  );
-}
-
 /**
  * Ice breakers component that uses suspense to fetch gateway prompts
  */
@@ -187,7 +137,7 @@ function GatewayIceBreakers({
   return <IceBreakers prompts={prompts} onSelect={onSelect} className="mt-6" />;
 }
 
-export function ChatPanel() {
+function ChatPanelContent() {
   const {
     org: { slug: orgSlug, id: orgId },
     locator,
@@ -261,24 +211,20 @@ export function ChatPanel() {
     onToolCall,
     onCreateThread: (thread) =>
       createThread({ id: thread.id, title: thread.title }),
-    onThreadChange: setActiveThreadId,
   });
 
-  // Destructure branching-related values from the hook
-  const {
-    inputController,
-    branchContext,
-    clearBranchContext,
-    branchFromMessage,
-  } = chat;
+  // Get input and branching state from context
+  const { inputValue, setInputValue, branchContext, clearBranch } = useChat();
+
+  const { isEmpty } = chat;
 
   // Handle clicking on the branch preview to go back to original thread
   const handleGoToOriginalMessage = () => {
     if (!branchContext) return;
     setActiveThreadId(branchContext.originalThreadId);
     // Clear the branch context since we're going back
-    clearBranchContext();
-    inputController.setValue("");
+    clearBranch();
+    setInputValue("");
   };
 
   const handleSendMessage = async (text: string) => {
@@ -286,6 +232,17 @@ export function ChatPanel() {
       toast.error("No model configured");
       return;
     }
+
+    if (!selectedGateway?.id) {
+      toast.error("No gateway configured");
+      return;
+    }
+
+    // Clear input
+    setInputValue("");
+
+    // Clear editing state before sending
+    clearBranch();
 
     const metadata: Metadata = {
       created_at: new Date().toISOString(),
@@ -295,7 +252,7 @@ export function ChatPanel() {
         connectionId: selectedModel.connectionId,
         provider: selectedModel.provider ?? undefined,
       },
-      gateway: selectedGateway ? { id: selectedGateway.id } : undefined,
+      gateway: { id: selectedGateway.id },
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
@@ -303,13 +260,14 @@ export function ChatPanel() {
     };
 
     await chat.sendMessage(text, metadata);
-
-    // Clear editing state after successful send
-    clearBranchContext();
   };
 
-  const handleModelChange = (m: ModelChangePayload) => {
-    setSelectedModelState({ id: m.id, connectionId: m.connectionId });
+  const handleModelChange = (model: { id: string; connectionId: string }) => {
+    setSelectedModelState(model);
+  };
+
+  const handleGatewayChange = (gatewayId: string) => {
+    setSelectedGatewayState({ gatewayId });
   };
 
   // OpenRouter installation - create directly or use existing
@@ -444,9 +402,6 @@ export function ChatPanel() {
       </Chat>
     );
   }
-  const initialMessages = chat.messages.filter(
-    (message) => message.role !== "system",
-  );
 
   return (
     <Chat>
@@ -496,25 +451,25 @@ export function ChatPanel() {
       </Chat.Header>
 
       <Chat.Main>
-        {initialMessages.length === 0 ? (
+        {isEmpty ? (
           <Chat.EmptyState>
             <div className="flex flex-col items-center gap-6 w-full px-4">
-              <DecoChatEmptyState
-                title={selectedGateway?.title || "Ask deco chat"}
-                description={
-                  selectedGateway?.description ??
-                  "Ask anything about configuring model providers or using MCP Mesh."
-                }
-                avatarNode={
-                  <IntegrationIcon
-                    icon={selectedGateway?.icon}
-                    name={selectedGateway?.title || "deco chat"}
-                    size="lg"
-                    fallbackIcon={<CpuChip02 size={32} />}
-                    className="size-[60px]! rounded-[18px]!"
-                  />
-                }
-              />
+              <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
+                <IntegrationIcon
+                  icon={selectedGateway?.icon}
+                  name={selectedGateway?.title || "deco chat"}
+                  size="lg"
+                  fallbackIcon={<CpuChip02 size={32} />}
+                  className="size-[60px]! rounded-[18px]!"
+                />
+                <h3 className="text-xl font-medium text-foreground">
+                  {selectedGateway?.title || "Ask deco chat"}
+                </h3>
+                <div className="text-muted-foreground text-center text-sm max-w-md">
+                  {selectedGateway?.description ??
+                    "Ask anything about configuring model providers or using MCP Mesh."}
+                </div>
+              </div>
               {effectiveSelectedGatewayId && (
                 <ErrorBoundary key={effectiveSelectedGatewayId} fallback={null}>
                   <Suspense
@@ -544,43 +499,60 @@ export function ChatPanel() {
             messages={chat.messages}
             status={chat.status}
             minHeightOffset={240}
-            onBranchFromMessage={branchFromMessage}
           />
         )}
       </Chat.Main>
 
       <Chat.Footer>
-        <ChatInputProvider
-          inputController={inputController}
-          branchContext={branchContext}
-          clearBranchContext={clearBranchContext}
-          onGoToOriginalMessage={handleGoToOriginalMessage}
-        >
-          <div className="flex flex-col gap-2">
-            <BranchPreview />
-            <ChatInputField
-              onSubmit={handleSendMessage}
-              onStop={chat.stop}
-              isStreaming={
-                chat.status === "submitted" || chat.status === "streaming"
-              }
-              disabled={models.length === 0 || !effectiveSelectedModelState}
-              placeholder={
-                models.length === 0
-                  ? "Add an LLM binding connection to start chatting"
-                  : "Ask anything or @ for context"
-              }
-              usageMessages={chat.messages}
-              selectedGatewayId={effectiveSelectedGatewayId}
-              onGatewayChange={(gatewayId) =>
-                setSelectedGatewayState({ gatewayId })
-              }
-              selectedModel={effectiveSelectedModelState ?? undefined}
-              onModelChange={handleModelChange}
+        <div className="flex flex-col gap-2">
+          <Chat.BranchPreview
+            branchContext={branchContext}
+            clearBranchContext={clearBranch}
+            onGoToOriginalMessage={handleGoToOriginalMessage}
+            setInputValue={setInputValue}
+          />
+          <Chat.Input
+            value={inputValue}
+            onChange={setInputValue}
+            onSubmit={async () => {
+              if (!inputValue.trim()) return;
+              await handleSendMessage(inputValue.trim());
+            }}
+            onStop={chat.stop}
+            disabled={!selectedModel || !selectedGateway?.id}
+            isStreaming={
+              chat.status === "submitted" || chat.status === "streaming"
+            }
+            placeholder={
+              !selectedModel
+                ? "Select a model to start chatting"
+                : "Ask anything or @ for context"
+            }
+          >
+            <GatewaySelector
+              selectedGatewayId={selectedGateway?.id}
+              onGatewayChange={handleGatewayChange}
+              placeholder="Gateway"
+              variant="borderless"
             />
-          </div>
-        </ChatInputProvider>
+            <ModelSelector
+              selectedModel={selectedModel ?? undefined}
+              onModelChange={handleModelChange}
+              placeholder="Model"
+              variant="borderless"
+            />
+            <UsageStats messages={chat.messages} />
+          </Chat.Input>
+        </div>
       </Chat.Footer>
     </Chat>
+  );
+}
+
+export function ChatPanel() {
+  return (
+    <Chat.Provider>
+      <ChatPanelContent />
+    </Chat.Provider>
   );
 }

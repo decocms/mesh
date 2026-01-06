@@ -49,7 +49,7 @@ async function getAllThreadsFromIndexedDB(locator: string): Promise<Thread[]> {
 /**
  * Get messages for a specific thread from IndexedDB
  */
-function getThreadMessagesFromIndexedDB(
+export function getThreadMessagesFromIndexedDB(
   locator: string,
   threadId: string,
 ): Promise<Message[]> {

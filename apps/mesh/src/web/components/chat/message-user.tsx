@@ -16,35 +16,35 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { ReverseLeft } from "@untitledui/icons";
+import { Edit02 } from "@untitledui/icons";
 import { type UIMessage } from "ai";
 import { useContext, useState } from "react";
 import { MessageListContext } from "./message-list.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
+import { useChat } from "./chat-context";
+import { useBranchMessage } from "../../hooks/use-branch-message";
 
 export interface MessageProps<T extends Metadata> {
   message: UIMessage<T>;
   status?: "streaming" | "submitted" | "ready" | "error";
   className?: string;
   pairIndex?: number;
-  onBranchFromMessage?: (messageId: string, messageText: string) => void;
 }
 
-export function MessageUser<T extends Metadata>({
-  message,
-  className,
-  pairIndex,
-  onBranchFromMessage,
-}: MessageProps<T>) {
-  const { id, parts } = message;
-  const messageListContext = useContext(MessageListContext);
-  const [showBranchDialog, setShowBranchDialog] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
+/**
+ * Edit message button with branch dialog
+ * Handles the entire flow of branching a conversation from a specific message
+ */
+interface EditMessageButtonProps {
+  messageId: string;
+  parts: UIMessage["parts"];
+}
 
-  // Early return if no parts
-  if (!parts || parts.length === 0) {
-    return null;
-  }
+function EditMessageButton({ messageId, parts }: EditMessageButtonProps) {
+  const [showDialog, setShowDialog] = useState(false);
+  const { setInputValue, startBranch, setActiveThreadId, activeThreadId } =
+    useChat();
+  const branchMessage = useBranchMessage(setActiveThreadId);
 
   // Extract the full text from all text parts
   const messageText = parts
@@ -52,24 +52,87 @@ export function MessageUser<T extends Metadata>({
     .map((part) => (part as { type: "text"; text: string }).text)
     .join("\n");
 
+  const handleButtonClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDialog(true);
+  };
+
+  const handleConfirm = async () => {
+    // Branch creates new thread and copies messages
+    await branchMessage(messageId, messageText, activeThreadId);
+
+    // Set the input value for editing
+    setInputValue(messageText);
+
+    // Track the original context for the preview
+    startBranch({
+      originalThreadId: activeThreadId,
+      originalMessageId: messageId,
+      originalMessageText: messageText,
+    });
+
+    setShowDialog(false);
+  };
+
+  return (
+    <>
+      <div className="flex justify-center items-end px-2 pb-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={handleButtonClick}
+              variant="ghost"
+              size="xs"
+              className="opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground aspect-square w-6 h-6 p-0"
+            >
+              <Edit02 size={16} className="p-0.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Edit message</TooltipContent>
+        </Tooltip>
+      </div>
+
+      <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will create a new conversation branch from this point. The
+              original conversation will remain unchanged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirm}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+export function MessageUser<T extends Metadata>({
+  message,
+  className,
+  pairIndex,
+}: MessageProps<T>) {
+  const { id, parts } = message;
+  const messageListContext = useContext(MessageListContext);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Early return if no parts
+  if (!parts || parts.length === 0) {
+    return null;
+  }
+
   const handleClick = () => {
     setIsFocused(true);
     if (pairIndex !== undefined) {
       messageListContext?.scrollToPair(pairIndex);
     }
   };
-
-  const handleBranchClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowBranchDialog(true);
-  };
-
-  const handleConfirmBranch = () => {
-    setShowBranchDialog(false);
-    onBranchFromMessage?.(id, messageText);
-  };
-
-  const canBranch = Boolean(onBranchFromMessage);
 
   return (
     <>
@@ -84,15 +147,14 @@ export function MessageUser<T extends Metadata>({
           onClick={handleClick}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          className="w-full border min-w-0 shadow-xs rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-background cursor-pointer transition-colors relative flex flex-col outline-none"
+          className="w-full border min-w-0 shadow-xs rounded-lg text-[0.9375rem] wrap-break-word overflow-wrap-anywhere bg-background cursor-pointer transition-colors relative flex outline-none"
         >
-          <div className="absolute inset-0 bg-muted/50 pointer-events-none" />
           <div
             className={cn(
-              "relative z-10 px-4 py-2 transition-opacity max-h-[120px]",
+              "z-10 px-4 py-2 transition-opacity max-h-[120px] flex-1",
               isFocused
                 ? "overflow-auto opacity-100"
-                : "overflow-hidden opacity-60 mask-b-from-0%",
+                : "overflow-hidden opacity-99 mask-b-from-1%",
             )}
           >
             <div>
@@ -110,43 +172,9 @@ export function MessageUser<T extends Metadata>({
               })}
             </div>
           </div>
-          {canBranch && (
-            <div className="relative z-10 flex justify-end px-2 pb-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={handleBranchClick}
-                    variant="ghost"
-                    size="xs"
-                    className="opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground aspect-square w-6 h-6 p-0"
-                  >
-                    <ReverseLeft size={16} className="p-0.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Edit from here</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
+          <EditMessageButton messageId={id} parts={parts} />
         </div>
       </div>
-
-      <AlertDialog open={showBranchDialog} onOpenChange={setShowBranchDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Edit from here?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will create a new conversation branch from this point. The
-              original conversation will remain unchanged.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmBranch}>
-              Confirm
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
