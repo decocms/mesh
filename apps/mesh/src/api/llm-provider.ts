@@ -140,8 +140,15 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
             >[0]["callOptions"],
             modelId,
           });
+          const formattedTimestamp = response.response?.timestamp
+            ? new Date(response.response.timestamp)
+            : undefined;
           return {
             ...response,
+            response: {
+              ...response.response,
+              timestamp: formattedTimestamp,
+            },
             usage: {
               inputTokens: response.usage.inputTokens ?? undefined,
               outputTokens: response.usage.outputTokens ?? undefined,

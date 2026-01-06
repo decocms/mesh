@@ -55,11 +55,9 @@ const TextPartSchema = z.object({
 
 /**
  * Data Content Schema
- * File data can be Uint8Array (as base64 string), base64 encoded string, or URL string
+ * File data can be a URL string or a base64 encoded string
  */
-const DataContentSchema = z
-  .union([z.string(), z.instanceof(Uint8Array)])
-  .describe("File data as base64 encoded string, URL string, or Uint8Array");
+const DataContentSchema = z.string().describe("File data as URL string");
 
 /**
  * File Part Schema
@@ -96,7 +94,7 @@ const ToolCallPartSchema = z.object({
     .describe("ID of the tool call, used to match with tool result"),
   toolName: z.string().describe("Name of the tool being called"),
   input: z
-    .unknown()
+    .string()
     .describe(
       "Arguments of the tool call (JSON-serializable object matching tool input schema)",
     ),
@@ -157,6 +155,7 @@ const ToolResultPartSchema = z.object({
     .describe("ID of the tool call that this result is associated with"),
   toolName: z.string().describe("Name of the tool that generated this result"),
   output: ToolResultOutputSchema.describe("Result of the tool call"),
+  result: z.unknown().describe("Unknown result of the tool call"),
   providerOptions: ProviderOptionsSchema,
 });
 
@@ -335,10 +334,10 @@ export const LanguageModelCallOptionsSchema = z.object({
     .describe("Abort signal for cancelling the operation"),
 
   // Additional options
-  headers: z
-    .record(z.string(), z.union([z.string(), z.undefined()]))
-    .optional()
-    .describe("Additional HTTP headers to be sent with the request"),
+  // headers: z
+  //   .record(z.string(), z.union([z.string(), z.undefined()]))
+  //   .optional()
+  //   .describe("Additional HTTP headers to be sent with the request"),
   providerOptions: z
     .any()
     .optional()
@@ -352,7 +351,15 @@ export const LanguageModelCallOptionsSchema = z.object({
 export const LanguageModelGenerateOutputSchema = z.object({
   // Ordered content that the model has generated
   content: z
-    .array(z.any())
+    .array(
+      z.union([
+        TextPartSchema,
+        FilePartSchema,
+        ReasoningPartSchema,
+        ToolCallPartSchema,
+        ToolResultPartSchema,
+      ]),
+    )
     .describe(
       "Ordered content that the model has generated (text, tool-calls, reasoning, files, sources)",
     ),
@@ -372,20 +379,12 @@ export const LanguageModelGenerateOutputSchema = z.object({
 
   // Usage information (required)
   usage: z
-    .object({
+    .looseObject({
       inputTokens: z.number().optional(),
       outputTokens: z.number().optional(),
       totalTokens: z.number().optional(),
       reasoningTokens: z.number().optional(),
     })
-    .passthrough()
-    .transform((val) => ({
-      inputTokens: val.inputTokens,
-      outputTokens: val.outputTokens,
-      totalTokens: val.totalTokens,
-      reasoningTokens: val.reasoningTokens,
-      ...val,
-    }))
     .describe("Usage information for the language model call"),
 
   // Provider metadata
@@ -409,8 +408,8 @@ export const LanguageModelGenerateOutputSchema = z.object({
   response: z
     .object({
       id: z.string().optional().describe("ID for the generated response"),
-      timestamp: z
-        .date()
+      timestamp: z.iso
+        .datetime()
         .optional()
         .describe("Timestamp for the start of the generated response"),
       modelId: z
