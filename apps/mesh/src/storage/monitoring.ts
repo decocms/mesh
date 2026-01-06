@@ -6,8 +6,9 @@
  */
 
 import type { Kysely } from "kysely";
+import { sql } from "kysely";
 import { RegexRedactor } from "../monitoring/redactor";
-import type { MonitoringStorage } from "./ports";
+import type { MonitoringStorage, PropertyFilters } from "./ports";
 import type { Database, MonitoringLog } from "./types";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
@@ -55,6 +56,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     endDate?: Date;
     limit?: number;
     offset?: number;
+    propertyFilters?: PropertyFilters;
   }): Promise<{ logs: MonitoringLog[]; total: number }> {
     let query = this.db.selectFrom("monitoring_logs").selectAll();
     let countQuery = this.db
@@ -109,6 +111,64 @@ export class SqlMonitoringStorage implements MonitoringStorage {
         "<=",
         filters.endDate.toISOString() as never,
       );
+    }
+
+    // Apply property filters
+    if (filters.propertyFilters) {
+      const { properties, propertyKeys, propertyPatterns } =
+        filters.propertyFilters;
+
+      // Exact match: property key=value
+      if (properties) {
+        for (const [key, value] of Object.entries(properties)) {
+          // Use json_extract for SQLite compatibility (also works with PostgreSQL jsonb)
+          const jsonPath = `$.${key}`;
+          query = query.where(
+            sql`json_extract(properties, ${jsonPath})` as never,
+            "=",
+            value as never,
+          );
+          countQuery = countQuery.where(
+            sql`json_extract(properties, ${jsonPath})` as never,
+            "=",
+            value as never,
+          );
+        }
+      }
+
+      // Exists: check if property key exists
+      if (propertyKeys && propertyKeys.length > 0) {
+        for (const key of propertyKeys) {
+          const jsonPath = `$.${key}`;
+          query = query.where(
+            sql`json_extract(properties, ${jsonPath})` as never,
+            "is not",
+            null as never,
+          );
+          countQuery = countQuery.where(
+            sql`json_extract(properties, ${jsonPath})` as never,
+            "is not",
+            null as never,
+          );
+        }
+      }
+
+      // Pattern match: property value matches pattern (using LIKE)
+      if (propertyPatterns) {
+        for (const [key, pattern] of Object.entries(propertyPatterns)) {
+          const jsonPath = `$.${key}`;
+          query = query.where(
+            sql`json_extract(properties, ${jsonPath})` as never,
+            "like",
+            pattern as never,
+          );
+          countQuery = countQuery.where(
+            sql`json_extract(properties, ${jsonPath})` as never,
+            "like",
+            pattern as never,
+          );
+        }
+      }
     }
 
     // Order by timestamp descending (most recent first)
@@ -208,6 +268,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       request_id: log.requestId,
       user_agent: log.userAgent || null,
       gateway_id: log.gatewayId || null,
+      properties: log.properties ? JSON.stringify(log.properties) : null,
     };
   }
 
@@ -227,6 +288,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     request_id: string;
     user_agent: string | null;
     gateway_id: string | null;
+    properties: string | Record<string, string> | null;
   }): MonitoringLog {
     const input =
       typeof row.input === "string" ? JSON.parse(row.input) : row.input;
@@ -236,6 +298,11 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       typeof row.timestamp === "string"
         ? new Date(row.timestamp)
         : row.timestamp;
+    const properties = row.properties
+      ? typeof row.properties === "string"
+        ? JSON.parse(row.properties)
+        : row.properties
+      : null;
 
     return {
       id: row.id,
@@ -253,6 +320,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       requestId: row.request_id,
       userAgent: row.user_agent,
       gatewayId: row.gateway_id,
+      properties,
     };
   }
 }

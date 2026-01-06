@@ -48,7 +48,7 @@ import {
 import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import {
   type EnrichedMonitoringLog,
   type MonitoringLogsResponse,
@@ -104,6 +104,7 @@ interface FiltersPopoverProps {
   gatewayIds: string[];
   tool: string;
   status: string;
+  propertyFilter: string;
   connectionOptions: Array<{ value: string; label: string }>;
   gatewayOptions: Array<{ value: string; label: string }>;
   activeFiltersCount: number;
@@ -115,12 +116,36 @@ function FiltersPopover({
   gatewayIds,
   tool,
   status,
+  propertyFilter,
   connectionOptions,
   gatewayOptions,
   activeFiltersCount,
   onUpdateFilters,
 }: FiltersPopoverProps) {
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+
+  // Local state for text inputs to prevent focus loss during typing
+  const [localTool, setLocalTool] = useState(tool);
+  const [localPropertyFilter, setLocalPropertyFilter] =
+    useState(propertyFilter);
+
+  // Track previous prop values to detect external changes
+  const prevToolRef = useRef(tool);
+  const prevPropertyFilterRef = useRef(propertyFilter);
+
+  // Sync local state when props change externally (not from our own updates)
+  if (prevToolRef.current !== tool) {
+    prevToolRef.current = tool;
+    if (localTool !== tool) {
+      setLocalTool(tool);
+    }
+  }
+  if (prevPropertyFilterRef.current !== propertyFilter) {
+    prevPropertyFilterRef.current = propertyFilter;
+    if (localPropertyFilter !== propertyFilter) {
+      setLocalPropertyFilter(propertyFilter);
+    }
+  }
 
   return (
     <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
@@ -184,11 +209,22 @@ function FiltersPopover({
                 Tool Name
               </label>
               <Input
+                id="filter-tool"
                 placeholder="Filter by tool..."
-                value={tool}
+                value={localTool}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  onUpdateFilters({ tool: e.target.value })
+                  setLocalTool(e.target.value)
                 }
+                onBlur={() => {
+                  if (localTool !== tool) {
+                    onUpdateFilters({ tool: localTool });
+                  }
+                }}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === "Enter" && localTool !== tool) {
+                    onUpdateFilters({ tool: localTool });
+                  }
+                }}
                 className="w-full"
               />
             </div>
@@ -215,6 +251,37 @@ function FiltersPopover({
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Property Filter
+              </label>
+              <Input
+                id="filter-property"
+                placeholder="key=value (e.g., thread_id=abc123)"
+                value={localPropertyFilter}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setLocalPropertyFilter(e.target.value)
+                }
+                onBlur={() => {
+                  if (localPropertyFilter !== propertyFilter) {
+                    onUpdateFilters({ propertyFilter: localPropertyFilter });
+                  }
+                }}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (
+                    e.key === "Enter" &&
+                    localPropertyFilter !== propertyFilter
+                  ) {
+                    onUpdateFilters({ propertyFilter: localPropertyFilter });
+                  }
+                }}
+                className="w-full font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Filter by custom property
+              </p>
+            </div>
           </div>
 
           {activeFiltersCount > 0 && (
@@ -223,11 +290,14 @@ function FiltersPopover({
               size="sm"
               className="w-full"
               onClick={() => {
+                setLocalTool("");
+                setLocalPropertyFilter("");
                 onUpdateFilters({
                   connectionId: [],
                   gatewayId: [],
                   tool: "",
                   status: "all",
+                  propertyFilter: "",
                 });
                 setFilterPopoverOpen(false);
               }}
@@ -466,9 +536,24 @@ interface MonitoringDashboardContentProps {
   activeFiltersCount: number;
   from: string;
   to: string;
+  propertyFilter: string;
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
   onTimeRangeChange: (range: TimeRangeValue) => void;
   onStreamingToggle: () => void;
+}
+
+/**
+ * Parse property filter string (key=value) into API params.
+ * Returns undefined if invalid or empty.
+ */
+function parsePropertyFilter(
+  filter: string,
+): Record<string, string> | undefined {
+  if (!filter || !filter.includes("=")) return undefined;
+  const [key, ...valueParts] = filter.split("=");
+  const value = valueParts.join("="); // Handle values containing =
+  if (!key || !value) return undefined;
+  return { [key.trim()]: value.trim() };
 }
 
 function MonitoringDashboardContent({
@@ -483,6 +568,7 @@ function MonitoringDashboardContent({
   activeFiltersCount,
   from,
   to,
+  propertyFilter,
   onUpdateFilters,
   onTimeRangeChange,
   onStreamingToggle,
@@ -504,6 +590,9 @@ function MonitoringDashboardContent({
   const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
 
+  // Parse property filter for API
+  const parsedPropertyFilter = parsePropertyFilter(propertyFilter);
+
   // Base params for filtering (without pagination)
   const baseParams = {
     startDate: dateRange.startDate.toISOString(),
@@ -513,6 +602,7 @@ function MonitoringDashboardContent({
     toolName: tool || undefined,
     isError:
       status === "errors" ? true : status === "success" ? false : undefined,
+    properties: parsedPropertyFilter,
   };
 
   // Use React Query's infinite query for automatic accumulation
@@ -566,6 +656,7 @@ function MonitoringDashboardContent({
               gatewayIds={gatewayIds}
               tool={tool}
               status={status}
+              propertyFilter={propertyFilter}
               connectionOptions={connectionOptions}
               gatewayOptions={gatewayOptions}
               activeFiltersCount={activeFiltersCount}
@@ -659,6 +750,7 @@ export default function MonitoringDashboard() {
     search: searchQuery,
     status,
     streaming = true,
+    propertyFilter = "",
   } = search;
 
   // Update URL with new filter values (pagination is handled internally, not in URL)
@@ -702,6 +794,7 @@ export default function MonitoringDashboard() {
   if (gatewayIds.length > 0) activeFiltersCount++;
   if (tool) activeFiltersCount++;
   if (status !== "all") activeFiltersCount++;
+  if (propertyFilter) activeFiltersCount++;
 
   return (
     <CollectionPage>
@@ -748,6 +841,7 @@ export default function MonitoringDashboard() {
             activeFiltersCount={activeFiltersCount}
             from={from}
             to={to}
+            propertyFilter={propertyFilter}
             onUpdateFilters={updateFilters}
             onTimeRangeChange={handleTimeRangeChange}
             onStreamingToggle={() => updateFilters({ streaming: !streaming })}

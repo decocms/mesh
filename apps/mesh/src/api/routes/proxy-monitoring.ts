@@ -40,6 +40,53 @@ function extractCallToolErrorMessage(
 }
 
 /**
+ * Extract custom properties from tool call arguments (_meta.properties).
+ * Only string values are accepted to match the properties schema.
+ */
+function extractMetaProperties(
+  args: Record<string, unknown> | undefined,
+): Record<string, string> | undefined {
+  if (!args) return undefined;
+
+  const meta = args._meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta))
+    return undefined;
+
+  const properties = (meta as Record<string, unknown>).properties;
+  if (
+    !properties ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  )
+    return undefined;
+
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (typeof value === "string") {
+      result[key] = value;
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
+ * Merge properties from header (ctx.metadata.properties) and _meta.properties.
+ * Header properties take precedence over _meta properties.
+ */
+function mergeProperties(
+  headerProps: Record<string, string> | undefined,
+  metaProps: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!headerProps && !metaProps) return undefined;
+  if (!headerProps) return metaProps;
+  if (!metaProps) return headerProps;
+
+  // Header takes precedence
+  return { ...metaProps, ...headerProps };
+}
+
+/**
  * Normalize tool output for monitoring logs.
  *
  * If the tool result includes a `structuredContent` payload, store ONLY that to
@@ -120,6 +167,14 @@ async function logProxyMonitoringEvent(args: {
   const organizationId = args.organizationId ?? ctx.organization?.id;
   if (!enabled || !organizationId) return;
 
+  // Extract properties from _meta.properties in tool arguments
+  const metaProperties = extractMetaProperties(
+    args.request.params.arguments as Record<string, unknown> | undefined,
+  );
+
+  // Merge with header properties (header takes precedence)
+  const properties = mergeProperties(ctx.metadata.properties, metaProperties);
+
   await ctx.storage.monitoring.log({
     organizationId,
     connectionId: args.connectionId,
@@ -135,6 +190,7 @@ async function logProxyMonitoringEvent(args: {
     requestId: ctx.metadata.requestId,
     userAgent: ctx.metadata.userAgent,
     gatewayId: ctx.gatewayId,
+    properties,
   });
 }
 

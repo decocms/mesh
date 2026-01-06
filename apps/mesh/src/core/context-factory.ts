@@ -32,6 +32,44 @@ import type {
 
 import type { EventBus } from "../event-bus/interface";
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Parse x-mesh-properties header value into a Record<string, string>.
+ * The header value should be a JSON object with string values.
+ * Returns undefined if the header is missing, empty, or invalid.
+ */
+function parsePropertiesHeader(
+  headerValue: string | null | undefined,
+): Record<string, string> | undefined {
+  if (!headerValue) return undefined;
+
+  try {
+    const parsed = JSON.parse(headerValue);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return undefined;
+    }
+
+    // Validate all values are strings
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "string") {
+        result[key] = value;
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface MeshContextConfig {
   db: Kysely<Database>;
   auth: BetterAuthInstance;
@@ -701,6 +739,9 @@ export function createMeshContextFactory(
           (req?.headers.get("CF-Connecting-IP") ||
             req?.headers.get("X-Forwarded-For")) ??
           undefined,
+        properties: parsePropertiesHeader(
+          req?.headers.get("x-mesh-properties"),
+        ),
       },
       eventBus: config.eventBus,
       createMCPProxy: async (conn: string | ConnectionEntity) => {

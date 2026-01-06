@@ -5,6 +5,7 @@
  */
 
 import { useProjectContext } from "@/web/providers/project-context-provider";
+import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
@@ -66,6 +67,7 @@ export interface MonitoringLog extends BaseMonitoringLog {
   output: Record<string, unknown> | null;
   userAgent: string | null;
   gatewayId: string | null;
+  properties: Record<string, string> | null;
 }
 
 export interface EnrichedMonitoringLog extends MonitoringLog {
@@ -90,6 +92,8 @@ export interface MonitoringSearchParams {
   search?: string;
   page?: number;
   streaming?: boolean;
+  // Property filter (key=value format, e.g., "thread_id=abc123")
+  propertyFilter?: string;
 }
 
 // ============================================================================
@@ -220,6 +224,33 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
               <span className="text-foreground">{log.gatewayName}</span>
             </div>
           )}
+        </div>
+      )}
+      {/* Properties Row */}
+      {log.properties && Object.keys(log.properties).length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-muted-foreground mb-1.5">
+            Properties
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(log.properties).map(([key, value]) => (
+              <Tooltip key={key}>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="secondary"
+                    className="font-mono text-xs px-2 py-0.5 cursor-pointer hover:bg-secondary/80 transition-colors"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${key}=${value}`);
+                      toast.success("Copied to clipboard");
+                    }}
+                  >
+                    {key}={value}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>Click to copy</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
         </div>
       )}
       {log.errorMessage && (

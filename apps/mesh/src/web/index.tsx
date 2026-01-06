@@ -111,6 +111,7 @@ const orgMonitoringRoute = createRoute({
       search: z.string().default(""),
       page: z.number().optional(),
       streaming: z.boolean().default(true),
+      propertyFilter: z.string().default(""),
     }),
   ),
 });

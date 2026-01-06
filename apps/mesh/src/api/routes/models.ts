@@ -97,8 +97,14 @@ async function getConnectionById(
   return connection;
 }
 
-/** Converts MCP tools to AI SDK tools */
-const toolsFromMCP = async (client: Client): Promise<ToolSet> => {
+/**
+ * Converts MCP tools to AI SDK tools.
+ * Optionally injects properties into tool call arguments for monitoring correlation.
+ */
+const toolsFromMCP = async (
+  client: Client,
+  properties?: Record<string, string>,
+): Promise<ToolSet> => {
   const list = await client.listTools();
 
   const toolEntries = list.tools.map((t) => {
@@ -113,12 +119,22 @@ const toolsFromMCP = async (client: Client): Promise<ToolSet> => {
         outputSchema: outputSchema
           ? jsonSchema(outputSchema as JSONSchema7)
           : undefined,
-        execute: (input, options) =>
-          client.callTool(
-            { name: t.name, arguments: input as Record<string, unknown> },
+        execute: (input, options) => {
+          // Inject properties via _meta for monitoring correlation
+          const argsWithMeta =
+            properties && Object.keys(properties).length > 0
+              ? { ...input, _meta: { properties } }
+              : input;
+
+          return client.callTool(
+            {
+              name: t.name,
+              arguments: argsWithMeta as Record<string, unknown>,
+            },
             CallToolResultSchema,
             { signal: options.abortSignal },
-          ) as Promise<CallToolResult>,
+          ) as Promise<CallToolResult>;
+        },
         toModelOutput: ({ output }) => {
           if (output.isError) {
             const textContent = output.content
@@ -250,9 +266,12 @@ app.post("/:org/models/stream", async (c) => {
       toolCalls: "none",
     }).slice(-maxWindowSize);
 
+    // Build properties for monitoring correlation
+    const monitoringProperties = threadId ? { thread_id: threadId } : undefined;
+
     const [proxy, tools] = await Promise.all([
       ctx.createMCPProxy(connection),
-      toolsFromMCP(client),
+      toolsFromMCP(client, monitoringProperties),
     ]);
 
     const llmBinding = LanguageModelBinding.forClient(proxy);
