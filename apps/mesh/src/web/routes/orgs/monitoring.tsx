@@ -432,14 +432,21 @@ function FiltersPopover({
                         <Select
                           value={filter.operator}
                           onValueChange={(value: PropertyFilterOperator) => {
-                            updatePropertyFilter(index, { operator: value });
-                            if (value === "exists") {
-                              updatePropertyFilter(index, {
+                            // Compute new filters directly to avoid stale closure
+                            const newFilters = [...localPropertyFilters];
+                            const existing = newFilters[index];
+                            if (existing) {
+                              newFilters[index] = {
+                                ...existing,
                                 operator: value,
-                                value: "",
+                                value: value === "exists" ? "" : existing.value,
+                              };
+                              setLocalPropertyFilters(newFilters);
+                              onUpdateFilters({
+                                propertyFilters:
+                                  serializePropertyFilters(newFilters),
                               });
                             }
-                            setTimeout(applyPropertyFilters, 0);
                           }}
                         >
                           <SelectTrigger className="w-28">
