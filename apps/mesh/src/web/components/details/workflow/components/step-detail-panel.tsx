@@ -12,6 +12,8 @@ import {
   Box,
   Braces,
   CheckSquare,
+  ChevronDown,
+  ChevronUp,
   FileText,
   Hash,
   Minus,
@@ -96,7 +98,10 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
 
   return (
     <div
-      className={cn("flex flex-col h-full bg-sidebar overflow-auto", className)}
+      className={cn(
+        "flex flex-col h-full bg-sidebar overflow-hidden",
+        className,
+      )}
     >
       <StepHeader step={currentStep} />
       <InputSection step={currentStep} />
@@ -118,7 +123,7 @@ function StepHeader({ step }: { step: Step }) {
   const trackingExecutionId = useTrackingExecutionId();
 
   return (
-    <div className="border-b border-border p-5 shrink-0">
+    <div className="border-b border-border p-5 shrink-0 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <IntegrationIcon
           icon={null}
@@ -251,6 +256,7 @@ function InputSection({ step }: { step: Step }) {
 
 function OutputSection({ step }: { step: Step }) {
   const outputSchema = step.outputSchema;
+  const [isOpen, setIsOpen] = useState(false);
   const trackingExecutionId = useTrackingExecutionId();
   const { output, error } = useExecutionCompletedStep(
     trackingExecutionId,
@@ -269,50 +275,46 @@ function OutputSection({ step }: { step: Step }) {
   const propertyEntries = properties ? Object.entries(properties) : [];
 
   return (
-    <Accordion
-      type="single"
-      collapsible
-      defaultValue="output"
-      className="border-b border-border shrink-0"
+    <div
+      className={cn(
+        "flex flex-col border-b border-border",
+        isOpen ? "flex-1 min-h-0 overflow-hidden" : "shrink-0",
+      )}
     >
-      <AccordionItem value="output" className="border-b-0">
-        <AccordionTrigger className="px-5 py-5">
-          <span className="text-sm font-medium text-muted-foreground">
-            Output
-          </span>
-        </AccordionTrigger>
-        <AccordionContent className="px-5 pt-2">
-          {propertyEntries.length === 0 ? (
-            <div className="text-sm text-muted-foreground italic">
-              No output schema defined
-            </div>
-          ) : content ? (
-            <OutputMonacoEditor output={content} />
+      <div
+        className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-muted-foreground">Output</h3>
+          {isOpen ? (
+            <ChevronUp size={14} className="text-muted-foreground" />
           ) : (
-            <div className="space-y-2">
-              {propertyEntries.map(([key, propSchema]) => (
-                <OutputProperty
-                  key={key}
-                  name={key}
-                  schema={propSchema as JsonSchema}
-                />
-              ))}
-            </div>
+            <ChevronDown size={14} className="text-muted-foreground" />
           )}
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
-  );
-}
-
-function OutputMonacoEditor({ output }: { output: unknown }) {
-  const code = JSON.stringify(output, null, 2);
-  const lineCount = code.split("\n").length;
-  // ~18px per line (fontSize 13 + line spacing) + 24px padding
-  const height = Math.min(Math.max(lineCount * 18 + 24, 80), 400);
-
-  return (
-    <MonacoCodeEditor code={code} language="json" height={height} readOnly />
+        </div>
+      </div>
+      {isOpen && (
+        <div className="flex-1 min-h-0 overflow-auto px-5">
+          {trackingExecutionId ? (
+            <MonacoCodeEditor
+              code={JSON.stringify(content, null, 2)}
+              language="json"
+              height="100%"
+              readOnly
+            />
+          ) : null}
+          {!trackingExecutionId &&
+            propertyEntries.map(([key, propSchema]) => (
+              <OutputProperty
+                key={key}
+                name={key}
+                schema={propSchema as JsonSchema}
+              />
+            ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -484,7 +486,7 @@ export default async function(input: Input): Promise<Output> {
 
   // Has transform code → show editor with Minus to remove
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden border-b border-border">
       <div
         className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
         onClick={handleRemoveTransformCode}
@@ -496,7 +498,7 @@ export default async function(input: Input): Promise<Output> {
           <Minus size={14} className="text-muted-foreground" />
         </div>
       </div>
-      <div className="flex-1 min-h-120">
+      <div className="flex-1 min-h-0">
         <MonacoCodeEditor
           key={`transform-code-${step.name}-${trackingExecutionId}`}
           code={transformCode!}
@@ -532,7 +534,12 @@ function StepCodeSection({ step }: { step: Step }) {
     return null;
   }
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div
+      className={cn(
+        "flex flex-col border-b border-border",
+        isOpen ? "flex-1 min-h-0 overflow-hidden" : "shrink-0",
+      )}
+    >
       <div
         className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
         onClick={() => setIsOpen(!isOpen)}
@@ -542,14 +549,14 @@ function StepCodeSection({ step }: { step: Step }) {
             Step Code
           </h3>
           {isOpen ? (
-            <Minus size={14} className="text-muted-foreground" />
+            <ChevronUp size={14} className="text-muted-foreground" />
           ) : (
-            <Plus size={14} className="text-muted-foreground" />
+            <ChevronDown size={14} className="text-muted-foreground" />
           )}
         </div>
       </div>
       {isOpen && (
-        <div className="flex-1 min-h-120 h-full">
+        <div className="flex-1 min-h-0">
           <MonacoCodeEditor
             onSave={(code, outputSchema) => handleCodeSave(code, outputSchema)}
             key={`step-code-${step.name}-${trackingExecutionId}`}
