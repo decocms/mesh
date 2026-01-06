@@ -475,32 +475,49 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     // Fall back to client for connections without indexed tools
-    const client = await createClient();
-    return await client.listTools().then((result) => {
-      client.close().catch(console.error);
-      return result;
-    });
+    let client: Awaited<ReturnType<typeof createClient>> | undefined;
+    try {
+      client = await createClient();
+      return await client.listTools();
+    } finally {
+      client?.close().catch(console.error);
+    }
   };
 
   // List resources from downstream connection
   const listResources = async (): Promise<ListResourcesResult> => {
-    const client = await createClient();
-    return await client.listResources();
+    let client: Awaited<ReturnType<typeof createClient>> | undefined;
+    try {
+      client = await createClient();
+      return await client.listResources();
+    } finally {
+      client?.close().catch(console.error);
+    }
   };
 
   // Read a specific resource from downstream connection
   const readResource = async (
     params: ReadResourceRequest["params"],
   ): Promise<ReadResourceResult> => {
-    const client = await createClient();
-    return await client.readResource(params);
+    let client: Awaited<ReturnType<typeof createClient>> | undefined;
+    try {
+      client = await createClient();
+      return await client.readResource(params);
+    } finally {
+      client?.close().catch(console.error);
+    }
   };
 
   // List resource templates from downstream connection
   const listResourceTemplates =
     async (): Promise<ListResourceTemplatesResult> => {
-      const client = await createClient();
-      return await client.listResourceTemplates();
+      let client: Awaited<ReturnType<typeof createClient>> | undefined;
+      try {
+        client = await createClient();
+        return await client.listResourceTemplates();
+      } finally {
+        client?.close().catch(console.error);
+      }
     };
 
   // List prompts from downstream connection
@@ -521,8 +538,13 @@ async function createMCPProxyDoNotUseDirectly(
   const getPrompt = async (
     params: GetPromptRequest["params"],
   ): Promise<GetPromptResult> => {
-    const client = await createClient();
-    return await client.getPrompt(params);
+    let client: Awaited<ReturnType<typeof createClient>> | undefined;
+    try {
+      client = await createClient();
+      return await client.getPrompt(params);
+    } finally {
+      client?.close().catch(console.error);
+    }
   };
 
   // Call tool using fetch directly for streaming support
