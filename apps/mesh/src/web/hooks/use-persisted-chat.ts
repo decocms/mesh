@@ -8,6 +8,7 @@
 import { useChat } from "@ai-sdk/react";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { DefaultChatTransport, type UIMessage } from "ai";
+import { useState } from "react";
 import type { ChatMessage } from "../components/chat";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message, Thread } from "../types/chat-threads";
@@ -73,6 +74,14 @@ export interface PersistedChatResult {
   setMessages: (messages: ChatMessage[]) => void;
   /** Whether the chat is empty (no user/assistant messages) */
   isEmpty: boolean;
+  /** Current error if any */
+  error: Error | undefined;
+  /** Clear the current error */
+  clearError: () => void;
+  /** Finish reason for the last message completion */
+  finishReason: string | null;
+  /** Clear the finish reason */
+  clearFinishReason: () => void;
 }
 
 /**
@@ -101,6 +110,9 @@ export function usePersistedChat(
   // Thread and message actions for persistence
   const threadActions = useThreadActions();
   const messageActions = useMessageActions();
+
+  // State for finish reason
+  const [finishReason, setFinishReason] = useState<string | null>(null);
 
   // Load persisted messages for this thread
   const persistedMessages = useThreadMessages(threadId) as unknown as Message[];
@@ -139,10 +151,19 @@ export function usePersistedChat(
     isError: boolean;
     finishReason?: string;
   }) => {
-    if (finishReason !== "stop" || isAbort || isDisconnect || isError) return;
+    // Store the finish reason in state (convert undefined to null)
+    setFinishReason(finishReason ?? null);
+
+    if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
+      return;
+    }
 
     const newMessages = messages.slice(-2).filter(Boolean) as Message[];
-    if (newMessages.length !== 2) return;
+
+    if (newMessages.length !== 2) {
+      console.warn("[chat] Expected 2 messages, got", newMessages.length);
+      return;
+    }
 
     // Persist the new messages
     messageActions.insertMany.mutate(newMessages);
@@ -208,6 +229,9 @@ export function usePersistedChat(
       return;
     }
 
+    // Clear finish reason when sending new message
+    setFinishReason(null);
+
     await chat.sendMessage(
       {
         id: crypto.randomUUID(),
@@ -232,5 +256,9 @@ export function usePersistedChat(
     stop: chat.stop.bind(chat),
     setMessages: chat.setMessages,
     isEmpty,
+    error: chat.error,
+    clearError: chat.clearError,
+    finishReason,
+    clearFinishReason: () => setFinishReason(null),
   };
 }

@@ -46,13 +46,17 @@ const StreamRequestSchema = z.object({
         ])
         .optional()
         .nullable(),
+      limits: z
+        .object({
+          contextWindow: z.number().optional(),
+          maxOutputTokens: z.number().optional(),
+        })
+        .optional(),
     })
-    .passthrough()
-    .optional(),
-  gateway: z.object({ id: z.string() }).passthrough().optional(),
+    .loose(),
+  gateway: z.object({ id: z.string() }).loose(),
   stream: z.boolean().optional(),
   temperature: z.number().optional(),
-  maxOutputTokens: z.number().optional(),
   maxWindowSize: z.number().optional(),
   thread_id: z.string().optional(),
 });
@@ -210,25 +214,18 @@ app.post("/:org/models/stream", async (c) => {
 
     const payload = parseResult.data;
 
-    // Validate model is provided
-    if (!payload.model) {
-      return c.json({ error: "model is required" }, 400);
-    }
-
     const {
       model: modelConfig,
       gateway: gatewayConfig,
       messages,
       temperature,
-      maxOutputTokens = DEFAULT_MAX_TOKENS,
       maxWindowSize = DEFAULT_MEMORY,
       thread_id: threadId,
     } = payload;
 
-    // Validate gateway is provided
-    if (!gatewayConfig?.id) {
-      return c.json({ error: "gateway is required" }, 400);
-    }
+    // Use limits from model config, fallback to default
+    const maxOutputTokens =
+      modelConfig.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
     const transport = createGatewayTransport(c.req.raw, gatewayConfig.id);
 
@@ -286,7 +283,7 @@ app.post("/:org/models/stream", async (c) => {
       messages: prunedMessages,
       tools,
       temperature,
-      maxOutputTokens,
+      maxOutputTokens: maxOutputTokens,
       abortSignal: c.req.raw.signal,
       stopWhen: stepCountIs(30), // Stop after 30 steps with tool calls
       onError: async (error) => {

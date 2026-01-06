@@ -1,7 +1,8 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
+import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { CornerUpLeft, X } from "@untitledui/icons";
+import { AlertCircle, AlertTriangle, CornerUpLeft, X } from "@untitledui/icons";
 import type { UIMessage } from "ai";
 import type {
   PropsWithChildren,
@@ -136,6 +137,7 @@ function ChatMessages({
   minHeightOffset?: number;
 }) {
   const sentinelRef = useRef<HTMLDivElement>(null);
+
   useChatAutoScroll({ messageCount: messages.length, sentinelRef });
 
   return (
@@ -170,6 +172,87 @@ function ChatFooter({ children }: PropsWithChildren) {
 }
 
 /**
+ * Highlight component - reusable banner for errors, warnings, and info messages.
+ */
+function ChatHighlight({
+  title,
+  description,
+  icon,
+  variant = "default",
+  onDismiss,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  icon?: ReactNode;
+  variant?: "default" | "danger" | "warning";
+  onDismiss?: () => void;
+  children?: ReactNode;
+}) {
+  const variantStyles = {
+    default: {
+      container:
+        "border-muted-foreground/30 bg-muted/50 hover:bg-muted transition-colors",
+      icon: "text-muted-foreground",
+      title: "text-muted-foreground",
+      description: "text-muted-foreground/70",
+    },
+    danger: {
+      container: "border-destructive/30 bg-destructive/5",
+      icon: "text-destructive",
+      title: "text-destructive font-medium",
+      description: "text-muted-foreground",
+    },
+    warning: {
+      container: "border-amber-500/30 bg-amber-500/5",
+      icon: "text-amber-600 dark:text-amber-500",
+      title: "text-amber-600 dark:text-amber-500 font-medium",
+      description: "text-muted-foreground",
+    },
+  };
+
+  const styles = variantStyles[variant];
+
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2 px-3 py-2.5 rounded-lg border border-dashed text-sm w-full",
+        styles.container,
+      )}
+    >
+      {icon && <div className={cn("mt-0.5 shrink-0", styles.icon)}>{icon}</div>}
+      <div className="flex-1 min-w-0">
+        {title && (
+          <div className={cn("text-xs mb-1", styles.title)}>{title}</div>
+        )}
+        {description && (
+          <div
+            className={cn(
+              "text-xs line-clamp-2",
+              styles.description,
+              children ? "mb-2" : "",
+            )}
+          >
+            {description}
+          </div>
+        )}
+        {children && <div className="flex gap-2">{children}</div>}
+      </div>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          title="Dismiss"
+        >
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
  * Branch preview banner - shows when editing a message from a branch.
  */
 function ChatBranchPreview({
@@ -186,46 +269,109 @@ function ChatBranchPreview({
   if (!branchContext) return null;
 
   return (
-    <button
-      type="button"
-      onClick={onGoToOriginalMessage}
-      className="flex items-start gap-2 px-2 py-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/50 text-sm hover:bg-muted transition-colors cursor-pointer text-left w-full"
-      title="Click to view original message"
+    <ChatHighlight
+      variant="default"
+      title="Editing message (click to view original)"
+      description={branchContext.originalMessageText}
+      icon={<CornerUpLeft size={14} />}
+      onDismiss={() => {
+        clearBranchContext();
+        setInputValue("");
+      }}
     >
-      <CornerUpLeft
-        size={14}
-        className="text-muted-foreground mt-0.5 shrink-0"
-      />
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-muted-foreground mb-1">
-          Editing message (click to view original):
-        </div>
-        <div className="text-muted-foreground/70 line-clamp-2">
-          {branchContext.originalMessageText}
-        </div>
-      </div>
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={(e) => {
-          e.stopPropagation();
-          clearBranchContext();
-          setInputValue("");
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            clearBranchContext();
-            setInputValue("");
-          }
-        }}
-        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        title="Cancel editing"
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onGoToOriginalMessage}
+        className="h-7 text-xs"
       >
-        <X size={14} />
-      </span>
-    </button>
+        View original
+      </Button>
+    </ChatHighlight>
+  );
+}
+
+/**
+ * Error banner - shows when a chat error occurs.
+ */
+function ChatErrorBanner({
+  error,
+  onFixInChat,
+  onDismiss,
+}: {
+  error: Error | undefined;
+  onFixInChat: () => void;
+  onDismiss: () => void;
+}) {
+  if (!error) return null;
+
+  return (
+    <ChatHighlight
+      variant="danger"
+      title="Error occurred"
+      description={error.message}
+      icon={<AlertCircle size={16} />}
+      onDismiss={onDismiss}
+    >
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onFixInChat}
+        className="h-7 text-xs"
+      >
+        Fix in chat
+      </Button>
+      <Button size="sm" variant="outline" disabled className="h-7 text-xs">
+        Report
+      </Button>
+    </ChatHighlight>
+  );
+}
+
+/**
+ * Finish reason warning - shows when completion stops for non-"stop" reasons.
+ */
+function ChatFinishReasonWarning({
+  finishReason,
+  onContinue,
+  onDismiss,
+}: {
+  finishReason: string | null;
+  onContinue: () => void;
+  onDismiss: () => void;
+}) {
+  if (!finishReason || finishReason === "stop") return null;
+
+  const getMessage = (reason: string): string => {
+    switch (reason) {
+      case "length":
+        return "Response reached the model's output limit. Different models have different limits. Try switching models or asking it to continue.";
+      case "content-filter":
+        return "Response was filtered due to content policy.";
+      case "tool-calls":
+        return "Response paused after tool execution to prevent infinite loops and save costs. Click continue to keep working.";
+      default:
+        return `Response stopped unexpectedly: ${reason}`;
+    }
+  };
+
+  return (
+    <ChatHighlight
+      variant="warning"
+      title="Response incomplete"
+      description={getMessage(finishReason)}
+      icon={<AlertTriangle size={16} />}
+      onDismiss={onDismiss}
+    >
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onContinue}
+        className="h-7 text-xs"
+      >
+        Continue
+      </Button>
+    </ChatHighlight>
   );
 }
 
@@ -240,5 +386,7 @@ export const Chat = Object.assign(ChatRoot, {
   Footer: ChatFooter,
   Input: ChatInput,
   BranchPreview: ChatBranchPreview,
+  ErrorBanner: ChatErrorBanner,
+  FinishReasonWarning: ChatFinishReasonWarning,
   Provider: ChatProvider,
 });

@@ -38,6 +38,10 @@ export interface ModelInfo {
   outputCost?: number | null;
   outputLimit?: number | null;
   provider?: string | null;
+  limits?: {
+    contextWindow: number;
+    maxOutputTokens: number;
+  } | null;
 }
 
 /**
