@@ -73,6 +73,10 @@ export interface PersistedChatResult {
   setMessages: (messages: ChatMessage[]) => void;
   /** Whether the chat is empty (no user/assistant messages) */
   isEmpty: boolean;
+  /** Current error if any */
+  error: Error | undefined;
+  /** Clear the current error */
+  clearError: () => void;
 }
 
 /**
@@ -232,5 +236,7 @@ export function usePersistedChat(
     stop: chat.stop.bind(chat),
     setMessages: chat.setMessages,
     isEmpty,
+    error: chat.error,
+    clearError: chat.clearError,
   };
 }

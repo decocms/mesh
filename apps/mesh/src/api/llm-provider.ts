@@ -165,6 +165,12 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
             modelId,
           });
 
+          if (!response.ok) {
+            throw new Error(
+              `Streaming failed for model ${modelId} with the status code: ${response.status}\n${await response.text()}`,
+            );
+          }
+
           return {
             stream: responseToStream(response),
             response: {

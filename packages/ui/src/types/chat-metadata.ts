@@ -2,6 +2,10 @@ export interface ChatModelConfig {
   id: string;
   connectionId: string;
   provider?: string | null;
+  limits?: {
+    contextWindow?: number;
+    maxOutputTokens?: number;
+  };
 }
 
 export interface ChatGatewayConfig {

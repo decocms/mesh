@@ -268,6 +268,7 @@ function ChatPanelContent() {
         id: selectedModel.id,
         connectionId: selectedModel.connectionId,
         provider: selectedModel.provider ?? undefined,
+        limits: selectedModel.limits ?? undefined,
       },
       gateway: { id: selectedGateway.id },
       user: {
@@ -522,6 +523,17 @@ function ChatPanelContent() {
 
       <Chat.Footer>
         <div className="flex flex-col gap-2">
+          <Chat.ErrorBanner
+            error={chat.error}
+            onFixInChat={() => {
+              if (chat.error) {
+                handleSendMessage(
+                  `I encountered this error: ${chat.error.message}. Can you help me fix it?`,
+                );
+              }
+            }}
+            onDismiss={chat.clearError}
+          />
           <Chat.BranchPreview
             branchContext={branchContext}
             clearBranchContext={clearBranch}
