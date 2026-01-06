@@ -72,6 +72,7 @@ function parsePropertiesHeader(
 
 export interface MeshContextConfig {
   db: Kysely<Database>;
+  databaseType: "sqlite" | "postgres";
   auth: BetterAuthInstance;
   encryption: {
     key: string;
@@ -659,7 +660,7 @@ export function createMeshContextFactory(
   const storage = {
     connections: new ConnectionStorage(config.db, vault),
     organizationSettings: new OrganizationSettingsStorage(config.db),
-    monitoring: new SqlMonitoringStorage(config.db),
+    monitoring: new SqlMonitoringStorage(config.db, config.databaseType),
     gateways: new GatewayStorage(config.db),
     users: new UserStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin

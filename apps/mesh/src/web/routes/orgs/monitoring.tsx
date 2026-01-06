@@ -184,7 +184,13 @@ function FiltersPopover({
     updates: Partial<PropertyFilter>,
   ) => {
     const newFilters = [...localPropertyFilters];
-    newFilters[index] = { ...newFilters[index], ...updates };
+    const existing = newFilters[index];
+    if (!existing) return;
+    newFilters[index] = {
+      key: updates.key ?? existing.key,
+      operator: updates.operator ?? existing.operator,
+      value: updates.value ?? existing.value,
+    };
     setLocalPropertyFilters(newFilters);
   };
 

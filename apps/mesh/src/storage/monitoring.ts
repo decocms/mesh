@@ -18,9 +18,28 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 export class SqlMonitoringStorage implements MonitoringStorage {
   private redactor: RegexRedactor;
+  private databaseType: "sqlite" | "postgres";
 
-  constructor(private db: Kysely<Database>) {
+  constructor(
+    private db: Kysely<Database>,
+    databaseType: "sqlite" | "postgres" = "sqlite",
+  ) {
     this.redactor = new RegexRedactor();
+    this.databaseType = databaseType;
+  }
+
+  /**
+   * Get JSON property value extraction SQL fragment.
+   * SQLite uses json_extract(col, '$.key'), PostgreSQL uses col->>'key'.
+   */
+  private jsonExtract(column: string, key: string) {
+    if (this.databaseType === "postgres") {
+      // PostgreSQL: use ->> operator for text extraction from jsonb
+      return sql`${sql.ref(column)}->>${key}`;
+    }
+    // SQLite: use json_extract with JSON path
+    const jsonPath = `$.${key}`;
+    return sql`json_extract(${sql.ref(column)}, ${jsonPath})`;
   }
 
   async log(event: MonitoringLog): Promise<void> {
@@ -121,32 +140,19 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       // Exact match: property key=value
       if (properties) {
         for (const [key, value] of Object.entries(properties)) {
-          // Use json_extract for SQLite compatibility (also works with PostgreSQL jsonb)
-          const jsonPath = `$.${key}`;
-          query = query.where(
-            sql`json_extract(properties, ${jsonPath})` as never,
-            "=",
-            value as never,
-          );
-          countQuery = countQuery.where(
-            sql`json_extract(properties, ${jsonPath})` as never,
-            "=",
-            value as never,
-          );
+          const jsonExpr = this.jsonExtract("properties", key);
+          query = query.where(jsonExpr as never, "=", value as never);
+          countQuery = countQuery.where(jsonExpr as never, "=", value as never);
         }
       }
 
       // Exists: check if property key exists
       if (propertyKeys && propertyKeys.length > 0) {
         for (const key of propertyKeys) {
-          const jsonPath = `$.${key}`;
-          query = query.where(
-            sql`json_extract(properties, ${jsonPath})` as never,
-            "is not",
-            null as never,
-          );
+          const jsonExpr = this.jsonExtract("properties", key);
+          query = query.where(jsonExpr as never, "is not", null as never);
           countQuery = countQuery.where(
-            sql`json_extract(properties, ${jsonPath})` as never,
+            jsonExpr as never,
             "is not",
             null as never,
           );
@@ -156,15 +162,13 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       // Pattern match: property value matches pattern (using LIKE)
       if (propertyPatterns) {
         for (const [key, pattern] of Object.entries(propertyPatterns)) {
-          const jsonPath = `$.${key}`;
-          query = query.where(
-            sql`json_extract(properties, ${jsonPath})` as never,
-            "like",
-            pattern as never,
-          );
+          const jsonExpr = this.jsonExtract("properties", key);
+          // Use ILIKE for PostgreSQL (case-insensitive), LIKE for SQLite
+          const likeOp = this.databaseType === "postgres" ? "ilike" : "like";
+          query = query.where(jsonExpr as never, likeOp, pattern as never);
           countQuery = countQuery.where(
-            sql`json_extract(properties, ${jsonPath})` as never,
-            "like",
+            jsonExpr as never,
+            likeOp,
             pattern as never,
           );
         }
