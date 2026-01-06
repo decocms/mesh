@@ -3,7 +3,7 @@ import { useState } from "react";
 import { authClient } from "@/web/lib/auth-client";
 import { CreateOrganizationDialog } from "./create-organization-dialog";
 import { TopbarSwitcher } from "@deco/ui/components/topbar-switcher.tsx";
-import { Grid01 } from "@untitledui/icons";
+import { Grid01, Settings01 } from "@untitledui/icons";
 
 export function MeshOrgSwitcher() {
   const { org } = useParams({ strict: false });
@@ -98,6 +98,14 @@ export function MeshOrgSwitcher() {
                 icon={<Grid01 />}
               >
                 See all organizations
+              </TopbarSwitcher.Action>
+              <TopbarSwitcher.Action
+                onClick={() =>
+                  navigate({ to: "/$org/settings", params: { org: org ?? "" } })
+                }
+                icon={<Settings01 />}
+              >
+                Settings
               </TopbarSwitcher.Action>
             </TopbarSwitcher.Actions>
           </TopbarSwitcher.Panel>

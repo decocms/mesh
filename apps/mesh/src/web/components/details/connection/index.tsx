@@ -26,6 +26,7 @@ import { ReadmeTab } from "./readme-tab";
 import { ResourcesTab } from "./resources-tab";
 import { SettingsTab } from "./settings-tab";
 import { ToolsTab } from "./tools-tab";
+import { useAutoPinConnectionCollections } from "@/web/components/sidebar-items-section";
 
 function ConnectionInspectorViewWithConnection({
   connection,
@@ -60,6 +61,14 @@ function ConnectionInspectorViewWithConnection({
     connectionId: connectionId,
   });
   const isMCPAuthenticated = authStatus.isAuthenticated;
+
+  // Auto-pin collections when they're detected
+  useAutoPinConnectionCollections(
+    connection.id,
+    connection.title,
+    connection.icon,
+    connection.tools,
+  );
 
   // Check if connection has repository info for README tab (stored in metadata)
   const repository = connection?.metadata?.repository as
