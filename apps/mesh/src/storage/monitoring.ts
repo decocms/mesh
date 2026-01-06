@@ -30,12 +30,13 @@ export class SqlMonitoringStorage implements MonitoringStorage {
 
   /**
    * Get JSON property value extraction SQL fragment.
-   * SQLite uses json_extract(col, '$.key'), PostgreSQL uses col->>'key'.
+   * SQLite uses json_extract(col, '$.key'), PostgreSQL uses (col::jsonb)->>'key'.
+   * Note: properties column is stored as text, so PostgreSQL needs a cast to jsonb.
    */
   private jsonExtract(column: string, key: string) {
     if (this.databaseType === "postgres") {
-      // PostgreSQL: use ->> operator for text extraction from jsonb
-      return sql`${sql.ref(column)}->>${key}`;
+      // PostgreSQL: cast text to jsonb, then use ->> operator for text extraction
+      return sql`(${sql.ref(column)}::jsonb)->>${key}`;
     }
     // SQLite: use json_extract with JSON path
     const jsonPath = `$.${key}`;
