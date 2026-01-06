@@ -20,6 +20,7 @@ import { useGatewayActions } from "@/web/hooks/collections/use-gateway";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { useToolboxContext } from "@/web/providers/toolbox-context-provider";
+import { useToolboxNavigation } from "@/web/hooks/use-toolbox-navigation";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { type TableColumn } from "@deco/ui/components/collection-table.tsx";
@@ -49,7 +50,7 @@ import { toast } from "sonner";
 function ToolboxConnectionsContent() {
   const { toolbox } = useToolboxContext();
   const { org } = useProjectContext();
-  const navigate = useNavigate();
+  const { navigateToConnection, navigateToStore } = useToolboxNavigation();
   const allConnections = useConnections({});
   const actions = useGatewayActions();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -141,10 +142,7 @@ function ToolboxConnectionsContent() {
   };
 
   const handleBrowseStore = () => {
-    navigate({
-      to: "/$org/store",
-      params: { org: org.slug },
-    });
+    navigateToStore();
   };
 
   const columns: TableColumn<ConnectionEntity>[] = [
@@ -224,10 +222,7 @@ function ToolboxConnectionsContent() {
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();
-                navigate({
-                  to: "/$org/mcps/$connectionId",
-                  params: { org: org.slug, connectionId: connection.id },
-                });
+                navigateToConnection({ connectionId: connection.id });
               }}
             >
               <Eye size={16} />
@@ -345,12 +340,7 @@ function ToolboxConnectionsContent() {
                   key={connection.id}
                   connection={connection}
                   fallbackIcon={<Container />}
-                  onClick={() =>
-                    navigate({
-                      to: "/$org/mcps/$connectionId",
-                      params: { org: org.slug, connectionId: connection.id },
-                    })
-                  }
+                  onClick={() => navigateToConnection({ connectionId: connection.id })}
                   headerActions={
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -370,13 +360,7 @@ function ToolboxConnectionsContent() {
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate({
-                              to: "/$org/mcps/$connectionId",
-                              params: {
-                                org: org.slug,
-                                connectionId: connection.id,
-                              },
-                            });
+                            navigateToConnection({ connectionId: connection.id });
                           }}
                         >
                           <Eye size={16} />
@@ -409,10 +393,7 @@ function ToolboxConnectionsContent() {
           sortDirection={listState.sortDirection}
           onSort={listState.handleSort}
           onRowClick={(connection) =>
-            navigate({
-              to: "/$org/mcps/$connectionId",
-              params: { org: org.slug, connectionId: connection.id },
-            })
+            navigateToConnection({ connectionId: connection.id })
           }
           emptyState={
             listState.search ? (

@@ -86,12 +86,11 @@ export function useToolboxNavigation() {
 
   const navigateToConnection = (params: { connectionId: string }) => {
     if (isInToolbox) {
-      // For now, connection detail pages stay at org level
-      // Could add toolbox-scoped connection detail route later if needed
       navigate({
-        to: "/$org/mcps/$connectionId",
+        to: "/$org/toolbox/$toolboxId/mcps/$connectionId",
         params: {
           org: org.slug,
+          toolboxId: toolboxContext.toolboxId,
           connectionId: params.connectionId,
         },
       });
@@ -106,11 +105,30 @@ export function useToolboxNavigation() {
     }
   };
 
+  const navigateToStore = () => {
+    if (isInToolbox) {
+      navigate({
+        to: "/$org/toolbox/$toolboxId/store",
+        params: {
+          org: org.slug,
+          toolboxId: toolboxContext.toolboxId,
+        },
+      });
+    } else {
+      navigate({
+        to: "/$org/store",
+        params: {
+          org: org.slug,
+        },
+      });
+    }
+  };
+
   return {
     navigateToCollectionDetail,
     navigateToStoreDetail,
     navigateToConnection,
+    navigateToStore,
     isInToolbox,
   };
 }
-

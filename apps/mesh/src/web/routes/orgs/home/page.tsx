@@ -15,8 +15,8 @@ export default function OrgHomePage() {
       <ErrorBoundary>
         <Suspense fallback={<SplashScreen />}>
           <FullPageChat />
-        </Suspense>
-      </ErrorBoundary>
-    </div>
+            </Suspense>
+          </ErrorBoundary>
+      </div>
   );
 }

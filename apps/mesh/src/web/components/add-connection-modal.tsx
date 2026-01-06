@@ -6,22 +6,22 @@
  */
 
 import type { ConnectionEntity } from "@/tools/connection/schema";
+import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Card } from "@deco/ui/components/card.tsx";
 import {
   Dialog,
   DialogContent,
   DialogPortal,
   DialogOverlay,
 } from "@deco/ui/components/dialog.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
-  ArrowLeft,
   Building02,
   Check,
   Container,
-  SearchMd,
 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -94,32 +94,19 @@ export function AddConnectionModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
         <DialogOverlay />
-        <DialogContent className="max-w-[1200px] w-[90vw] h-[80vh] max-h-[700px] p-0 overflow-hidden gap-0">
-          <div className="flex h-full">
+        <DialogContent className="sm:max-w-5xl h-[80vh] max-h-[80vh] flex flex-col p-0 overflow-hidden w-[95vw]">
+          <div className="flex-1 flex overflow-hidden min-h-0">
             {/* Left Panel */}
             <div className="w-[350px] shrink-0 border-r border-border flex flex-col">
-              {/* Back button */}
-              <div className="h-12 border-b border-border flex items-center px-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-muted-foreground hover:text-foreground"
-                  onClick={handleClose}
-                >
-                  <ArrowLeft size={12} />
-                  Back
-                </Button>
-              </div>
-
               {/* Content */}
               <div className="flex-1 flex flex-col p-6 gap-10 overflow-hidden">
                 {/* Title section */}
-                <div className="flex flex-col gap-4">
-                  <h2 className="text-2xl font-medium text-foreground">
-                    Add context to your project
+                <div className="flex flex-col gap-2">
+                  <h2 className="text-lg font-medium text-foreground">
+                    Add context to your toolbox
                   </h2>
                   <p className="text-base text-muted-foreground">
-                    Select MCPs from your organization to use in this project.
+                    Select connections from your organization to use in this toolbox.
                   </p>
                 </div>
 
@@ -137,19 +124,22 @@ export function AddConnectionModal({
                       selectedConnections.map((connection) => (
                         <div
                           key={connection.id}
-                          className="flex items-center gap-4 p-2 rounded-lg border border-border bg-background"
+                          className="flex items-center gap-3 p-2 rounded-lg border border-border bg-background"
                         >
                           <IntegrationIcon
                             icon={connection.icon}
                             name={connection.title}
-                            size="sm"
-                            fallbackIcon={<Container size={16} />}
+                            size="xs"
+                            fallbackIcon={<Container size={12} />}
                           />
-                          <span className="flex-1 font-medium text-base text-foreground truncate">
+                          <span className="flex-1 font-medium text-sm text-foreground truncate">
                             {connection.title}
                           </span>
                           <div className="size-4 rounded-full bg-primary flex items-center justify-center">
-                            <Check size={10} className="text-primary-foreground" />
+                            <Check
+                              size={10}
+                              className="text-primary-foreground"
+                            />
                           </div>
                         </div>
                       ))
@@ -175,22 +165,21 @@ export function AddConnectionModal({
             {/* Right Panel */}
             <div className="flex-1 flex flex-col min-w-0">
               {/* Search bar */}
-              <div className="h-12 border-b border-border flex items-center px-4 gap-2">
-                <SearchMd size={16} className="text-muted-foreground shrink-0" />
-                <Input
-                  type="text"
-                  placeholder="Search for a MCP..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="border-0 shadow-none focus-visible:ring-0 h-full px-0"
-                />
-              </div>
+              <CollectionSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search for a MCP..."
+                className="border-b-0"
+              />
 
               {/* Grid */}
               <div className="flex-1 overflow-auto p-6">
                 {filteredConnections.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center">
-                    <Container size={48} className="text-muted-foreground mb-4" />
+                    <Container
+                      size={48}
+                      className="text-muted-foreground mb-4"
+                    />
                     <p className="text-muted-foreground">
                       {search
                         ? `No connections match "${search}"`
@@ -198,58 +187,59 @@ export function AddConnectionModal({
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {filteredConnections.map((connection) => {
                       const isSelected = selected.has(connection.id);
                       return (
-                        <div
+                        <Card
                           key={connection.id}
                           onClick={() => handleToggle(connection.id)}
-                          className={`
-                            relative cursor-pointer rounded-lg p-5 transition-all
-                            ${
-                              isSelected
-                                ? "border-2 border-primary bg-background"
-                                : "border border-border bg-background hover:border-muted-foreground/50"
-                            }
-                          `}
+                          className={cn(
+                            "cursor-pointer transition-colors group relative",
+                            "hover:bg-muted/50",
+                            isSelected && "ring-2 ring-primary ring-offset-0",
+                          )}
                         >
-                          {/* Selection indicator */}
-                          <div
-                            className={`
-                              absolute top-[18px] right-[18px] size-6 rounded-full flex items-center justify-center
-                              ${
-                                isSelected
-                                  ? "bg-primary"
-                                  : "border border-border"
-                              }
-                            `}
-                          >
-                            {isSelected && (
-                              <Check size={16} className="text-primary-foreground" />
-                            )}
-                          </div>
+                          <div className="flex flex-col gap-4 relative p-6">
+                            {/* Header: Icon + Checkbox */}
+                            <div className="flex items-start justify-between">
+                              <IntegrationIcon
+                                icon={connection.icon}
+                                name={connection.title}
+                                size="sm"
+                                className="shrink-0 shadow-sm"
+                                fallbackIcon={<Container />}
+                              />
+                              {/* Selection indicator */}
+                              <div
+                                className={cn(
+                                  "size-6 rounded-full flex items-center justify-center transition-colors",
+                                  isSelected
+                                    ? "bg-primary"
+                                    : "border border-border bg-background",
+                                )}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {isSelected && (
+                                  <Check
+                                    size={16}
+                                    className="text-primary-foreground"
+                                  />
+                                )}
+                              </div>
+                            </div>
 
-                          {/* Icon */}
-                          <div className="mb-4">
-                            <IntegrationIcon
-                              icon={connection.icon}
-                              name={connection.title}
-                              size="lg"
-                              fallbackIcon={<Container size={24} />}
-                            />
+                            {/* Title and Description */}
+                            <div className="flex flex-col gap-0">
+                              <h3 className="text-base font-medium text-foreground truncate">
+                                {connection.title}
+                              </h3>
+                              <p className="text-sm text-muted-foreground line-clamp-2">
+                                {connection.description || "No description"}
+                              </p>
+                            </div>
                           </div>
-
-                          {/* Content */}
-                          <div className="flex flex-col gap-0">
-                            <p className="font-medium text-base text-foreground truncate pr-8">
-                              {connection.title}
-                            </p>
-                            <p className="text-base text-muted-foreground line-clamp-2">
-                              {connection.description || "No description"}
-                            </p>
-                          </div>
-                        </div>
+                        </Card>
                       );
                     })}
                   </div>
@@ -259,13 +249,19 @@ export function AddConnectionModal({
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border flex items-center justify-end gap-2 p-5">
-            <Button variant="outline" onClick={handleClose} disabled={isLoading}>
+          <div className="border-t border-border px-5 py-5 flex items-center justify-end gap-2.5 shrink-0">
+            <Button
+              variant="outline"
+              onClick={handleClose}
+              disabled={isLoading}
+              className="h-10"
+            >
               Cancel
             </Button>
             <Button
               onClick={handleAdd}
               disabled={selected.size === 0 || isLoading}
+              className="h-10"
             >
               {isLoading
                 ? "Adding..."
@@ -277,4 +273,3 @@ export function AddConnectionModal({
     </Dialog>
   );
 }
-

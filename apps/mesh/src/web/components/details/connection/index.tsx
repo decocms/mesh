@@ -54,7 +54,7 @@ function ConnectionInspectorViewWithConnection({
   }>;
 }) {
   const router = useRouter();
-  const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
+  const navigate = useNavigate({ strict: false });
 
   const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
@@ -176,13 +176,15 @@ function ConnectionInspectorViewWithConnection({
 }
 
 function ConnectionInspectorViewContent() {
-  const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
-  const { connectionId, org } = useParams({
-    from: "/shell/$org/mcps/$connectionId",
-  });
+  const navigate = useNavigate({ strict: false });
+  const params = useParams({ strict: false }) as {
+    connectionId?: string;
+    org?: string;
+  };
+  const { connectionId, org } = params;
 
   // We can use search params for active tab if we want persistent tabs
-  const search = useSearch({ from: "/shell/$org/mcps/$connectionId" });
+  const search = useSearch({ strict: false }) as { tab?: string };
   const requestedTabId = search.tab || "settings";
 
   const connection = useConnection(connectionId);

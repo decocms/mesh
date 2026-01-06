@@ -234,6 +234,20 @@ const toolboxMonitoringRoute = createRoute({
   ),
 });
 
+// Toolbox-scoped connection detail route
+const toolboxConnectionLayoutRoute = createRoute({
+  getParentRoute: () => toolboxLayout,
+  path: "/mcps/$connectionId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/connection-detail.tsx"),
+  ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      tab: z.string().optional(),
+    }),
+  ),
+});
+
 // Toolbox-scoped collection detail route
 const toolboxCollectionDetailsRoute = createRoute({
   getParentRoute: () => toolboxLayout,
@@ -290,6 +304,7 @@ const toolboxLayoutWithChildren = toolboxLayout.addChildren([
   toolboxConnectionsRoute,
   toolboxSettingsRoute,
   toolboxMonitoringRoute,
+  toolboxConnectionLayoutRoute,
   toolboxCollectionDetailsRoute,
   toolboxStoreRouteWithChildren,
 ]);

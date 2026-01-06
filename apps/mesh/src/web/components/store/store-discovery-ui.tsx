@@ -37,14 +37,6 @@ function isItemVerified(item: RegistryItem): boolean {
   );
 }
 
-/**
- * Search params for store app detail route
- */
-interface StoreAppDetailSearchParams {
-  registryId: string;
-  serverName: string;
-}
-
 interface StoreDiscoveryUIProps {
   items: RegistryItem[];
   isLoadingMore?: boolean;
