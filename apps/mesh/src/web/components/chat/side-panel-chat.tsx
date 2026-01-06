@@ -75,6 +75,37 @@ function parseRouteContext(pathname: string): RouteContext {
 }
 
 /**
+ * Helper: find stored item in array, fallback to first item
+ */
+function findOrFirst<T>(
+  array: T[],
+  predicate: (item: T) => boolean,
+): T | undefined {
+  return array.find(predicate) ?? array[0];
+}
+
+/**
+ * Hook that combines useLocalStorage with findOrFirst to manage selected items
+ */
+function useStoredSelection<TState, TItem>(
+  key: string,
+  items: TItem[],
+  predicate: (item: TItem, state: TState) => boolean,
+  initialValue: TState | null = null,
+) {
+  const [storedState, setStoredState] = useLocalStorage<TState | null>(
+    key,
+    initialValue,
+  );
+
+  const selectedItem = findOrFirst(items, (item) =>
+    storedState ? predicate(item, storedState) : false,
+  );
+
+  return [selectedItem, setStoredState] as const;
+}
+
+/**
  * Hook that generates a dynamic system prompt based on context
  */
 function useSystemPrompt(gatewayId?: string): string {
@@ -166,40 +197,26 @@ function ChatPanelContent() {
   const hasGateways = gateways.length > 0;
   const hasRequiredSetup = hasModelsBinding && hasGateways;
 
-  const [selectedModelState, setSelectedModelState] = useLocalStorage<{
-    id: string;
-    connectionId: string;
-  } | null>(
+  const [selectedModel, setSelectedModelState] = useStoredSelection<
+    { id: string; connectionId: string },
+    (typeof models)[number]
+  >(
     LOCALSTORAGE_KEYS.chatSelectedModel(locator),
-    (existing) => existing ?? null,
+    models,
+    (m, state) => m.id === state.id && m.connectionId === state.connectionId,
   );
 
-  const [selectedGatewayState, setSelectedGatewayState] = useLocalStorage<{
-    gatewayId: string;
-  } | null>(`${locator}:selected-gateway`, () => null);
-
-  const defaultModel = models[0];
-  const effectiveSelectedModelState =
-    selectedModelState ??
-    (defaultModel
-      ? { id: defaultModel.id, connectionId: defaultModel.connectionId }
-      : null);
-
-  const defaultGatewayId = gateways[0]?.id;
-  const effectiveSelectedGatewayId =
-    selectedGatewayState?.gatewayId ?? defaultGatewayId;
-
-  const selectedGateway = gateways.find(
-    (g) => g.id === effectiveSelectedGatewayId,
-  );
-  const selectedModel = models.find(
-    (m) =>
-      m.id === effectiveSelectedModelState?.id &&
-      m.connectionId === effectiveSelectedModelState?.connectionId,
+  const [selectedGateway, setSelectedGatewayState] = useStoredSelection<
+    { gatewayId: string },
+    (typeof gateways)[number]
+  >(
+    `${locator}:selected-gateway`,
+    gateways,
+    (g, state) => g.id === state.gatewayId,
   );
 
   // Generate dynamic system prompt based on context
-  const systemPrompt = useSystemPrompt(effectiveSelectedGatewayId);
+  const systemPrompt = useSystemPrompt(selectedGateway?.id);
 
   // Get the onToolCall handler for invalidating collection queries
   const onToolCall = useInvalidateCollectionsOnToolCall();
@@ -470,8 +487,8 @@ function ChatPanelContent() {
                     "Ask anything about configuring model providers or using MCP Mesh."}
                 </div>
               </div>
-              {effectiveSelectedGatewayId && (
-                <ErrorBoundary key={effectiveSelectedGatewayId} fallback={null}>
+              {selectedGateway?.id && (
+                <ErrorBoundary key={selectedGateway.id} fallback={null}>
                   <Suspense
                     fallback={
                       <div className="flex justify-center">
@@ -483,7 +500,7 @@ function ChatPanelContent() {
                     }
                   >
                     <GatewayIceBreakers
-                      gatewayId={effectiveSelectedGatewayId}
+                      gatewayId={selectedGateway.id}
                       onSelect={(prompt) => {
                         // Submit the prompt name as the first message
                         handleSendMessage(prompt.description ?? prompt.name);
