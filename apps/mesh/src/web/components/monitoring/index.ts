@@ -11,7 +11,6 @@ export {
   type MonitoringLogsResponse as BaseMonitoringLogsResponse,
 } from "./monitoring-stats-row.tsx";
 export {
-  hasMonitoringActivity,
   type EnrichedMonitoringLog,
   type MonitoringLog,
   type MonitoringLogsResponse,
