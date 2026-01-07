@@ -83,6 +83,9 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { authClient } from "@/web/lib/auth-client";
+import { ThreadHistoryPopover } from "@/web/components/chat/thread-history-popover";
+import { useThreads, useThreadActions } from "@/web/hooks/use-chat-store";
+import type { Thread } from "@/web/types/chat-threads";
 
 type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
 
@@ -457,10 +460,25 @@ function GatewayChatPanelContent({
     (m, state) => m.id === state.id && m.connectionId === state.connectionId,
   );
 
+  // Thread actions for storing threads with gateway association
+  const threadActions = useThreadActions();
+
   // Use the shared persisted chat hook with hardcoded system prompt
   const chat = usePersistedChat({
     threadId: activeThreadId,
     systemPrompt: GATEWAY_SYSTEM_PROMPT,
+    onCreateThread: (thread) => {
+      // Store thread with gateway association
+      const newThread: Thread = {
+        id: thread.id,
+        title: thread.title,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        hidden: false,
+        gatewayId: gateway.id,
+      };
+      threadActions.insert.mutate(newThread);
+    },
   });
 
   // Get input and branching state from context
@@ -917,6 +935,17 @@ function GatewayInspectorViewWithGateway({
     (existing) => existing || crypto.randomUUID(),
   );
 
+  // Fetch threads filtered by gateway
+  const { threads, refetch: refetchThreads } = useThreads({ gatewayId });
+  const threadActions = useThreadActions();
+
+  const handleHideThread = async (threadId: string) => {
+    await threadActions.update.mutateAsync({
+      id: threadId,
+      updates: { hidden: true },
+    });
+  };
+
   // Fetch all connections to get tool names for "all tools" expansion
   const connections = useConnections({});
 
@@ -1149,6 +1178,14 @@ function GatewayInspectorViewWithGateway({
                 <TooltipContent>New thread</TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <ThreadHistoryPopover
+              threads={threads}
+              activeThreadId={activeThreadId}
+              onSelectThread={setActiveThreadId}
+              onRemoveThread={handleHideThread}
+              onOpen={() => refetchThreads()}
+              variant="outline"
+            />
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

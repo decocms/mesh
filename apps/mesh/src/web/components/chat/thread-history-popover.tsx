@@ -3,6 +3,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
 import { useState } from "react";
 import type { Thread } from "@/web/types/chat-threads";
@@ -99,12 +106,14 @@ export function ThreadHistoryPopover({
   onSelectThread,
   onRemoveThread,
   onOpen,
+  variant = "icon",
 }: {
   threads: Thread[];
   activeThreadId: string;
   onSelectThread: (id: string) => void;
   onRemoveThread: (id: string) => void;
   onOpen?: () => void;
+  variant?: "outline" | "icon";
 }) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -126,19 +135,121 @@ export function ThreadHistoryPopover({
     }
   };
 
+  if (variant === "outline") {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <Popover onOpenChange={handleOpenChange}>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-7 border border-input"
+                  aria-label="Chat history"
+                >
+                  <Clock size={16} />
+                </Button>
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Chat history</TooltipContent>
+            <PopoverContent align="end" className="w-80 p-0">
+              <div className="border-b">
+                <label className="flex items-center gap-2.5 h-12 px-4 cursor-text">
+                  <SearchMd
+                    size={16}
+                    className="text-muted-foreground shrink-0"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Search chats..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1 border-0 shadow-none focus:outline-none px-0 h-full text-sm placeholder:text-muted-foreground/50 bg-transparent"
+                  />
+                </label>
+              </div>
+
+              <div className="max-h-[300px] overflow-y-auto">
+                {filteredThreads.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    {searchQuery.trim() ? "No chats found" : "No chats yet"}
+                  </div>
+                ) : (
+                  sections.map((section, sectionIndex) => (
+                    <div key={section.label}>
+                      {sectionIndex > 0 && <div className="border-t mx-3" />}
+                      <div className="px-3 py-1">
+                        <span className="text-xs font-medium text-muted-foreground tracking-wide">
+                          {section.label}
+                        </span>
+                      </div>
+                      {section.threads.map((thread) => {
+                        const isActive = thread.id === activeThreadId;
+                        return (
+                          <div
+                            key={thread.id}
+                            className={`flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer group ${
+                              isActive ? "bg-accent/50" : ""
+                            }`}
+                            onClick={() => onSelectThread(thread.id)}
+                          >
+                            <div className="flex-1 min-w-0 flex items-center gap-2">
+                              <span className="text-sm truncate">
+                                {thread.title || "New chat"}
+                              </span>
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {isActive
+                                  ? "current"
+                                  : section.showRelativeTime
+                                    ? formatRelativeTime(thread.updated_at)
+                                    : null}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRemoveThread(thread.id);
+                              }}
+                              className="opacity-0 cursor-pointer group/trash group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity"
+                              title="Remove chat"
+                            >
+                              <Trash01
+                                size={14}
+                                className="text-muted-foreground group-hover/trash:text-destructive"
+                              />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <Popover onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button
+        <Button
           type="button"
-          className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
-          title="Chat history"
+          variant="ghost"
+          size="icon"
+          className="size-6 p-1 hover:bg-transparent"
+          aria-label="Chat history"
         >
           <Clock
             size={16}
-            className="text-muted-foreground group-hover:text-foreground transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           />
-        </button>
+        </Button>
       </PopoverTrigger>
 
       <PopoverContent align="end" className="w-80 p-0">

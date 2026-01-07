@@ -126,6 +126,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       created_at: thread?.created_at || now,
       updated_at: thread?.updated_at || now,
       hidden: thread?.hidden ?? false,
+      gatewayId: thread?.gatewayId,
     };
     threadActions.insert.mutate(newThread);
 

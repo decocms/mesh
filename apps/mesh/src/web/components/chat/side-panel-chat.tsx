@@ -227,7 +227,11 @@ function ChatPanelContent() {
     systemPrompt,
     onToolCall,
     onCreateThread: (thread) =>
-      createThread({ id: thread.id, title: thread.title }),
+      createThread({
+        id: thread.id,
+        title: thread.title,
+        gatewayId: selectedGateway?.id,
+      }),
   });
 
   // Get input and branching state from context
