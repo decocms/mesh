@@ -74,7 +74,7 @@ function useSystemPrompt(gatewayId?: string): string {
   return `You are an AI assistant running in an MCP Mesh environment.
 
 ## About MCP Mesh
-The Model Context Protocol (MCP) Mesh allows users to connect external Connections and expose their capabilities through Assistants. Each Assistant provides access to a curated set of tools from connected Connections.
+The Model Context Protocol (MCP) Mesh allows users to connect external Connections and expose their capabilities through Hubs. Each Hub provides access to a curated set of tools from connected Connections.
 
 ## Important Notes
 - All tool calls are logged and audited for security and compliance
@@ -179,7 +179,7 @@ function ChatPanelContent() {
     }
 
     if (!selectedGateway?.id) {
-      toast.error("No Assistant configured");
+      toast.error("No Hub configured");
       return;
     }
 
@@ -223,14 +223,14 @@ function ChatPanelContent() {
     if (!hasModelsBinding && !hasGateways) {
       title = "Connect your providers";
       description =
-        "Connect an LLM provider and create an Assistant to unlock AI-powered features.";
+        "Connect an LLM provider and create a Hub to unlock AI-powered features.";
     } else if (!hasModelsBinding) {
       title = "No model provider connected";
       description =
         "Connect to a model provider to unlock AI-powered features.";
     } else {
-      title = "No Assistants configured";
-      description = "Create an Assistant to expose your MCP tools to the chat.";
+      title = "No Hubs configured";
+      description = "Create a Hub to expose your MCP tools to the chat.";
     }
 
     return (
@@ -450,7 +450,7 @@ function ChatPanelContent() {
             <GatewaySelector
               selectedGatewayId={selectedGateway?.id}
               onGatewayChange={handleGatewayChange}
-              placeholder="Assistant"
+              placeholder="Hub"
               variant="borderless"
             />
             <ModelSelector

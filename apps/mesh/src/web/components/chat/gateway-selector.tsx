@@ -119,7 +119,7 @@ export function GatewaySelector({
   onGatewayChange,
   variant = "bordered",
   className,
-  placeholder = "Select Assistant",
+  placeholder = "Select Hub",
 }: GatewaySelectorProps) {
   const [open, setOpen] = useState(false);
 

@@ -196,7 +196,7 @@ function DashboardView({
           </ErrorBoundary>
         </div>
 
-        {/* Assistants */}
+        {/* Hubs */}
         <div className="lg:col-span-1 lg:row-span-1 bg-background">
           <ErrorBoundary
             fallback={

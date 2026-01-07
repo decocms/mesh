@@ -137,11 +137,11 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
       }),
     );
 
-    // Create default Assistant with exclusion mode
-    // This Assistant excludes nothing by default (empty connections list with exclusion = include all)
+    // Create default Hub with exclusion mode
+    // This Hub excludes nothing by default (empty connections list with exclusion = include all)
     await gatewayStorage.create(organizationId, createdBy, {
-      title: "Default Assistant",
-      description: "Auto-created Assistant for organization",
+      title: "Default Hub",
+      description: "Auto-created Hub for organization",
       toolSelectionStrategy: "passthrough",
       toolSelectionMode: "exclusion",
       status: "active",

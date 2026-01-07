@@ -40,7 +40,7 @@ export function useProjectSidebarItems() {
     },
     {
       key: "gateways",
-      label: "Assistants",
+      label: "Hubs",
       icon: <CpuChip02 />,
       onClick: () => navigate({ to: "/$org/gateways", params: { org } }),
     },

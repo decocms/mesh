@@ -22,7 +22,7 @@ export function useWorkflowStart() {
 
   const handleRunWorkflow = async (input: Record<string, unknown> = {}) => {
     if (!selectedGatewayId) {
-      throw new Error("Please select an Assistant before running the workflow");
+      throw new Error("Please select a Hub before running the workflow");
     }
     const startAtEpochMs = Date.now();
     const timeoutMs = 30000;

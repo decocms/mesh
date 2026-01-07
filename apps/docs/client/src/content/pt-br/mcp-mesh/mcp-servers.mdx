@@ -14,14 +14,14 @@ Cada connection guarda:
 - **credenciais/config** (quando necessário, armazenadas no vault)
 - metadados para operação (nome, status, etc.)
 
-## Quando usar vs Assistant
+## Quando usar vs Hub
 
 - Use **connection** para isolar e depurar um upstream específico.
-- Use **Assistant** para expor um surface agregado/curado para os clients.
+- Use **Hub** para expor um surface agregado/curado para os clients.
 
 ## Boas práticas
 
 - Mantenha URLs e credenciais por ambiente (dev/staging/prod).
-- Evite expor uma connection diretamente em produção; prefira um Assistant para governança.
+- Evite expor uma connection diretamente em produção; prefira um Hub para governança.
 
 

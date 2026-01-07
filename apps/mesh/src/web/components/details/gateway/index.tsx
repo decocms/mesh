@@ -500,7 +500,7 @@ function GatewayChatPanelContent({
         <Chat.Main className="h-full relative overflow-hidden">
           <Chat.EmptyState>
             <NoLlmBindingEmptyState
-              description="Connect to a model provider to unlock AI-powered features in this Assistant."
+              description="Connect to a model provider to unlock AI-powered features in this Hub."
               orgSlug={org.slug}
               orgId={org.id}
               userId={user?.id ?? ""}
@@ -531,7 +531,7 @@ function GatewayChatPanelContent({
           className="size-[60px]! rounded-[18px]!"
         />
         <h3 className="text-xl font-medium text-foreground">
-          {gateway.title || "Assistant Chat"}
+          {gateway.title || "Hub Chat"}
         </h3>
         {gateway.description ? (
           <div className="text-muted-foreground text-center text-sm max-w-md">
@@ -666,7 +666,7 @@ function GatewaySettingsTab({
               <div className="flex items-start justify-between">
                 <IntegrationIcon
                   icon={icon}
-                  name={form.watch("title") || "Assistant"}
+                  name={form.watch("title") || "Hub"}
                   size="lg"
                   className="shrink-0 shadow-sm"
                   fallbackIcon={<CpuChip02 />}
@@ -704,7 +704,7 @@ function GatewaySettingsTab({
                         <Input
                           {...field}
                           className="h-auto text-lg! font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
-                          placeholder="Assistant Name"
+                          placeholder="Hub Name"
                         />
                       </FormControl>
                       <FormMessage />
@@ -814,7 +814,7 @@ function GatewaySettingsTab({
                                 variant="ghost"
                                 size="icon"
                                 className="size-7"
-                                aria-label="Assistant strategy help"
+                                aria-label="Hub strategy help"
                               >
                                 <InfoCircle
                                   size={14}
@@ -876,7 +876,7 @@ function GatewaySettingsTab({
       <div className="flex flex-col overflow-auto">
         <div className="p-5">
           <IDEIntegration
-            serverName={gateway.title || `assistant-${gateway.id.slice(0, 8)}`}
+            serverName={gateway.title || `hub-${gateway.id.slice(0, 8)}`}
             gatewayUrl={`${window.location.origin}/mcp/gateway/${gateway.id}`}
           />
         </div>
@@ -1069,7 +1069,7 @@ function GatewayInspectorViewWithGateway({
           <div className="flex items-center gap-3 min-w-0">
             <IntegrationIcon
               icon={gateway.icon}
-              name={gateway.title || "Assistant"}
+              name={gateway.title || "Hub"}
               size="xs"
               fallbackIcon={<CpuChip02 size={12} />}
             />
@@ -1281,8 +1281,8 @@ function GatewayInspectorViewContent() {
     return (
       <div className="flex h-full w-full bg-background">
         <EmptyState
-          title="Assistant not found"
-          description="This Assistant may have been deleted or you may not have access."
+          title="Hub not found"
+          description="This Hub may have been deleted or you may not have access."
           actions={
             <Button
               variant="outline"

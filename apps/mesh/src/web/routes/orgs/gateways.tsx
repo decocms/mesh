@@ -86,9 +86,9 @@ function OrgGatewaysContent() {
 
     // Auto-create gateway with all connections
     const result = await actions.create.mutateAsync({
-      title: "New Assistant",
+      title: "New Hub",
       description:
-        "Assistants let you securely expose integrated tools to the outside world.",
+        "Hubs let you securely expose integrated tools to the outside world.",
       status: "active",
       tool_selection_strategy: "passthrough",
       tool_selection_mode: "inclusion",
@@ -238,7 +238,7 @@ function OrgGatewaysContent() {
       className="h-7 px-3 rounded-lg text-sm font-medium"
       disabled={actions.create.isPending}
     >
-      {actions.create.isPending ? "Creating..." : "Create Assistant"}
+      {actions.create.isPending ? "Creating..." : "Create Hub"}
     </Button>
   );
 
@@ -251,7 +251,7 @@ function OrgGatewaysContent() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Assistant?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Hub?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete{" "}
               <span className="font-medium text-foreground">
@@ -274,7 +274,7 @@ function OrgGatewaysContent() {
 
       {/* Collection Header */}
       <CollectionHeader
-        title="Assistants"
+        title="Hubs"
         viewMode={listState.viewMode}
         onViewModeChange={listState.setViewMode}
         sortKey={listState.sortKey}
@@ -292,7 +292,7 @@ function OrgGatewaysContent() {
       <CollectionSearch
         value={listState.search}
         onChange={listState.setSearch}
-        placeholder="Search for an assistant..."
+        placeholder="Search for a hub..."
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             listState.setSearch("");
@@ -307,13 +307,11 @@ function OrgGatewaysContent() {
           {gateways.length === 0 ? (
             <EmptyState
               image={<CpuChip02 size={36} className="text-muted-foreground" />}
-              title={
-                listState.search ? "No assistants found" : "No assistants yet"
-              }
+              title={listState.search ? "No hubs found" : "No hubs yet"}
               description={
                 listState.search
-                  ? `No assistants match "${listState.search}"`
-                  : "Create an assistant to aggregate tools from multiple Connections."
+                  ? `No hubs match "${listState.search}"`
+                  : "Create a hub to aggregate tools from multiple Connections."
               }
             />
           ) : (
@@ -418,16 +416,16 @@ function OrgGatewaysContent() {
                 image={
                   <CpuChip02 size={36} className="text-muted-foreground" />
                 }
-                title="No assistants found"
-                description={`No assistants match "${listState.search}"`}
+                title="No hubs found"
+                description={`No hubs match "${listState.search}"`}
               />
             ) : (
               <EmptyState
                 image={
                   <CpuChip02 size={36} className="text-muted-foreground" />
                 }
-                title="No assistants yet"
-                description="Create an assistant to aggregate tools from multiple Connections."
+                title="No hubs yet"
+                description="Create a hub to aggregate tools from multiple Connections."
               />
             )
           }
