@@ -157,3 +157,28 @@ export function getWellKnownOpenRouterConnection(
     },
   };
 }
+
+/**
+ * Get well-known connection definition for MCP Studio.
+ * Used by assistants and workflows pages to offer installation when no provider is connected.
+ */
+export function getWellKnownMcpStudioConnection(): ConnectionCreateData {
+  return {
+    title: "MCP Studio",
+    description: "An app that allows you to create and manage MCPs",
+    icon: "https://assets.decocache.com/mcp/09e44283-f47d-4046-955f-816d227c626f/app.png",
+    app_name: "mcp-studio",
+    app_id: "65a1b407-b6af-41e2-a89f-ce9450c05bbc",
+    connection_type: "HTTP",
+    connection_url: "https://sites-vibemcp.decocache.com/mcp",
+    connection_token: null,
+    connection_headers: null,
+    oauth_config: null,
+    configuration_state: null,
+    configuration_scopes: null,
+    metadata: {
+      isDefault: false,
+      type: "mcp-studio",
+    },
+  };
+}
