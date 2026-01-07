@@ -11,7 +11,6 @@ import {
   Settings01,
   BarChart10,
   Zap,
-  MessageChatSquare,
 } from "@untitledui/icons";
 
 export function useProjectSidebarItems() {
@@ -32,12 +31,6 @@ export function useProjectSidebarItems() {
       label: "Store",
       icon: <Building02 />,
       onClick: () => navigate({ to: "/$org/store", params: { org } }),
-    },
-    {
-      key: "assistant",
-      label: "Assistants",
-      icon: <MessageChatSquare />,
-      onClick: () => navigate({ to: "/$org/assistant", params: { org } }),
     },
     {
       key: "workflow",

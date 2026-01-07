@@ -13,6 +13,8 @@ export const LOCALSTORAGE_KEYS = {
     `mesh:chat:selectedModel:${locator}`,
   assistantChatActiveThread: (locator: ProjectLocator, assistantId: string) =>
     `mesh:assistant-chat:active-thread:${locator}:${assistantId}`,
+  gatewayChatActiveThread: (locator: ProjectLocator, gatewayId: string) =>
+    `${locator}:gateway-chat:${gatewayId}:active-thread` as const,
   decoChatPanelWidth: () => `mesh:decochat:panel-width`,
   sidebarOpen: () => `mesh:sidebar-open`,
   selectedRegistry: (org: string) => `mesh:store:selected-registry:${org}`,
