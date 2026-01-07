@@ -151,8 +151,8 @@ export function ConnectionGatewaysSection({
             Use in your IDE
           </h4>
           <p className="text-xs text-muted-foreground">
-            Expose this integration via an Assistant to use it in Cursor, VS Code,
-            Claude Desktop, and other MCP-compatible tools.
+            Expose this integration via an Assistant to use it in Cursor, VS
+            Code, Claude Desktop, and other MCP-compatible tools.
           </p>
         </div>
         <CreateGatewayButton

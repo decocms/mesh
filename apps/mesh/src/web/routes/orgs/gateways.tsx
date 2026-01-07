@@ -307,7 +307,9 @@ function OrgGatewaysContent() {
           {gateways.length === 0 ? (
             <EmptyState
               image={<CpuChip02 size={36} className="text-muted-foreground" />}
-              title={listState.search ? "No assistants found" : "No assistants yet"}
+              title={
+                listState.search ? "No assistants found" : "No assistants yet"
+              }
               description={
                 listState.search
                   ? `No assistants match "${listState.search}"`
