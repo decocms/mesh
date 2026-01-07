@@ -94,7 +94,7 @@ export const GatewayEntitySchema = z.object({
   status: z.enum(["active", "inactive"]).describe("Current status"),
   is_default: z
     .boolean()
-    .describe("Whether this is the default gateway for the organization"),
+    .describe("Whether this is the default Assistant for the organization"),
 
   // Nested connections
   connections: z
@@ -135,7 +135,7 @@ export const GatewayCreateDataSchema = z.object({
     .boolean()
     .optional()
     .default(false)
-    .describe("Whether this is the default gateway for the organization"),
+    .describe("Whether this is the default Assistant for the organization"),
   connections: z
     .array(
       z.object({
@@ -196,7 +196,7 @@ export const GatewayUpdateDataSchema = z.object({
   is_default: z
     .boolean()
     .optional()
-    .describe("Set as default gateway for the organization"),
+    .describe("Set as default Assistant for the organization"),
   connections: z
     .array(
       z.object({

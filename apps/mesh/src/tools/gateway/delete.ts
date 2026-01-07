@@ -47,10 +47,10 @@ export const COLLECTION_GATEWAY_DELETE = defineTool({
       throw new Error(`Gateway not found: ${input.id}`);
     }
 
-    // Prevent deletion of default gateways
+    // Prevent deletion of default Assistants
     if (existing.isDefault) {
       throw new Error(
-        "Cannot delete the default gateway. Set another gateway as default first.",
+        "Cannot delete the default Assistant. Set another Assistant as default first.",
       );
     }
 
