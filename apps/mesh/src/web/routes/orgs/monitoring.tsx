@@ -286,7 +286,7 @@ function FiltersPopover({
                 onValueChange={(values) =>
                   onUpdateFilters({ gatewayId: values })
                 }
-                placeholder="All gateways"
+                placeholder="All Assistants"
                 variant="secondary"
                 className="w-full"
                 maxCount={2}

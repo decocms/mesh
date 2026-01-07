@@ -179,7 +179,7 @@ function ChatPanelContent() {
     }
 
     if (!selectedGateway?.id) {
-      toast.error("No gateway configured");
+      toast.error("No Assistant configured");
       return;
     }
 
@@ -223,14 +223,14 @@ function ChatPanelContent() {
     if (!hasModelsBinding && !hasGateways) {
       title = "Connect your providers";
       description =
-        "Connect an LLM provider and create a gateway to unlock AI-powered features.";
+        "Connect an LLM provider and create an Assistant to unlock AI-powered features.";
     } else if (!hasModelsBinding) {
       title = "No model provider connected";
       description =
         "Connect to a model provider to unlock AI-powered features.";
     } else {
-      title = "No gateways configured";
-      description = "Create a gateway to expose your MCP tools to the chat.";
+      title = "No Assistants configured";
+      description = "Create an Assistant to expose your MCP tools to the chat.";
     }
 
     return (
@@ -450,7 +450,7 @@ function ChatPanelContent() {
             <GatewaySelector
               selectedGatewayId={selectedGateway?.id}
               onGatewayChange={handleGatewayChange}
-              placeholder="Gateway"
+              placeholder="Assistant"
               variant="borderless"
             />
             <ModelSelector

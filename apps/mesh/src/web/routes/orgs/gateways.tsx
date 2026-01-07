@@ -86,9 +86,9 @@ function OrgGatewaysContent() {
 
     // Auto-create gateway with all connections
     const result = await actions.create.mutateAsync({
-      title: "New Gateway",
+      title: "New Assistant",
       description:
-        "Gateways let you securely expose integrated tools to the outside world.",
+        "Assistants let you securely expose integrated tools to the outside world.",
       status: "active",
       tool_selection_strategy: "passthrough",
       tool_selection_mode: "inclusion",
@@ -251,7 +251,7 @@ function OrgGatewaysContent() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Gateway?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Assistant?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete{" "}
               <span className="font-medium text-foreground">
