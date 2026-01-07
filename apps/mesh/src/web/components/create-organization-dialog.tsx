@@ -22,7 +22,6 @@ import { Input } from "@deco/ui/components/input.tsx";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -51,8 +50,6 @@ export function CreateOrganizationDialog({
   open,
   onOpenChange,
 }: CreateOrganizationDialogProps) {
-  const navigate = useNavigate();
-
   const form = useForm<CreateOrgFormData>({
     resolver: zodResolver(createOrgSchema),
     defaultValues: { name: "" },
@@ -84,7 +81,7 @@ export function CreateOrganizationDialog({
       return { orgSlug };
     },
     onSuccess: ({ orgSlug }) => {
-      navigate({ to: "/$org", params: { org: orgSlug } });
+      window.location.href = `/${orgSlug}`;
     },
   });
 
