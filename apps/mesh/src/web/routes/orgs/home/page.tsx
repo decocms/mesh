@@ -559,6 +559,8 @@ function HomeContent({
               onChange={setInputValue}
               onSubmit={() => {
                 if (inputValue.trim()) {
+                  // Always create a new thread when submitting from home
+                  createThread();
                   // Mark that we have a pending message to send
                   setPendingSubmit(true);
                   // Show the chat full screen
