@@ -25,7 +25,7 @@ export function useStoredSelection<TState, TItem>(
   );
 
   const selectedItem = findOrFirst(items, (item) =>
-    storedState ? predicate(item, storedState) : false,
+    storedState !== null ? predicate(item, storedState) : false,
   );
 
   return [selectedItem, setStoredState] as const;
