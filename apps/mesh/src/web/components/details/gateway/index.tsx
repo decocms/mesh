@@ -9,19 +9,11 @@ import {
   useGateway,
   useGatewayActions,
 } from "@/web/hooks/collections/use-gateway";
-import {
-  useConnections,
-  useConnectionActions,
-} from "@/web/hooks/collections/use-connection";
+import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
 import { useBindingConnections } from "@/web/hooks/use-binding";
-import {
-  getWellKnownOpenRouterConnection,
-  OPENROUTER_ICON_URL,
-  OPENROUTER_MCP_URL,
-} from "@/core/well-known-mcp";
-import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { useStoredSelection } from "@/web/hooks/use-stored-selection";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   InfoCircle,
@@ -80,12 +72,9 @@ import {
   UsageStats,
   useModels,
 } from "@/web/components/chat";
-import { IceBreakers } from "@/web/components/chat/ice-breakers";
 import { useChat } from "@/web/components/chat/chat-context";
-import {
-  useGatewayPrompts,
-  type GatewayPrompt,
-} from "@/web/hooks/use-gateway-prompts";
+import { GatewayIceBreakers } from "@/web/components/chat/gateway-ice-breakers";
+import { NoLlmBindingEmptyState } from "@/web/components/chat/no-llm-binding-empty-state";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
@@ -104,70 +93,6 @@ type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
  */
 const GATEWAY_SYSTEM_PROMPT =
   "You are a helpful assistant. Please try answering the user's questions using your available tools.";
-
-/**
- * OpenRouter illustration with radial mask for empty state
- */
-function OpenRouterIllustration() {
-  return (
-    <img
-      src="/empty-state-openrouter.svg"
-      alt=""
-      width={336}
-      height={320}
-      aria-hidden="true"
-      className="w-xs h-auto mask-radial-[100%_100%] mask-radial-from-20% mask-radial-to-50% mask-radial-at-center"
-    />
-  );
-}
-
-/**
- * Ice breakers component that uses suspense to fetch gateway prompts
- */
-function GatewayIceBreakers({
-  gatewayId,
-  onSelect,
-}: {
-  gatewayId: string;
-  onSelect: (prompt: GatewayPrompt) => void;
-}) {
-  const { data: prompts } = useGatewayPrompts(gatewayId);
-
-  if (prompts.length === 0) return null;
-
-  return <IceBreakers prompts={prompts} onSelect={onSelect} className="mt-6" />;
-}
-
-/**
- * Helper to find stored item in array, fallback to first item
- */
-function findOrFirst<T>(
-  array: T[],
-  predicate: (item: T) => boolean,
-): T | undefined {
-  return array.find(predicate) ?? array[0];
-}
-
-/**
- * Hook that combines useLocalStorage with findOrFirst to manage selected items
- */
-function useStoredSelection<TState, TItem>(
-  key: string,
-  items: TItem[],
-  predicate: (item: TItem, state: TState) => boolean,
-  initialValue: TState | null = null,
-) {
-  const [storedState, setStoredState] = useLocalStorage<TState | null>(
-    key,
-    initialValue,
-  );
-
-  const selectedItem = findOrFirst(items, (item) =>
-    storedState ? predicate(item, storedState) : false,
-  );
-
-  return [selectedItem, setStoredState] as const;
-}
 
 /**
  * Unicode-safe base64 encoding for browser environments
@@ -485,6 +410,7 @@ function GatewayChatPanelContent({
 
   // Model selection with localStorage
   const { locator, org } = useProjectContext();
+  const navigate = useNavigate();
   const [selectedModel, setSelectedModelState] = useStoredSelection<
     { id: string; connectionId: string },
     (typeof models)[number]
@@ -493,11 +419,6 @@ function GatewayChatPanelContent({
     models,
     (m, state) => m.id === state.id && m.connectionId === state.connectionId,
   );
-
-  // OpenRouter installation state and actions
-  const [isInstallingOpenRouter, setIsInstallingOpenRouter] = useState(false);
-  const connectionActions = useConnectionActions();
-  const navigate = useNavigate();
 
   // Thread actions for storing threads with gateway association
   const threadActions = useThreadActions();
@@ -572,87 +493,24 @@ function GatewayChatPanelContent({
     setInputValue("");
   };
 
-  const handleInstallOpenRouter = async () => {
-    if (!org?.id || !user?.id) {
-      toast.error("Not authenticated");
-      return;
-    }
-
-    setIsInstallingOpenRouter(true);
-    try {
-      // Check if OpenRouter already exists
-      const existingConnection = allConnections?.find(
-        (conn: { connection_url?: string | null }) =>
-          conn.connection_url === OPENROUTER_MCP_URL,
-      );
-
-      if (existingConnection) {
-        navigate({
-          to: "/$org/mcps/$connectionId",
-          params: { org: org.slug, connectionId: existingConnection.id },
-        });
-        return;
-      }
-
-      // Create new OpenRouter connection
-      const connectionData = getWellKnownOpenRouterConnection({
-        id: generatePrefixedId("conn"),
-      });
-
-      const result = await connectionActions.create.mutateAsync(connectionData);
-
-      navigate({
-        to: "/$org/mcps/$connectionId",
-        params: { org: org.slug, connectionId: result.id },
-      });
-    } catch (error) {
-      toast.error(
-        `Failed to connect OpenRouter: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    } finally {
-      setIsInstallingOpenRouter(false);
-    }
-  };
-
   // Show empty state if no models binding
   if (!hasModelsBinding) {
     return (
       <Chat>
         <Chat.Main className="h-full relative overflow-hidden">
           <Chat.EmptyState>
-            <EmptyState
-              image={<OpenRouterIllustration />}
-              title="No model provider connected"
+            <NoLlmBindingEmptyState
               description="Connect to a model provider to unlock AI-powered features in this gateway."
-              actions={
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={handleInstallOpenRouter}
-                    disabled={isInstallingOpenRouter}
-                  >
-                    <img
-                      src={OPENROUTER_ICON_URL}
-                      alt="OpenRouter"
-                      className="size-4"
-                    />
-                    {isInstallingOpenRouter
-                      ? "Installing..."
-                      : "Install OpenRouter"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      navigate({
-                        to: "/$org/mcps",
-                        params: { org: org.slug },
-                        search: { action: "create" },
-                      })
-                    }
-                  >
-                    Install MCP Server
-                  </Button>
-                </>
+              orgSlug={org.slug}
+              orgId={org.id}
+              userId={user?.id ?? ""}
+              allConnections={allConnections}
+              onInstallMcpServer={() =>
+                navigate({
+                  to: "/$org/mcps",
+                  params: { org: org.slug },
+                  search: { action: "create" },
+                })
               }
             />
           </Chat.EmptyState>
