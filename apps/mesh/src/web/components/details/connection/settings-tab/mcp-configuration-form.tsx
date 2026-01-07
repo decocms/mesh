@@ -302,8 +302,8 @@ function BindingSelector({
                   <Plus size={16} />
                   <span>
                     {canInstallInline
-                      ? "Create Connection"
-                      : "Create Connection"}
+                      ? "Custom Connection"
+                      : "Custom Connection"}
                   </span>
                 </>
               )}

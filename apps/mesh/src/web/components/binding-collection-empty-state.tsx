@@ -86,7 +86,7 @@ export function BindingCollectionEmptyState({
               : `Install ${wellKnownMcp?.title || "MCP"}`}
           </Button>
           <Button variant="outline" onClick={handleInstallMcpServer}>
-            Create Connection
+            Custom Connection
           </Button>
         </>
       }

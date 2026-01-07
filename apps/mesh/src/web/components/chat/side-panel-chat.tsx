@@ -292,7 +292,7 @@ function ChatPanelContent() {
                       })
                     }
                   >
-                    Create Connection
+                    Custom Connection
                   </Button>
                 }
               />
