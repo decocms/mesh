@@ -1,5 +1,6 @@
 import {
   getWellKnownCommunityRegistryConnection,
+  getWellKnownRegistryConnection,
   getWellKnownSelfConnection,
 } from "@/core/well-known-mcp";
 import { getDb } from "@/database";
@@ -27,7 +28,7 @@ interface MCPCreationSpec {
  * This is a function (not a constant) to defer evaluation of ALL_TOOLS
  * until after all modules have finished initializing.
  */
-function getDefaultOrgMcps(): MCPCreationSpec[] {
+function getDefaultOrgMcps(organizationId: string): MCPCreationSpec[] {
   return [
     {
       permissions: {
@@ -71,6 +72,10 @@ function getDefaultOrgMcps(): MCPCreationSpec[] {
     {
       data: getWellKnownCommunityRegistryConnection(),
     },
+    // Deco Store Registry - official deco MCP registry with curated integrations
+    {
+      data: getWellKnownRegistryConnection(organizationId),
+    },
   ];
 }
 
@@ -85,7 +90,7 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
     const vault = new CredentialVault(process.env.ENCRYPTION_KEY || "");
     const connectionStorage = new ConnectionStorage(database.db, vault);
     const gatewayStorage = new GatewayStorage(database.db);
-    const defaultOrgMcps = getDefaultOrgMcps();
+    const defaultOrgMcps = getDefaultOrgMcps(organizationId);
 
     // Create default connections and collect their IDs
     const createdConnectionIds: string[] = [];
