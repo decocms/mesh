@@ -38,6 +38,10 @@ export interface ModelInfo {
   outputCost?: number | null;
   outputLimit?: number | null;
   provider?: string | null;
+  limits?: {
+    contextWindow: number;
+    maxOutputTokens: number;
+  } | null;
 }
 
 /**
@@ -187,7 +191,7 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
   // Compact mobile version - just the details without header
   if (compact) {
     return (
-      <div className="flex flex-col gap-2.5 pt-3 pb-3 px-3 rounded-b-xl text-xs">
+      <div className="flex flex-col gap-2.5 pt-3 pb-3 px-3 rounded-b-lg text-xs">
         {model.contextWindow && (
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Context</span>
@@ -311,7 +315,7 @@ const ModelItemContent = memo(function ModelItemContent({
     <div
       className={cn(
         "flex items-center gap-2 h-10 py-4 px-3 hover:bg-accent cursor-pointer",
-        hasExpandedInfo ? "rounded-t-xl" : "rounded-xl",
+        hasExpandedInfo ? "rounded-t-lg" : "rounded-lg",
       )}
       onMouseEnter={() => onHover(model)}
     >
@@ -344,11 +348,15 @@ function SelectedModelDisplay({ model }: { model: ModelInfo | undefined }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 min-w-0 max-w-full">
       {model.logo && (
-        <img src={model.logo} className="w-4 h-4" alt={model.name} />
+        <img
+          src={model.logo}
+          className="w-5 h-5 shrink-0 rounded-sm"
+          alt={model.name}
+        />
       )}
-      <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+      <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 max-w-[200px] hidden sm:inline-block">
         {model.name}
       </span>
     </div>
@@ -432,13 +440,17 @@ export function ModelSelector({
       onValueChange={handleModelChange}
     >
       <ResponsiveSelectTrigger
+        size="sm"
         className={cn(
-          "h-8! text-sm hover:bg-accent rounded-lg py-1 px-2 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0",
+          "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
           variant === "borderless" && "md:border-none",
           className,
         )}
       >
-        <ResponsiveSelectValue placeholder={placeholder}>
+        <ResponsiveSelectValue
+          placeholder={placeholder}
+          className="min-w-0 max-w-full"
+        >
           <SelectedModelDisplay model={currentModel} />
         </ResponsiveSelectValue>
       </ResponsiveSelectTrigger>
@@ -469,7 +481,7 @@ export function ModelSelector({
                 key={m.id}
                 onClick={() => handleModelChange(m.id)}
                 className={cn(
-                  "rounded-xl mb-1",
+                  "rounded-lg mb-1",
                   m.id === selectedModelId && "bg-accent",
                 )}
               >

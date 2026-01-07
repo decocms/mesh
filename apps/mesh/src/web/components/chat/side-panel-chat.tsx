@@ -1,3 +1,8 @@
+import {
+  getWellKnownOpenRouterConnection,
+  OPENROUTER_ICON_URL,
+  OPENROUTER_MCP_URL,
+} from "@/core/well-known-mcp";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { EmptyState } from "@/web/components/empty-state";
 import { IntegrationIcon } from "@/web/components/integration-icon";
@@ -5,9 +10,8 @@ import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
-import { DecoChatEmptyState } from "@deco/ui/components/deco-chat-empty-state.tsx";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { CpuChip02, Loading01, Plus, X } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
@@ -24,17 +28,112 @@ import {
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { usePersistedChat } from "../../hooks/use-persisted-chat";
-import { useSystemPrompt } from "../../hooks/use-system-prompt";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import { useChat } from "../../providers/chat-provider";
 import { ErrorBoundary } from "../error-boundary";
-import { Chat, useGateways, useModels, type ModelChangePayload } from "./chat";
+import { useChat } from "./chat-context";
 import { IceBreakers } from "./ice-breakers";
+import {
+  Chat,
+  GatewaySelector,
+  ModelSelector,
+  UsageStats,
+  useGateways,
+  useModels,
+} from "./index";
 import { ThreadHistoryPopover } from "./thread-history-popover";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
   "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
+
+/**
+ * Route context extracted from collection detail routes
+ */
+interface RouteContext {
+  connectionId: string | null;
+  collectionName: string | null;
+  itemId: string | null;
+}
+
+/**
+ * Parse route context from the current URL pathname
+ * Looks for pattern: /:org/mcps/:connectionId/:collectionName/:itemId
+ */
+function parseRouteContext(pathname: string): RouteContext {
+  const mcpsPattern = /\/[^/]+\/mcps\/([^/]+)\/([^/]+)\/([^/]+)/;
+  const match = pathname.match(mcpsPattern);
+
+  if (match && match[1] && match[2] && match[3]) {
+    return {
+      connectionId: decodeURIComponent(match[1]),
+      collectionName: decodeURIComponent(match[2]),
+      itemId: decodeURIComponent(match[3]),
+    };
+  }
+
+  return { connectionId: null, collectionName: null, itemId: null };
+}
+
+/**
+ * Helper: find stored item in array, fallback to first item
+ */
+function findOrFirst<T>(
+  array: T[],
+  predicate: (item: T) => boolean,
+): T | undefined {
+  return array.find(predicate) ?? array[0];
+}
+
+/**
+ * Hook that combines useLocalStorage with findOrFirst to manage selected items
+ */
+function useStoredSelection<TState, TItem>(
+  key: string,
+  items: TItem[],
+  predicate: (item: TItem, state: TState) => boolean,
+  initialValue: TState | null = null,
+) {
+  const [storedState, setStoredState] = useLocalStorage<TState | null>(
+    key,
+    initialValue,
+  );
+
+  const selectedItem = findOrFirst(items, (item) =>
+    storedState ? predicate(item, storedState) : false,
+  );
+
+  return [selectedItem, setStoredState] as const;
+}
+
+/**
+ * Hook that generates a dynamic system prompt based on context
+ */
+function useSystemPrompt(gatewayId?: string): string {
+  const routerState = useRouterState();
+  const { connectionId, collectionName, itemId } = parseRouteContext(
+    routerState.location.pathname,
+  );
+
+  return `You are an AI assistant running in an MCP Mesh environment.
+
+## About MCP Mesh
+The Model Context Protocol (MCP) Mesh allows users to connect external MCP servers and expose their capabilities through gateways. Each gateway provides access to a curated set of tools from connected MCP servers.
+
+## Important Notes
+- All tool calls are logged and audited for security and compliance
+- You have access to the tools exposed through the selected gateway
+- MCPs may expose resources that users can browse and edit
+- You have context to the current gateway and its tools, resources, and prompts
+
+## Current Editing Context
+${connectionId ? `- Connection ID: ${connectionId}` : ""}
+${collectionName ? `- Collection Name: ${collectionName}` : ""}
+${itemId ? `- Item ID: ${itemId}` : ""}
+${gatewayId ? `- Gateway ID: ${gatewayId}` : ""}
+
+Help the user understand and work with this resource.
+`;
+}
 
 /**
  * OpenRouter illustration with radial mask for empty state
@@ -69,7 +168,7 @@ function GatewayIceBreakers({
   return <IceBreakers prompts={prompts} onSelect={onSelect} className="mt-6" />;
 }
 
-export function ChatPanel() {
+function ChatPanelContent() {
   const {
     org: { slug: orgSlug, id: orgId },
     locator,
@@ -98,40 +197,26 @@ export function ChatPanel() {
   const hasGateways = gateways.length > 0;
   const hasRequiredSetup = hasModelsBinding && hasGateways;
 
-  const [selectedModelState, setSelectedModelState] = useLocalStorage<{
-    id: string;
-    connectionId: string;
-  } | null>(
+  const [selectedModel, setSelectedModelState] = useStoredSelection<
+    { id: string; connectionId: string },
+    (typeof models)[number]
+  >(
     LOCALSTORAGE_KEYS.chatSelectedModel(locator),
-    (existing) => existing ?? null,
+    models,
+    (m, state) => m.id === state.id && m.connectionId === state.connectionId,
   );
 
-  const [selectedGatewayState, setSelectedGatewayState] = useLocalStorage<{
-    gatewayId: string;
-  } | null>(`${locator}:selected-gateway`, () => null);
-
-  const defaultModel = models[0];
-  const effectiveSelectedModelState =
-    selectedModelState ??
-    (defaultModel
-      ? { id: defaultModel.id, connectionId: defaultModel.connectionId }
-      : null);
-
-  const defaultGatewayId = gateways[0]?.id;
-  const effectiveSelectedGatewayId =
-    selectedGatewayState?.gatewayId ?? defaultGatewayId;
-
-  const selectedGateway = gateways.find(
-    (g) => g.id === effectiveSelectedGatewayId,
-  );
-  const selectedModel = models.find(
-    (m) =>
-      m.id === effectiveSelectedModelState?.id &&
-      m.connectionId === effectiveSelectedModelState?.connectionId,
+  const [selectedGateway, setSelectedGatewayState] = useStoredSelection<
+    { gatewayId: string },
+    (typeof gateways)[number]
+  >(
+    `${locator}:selected-gateway`,
+    gateways,
+    (g, state) => g.id === state.gatewayId,
   );
 
   // Generate dynamic system prompt based on context
-  const systemPrompt = useSystemPrompt();
+  const systemPrompt = useSystemPrompt(selectedGateway?.id);
 
   // Get the onToolCall handler for invalidating collection queries
   const onToolCall = useInvalidateCollectionsOnToolCall();
@@ -145,11 +230,36 @@ export function ChatPanel() {
       createThread({ id: thread.id, title: thread.title }),
   });
 
+  // Get input and branching state from context
+  const { inputValue, setInputValue, branchContext, clearBranch } = useChat();
+
+  const { isEmpty } = chat;
+
+  // Handle clicking on the branch preview to go back to original thread
+  const handleGoToOriginalMessage = () => {
+    if (!branchContext) return;
+    setActiveThreadId(branchContext.originalThreadId);
+    // Clear the branch context since we're going back
+    clearBranch();
+    setInputValue("");
+  };
+
   const handleSendMessage = async (text: string) => {
     if (!selectedModel) {
       toast.error("No model configured");
       return;
     }
+
+    if (!selectedGateway?.id) {
+      toast.error("No gateway configured");
+      return;
+    }
+
+    // Clear input
+    setInputValue("");
+
+    // Clear editing state before sending
+    clearBranch();
 
     const metadata: Metadata = {
       created_at: new Date().toISOString(),
@@ -158,8 +268,9 @@ export function ChatPanel() {
         id: selectedModel.id,
         connectionId: selectedModel.connectionId,
         provider: selectedModel.provider ?? undefined,
+        limits: selectedModel.limits ?? undefined,
       },
-      gateway: selectedGateway ? { id: selectedGateway.id } : undefined,
+      gateway: { id: selectedGateway.id },
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
@@ -169,8 +280,12 @@ export function ChatPanel() {
     await chat.sendMessage(text, metadata);
   };
 
-  const handleModelChange = (m: ModelChangePayload) => {
-    setSelectedModelState({ id: m.id, connectionId: m.connectionId });
+  const handleModelChange = (model: { id: string; connectionId: string }) => {
+    setSelectedModelState(model);
+  };
+
+  const handleGatewayChange = (gatewayId: string) => {
+    setSelectedGatewayState({ gatewayId });
   };
 
   // OpenRouter installation - create directly or use existing
@@ -185,11 +300,10 @@ export function ChatPanel() {
 
     setIsInstallingOpenRouter(true);
     try {
-      const openrouterUrl = "https://sites-openrouter.decocache.com/mcp";
-
       // Check if OpenRouter already exists
       const existingConnection = allConnections?.find(
-        (conn) => conn.connection_url === openrouterUrl,
+        (conn: { connection_url?: string | null }) =>
+          conn.connection_url === OPENROUTER_MCP_URL,
       );
 
       if (existingConnection) {
@@ -202,37 +316,9 @@ export function ChatPanel() {
       }
 
       // Create new OpenRouter connection
-      const now = new Date().toISOString();
-      const connectionData = {
+      const connectionData = getWellKnownOpenRouterConnection({
         id: generatePrefixedId("conn"),
-        title: "OpenRouter",
-        description: "Access hundreds of LLM models from a single API",
-        icon: "https://openrouter.ai/favicon.ico",
-        app_name: "openrouter",
-        app_id: "openrouter",
-        connection_type: "HTTP" as const,
-        connection_url: openrouterUrl,
-        connection_token: null as string | null,
-        connection_headers: null,
-        oauth_config: null,
-        configuration_state: null,
-        configuration_scopes: null,
-        metadata: {
-          source: "chat",
-          verified: false,
-          scopeName: "deco",
-          toolsCount: 0,
-          publishedAt: null,
-          repository: null,
-        },
-        created_at: now,
-        updated_at: now,
-        created_by: user.id,
-        organization_id: orgId,
-        tools: null,
-        bindings: null,
-        status: "inactive" as const,
-      };
+      });
 
       const result = await actions.create.mutateAsync(connectionData);
 
@@ -306,7 +392,7 @@ export function ChatPanel() {
                     disabled={isInstallingOpenRouter}
                   >
                     <img
-                      src="https://openrouter.ai/favicon.ico"
+                      src={OPENROUTER_ICON_URL}
                       alt="OpenRouter"
                       className="size-4"
                     />
@@ -334,9 +420,6 @@ export function ChatPanel() {
       </Chat>
     );
   }
-  const initialMessages = chat.messages.filter(
-    (message) => message.role !== "system",
-  );
 
   return (
     <Chat>
@@ -386,27 +469,27 @@ export function ChatPanel() {
       </Chat.Header>
 
       <Chat.Main>
-        {initialMessages.length === 0 ? (
+        {isEmpty ? (
           <Chat.EmptyState>
             <div className="flex flex-col items-center gap-6 w-full px-4">
-              <DecoChatEmptyState
-                title={selectedGateway?.title || "Ask deco chat"}
-                description={
-                  selectedGateway?.description ??
-                  "Ask anything about configuring model providers or using MCP Mesh."
-                }
-                avatarNode={
-                  <IntegrationIcon
-                    icon={selectedGateway?.icon}
-                    name={selectedGateway?.title || "deco chat"}
-                    size="lg"
-                    fallbackIcon={<CpuChip02 size={32} />}
-                    className="size-[60px]! rounded-[18px]!"
-                  />
-                }
-              />
-              {effectiveSelectedGatewayId && (
-                <ErrorBoundary key={effectiveSelectedGatewayId} fallback={null}>
+              <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
+                <IntegrationIcon
+                  icon={selectedGateway?.icon}
+                  name={selectedGateway?.title || "deco chat"}
+                  size="lg"
+                  fallbackIcon={<CpuChip02 size={32} />}
+                  className="size-[60px]! rounded-[18px]!"
+                />
+                <h3 className="text-xl font-medium text-foreground">
+                  {selectedGateway?.title || "Ask deco chat"}
+                </h3>
+                <div className="text-muted-foreground text-center text-sm max-w-md">
+                  {selectedGateway?.description ??
+                    "Ask anything about configuring model providers or using MCP Mesh."}
+                </div>
+              </div>
+              {selectedGateway?.id && (
+                <ErrorBoundary key={selectedGateway.id} fallback={null}>
                   <Suspense
                     fallback={
                       <div className="flex justify-center">
@@ -418,7 +501,7 @@ export function ChatPanel() {
                     }
                   >
                     <GatewayIceBreakers
-                      gatewayId={effectiveSelectedGatewayId}
+                      gatewayId={selectedGateway.id}
                       onSelect={(prompt) => {
                         // Submit the prompt name as the first message
                         handleSendMessage(prompt.description ?? prompt.name);
@@ -439,37 +522,73 @@ export function ChatPanel() {
       </Chat.Main>
 
       <Chat.Footer>
-        <div>
+        <div className="flex flex-col gap-2">
+          <Chat.ErrorBanner
+            error={chat.error}
+            onFixInChat={() => {
+              if (chat.error) {
+                handleSendMessage(
+                  `I encountered this error: ${chat.error.message}. Can you help me fix it?`,
+                );
+              }
+            }}
+            onDismiss={chat.clearError}
+          />
+          <Chat.FinishReasonWarning
+            finishReason={chat.finishReason}
+            onContinue={() => {
+              handleSendMessage("Please continue.");
+            }}
+            onDismiss={chat.clearFinishReason}
+          />
+          <Chat.BranchPreview
+            branchContext={branchContext}
+            clearBranchContext={clearBranch}
+            onGoToOriginalMessage={handleGoToOriginalMessage}
+            setInputValue={setInputValue}
+          />
           <Chat.Input
-            onSubmit={handleSendMessage}
+            value={inputValue}
+            onChange={setInputValue}
+            onSubmit={async () => {
+              if (!inputValue.trim()) return;
+              await handleSendMessage(inputValue.trim());
+            }}
             onStop={chat.stop}
-            disabled={models.length === 0 || !effectiveSelectedModelState}
+            disabled={!selectedModel || !selectedGateway?.id}
             isStreaming={
               chat.status === "submitted" || chat.status === "streaming"
             }
             placeholder={
-              models.length === 0
-                ? "Add an LLM binding connection to start chatting"
+              !selectedModel
+                ? "Select a model to start chatting"
                 : "Ask anything or @ for context"
             }
-            usageMessages={chat.messages}
           >
-            <Chat.Input.GatewaySelector
-              disabled={false}
-              selectedGatewayId={effectiveSelectedGatewayId}
-              onGatewayChange={(gatewayId) => {
-                if (!gatewayId) return;
-                setSelectedGatewayState({ gatewayId });
-              }}
+            <GatewaySelector
+              selectedGatewayId={selectedGateway?.id}
+              onGatewayChange={handleGatewayChange}
+              placeholder="Gateway"
+              variant="borderless"
             />
-            <Chat.Input.ModelSelector
-              disabled={false}
-              selectedModel={effectiveSelectedModelState ?? undefined}
+            <ModelSelector
+              selectedModel={selectedModel ?? undefined}
               onModelChange={handleModelChange}
+              placeholder="Model"
+              variant="borderless"
             />
+            <UsageStats messages={chat.messages} />
           </Chat.Input>
         </div>
       </Chat.Footer>
     </Chat>
+  );
+}
+
+export function ChatPanel() {
+  return (
+    <Chat.Provider>
+      <ChatPanelContent />
+    </Chat.Provider>
   );
 }

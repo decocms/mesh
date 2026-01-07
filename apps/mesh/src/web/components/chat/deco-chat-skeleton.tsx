@@ -1,4 +1,4 @@
-import { cn } from "../lib/utils.ts";
+import { cn } from "@deco/ui/lib/utils.ts";
 
 export function DecoChatSkeleton() {
   return (

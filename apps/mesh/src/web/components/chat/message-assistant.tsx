@@ -2,12 +2,17 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import type { ToolUIPart } from "ai";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Target04, Stars01, Lightbulb01 } from "@untitledui/icons";
+import {
+  Target04,
+  Stars01,
+  Lightbulb01,
+  ChevronRight,
+} from "@untitledui/icons";
 import { MessageProps } from "./message-user.tsx";
-import { MessageReasoningPart } from "./parts/reasoning-part.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
 import { UsageStats } from "./usage-stats.tsx";
+import { MemoizedMarkdown } from "@deco/ui/components/chat/chat-markdown.tsx";
 
 type ThinkingStage = "planning" | "thinking";
 
@@ -19,12 +24,20 @@ interface ThinkingStageConfig {
 const THINKING_STAGES: Record<ThinkingStage, ThinkingStageConfig> = {
   planning: {
     icon: (
-      <Target04 className="text-muted-foreground animate-pulse" size={20} />
+      <Target04
+        className="text-muted-foreground shrink-0 animate-pulse"
+        size={14}
+      />
     ),
     label: "Planning next moves",
   },
   thinking: {
-    icon: <Stars01 className="text-muted-foreground animate-pulse" size={20} />,
+    icon: (
+      <Stars01
+        className="text-muted-foreground shrink-0 animate-pulse"
+        size={14}
+      />
+    ),
     label: "Thinking",
   },
 };
@@ -48,24 +61,94 @@ function TypingIndicator() {
   const config = THINKING_STAGES[stage];
 
   return (
-    <div className="flex items-center gap-2 py-2">
-      {config.icon}
-      <span className="text-sm font-medium text-muted-foreground text-shimmer">
-        {config.label}...
+    <div className="flex items-center gap-1.5 py-2 opacity-60">
+      <span className="flex items-center gap-1.5">
+        {config.icon}
+        <span className="text-xs text-muted-foreground shimmer">
+          {config.label}...
+        </span>
       </span>
     </div>
   );
 }
 
-function ThoughtSummary({ duration }: { duration: number }) {
+function ThoughtSummary({
+  duration,
+  parts,
+  id,
+}: {
+  duration: number;
+  parts: MessagePart[];
+  id: string;
+}) {
   const seconds = (duration / 1000).toFixed(1);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Find reasoning parts to display
+  const reasoningParts = parts.filter((part) => part.type === "reasoning");
+  const isReasoningStreaming = reasoningParts.some(
+    (part) => part.state === "streaming",
+  );
+
+  // Auto-expand when reasoning is streaming
+  const shouldShowContent = isReasoningStreaming || isExpanded;
 
   return (
-    <div className="flex items-center gap-2 py-2 opacity-60">
-      <Lightbulb01 className="text-muted-foreground" size={16} />
-      <span className="text-xs text-muted-foreground">
-        Thought · {seconds}s
-      </span>
+    <div className="flex flex-col mb-2">
+      <button
+        type="button"
+        onClick={() => !isReasoningStreaming && setIsExpanded(!isExpanded)}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={cn(
+          "flex items-center gap-1.5 py-2 opacity-60 transition-opacity",
+          !isReasoningStreaming && "cursor-pointer hover:opacity-100",
+          isReasoningStreaming && "cursor-default",
+        )}
+      >
+        <span className="flex items-center gap-1.5">
+          {isReasoningStreaming ? (
+            <Stars01
+              className="text-muted-foreground shrink-0 shimmer"
+              size={14}
+            />
+          ) : isHovered ? (
+            <ChevronRight
+              className={cn(
+                "text-muted-foreground transition-transform shrink-0",
+                isExpanded && "rotate-90",
+              )}
+              size={14}
+            />
+          ) : (
+            <Lightbulb01 className="text-muted-foreground shrink-0" size={14} />
+          )}
+          <span
+            className={cn(
+              "text-xs text-muted-foreground",
+              isReasoningStreaming && "shimmer",
+            )}
+          >
+            {isReasoningStreaming ? "Thinking..." : `Thought for ${seconds}s`}
+          </span>
+        </span>
+      </button>
+      {shouldShowContent && (
+        <div className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 max-h-[300px] overflow-y-auto">
+          {reasoningParts.map((part, index) => (
+            <div
+              key={`${id}-reasoning-${index}`}
+              className="text-muted-foreground markdown-sm pb-2"
+            >
+              <MemoizedMarkdown
+                id={`${id}-reasoning-${index}`}
+                text={part.text}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -76,9 +159,15 @@ interface MessagePartProps {
   part: MessagePart;
   id: string;
   usageStats?: ReactNode;
+  isFollowedByToolCall?: boolean;
 }
 
-function MessagePart({ part, id, usageStats }: MessagePartProps) {
+function MessagePart({
+  part,
+  id,
+  usageStats,
+  isFollowedByToolCall,
+}: MessagePartProps) {
   switch (part.type) {
     case "dynamic-tool":
       return <ToolCallPart part={part} id={id} />;
@@ -89,10 +178,12 @@ function MessagePart({ part, id, usageStats }: MessagePartProps) {
           part={part}
           extraActions={usageStats}
           copyable
+          hasToolCallAfter={isFollowedByToolCall}
         />
       );
     case "reasoning":
-      return <MessageReasoningPart part={part} id={id} />;
+      // Don't render reasoning inline - it's shown in ThoughtSummary
+      return null;
     case "step-start":
     case "file":
     case "source-url":
@@ -149,7 +240,17 @@ export function MessageAssistant<T extends Metadata>({
   }, [parts.length, duration, id]);
 
   const hasContent = parts.length > 0;
-  const showThought = hasContent && !isLoading && duration !== null;
+  // Check if we have reasoning parts or if reasoning is currently streaming
+  const hasReasoning = parts.some((part) => part.type === "reasoning");
+  const isReasoningStreaming =
+    isLoading &&
+    parts.some(
+      (part) => part.type === "reasoning" && part.state === "streaming",
+    );
+
+  // Show thought if we have reasoning parts OR if reasoning is currently streaming
+  const showThought =
+    hasContent && (hasReasoning || isReasoningStreaming) && duration !== null;
 
   // Create usage stats component to pass to the last text part
   const usageStats = <UsageStats messages={[message]} />;
@@ -161,21 +262,32 @@ export function MessageAssistant<T extends Metadata>({
         className,
       )}
     >
-      <div className="flex flex-col gap-2 min-w-0 w-full items-start">
+      <div className="flex flex-col min-w-0 w-full items-start">
         <div className="w-full min-w-0 not-only:rounded-2xl text-sm wrap-break-word overflow-wrap-anywhere bg-transparent">
           {hasContent ? (
             <>
-              {showThought && <ThoughtSummary duration={duration} />}
-              {parts.map((part, index) => (
-                <MessagePart
-                  key={`${id}-${index}`}
-                  part={part}
-                  id={id}
-                  usageStats={
-                    index === parts.length - 1 ? usageStats : undefined
-                  }
-                />
-              ))}
+              {showThought && (
+                <ThoughtSummary duration={duration} parts={parts} id={id} />
+              )}
+              {parts.map((part, index) => {
+                const nextPart = parts[index + 1];
+                const isFollowedByToolCall =
+                  nextPart &&
+                  (nextPart.type === "dynamic-tool" ||
+                    nextPart.type.startsWith("tool-"));
+
+                return (
+                  <MessagePart
+                    key={`${id}-${index}`}
+                    part={part}
+                    id={id}
+                    usageStats={
+                      index === parts.length - 1 ? usageStats : undefined
+                    }
+                    isFollowedByToolCall={isFollowedByToolCall}
+                  />
+                );
+              })}
             </>
           ) : isLoading ? (
             <TypingIndicator />

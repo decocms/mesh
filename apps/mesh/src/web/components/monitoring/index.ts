@@ -19,4 +19,11 @@ export {
   type MonitoringLogWithGateway,
   type MonitoringSearchParams,
   type MonitoringStats,
+  type PropertyFilter,
+  type PropertyFilterOperator,
+  serializePropertyFilters,
+  deserializePropertyFilters,
+  propertyFiltersToApiParams,
+  propertyFiltersToRaw,
+  parseRawPropertyFilters,
 } from "./types.tsx";

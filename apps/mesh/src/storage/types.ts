@@ -65,6 +65,23 @@ export interface UserTable {
   updatedAt: ColumnType<Date, Date | string, Date | string>;
 }
 
+/**
+ * Better Auth core user table definition (singular: "user")
+ * Includes avatar image and other auth-related fields.
+ */
+export interface BetterAuthUserTable {
+  id: string;
+  email: string;
+  emailVerified: number;
+  name: string;
+  image: string | null;
+  role: string | null;
+  banned: number | null;
+  banReason: string | null;
+  banExpires: string | null;
+  createdAt: ColumnType<Date, string, string>;
+  updatedAt: ColumnType<Date, string, string>;
+}
 // ============================================================================
 // Runtime Entity Types (for application code)
 // ============================================================================
@@ -79,6 +96,13 @@ export interface User {
   role: string;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+/**
+ * User entity with image - Extended representation including Better Auth avatar
+ */
+export interface UserWithImage extends User {
+  image?: string;
 }
 
 /**
@@ -373,6 +397,7 @@ export interface MonitoringLogTable {
   request_id: string;
   user_agent: string | null; // x-mesh-client header
   gateway_id: string | null; // Gateway ID if routed through gateway
+  properties: JsonObject<Record<string, string>> | null; // Custom key-value metadata
 }
 
 /**
@@ -394,6 +419,7 @@ export interface MonitoringLog {
   requestId: string;
   userAgent?: string | null; // x-mesh-client header
   gatewayId?: string | null; // Gateway ID if routed through gateway
+  properties?: Record<string, string> | null; // Custom key-value metadata
 }
 
 // ============================================================================
@@ -633,6 +659,7 @@ export interface GatewayWithConnections extends Gateway {
 export interface Database {
   // Core tables (all within organization scope)
   users: UserTable; // System users
+  user: BetterAuthUserTable; // Better Auth core table (singular)
   connections: MCPConnectionTable; // MCP connections (organization-scoped)
   organization_settings: OrganizationSettingsTable; // Organization-level configuration
   api_keys: ApiKeyTable; // Better Auth API keys

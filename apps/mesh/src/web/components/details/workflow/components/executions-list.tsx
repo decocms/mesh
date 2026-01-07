@@ -1,16 +1,7 @@
-import { useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import {
-  X,
-  SearchMd,
-  Check,
-  AlertOctagon,
-  Columns01,
-  DotsHorizontal,
-} from "@untitledui/icons";
+import { X, Check, AlertOctagon, Columns01 } from "@untitledui/icons";
 import type { WorkflowExecution } from "@decocms/bindings/workflow";
 import { useWorkflowExecutions } from "../hooks/queries/use-workflow-executions";
 import { useViewModeStore } from "../stores/view-mode";
@@ -81,16 +72,6 @@ export function ExecutionsList({ className }: ExecutionsListProps) {
   const { setShowExecutionsList } = useViewModeStore();
   const { setTrackingExecutionId } = useWorkflowActions();
   const trackingExecutionId = useTrackingExecutionId();
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const filteredExecutions = executions.filter((execution) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      execution.id.toLowerCase().includes(query) ||
-      execution.status.toLowerCase().includes(query)
-    );
-  });
 
   const handleSelectExecution = (executionId: string) => {
     setTrackingExecutionId(executionId);
@@ -120,30 +101,14 @@ export function ExecutionsList({ className }: ExecutionsListProps) {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-2.5 h-12 px-4 border-b border-border shrink-0">
-        <SearchMd size={16} className="text-muted-foreground shrink-0" />
-        <Input
-          type="text"
-          placeholder="Search for a run..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 border-0 bg-transparent h-full text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 shadow-none px-0"
-        />
-      </div>
-
       {/* Executions List */}
       <div className="flex-1 overflow-auto">
         {isLoading ? (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
             Loading executions...
           </div>
-        ) : filteredExecutions.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-            {searchQuery ? "No matching runs found" : "No runs yet"}
-          </div>
         ) : (
-          filteredExecutions.map((execution, index) => (
+          executions.map((execution, index) => (
             <ExecutionRow
               key={execution.id}
               execution={execution}
@@ -186,19 +151,6 @@ function ExecutionRow({
         <p className="flex-1 text-base font-medium text-foreground">
           {formatExecutionId(execution.id)}
         </p>
-        {isSelected && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={(e) => {
-              e.stopPropagation();
-              // Could show dropdown menu with options
-            }}
-          >
-            <DotsHorizontal size={11} />
-          </Button>
-        )}
       </div>
     </div>
   );

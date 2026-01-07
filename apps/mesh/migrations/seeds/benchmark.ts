@@ -55,8 +55,13 @@ export async function seed(db: Kysely<Database>): Promise<BenchmarkSeedResult> {
     .values({
       id: userId,
       email: "benchmark@test.local",
+      emailVerified: 1,
       name: "Benchmark User",
+      image: null,
       role: "admin",
+      banned: null,
+      banReason: null,
+      banExpires: null,
       createdAt: now,
       updatedAt: now,
     })

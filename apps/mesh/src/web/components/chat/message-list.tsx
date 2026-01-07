@@ -111,7 +111,7 @@ export function MessageList({
                 ref={(el) => {
                   pairRefs.current[index] = el;
                 }}
-                className="flex flex-col gap-2 pb-2"
+                className="flex flex-col pb-2"
                 style={
                   isLastPair && minHeightOffset
                     ? { minHeight: `calc(100vh - ${minHeightOffset}px)` }
@@ -120,7 +120,7 @@ export function MessageList({
               >
                 {/* Sticky overlay to prevent scrolling content from appearing above the user message */}
                 <div className="sticky top-0 z-50 bg-background w-full h-4" />
-                <div className="sticky top-4 z-50">
+                <div className="sticky mb-3 top-4 z-50">
                   {pair.user && isValidElement(pair.user)
                     ? cloneElement(pair.user, { pairIndex: index } as any)
                     : pair.user}

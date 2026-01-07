@@ -1,10 +1,15 @@
-import { cn } from "../lib/utils.ts";
-import { Button } from "./button.tsx";
-import { ArrowUp, Plus, Stop } from "@untitledui/icons";
-import { Textarea } from "./textarea.tsx";
-import type { FormEvent, KeyboardEvent, ReactNode } from "react";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { Button } from "@deco/ui/components/button.tsx";
+import { ArrowUp, Stop } from "@untitledui/icons";
+import { Textarea } from "@deco/ui/components/textarea.tsx";
+import type {
+  FormEvent,
+  KeyboardEvent,
+  PropsWithChildren,
+  ReactNode,
+} from "react";
 
-interface DecoChatInputV2Props {
+interface ChatInputProps extends PropsWithChildren {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -24,7 +29,7 @@ interface DecoChatInputV2Props {
   maxTextHeight?: string;
 }
 
-export function DecoChatInputV2({
+export function ChatInput({
   value,
   onChange,
   onSubmit,
@@ -33,12 +38,13 @@ export function DecoChatInputV2({
   isStreaming,
   placeholder = "Ask anything or @ for context",
   className,
-  centered = false,
+  centered: _centered = false,
   contextContent,
   leftActions,
   rightActions,
   maxTextHeight = "164px",
-}: DecoChatInputV2Props) {
+  children,
+}: ChatInputProps) {
   const canSubmit = !disabled && !isStreaming && value.trim().length > 0;
 
   const handleSubmit = (e: FormEvent) => {
@@ -64,7 +70,6 @@ export function DecoChatInputV2({
       <div
         className={cn(
           "relative rounded-xl border border-border bg-background w-full min-h-[130px] flex flex-col",
-          centered ? "shadow-md" : "shadow-sm",
         )}
       >
         <div className="relative flex flex-col gap-2 p-2.5 flex-1">
@@ -97,9 +102,12 @@ export function DecoChatInputV2({
         </div>
 
         {/* Bottom Actions Row */}
-        <div className="flex items-center justify-between px-2.5 pb-2.5">
+        <div className="flex items-center justify-between p-2.5">
           {/* Left Actions (add context, files, etc) */}
-          <div className="flex items-center overflow-hidden">{leftActions}</div>
+          <div className="flex items-center overflow-hidden gap-2 min-w-0">
+            {leftActions}
+            {children}
+          </div>
 
           {/* Right Actions (model selector, audio, send) */}
           <div className="flex items-center gap-1">
@@ -130,33 +138,5 @@ export function DecoChatInputV2({
         </div>
       </div>
     </form>
-  );
-}
-
-// Composable helper for the "Add" button dropdown trigger
-interface AddContextButtonProps {
-  onClick?: () => void;
-  className?: string;
-}
-
-export function AddContextButton({
-  onClick,
-  className,
-}: AddContextButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex size-8 items-center justify-center rounded-full p-1 hover:bg-transparent transition-colors group cursor-pointer focus-visible:outline-none focus-visible:ring-0",
-        className,
-      )}
-      title="Add context"
-    >
-      <Plus
-        size={20}
-        className="text-muted-foreground group-hover:text-foreground transition-colors"
-      />
-    </button>
   );
 }

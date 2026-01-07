@@ -5,12 +5,17 @@ import {
   createProxyStreamableMonitoringMiddleware,
 } from "./proxy-monitoring";
 
-function createMockCtx(overrides?: { gatewayId?: string; userAgent?: string }) {
+function createMockCtx(overrides?: {
+  gatewayId?: string;
+  userAgent?: string;
+  properties?: Record<string, string>;
+}) {
   const log = vi.fn(async (_event: unknown) => {});
 
   // Use defaults unless explicitly overridden (including with undefined)
   const hasGatewayOverride = overrides && "gatewayId" in overrides;
   const hasUserAgentOverride = overrides && "userAgent" in overrides;
+  const hasPropertiesOverride = overrides && "properties" in overrides;
 
   const ctx = {
     organization: { id: "org_1" },
@@ -19,6 +24,7 @@ function createMockCtx(overrides?: { gatewayId?: string; userAgent?: string }) {
     metadata: {
       requestId: "req_1",
       userAgent: hasUserAgentOverride ? overrides.userAgent : "test-client/1.0",
+      properties: hasPropertiesOverride ? overrides.properties : undefined,
     },
     gatewayId: hasGatewayOverride ? overrides.gatewayId : "gw_123",
   } as unknown as MeshContext;
@@ -146,5 +152,141 @@ describe("proxy monitoring middleware", () => {
     const event = log.mock.calls.at(0)![0] as any;
     expect(event.userAgent).toBeUndefined();
     expect(event.gatewayId).toBeUndefined();
+  });
+
+  it("extracts properties from _meta.properties in arguments", async () => {
+    const { ctx, log } = createMockCtx();
+
+    const middleware = createProxyMonitoringMiddleware({
+      ctx,
+      enabled: true,
+      connectionId: "conn_1",
+      connectionTitle: "Test Connection",
+    });
+
+    const request = {
+      method: "tools/call",
+      params: {
+        name: "test_tool",
+        arguments: {
+          input: "value",
+          _meta: {
+            properties: { thread_id: "thread_123", trace_id: "trace_456" },
+          },
+        },
+      },
+    } as any;
+
+    await middleware(request, async () => {
+      return { content: [], isError: false } as any;
+    });
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const event = log.mock.calls.at(0)![0] as any;
+    expect(event.properties).toEqual({
+      thread_id: "thread_123",
+      trace_id: "trace_456",
+    });
+  });
+
+  it("merges header properties with _meta.properties (header takes precedence)", async () => {
+    const { ctx, log } = createMockCtx({
+      properties: { thread_id: "header_thread", source: "header" },
+    });
+
+    const middleware = createProxyMonitoringMiddleware({
+      ctx,
+      enabled: true,
+      connectionId: "conn_1",
+      connectionTitle: "Test Connection",
+    });
+
+    const request = {
+      method: "tools/call",
+      params: {
+        name: "test_tool",
+        arguments: {
+          _meta: {
+            properties: { thread_id: "meta_thread", extra: "from_meta" },
+          },
+        },
+      },
+    } as any;
+
+    await middleware(request, async () => {
+      return { content: [], isError: false } as any;
+    });
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const event = log.mock.calls.at(0)![0] as any;
+    // Header properties take precedence
+    expect(event.properties).toEqual({
+      thread_id: "header_thread", // from header (takes precedence)
+      source: "header", // from header
+      extra: "from_meta", // from _meta (no conflict)
+    });
+  });
+
+  it("logs properties from header when no _meta.properties", async () => {
+    const { ctx, log } = createMockCtx({
+      properties: { env: "production", region: "us-east" },
+    });
+
+    const middleware = createProxyMonitoringMiddleware({
+      ctx,
+      enabled: true,
+      connectionId: "conn_1",
+      connectionTitle: "Test Connection",
+    });
+
+    const request = {
+      method: "tools/call",
+      params: { name: "test_tool", arguments: { foo: "bar" } },
+    } as any;
+
+    await middleware(request, async () => {
+      return { content: [], isError: false } as any;
+    });
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const event = log.mock.calls.at(0)![0] as any;
+    expect(event.properties).toEqual({ env: "production", region: "us-east" });
+  });
+
+  it("ignores non-string values in _meta.properties", async () => {
+    const { ctx, log } = createMockCtx();
+
+    const middleware = createProxyMonitoringMiddleware({
+      ctx,
+      enabled: true,
+      connectionId: "conn_1",
+      connectionTitle: "Test Connection",
+    });
+
+    const request = {
+      method: "tools/call",
+      params: {
+        name: "test_tool",
+        arguments: {
+          _meta: {
+            properties: {
+              valid_string: "yes",
+              invalid_number: 123,
+              invalid_object: { nested: true },
+              invalid_array: ["a", "b"],
+            },
+          },
+        },
+      },
+    } as any;
+
+    await middleware(request, async () => {
+      return { content: [], isError: false } as any;
+    });
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const event = log.mock.calls.at(0)![0] as any;
+    // Only string values should be included
+    expect(event.properties).toEqual({ valid_string: "yes" });
   });
 });

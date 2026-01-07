@@ -1,4 +1,8 @@
-import { Workflow } from "@decocms/bindings/workflow";
+import {
+  ToolCallAction,
+  Workflow,
+  WorkflowExecution,
+} from "@decocms/bindings/workflow";
 import {
   useTrackingExecutionId,
   useWorkflow,
@@ -29,34 +33,39 @@ import {
 import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
 import { EmptyState } from "@/web/components/empty-state";
 
-interface WorkflowDetailsViewProps {
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared hook for workflow/execution data
+// ─────────────────────────────────────────────────────────────────────────────
+
+type WorkflowMode = "workflow" | "execution";
+
+interface UseWorkflowDataParams {
   itemId: string;
-  onBack: () => void;
+  mode: WorkflowMode;
 }
 
-export function WorkflowDetailsView({
-  itemId,
-  onBack,
-}: WorkflowDetailsViewProps) {
+function useWorkflowData({ itemId, mode }: UseWorkflowDataParams) {
   const { connectionId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
   const connId = connectionId ?? UNKNOWN_CONNECTION_ID;
   const toolCaller = createToolCaller(connId);
-  const item = useCollectionItem<Workflow>(
+
+  const collectionName =
+    mode === "workflow" ? "WORKFLOW" : "WORKFLOW_EXECUTION";
+
+  const item = useCollectionItem<Workflow | WorkflowExecution>(
     connId,
-    "WORKFLOW",
+    collectionName,
     itemId,
     toolCaller,
   );
-  const actions = useCollectionActions<Workflow>(
+
+  const actions = useCollectionActions<Workflow | WorkflowExecution>(
     connId,
-    "WORKFLOW",
+    collectionName,
     toolCaller,
   );
-
-  /** This makes it so when the workflow is update on the server, the store is updated */
-  const keyFlow = JSON.stringify(item);
 
   const update = async (updates: Partial<Workflow>): Promise<void> => {
     await actions.update.mutateAsync({
@@ -64,6 +73,39 @@ export function WorkflowDetailsView({
       data: updates,
     });
   };
+
+  return {
+    item,
+    update,
+    trackingExecutionId: mode === "execution" ? itemId : undefined,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified Workflow View Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface WorkflowDetailsViewProps {
+  itemId: string;
+  onBack: () => void;
+}
+
+interface UnifiedWorkflowViewProps extends WorkflowDetailsViewProps {
+  mode: WorkflowMode;
+}
+
+function UnifiedWorkflowView({
+  itemId,
+  onBack,
+  mode,
+}: UnifiedWorkflowViewProps) {
+  const { item, update, trackingExecutionId } = useWorkflowData({
+    itemId,
+    mode,
+  });
+
+  /** This makes it so when the workflow is updated on the server, the store is updated */
+  const keyFlow = JSON.stringify(item);
 
   if (!item) {
     return (
@@ -78,11 +120,28 @@ export function WorkflowDetailsView({
     );
   }
 
+  // Normalize to Workflow type (WorkflowExecution has nullable description)
+  const workflow: Workflow = {
+    ...item,
+    description: item.description ?? undefined,
+  };
+
   return (
-    <WorkflowStoreProvider key={keyFlow} workflow={item}>
+    <WorkflowStoreProvider
+      key={keyFlow}
+      initialState={{
+        workflow,
+        trackingExecutionId,
+        currentStepTab: mode === "execution" ? "action" : "executions",
+      }}
+    >
       <WorkflowDetails onBack={onBack} onUpdate={update} />
     </WorkflowStoreProvider>
   );
+}
+
+export function WorkflowDetailsView(props: WorkflowDetailsViewProps) {
+  return <UnifiedWorkflowView {...props} mode="workflow" />;
 }
 
 interface WorkflowDetailsProps {
@@ -121,10 +180,38 @@ function WorkflowCode({
   );
 }
 
+function WorkflowExecutionBar() {
+  const { setTrackingExecutionId } = useWorkflowActions();
+  const trackingExecutionId = useTrackingExecutionId();
+
+  return (
+    <div className="h-10 bg-accent flex items-center justify-between border-b border-border">
+      <div className="flex items-center h-full">
+        <div className="flex items-center justify-center h-full w-12">
+          <Eye className="w-4 h-4 text-muted-foreground" />
+        </div>
+        <p className="flex gap-3 items-center h-full">
+          <strong className="text-base text-foreground">Run</strong>
+          <span className="text-sm text-muted-foreground">
+            #{trackingExecutionId}
+          </span>
+        </p>
+      </div>
+      <Button
+        variant="ghost"
+        size="xs"
+        onClick={() => setTrackingExecutionId(undefined)}
+      >
+        <X className="w-4 h-4 text-muted-foreground" />
+      </Button>
+    </div>
+  );
+}
+
 function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   const workflow = useWorkflow();
   const trackingExecutionId = useTrackingExecutionId();
-  const { setTrackingExecutionId, setOriginalWorkflow } = useWorkflowActions();
+  const { setOriginalWorkflow } = useWorkflowActions();
   const { viewMode, showExecutionsList } = useViewModeStore();
   const currentStep = useCurrentStep();
 
@@ -133,13 +220,14 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
     setOriginalWorkflow(workflow);
   };
 
-  // Determine which sidebar to show
   const isToolStep = currentStep && "toolName" in currentStep.action;
-  const hasToolSelected =
-    isToolStep &&
-    "toolName" in currentStep.action &&
-    currentStep.action.toolName;
-  const showStepDetail = hasToolSelected;
+  const toolName = isToolStep
+    ? (currentStep.action as ToolCallAction).toolName
+    : null;
+  const showToolSidebar = isToolStep && !toolName && !trackingExecutionId;
+  const showStepDetail =
+    !showToolSidebar &&
+    (currentStep || trackingExecutionId || !showExecutionsList);
 
   return (
     <ViewLayout onBack={onBack}>
@@ -151,22 +239,7 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
         />
 
         {/* Tracking Execution Bar */}
-        {trackingExecutionId && (
-          <div className="h-10 bg-accent flex items-center justify-between border-b border-border">
-            <div className="flex">
-              <div className="flex items-center justify-center h-full w-12">
-                <Eye className="w-4 h-4 text-muted-foreground" />
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setTrackingExecutionId(undefined)}
-            >
-              <X className="w-4 h-4 text-muted-foreground" />
-            </Button>
-          </div>
-        )}
+        {trackingExecutionId && <WorkflowExecutionBar />}
 
         {/* Main Content */}
         <div className="flex-1 overflow-hidden">
@@ -186,12 +259,12 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
 
               {/* Right Panel - Executions List OR Step Config */}
               <ResizablePanel defaultSize={50} minSize={25}>
-                {showExecutionsList ? (
-                  <ExecutionsList />
-                ) : showStepDetail ? (
-                  <StepDetailPanel className="border-l border-border" />
-                ) : (
+                {showToolSidebar && (
                   <ToolSidebar className="border-l border-border" />
+                )}
+                {showExecutionsList && <ExecutionsList />}
+                {showStepDetail && (
+                  <StepDetailPanel className="border-l border-border" />
                 )}
               </ResizablePanel>
             </ResizablePanelGroup>
@@ -200,4 +273,8 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
       </div>
     </ViewLayout>
   );
+}
+
+export function WorkflowExecutionDetailsView(props: WorkflowDetailsViewProps) {
+  return <UnifiedWorkflowView {...props} mode="execution" />;
 }

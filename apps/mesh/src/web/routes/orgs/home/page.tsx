@@ -104,16 +104,11 @@ function WelcomeOverlay() {
         </div>
 
         <div className="border-t border-border px-4 py-4 flex items-center justify-center gap-2">
-          <Button onClick={handleBrowseStore} size="sm" className="h-9">
+          <Button onClick={handleBrowseStore} size="default">
             <ShoppingBag01 size={16} />
             Browse Store
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleAddMcp}
-            size="sm"
-            className="h-9"
-          >
+          <Button variant="outline" onClick={handleAddMcp} size="default">
             <Plus size={16} />
             Connect MCP Server
           </Button>
@@ -285,12 +280,7 @@ export default function OrgHomePage() {
                 ]}
               />
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-3"
-              onClick={handleAddMcp}
-            >
+            <Button variant="outline" size="sm" onClick={handleAddMcp}>
               <Plus size={16} />
               Connect MCP Server
             </Button>

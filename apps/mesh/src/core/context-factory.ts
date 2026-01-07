@@ -15,7 +15,9 @@ import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
 import { ConnectionStorage } from "../storage/connection";
 import { GatewayStorage } from "../storage/gateway";
+import { SqlMonitoringStorage } from "../storage/monitoring";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
+import { UserStorage } from "../storage/user";
 import type { Database, Permission } from "../storage/types";
 import { AccessControl } from "./access-control";
 import type {
@@ -30,8 +32,47 @@ import type {
 
 import type { EventBus } from "../event-bus/interface";
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Parse x-mesh-properties header value into a Record<string, string>.
+ * The header value should be a JSON object with string values.
+ * Returns undefined if the header is missing, empty, or invalid.
+ */
+function parsePropertiesHeader(
+  headerValue: string | null | undefined,
+): Record<string, string> | undefined {
+  if (!headerValue) return undefined;
+
+  try {
+    const parsed = JSON.parse(headerValue);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return undefined;
+    }
+
+    // Validate all values are strings
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "string") {
+        result[key] = value;
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface MeshContextConfig {
   db: Kysely<Database>;
+  databaseType: "sqlite" | "postgres";
   auth: BetterAuthInstance;
   encryption: {
     key: string;
@@ -339,7 +380,6 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 }
 
 // Import built-in roles from separate module to avoid circular dependency
-import { SqlMonitoringStorage } from "@/storage/monitoring";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { WellKnownMCPId } from "./well-known-mcp";
 import { ConnectionEntity } from "@/tools/connection/schema";
@@ -472,11 +512,29 @@ async function authenticateRequest(
     try {
       const meshJwtPayload = await verifyMeshToken(token);
       if (meshJwtPayload) {
+        // Look up user's organization role for admin/owner bypass
+        let role: string | undefined;
+        if (meshJwtPayload.sub && meshJwtPayload.metadata?.organizationId) {
+          const membership = await db
+            .selectFrom("member")
+            .select(["member.role"])
+            .where("member.userId", "=", meshJwtPayload.sub)
+            .where(
+              "member.organizationId",
+              "=",
+              meshJwtPayload.metadata.organizationId,
+            )
+            .executeTakeFirst();
+          role = membership?.role;
+        }
+
         return {
           user: {
             id: meshJwtPayload.sub,
             connectionId: meshJwtPayload.metadata?.connectionId,
+            role,
           },
+          role,
           permissions: meshJwtPayload.permissions,
           organization: meshJwtPayload.metadata?.organizationId
             ? {
@@ -504,9 +562,22 @@ async function authenticateRequest(
         // API keys have permissions stored directly on them
         const permissions = result.key.permissions as Permission | undefined;
 
+        // Look up user's organization role for admin/owner bypass
+        let role: string | undefined;
+        if (result.key.userId && orgMetadata?.id) {
+          const membership = await db
+            .selectFrom("member")
+            .select(["member.role"])
+            .where("member.userId", "=", result.key.userId)
+            .where("member.organizationId", "=", orgMetadata.id)
+            .executeTakeFirst();
+          role = membership?.role;
+        }
+
         return {
           apiKeyId: result.key.id,
-          user: { id: result.key.userId }, // Include userId from API key
+          user: { id: result.key.userId, role }, // Include userId and role from membership
+          role,
           permissions, // Store the API key's permissions
           organization: orgMetadata
             ? {
@@ -620,8 +691,9 @@ export function createMeshContextFactory(
   const storage = {
     connections: new ConnectionStorage(config.db, vault),
     organizationSettings: new OrganizationSettingsStorage(config.db),
-    monitoring: new SqlMonitoringStorage(config.db),
+    monitoring: new SqlMonitoringStorage(config.db, config.databaseType),
     gateways: new GatewayStorage(config.db),
+    users: new UserStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin
@@ -699,6 +771,9 @@ export function createMeshContextFactory(
           (req?.headers.get("CF-Connecting-IP") ||
             req?.headers.get("X-Forwarded-For")) ??
           undefined,
+        properties: parsePropertiesHeader(
+          req?.headers.get("x-mesh-properties"),
+        ),
       },
       eventBus: config.eventBus,
       createMCPProxy: async (conn: string | ConnectionEntity) => {

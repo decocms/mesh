@@ -46,13 +46,17 @@ const StreamRequestSchema = z.object({
         ])
         .optional()
         .nullable(),
+      limits: z
+        .object({
+          contextWindow: z.number().optional(),
+          maxOutputTokens: z.number().optional(),
+        })
+        .optional(),
     })
-    .passthrough()
-    .optional(),
-  gateway: z.object({ id: z.string() }).passthrough().optional(),
+    .loose(),
+  gateway: z.object({ id: z.string() }).loose(),
   stream: z.boolean().optional(),
   temperature: z.number().optional(),
-  maxOutputTokens: z.number().optional(),
   maxWindowSize: z.number().optional(),
   thread_id: z.string().optional(),
 });
@@ -97,8 +101,14 @@ async function getConnectionById(
   return connection;
 }
 
-/** Converts MCP tools to AI SDK tools */
-const toolsFromMCP = async (client: Client): Promise<ToolSet> => {
+/**
+ * Converts MCP tools to AI SDK tools.
+ * Optionally injects properties into tool call arguments for monitoring correlation.
+ */
+const toolsFromMCP = async (
+  client: Client,
+  properties?: Record<string, string>,
+): Promise<ToolSet> => {
   const list = await client.listTools();
 
   const toolEntries = list.tools.map((t) => {
@@ -113,12 +123,22 @@ const toolsFromMCP = async (client: Client): Promise<ToolSet> => {
         outputSchema: outputSchema
           ? jsonSchema(outputSchema as JSONSchema7)
           : undefined,
-        execute: (input, options) =>
-          client.callTool(
-            { name: t.name, arguments: input as Record<string, unknown> },
+        execute: (input, options) => {
+          // Inject properties via _meta for monitoring correlation
+          const argsWithMeta =
+            properties && Object.keys(properties).length > 0
+              ? { ...input, _meta: { properties } }
+              : input;
+
+          return client.callTool(
+            {
+              name: t.name,
+              arguments: argsWithMeta as Record<string, unknown>,
+            },
             CallToolResultSchema,
             { signal: options.abortSignal },
-          ) as Promise<CallToolResult>,
+          ) as Promise<CallToolResult>;
+        },
         toModelOutput: ({ output }) => {
           if (output.isError) {
             const textContent = output.content
@@ -194,25 +214,18 @@ app.post("/:org/models/stream", async (c) => {
 
     const payload = parseResult.data;
 
-    // Validate model is provided
-    if (!payload.model) {
-      return c.json({ error: "model is required" }, 400);
-    }
-
     const {
       model: modelConfig,
       gateway: gatewayConfig,
       messages,
       temperature,
-      maxOutputTokens = DEFAULT_MAX_TOKENS,
       maxWindowSize = DEFAULT_MEMORY,
       thread_id: threadId,
     } = payload;
 
-    // Validate gateway is provided
-    if (!gatewayConfig?.id) {
-      return c.json({ error: "gateway is required" }, 400);
-    }
+    // Use limits from model config, fallback to default
+    const maxOutputTokens =
+      modelConfig.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
     const transport = createGatewayTransport(c.req.raw, gatewayConfig.id);
 
@@ -250,9 +263,12 @@ app.post("/:org/models/stream", async (c) => {
       toolCalls: "none",
     }).slice(-maxWindowSize);
 
+    // Build properties for monitoring correlation
+    const monitoringProperties = threadId ? { thread_id: threadId } : undefined;
+
     const [proxy, tools] = await Promise.all([
       ctx.createMCPProxy(connection),
-      toolsFromMCP(client),
+      toolsFromMCP(client, monitoringProperties),
     ]);
 
     const llmBinding = LanguageModelBinding.forClient(proxy);
@@ -267,7 +283,7 @@ app.post("/:org/models/stream", async (c) => {
       messages: prunedMessages,
       tools,
       temperature,
-      maxOutputTokens,
+      maxOutputTokens: maxOutputTokens,
       abortSignal: c.req.raw.signal,
       stopWhen: stepCountIs(30), // Stop after 30 steps with tool calls
       onError: async (error) => {

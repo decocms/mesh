@@ -9,3 +9,30 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .shimmer {
+    background-image: linear-gradient(
+      90deg,
+      currentColor 0%,
+      currentColor 30%,
+      oklch(from currentColor calc(l + 0.2) c h / 0.5) 50%,
+      currentColor 70%,
+      currentColor 100%
+    ) !important;
+    background-size: 200% 100% !important;
+    background-clip: text !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    animation: shimmer-animation 3s linear infinite !important;
+  }
+
+  @keyframes shimmer-animation {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+}

@@ -33,7 +33,7 @@ export function StoreRegistrySelect({
 }: StoreRegistrySelectProps) {
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className="w-[200px] h-8!">
+      <SelectTrigger size="sm" className="w-auto min-w-[160px]">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -72,7 +72,7 @@ export function StoreRegistrySelect({
                   onAddWellKnown(registry);
                 }}
                 key={registry.id ?? registry.title}
-                className="relative flex w-full cursor-pointer items-center gap-2 rounded-xl py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
+                className="relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
               >
                 <div className="flex items-center gap-2">
                   {registry.icon ? (

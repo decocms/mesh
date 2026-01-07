@@ -121,6 +121,8 @@ export const KEYS = {
     limit?: number;
     offset?: number;
   }) => ["monitoring", "logs", filters] as const,
+  monitoringLogsInfinite: (locator: string, paramsKey: string) =>
+    ["monitoring", "logs-infinite", locator, paramsKey] as const,
 
   // Gateway prompts (for ice breakers in chat)
   gatewayPrompts: (gatewayId: string) =>
@@ -133,4 +135,7 @@ export const KEYS = {
   // Connection resources (for gateway settings)
   connectionResources: (connectionId: string) =>
     ["connection", connectionId, "resources"] as const,
+
+  // User data
+  user: (userId: string) => ["user", userId] as const,
 } as const;

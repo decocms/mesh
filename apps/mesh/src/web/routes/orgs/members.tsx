@@ -768,13 +768,7 @@ function OrgMembersContent() {
           </Button>
         }
       />
-      <InviteMemberDialog
-        trigger={
-          <Button size="sm" className="h-7 px-3 rounded-lg text-sm font-medium">
-            Invite Member
-          </Button>
-        }
-      />
+      <InviteMemberDialog trigger={<Button size="sm">Invite Member</Button>} />
     </div>
   );
 

@@ -14,6 +14,7 @@ import * as EventBusTools from "./eventbus";
 import * as GatewayTools from "./gateway";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
+import * as UserTools from "./user";
 import { ToolName } from "./registry";
 
 // All available tools - types are inferred
@@ -65,6 +66,9 @@ export const ALL_TOOLS = [
   EventBusTools.EVENT_ACK,
   EventBusTools.EVENT_SUBSCRIPTION_LIST,
   EventBusTools.EVENT_SYNC_SUBSCRIPTIONS,
+
+  // User tools
+  UserTools.USER_GET,
 ] as const satisfies { name: ToolName }[];
 
 export type MCPMeshTools = typeof ALL_TOOLS;

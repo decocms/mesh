@@ -10,7 +10,6 @@ import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { ORG_ADMIN_PROJECT_SLUG } from "@/web/lib/locator";
-import { ChatProvider } from "@/web/providers/chat-provider";
 import {
   ProjectContextProvider,
   ProjectContextProviderProps,
@@ -18,7 +17,7 @@ import {
 import { AppTopbar } from "@deco/ui/components/app-topbar.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { DecoChatSkeleton } from "@deco/ui/components/deco-chat-skeleton.tsx";
+import { DecoChatSkeleton } from "@/web/components/chat/deco-chat-skeleton";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -194,27 +193,25 @@ function ShellLayoutContent() {
 
   return (
     <ProjectContextProvider {...projectContext}>
-      <ChatProvider key={projectContext.org.slug}>
-        <PersistentSidebarProvider>
-          <div className="flex flex-col h-screen">
-            <Topbar showSidebarToggle showOrgSwitcher showDecoChat />
-            <SidebarLayout
-              className="flex-1 bg-sidebar"
-              style={
-                {
-                  "--sidebar-width": "13rem",
-                  "--sidebar-width-mobile": "11rem",
-                } as Record<string, string>
-              }
-            >
-              <MeshSidebar />
-              <SidebarInset className="pt-12">
-                <ChatPanels />
-              </SidebarInset>
-            </SidebarLayout>
-          </div>
-        </PersistentSidebarProvider>
-      </ChatProvider>
+      <PersistentSidebarProvider>
+        <div className="flex flex-col h-screen">
+          <Topbar showSidebarToggle showOrgSwitcher showDecoChat />
+          <SidebarLayout
+            className="flex-1 bg-sidebar"
+            style={
+              {
+                "--sidebar-width": "13rem",
+                "--sidebar-width-mobile": "11rem",
+              } as Record<string, string>
+            }
+          >
+            <MeshSidebar />
+            <SidebarInset className="pt-12">
+              <ChatPanels />
+            </SidebarInset>
+          </SidebarLayout>
+        </div>
+      </PersistentSidebarProvider>
     </ProjectContextProvider>
   );
 }

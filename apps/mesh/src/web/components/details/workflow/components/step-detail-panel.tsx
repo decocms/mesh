@@ -5,12 +5,15 @@ import {
   AccordionTrigger,
 } from "@deco/ui/components/accordion.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { toast } from "@deco/ui/components/sonner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { CornerDownRight, Plus, Repeat03 } from "@untitledui/icons";
 import {
   Box,
   Braces,
   CheckSquare,
+  ChevronDown,
+  ChevronUp,
   FileText,
   Hash,
   Minus,
@@ -27,9 +30,10 @@ import {
 import { ToolInput } from "./tool-selection/components/tool-input";
 import type { JsonSchema } from "@/web/utils/constants";
 import { MonacoCodeEditor } from "./monaco-editor";
-import type { Step } from "@decocms/bindings/workflow";
+import type { Step, ToolCallAction } from "@decocms/bindings/workflow";
 import { useMcp } from "@/web/hooks/use-mcp";
-import { usePollingWorkflowExecution } from "../hooks";
+import { useExecutionCompletedStep } from "../hooks";
+import { useState } from "react";
 
 interface StepDetailPanelProps {
   className?: string;
@@ -68,31 +72,25 @@ function useSyncOutputSchema(step: Step | undefined) {
 
 export function StepDetailPanel({ className }: StepDetailPanelProps) {
   const currentStep = useCurrentStep();
-
+  const { appendStep } = useWorkflowActions();
   // Sync outputSchema from tool if step has tool but no outputSchema
   useSyncOutputSchema(currentStep);
 
   if (!currentStep) {
     return (
       <div className={cn("flex flex-col h-full bg-sidebar", className)}>
-        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-          Select a step to configure
-        </div>
-      </div>
-    );
-  }
-
-  const isToolStep = "toolName" in currentStep.action;
-  const hasToolSelected =
-    isToolStep &&
-    "toolName" in currentStep.action &&
-    currentStep.action.toolName;
-
-  if (!hasToolSelected) {
-    return (
-      <div className={cn("flex flex-col h-full bg-sidebar", className)}>
-        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-          Select a tool to configure this step
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground gap-2 flex-col">
+          Select or create a step to configure
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => {
+              appendStep({ type: "tool" });
+            }}
+          >
+            <Plus size={14} />
+          </Button>
         </div>
       </div>
     );
@@ -100,12 +98,16 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
 
   return (
     <div
-      className={cn("flex flex-col h-full bg-sidebar overflow-auto", className)}
+      className={cn(
+        "flex flex-col h-full bg-sidebar overflow-hidden",
+        className,
+      )}
     >
       <StepHeader step={currentStep} />
       <InputSection step={currentStep} />
       <OutputSection step={currentStep} />
       <TransformCodeSection step={currentStep} />
+      <StepCodeSection step={currentStep} />
     </div>
   );
 }
@@ -115,27 +117,13 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
 // ============================================================================
 
 function StepHeader({ step }: { step: Step }) {
-  const { updateStep, startReplacingTool } = useWorkflowActions();
   const isToolStep = "toolName" in step.action;
   const toolName =
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
-
-  const handleReplace = () => {
-    // Store current tool info for back button
-    if (toolName) {
-      startReplacingTool(toolName);
-    }
-    // Clear tool selection to show MCP server selector
-    updateStep(step.name, {
-      action: {
-        ...step.action,
-        toolName: "",
-      },
-    });
-  };
+  const trackingExecutionId = useTrackingExecutionId();
 
   return (
-    <div className="border-b border-border p-5 shrink-0">
+    <div className="border-b border-border p-5 shrink-0 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <IntegrationIcon
           icon={null}
@@ -146,20 +134,52 @@ function StepHeader({ step }: { step: Step }) {
         <span className="text-base font-medium text-foreground truncate flex-1">
           {toolName}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={handleReplace}
-          title="Replace tool"
-        >
-          <Repeat03 size={14} />
-        </Button>
+        {trackingExecutionId ? null : <ReplaceToolButton />}
       </div>
       {step.description && (
         <p className="text-sm text-muted-foreground">{step.description}</p>
       )}
     </div>
+  );
+}
+
+function ReplaceToolButton() {
+  const currentStep = useCurrentStep();
+  const { updateStep, startReplacingTool } = useWorkflowActions();
+  const trackingExecutionId = useTrackingExecutionId();
+  const isToolStep = currentStep && "toolName" in currentStep.action;
+  const toolName = isToolStep
+    ? (currentStep.action as ToolCallAction).toolName
+    : null;
+
+  const handleReplace = () => {
+    if (!currentStep) return;
+    if (trackingExecutionId) {
+      toast.error("You cannot replace a tool while a workflow is executing.");
+      return;
+    }
+    // Store current tool info for back button
+    if (toolName) {
+      startReplacingTool(toolName);
+    }
+    // Clear tool selection to show MCP server selector
+    updateStep(currentStep.name, {
+      action: {
+        ...currentStep.action,
+        toolName: "",
+      },
+    });
+  };
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-7"
+      onClick={handleReplace}
+      title="Replace tool"
+    >
+      <Repeat03 size={14} />
+    </Button>
   );
 }
 
@@ -190,7 +210,7 @@ function InputSection({ step }: { step: Step }) {
   const isToolStep = "toolName" in step.action;
   const toolName =
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
-
+  const trackingExecutionId = useTrackingExecutionId();
   const { tool } = useGatewayTool(toolName ?? "");
 
   if (!tool || !tool.inputSchema) {
@@ -207,7 +227,7 @@ function InputSection({ step }: { step: Step }) {
     <Accordion
       type="single"
       collapsible
-      defaultValue="input"
+      defaultValue={trackingExecutionId ? "output" : "input"}
       className="border-b border-border shrink-0"
     >
       <AccordionItem value="input" className="border-b-0">
@@ -218,6 +238,7 @@ function InputSection({ step }: { step: Step }) {
         </AccordionTrigger>
         <AccordionContent className="px-5 pt-2">
           <ToolInput
+            key={step.name}
             inputSchema={tool.inputSchema as JsonSchema}
             inputParams={step.input as Record<string, unknown>}
             setInputParams={handleInputChange}
@@ -235,12 +256,13 @@ function InputSection({ step }: { step: Step }) {
 
 function OutputSection({ step }: { step: Step }) {
   const outputSchema = step.outputSchema;
+  const [isOpen, setIsOpen] = useState(false);
   const trackingExecutionId = useTrackingExecutionId();
-  const { step_results } = usePollingWorkflowExecution(trackingExecutionId);
-  const stepResult = step_results?.find(
-    (result) => result.step_id === step.name,
+  const { output, error } = useExecutionCompletedStep(
+    trackingExecutionId,
+    step.name,
   );
-  const output = stepResult?.output;
+  const content = output ? output : error ? { error: error } : null;
 
   // Always show the Output section (even if empty)
   const properties =
@@ -253,50 +275,46 @@ function OutputSection({ step }: { step: Step }) {
   const propertyEntries = properties ? Object.entries(properties) : [];
 
   return (
-    <Accordion
-      type="single"
-      collapsible
-      defaultValue="output"
-      className="border-b border-border shrink-0"
+    <div
+      className={cn(
+        "flex flex-col border-b border-border",
+        isOpen ? "flex-1 min-h-0 overflow-hidden" : "shrink-0",
+      )}
     >
-      <AccordionItem value="output" className="border-b-0">
-        <AccordionTrigger className="px-5 py-5">
-          <span className="text-sm font-medium text-muted-foreground">
-            Output
-          </span>
-        </AccordionTrigger>
-        <AccordionContent className="px-5 pt-2">
-          {propertyEntries.length === 0 ? (
-            <div className="text-sm text-muted-foreground italic">
-              No output schema defined
-            </div>
-          ) : output ? (
-            <OutputMonacoEditor output={output} />
+      <div
+        className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-muted-foreground">Output</h3>
+          {isOpen ? (
+            <ChevronUp size={14} className="text-muted-foreground" />
           ) : (
-            <div className="space-y-2">
-              {propertyEntries.map(([key, propSchema]) => (
-                <OutputProperty
-                  key={key}
-                  name={key}
-                  schema={propSchema as JsonSchema}
-                />
-              ))}
-            </div>
+            <ChevronDown size={14} className="text-muted-foreground" />
           )}
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
-  );
-}
-
-function OutputMonacoEditor({ output }: { output: unknown }) {
-  const code = JSON.stringify(output, null, 2);
-  const lineCount = code.split("\n").length;
-  // ~18px per line (fontSize 13 + line spacing) + 24px padding
-  const height = Math.min(Math.max(lineCount * 18 + 24, 80), 400);
-
-  return (
-    <MonacoCodeEditor code={code} language="json" height={height} readOnly />
+        </div>
+      </div>
+      {isOpen && (
+        <div className="flex-1 min-h-0 overflow-auto px-5">
+          {trackingExecutionId ? (
+            <MonacoCodeEditor
+              code={JSON.stringify(content, null, 2)}
+              language="json"
+              height="100%"
+              readOnly
+            />
+          ) : null}
+          {!trackingExecutionId &&
+            propertyEntries.map(([key, propSchema]) => (
+              <OutputProperty
+                key={key}
+                name={key}
+                schema={propSchema as JsonSchema}
+              />
+            ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -354,6 +372,7 @@ function OutputProperty({
 
 function TransformCodeSection({ step }: { step: Step }) {
   const { updateStep } = useWorkflowActions();
+  const trackingExecutionId = useTrackingExecutionId();
 
   const isToolStep = "toolName" in step.action;
   const toolName =
@@ -444,6 +463,10 @@ export default async function(input: Input): Promise<Output> {
     });
   };
 
+  if ("code" in step.action && step.action.code) {
+    return null;
+  }
+
   // No transform code → show collapsed with Plus
   if (!hasTransformCode) {
     return (
@@ -463,7 +486,7 @@ export default async function(input: Input): Promise<Output> {
 
   // Has transform code → show editor with Minus to remove
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden border-b border-border">
       <div
         className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
         onClick={handleRemoveTransformCode}
@@ -475,14 +498,75 @@ export default async function(input: Input): Promise<Output> {
           <Minus size={14} className="text-muted-foreground" />
         </div>
       </div>
-      <div className="flex-1 min-h-120">
+      <div className="flex-1 min-h-0">
         <MonacoCodeEditor
+          key={`transform-code-${step.name}-${trackingExecutionId}`}
           code={transformCode!}
           language="typescript"
+          readOnly={trackingExecutionId !== undefined}
           onSave={handleCodeSave}
           height="100%"
         />
       </div>
+    </div>
+  );
+}
+
+function StepCodeSection({ step }: { step: Step }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const { updateStep } = useWorkflowActions();
+  const code =
+    "code" in step.action && step.action.code ? step.action.code : null;
+  const trackingExecutionId = useTrackingExecutionId();
+  const handleCodeSave = (
+    code: string,
+    outputSchema: Record<string, unknown> | null,
+  ) => {
+    updateStep(step.name, {
+      action: {
+        ...step.action,
+        code: code,
+      },
+      ...(outputSchema ? { outputSchema } : {}),
+    });
+  };
+  if (!code) {
+    return null;
+  }
+  return (
+    <div
+      className={cn(
+        "flex flex-col border-b border-border",
+        isOpen ? "flex-1 min-h-0 overflow-hidden" : "shrink-0",
+      )}
+    >
+      <div
+        className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-muted-foreground">
+            Step Code
+          </h3>
+          {isOpen ? (
+            <ChevronUp size={14} className="text-muted-foreground" />
+          ) : (
+            <ChevronDown size={14} className="text-muted-foreground" />
+          )}
+        </div>
+      </div>
+      {isOpen && (
+        <div className="flex-1 min-h-0">
+          <MonacoCodeEditor
+            onSave={(code, outputSchema) => handleCodeSave(code, outputSchema)}
+            key={`step-code-${step.name}-${trackingExecutionId}`}
+            code={code}
+            language="typescript"
+            height="100%"
+            readOnly={trackingExecutionId !== undefined}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -30,6 +30,10 @@ const monitoringLogSchema = z.object({
     .string()
     .nullish()
     .describe("Gateway ID if routed through a gateway"),
+  properties: z
+    .record(z.string(), z.string())
+    .nullish()
+    .describe("Custom key-value metadata attached to the log"),
 });
 
 export const MONITORING_LOGS_LIST = defineTool({
@@ -52,6 +56,21 @@ export const MONITORING_LOGS_LIST = defineTool({
       .describe("Filter by end date (ISO 8601 datetime string)"),
     limit: z.number().default(100).describe("Maximum number of results"),
     offset: z.number().default(0).describe("Offset for pagination"),
+    // Property filters
+    properties: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe("Filter by exact property key=value matches"),
+    propertyKeys: z
+      .array(z.string())
+      .optional()
+      .describe("Filter by logs that have these property keys"),
+    propertyPatterns: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe(
+        "Filter by property value patterns (SQL LIKE, use % as wildcard)",
+      ),
   }),
   outputSchema: z.object({
     logs: z.array(monitoringLogSchema).describe("Array of monitoring logs"),
@@ -61,6 +80,17 @@ export const MONITORING_LOGS_LIST = defineTool({
   }),
   handler: async (input, ctx) => {
     const org = requireOrganization(ctx);
+
+    // Build property filters if any are provided
+    const hasPropertyFilters =
+      input.properties || input.propertyKeys || input.propertyPatterns;
+    const propertyFilters = hasPropertyFilters
+      ? {
+          properties: input.properties,
+          propertyKeys: input.propertyKeys,
+          propertyPatterns: input.propertyPatterns,
+        }
+      : undefined;
 
     const filters = {
       organizationId: org.id,
@@ -72,6 +102,7 @@ export const MONITORING_LOGS_LIST = defineTool({
       endDate: input.endDate ? new Date(input.endDate) : undefined,
       limit: input.limit,
       offset: input.offset,
+      propertyFilters,
     };
 
     const result = await ctx.storage.monitoring.query(filters);

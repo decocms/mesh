@@ -8,7 +8,6 @@ import {
   Loading01,
   AlertOctagon,
   Calendar,
-  CoinsStacked01,
 } from "@untitledui/icons";
 import { Code } from "lucide-react";
 import type { Step } from "@decocms/bindings/workflow";
@@ -31,6 +30,7 @@ interface WorkflowStepCardProps {
   isSelected: boolean;
   executionStatus?: StepExecutionStatus;
   isSkipped?: boolean;
+  isLastStep?: boolean;
   onSelect: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -42,6 +42,7 @@ export function WorkflowStepCard({
   isSelected,
   executionStatus,
   isSkipped,
+  isLastStep,
   onSelect,
   onDelete,
   onDuplicate,
@@ -50,6 +51,10 @@ export function WorkflowStepCard({
   const { item: executionItem } =
     usePollingWorkflowExecution(trackingExecutionId);
   const executionCompletedAt = executionItem?.completed_at_epoch_ms;
+  const isCompletedSuccessfully =
+    executionItem?.completed_steps?.success?.includes(step.name) ?? false;
+  const isCompletedWithError =
+    executionItem?.completed_steps?.error?.includes(step.name) ?? false;
 
   const isToolStep = "toolName" in step.action;
   const connectionId =
@@ -61,7 +66,11 @@ export function WorkflowStepCard({
   const hasToolSelected = Boolean(toolName);
   const outputSchemaProperties = getOutputSchemaProperties(step);
 
-  const status = executionStatus?.status;
+  const status = isCompletedSuccessfully
+    ? "success"
+    : isCompletedWithError
+      ? "error"
+      : executionStatus?.status;
   const isTracking = executionStatus !== undefined;
   const hasStatusIndicator = status === "success" || status === "error";
 
@@ -127,7 +136,9 @@ export function WorkflowStepCard({
             <StatusIndicator status={status} />
           </>
         )}
-        <VerticalConnector height={connectorHeight} color={connectorColor} />
+        {isLastStep && trackingExecutionId ? null : (
+          <VerticalConnector height={connectorHeight} color={connectorColor} />
+        )}
       </div>
 
       {/* Content */}
@@ -202,7 +213,9 @@ export function WorkflowStepCard({
 
         {/* Execution Status Badge */}
         {status === "success" && (
-          <SuccessBadge completedAtEpochMs={executionCompletedAt} />
+          <SuccessBadge
+            completedAtEpochMs={executionCompletedAt as number | null}
+          />
         )}
         {status === "error" && <ErrorBadge error={executionStatus?.error} />}
       </div>
@@ -311,10 +324,6 @@ function SuccessBadge({
           <span className="text-xs text-success">{timeStr}</span>
         </div>
       )}
-      <div className="flex items-center gap-1.5">
-        <CoinsStacked01 size={16} className="text-success" />
-        <span className="text-xs text-success">—</span>
-      </div>
     </div>
   );
 }
@@ -379,6 +388,9 @@ function VerticalConnector({
 }
 
 function getStepDisplayName(step: Step): string {
+  if (step.name) {
+    return step.name;
+  }
   if ("toolName" in step.action && step.action.toolName) {
     return step.action.toolName;
   }

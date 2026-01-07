@@ -140,8 +140,15 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
             >[0]["callOptions"],
             modelId,
           });
+          const formattedTimestamp = response.response?.timestamp
+            ? new Date(response.response.timestamp)
+            : undefined;
           return {
             ...response,
+            response: {
+              ...response.response,
+              timestamp: formattedTimestamp,
+            },
             usage: {
               inputTokens: response.usage.inputTokens ?? undefined,
               outputTokens: response.usage.outputTokens ?? undefined,
@@ -157,6 +164,12 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
             >[0]["callOptions"],
             modelId,
           });
+
+          if (!response.ok) {
+            throw new Error(
+              `Streaming failed for model ${modelId} with the status code: ${response.status}\n${await response.text()}`,
+            );
+          }
 
           return {
             stream: responseToStream(response),

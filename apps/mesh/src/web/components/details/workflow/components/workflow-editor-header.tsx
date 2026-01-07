@@ -18,10 +18,16 @@ import {
   GitBranch01,
   Play,
   Save02,
+  Stop,
 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { ViewActions, ViewTabs } from "../../layout";
-import { usePollingWorkflowExecution, useWorkflowStart } from "../hooks";
+import {
+  usePollingWorkflowExecution,
+  useWorkflowCancel,
+  useWorkflowResume,
+  useWorkflowStart,
+} from "../hooks";
 import { useViewModeStore, type WorkflowViewMode } from "../stores/view-mode";
 import {
   useIsDirty,
@@ -51,6 +57,7 @@ export function WorkflowEditorHeader({
     useWorkflowActions();
   const isDirty = useIsDirty();
   const selectedGatewayId = useSelectedGatewayId();
+  const trackingExecutionId = useTrackingExecutionId();
 
   return (
     <>
@@ -73,87 +80,93 @@ export function WorkflowEditorHeader({
       </ViewTabs>
 
       <ViewActions>
-        <PinToSidebarButton title={title} url={url} icon="workflow" />
+        {!trackingExecutionId && (
+          <>
+            <PinToSidebarButton title={title} url={url} icon="workflow" />
 
-        <Suspense fallback={<Spinner size="xs" />}>
-          <GatewaySelector
-            selectedGatewayId={selectedGatewayId}
-            onGatewayChange={setSelectedGatewayId}
-            variant="bordered"
-            placeholder="Select gateway"
-          />
-        </Suspense>
+            <Suspense fallback={<Spinner size="xs" />}>
+              <GatewaySelector
+                selectedGatewayId={selectedGatewayId ?? undefined}
+                onGatewayChange={setSelectedGatewayId}
+                variant="bordered"
+                placeholder="Select gateway"
+              />
+            </Suspense>
 
-        <ViewModeToggle<WorkflowViewMode>
-          value={viewMode}
-          onValueChange={setViewMode}
-          size="sm"
-          options={[
-            { value: "visual", icon: <GitBranch01 /> },
-            { value: "code", icon: <Code02 /> },
-          ]}
-        />
+            <ViewModeToggle<WorkflowViewMode>
+              value={viewMode}
+              onValueChange={setViewMode}
+              size="sm"
+              options={[
+                { value: "visual", icon: <GitBranch01 /> },
+                { value: "code", icon: <Code02 /> },
+              ]}
+            />
 
-        <TooltipProvider>
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-7 border border-input"
-                  onClick={resetToOriginalWorkflow}
-                  disabled={!isDirty}
-                  aria-label="Reset changes"
-                >
-                  <FlipBackward size={14} />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Reset changes</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-7 border border-input"
+                      onClick={resetToOriginalWorkflow}
+                      disabled={!isDirty}
+                      aria-label="Reset changes"
+                    >
+                      <FlipBackward size={14} />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Reset changes</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
 
-        <TooltipProvider>
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-7 border border-input"
-                  onClick={onSave}
-                  disabled={!isDirty}
-                  aria-label="Save workflow"
-                >
-                  <Save02 size={14} />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Save workflow</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-7 border border-input"
+                      onClick={onSave}
+                      disabled={!isDirty}
+                      aria-label="Save workflow"
+                    >
+                      <Save02 size={14} />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Save workflow</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
 
-        <TooltipProvider>
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <Button
-                  variant={showExecutionsList ? "secondary" : "outline"}
-                  size="icon"
-                  className="size-7 border border-input"
-                  onClick={toggleExecutionsList}
-                  aria-label={showExecutionsList ? "Hide runs" : "Show runs"}
-                >
-                  <ClockFastForward size={14} />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {showExecutionsList ? "Hide runs" : "Show runs"}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button
+                      variant={showExecutionsList ? "secondary" : "outline"}
+                      size="icon"
+                      className="size-7 border border-input"
+                      onClick={toggleExecutionsList}
+                      aria-label={
+                        showExecutionsList ? "Hide runs" : "Show runs"
+                      }
+                    >
+                      <ClockFastForward size={14} />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {showExecutionsList ? "Hide runs" : "Show runs"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </>
+        )}
 
         <RunWorkflowButton />
       </ViewActions>
@@ -167,16 +180,24 @@ function useIsExecutionCompleted() {
   return item?.completed_at_epoch_ms != null;
 }
 
+function useIsExecutionCancelled() {
+  const trackingExecutionId = useTrackingExecutionId();
+  const { item } = usePollingWorkflowExecution(trackingExecutionId);
+  return item?.status === "cancelled";
+}
+
 function RunWorkflowButton() {
   const isDirty = useIsDirty();
   const isExecutionCompleted = useIsExecutionCompleted();
+  const isExecutionCancelled = useIsExecutionCancelled();
   const trackingExecutionId = useTrackingExecutionId();
   const selectedGatewayId = useSelectedGatewayId();
   const { handleRunWorkflow, isPending, requiresInput, inputSchema } =
     useWorkflowStart();
   const steps = useWorkflowSteps();
   const [showInputDialog, setShowInputDialog] = useState(false);
-
+  const { handleCancelWorkflow, isCancelling } = useWorkflowCancel();
+  const { handleResumeWorkflow, isResuming } = useWorkflowResume();
   const trackingExecutionIsRunning =
     trackingExecutionId && !isExecutionCompleted;
 
@@ -189,37 +210,52 @@ function RunWorkflowButton() {
   const hasNoGateway = !selectedGatewayId;
 
   const isDisabled =
-    trackingExecutionIsRunning || isDirty || hasEmptySteps || hasNoGateway;
+    isDirty || hasEmptySteps || hasNoGateway || isPending || isCancelling;
 
+  const isRunning = trackingExecutionIsRunning || isPending;
   const getTooltipMessage = () => {
-    if (trackingExecutionIsRunning) return "Workflow is currently running";
+    if (isExecutionCancelled) return "Workflow is currently cancelled";
+    if (isRunning) return "Workflow is currently running";
     if (isDirty) return "Save your changes before running";
     if (hasNoGateway) return "Select a gateway first";
-    if (hasEmptySteps) return "All steps must have a tool selected";
+    if (hasEmptySteps) return "Add at least one step to the workflow";
     return null;
   };
 
   const tooltipMessage = getTooltipMessage();
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (requiresInput && inputSchema) {
       setShowInputDialog(true);
-    } else {
-      handleRunWorkflow({});
+      return;
     }
+
+    if (isExecutionCancelled && trackingExecutionId) {
+      await handleResumeWorkflow(trackingExecutionId);
+      return;
+    }
+
+    if (isRunning && trackingExecutionId) {
+      await handleCancelWorkflow(trackingExecutionId);
+      return;
+    }
+
+    await handleRunWorkflow({});
   };
 
   const handleInputSubmit = async (input: Record<string, unknown>) => {
     await handleRunWorkflow(input);
   };
 
-  const buttonLabel = trackingExecutionId
-    ? isExecutionCompleted
-      ? "Replay"
-      : "Running..."
-    : requiresInput
-      ? "Run with input..."
-      : "Run workflow";
+  const buttonLabel = isExecutionCancelled
+    ? "Resume"
+    : trackingExecutionId
+      ? isExecutionCompleted
+        ? "Replay"
+        : "Running..."
+      : requiresInput
+        ? "Run with input..."
+        : "Run workflow";
 
   const button = (
     <Button
@@ -233,8 +269,17 @@ function RunWorkflowButton() {
       disabled={isDisabled}
       onClick={handleClick}
     >
-      {!trackingExecutionIsRunning && <Play size={14} />}
-      {trackingExecutionIsRunning && <Spinner size="xs" />}
+      {((!trackingExecutionIsRunning &&
+        !isPending &&
+        !isCancelling &&
+        !isResuming) ||
+        isExecutionCancelled) && <Play size={14} />}
+      {trackingExecutionIsRunning &&
+        !isPending &&
+        !isCancelling &&
+        !isResuming &&
+        !isExecutionCancelled && <Stop size={14} />}
+      {(isPending || isCancelling || isResuming) && <Spinner size="xs" />}
       {buttonLabel}
     </Button>
   );

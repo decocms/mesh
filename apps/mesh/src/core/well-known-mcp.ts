@@ -6,6 +6,12 @@ export const DECO_CMS_API_HOST = "api.decocms.com";
 /** The Deco Store registry URL (public, no OAuth) */
 export const DECO_STORE_URL = "https://api.decocms.com/mcp/registry";
 
+/** OpenRouter MCP URL (deco-hosted) */
+export const OPENROUTER_MCP_URL = "https://sites-openrouter.decocache.com/mcp";
+
+/** OpenRouter icon URL */
+export const OPENROUTER_ICON_URL = "https://openrouter.ai/favicon.ico";
+
 /**
  * Check if a connection URL is a deco-hosted MCP (excluding the registry itself).
  * Used to determine if smart OAuth params should be added.
@@ -116,6 +122,38 @@ export function getWellKnownSelfConnection(
     metadata: {
       isDefault: true,
       type: WellKnownOrgMCPId.SELF,
+    },
+  };
+}
+
+/**
+ * Get well-known connection definition for OpenRouter.
+ * Used by the chat UI to offer a one-click install when no model provider is connected.
+ */
+export function getWellKnownOpenRouterConnection(
+  opts: { id?: string } = {},
+): ConnectionCreateData {
+  return {
+    id: opts.id,
+    title: "OpenRouter",
+    description: "Access hundreds of LLM models from a single API",
+    icon: OPENROUTER_ICON_URL,
+    app_name: "openrouter",
+    app_id: "openrouter",
+    connection_type: "HTTP",
+    connection_url: OPENROUTER_MCP_URL,
+    connection_token: null,
+    connection_headers: null,
+    oauth_config: null,
+    configuration_state: null,
+    configuration_scopes: null,
+    metadata: {
+      source: "chat",
+      verified: false,
+      scopeName: "deco",
+      toolsCount: 0,
+      publishedAt: null,
+      repository: null,
     },
   };
 }
