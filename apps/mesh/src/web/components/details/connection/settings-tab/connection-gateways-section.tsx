@@ -151,7 +151,7 @@ export function ConnectionGatewaysSection({
             Use in your IDE
           </h4>
           <p className="text-xs text-muted-foreground">
-            Expose this integration via an Assistant to use it in Cursor, VS
+            Expose this connection via an Assistant to use it in Cursor, VS
             Code, Claude Desktop, and other MCP-compatible tools.
           </p>
         </div>
@@ -173,7 +173,7 @@ export function ConnectionGatewaysSection({
       <div className="flex flex-col gap-1">
         <h4 className="text-sm font-medium text-foreground">Assistants</h4>
         <p className="text-xs text-muted-foreground">
-          This integration is exposed via the following Assistants.
+          This connection is exposed via the following Assistants.
         </p>
       </div>
       <div className="flex flex-col gap-2">

@@ -9,7 +9,7 @@ icon: BookOpen
 - **Organization**: limite de tenancy. Tudo (connections, gateways, logs) é escopado por organização.
 - **Members**: pessoas dentro da organização.
 - **Roles**: papéis dentro da org (usados para permissões).
-- **Integração (Connection)**: um endpoint MCP upstream configurado (normalmente HTTP), com credenciais no vault quando necessário.
+- **Conexão**: um endpoint MCP upstream configurado (normalmente HTTP), com credenciais no vault quando necessário.
 - **Assistant**: um "MCP virtual" que agrega múltiplas connections em um único endpoint.
 - **Tool call**: uma requisição `tools/call` roteada pelo Mesh para uma connection (ou via gateway).
 - **Monitoring log**: registro de tool call (inputs/outputs, duração, erro) para debug e operação.
@@ -26,6 +26,6 @@ icon: BookOpen
    - **Management MCP** (admin tools), ou
    - **Proxy** (uma connection), ou
    - **Assistant** (agregação).
-3. O Mesh autoriza, carrega credenciais, faz proxy para a Integração upstream e registra monitoring.
+3. O Mesh autoriza, carrega credenciais, faz proxy para a Conexão upstream e registra monitoring.
 
 

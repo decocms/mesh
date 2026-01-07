@@ -202,7 +202,7 @@ function TopServersContent({
 
   return (
     <HomeGridCell
-      title={<p className="text-sm text-muted-foreground">Integrations</p>}
+      title={<p className="text-sm text-muted-foreground">Connections</p>}
       onTitleClick={handleTitleClick}
       action={
         onMetricsModeChange ? (
@@ -284,7 +284,7 @@ function TopServersContent({
 function TopServersSkeleton() {
   return (
     <HomeGridCell
-      title={<p className="text-sm text-muted-foreground">Integrations</p>}
+      title={<p className="text-sm text-muted-foreground">Connections</p>}
     >
       <div className="space-y-3 w-full">
         {Array.from({ length: 5 }).map((_, i) => (

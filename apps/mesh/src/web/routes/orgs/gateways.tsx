@@ -80,7 +80,7 @@ function OrgGatewaysContent() {
   const handleCreateGateway = async () => {
     // Check if there are any connections available
     if (connections.length === 0) {
-      toast.error("Create at least one Integration first");
+      toast.error("Create at least one Connection first");
       return;
     }
 
@@ -313,7 +313,7 @@ function OrgGatewaysContent() {
               description={
                 listState.search
                   ? `No assistants match "${listState.search}"`
-                  : "Create an assistant to aggregate tools from multiple Integrations."
+                  : "Create an assistant to aggregate tools from multiple Connections."
               }
             />
           ) : (
@@ -427,7 +427,7 @@ function OrgGatewaysContent() {
                   <CpuChip02 size={36} className="text-muted-foreground" />
                 }
                 title="No assistants yet"
-                description="Create an assistant to aggregate tools from multiple Integrations."
+                description="Create an assistant to aggregate tools from multiple Connections."
               />
             )
           }

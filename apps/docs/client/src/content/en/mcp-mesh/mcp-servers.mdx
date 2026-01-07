@@ -1,5 +1,5 @@
 ---
-title: Integrations
+title: Connections
 description: Register upstream MCP servers, store credentials, and proxy requests securely
 icon: Server
 ---
@@ -8,14 +8,14 @@ import Callout from "../../../components/ui/Callout.astro";
 
 ## What is a connection?
 
-An **Integration** in the Mesh is a configured upstream MCP endpoint (typically HTTP). The Mesh stores its configuration and (optionally) credentials, and can then proxy MCP requests to it.
+A **Connection** in the Mesh is a configured upstream MCP endpoint (typically HTTP). The Mesh stores its configuration and (optionally) credentials, and can then proxy MCP requests to it.
 
 ## In the UI
 
-Go to **Integrations** to:
+Go to **Connections** to:
 
-- browse connected integrations
-- add a new integration (**Connect Integration**)
+- browse connected connections
+- create a new connection (**Create Connection**)
 - search and manage existing connections
 
 ## Proxying to a single connection
@@ -33,7 +33,7 @@ The Mesh will:
 5. log a monitoring event
 
 <Callout type="info">
-  If you need a single aggregated endpoint for multiple integrations, use [Assistants](/en/mcp-mesh/mcp-gateways) instead.
+  If you need a single aggregated endpoint for multiple connections, use [Assistants](/en/mcp-mesh/mcp-gateways) instead.
 </Callout>
 
 

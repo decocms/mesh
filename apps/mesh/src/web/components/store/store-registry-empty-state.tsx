@@ -58,7 +58,7 @@ export function StoreRegistryEmptyState({
         />
       }
       title="Connect to registry"
-      description="Connect to discover and use Integrations from the community."
+      description="Connect to discover and use Connections from the community."
       actions={
         <>
           <Button
@@ -72,7 +72,7 @@ export function StoreRegistryEmptyState({
             {isInstalling ? "Installing..." : "Install Registry"}
           </Button>
           <Button variant="outline" onClick={handleInstallMcpServer}>
-            Install Integration
+            Create Connection
           </Button>
         </>
       }

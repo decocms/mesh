@@ -34,7 +34,7 @@ export function useProjectSidebarItems() {
     },
     {
       key: "mcps",
-      label: "Integrations",
+      label: "Connections",
       icon: <Container />,
       onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
     },

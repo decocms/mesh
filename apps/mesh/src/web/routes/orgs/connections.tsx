@@ -629,7 +629,7 @@ function OrgMcpsContent() {
         size="sm"
         className="h-7 px-3 rounded-lg text-sm font-medium"
       >
-        Connect Integration
+        Create Connection
       </Button>
     </div>
   );
@@ -648,7 +648,7 @@ function OrgMcpsContent() {
             <DialogDescription>
               {editingConnection
                 ? "Update the connection details below."
-                : "Add a new connection to your organization. Fill in the details below."}
+                : "Create a new connection in your organization. Fill in the details below."}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -953,7 +953,7 @@ function OrgMcpsContent() {
 
       {/* Collection Header */}
       <CollectionHeader
-        title="Integrations"
+        title="Connections"
         viewMode={listState.viewMode}
         onViewModeChange={listState.setViewMode}
         sortKey={listState.sortKey}
@@ -972,7 +972,7 @@ function OrgMcpsContent() {
       <CollectionSearch
         value={listState.search}
         onChange={listState.setSearch}
-        placeholder="Search for an Integration..."
+        placeholder="Search for a Connection..."
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             listState.setSearch("");
@@ -997,12 +997,12 @@ function OrgMcpsContent() {
               }
               title={
                 listState.search
-                  ? "No Integrations found"
-                  : "No Integrations found"
+                  ? "No Connections found"
+                  : "No Connections found"
               }
               description={
                 listState.search
-                  ? `No Integrations match "${listState.search}"`
+                  ? `No Connections match "${listState.search}"`
                   : "Create a connection to get started."
               }
               actions={
@@ -1109,8 +1109,8 @@ function OrgMcpsContent() {
                     aria-hidden="true"
                   />
                 }
-                title="No Integrations found"
-                description={`No Integrations match "${listState.search}"`}
+                title="No Connections found"
+                description={`No Connections match "${listState.search}"`}
               />
             ) : (
               <EmptyState
@@ -1123,7 +1123,7 @@ function OrgMcpsContent() {
                     aria-hidden="true"
                   />
                 }
-                title="No Integrations found"
+                title="No Connections found"
                 description="Create a connection to get started."
                 actions={
                   <Button

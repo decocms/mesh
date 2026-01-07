@@ -9,7 +9,7 @@ icon: BookOpen
 - **Organization**: the top-level tenant boundary. Everything (connections, gateways, logs) is org-scoped.
 - **Members**: users invited into an organization.
 - **Roles**: role assignments for members, used by access control checks.
-- **Integration (Connection)**: a configured upstream MCP endpoint (usually HTTP), optionally with stored credentials.
+- **Connection**: a configured upstream MCP endpoint (usually HTTP), optionally with stored credentials.
 - **Assistant**: a virtual MCP server that aggregates multiple connections into a single MCP surface.
 - **Tool call**: a `tools/call` request routed through the Mesh to a downstream MCP server (or via a gateway).
 - **Monitoring log**: a record of a tool call (inputs, outputs, duration, error), used for debugging and ops.
@@ -26,6 +26,6 @@ icon: BookOpen
    - the **Management MCP** (admin tools), or
    - a **Proxy endpoint** (one connection), or
    - an **Assistant endpoint** (aggregated tools/resources/prompts).
-3. The Mesh authorizes, loads credentials, proxies to the downstream Integration(s), and logs monitoring events.
+3. The Mesh authorizes, loads credentials, proxies to the downstream Connection(s), and logs monitoring events.
 
 
