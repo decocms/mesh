@@ -72,7 +72,7 @@ export function StoreRegistryEmptyState({
             {isInstalling ? "Installing..." : "Install Registry"}
           </Button>
           <Button variant="outline" onClick={handleInstallMcpServer}>
-            Create Connection
+            Custom Connection
           </Button>
         </>
       }

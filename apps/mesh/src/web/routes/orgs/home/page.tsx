@@ -110,7 +110,7 @@ function WelcomeOverlay() {
           </Button>
           <Button variant="outline" onClick={handleAddMcp} size="default">
             <Plus size={16} />
-            Create Connection
+            Custom Connection
           </Button>
         </div>
       </div>

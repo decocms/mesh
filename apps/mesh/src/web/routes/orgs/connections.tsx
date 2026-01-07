@@ -629,7 +629,7 @@ function OrgMcpsContent() {
         size="sm"
         className="h-7 px-3 rounded-lg text-sm font-medium"
       >
-        Create Connection
+        Custom Connection
       </Button>
     </div>
   );
@@ -643,12 +643,12 @@ function OrgMcpsContent() {
         <DialogContent className="sm:max-w-[525px]">
           <DialogHeader>
             <DialogTitle>
-              {editingConnection ? "Edit Connection" : "Create New Connection"}
+              {editingConnection ? "Edit Connection" : "Create Connection"}
             </DialogTitle>
             <DialogDescription>
               {editingConnection
                 ? "Update the connection details below."
-                : "Create a new connection in your organization. Fill in the details below."}
+                : "Create a custom connection in your organization. Fill in the details below."}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
