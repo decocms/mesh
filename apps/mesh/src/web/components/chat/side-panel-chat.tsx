@@ -8,17 +8,17 @@ import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { CpuChip02, Loading01, Plus, X } from "@untitledui/icons";
 import { Suspense } from "react";
+import { toast } from "sonner";
 import { useConnections } from "../../hooks/collections/use-connection";
 import { useBindingConnections } from "../../hooks/use-binding";
 import { useThreads } from "../../hooks/use-chat-store";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
-import { useStoredSelection } from "../../hooks/use-stored-selection";
 import { usePersistedChat } from "../../hooks/use-persisted-chat";
+import { useStoredSelection } from "../../hooks/use-stored-selection";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./chat-context";
 import { GatewayIceBreakers } from "./gateway-ice-breakers";
-import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
 import {
   Chat,
   GatewaySelector,
@@ -27,6 +27,7 @@ import {
   useGateways,
   useModels,
 } from "./index";
+import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
 import { ThreadHistoryPopover } from "./thread-history-popover";
 
 // Capybara avatar URL from decopilotAgent
