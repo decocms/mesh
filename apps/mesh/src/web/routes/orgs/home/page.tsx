@@ -11,9 +11,10 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { ChevronRight, Container, CpuChip02, Plus } from "@untitledui/icons";
+import { ChevronRight, Container, CpuChip02, Plus, X } from "@untitledui/icons";
+import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate } from "@tanstack/react-router";
-import { Suspense, useState, useRef } from "react";
+import { Suspense } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { ChatProvider, useChat } from "@/web/components/chat/chat-context";
 import {
@@ -21,36 +22,21 @@ import {
   GatewaySelector,
   ModelSelector,
   UsageStats,
-  useGateways,
   useModels,
 } from "@/web/components/chat/index";
 import { ChatInput } from "@/web/components/chat/chat-input";
-import { ChatPanel } from "@/web/components/chat/side-panel-chat";
+import { NoLlmBindingEmptyState } from "@/web/components/chat/no-llm-binding-empty-state";
+import { useBindingConnections } from "@/web/hooks/use-binding";
+import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
+import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { ThreadHistoryPopover } from "@/web/components/chat/thread-history-popover";
 import { useThreads } from "@/web/hooks/use-chat-store";
 import { useRouterState } from "@tanstack/react-router";
-import { createContext, useContext } from "react";
 import { createToolCaller } from "@/tools/client";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import type { MonitoringLogsWithGatewayResponse } from "@/web/components/monitoring/index";
-
-// Context to allow sidebar to reset home view
-const HomeViewContext = createContext<{ resetToGreeting: () => void } | null>(
-  null,
-);
-
-function useHomeView() {
-  const context = useContext(HomeViewContext);
-  if (!context) {
-    throw new Error("useHomeView must be used within HomeViewProvider");
-  }
-  return context;
-}
-
-// Export for sidebar to use
-export { useHomeView };
 
 /**
  * Get time-based greeting
@@ -60,7 +46,28 @@ function getTimeBasedGreeting(): string {
   if (hour >= 5 && hour < 12) return "Morning";
   if (hour >= 12 && hour < 17) return "Afternoon";
   if (hour >= 17 && hour < 22) return "Evening";
-    return "Night";
+  return "Night";
+}
+
+/**
+ * Hook that generates a dynamic system prompt based on context
+ */
+function useSystemPrompt(gatewayId?: string): string {
+  return `You are an AI assistant running in an MCP Mesh environment.
+
+## About MCP Mesh
+The Model Context Protocol (MCP) Mesh allows users to connect external Connections and expose their capabilities through Hubs. Each Hub provides access to a curated set of tools from connected Connections.
+
+## Important Notes
+- All tool calls are logged and audited for security and compliance
+- You have access to the tools exposed through the selected gateway
+- MCPs may expose resources that users can browse and edit
+- You have context to the current gateway and its tools, resources, and prompts
+
+${gatewayId ? `- Gateway ID: ${gatewayId}` : ""}
+
+Help the user understand and work with this resource.
+`;
 }
 
 /**
@@ -266,7 +273,7 @@ function GatewaysGrid() {
 
   return (
     <div className="flex-1 border-r border-border flex flex-col min-w-0 min-h-0">
-      <SectionHeader title="Top MCP Gateways" onSeeAll={handleSeeAll} />
+      <SectionHeader title="Top Hubs" onSeeAll={handleSeeAll} />
       <div
         className="grid grid-cols-3 flex-1 min-h-0 overflow-hidden"
         style={{ gridTemplateRows: "repeat(4, minmax(0, 1fr))" }}
@@ -297,7 +304,7 @@ function GatewaysGrid() {
   );
 }
 
-// ---------- MCP Servers Grid ----------
+// ---------- Connections Grid ----------
 
 function aggregateServerToolCalls(
   logs: Array<{ connectionId?: string | null }>,
@@ -362,7 +369,7 @@ function McpServersGrid() {
 
   return (
     <div className="flex-1 border-r border-border flex flex-col min-w-0 min-h-0">
-      <SectionHeader title="Top MCP Servers" onSeeAll={handleSeeAll} />
+      <SectionHeader title="Top Connections" onSeeAll={handleSeeAll} />
       <div
         className="grid grid-cols-3 flex-1 min-h-0 overflow-hidden"
         style={{ gridTemplateRows: "repeat(4, minmax(0, 1fr))" }}
@@ -446,20 +453,14 @@ function GridsSkeleton() {
 
 // ---------- Main Content ----------
 
-function HomeContent({
-  showChat,
-  setShowChat,
-}: {
-  showChat: boolean;
-  setShowChat: (show: boolean) => void;
-}) {
+function HomeContent() {
   const { org, locator } = useProjectContext();
   const { data: session } = authClient.useSession();
   const user = session?.user;
+  const navigate = useNavigate();
   const {
     inputValue,
     setInputValue,
-    setPendingSubmit,
     createThread,
     activeThreadId,
     setActiveThreadId,
@@ -470,6 +471,15 @@ function HomeContent({
   // Get gateways and models
   const gateways = useGateways();
   const models = useModels();
+
+  // Check for LLM binding connection
+  const allConnections = useConnections();
+  const [modelsConnection] = useBindingConnections({
+    connections: allConnections,
+    binding: "LLMS",
+  });
+
+  const hasModelsBinding = Boolean(modelsConnection);
 
   const [selectedModel, setSelectedModelState] = useStoredSelection<
     { id: string; connectionId: string },
@@ -497,12 +507,221 @@ function HomeContent({
     setSelectedGatewayState({ gatewayId });
   };
 
+  // Generate dynamic system prompt based on context
+  const systemPrompt = useSystemPrompt(selectedGateway?.id);
+
+  // Get the onToolCall handler for invalidating collection queries
+  const onToolCall = useInvalidateCollectionsOnToolCall();
+
+  // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
+  const chat = usePersistedChat({
+    threadId: activeThreadId,
+    systemPrompt,
+    onToolCall,
+    onCreateThread: (thread) =>
+      createThread({
+        id: thread.id,
+        title: thread.title,
+        gatewayId: selectedGateway?.id,
+      }),
+  });
+
+  // Get branching state from context
+  const { branchContext, clearBranch } = useChat();
+
+  const { isEmpty } = chat;
+
+  const handleSendMessage = async (text: string) => {
+    if (!selectedModel) {
+      toast.error("No model configured");
+      return;
+    }
+
+    if (!selectedGateway?.id) {
+      toast.error("No Hub configured");
+      return;
+    }
+
+    // Clear input
+    setInputValue("");
+
+    // Clear editing state before sending
+    clearBranch();
+
+    const metadata: Metadata = {
+      created_at: new Date().toISOString(),
+      thread_id: activeThreadId,
+      model: {
+        id: selectedModel.id,
+        connectionId: selectedModel.connectionId,
+        provider: selectedModel.provider ?? undefined,
+      },
+      gateway: { id: selectedGateway.id },
+      user: {
+        avatar: user?.image ?? undefined,
+        name: user?.name ?? "you",
+      },
+    };
+
+    await chat.sendMessage(text, metadata);
+  };
+
   const userName = user?.name?.split(" ")[0] || "there";
   const greeting = getTimeBasedGreeting();
 
-  // If chat is active, show full screen chat
-  if (showChat) {
-    return <ChatPanel />;
+  // Show full screen chat when there are messages
+  if (!isEmpty) {
+    return (
+      <Chat>
+      <Chat.Header>
+        <Chat.Header.Left>
+          <IntegrationIcon
+            icon={selectedGateway?.icon}
+            name={selectedGateway?.title || "deco chat"}
+            size="xs"
+            fallbackIcon={<CpuChip02 size={12} />}
+          />
+          <span className="text-sm font-medium">
+            {selectedGateway?.title || "deco chat"}
+          </span>
+        </Chat.Header.Left>
+        <Chat.Header.Right>
+          <button
+            type="button"
+            onClick={() => createThread()}
+            className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
+            title="New chat"
+          >
+            <Plus
+              size={16}
+              className="text-muted-foreground group-hover:text-foreground transition-colors"
+            />
+          </button>
+          <ThreadHistoryPopover
+            threads={threads}
+            activeThreadId={activeThreadId}
+            onSelectThread={setActiveThreadId}
+            onRemoveThread={hideThread}
+            onOpen={() => refetch()}
+          />
+            <button
+              type="button"
+              onClick={() => {
+                // Create a new thread to go back to greeting
+                createThread();
+              }}
+              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent transition-colors group cursor-pointer"
+              title="Back to home"
+            >
+              <X
+                size={16}
+                className="text-muted-foreground group-hover:text-foreground transition-colors"
+              />
+            </button>
+        </Chat.Header.Right>
+      </Chat.Header>
+
+      <Chat.Main>
+          {isEmpty ? (
+          <Chat.EmptyState>
+            <div className="flex flex-col items-center gap-6 w-full px-4">
+              <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
+                  <IntegrationIcon
+                    icon={selectedGateway?.icon}
+                    name={selectedGateway?.title || "deco chat"}
+                    size="lg"
+                    fallbackIcon={<CpuChip02 size={32} />}
+                    className="size-[60px]! rounded-[18px]!"
+                  />
+                <h3 className="text-xl font-medium text-foreground">
+                  {selectedGateway?.title || "Ask deco chat"}
+                </h3>
+                <div className="text-muted-foreground text-center text-sm max-w-md">
+                  {selectedGateway?.description ??
+                    "Ask anything about configuring model providers or using MCP Mesh."}
+                </div>
+              </div>
+            </div>
+          </Chat.EmptyState>
+        ) : (
+          <Chat.Messages
+            messages={chat.messages}
+            status={chat.status}
+            minHeightOffset={240}
+          />
+        )}
+      </Chat.Main>
+
+        <Chat.Footer>
+          <div className="flex flex-col gap-2">
+            <Chat.BranchPreview
+              branchContext={branchContext}
+              clearBranchContext={clearBranch}
+              onGoToOriginalMessage={() => {
+                if (!branchContext) return;
+                setActiveThreadId(branchContext.originalThreadId);
+                clearBranch();
+                setInputValue("");
+              }}
+              setInputValue={setInputValue}
+            />
+            <Chat.Input
+              value={inputValue}
+              onChange={setInputValue}
+              onSubmit={async () => {
+                if (!inputValue.trim()) return;
+                await handleSendMessage(inputValue.trim());
+              }}
+              onStop={chat.stop}
+              disabled={!selectedModel || !selectedGateway?.id}
+              isStreaming={
+                chat.status === "submitted" || chat.status === "streaming"
+              }
+              placeholder={
+                !selectedModel
+                  ? "Select a model to start chatting"
+                  : "Ask anything or @ for context"
+              }
+            >
+              <GatewaySelector
+                selectedGatewayId={selectedGateway?.id}
+                onGatewayChange={handleGatewayChange}
+                placeholder="Gateway"
+                variant="borderless"
+              />
+              <ModelSelector
+                selectedModel={selectedModel ?? undefined}
+                onModelChange={handleModelChange}
+                placeholder="Model"
+                variant="borderless"
+              />
+              <UsageStats messages={chat.messages} />
+            </Chat.Input>
+          </div>
+        </Chat.Footer>
+    </Chat>
+    );
+  }
+
+  // Show empty state when no LLM binding is found
+  if (!hasModelsBinding) {
+    return (
+      <div className="flex flex-col size-full bg-background items-center justify-center">
+        <NoLlmBindingEmptyState
+          orgSlug={org.slug}
+          orgId={org.id}
+          userId={user?.id || ""}
+          allConnections={allConnections ?? []}
+          onInstallMcpServer={() => {
+            navigate({
+              to: "/$org/mcps",
+              params: { org: org.slug },
+              search: { action: "create" },
+            });
+          }}
+        />
+      </div>
+    );
   }
 
   return (
@@ -550,21 +769,17 @@ function HomeContent({
             </p>
             <p className="text-base text-muted-foreground">
               What are we building today?
-          </p>
-        </div>
+            </p>
+          </div>
 
           <div className="w-full shadow-sm rounded-xl">
             <ChatInput
               value={inputValue}
               onChange={setInputValue}
-              onSubmit={() => {
+              onSubmit={async () => {
                 if (inputValue.trim()) {
-                  // Always create a new thread when submitting from home
-                  createThread();
-                  // Mark that we have a pending message to send
-                  setPendingSubmit(true);
-                  // Show the chat full screen
-                  setShowChat(true);
+                  // Send the message
+                  await handleSendMessage(inputValue.trim());
                 }
               }}
               placeholder="Ask anything or @ for context"
@@ -603,26 +818,10 @@ function HomeContent({
 export default function OrgHomePage() {
   // Force remount on navigation to reset chat view
   const routerState = useRouterState();
-  const [showChat, setShowChat] = useState(false);
-  const setShowChatRef = useRef(setShowChat);
-  setShowChatRef.current = setShowChat;
-
-  // Set up event listener on mount (ref-based to avoid useEffect)
-  const listenerSetupRef = useRef(false);
-  if (!listenerSetupRef.current) {
-    listenerSetupRef.current = true;
-    const handleReset = () => setShowChatRef.current(false);
-    window.addEventListener("reset-home-view", handleReset);
-    // Note: We don't clean up since this is a page-level component
-  }
 
   return (
-    <HomeViewContext.Provider
-      value={{ resetToGreeting: () => setShowChat(false) }}
-    >
-      <ChatProvider key={routerState.location.pathname}>
-        <HomeContent showChat={showChat} setShowChat={setShowChat} />
+    <ChatProvider key={routerState.location.pathname}>
+      <HomeContent />
     </ChatProvider>
-    </HomeViewContext.Provider>
   );
 }

@@ -64,7 +64,7 @@ function LatestMcpServersContent() {
 
   return (
     <div className="flex items-center gap-1">
-      <span className="text-xs text-muted-foreground mr-1">MCP Servers</span>
+      <span className="text-xs text-muted-foreground mr-1">Connections</span>
       {displayConnections.map((connection) => (
         <LatestItem
           key={connection.id}
@@ -96,7 +96,7 @@ function LatestMcpServersContent() {
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          <p className="text-xs">Add MCP Server</p>
+          <p className="text-xs">Add Connection</p>
         </TooltipContent>
       </Tooltip>
     </div>
