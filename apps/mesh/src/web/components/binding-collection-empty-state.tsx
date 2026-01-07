@@ -37,6 +37,12 @@ export function BindingCollectionEmptyState({
     try {
       const created = await actions.create.mutateAsync(wellKnownMcp);
       onConnected?.(created.id);
+
+      // Navigate to the connection detail page for setup
+      navigate({
+        to: "/$org/mcps/$connectionId",
+        params: { org: orgSlug, connectionId: created.id },
+      });
     } finally {
       setIsInstalling(false);
     }
