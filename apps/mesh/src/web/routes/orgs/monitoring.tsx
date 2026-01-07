@@ -261,7 +261,7 @@ function FiltersPopover({
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                MCP Servers
+                Integrations
               </label>
               <MultiSelect
                 options={connectionOptions}
@@ -665,7 +665,7 @@ function MonitoringLogsTableContent({
 
             {/* Tool/Connection Column */}
             <div className="flex-1 pr-2 md:pr-4 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              Tool / MCP Server
+              Tool / Integration
             </div>
 
             {/* Gateway Column */}

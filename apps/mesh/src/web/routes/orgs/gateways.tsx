@@ -80,7 +80,7 @@ function OrgGatewaysContent() {
   const handleCreateGateway = async () => {
     // Check if there are any connections available
     if (connections.length === 0) {
-      toast.error("Create at least one MCP connection first");
+      toast.error("Create at least one Integration first");
       return;
     }
 
@@ -238,7 +238,7 @@ function OrgGatewaysContent() {
       className="h-7 px-3 rounded-lg text-sm font-medium"
       disabled={actions.create.isPending}
     >
-      {actions.create.isPending ? "Creating..." : "Create MCP Gateway"}
+      {actions.create.isPending ? "Creating..." : "Create Assistant"}
     </Button>
   );
 
@@ -274,7 +274,7 @@ function OrgGatewaysContent() {
 
       {/* Collection Header */}
       <CollectionHeader
-        title="MCP Gateways"
+        title="Assistants"
         viewMode={listState.viewMode}
         onViewModeChange={listState.setViewMode}
         sortKey={listState.sortKey}
@@ -292,7 +292,7 @@ function OrgGatewaysContent() {
       <CollectionSearch
         value={listState.search}
         onChange={listState.setSearch}
-        placeholder="Search for a gateway..."
+        placeholder="Search for an assistant..."
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             listState.setSearch("");
@@ -307,11 +307,11 @@ function OrgGatewaysContent() {
           {gateways.length === 0 ? (
             <EmptyState
               image={<CpuChip02 size={36} className="text-muted-foreground" />}
-              title={listState.search ? "No gateways found" : "No gateways yet"}
+              title={listState.search ? "No assistants found" : "No assistants yet"}
               description={
                 listState.search
-                  ? `No gateways match "${listState.search}"`
-                  : "Create a gateway to aggregate tools from multiple MCP connections."
+                  ? `No assistants match "${listState.search}"`
+                  : "Create an assistant to aggregate tools from multiple Integrations."
               }
             />
           ) : (
@@ -416,16 +416,16 @@ function OrgGatewaysContent() {
                 image={
                   <CpuChip02 size={36} className="text-muted-foreground" />
                 }
-                title="No gateways found"
-                description={`No gateways match "${listState.search}"`}
+                title="No assistants found"
+                description={`No assistants match "${listState.search}"`}
               />
             ) : (
               <EmptyState
                 image={
                   <CpuChip02 size={36} className="text-muted-foreground" />
                 }
-                title="No gateways yet"
-                description="Create a gateway to aggregate tools from multiple MCP connections."
+                title="No assistants yet"
+                description="Create an assistant to aggregate tools from multiple Integrations."
               />
             )
           }

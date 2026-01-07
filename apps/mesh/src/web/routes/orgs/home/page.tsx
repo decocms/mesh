@@ -98,7 +98,7 @@ function WelcomeOverlay() {
             Welcome to your MCP Mesh
           </h2>
           <p className="text-sm text-muted-foreground leading-normal">
-            Connect your first MCP server to unlock real-time metrics, activity
+            Connect your first Integration to unlock real-time metrics, activity
             logs, and analytics right here on your home.
           </p>
         </div>
@@ -110,7 +110,7 @@ function WelcomeOverlay() {
           </Button>
           <Button variant="outline" onClick={handleAddMcp} size="default">
             <Plus size={16} />
-            Connect MCP Server
+            Connect Integration
           </Button>
         </div>
       </div>
@@ -178,7 +178,7 @@ function DashboardView({
           </ErrorBoundary>
         </div>
 
-        {/* MCP Servers */}
+        {/* Integrations */}
         <div className="lg:col-span-1 lg:row-span-1 bg-background">
           <ErrorBoundary
             fallback={
@@ -196,7 +196,7 @@ function DashboardView({
           </ErrorBoundary>
         </div>
 
-        {/* MCP Gateways */}
+        {/* Assistants */}
         <div className="lg:col-span-1 lg:row-span-1 bg-background">
           <ErrorBoundary
             fallback={

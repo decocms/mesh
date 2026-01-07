@@ -74,7 +74,7 @@ function useSystemPrompt(gatewayId?: string): string {
   return `You are an AI assistant running in an MCP Mesh environment.
 
 ## About MCP Mesh
-The Model Context Protocol (MCP) Mesh allows users to connect external MCP servers and expose their capabilities through gateways. Each gateway provides access to a curated set of tools from connected MCP servers.
+The Model Context Protocol (MCP) Mesh allows users to connect external Integrations and expose their capabilities through Assistants. Each Assistant provides access to a curated set of tools from connected Integrations.
 
 ## Important Notes
 - All tool calls are logged and audited for security and compliance
@@ -292,7 +292,7 @@ function ChatPanelContent() {
                       })
                     }
                   >
-                    Install MCP Server
+                    Install Integration
                   </Button>
                 }
               />

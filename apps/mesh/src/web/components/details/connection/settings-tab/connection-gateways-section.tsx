@@ -123,7 +123,7 @@ function CreateGatewayButton({
       ) : (
         <CpuChip02 size={20} />
       )}
-      Expose via MCP Gateway
+      Expose via Assistant
     </Button>
   );
 }

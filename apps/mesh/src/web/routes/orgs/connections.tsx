@@ -629,7 +629,7 @@ function OrgMcpsContent() {
         size="sm"
         className="h-7 px-3 rounded-lg text-sm font-medium"
       >
-        Connect MCP Server
+        Connect Integration
       </Button>
     </div>
   );
@@ -953,7 +953,7 @@ function OrgMcpsContent() {
 
       {/* Collection Header */}
       <CollectionHeader
-        title="MCP Servers"
+        title="Integrations"
         viewMode={listState.viewMode}
         onViewModeChange={listState.setViewMode}
         sortKey={listState.sortKey}
@@ -972,7 +972,7 @@ function OrgMcpsContent() {
       <CollectionSearch
         value={listState.search}
         onChange={listState.setSearch}
-        placeholder="Search for an MCP Server..."
+        placeholder="Search for an Integration..."
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             listState.setSearch("");
@@ -997,12 +997,12 @@ function OrgMcpsContent() {
               }
               title={
                 listState.search
-                  ? "No MCP Servers found"
-                  : "No MCP Servers found"
+                  ? "No Integrations found"
+                  : "No Integrations found"
               }
               description={
                 listState.search
-                  ? `No MCP Servers match "${listState.search}"`
+                  ? `No Integrations match "${listState.search}"`
                   : "Create a connection to get started."
               }
               actions={
@@ -1109,8 +1109,8 @@ function OrgMcpsContent() {
                     aria-hidden="true"
                   />
                 }
-                title="No MCP Servers found"
-                description={`No MCP Servers match "${listState.search}"`}
+                title="No Integrations found"
+                description={`No Integrations match "${listState.search}"`}
               />
             ) : (
               <EmptyState
@@ -1123,7 +1123,7 @@ function OrgMcpsContent() {
                     aria-hidden="true"
                   />
                 }
-                title="No MCP Servers found"
+                title="No Integrations found"
                 description="Create a connection to get started."
                 actions={
                   <Button

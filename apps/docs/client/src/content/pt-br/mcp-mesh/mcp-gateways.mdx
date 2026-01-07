@@ -1,16 +1,16 @@
 ---
-title: MCP Gateways
-description: Gateways agregam e curam tools de múltiplas connections em um único endpoint MCP
+title: Assistentes
+description: Assistentes agregam e curam tools de múltiplas connections em um único endpoint MCP
 icon: Share2
 ---
 
-## O que é um Gateway?
+## O que é um Assistant?
 
-Um **MCP Gateway** é um “MCP virtual”: ele expõe um único endpoint MCP que agrega tools/resources/prompts de múltiplas **connections**.
+Um **Assistant** é um "MCP virtual": ele expõe um único endpoint MCP que agrega tools/resources/prompts de múltiplas **connections**.
 
 ## Estratégias de exposição de tools
 
-Gateways também controlam **como as tools são expostas** (útil quando o surface cresce).
+Assistentes também controlam **como as tools são expostas** (útil quando o surface cresce).
 Essas estratégias vêm por padrão:
 
 ### Passthrough (baseline)
@@ -34,14 +34,14 @@ Essas estratégias vêm por padrão:
   - **GATEWAY_RUN_CODE** (executa JS em um sandbox que pode chamar tools)
 - Objetivo: reduzir overhead de exposição em superfícies grandes movendo parte do trabalho para um runtime controlado.
 
-## O Default Gateway (criado automaticamente por org)
+## O Default Assistant (criado automaticamente por org)
 
-Toda organização nova recebe um **Default Gateway**:
+Toda organização nova recebe um **Default Assistant**:
 
 - **Strategy**: `passthrough`
 - **Mode**: `exclusion`
 - **Exclusões padrão**: a connection interna **Mesh MCP** (tools de administração) e a connection da **Store/Registry** são excluídas por padrão
-- **Comportamento**: todo o resto entra automaticamente — então, conforme você conecta MCP servers, esse endpoint vira o gateway “com todas as tools da org”
+- **Comportamento**: todo o resto entra automaticamente — então, conforme você conecta Integrações, esse endpoint vira o Assistant "com todas as tools da org"
 
 Esse é o endpoint que muitos times usam como a superfície MCP principal da organização.
 

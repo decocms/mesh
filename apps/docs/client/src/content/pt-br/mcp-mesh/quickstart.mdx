@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Rode o Mesh, conecte um MCP server, crie um gateway e valide o monitoring
+description: Rode o Mesh, conecte uma Integração, crie um Assistant e valide o monitoring
 icon: Rocket
 ---
 
@@ -71,14 +71,14 @@ A aplicação ficará disponível em `http://localhost:8080`.
 
 **Mais detalhes:** [Kubernetes: Helm Chart](/pt-br/mcp-mesh/deploy/kubernetes-helm-chart)
 
-## 2) Conectar um MCP server
+## 2) Conectar uma Integração
 
 Ao abrir uma organização nova, o Mesh normalmente te leva para:
 
 - **Browse Store** (recomendado), ou
-- **Connect MCP Server** direto (URL MCP via HTTP + credenciais, se necessário)
+- **Connect Integration** direto (URL MCP via HTTP + credenciais, se necessário)
 
-A **Store** é um catálogo de MCP servers que você pode conectar. Por padrão, ela aponta para o **MCP Registry** oficial.
+A **Store** é um catálogo de Integrações que você pode conectar. Por padrão, ela aponta para o **MCP Registry** oficial.
 
 ## 3) Criar uma organização e convidar membros
 
@@ -86,10 +86,10 @@ A **Store** é um catálogo de MCP servers que você pode conectar. Por padrão,
 - Convide pessoas
 - Ajuste roles (Admin/User) conforme necessário
 
-## 4) Criar um MCP Gateway (servidor virtual)
+## 4) Criar um Assistant (servidor virtual)
 
-- Vá em **MCP Gateways**
-- Clique em **Create MCP Gateway**
+- Vá em **Assistants**
+- Clique em **Create Assistant**
 - Escolha **Include** (somente selecionados) ou **Exclude** (tudo exceto os excluídos)
 
 ## 5) Criar uma API key para um cliente
@@ -102,10 +102,10 @@ Use **Monitoring** para confirmar:
 
 - as tool calls estão sendo registradas
 - latência e taxa de erro aparecem
-- filtros (janela de tempo, tool, connection, gateway) funcionam
+- filtros (janela de tempo, tool, connection, assistant) funcionam
 
 <Callout type="tip">
-  Um smoke test rápido é chamar uma tool via um gateway (assim você valida agregação + proxy + monitoring).
+  Um smoke test rápido é chamar uma tool via um Assistant (assim você valida agregação + proxy + monitoring).
 </Callout>
 
 
