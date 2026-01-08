@@ -19,7 +19,8 @@ describe("DownstreamTokenStorage", () => {
     const { up } = await import(
       "../../migrations/016-downstream-token-client-info"
     );
-    await up(database.db);
+    // Cast to unknown to satisfy Kysely type requirements in migration
+    await up(database.db as unknown as import("kysely").Kysely<unknown>);
 
     const vault = new CredentialVault(CredentialVault.generateKey());
     storage = new DownstreamTokenStorage(database.db, vault);
