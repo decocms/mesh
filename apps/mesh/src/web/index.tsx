@@ -7,6 +7,7 @@ import {
   createRouter,
   lazyRouteComponent,
   Outlet,
+  Route,
   RouterProvider,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
@@ -14,6 +15,8 @@ import { SplashScreen } from "@/web/components/splash-screen";
 import * as z from "zod";
 
 import "../../index.css";
+
+import { loadPluginRoutes } from "./plugins.ts";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -200,9 +203,14 @@ const oauthCallbackRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
 });
 
-const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
-  storeServerDetailRoute,
-]);
+const pluginLayoutRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/$pluginId",
+  component: Outlet,
+});
+
+const pluginRoutes = loadPluginRoutes(pluginLayoutRoute as unknown as Route);
+const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
@@ -217,6 +225,7 @@ const shellRouteTree = shellLayout.addChildren([
   orgWorkflowRoute,
   connectionLayoutRoute,
   collectionDetailsRoute,
+  pluginLayoutWithChildren,
 ]);
 
 const routeTree = rootRoute.addChildren([
