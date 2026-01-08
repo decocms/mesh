@@ -42,7 +42,7 @@ export default function StorePage() {
   // Persist selected registry in localStorage (scoped by org)
   const [selectedRegistryId, setSelectedRegistryId] = useLocalStorage<string>(
     LOCALSTORAGE_KEYS.selectedRegistry(org.slug),
-    () => "",
+    (existing) => existing ?? "",
   );
 
   const selectedRegistry = registryConnections.find(
