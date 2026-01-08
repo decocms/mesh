@@ -9,7 +9,7 @@ import { useParams, useRouter } from "@tanstack/react-router";
 import { Suspense, type ComponentType } from "react";
 import {
   WorkflowExecutionDetailsView,
-  WorkflowDetailsView,
+  WorkflowDetails,
 } from "@/web/components/details/workflow/index.tsx";
 
 interface CollectionDetailsProps {
@@ -23,7 +23,7 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
   string,
   ComponentType<CollectionDetailsProps>
 > = {
-  workflow: WorkflowDetailsView,
+  workflow: WorkflowDetails,
   workflow_execution: WorkflowExecutionDetailsView,
   prompt: PromptDetailsView,
 };

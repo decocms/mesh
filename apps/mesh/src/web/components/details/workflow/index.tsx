@@ -16,7 +16,7 @@ import {
   ResizablePanelGroup,
 } from "@deco/ui/components/resizable.js";
 import { Button } from "@deco/ui/components/button.js";
-import { Eye, X } from "lucide-react";
+import { Eye, FileIcon, X } from "lucide-react";
 import { WorkflowEditorHeader } from "./components/workflow-editor-header";
 import { WorkflowStepsCanvas } from "./components/workflow-steps-canvas";
 import { ToolSidebar } from "./components/tool-sidebar";
@@ -31,37 +31,29 @@ import {
   useCollectionItem,
 } from "@/web/hooks/use-collections";
 import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
-import { EmptyState } from "@/web/components/empty-state";
+import { EmptyState } from "@deco/ui/components/empty-state.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared hook for workflow/execution data
 // ─────────────────────────────────────────────────────────────────────────────
 
-type WorkflowMode = "workflow" | "execution";
-
-interface UseWorkflowDataParams {
-  itemId: string;
-  mode: WorkflowMode;
-}
-
-function useWorkflowData({ itemId, mode }: UseWorkflowDataParams) {
+function useCollectionWorkflow({ itemId }: { itemId: string }) {
   const { connectionId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
   const connId = connectionId ?? UNKNOWN_CONNECTION_ID;
   const toolCaller = createToolCaller(connId);
 
-  const collectionName =
-    mode === "workflow" ? "WORKFLOW" : "WORKFLOW_EXECUTION";
+  const collectionName = "WORKFLOW";
 
-  const item = useCollectionItem<Workflow | WorkflowExecution>(
+  const item = useCollectionItem<Workflow>(
     connId,
     collectionName,
     itemId,
     toolCaller,
   );
 
-  const actions = useCollectionActions<Workflow | WorkflowExecution>(
+  const actions = useCollectionActions<Workflow>(
     connId,
     collectionName,
     toolCaller,
@@ -77,71 +69,7 @@ function useWorkflowData({ itemId, mode }: UseWorkflowDataParams) {
   return {
     item,
     update,
-    trackingExecutionId: mode === "execution" ? itemId : undefined,
   };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Unified Workflow View Component
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface WorkflowDetailsViewProps {
-  itemId: string;
-  onBack: () => void;
-}
-
-interface UnifiedWorkflowViewProps extends WorkflowDetailsViewProps {
-  mode: WorkflowMode;
-}
-
-function UnifiedWorkflowView({
-  itemId,
-  onBack,
-  mode,
-}: UnifiedWorkflowViewProps) {
-  const { item, update, trackingExecutionId } = useWorkflowData({
-    itemId,
-    mode,
-  });
-
-  /** This makes it so when the workflow is updated on the server, the store is updated */
-  const keyFlow = JSON.stringify(item);
-
-  if (!item) {
-    return (
-      <ViewLayout onBack={onBack}>
-        <div className="flex h-full w-full bg-background">
-          <EmptyState
-            title="Workflow not found"
-            description="This workflow may have been deleted or you may not have access to it."
-          />
-        </div>
-      </ViewLayout>
-    );
-  }
-
-  // Normalize to Workflow type (WorkflowExecution has nullable description)
-  const workflow: Workflow = {
-    ...item,
-    description: item.description ?? undefined,
-  };
-
-  return (
-    <WorkflowStoreProvider
-      key={keyFlow}
-      initialState={{
-        workflow,
-        trackingExecutionId,
-        currentStepTab: mode === "execution" ? "action" : "executions",
-      }}
-    >
-      <WorkflowDetails onBack={onBack} onUpdate={update} />
-    </WorkflowStoreProvider>
-  );
-}
-
-export function WorkflowDetailsView(props: WorkflowDetailsViewProps) {
-  return <UnifiedWorkflowView {...props} mode="workflow" />;
 }
 
 interface WorkflowDetailsProps {
@@ -208,7 +136,42 @@ function WorkflowExecutionBar() {
   );
 }
 
-function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
+export function WorkflowDetails({ onBack }: WorkflowDetailsProps) {
+  const { itemId } = useParams({
+    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+  });
+  const { item: workflow, update } = useCollectionWorkflow({ itemId });
+
+  const keyFlow = JSON.stringify(workflow);
+
+  if (!workflow) {
+    return (
+      <ViewLayout onBack={onBack}>
+        <div className="flex h-full w-full bg-background">
+          <EmptyState
+            icon={<FileIcon className="w-10 h-10 text-muted-foreground" />}
+            title="Workflow not found"
+            description="This workflow may have been deleted or you may not have access to it."
+          />
+        </div>
+      </ViewLayout>
+    );
+  }
+
+  return (
+    <WorkflowStoreProvider
+      key={keyFlow}
+      initialState={{
+        workflow,
+        trackingExecutionId: undefined,
+        currentStepTab: "input",
+      }}
+    >
+      <WorkflowStudio onBack={onBack} onUpdate={update} />
+    </WorkflowStoreProvider>
+  );
+}
+function WorkflowStudio({ onBack, onUpdate }: WorkflowDetailsProps) {
   const workflow = useWorkflow();
   const trackingExecutionId = useTrackingExecutionId();
   const { setOriginalWorkflow } = useWorkflowActions();
@@ -275,6 +238,59 @@ function WorkflowDetails({ onBack, onUpdate }: WorkflowDetailsProps) {
   );
 }
 
-export function WorkflowExecutionDetailsView(props: WorkflowDetailsViewProps) {
-  return <UnifiedWorkflowView {...props} mode="execution" />;
+function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
+  const { connectionId } = useParams({
+    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+  });
+  const connId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(connId);
+
+  const collectionName = "WORKFLOW_EXECUTION";
+
+  const item = useCollectionItem<WorkflowExecution>(
+    connId,
+    collectionName,
+    itemId,
+    toolCaller,
+  );
+
+  return {
+    item,
+  };
+}
+
+export function WorkflowExecutionDetailsView({ onBack }: WorkflowDetailsProps) {
+  const { itemId } = useParams({
+    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+  });
+  const { item: execution } = useCollectionWorkflowExecution({
+    itemId: itemId,
+  });
+
+  if (!execution) {
+    return (
+      <ViewLayout onBack={onBack}>
+        <div className="flex h-full w-full bg-background">
+          <EmptyState
+            icon={<FileIcon className="w-10 h-10 text-muted-foreground" />}
+            title="Workflow execution not found"
+            description="This workflow execution may have been deleted or you may not have access to it."
+          />
+        </div>
+      </ViewLayout>
+    );
+  }
+
+  return (
+    <ViewLayout onBack={onBack}>
+      <div className="flex flex-col h-full overflow-hidden bg-background">
+        <MonacoCodeEditor
+          height="100%"
+          code={JSON.stringify(execution, null, 2)}
+          language="json"
+          readOnly={true}
+        />
+      </div>
+    </ViewLayout>
+  );
 }
