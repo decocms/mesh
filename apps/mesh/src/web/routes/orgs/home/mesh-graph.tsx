@@ -54,7 +54,7 @@ const MetricsModeContext = createContext<MetricsModeContextValue | undefined>(
   undefined,
 );
 
-export function useMetricsMode() {
+function useMetricsMode() {
   const context = useContext(MetricsModeContext);
   if (!context) {
     throw new Error("useMetricsMode must be used within MetricsModeProvider");
