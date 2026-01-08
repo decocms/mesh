@@ -12,20 +12,18 @@ import {
   Users01,
   Zap,
 } from "@untitledui/icons";
-import { useDetailRouteContext } from "./use-detail-route-context";
 
 export function useProjectSidebarItems(): NavigationSidebarItem[] {
   const { locator } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const detailContext = useDetailRouteContext();
   const { org } = Locator.parse(locator);
   const isOrgAdminProject = Locator.isOrgAdminProject(locator);
 
   const pathname = routerState.location.pathname;
   const segments = pathname.split("/");
 
-  if (!isOrgAdminProject || !!detailContext) {
+  if (!isOrgAdminProject) {
     return [];
   }
 
@@ -48,14 +46,14 @@ export function useProjectSidebarItems(): NavigationSidebarItem[] {
       key: "mcps",
       label: "Connections",
       icon: <Container />,
-      isActive: segments.length === 3 && segments[2] === "mcps",
+      isActive: segments[2] === "mcps",
       onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
     },
     {
       key: "gateways",
       label: "Hubs",
       icon: <CpuChip02 />,
-      isActive: segments.length === 3 && segments[2] === "gateways",
+      isActive: segments[2] === "gateways",
       onClick: () => navigate({ to: "/$org/gateways", params: { org } }),
     },
     {

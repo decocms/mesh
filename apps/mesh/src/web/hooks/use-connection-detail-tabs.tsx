@@ -26,6 +26,47 @@ interface UseConnectionDetailTabsProps {
   }>;
 }
 
+interface BuildConnectionTabsProps {
+  connection: ConnectionEntity | null | undefined;
+  isMCPAuthenticated: boolean;
+  promptsCount: number;
+  resourcesCount: number;
+  collections?: Array<{ name: string; displayName: string }> | null;
+  hasRepository: boolean;
+}
+
+/**
+ * Pure helper to build connection tabs without relying on current route params.
+ * Can be used in contexts where we need to compute tabs for arbitrary connections.
+ */
+export function buildConnectionTabs({
+  connection,
+  isMCPAuthenticated,
+  promptsCount,
+  resourcesCount,
+  collections,
+  hasRepository,
+}: BuildConnectionTabsProps): TabItem[] {
+  const toolsCount = connection?.tools?.length ?? 0;
+
+  return [
+    { id: "settings", label: "Settings" },
+    ...(isMCPAuthenticated && toolsCount > 0
+      ? [{ id: "tools", label: "Tools", count: toolsCount }]
+      : []),
+    ...(isMCPAuthenticated && promptsCount > 0
+      ? [{ id: "prompts", label: "Prompts", count: promptsCount }]
+      : []),
+    ...(isMCPAuthenticated && resourcesCount > 0
+      ? [{ id: "resources", label: "Resources", count: resourcesCount }]
+      : []),
+    ...(isMCPAuthenticated
+      ? (collections || []).map((c) => ({ id: c.name, label: c.displayName }))
+      : []),
+    ...(hasRepository ? [{ id: "readme", label: "README" }] : []),
+  ];
+}
+
 /**
  * Centralized hook for connection detail tabs.
  * Returns the tab list (including dynamic collections), active tab, and a setter function.
@@ -59,26 +100,17 @@ export function useConnectionDetailTabs({
     | undefined;
   const hasRepository = !!repository?.url;
 
-  const toolsCount = connection?.tools?.length ?? 0;
   const promptsCount = prompts.length;
   const resourcesCount = resources.length;
 
-  const tabs: TabItem[] = [
-    { id: "settings", label: "Settings" },
-    ...(isMCPAuthenticated && toolsCount > 0
-      ? [{ id: "tools", label: "Tools", count: toolsCount }]
-      : []),
-    ...(isMCPAuthenticated && promptsCount > 0
-      ? [{ id: "prompts", label: "Prompts", count: promptsCount }]
-      : []),
-    ...(isMCPAuthenticated && resourcesCount > 0
-      ? [{ id: "resources", label: "Resources", count: resourcesCount }]
-      : []),
-    ...(isMCPAuthenticated
-      ? (collections || []).map((c) => ({ id: c.name, label: c.displayName }))
-      : []),
-    ...(hasRepository ? [{ id: "readme", label: "README" }] : []),
-  ];
+  const tabs = buildConnectionTabs({
+    connection,
+    isMCPAuthenticated,
+    promptsCount,
+    resourcesCount,
+    collections,
+    hasRepository,
+  });
 
   const requestedTabId = tabFromPath || "settings";
 
