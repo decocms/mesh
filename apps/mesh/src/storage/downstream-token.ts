@@ -137,7 +137,7 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
           refreshToken: data.refreshToken,
           scope: data.scope,
           expiresAt: data.expiresAt,
-          createdAt: existing.createdAt as string,
+          createdAt: existing.createdAt as unknown as string,
           updatedAt: now,
           clientId: data.clientId,
           clientSecret: data.clientSecret,
