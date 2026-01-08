@@ -14,7 +14,9 @@
 import { extractConnectionPermissions } from "@/auth/configuration-scopes";
 import { once } from "@/common";
 import { getMonitoringConfig } from "@/core/config";
+import { refreshAccessToken } from "@/oauth/token-refresh";
 import { getStableStdioClient } from "@/stdio/stable-transport";
+import { DownstreamTokenStorage } from "@/storage/downstream-token";
 import {
   ConnectionEntity,
   type HttpConnectionParameters,
@@ -249,6 +251,7 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Build request headers - reusable for both client and direct fetch
   // Now issues token lazily on first call
+  // Also handles token refresh for downstream OAuth tokens
   const buildRequestHeaders = async (): Promise<Record<string, string>> => {
     // Ensure configuration token is issued (lazy)
     await ensureConfigurationToken();
@@ -257,9 +260,74 @@ async function createMCPProxyDoNotUseDirectly(
       ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
     };
 
-    // Add connection token (already decrypted by storage layer)
-    if (connection.connection_token) {
-      headers["Authorization"] = `Bearer ${connection.connection_token}`;
+    // Try to get cached token from downstream_tokens first
+    // This supports OAuth token refresh for connections that use OAuth
+    const userId = ctx.auth.user?.id ?? ctx.auth.apiKey?.userId ?? null;
+    let accessToken: string | null = null;
+
+    if (userId) {
+      const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
+      const cachedToken = await tokenStorage.get(connectionId, userId);
+
+      if (cachedToken) {
+        // Check if token is expired or about to expire
+        if (tokenStorage.isExpired(cachedToken)) {
+          // Try to refresh if we have refresh capability
+          if (cachedToken.refreshToken && cachedToken.tokenEndpoint) {
+            console.log(
+              `[Proxy] Token expired for ${connectionId}, attempting refresh`,
+            );
+            const refreshResult = await refreshAccessToken(cachedToken);
+
+            if (refreshResult.success && refreshResult.accessToken) {
+              // Save refreshed token
+              await tokenStorage.upsert({
+                connectionId,
+                userId,
+                accessToken: refreshResult.accessToken,
+                refreshToken:
+                  refreshResult.refreshToken ?? cachedToken.refreshToken,
+                scope: refreshResult.scope ?? cachedToken.scope,
+                expiresAt: refreshResult.expiresIn
+                  ? new Date(Date.now() + refreshResult.expiresIn * 1000)
+                  : null,
+                clientId: cachedToken.clientId,
+                clientSecret: cachedToken.clientSecret,
+                tokenEndpoint: cachedToken.tokenEndpoint,
+              });
+
+              accessToken = refreshResult.accessToken;
+              console.log(`[Proxy] Token refreshed for ${connectionId}`);
+            } else {
+              // Refresh failed - token is invalid
+              // Delete the cached token so user gets prompted to re-auth
+              await tokenStorage.delete(connectionId, userId);
+              console.error(
+                `[Proxy] Token refresh failed for ${connectionId}: ${refreshResult.error}`,
+              );
+            }
+          } else {
+            // Token expired but no refresh capability - delete it
+            await tokenStorage.delete(connectionId, userId);
+            console.log(
+              `[Proxy] Token expired without refresh capability for ${connectionId}`,
+            );
+          }
+        } else {
+          // Token is still valid
+          accessToken = cachedToken.accessToken;
+        }
+      }
+    }
+
+    // Fall back to connection token if no cached token
+    if (!accessToken && connection.connection_token) {
+      accessToken = connection.connection_token;
+    }
+
+    // Add authorization header if we have a token
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
     }
 
     // Add configuration token if issued
