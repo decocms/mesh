@@ -18,7 +18,7 @@ export const DEMO_GATEWAYS: Record<string, DemoGateway> = {
     title: "Default Gateway",
     description: "Auto-created gateway for organization",
     toolSelectionStrategy: "passthrough",
-    toolSelectionMode: "exclusion",
+    toolSelectionMode: "inclusion",
     icon: null,
     isDefault: true,
     connections: ["notion", "github", "nanoBanana", "veo3", "sora", "grain"],
