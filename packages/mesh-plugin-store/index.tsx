@@ -10,9 +10,10 @@ export const storePlugin: Plugin = {
   setupRoutes: (parentRoute) => {
     const orgStoreRoute = createRoute({
       getParentRoute: () => parentRoute,
-      path: "/$org/store",
+      path: "/",
       component: lazyRouteComponent(() => import("./routes/page.tsx")),
     });
+
     const storeServerDetailRoute = createRoute({
       getParentRoute: () => orgStoreRoute,
       path: "/$appName",
@@ -27,6 +28,7 @@ export const storePlugin: Plugin = {
         }),
       ),
     });
+
     const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
       storeServerDetailRoute,
     ]);
