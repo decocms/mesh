@@ -12,6 +12,7 @@ import {
   BarChart10,
   Zap,
 } from "@untitledui/icons";
+import { loadPluginSidebarItems } from "../plugins";
 
 export function useProjectSidebarItems() {
   const { locator } = useProjectContext();
@@ -26,12 +27,10 @@ export function useProjectSidebarItems() {
       icon: <Home02 />,
       onClick: () => navigate({ to: "/$org", params: { org } }),
     },
-    {
-      key: "store",
-      label: "Store",
-      icon: <Building02 />,
-      onClick: () => navigate({ to: "/$org/store", params: { org } }),
-    },
+    ...loadPluginSidebarItems({
+      navigate: (pluginId: string) =>
+        navigate({ to: "/$org/$pluginId", params: { org, pluginId } }),
+    }),
     {
       key: "mcps",
       label: "Connections",

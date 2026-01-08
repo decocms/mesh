@@ -9,6 +9,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.25.1",
     "zod": "^4.0.0",
+    "@tanstack/react-router": "1.139.7",
     "zod-from-json-schema": "^0.5.2"
   },
   "exports": {
@@ -20,7 +21,8 @@
     "./mcp": "./src/well-known/mcp.ts",
     "./assistant": "./src/well-known/assistant.ts",
     "./prompt": "./src/well-known/prompt.ts",
-    "./workflow": "./src/well-known/workflow.ts"
+    "./workflow": "./src/well-known/workflow.ts",
+    "./plugins": "./src/core/plugins.ts"
   },
   "engines": {
     "node": ">=24.0.0"

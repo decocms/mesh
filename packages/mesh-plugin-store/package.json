@@ -1,0 +1,22 @@
+{
+  "name": "mesh-plugin-store",
+  "module": "index.tsx",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.7"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@decocms/bindings": "workspace:*",
+    "@decocms/runtime": "workspace:*",
+    "@untitledui/icons": "^0.0.19",
+    "@tanstack/react-router": "1.139.7",
+    "hono": "^4.11.3",
+    "react": "^19.2.3",
+    "zod": "^4.3.5"
+  }
+}

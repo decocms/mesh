@@ -7,6 +7,7 @@ import {
   createRouter,
   lazyRouteComponent,
   Outlet,
+  Route,
   RouterProvider,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
@@ -14,6 +15,8 @@ import { SplashScreen } from "@/web/components/splash-screen";
 import * as z from "zod";
 
 import "../../index.css";
+
+import { loadPluginRoutes } from "./plugins.ts";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -116,31 +119,10 @@ const orgMonitoringRoute = createRoute({
   ),
 });
 
-const orgStoreRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/store",
-  component: lazyRouteComponent(() => import("./routes/orgs/store/page.tsx")),
-});
-
 const orgWorkflowRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/workflow",
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
-});
-
-const storeServerDetailRoute = createRoute({
-  getParentRoute: () => orgStoreRoute,
-  path: "/$appName",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/store/mcp-server-detail.tsx"),
-  ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      registryId: z.string().optional(),
-      serverName: z.string().optional(),
-      itemId: z.string().optional(),
-    }),
-  ),
 });
 
 const connectionLayoutRoute = createRoute({
@@ -199,9 +181,14 @@ const oauthCallbackRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
 });
 
-const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
-  storeServerDetailRoute,
-]);
+const pluginLayoutRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/$pluginId",
+  component: Outlet,
+});
+
+const pluginRoutes = loadPluginRoutes(pluginLayoutRoute as unknown as Route);
+const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
@@ -211,11 +198,11 @@ const shellRouteTree = shellLayout.addChildren([
   orgGatewaysRoute,
   gatewayDetailRoute,
   orgMonitoringRoute,
-  orgStoreRouteWithChildren,
   orgWorkflowRoute,
   orgSettingsRoute,
   connectionLayoutRoute,
   collectionDetailsRoute,
+  pluginLayoutWithChildren,
 ]);
 
 const routeTree = rootRoute.addChildren([
