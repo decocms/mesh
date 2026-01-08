@@ -202,10 +202,12 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
   }
 
   /**
-   * Check if token is expired or will expire within buffer time
-   * Default buffer is 5 minutes to account for clock skew and request time
+   * Check if token is expired or will expire within buffer time.
+   *
+   * Note: the default buffer is 0 (actual expiry). Callers that can refresh
+   * should pass a buffer (e.g. 5 minutes) to refresh proactively.
    */
-  isExpired(token: DownstreamToken, bufferMs: number = 5 * 60 * 1000): boolean {
+  isExpired(token: DownstreamToken, bufferMs: number = 0): boolean {
     if (!token.expiresAt) {
       // No expiry = never expires
       return false;

@@ -44,6 +44,28 @@ describe("DownstreamTokenStorage", () => {
     expect(storage.isExpired(token)).toBe(true);
   });
 
+  it("should not treat short-lived tokens as expired unless buffer is applied", async () => {
+    const token = {
+      id: "test",
+      connectionId: "c1",
+      userId: "u1",
+      accessToken: "at",
+      refreshToken: null,
+      scope: null,
+      expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(), // 2 min
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      clientId: null,
+      clientSecret: null,
+      tokenEndpoint: null,
+    };
+
+    // Default buffer=0 => not expired yet
+    expect(storage.isExpired(token)).toBe(false);
+    // With 5 min buffer => considered expired (for proactive refresh flows)
+    expect(storage.isExpired(token, 5 * 60 * 1000)).toBe(true);
+  });
+
   it("should upsert token atomically", async () => {
     const data: DownstreamTokenData = {
       connectionId: "conn_atomic",

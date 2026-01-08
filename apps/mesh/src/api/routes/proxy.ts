@@ -270,10 +270,19 @@ async function createMCPProxyDoNotUseDirectly(
       const cachedToken = await tokenStorage.get(connectionId, userId);
 
       if (cachedToken) {
-        // Check if token is expired or about to expire
-        if (tokenStorage.isExpired(cachedToken)) {
+        const canRefresh =
+          !!cachedToken.refreshToken && !!cachedToken.tokenEndpoint;
+        // If we can refresh, treat "expiring soon" as expired to proactively refresh.
+        // If we cannot refresh, only treat as expired at actual expiry (no buffer),
+        // otherwise short-lived tokens would be deleted immediately.
+        const isExpired = tokenStorage.isExpired(
+          cachedToken,
+          canRefresh ? 5 * 60 * 1000 : 0,
+        );
+
+        if (isExpired) {
           // Try to refresh if we have refresh capability
-          if (cachedToken.refreshToken && cachedToken.tokenEndpoint) {
+          if (canRefresh) {
             console.log(
               `[Proxy] Token expired for ${connectionId}, attempting refresh`,
             );
