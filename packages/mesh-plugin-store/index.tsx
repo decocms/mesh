@@ -1,23 +1,22 @@
 import * as z from "zod";
-import { createRoute, lazyRouteComponent, Route } from "@tanstack/react-router";
-import type { Plugin } from "@decocms/bindings/plugins";
+import type { AnyPlugin, Plugin } from "@decocms/bindings/plugins";
 import { Building02 } from "@untitledui/icons";
+import { Route } from "@tanstack/react-router";
 
-export const storePlugin: Plugin = {
+export const storePlugin: AnyPlugin = {
   id: "store",
-  label: "Store",
-  icon: <Building02 />,
-  setupRoutes: (parentRoute) => {
-    const orgStoreRoute = createRoute({
-      getParentRoute: () => parentRoute,
+  binding: [],
+  setup: (ctx) => {
+    const orgStoreRoute = ctx.routing.createRoute({
+      getParentRoute: () => ctx.parentRoute,
       path: "/",
-      component: lazyRouteComponent(() => import("./routes/page.tsx")),
+      component: ctx.routing.lazyRouteComponent(() => import("./routes/page.tsx")),
     });
 
-    const storeServerDetailRoute = createRoute({
+    const storeServerDetailRoute = ctx.routing.createRoute({
       getParentRoute: () => orgStoreRoute,
       path: "/$appName",
-      component: lazyRouteComponent(
+      component: ctx.routing.lazyRouteComponent(
         () => import("./routes/mcp-server-detail.tsx"),
       ),
       validateSearch: z.lazy(() =>
@@ -33,6 +32,11 @@ export const storePlugin: Plugin = {
       storeServerDetailRoute,
     ]);
 
-    return orgStoreRouteWithChildren as unknown as Route;
+    ctx.registerRootSidebarItem({
+      icon: <Building02 />,
+      label: "Store",
+    });
+
+    ctx.registerRootPluginRoute(orgStoreRouteWithChildren as unknown as Route);
   },
 };

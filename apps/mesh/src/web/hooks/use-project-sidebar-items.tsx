@@ -4,15 +4,14 @@ import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
-  Building02,
   Container,
   CpuChip02,
   Home02,
   Settings01,
   Users01,
-  Zap,
+  Zap
 } from "@untitledui/icons";
-import { loadPluginSidebarItems } from "../plugins";
+import { pluginRootSidebarItems } from "../index.tsx";
 
 export function useProjectSidebarItems() {
   const { locator } = useProjectContext();
@@ -39,10 +38,12 @@ export function useProjectSidebarItems() {
         }
       },
     },
-    ...loadPluginSidebarItems({
-      navigate: (pluginId: string) =>
-        navigate({ to: "/$org/$pluginId", params: { org, pluginId } }),
-    }),
+    ...pluginRootSidebarItems.map((item) => ({
+      key: item.pluginId,
+      label: item.label,
+      icon: item.icon,
+      onClick: () => navigate({ to: "/$org/$pluginId", params: { org, pluginId: item.pluginId } }),
+    })),
     {
       key: "mcps",
       label: "Connections",

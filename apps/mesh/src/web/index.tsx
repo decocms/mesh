@@ -16,7 +16,8 @@ import * as z from "zod";
 
 import "../../index.css";
 
-import { loadPluginRoutes } from "./plugins.ts";
+import { sourcePlugins } from "./plugins.ts";
+import { AnyPlugin, PluginSetupContext } from "@decocms/bindings/plugins";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -209,8 +210,31 @@ const pluginLayoutRoute = createRoute({
   component: Outlet,
 });
 
-const pluginRoutes = loadPluginRoutes(pluginLayoutRoute as unknown as Route);
-const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
+/**
+ * In-memory state for plugins to register stuff via callbacks.
+ */
+export const pluginRootSidebarItems: {
+  pluginId: string;
+  icon: React.ReactNode;
+  label: string;
+}[] = [];
+const pluginLayoutRoutes: Route[] = [];
+
+export const plugins = sourcePlugins.forEach((plugin: AnyPlugin) => {
+  const context: PluginSetupContext = {
+    parentRoute: pluginLayoutRoute as unknown as Route,
+    routing: {
+      createRoute: createRoute,
+      lazyRouteComponent: lazyRouteComponent,
+    },
+    registerRootSidebarItem: (item) => pluginRootSidebarItems.push({ pluginId: plugin.id, ...item }),
+    registerRootPluginRoute: (route) => pluginLayoutRoutes.push(route),
+  };
+
+  plugin.setup(context);
+});
+
+const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginLayoutRoutes);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
