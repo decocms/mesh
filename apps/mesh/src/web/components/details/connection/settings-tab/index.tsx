@@ -537,6 +537,21 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
             id: connection.id,
             data: { connection_token: token },
           });
+        } else {
+          // Refresh tools after auth so bindings (e.g. LLMS) become available immediately.
+          // This is important for OpenRouter install flow, which creates the connection unauthenticated
+          // (tools discovery fails), then authenticates via OAuth.
+          try {
+            await connectionActions.update.mutateAsync({
+              id: connection.id,
+              data: {},
+            });
+          } catch (err) {
+            console.warn(
+              "Failed to refresh connection tools after OAuth:",
+              err,
+            );
+          }
         }
       } catch (err) {
         console.error("Error saving OAuth token:", err);
