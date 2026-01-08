@@ -161,8 +161,8 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
           clientId: data.clientId,
           clientSecret: encryptedClientSecret,
           tokenEndpoint: data.tokenEndpoint,
-          createdAt: now,
-          updatedAt: now,
+          createdAt: now as unknown as string,
+          updatedAt: now as unknown as string,
         })
         .execute();
 
