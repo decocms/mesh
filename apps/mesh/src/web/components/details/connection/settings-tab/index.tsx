@@ -502,7 +502,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   };
 
   const handleAuthenticate = async () => {
-    const { token, tokenInfo, error } = await authenticateMcp({
+    const { token, error } = await authenticateMcp({
       connectionId: connection.id,
     });
     if (error || !token) {
@@ -510,49 +510,10 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
       return;
     }
 
-    // Save token via new API (supports refresh tokens)
-    if (tokenInfo) {
-      try {
-        const response = await fetch(
-          `/api/connections/${connection.id}/oauth-token`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              accessToken: tokenInfo.accessToken,
-              refreshToken: tokenInfo.refreshToken,
-              expiresIn: tokenInfo.expiresIn,
-              scope: tokenInfo.scope,
-              clientId: tokenInfo.clientId,
-              clientSecret: tokenInfo.clientSecret,
-              tokenEndpoint: tokenInfo.tokenEndpoint,
-            }),
-          },
-        );
-        if (!response.ok) {
-          console.error("Failed to save OAuth token:", await response.text());
-          // Fall back to connection_token update
-          await connectionActions.update.mutateAsync({
-            id: connection.id,
-            data: { connection_token: token },
-          });
-        }
-      } catch (err) {
-        console.error("Error saving OAuth token:", err);
-        // Fall back to connection_token update
-        await connectionActions.update.mutateAsync({
-          id: connection.id,
-          data: { connection_token: token },
-        });
-      }
-    } else {
-      // No tokenInfo, fall back to legacy behavior
-      await connectionActions.update.mutateAsync({
-        id: connection.id,
-        data: { connection_token: token },
-      });
-    }
+    await connectionActions.update.mutateAsync({
+      id: connection.id,
+      data: { connection_token: token },
+    });
 
     // Invalidate auth status query to trigger UI refresh
     const mcpProxyUrl = new URL(

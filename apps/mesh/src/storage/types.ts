@@ -268,13 +268,9 @@ export interface DownstreamTokenTable {
   accessToken: string; // Encrypted
   refreshToken: string | null; // Encrypted
   scope: string | null;
-  expiresAt: ColumnType<Date, Date | string, Date | string | null> | null;
+  expiresAt: ColumnType<Date, Date | string, never> | null;
   createdAt: ColumnType<Date, Date | string, never>;
   updatedAt: ColumnType<Date, Date | string, Date | string>;
-  // Dynamic Client Registration info (for token refresh)
-  clientId: string | null;
-  clientSecret: string | null; // Encrypted
-  tokenEndpoint: string | null;
 }
 
 // ============================================================================
@@ -337,10 +333,6 @@ export interface DownstreamToken {
   expiresAt: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
-  // Dynamic Client Registration info (for token refresh)
-  clientId: string | null;
-  clientSecret: string | null;
-  tokenEndpoint: string | null;
 }
 
 // ============================================================================
