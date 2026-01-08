@@ -10,8 +10,9 @@ import {
   ResponsiveSelectTrigger,
   ResponsiveSelectValue,
 } from "@deco/ui/components/responsive-select.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { memo, useMemo, useState, type ReactNode } from "react";
+import { memo, useState, useRef, useEffect, type ReactNode } from "react";
 import {
   Stars01,
   Image01,
@@ -62,7 +63,9 @@ export function useModels(): ModelInfoWithConnection[] {
     connections: allConnections,
     binding: "LLMS",
   });
-  const modelsData = useLLMsFromConnection(modelsConnection?.id);
+  const modelsData = useLLMsFromConnection(modelsConnection?.id, { 
+    pageSize: 999,
+  });
 
   if (!modelsData || !modelsConnection) {
     return [];
@@ -118,7 +121,7 @@ const CapabilityBadge = memo(function CapabilityBadge({
 }: {
   capability: string;
 }) {
-  const config = useMemo(() => {
+  const config = (() => {
     const knownConfig = CAPABILITY_CONFIGS[capability];
     return (
       knownConfig || {
@@ -128,7 +131,7 @@ const CapabilityBadge = memo(function CapabilityBadge({
         label: capability,
       }
     );
-  }, [capability]);
+  })();
 
   return (
     <Tooltip>
@@ -402,9 +405,22 @@ export function ModelSelector({
   const [open, setOpen] = useState(false);
   const [hoveredModel, setHoveredModel] = useState<ModelInfo | null>(null);
   const [showInfoMobile, setShowInfoMobile] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch models from hook
   const models = useModels();
+
+  // Focus search input when dialog opens
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (open) {
+      // Small delay to ensure the dialog is fully rendered
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
+    }
+  }, [open]);
 
   // Find selected model by matching both id and connectionId
   const selectedModelId = selectedModel
@@ -417,6 +433,20 @@ export function ModelSelector({
 
   const currentModel = models.find((m) => m.id === selectedModelId);
 
+  // Filter models based on search term
+  const filteredModels = (() => {
+    if (!searchTerm.trim()) return models;
+
+    const search = searchTerm.toLowerCase();
+    return models.filter((model) => {
+      return (
+        model.name.toLowerCase().includes(search) ||
+        model.provider?.toLowerCase().includes(search) ||
+        model.description?.toLowerCase().includes(search)
+      );
+    });
+  })();
+
   const handleModelChange = (modelId: string) => {
     const selected = models.find((m) => m.id === modelId);
     if (!selected) return;
@@ -425,7 +455,15 @@ export function ModelSelector({
       connectionId: selected.connectionId,
       provider: selected.provider ?? undefined,
     });
+    setSearchTerm("");
     setOpen(false);
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      setSearchTerm("");
+    }
   };
 
   if (models.length === 0) {
@@ -435,7 +473,7 @@ export function ModelSelector({
   return (
     <ResponsiveSelect
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
       value={selectedModelId || ""}
       onValueChange={handleModelChange}
     >
@@ -474,31 +512,58 @@ export function ModelSelector({
         }
       >
         <div className="flex flex-col md:flex-row h-[350px]">
-          {/* Left column - model list */}
-          <div className="flex-1 overflow-y-auto px-0.5 md:border-r">
-            {models.map((m) => (
-              <div
-                key={m.id}
-                onClick={() => handleModelChange(m.id)}
-                className={cn(
-                  "rounded-lg mb-1",
-                  m.id === selectedModelId && "bg-accent",
-                )}
-              >
-                <ModelItemContent
-                  model={m}
-                  onHover={setHoveredModel}
-                  isSelected={m.id === selectedModelId}
-                  hasExpandedInfo={showInfoMobile}
+          {/* Left column - model list with search */}
+          <div className="flex-1 flex flex-col md:border-r">
+            {/* Search input */}
+            <div className="border-b px-4 py-3 bg-background/95 backdrop-blur sticky top-0 z-10">
+              <div className="relative">
+                <SearchMd
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
                 />
-                {/* Mobile info panel - shows inside model item when toggled */}
-                {showInfoMobile && (
-                  <div className="md:hidden">
-                    <ModelDetailsPanel model={m} compact />
-                  </div>
-                )}
+                <Input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search for a model..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 h-9 text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+                />
               </div>
-            ))}
+            </div>
+
+            {/* Model list */}
+            <div className="flex-1 overflow-y-auto px-0.5">
+              {filteredModels.length > 0 ? (
+                filteredModels.map((m) => (
+                  <div
+                    key={m.id}
+                    onClick={() => handleModelChange(m.id)}
+                    className={cn(
+                      "rounded-lg mb-1",
+                      m.id === selectedModelId && "bg-accent",
+                    )}
+                  >
+                    <ModelItemContent
+                      model={m}
+                      onHover={setHoveredModel}
+                      isSelected={m.id === selectedModelId}
+                      hasExpandedInfo={showInfoMobile}
+                    />
+                    {/* Mobile info panel - shows inside model item when toggled */}
+                    {showInfoMobile && (
+                      <div className="md:hidden">
+                        <ModelDetailsPanel model={m} compact />
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                  No models found
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Right column - details panel (desktop only) */}
