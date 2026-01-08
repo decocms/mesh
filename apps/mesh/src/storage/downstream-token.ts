@@ -88,7 +88,6 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
   }
 
   async upsert(data: DownstreamTokenData): Promise<DownstreamToken> {
-    const existing = await this.get(data.connectionId, data.userId);
     const now = new Date().toISOString();
 
     // Encrypt sensitive fields
@@ -100,11 +99,61 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
       ? await this.vault.encrypt(data.clientSecret)
       : null;
 
-    if (existing) {
-      // Update existing token
-      await this.db
-        .updateTable("downstream_tokens")
-        .set({
+    // Use transaction to prevent race conditions during upsert
+    return await this.db.transaction().execute(async (trx) => {
+      // Check for existing token within transaction
+      const query = trx
+        .selectFrom("downstream_tokens")
+        .select(["id", "createdAt"])
+        .where("connectionId", "=", data.connectionId);
+
+      const existing = await (data.userId
+        ? query.where("userId", "=", data.userId)
+        : query.where("userId", "is", null)
+      ).executeTakeFirst();
+
+      if (existing) {
+        // Update existing token
+        await trx
+          .updateTable("downstream_tokens")
+          .set({
+            accessToken: encryptedAccessToken,
+            refreshToken: encryptedRefreshToken,
+            scope: data.scope,
+            expiresAt: data.expiresAt?.toISOString() ?? null,
+            clientId: data.clientId,
+            clientSecret: encryptedClientSecret,
+            tokenEndpoint: data.tokenEndpoint,
+            updatedAt: now,
+          })
+          .where("id", "=", existing.id)
+          .execute();
+
+        return {
+          id: existing.id,
+          connectionId: data.connectionId,
+          userId: data.userId,
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          scope: data.scope,
+          expiresAt: data.expiresAt,
+          createdAt: existing.createdAt as string,
+          updatedAt: now,
+          clientId: data.clientId,
+          clientSecret: data.clientSecret,
+          tokenEndpoint: data.tokenEndpoint,
+        };
+      }
+
+      // Create new token
+      const id = generatePrefixedId("dtok");
+
+      await trx
+        .insertInto("downstream_tokens")
+        .values({
+          id,
+          connectionId: data.connectionId,
+          userId: data.userId,
           accessToken: encryptedAccessToken,
           refreshToken: encryptedRefreshToken,
           scope: data.scope,
@@ -112,59 +161,26 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
           clientId: data.clientId,
           clientSecret: encryptedClientSecret,
           tokenEndpoint: data.tokenEndpoint,
+          createdAt: now,
           updatedAt: now,
         })
-        .where("id", "=", existing.id)
         .execute();
 
       return {
-        ...existing,
+        id,
+        connectionId: data.connectionId,
+        userId: data.userId,
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
         scope: data.scope,
         expiresAt: data.expiresAt,
+        createdAt: now,
+        updatedAt: now,
         clientId: data.clientId,
         clientSecret: data.clientSecret,
         tokenEndpoint: data.tokenEndpoint,
-        updatedAt: now,
       };
-    }
-
-    // Create new token
-    const id = generatePrefixedId("dtok");
-
-    await this.db
-      .insertInto("downstream_tokens")
-      .values({
-        id,
-        connectionId: data.connectionId,
-        userId: data.userId,
-        accessToken: encryptedAccessToken,
-        refreshToken: encryptedRefreshToken,
-        scope: data.scope,
-        expiresAt: data.expiresAt?.toISOString() ?? null,
-        clientId: data.clientId,
-        clientSecret: encryptedClientSecret,
-        tokenEndpoint: data.tokenEndpoint,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .execute();
-
-    return {
-      id,
-      connectionId: data.connectionId,
-      userId: data.userId,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      scope: data.scope,
-      expiresAt: data.expiresAt,
-      createdAt: now,
-      updatedAt: now,
-      clientId: data.clientId,
-      clientSecret: data.clientSecret,
-      tokenEndpoint: data.tokenEndpoint,
-    };
+    });
   }
 
   async delete(connectionId: string, userId: string | null): Promise<void> {
