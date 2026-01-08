@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -7,6 +7,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "./sidebar.tsx";
 import { Skeleton } from "./skeleton.tsx";
 
@@ -58,7 +59,17 @@ export function NavigationSidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              {additionalContent}
+
+              {navigationItems.length > 0 && (
+                <SidebarSeparator className="my-2 -ml-1" />
+              )}
+
+              {Children.map(additionalContent, (child) => (
+                <>
+                  {child}
+                  <SidebarSeparator className="my-2 -ml-1" />
+                </>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -1,6 +1,7 @@
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { MeshSidebar } from "@/web/components/mesh-sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
+import { SelectedDetailItemCrumb } from "@/web/components/selected-detail-item-crumb";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { MeshUserMenu } from "@/web/components/user-menu";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
@@ -76,6 +77,11 @@ function Topbar({
         {showOrgSwitcher && (
           <Suspense fallback={<MeshOrgSwitcher.Skeleton />}>
             <MeshOrgSwitcher />
+          </Suspense>
+        )}
+        {showOrgSwitcher && (
+          <Suspense fallback={null}>
+            <SelectedDetailItemCrumb />
           </Suspense>
         )}
       </AppTopbar.Left>

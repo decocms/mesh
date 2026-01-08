@@ -13,6 +13,7 @@ import {
 } from "@/web/hooks/collections/use-gateway";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
+import { useGatewayDetailTabs } from "@/web/hooks/use-gateway-detail-tabs";
 import { slugify } from "@/web/utils/slugify";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -24,7 +25,6 @@ import {
   FormMessage,
 } from "@deco/ui/components/form.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import {
   Select,
   SelectContent,
@@ -45,7 +45,6 @@ import {
   useParams,
   useRouter,
   useRouterState,
-  useSearch,
 } from "@tanstack/react-router";
 import {
   Check,
@@ -61,9 +60,7 @@ import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ViewActions, ViewLayout, ViewTabs } from "../layout";
-
-type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
+import { ViewActions, ViewLayout } from "../layout";
 
 /**
  * Unicode-safe base64 encoding for browser environments
@@ -608,16 +605,13 @@ function GatewaySettingsTab({
 function GatewayInspectorViewWithGateway({
   gateway,
   gatewayId,
-  requestedTabId,
 }: {
   gateway: GatewayEntity;
   gatewayId: string;
-  requestedTabId: GatewayTabId;
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
   const router = useRouter();
-  const navigate = useNavigate({ from: "/$org/gateways/$gatewayId" });
   const actions = useGatewayActions();
 
   // Fetch all connections to get tool names for "all tools" expansion
@@ -740,35 +734,13 @@ function GatewayInspectorViewWithGateway({
     setSelectionDirty(false);
   };
 
-  // Define tabs
-  const tabs = [
-    { id: "settings", label: "Settings" },
-    { id: "tools", label: "Tools" },
-    { id: "resources", label: "Resources" },
-    { id: "prompts", label: "Prompts" },
-  ];
-
-  const activeTabId = tabs.some((t) => t.id === requestedTabId)
-    ? requestedTabId
-    : "settings";
-
-  const handleTabChange = (tabId: string) => {
-    navigate({ search: (prev) => ({ ...prev, tab: tabId }), replace: true });
-  };
+  // Use centralized tab hook
+  const { activeTabId } = useGatewayDetailTabs();
 
   const isSaving = actions.update.isPending;
 
   return (
     <ViewLayout onBack={() => router.history.back()}>
-      {/* Header: Show tabs */}
-      <ViewTabs>
-        <ResourceTabs
-          tabs={tabs}
-          activeTab={activeTabId}
-          onTabChange={handleTabChange}
-        />
-      </ViewTabs>
-
       <ViewActions>
         {hasAnyChanges && (
           <>
@@ -876,14 +848,11 @@ function GatewayInspectorViewWithGateway({
 }
 
 function GatewayInspectorViewContent() {
-  const navigate = useNavigate({ from: "/$org/gateways/$gatewayId" });
-  const { gatewayId, org } = useParams({
-    from: "/shell/$org/gateways/$gatewayId",
-  });
-
-  // Get tab from search params
-  const search = useSearch({ from: "/shell/$org/gateways/$gatewayId" });
-  const requestedTabId = (search.tab as GatewayTabId) || "settings";
+  const navigate = useNavigate();
+  const { gatewayId, org } = useParams({ strict: false }) as {
+    gatewayId: string;
+    org: string;
+  };
 
   const gateway = useGateway(gatewayId);
 
@@ -912,11 +881,7 @@ function GatewayInspectorViewContent() {
   }
 
   return (
-    <GatewayInspectorViewWithGateway
-      gateway={gateway}
-      gatewayId={gatewayId}
-      requestedTabId={requestedTabId}
-    />
+    <GatewayInspectorViewWithGateway gateway={gateway} gatewayId={gatewayId} />
   );
 }
 
