@@ -1,4 +1,4 @@
-import { JsonSyntaxHighlighter } from "@/web/components/json-syntax-highlighter.tsx";
+import { MonacoCodeEditor } from "@/web/components/details/workflow/components/monaco-editor";
 
 interface ToolOutputRendererProps {
   output: unknown;
@@ -11,5 +11,12 @@ export function ToolOutputRenderer({ output }: ToolOutputRendererProps) {
     ? stringifiedOutput.slice(0, 2000) + "...[TRUNCATED]"
     : stringifiedOutput;
 
-  return <JsonSyntaxHighlighter jsonString={outputContent} padding="0" />;
+  return (
+    <MonacoCodeEditor
+      code={outputContent}
+      language="json"
+      height="100%"
+      readOnly={true}
+    />
+  );
 }

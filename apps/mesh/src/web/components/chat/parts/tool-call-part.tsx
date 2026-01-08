@@ -105,7 +105,7 @@ export function ToolCallPart({ part }: ToolCallPartProps) {
                       Output
                     </span>
                   </div>
-                  <div className="border border-border rounded-lg max-h-[200px] overflow-auto p-2">
+                  <div className="border border-border rounded-lg max-h-[200px] overflow-auto p-2 h-full">
                     <ToolOutputRenderer output={part.output} />
                   </div>
                 </div>
