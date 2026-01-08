@@ -3,10 +3,10 @@ import { ReadmeViewer } from "@/web/components/store/readme-viewer";
 import { Loading01 } from "@untitledui/icons";
 import { ToolsList, type Tool } from "@/web/components/tools";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
-import type { AppData, TabItem } from "./types";
+import type { MCPServerData, TabItem } from "./types";
 
-interface AppTabsContentProps {
-  data: AppData;
+interface MCPServerTabsContentProps {
+  data: MCPServerData;
   availableTabs: TabItem[];
   effectiveActiveTabId: string;
   effectiveTools: unknown[];
@@ -14,14 +14,14 @@ interface AppTabsContentProps {
   onTabChange: (tabId: string) => void;
 }
 
-export function AppTabsContent({
+export function MCPServerTabsContent({
   data,
   availableTabs,
   effectiveActiveTabId,
   effectiveTools,
   isLoadingTools = false,
   onTabChange,
-}: AppTabsContentProps) {
+}: MCPServerTabsContentProps) {
   // Convert tools to the expected format
   const tools: Tool[] = effectiveTools.map((tool) => {
     const t = tool as Record<string, unknown>;
@@ -58,13 +58,13 @@ export function AppTabsContent({
             <ToolsList
               tools={tools}
               showToolbar={false}
-              emptyMessage="This app doesn't have any tools."
+              emptyMessage="This MCP Server doesn't have any tools."
             />
           ) : (
             <EmptyState
               image={null}
               title="No tools available"
-              description="This app doesn't have any tools."
+              description="This MCP Server doesn't have any tools."
             />
           )}
         </div>
@@ -79,3 +79,4 @@ export function AppTabsContent({
     </div>
   );
 }
+

@@ -1,7 +1,7 @@
-import type { RegistryItem } from "@/web/components/store/registry-items-section";
+import type { RegistryItem } from "@/web/components/store/types";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { LinkExternal01 } from "@untitledui/icons";
-import type { AppData, PublisherInfo } from "./types";
+import type { MCPServerData, PublisherInfo } from "./types";
 
 /** Format date to MMM DD, YYYY format */
 function formatLastUpdated(date: unknown): string {
@@ -19,17 +19,17 @@ function formatLastUpdated(date: unknown): string {
   }
 }
 
-interface AppSidebarProps {
-  data: AppData;
+interface MCPServerDetailSidebarProps {
+  data: MCPServerData;
   publisherInfo: PublisherInfo;
   selectedItem: RegistryItem;
 }
 
-export function AppSidebar({
+export function MCPServerDetailSidebar({
   data,
   publisherInfo,
   selectedItem,
-}: AppSidebarProps) {
+}: MCPServerDetailSidebarProps) {
   return (
     <div className="lg:col-span-1 flex flex-col pt-5">
       {/* Overview */}
@@ -69,8 +69,8 @@ export function AppSidebar({
                   <span>
                     {publisherInfo.count}{" "}
                     {publisherInfo.count === 1
-                      ? "published app"
-                      : "published apps"}
+                      ? "published server"
+                      : "published servers"}
                   </span>
                 </>
               ) : (
@@ -183,3 +183,4 @@ export function AppSidebar({
     </div>
   );
 }
+

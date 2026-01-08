@@ -119,7 +119,7 @@ const orgMonitoringRoute = createRoute({
 const orgStoreRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/store",
-  component: lazyRouteComponent(() => import("./routes/orgs/store.tsx")),
+  component: lazyRouteComponent(() => import("./routes/orgs/store/page.tsx")),
 });
 
 const orgWorkflowRoute = createRoute({
@@ -128,11 +128,11 @@ const orgWorkflowRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
-const storeAppDetailRoute = createRoute({
+const storeServerDetailRoute = createRoute({
   getParentRoute: () => orgStoreRoute,
   path: "/$appName",
   component: lazyRouteComponent(
-    () => import("./routes/orgs/store-app-detail.tsx"),
+    () => import("./routes/orgs/store/mcp-server-detail.tsx"),
   ),
   validateSearch: z.lazy(() =>
     z.object({
@@ -200,7 +200,7 @@ const oauthCallbackRoute = createRoute({
 });
 
 const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
-  storeAppDetailRoute,
+  storeServerDetailRoute,
 ]);
 
 const shellRouteTree = shellLayout.addChildren([

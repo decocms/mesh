@@ -1,6 +1,6 @@
-import type { RegistryItem } from "@/web/components/store/registry-items-section";
+import type { RegistryItem } from "@/web/components/store/types";
 
-export interface AppData {
+export interface MCPServerData {
   name: string;
   description: string;
   shortDescription: string | null;
@@ -35,8 +35,8 @@ export interface TabItem {
   count?: number;
 }
 
-export interface AppDetailProps {
-  data: AppData;
+export interface MCPServerDetailProps {
+  data: MCPServerData;
   selectedItem: RegistryItem;
   itemVersions: RegistryItem[];
   publisherInfo: PublisherInfo;
@@ -49,3 +49,4 @@ export interface AppDetailProps {
   onBackClick: () => void;
   onTabChange: (tabId: string) => void;
 }
+

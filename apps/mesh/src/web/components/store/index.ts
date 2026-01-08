@@ -1,15 +1,24 @@
 /**
  * Store Components
  *
- * Components for store discovery and item browsing.
+ * Components for store discovery and MCP Server browsing.
  */
 
 // Main components
 export { StoreDiscovery } from "./store-discovery";
+export {
+  MCPServerCard,
+  MCPServerCardGrid,
+  extractCardDisplayData,
+} from "./mcp-server-card";
 
-// Item components
+// Types
 export type {
   MCPRegistryServer,
   MCPRegistryServerIcon,
   MCPRegistryServerMeta,
-} from "./registry-item-card";
+  RegistryItem,
+  FilterItem,
+  RegistryFiltersResponse,
+  ActiveFilters,
+} from "./types";

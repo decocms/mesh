@@ -5,7 +5,7 @@
 
 import { toast } from "sonner";
 import { createToolCaller } from "@/tools/client";
-import type { RegistryItem } from "@/web/components/store/registry-items-section";
+import type { RegistryItem } from "@/web/components/store/types";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import {
   useConnectionActions,

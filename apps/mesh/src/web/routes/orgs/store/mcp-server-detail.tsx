@@ -1,15 +1,15 @@
-import type { RegistryItem } from "@/web/components/store/registry-items-section";
+import type { RegistryItem } from "@/web/components/store/types";
 import {
-  AppDetailLoadingState,
-  AppDetailErrorState,
-  AppDetailNotFoundState,
-  AppDetailHeader,
-  AppHeroSection,
-  AppSidebar,
-  AppTabsContent,
-  type AppData,
+  MCPServerDetailLoadingState,
+  MCPServerDetailErrorState,
+  MCPServerDetailNotFoundState,
+  MCPServerDetailHeader,
+  MCPServerHeroSection,
+  MCPServerDetailSidebar,
+  MCPServerTabsContent,
+  type MCPServerData,
   type PublisherInfo,
-} from "@/web/components/store/app-detail";
+} from "@/web/components/store/mcp-server-detail";
 import {
   useConnection,
   useConnections,
@@ -43,7 +43,7 @@ import {
 import { toast } from "sonner";
 import { createToolCaller } from "@/tools/client";
 
-/** Get publisher info (logo and app count) from items in the store or connection in database */
+/** Get publisher info (logo and server count) from items in the store or connection in database */
 function getPublisherInfo(
   items: RegistryItem[],
   publisherName: string,
@@ -88,7 +88,7 @@ function getPublisherInfo(
 }
 
 /** Helper to extract data from different JSON structures */
-function extractItemData(item: RegistryItem): AppData {
+function extractItemData(item: RegistryItem): MCPServerData {
   const publisherMeta = item.server._meta?.["mcp.mesh/publisher-provided"];
   const decoMeta = item._meta?.["mcp.mesh"];
   const officialMeta =
@@ -165,9 +165,9 @@ function extractItemData(item: RegistryItem): AppData {
 }
 
 /**
- * Error boundary for store app detail that renders AppDetailErrorState
+ * Error boundary for store MCP server detail
  */
-class StoreAppDetailErrorBoundary extends Component<
+class StoreMCPServerDetailErrorBoundary extends Component<
   { children: ReactNode; onBack: () => void },
   { hasError: boolean; error: Error | null }
 > {
@@ -181,13 +181,13 @@ class StoreAppDetailErrorBoundary extends Component<
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Store app detail error:", error, errorInfo);
+    console.error("Store MCP server detail error:", error, errorInfo);
   }
 
   override render() {
     if (this.state.hasError) {
       return (
-        <AppDetailErrorState
+        <MCPServerDetailErrorState
           error={this.state.error || new Error("Unknown error")}
           onBack={this.props.onBack}
         />
@@ -198,11 +198,13 @@ class StoreAppDetailErrorBoundary extends Component<
   }
 }
 
-function StoreAppDetailContent() {
+function StoreMCPServerDetailContent() {
   const { org } = useProjectContext();
   const navigate = useNavigate();
-  // Get appName from the child route (just /$appName)
-  const { appName } = useParams({ strict: false }) as { appName?: string };
+  // Get serverSlug from the child route
+  const { appName: serverSlug } = useParams({ strict: false }) as {
+    appName?: string;
+  };
   const { registryId: registryIdParam, serverName } = useSearch({
     strict: false,
   }) as {
@@ -338,10 +340,10 @@ function StoreAppDetailContent() {
     }
   }
 
-  // Find the item matching the appName slug or serverName
+  // Find the item matching the serverSlug or serverName
   let selectedItem = items.find((item) => {
     const itemName = item.name || item.title || item.server.title || "";
-    return slugify(itemName) === appName;
+    return slugify(itemName) === serverSlug;
   });
 
   // If not found in list but serverName provided, try to find by server name
@@ -466,20 +468,20 @@ function StoreAppDetailContent() {
 
   // Not found state
   if (!selectedItem) {
-    return <AppDetailNotFoundState onBack={handleBackClick} />;
+    return <MCPServerDetailNotFoundState onBack={handleBackClick} />;
   }
 
   if (!data) {
     return null;
   }
 
-  // Check if app can be installed (must have remotes)
+  // Check if server can be installed (must have remotes)
   const canInstall = (selectedItem?.server?.remotes?.length ?? 0) > 0;
 
   return (
     <div className="flex flex-col h-full border-l border-border">
       {/* Header */}
-      <AppDetailHeader onBack={handleBackClick} />
+      <MCPServerDetailHeader onBack={handleBackClick} />
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto h-full">
@@ -495,7 +497,7 @@ function StoreAppDetailContent() {
             )}
 
             {/* SECTION 1: Hero (Full Width) */}
-            <AppHeroSection
+            <MCPServerHeroSection
               data={data}
               itemVersions={
                 allVersions.length > 0 ? allVersions : [selectedItem]
@@ -508,14 +510,14 @@ function StoreAppDetailContent() {
             {/* SECTION 2 & 3: Two Column Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 min-h-[677px]">
               {/* SECTION 2: Left Column (Overview + Publisher) */}
-              <AppSidebar
+              <MCPServerDetailSidebar
                 data={data}
                 publisherInfo={publisherInfo}
                 selectedItem={selectedItem}
               />
 
               {/* SECTION 3: Right Column (Tabs + Content) */}
-              <AppTabsContent
+              <MCPServerTabsContent
                 data={data}
                 availableTabs={availableTabs}
                 effectiveActiveTabId={effectiveActiveTabId}
@@ -531,7 +533,7 @@ function StoreAppDetailContent() {
   );
 }
 
-export default function StoreAppDetail() {
+export default function StoreMCPServerDetail() {
   const { org } = useProjectContext();
   const navigate = useNavigate();
 
@@ -543,10 +545,11 @@ export default function StoreAppDetail() {
   };
 
   return (
-    <StoreAppDetailErrorBoundary onBack={handleBackClick}>
-      <Suspense fallback={<AppDetailLoadingState />}>
-        <StoreAppDetailContent />
+    <StoreMCPServerDetailErrorBoundary onBack={handleBackClick}>
+      <Suspense fallback={<MCPServerDetailLoadingState />}>
+        <StoreMCPServerDetailContent />
       </Suspense>
-    </StoreAppDetailErrorBoundary>
+    </StoreMCPServerDetailErrorBoundary>
   );
 }
+

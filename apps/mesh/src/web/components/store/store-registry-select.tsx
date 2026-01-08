@@ -99,3 +99,4 @@ export function StoreRegistrySelect({
     </Select>
   );
 }
+

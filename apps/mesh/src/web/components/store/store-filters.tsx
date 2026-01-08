@@ -13,7 +13,7 @@ import {
   FilterLines,
 } from "@untitledui/icons";
 import { useState } from "react";
-import type { FilterItem } from "./store-discovery";
+import type { FilterItem } from "./types";
 
 interface StoreFiltersProps {
   availableTags?: FilterItem[];
