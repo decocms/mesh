@@ -72,8 +72,11 @@ function useCollectionWorkflow({ itemId }: { itemId: string }) {
   };
 }
 
-interface WorkflowDetailsProps {
+interface WorkflowViewProps {
   onBack: () => void;
+}
+
+interface WorkflowDetailsProps extends WorkflowViewProps {
   onUpdate: (updates: Partial<Workflow>) => Promise<void>;
 }
 
@@ -259,7 +262,7 @@ function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
   };
 }
 
-export function WorkflowExecutionDetailsView({ onBack }: WorkflowDetailsProps) {
+export function WorkflowExecutionDetailsView({ onBack }: WorkflowViewProps) {
   const { itemId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });

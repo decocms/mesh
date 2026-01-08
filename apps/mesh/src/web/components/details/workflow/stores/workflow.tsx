@@ -490,20 +490,27 @@ export function useWorkflowSteps() {
 export function useIsDirty() {
   const workflow = useWorkflow();
   const localWorkflow = useWorkflowStore((state) => state.localWorkflow);
-  return (
-    JSON.stringify(
-      workflow.steps.map((step) => ({
-        ...step,
-        outputSchema: undefined,
-      })),
-    ) !==
-    JSON.stringify(
-      localWorkflow.steps.map((step) => ({
-        ...step,
-        outputSchema: undefined,
-      })),
-    )
-  );
+
+  // Compare title, description, and steps (the user-editable properties)
+  const currentState = {
+    title: workflow.title,
+    description: workflow.description,
+    steps: workflow.steps.map((step) => ({
+      ...step,
+      outputSchema: undefined,
+    })),
+  };
+
+  const savedState = {
+    title: localWorkflow.title,
+    description: localWorkflow.description,
+    steps: localWorkflow.steps.map((step) => ({
+      ...step,
+      outputSchema: undefined,
+    })),
+  };
+
+  return JSON.stringify(currentState) !== JSON.stringify(savedState);
 }
 
 export function useTrackingExecutionId() {
