@@ -4,7 +4,6 @@ import { Locator } from "@/web/lib/locator";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Home02,
-  Building02,
   Container,
   CpuChip02,
   Users01,
@@ -12,7 +11,7 @@ import {
   BarChart10,
   Zap,
 } from "@untitledui/icons";
-import { loadPluginSidebarItems } from "../plugins";
+import { pluginRootSidebarItems } from "../index.tsx";
 
 export function useProjectSidebarItems() {
   const { locator } = useProjectContext();
@@ -27,10 +26,12 @@ export function useProjectSidebarItems() {
       icon: <Home02 />,
       onClick: () => navigate({ to: "/$org", params: { org } }),
     },
-    ...loadPluginSidebarItems({
-      navigate: (pluginId: string) =>
-        navigate({ to: "/$org/$pluginId", params: { org, pluginId } }),
-    }),
+    ...pluginRootSidebarItems.map((item) => ({
+      key: item.pluginId,
+      label: item.label,
+      icon: item.icon,
+      onClick: () => navigate({ to: "/$org/$pluginId", params: { org, pluginId: item.pluginId } }),
+    })),
     {
       key: "mcps",
       label: "Connections",
