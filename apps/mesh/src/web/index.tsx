@@ -123,12 +123,6 @@ const orgStoreRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/store/page.tsx")),
 });
 
-const orgWorkflowRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/workflow",
-  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
-});
-
 const storeServerDetailRoute = createRoute({
   getParentRoute: () => orgStoreRoute,
   path: "/$appName",
