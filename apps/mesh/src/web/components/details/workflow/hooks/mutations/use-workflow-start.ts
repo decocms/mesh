@@ -22,22 +22,20 @@ export function useWorkflowStart() {
 
   const handleRunWorkflow = async (input: Record<string, unknown> = {}) => {
     if (!selectedGatewayId) {
-      throw new Error("Please select a gateway before running the workflow");
+      throw new Error("Please select a Hub before running the workflow");
     }
     const startAtEpochMs = Date.now();
-    const timeoutMs = 30000;
     const result = await startWorkflow({
-      steps: workflow.steps,
       input,
       gateway_id: selectedGatewayId,
       start_at_epoch_ms: startAtEpochMs,
       workflow_collection_id: workflow.id,
-      timeout_ms: timeoutMs,
     });
 
     const executionId =
-      (result as { id: string }).id ??
-      (result as { structuredContent: { id: string } }).structuredContent.id;
+      (result as { item: { id: string } })?.item?.id ??
+      (result as { structuredContent: { item: { id: string } } })
+        ?.structuredContent?.item?.id;
     setTrackingExecutionId(executionId);
     return executionId;
   };

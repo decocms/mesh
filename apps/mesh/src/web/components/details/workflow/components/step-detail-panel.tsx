@@ -16,7 +16,6 @@ import {
   ChevronUp,
   FileText,
   Hash,
-  Minus,
   Type,
   X,
 } from "lucide-react";
@@ -32,7 +31,10 @@ import type { JsonSchema } from "@/web/utils/constants";
 import { MonacoCodeEditor } from "./monaco-editor";
 import type { Step, ToolCallAction } from "@decocms/bindings/workflow";
 import { useMcp } from "@/web/hooks/use-mcp";
-import { useExecutionCompletedStep } from "../hooks";
+import {
+  useExecutionCompletedStep,
+  usePollingWorkflowExecution,
+} from "../hooks";
 import { useState } from "react";
 
 interface StepDetailPanelProps {
@@ -99,7 +101,7 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-sidebar overflow-hidden",
+        "flex flex-col h-full bg-sidebar overflow-scroll",
         className,
       )}
     >
@@ -258,11 +260,18 @@ function OutputSection({ step }: { step: Step }) {
   const outputSchema = step.outputSchema;
   const [isOpen, setIsOpen] = useState(false);
   const trackingExecutionId = useTrackingExecutionId();
+  const { item: executionItem } =
+    usePollingWorkflowExecution(trackingExecutionId);
+  const isCompleted =
+    executionItem?.completed_steps?.success?.includes(step.name) ||
+    executionItem?.completed_steps?.error?.includes(step.name)
+      ? true
+      : false;
   const { output, error } = useExecutionCompletedStep(
     trackingExecutionId,
-    step.name,
+    isCompleted ? step.name : undefined,
   );
-  const content = output ? output : error ? { error: error } : null;
+  const content = output ? output : error ? { error: error } : undefined;
 
   // Always show the Output section (even if empty)
   const properties =
@@ -296,7 +305,7 @@ function OutputSection({ step }: { step: Step }) {
       </div>
       {isOpen && (
         <div className="flex-1 min-h-0 overflow-auto px-5">
-          {trackingExecutionId ? (
+          {trackingExecutionId && content ? (
             <MonacoCodeEditor
               code={JSON.stringify(content, null, 2)}
               language="json"
@@ -373,6 +382,7 @@ function OutputProperty({
 function TransformCodeSection({ step }: { step: Step }) {
   const { updateStep } = useWorkflowActions();
   const trackingExecutionId = useTrackingExecutionId();
+  const [isOpen, setIsOpen] = useState(false);
 
   const isToolStep = "toolName" in step.action;
   const toolName =
@@ -384,8 +394,6 @@ function TransformCodeSection({ step }: { step: Step }) {
     isToolStep && "transformCode" in step.action
       ? (step.action.transformCode ?? null)
       : null;
-
-  const hasTransformCode = Boolean(transformCode);
 
   // Generate Input interface from tool's output schema
   const generateInputInterface = (): string => {
@@ -415,7 +423,11 @@ function TransformCodeSection({ step }: { step: Step }) {
     return `interface Input {\n${fields}\n}`;
   };
 
-  const handleAddTransformCode = () => {
+  const toggleTransformCodeEditor = () => {
+    if ("transformCode" in step.action && step.action.transformCode) {
+      setIsOpen((prev) => !prev);
+      return;
+    }
     const inputInterface = generateInputInterface();
     const defaultCode = `${inputInterface}
 
@@ -437,15 +449,7 @@ export default async function(input: Input): Promise<Output> {
         transformCode: defaultCode,
       },
     });
-  };
-
-  const handleRemoveTransformCode = () => {
-    updateStep(step.name, {
-      action: {
-        ...step.action,
-        transformCode: undefined,
-      },
-    });
+    setIsOpen((prev) => !prev);
   };
 
   const handleCodeSave = (
@@ -467,47 +471,41 @@ export default async function(input: Input): Promise<Output> {
     return null;
   }
 
-  // No transform code → show collapsed with Plus
-  if (!hasTransformCode) {
-    return (
-      <div
-        className="border-b border-border p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
-        onClick={handleAddTransformCode}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-muted-foreground">
-            Transform Code
-          </h3>
-          <Plus size={14} className="text-muted-foreground" />
-        </div>
-      </div>
-    );
-  }
-
   // Has transform code → show editor with Minus to remove
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden border-b border-border">
+    <div
+      className={cn(
+        "flex flex-col flex-1 min-h-0 overflow-hidden border-b border-border",
+        isOpen ? "flex-1 min-h-0 overflow-hidden" : "shrink-0",
+      )}
+    >
       <div
         className="p-5 shrink-0 cursor-pointer hover:bg-accent/50 transition-colors"
-        onClick={handleRemoveTransformCode}
+        onClick={toggleTransformCodeEditor}
       >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-muted-foreground">
             Transform Code
           </h3>
-          <Minus size={14} className="text-muted-foreground" />
+          {isOpen ? (
+            <ChevronUp size={14} className="text-muted-foreground" />
+          ) : (
+            <ChevronDown size={14} className="text-muted-foreground" />
+          )}
         </div>
       </div>
-      <div className="flex-1 min-h-0">
-        <MonacoCodeEditor
-          key={`transform-code-${step.name}-${trackingExecutionId}`}
-          code={transformCode!}
-          language="typescript"
-          readOnly={trackingExecutionId !== undefined}
-          onSave={handleCodeSave}
-          height="100%"
-        />
-      </div>
+      {isOpen && (
+        <div className="flex-1 min-h-0">
+          <MonacoCodeEditor
+            key={`transform-code-${step.name}-${trackingExecutionId}`}
+            code={transformCode!}
+            language="typescript"
+            readOnly={trackingExecutionId !== undefined}
+            onSave={handleCodeSave}
+            height="100%"
+          />
+        </div>
+      )}
     </div>
   );
 }

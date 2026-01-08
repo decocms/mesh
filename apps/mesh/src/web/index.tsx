@@ -122,6 +122,12 @@ const orgStoreRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/store.tsx")),
 });
 
+const orgWorkflowRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/workflow",
+  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
+});
+
 const storeAppDetailRoute = createRoute({
   getParentRoute: () => orgStoreRoute,
   path: "/$appName",
@@ -206,6 +212,7 @@ const shellRouteTree = shellLayout.addChildren([
   gatewayDetailRoute,
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
+  orgWorkflowRoute,
   orgSettingsRoute,
   connectionLayoutRoute,
   collectionDetailsRoute,

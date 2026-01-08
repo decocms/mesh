@@ -8,7 +8,7 @@ type ExecutionQueryResult = {
   item: WorkflowExecution | null;
 };
 
-const POLLING_INTERVALS = [1, 1000, 2000, 3000, 5000, 10000];
+const POLLING_INTERVALS = [100, 1000, 2000];
 
 export function usePollingWorkflowExecution(executionId?: string) {
   const connection = useWorkflowBindingConnection();
@@ -25,6 +25,8 @@ export function usePollingWorkflowExecution(executionId?: string) {
       id: executionId,
     },
     scope: connection.id,
+    staleTime: 0,
+    gcTime: 0,
     enabled: !!executionId,
     refetchInterval: executionId
       ? (query) => {

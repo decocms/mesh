@@ -261,7 +261,7 @@ function FiltersPopover({
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                MCP Servers
+                Connections
               </label>
               <MultiSelect
                 options={connectionOptions}
@@ -286,7 +286,7 @@ function FiltersPopover({
                 onValueChange={(values) =>
                   onUpdateFilters({ gatewayId: values })
                 }
-                placeholder="All gateways"
+                placeholder="All Hubs"
                 variant="secondary"
                 className="w-full"
                 maxCount={2}
@@ -665,7 +665,7 @@ function MonitoringLogsTableContent({
 
             {/* Tool/Connection Column */}
             <div className="flex-1 pr-2 md:pr-4 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              Tool / MCP Server
+              Tool / Connection
             </div>
 
             {/* Gateway Column */}

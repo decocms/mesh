@@ -1,6 +1,6 @@
 {
   "name": "@decocms/runtime",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
@@ -10,7 +10,7 @@
     "@cloudflare/workers-types": "^4.20250617.0",
     "@decocms/bindings": "workspace:*",
     "@modelcontextprotocol/sdk": "1.25.1",
-    "@ai-sdk/provider": "^2.0.0",
+    "@ai-sdk/provider": "^3.0.0",
     "hono": "^4.10.7",
     "jose": "^6.0.11",
     "zod": "^4.0.0"

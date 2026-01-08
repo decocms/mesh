@@ -13,6 +13,8 @@ export const KEYS = {
 
   // Chat store (IndexedDB) queries
   threads: (locator: string) => ["threads", locator] as const,
+  gatewayThreads: (locator: string, gatewayId: string) =>
+    ["threads", locator, "gateway", gatewayId] as const,
   thread: (locator: string, threadId: string) =>
     ["thread", locator, threadId] as const,
   threadMessages: (locator: string, threadId: string) =>

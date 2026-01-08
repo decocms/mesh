@@ -9,8 +9,8 @@ icon: BookOpen
 - **Organization**: the top-level tenant boundary. Everything (connections, gateways, logs) is org-scoped.
 - **Members**: users invited into an organization.
 - **Roles**: role assignments for members, used by access control checks.
-- **MCP Server (Connection)**: a configured upstream MCP endpoint (usually HTTP), optionally with stored credentials.
-- **Gateway**: a virtual MCP server that aggregates multiple connections into a single MCP surface.
+- **Connection**: a configured upstream MCP endpoint (usually HTTP), optionally with stored credentials.
+- **Hub**: a virtual MCP server that aggregates multiple connections into a single MCP surface.
 - **Tool call**: a `tools/call` request routed through the Mesh to a downstream MCP server (or via a gateway).
 - **Monitoring log**: a record of a tool call (inputs, outputs, duration, error), used for debugging and ops.
 
@@ -25,7 +25,7 @@ icon: BookOpen
 2. The client calls either:
    - the **Management MCP** (admin tools), or
    - a **Proxy endpoint** (one connection), or
-   - a **Gateway endpoint** (aggregated tools/resources/prompts).
-3. The Mesh authorizes, loads credentials, proxies to the downstream MCP server(s), and logs monitoring events.
+   - a **Hub endpoint** (aggregated tools/resources/prompts).
+3. The Mesh authorizes, loads credentials, proxies to the downstream Connection(s), and logs monitoring events.
 
 

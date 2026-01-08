@@ -1,5 +1,4 @@
 import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
-import { AssistantDetailsView } from "@/web/components/details/assistant/index.tsx";
 import { PromptDetailsView } from "@/web/components/details/prompt/index.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -10,7 +9,7 @@ import { useParams, useRouter } from "@tanstack/react-router";
 import { Suspense, type ComponentType } from "react";
 import {
   WorkflowExecutionDetailsView,
-  WorkflowDetailsView,
+  WorkflowDetails,
 } from "@/web/components/details/workflow/index.tsx";
 
 interface CollectionDetailsProps {
@@ -24,9 +23,8 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
   string,
   ComponentType<CollectionDetailsProps>
 > = {
-  workflow: WorkflowDetailsView,
+  workflow: WorkflowDetails,
   workflow_execution: WorkflowExecutionDetailsView,
-  assistant: AssistantDetailsView,
   prompt: PromptDetailsView,
 };
 

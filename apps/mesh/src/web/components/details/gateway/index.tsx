@@ -12,6 +12,8 @@ import {
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
+import { useBindingConnections } from "@/web/hooks/use-binding";
+import { useStoredSelection } from "@/web/hooks/use-stored-selection";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   InfoCircle,
@@ -19,6 +21,10 @@ import {
   Check,
   Copy01,
   CpuChip02,
+  Plus,
+  FlipBackward,
+  Edit03,
+  Save01,
 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
@@ -60,8 +66,33 @@ import { z } from "zod";
 import { slugify } from "@/web/utils/slugify";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { ViewLayout, ViewActions, ViewTabs } from "../layout";
+import {
+  Chat,
+  ModelSelector,
+  UsageStats,
+  useModels,
+} from "@/web/components/chat";
+import { useChat } from "@/web/components/chat/chat-context";
+import { GatewayIceBreakers } from "@/web/components/chat/gateway-ice-breakers";
+import { NoLlmBindingEmptyState } from "@/web/components/chat/no-llm-binding-empty-state";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
+import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
+import { useProjectContext } from "@/web/providers/project-context-provider";
+import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { authClient } from "@/web/lib/auth-client";
+import { ThreadHistoryPopover } from "@/web/components/chat/thread-history-popover";
+import { useThreads, useThreadActions } from "@/web/hooks/use-chat-store";
+import type { Thread } from "@/web/types/chat-threads";
 
 type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
+
+/**
+ * Hardcoded system prompt for gateway chat
+ */
+const GATEWAY_SYSTEM_PROMPT =
+  "You are a helpful assistant. Please try answering the user's questions using your available tools.";
 
 /**
  * Unicode-safe base64 encoding for browser environments
@@ -350,6 +381,269 @@ function mergeSelectionsToGatewayConnections(
 }
 
 /**
+ * Chat Panel for Gateway
+ */
+interface GatewayChatPanelProps {
+  gateway: GatewayEntity;
+  activeThreadId: string;
+  setActiveThreadId: (id: string) => void;
+}
+
+function GatewayChatPanelContent({
+  gateway,
+  activeThreadId,
+  setActiveThreadId,
+}: GatewayChatPanelProps) {
+  const { data: session } = authClient.useSession();
+  const user = session?.user;
+
+  // Fetch models
+  const models = useModels();
+
+  // Check for LLM binding connection
+  const allConnections = useConnections({});
+  const [modelsConnection] = useBindingConnections({
+    connections: allConnections,
+    binding: "LLMS",
+  });
+  const hasModelsBinding = Boolean(modelsConnection);
+
+  // Model selection with localStorage
+  const { locator, org } = useProjectContext();
+  const navigate = useNavigate();
+  const [selectedModel, setSelectedModelState] = useStoredSelection<
+    { id: string; connectionId: string },
+    (typeof models)[number]
+  >(
+    LOCALSTORAGE_KEYS.chatSelectedModel(locator),
+    models,
+    (m, state) => m.id === state.id && m.connectionId === state.connectionId,
+  );
+
+  // Thread actions for storing threads with gateway association
+  const threadActions = useThreadActions();
+
+  // Use the shared persisted chat hook with hardcoded system prompt
+  const chat = usePersistedChat({
+    threadId: activeThreadId,
+    systemPrompt: GATEWAY_SYSTEM_PROMPT,
+    onCreateThread: (thread) => {
+      // Store thread with gateway association
+      const newThread: Thread = {
+        id: thread.id,
+        title: thread.title,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        hidden: false,
+        gatewayId: gateway.id,
+      };
+      threadActions.insert.mutate(newThread);
+    },
+  });
+
+  // Get input and branching state from context
+  const { inputValue, setInputValue, branchContext, clearBranch } = useChat();
+
+  const { isEmpty } = chat;
+
+  // Chat config is valid when model is configured
+  const hasChatConfig = Boolean(selectedModel);
+
+  const handleSendMessage = async (text: string) => {
+    if (!hasChatConfig || !selectedModel) {
+      toast.error("No model configured");
+      return;
+    }
+
+    // Clear input
+    setInputValue("");
+
+    // Clear editing state before sending
+    clearBranch();
+
+    const metadata: Metadata = {
+      created_at: new Date().toISOString(),
+      thread_id: activeThreadId,
+      model: {
+        id: selectedModel.id,
+        connectionId: selectedModel.connectionId,
+        provider: selectedModel.provider ?? undefined,
+        limits: selectedModel.limits ?? undefined,
+      },
+      gateway: { id: gateway.id },
+      user: {
+        avatar: user?.image ?? undefined,
+        name: user?.name ?? "you",
+      },
+    };
+
+    await chat.sendMessage(text, metadata);
+  };
+
+  const handleModelChange = (model: { id: string; connectionId: string }) => {
+    setSelectedModelState(model);
+  };
+
+  // Handle clicking on the branch preview to go back to original thread
+  const handleGoToOriginalMessage = () => {
+    if (!branchContext) return;
+    setActiveThreadId(branchContext.originalThreadId);
+    // Clear the branch context since we're going back
+    clearBranch();
+    setInputValue("");
+  };
+
+  // Show empty state if no models binding
+  if (!hasModelsBinding) {
+    return (
+      <Chat>
+        <Chat.Main className="h-full relative overflow-hidden">
+          <Chat.EmptyState>
+            <NoLlmBindingEmptyState
+              description="Connect to a model provider to unlock AI-powered features in this Hub."
+              orgSlug={org.slug}
+              orgId={org.id}
+              userId={user?.id ?? ""}
+              allConnections={allConnections}
+              onInstallMcpServer={() =>
+                navigate({
+                  to: "/$org/mcps",
+                  params: { org: org.slug },
+                  search: { action: "create" },
+                })
+              }
+            />
+          </Chat.EmptyState>
+        </Chat.Main>
+        <Chat.Footer />
+      </Chat>
+    );
+  }
+
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center gap-4 p-4 text-center">
+      <div className="flex flex-col items-center gap-4">
+        <IntegrationIcon
+          icon={gateway.icon}
+          name={gateway.title || "Gateway"}
+          size="lg"
+          fallbackIcon={<CpuChip02 size={32} />}
+          className="size-[60px]! rounded-[18px]!"
+        />
+        <h3 className="text-xl font-medium text-foreground">
+          {gateway.title || "Hub Chat"}
+        </h3>
+        {gateway.description ? (
+          <div className="text-muted-foreground text-center text-sm max-w-md">
+            {gateway.description}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Ice Breakers */}
+      <ErrorBoundary fallback={null}>
+        <Suspense
+          fallback={
+            <div className="flex justify-center mt-6">
+              <Loading01
+                size={20}
+                className="animate-spin text-muted-foreground"
+              />
+            </div>
+          }
+        >
+          <GatewayIceBreakers
+            gatewayId={gateway.id}
+            onSelect={(prompt) => {
+              handleSendMessage(prompt.description ?? prompt.name);
+            }}
+          />
+        </Suspense>
+      </ErrorBoundary>
+    </div>
+  );
+
+  return (
+    <Chat>
+      <Chat.Main className="h-full relative overflow-hidden">
+        {isEmpty ? (
+          <Chat.EmptyState>{emptyState}</Chat.EmptyState>
+        ) : (
+          <Chat.Messages
+            messages={chat.messages}
+            status={chat.status}
+            minHeightOffset={240}
+          />
+        )}
+      </Chat.Main>
+
+      <Chat.Footer>
+        <div className="max-w-2xl mx-auto w-full min-w-0 flex flex-col gap-2">
+          <Chat.ErrorBanner
+            error={chat.error}
+            onFixInChat={() => {
+              if (chat.error) {
+                handleSendMessage(
+                  `I encountered this error: ${chat.error.message}. Can you help me fix it?`,
+                );
+              }
+            }}
+            onDismiss={chat.clearError}
+          />
+          <Chat.FinishReasonWarning
+            finishReason={chat.finishReason}
+            onContinue={() => {
+              handleSendMessage("Please continue.");
+            }}
+            onDismiss={chat.clearFinishReason}
+          />
+          <Chat.BranchPreview
+            branchContext={branchContext}
+            clearBranchContext={clearBranch}
+            onGoToOriginalMessage={handleGoToOriginalMessage}
+            setInputValue={setInputValue}
+          />
+          <Chat.Input
+            value={inputValue}
+            onChange={setInputValue}
+            onSubmit={async () => {
+              if (!inputValue.trim()) return;
+              await handleSendMessage(inputValue.trim());
+            }}
+            onStop={chat.stop}
+            disabled={!hasChatConfig}
+            isStreaming={
+              chat.status === "submitted" || chat.status === "streaming"
+            }
+            placeholder={
+              !selectedModel
+                ? "Select a model to start chatting"
+                : "Ask anything or @ for context"
+            }
+          >
+            <ModelSelector
+              selectedModel={selectedModel ?? undefined}
+              onModelChange={handleModelChange}
+              placeholder="Model"
+              variant="borderless"
+            />
+            <UsageStats messages={chat.messages} />
+          </Chat.Input>
+        </div>
+      </Chat.Footer>
+    </Chat>
+  );
+}
+
+function GatewayChatPanel(props: GatewayChatPanelProps) {
+  return (
+    <Chat.Provider>
+      <GatewayChatPanelContent {...props} />
+    </Chat.Provider>
+  );
+}
+
+/**
  * Settings Tab - Gateway configuration (title, description, status, mode, strategy)
  */
 function GatewaySettingsTab({
@@ -372,7 +666,7 @@ function GatewaySettingsTab({
               <div className="flex items-start justify-between">
                 <IntegrationIcon
                   icon={icon}
-                  name={form.watch("title") || "Gateway"}
+                  name={form.watch("title") || "Hub"}
                   size="lg"
                   className="shrink-0 shadow-sm"
                   fallbackIcon={<CpuChip02 />}
@@ -410,7 +704,7 @@ function GatewaySettingsTab({
                         <Input
                           {...field}
                           className="h-auto text-lg! font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
-                          placeholder="Gateway Name"
+                          placeholder="Hub Name"
                         />
                       </FormControl>
                       <FormMessage />
@@ -520,7 +814,7 @@ function GatewaySettingsTab({
                                 variant="ghost"
                                 size="icon"
                                 className="size-7"
-                                aria-label="Gateway strategy help"
+                                aria-label="Hub strategy help"
                               >
                                 <InfoCircle
                                   size={14}
@@ -582,7 +876,7 @@ function GatewaySettingsTab({
       <div className="flex flex-col overflow-auto">
         <div className="p-5">
           <IDEIntegration
-            serverName={gateway.title || `gateway-${gateway.id.slice(0, 8)}`}
+            serverName={gateway.title || `hub-${gateway.id.slice(0, 8)}`}
             gatewayUrl={`${window.location.origin}/mcp/gateway/${gateway.id}`}
           />
         </div>
@@ -617,6 +911,27 @@ function GatewayInspectorViewWithGateway({
   const router = useRouter();
   const navigate = useNavigate({ from: "/$org/gateways/$gatewayId" });
   const actions = useGatewayActions();
+  const { locator } = useProjectContext();
+
+  // Mode state: "chat" (default) or "edit"
+  const [mode, setMode] = useState<"chat" | "edit">("chat");
+
+  // Thread management for chat mode
+  const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
+    LOCALSTORAGE_KEYS.gatewayChatActiveThread(locator, gatewayId),
+    (existing) => existing || crypto.randomUUID(),
+  );
+
+  // Fetch threads filtered by gateway
+  const { threads, refetch: refetchThreads } = useThreads({ gatewayId });
+  const threadActions = useThreadActions();
+
+  const handleHideThread = async (threadId: string) => {
+    await threadActions.update.mutateAsync({
+      id: threadId,
+      updates: { hidden: true },
+    });
+  };
 
   // Fetch all connections to get tool names for "all tools" expansion
   const connections = useConnections({});
@@ -717,6 +1032,8 @@ function GatewayInspectorViewWithGateway({
     // Reset dirty states
     form.reset(formData);
     setSelectionDirty(false);
+    // Return to chat mode after save
+    setMode("chat");
   };
 
   // Define tabs
@@ -735,75 +1052,213 @@ function GatewayInspectorViewWithGateway({
     navigate({ search: (prev) => ({ ...prev, tab: tabId }), replace: true });
   };
 
+  const isSaving = actions.update.isPending;
+  const isEditMode = mode === "edit";
+
   return (
     <ViewLayout onBack={() => router.history.back()}>
+      {/* Header: Show chat header in chat mode, tabs in edit mode */}
       <ViewTabs>
-        <ResourceTabs
-          tabs={tabs}
-          activeTab={activeTabId}
-          onTabChange={handleTabChange}
-        />
+        {isEditMode ? (
+          <ResourceTabs
+            tabs={tabs}
+            activeTab={activeTabId}
+            onTabChange={handleTabChange}
+          />
+        ) : (
+          <div className="flex items-center gap-3 min-w-0">
+            <IntegrationIcon
+              icon={gateway.icon}
+              name={gateway.title || "Hub"}
+              size="xs"
+              fallbackIcon={<CpuChip02 size={12} />}
+            />
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm font-medium text-foreground truncate">
+                {gateway.title}
+              </span>
+              {gateway.description ? (
+                <>
+                  <span className="text-xs text-muted-foreground font-normal">
+                    •
+                  </span>
+                  <span className="text-xs text-muted-foreground font-normal truncate min-w-0 max-w-[20ch]">
+                    {gateway.description}
+                  </span>
+                </>
+              ) : null}
+            </div>
+          </div>
+        )}
       </ViewTabs>
+
       <ViewActions>
         <PinToSidebarButton
           title={gateway.title}
           url={url}
           icon={gateway.icon ?? "cpu_chip"}
         />
-        {hasAnyChanges && (
-          <Button
-            onClick={handleSave}
-            disabled={actions.update.isPending}
-            size="sm"
-            className="h-7"
-          >
-            {actions.update.isPending && (
-              <Loading01 size={16} className="mr-2 animate-spin" />
+        {isEditMode ? (
+          <>
+            <TooltipProvider>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-7 border border-input"
+                      disabled={isSaving}
+                      onClick={() => setMode("chat")}
+                      aria-label="Cancel"
+                    >
+                      <FlipBackward size={14} />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Cancel</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {hasAnyChanges && (
+              <TooltipProvider>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="size-7 border border-input"
+                        disabled={isSaving}
+                        onClick={handleSave}
+                        aria-label="Save"
+                      >
+                        {isSaving ? (
+                          <Loading01 size={14} className="animate-spin" />
+                        ) : (
+                          <Save01 size={14} />
+                        )}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Save</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
-            Save Changes
-          </Button>
+          </>
+        ) : (
+          <>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    onClick={() => setActiveThreadId(crypto.randomUUID())}
+                    aria-label="New thread"
+                    variant="outline"
+                    size="icon"
+                    className="size-7 border border-input"
+                  >
+                    <Plus size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New thread</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <ThreadHistoryPopover
+              threads={threads}
+              activeThreadId={activeThreadId}
+              onSelectThread={setActiveThreadId}
+              onRemoveThread={handleHideThread}
+              onOpen={() => refetchThreads()}
+              variant="outline"
+            />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    onClick={() => setMode("edit")}
+                    aria-label="Edit"
+                    variant="outline"
+                    size="icon"
+                    className="size-7 border border-input"
+                  >
+                    <Edit03 size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit Settings</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </>
         )}
       </ViewActions>
 
       <div className="flex h-full w-full bg-background overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0 bg-background overflow-auto">
-          <ErrorBoundary key={activeTabId}>
-            <Suspense
-              fallback={
-                <div className="flex h-full items-center justify-center">
-                  <Loading01
-                    size={32}
-                    className="animate-spin text-muted-foreground"
+        <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
+          {/* Chat mode content */}
+          <div
+            className={cn(
+              "h-full transition-opacity duration-200 ease-out",
+              isEditMode
+                ? "opacity-0 pointer-events-none hidden"
+                : "opacity-100",
+            )}
+          >
+            <GatewayChatPanel
+              gateway={gateway}
+              activeThreadId={activeThreadId}
+              setActiveThreadId={setActiveThreadId}
+            />
+          </div>
+
+          {/* Edit mode content */}
+          <div
+            className={cn(
+              "h-full overflow-auto transition-opacity duration-200 ease-out",
+              isEditMode
+                ? "opacity-100 pointer-events-auto"
+                : "opacity-0 pointer-events-none hidden",
+            )}
+          >
+            <ErrorBoundary key={activeTabId}>
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading01
+                      size={32}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                }
+              >
+                {activeTabId === "settings" ? (
+                  <GatewaySettingsTab
+                    form={form}
+                    gateway={gateway}
+                    icon={gateway.icon}
                   />
-                </div>
-              }
-            >
-              {activeTabId === "settings" ? (
-                <GatewaySettingsTab
-                  form={form}
-                  gateway={gateway}
-                  icon={gateway.icon}
-                />
-              ) : activeTabId === "tools" ? (
-                <ToolSetSelector
-                  toolSet={toolSet}
-                  onToolSetChange={handleToolSetChange}
-                />
-              ) : activeTabId === "resources" ? (
-                <ResourceSetSelector
-                  resourceSet={resourceSet}
-                  onResourceSetChange={handleResourceSetChange}
-                  connectionResources={connectionResources}
-                />
-              ) : activeTabId === "prompts" ? (
-                <PromptSetSelector
-                  promptSet={promptSet}
-                  onPromptSetChange={handlePromptSetChange}
-                  connectionPrompts={connectionPrompts}
-                />
-              ) : null}
-            </Suspense>
-          </ErrorBoundary>
+                ) : activeTabId === "tools" ? (
+                  <ToolSetSelector
+                    toolSet={toolSet}
+                    onToolSetChange={handleToolSetChange}
+                  />
+                ) : activeTabId === "resources" ? (
+                  <ResourceSetSelector
+                    resourceSet={resourceSet}
+                    onResourceSetChange={handleResourceSetChange}
+                    connectionResources={connectionResources}
+                  />
+                ) : activeTabId === "prompts" ? (
+                  <PromptSetSelector
+                    promptSet={promptSet}
+                    onPromptSetChange={handlePromptSetChange}
+                    connectionPrompts={connectionPrompts}
+                  />
+                ) : null}
+              </Suspense>
+            </ErrorBoundary>
+          </div>
         </div>
       </div>
     </ViewLayout>
@@ -826,8 +1281,8 @@ function GatewayInspectorViewContent() {
     return (
       <div className="flex h-full w-full bg-background">
         <EmptyState
-          title="Gateway not found"
-          description="This gateway may have been deleted or you may not have access."
+          title="Hub not found"
+          description="This Hub may have been deleted or you may not have access."
           actions={
             <Button
               variant="outline"

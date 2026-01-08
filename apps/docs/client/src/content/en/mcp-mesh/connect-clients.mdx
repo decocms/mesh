@@ -17,10 +17,10 @@ There are two common ways to connect clients to the Mesh:
 
 - **Management MCP**: `POST /mcp`
 - **Connection proxy**: `POST /mcp/:connectionId`
-- **Gateway (virtual server)**: `POST /mcp/gateway/:gatewayId` (or omit `:gatewayId` to use the org default gateway with headers)
+- **Hub (virtual server)**: `POST /mcp/gateway/:gatewayId` (or omit `:gatewayId` to use the org default Hub with headers)
 
 <Callout type="tip">
-  If your goal is a “single MCP URL” for a curated tool surface, use **Gateways**. If you want a direct pipe to one upstream MCP, use **Connection proxy**.
+  If your goal is a "single MCP URL" for a curated tool surface, use **Hubs**. If you want a direct pipe to one upstream MCP, use **Connection proxy**.
 </Callout>
 
 ## Authentication quick notes

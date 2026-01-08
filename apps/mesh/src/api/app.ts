@@ -10,8 +10,8 @@
 
 import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { cors } from "hono/cors";
 import { auth } from "../auth";
 import {
   ContextFactory,
@@ -30,7 +30,11 @@ import oauthProxyRoutes, {
   fetchProtectedResourceMetadata,
 } from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
-import { isDecoHostedMcp, DECO_STORE_URL } from "../core/well-known-mcp";
+import {
+  isDecoHostedMcp,
+  DECO_STORE_URL,
+  WellKnownOrgMCPId,
+} from "../core/well-known-mcp";
 import type { MeshContext } from "../core/mesh-context";
 
 // Track current event bus instance for cleanup during HMR
@@ -94,6 +98,7 @@ import {
 import { MiddlewareHandler } from "hono/types";
 import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
 import { Env } from "./env";
+import { devLogger } from "./utils/dev-logger";
 const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
 const getHandleOAuthDiscoveryMetadata = () => oAuthDiscoveryMetadata(auth);
@@ -176,8 +181,11 @@ export function createApp(options: CreateAppOptions = {}) {
     }),
   );
 
-  // Request logging
-  app.use("*", logger());
+  if (process.env.NODE_ENV === "production") {
+    app.use("*", logger());
+  } else {
+    app.use("*", devLogger());
+  }
 
   // Log response body for 5xx errors
   app.use("*", async (c, next) => {
@@ -524,6 +532,23 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // LLM API routes (OpenAI-compatible)
   app.route("/api", modelsRoutes);
+
+  // Public Events endpoint
+  app.post("/org/:organizationId/events/:type", async (c) => {
+    const orgId = c.req.param("organizationId");
+    await c.var.meshContext.eventBus.publish(
+      orgId,
+      WellKnownOrgMCPId.SELF(orgId),
+      {
+        data: await c.req.json(),
+        type: `public:${c.req.param("type")}`,
+        subject: c.req.query("subject"),
+        deliverAt: c.req.query("deliverAt"),
+        cron: c.req.query("cron"),
+      },
+    );
+    return c.json({ success: true });
+  });
 
   // ============================================================================
   // 404 Handler

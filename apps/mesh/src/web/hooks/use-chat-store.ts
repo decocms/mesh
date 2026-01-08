@@ -83,16 +83,30 @@ export function getThreadMessagesFromIndexedDB(
 }
 
 /**
- * Hook to get all threads
+ * Hook to get all threads, optionally filtered by gateway
  *
+ * @param options - Optional filter options
+ * @param options.gatewayId - Filter threads by gateway ID
  * @returns Object with threads array and refetch function
  */
-export function useThreads() {
+export function useThreads(options?: { gatewayId?: string }) {
   const { locator } = useProjectContext();
+  const gatewayId = options?.gatewayId;
 
   const { data, refetch } = useSuspenseQuery({
-    queryKey: KEYS.threads(locator),
-    queryFn: () => getAllThreadsFromIndexedDB(locator),
+    queryKey: gatewayId
+      ? KEYS.gatewayThreads(locator, gatewayId)
+      : KEYS.threads(locator),
+    queryFn: async () => {
+      const allThreads = await getAllThreadsFromIndexedDB(locator);
+
+      // Apply gateway filter if provided
+      if (gatewayId) {
+        return allThreads.filter((thread) => thread.gatewayId === gatewayId);
+      }
+
+      return allThreads;
+    },
     staleTime: 30_000,
   });
 
@@ -132,8 +146,14 @@ export function useThreadActions() {
       await set(key, thread);
       return thread;
     },
-    onSuccess: () => {
+    onSuccess: (thread: Thread) => {
+      // Invalidate all threads queries (including gateway-filtered)
       queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
+      if (thread.gatewayId) {
+        queryClient.invalidateQueries({
+          queryKey: KEYS.gatewayThreads(locator, thread.gatewayId),
+        });
+      }
     },
   });
 
@@ -155,10 +175,16 @@ export function useThreadActions() {
       return updated;
     },
     onSuccess: (updated: Thread) => {
+      // Invalidate all threads queries (including gateway-filtered)
       queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
       queryClient.invalidateQueries({
         queryKey: KEYS.thread(locator, updated.id),
       });
+      if (updated.gatewayId) {
+        queryClient.invalidateQueries({
+          queryKey: KEYS.gatewayThreads(locator, updated.gatewayId),
+        });
+      }
     },
   });
 

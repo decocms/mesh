@@ -17,7 +17,7 @@ type CurrentStepTab = "input" | "output" | "action" | "executions";
 export type StepType = "tool" | "code";
 
 interface State {
-  originalWorkflow: Workflow;
+  localWorkflow: Workflow;
   isAddingStep?: boolean | null;
   /** The type of step being added (set when user clicks add button) */
   addingStepType?: StepType | null;
@@ -241,7 +241,7 @@ const createWorkflowStore = (initialState: State) => {
           resetToOriginalWorkflow: () =>
             set((state) => ({
               ...state,
-              workflow: state.originalWorkflow,
+              workflow: state.localWorkflow,
             })),
           startAddingStep: (type: StepType) =>
             set((state) => ({
@@ -374,7 +374,7 @@ const createWorkflowStore = (initialState: State) => {
           setOriginalWorkflow: (workflow) =>
             set((state) => ({
               ...state,
-              originalWorkflow: workflow,
+              localWorkflow: workflow,
             })),
           setWorkflow: (workflow) =>
             set((state) => ({
@@ -403,11 +403,10 @@ const createWorkflowStore = (initialState: State) => {
         storage: createJSONStorage(() => localStorage),
         version: 1,
         partialize: (state) => ({
-          workflow: state.workflow,
           trackingExecutionId: state.trackingExecutionId,
           currentStepName: state.currentStepName,
           currentStepTab: state.currentStepTab,
-          originalWorkflow: state.originalWorkflow,
+          localWorkflow: state.localWorkflow,
           isAddingStep: state.isAddingStep,
           addingStepType: state.addingStepType,
           selectedParentSteps: state.selectedParentSteps,
@@ -434,7 +433,7 @@ export function WorkflowStoreProvider({
   const [store] = useState(() =>
     createWorkflowStore({
       workflow: initialStateProps.workflow,
-      originalWorkflow: initialStateProps.workflow,
+      localWorkflow: initialStateProps.workflow,
       selectedGatewayId: gateways?.[0]?.id,
       isAddingStep: false,
       selectedParentSteps: [],
@@ -490,8 +489,28 @@ export function useWorkflowSteps() {
 
 export function useIsDirty() {
   const workflow = useWorkflow();
-  const originalWorkflow = useWorkflowStore((state) => state.originalWorkflow);
-  return JSON.stringify(workflow) !== JSON.stringify(originalWorkflow);
+  const localWorkflow = useWorkflowStore((state) => state.localWorkflow);
+
+  // Compare title, description, and steps (the user-editable properties)
+  const currentState = {
+    title: workflow.title,
+    description: workflow.description,
+    steps: workflow.steps.map((step) => ({
+      ...step,
+      outputSchema: undefined,
+    })),
+  };
+
+  const savedState = {
+    title: localWorkflow.title,
+    description: localWorkflow.description,
+    steps: localWorkflow.steps.map((step) => ({
+      ...step,
+      outputSchema: undefined,
+    })),
+  };
+
+  return JSON.stringify(currentState) !== JSON.stringify(savedState);
 }
 
 export function useTrackingExecutionId() {

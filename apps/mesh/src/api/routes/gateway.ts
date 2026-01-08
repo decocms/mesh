@@ -222,7 +222,7 @@ async function createMCPGatewayFromEntity(
  *
  * Route: POST /mcp/gateway/:gatewayId
  * - If gatewayId is provided: use that specific gateway
- * - If gatewayId is omitted: use default gateway for org (from x-org-id or x-org-slug header)
+ * - If gatewayId is omitted: use default Hub for org (from x-org-id or x-org-slug header)
  */
 app.all("/gateway/:gatewayId?", async (c) => {
   const gatewayId = c.req.param("gatewayId");
@@ -235,7 +235,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
       // Load gateway by ID
       gateway = await ctx.storage.gateways.findById(gatewayId);
     } else {
-      // Load default gateway for org from headers
+      // Load default Hub for org from headers
       const orgId = c.req.header("x-org-id");
       const orgSlug = c.req.header("x-org-slug");
 
@@ -247,7 +247,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
         return c.json(
           {
             error:
-              "Gateway ID required, or provide x-org-id or x-org-slug header for default gateway",
+              "Gateway ID required, or provide x-org-id or x-org-slug header for default Hub",
           },
           400,
         );
@@ -259,7 +259,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
         return c.json({ error: `Gateway not found: ${gatewayId}` }, 404);
       }
       return c.json(
-        { error: "No default gateway configured for this organization" },
+        { error: "No default Hub configured for this organization" },
         404,
       );
     }

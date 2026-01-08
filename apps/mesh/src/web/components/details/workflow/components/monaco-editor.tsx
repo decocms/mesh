@@ -118,21 +118,21 @@ const PRETTIER_OPTIONS = {
 
 const EDITOR_BASE_OPTIONS: EditorProps["options"] = {
   fontSize: 13,
-  lineNumbers: "on",
   scrollBeyondLastLine: false,
   automaticLayout: true,
-  foldingStrategy: "auto",
-  tabSize: 2,
+  lineNumbersMinChars: 2,
+  stickyScroll: { enabled: false },
   wordWrap: "on",
   folding: true,
   bracketPairColorization: { enabled: true },
-  formatOnPaste: true,
-  formatOnType: true,
   suggestOnTriggerCharacters: true,
   quickSuggestions: {
     other: true,
     comments: false,
     strings: true,
+  },
+  minimap: {
+    enabled: false,
   },
   parameterHints: { enabled: true },
   inlineSuggest: { enabled: true },
@@ -276,8 +276,6 @@ const InternalMonacoEditor = memo(function InternalMonacoEditor({
 
       // Then call onSave with the formatted value
       const value = editor.getValue();
-
-      console.log({ value, returnType });
 
       onSaveRef.current?.(value, returnType as Record<string, unknown> | null);
     });

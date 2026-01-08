@@ -196,7 +196,7 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
     <>
       <div className="border-t border-border/60" />
       <HomeGridCell
-        title={<p className="text-sm text-muted-foreground">MCP Gateways</p>}
+        title={<p className="text-sm text-muted-foreground">Hubs</p>}
         onTitleClick={handleTitleClick}
       >
         {gatewaysWithMetrics.length === 0 ? (
@@ -251,7 +251,7 @@ function TopGatewaysSkeleton() {
     <>
       <div className="border-t border-border/60" />
       <HomeGridCell
-        title={<p className="text-sm text-muted-foreground">MCP Gateways</p>}
+        title={<p className="text-sm text-muted-foreground">Hubs</p>}
       >
         <div className="space-y-3 w-full">
           {Array.from({ length: 5 }).map((_, i) => (

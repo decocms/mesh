@@ -105,6 +105,7 @@ export interface RequestContext<
   }) => User | undefined;
   callerApp?: string;
   connectionId?: string;
+  organizationId?: string;
 }
 
 const withDefaultBindings = ({
@@ -183,6 +184,7 @@ export const withBindings = <TEnv>({
         state?: Record<string, unknown>;
         meshUrl?: string;
         connectionId?: string;
+        organizationId?: string;
       }) ?? {};
 
     context = {
@@ -191,6 +193,8 @@ export const withBindings = <TEnv>({
       token: tokenOrContext,
       meshUrl: (decoded.meshUrl as string) ?? metadata.meshUrl,
       connectionId: (decoded.connectionId as string) ?? metadata.connectionId,
+      organizationId:
+        (decoded.organizationId as string) ?? metadata.organizationId,
       ensureAuthenticated: AUTHENTICATED(decoded.user ?? decoded.sub),
     } as RequestContext<any>;
   } else if (typeof tokenOrContext === "object") {

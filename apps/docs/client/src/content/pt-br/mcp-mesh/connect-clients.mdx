@@ -13,21 +13,21 @@ Para um client falar com o Mesh, ele precisa de:
 
 ## Recomendações práticas
 
-- Use um **Gateway** como endpoint principal do seu time (ele vira o “surface” curado/estável).
-- Comece com poucas connections e um gateway simples; aumente a curadoria conforme o número de tools crescer.
+- Use um **Hub** como endpoint principal do seu time (ele vira o "surface" curado/estável).
+- Comece com poucas connections e um Hub simples; aumente a curadoria conforme o número de tools crescer.
 
 ## Onde encontrar os endpoints
 
 No Mesh, você encontra:
 
-- **Gateways** → URL do gateway (o endpoint recomendado para clients)
-- **Connections / MCP Servers** → URL de proxy da connection (útil para debug/isolamento)
+- **Hubs** → URL do Hub (o endpoint recomendado para clients)
+- **Connections / Conexões** → URL de proxy da connection (útil para debug/isolamento)
 
 ## Dica: debug rápido
 
 Se uma tool falhar, use:
 
 - **Monitoring** para ver o erro e o payload, e
-- execute novamente via gateway vs connection para confirmar se o problema é de agregação ou do upstream.
+- execute novamente via Hub vs connection para confirmar se o problema é de agregação ou do upstream.
 
 
