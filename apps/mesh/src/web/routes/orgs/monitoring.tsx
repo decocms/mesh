@@ -68,6 +68,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
+import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
+import { AnalyticsTab } from "@/web/components/monitoring/analytics-tab.tsx";
 
 // ============================================================================
 // Stats Component
@@ -737,6 +739,7 @@ const MonitoringLogsTable = Object.assign(MonitoringLogsTableContent, {
 // ============================================================================
 
 interface MonitoringDashboardContentProps {
+  tab: "logs" | "analytics";
   dateRange: DateRange;
   displayDateRange: DateRange;
   connectionIds: string[];
@@ -752,9 +755,11 @@ interface MonitoringDashboardContentProps {
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
   onTimeRangeChange: (range: TimeRangeValue) => void;
   onStreamingToggle: () => void;
+  onTabChange: (tab: "logs" | "analytics") => void;
 }
 
 function MonitoringDashboardContent({
+  tab,
   dateRange,
   displayDateRange,
   connectionIds,
@@ -770,6 +775,7 @@ function MonitoringDashboardContent({
   onUpdateFilters,
   onTimeRangeChange,
   onStreamingToggle,
+  onTabChange,
 }: MonitoringDashboardContentProps) {
   // Get all connections, gateways, and members - moved here because these hooks suspend
   const allConnections = useConnections();
@@ -842,92 +848,112 @@ function MonitoringDashboardContent({
     }
   };
 
+  const tabs = [
+    { id: "logs" as const, label: "Logs" },
+    { id: "analytics" as const, label: "Analytics" },
+  ];
+
   return (
     <>
       <CollectionHeader
         title="Monitoring"
         ctaButton={
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Filters Button */}
-            <FiltersPopover
+          tab === "logs" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Filters Button */}
+              <FiltersPopover
+                connectionIds={connectionIds}
+                gatewayIds={gatewayIds}
+                tool={tool}
+                status={status}
+                propertyFilters={propertyFilters}
+                connectionOptions={connectionOptions}
+                gatewayOptions={gatewayOptions}
+                activeFiltersCount={activeFiltersCount}
+                onUpdateFilters={onUpdateFilters}
+              />
+
+              {/* Streaming Toggle */}
+              <Button
+                variant={isStreaming ? "secondary" : "outline"}
+                size="sm"
+                className={`h-7 px-2 sm:px-3 gap-1.5 ${isStreaming ? "bg-muted hover:bg-muted/80" : ""}`}
+                onClick={onStreamingToggle}
+              >
+                {isStreaming ? (
+                  <PauseCircle size={16} className="animate-pulse" />
+                ) : (
+                  <PlayCircle size={16} />
+                )}
+                <span className="hidden sm:inline">
+                  {isStreaming ? "Streaming" : "Stream"}
+                </span>
+              </Button>
+
+              {/* Time Range Picker */}
+              <TimeRangePicker
+                value={{ from, to }}
+                onChange={onTimeRangeChange}
+              />
+            </div>
+          ) : null
+        }
+      />
+
+      {/* Tabs */}
+      <div className="px-5 py-3 border-b border-border">
+        <ResourceTabs
+          tabs={tabs}
+          activeTab={tab}
+          onTabChange={(tabId) => onTabChange(tabId as "logs" | "analytics")}
+        />
+      </div>
+
+      {tab === "logs" ? (
+        <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
+          {/* Stats Banner */}
+          <MonitoringStats
+            displayDateRange={displayDateRange}
+            connectionIds={connectionIds}
+            logs={allLogs}
+            total={total}
+          />
+
+          {/* Search Bar */}
+          <CollectionSearch
+            value={searchQuery}
+            onChange={(value) => onUpdateFilters({ search: value })}
+            placeholder="Search by tool name, connection, or error..."
+            className="border-t"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                onUpdateFilters({ search: "" });
+                (event.target as HTMLInputElement).blur();
+              }
+            }}
+          />
+
+          {/* Logs Table */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <MonitoringLogsTable
               connectionIds={connectionIds}
               gatewayIds={gatewayIds}
               tool={tool}
               status={status}
-              propertyFilters={propertyFilters}
-              connectionOptions={connectionOptions}
-              gatewayOptions={gatewayOptions}
-              activeFiltersCount={activeFiltersCount}
-              onUpdateFilters={onUpdateFilters}
-            />
-
-            {/* Streaming Toggle */}
-            <Button
-              variant={isStreaming ? "secondary" : "outline"}
-              size="sm"
-              className={`h-7 px-2 sm:px-3 gap-1.5 ${isStreaming ? "bg-muted hover:bg-muted/80" : ""}`}
-              onClick={onStreamingToggle}
-            >
-              {isStreaming ? (
-                <PauseCircle size={16} className="animate-pulse" />
-              ) : (
-                <PlayCircle size={16} />
-              )}
-              <span className="hidden sm:inline">
-                {isStreaming ? "Streaming" : "Stream"}
-              </span>
-            </Button>
-
-            {/* Time Range Picker */}
-            <TimeRangePicker
-              value={{ from, to }}
-              onChange={onTimeRangeChange}
+              search={searchQuery}
+              logs={allLogs}
+              hasMore={hasNextPage ?? false}
+              onLoadMore={handleLoadMore}
+              isLoadingMore={isFetchingNextPage}
+              connections={allConnections}
+              gateways={allGateways}
+              membersData={membersData}
             />
           </div>
-        }
-      />
-
-      <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
-        {/* Stats Banner */}
-        <MonitoringStats
-          displayDateRange={displayDateRange}
-          connectionIds={connectionIds}
-          logs={allLogs}
-          total={total}
-        />
-
-        {/* Search Bar */}
-        <CollectionSearch
-          value={searchQuery}
-          onChange={(value) => onUpdateFilters({ search: value })}
-          placeholder="Search by tool name, connection, or error..."
-          className="border-t"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              onUpdateFilters({ search: "" });
-              (event.target as HTMLInputElement).blur();
-            }
-          }}
-        />
-
-        {/* Logs Table */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <MonitoringLogsTable
-            connectionIds={connectionIds}
-            gatewayIds={gatewayIds}
-            tool={tool}
-            status={status}
-            search={searchQuery}
-            logs={allLogs}
-            hasMore={hasNextPage ?? false}
-            onLoadMore={handleLoadMore}
-            isLoadingMore={isFetchingNextPage}
-            connections={allConnections}
-            gateways={allGateways}
-            membersData={membersData}
-          />
         </div>
-      </div>
+      ) : (
+        <AnalyticsTab />
+      )}
     </>
   );
 }
@@ -940,6 +966,7 @@ export default function MonitoringDashboard() {
   });
 
   const {
+    tab = "logs",
     from,
     to,
     connectionId: connectionIds = [],
@@ -1034,6 +1061,7 @@ export default function MonitoringDashboard() {
           }
         >
           <MonitoringDashboardContent
+            tab={tab}
             dateRange={dateRange}
             displayDateRange={displayDateRange}
             connectionIds={connectionIds}
@@ -1049,6 +1077,7 @@ export default function MonitoringDashboard() {
             onUpdateFilters={updateFilters}
             onTimeRangeChange={handleTimeRangeChange}
             onStreamingToggle={() => updateFilters({ streaming: !streaming })}
+            onTabChange={(newTab) => updateFilters({ tab: newTab })}
           />
         </Suspense>
       </ErrorBoundary>

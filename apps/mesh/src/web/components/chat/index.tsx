@@ -163,9 +163,18 @@ function ChatMessages({
   );
 }
 
-function ChatFooter({ children }: PropsWithChildren) {
+function ChatFooter({
+  children,
+  className,
+}: PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={cn("flex-none w-full mx-auto p-2", "max-w-2xl min-w-0")}>
+    <div
+      className={cn(
+        "flex-none w-full mx-auto p-2",
+        "max-w-2xl min-w-0",
+        className,
+      )}
+    >
       {children}
     </div>
   );

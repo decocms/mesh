@@ -35,8 +35,8 @@
     "prepublishOnly": "bun run build:client && bun run build:server"
   },
   "dependencies": {
-    "@untitledui/icons": "^0.0.19",
     "@jitl/quickjs-wasmfile-release-sync": "^0.31.0",
+    "@untitledui/icons": "^0.0.19",
     "@xyflow/react": "^12.10.0",
     "kysely": "^0.28.8",
     "kysely-bun-worker": "^0.6.0",
@@ -88,7 +88,6 @@
     "@types/react-dom": "^19.2.2",
     "@vercel/nft": "^1.1.1",
     "@vitejs/plugin-react": "^5.1.0",
-    "@xyflow/react": "^12.10.0",
     "ai": "^6.0.1",
     "babel-plugin-react-compiler": "^1.0.0",
     "better-auth": "1.4.5",

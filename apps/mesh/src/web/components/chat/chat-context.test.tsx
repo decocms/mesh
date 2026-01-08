@@ -19,6 +19,7 @@ describe("ChatInteraction Reducer Logic", () => {
   const initialState: ChatInteractionState = {
     inputValue: "",
     branchContext: null,
+    pendingSubmit: false,
   };
 
   // Helper to simulate reducer behavior
@@ -33,8 +34,10 @@ describe("ChatInteraction Reducer Logic", () => {
         return { ...state, branchContext: action.payload };
       case "CLEAR_BRANCH":
         return { ...state, branchContext: null };
+      case "SET_PENDING_SUBMIT":
+        return { ...state, pendingSubmit: action.payload };
       case "RESET":
-        return { inputValue: "", branchContext: null };
+        return { inputValue: "", branchContext: null, pendingSubmit: false };
       default:
         return state;
     }
@@ -83,6 +86,7 @@ describe("ChatInteraction Reducer Logic", () => {
         originalMessageId: "msg-456",
         originalMessageText: "Original message",
       },
+      pendingSubmit: false,
     };
 
     const action: ChatInteractionAction = { type: "CLEAR_BRANCH" };
@@ -101,6 +105,7 @@ describe("ChatInteraction Reducer Logic", () => {
         originalMessageId: "msg-456",
         originalMessageText: "Original message",
       },
+      pendingSubmit: false,
     };
 
     const action: ChatInteractionAction = { type: "RESET" };
@@ -154,6 +159,7 @@ describe("ChatInteraction Reducer Logic", () => {
     const originalState: ChatInteractionState = {
       inputValue: "Original",
       branchContext: null,
+      pendingSubmit: false,
     };
 
     const action: ChatInteractionAction = {
@@ -179,6 +185,7 @@ describe("ChatInteraction Reducer Logic", () => {
     const stateWithBranch: ChatInteractionState = {
       inputValue: "",
       branchContext: originalBranch,
+      pendingSubmit: false,
     };
 
     const newState = applyAction(stateWithBranch, { type: "CLEAR_BRANCH" });

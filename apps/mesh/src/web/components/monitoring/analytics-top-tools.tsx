@@ -1,18 +1,20 @@
+/**
+ * Top Tools Analytics Component
+ *
+ * Displays a line chart of top tools by usage in the last 24 hours.
+ */
+
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Container } from "@untitledui/icons";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { ChartContainer, ChartTooltip } from "@deco/ui/components/chart.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Line, LineChart } from "recharts";
-import { HomeGridCell } from "./home-grid-cell.tsx";
-import type {
-  BaseMonitoringLog,
-  BaseMonitoringLogsResponse,
-} from "@/web/components/monitoring";
+import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
+import type { BaseMonitoringLog, BaseMonitoringLogsResponse } from "./index";
 
 type MetricsMode = "requests" | "errors" | "latency";
 
@@ -23,6 +25,20 @@ interface BucketData {
   [toolName: string]: string | number;
 }
 
+function getLast24HoursDateRange() {
+  // Round to the nearest 5 minutes to avoid infinite re-suspending
+  // (otherwise millisecond changes in Date cause new query keys each render)
+  const now = Date.now();
+  const fiveMinutes = 5 * 60 * 1000;
+  const roundedNow = Math.floor(now / fiveMinutes) * fiveMinutes;
+  const endDate = new Date(roundedNow);
+  const startDate = new Date(roundedNow - 24 * 60 * 60 * 1000);
+  return {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  };
+}
+
 function buildStackedToolBuckets(
   logs: BaseMonitoringLog[],
   start: Date,
@@ -31,7 +47,7 @@ function buildStackedToolBuckets(
 ): {
   buckets: BucketData[];
   topTools: Array<{ name: string; connectionId?: string }>;
-  chartConfig: any;
+  chartConfig: Record<string, { label: string; color: string }>;
   toolColors: Map<string, string>;
 } {
   const bucketCount = 24;
@@ -87,7 +103,7 @@ function buildStackedToolBuckets(
   }
 
   // Build chart config and color map
-  const chartConfig: any = {};
+  const chartConfig: Record<string, { label: string; color: string }> = {};
   const toolColors = new Map<string, string>();
   topTools.forEach((tool, i) => {
     const colorNum = (i % 5) + 1;
@@ -128,33 +144,8 @@ function TopToolsContent(_props: TopToolsContentProps) {
   const start = new Date(dateRange.startDate);
   const end = new Date(dateRange.endDate);
 
-  // Generate mock data if no logs
-  const mockLogs: BaseMonitoringLog[] =
-    logs.length === 0
-      ? Array.from({ length: 150 }, (_, i) => ({
-          id: `mock-${i}`,
-          toolName:
-            [
-              "COLLECTION_LLM_LIST",
-              "COLLECTION_REGISTRY_APP_LIST",
-              "microsoft_docs_search",
-              "MCP_CONFIGURATION",
-            ][i % 4] || "COLLECTION_LLM_LIST",
-          connectionId: `mock-conn-${i % 4}`,
-          connectionTitle: "Mock Connection",
-          isError: false,
-          errorMessage: null,
-          durationMs: Math.floor(Math.random() * 300) + 100,
-          timestamp: new Date(
-            start.getTime() + Math.random() * (end.getTime() - start.getTime()),
-          ).toISOString(),
-        }))
-      : [];
-
-  const displayLogs = logs.length === 0 ? mockLogs : logs;
-
   const { buckets, topTools, chartConfig, toolColors } =
-    buildStackedToolBuckets(displayLogs, start, end, 10);
+    buildStackedToolBuckets(logs, start, end, 10);
 
   const connectionMap = new Map(connections.map((c) => [c.id, c]));
 
@@ -218,7 +209,8 @@ function TopToolsContent(_props: TopToolsContentProps) {
                     payload[0] &&
                     typeof payload[0] === "object" &&
                     "payload" in payload[0]
-                      ? ((payload[0] as any).payload?.label ?? "")
+                      ? ((payload[0] as { payload?: { label?: string } })
+                          .payload?.label ?? "")
                       : "";
 
                   return (
@@ -227,36 +219,39 @@ function TopToolsContent(_props: TopToolsContentProps) {
                         {timeLabel}
                       </div>
                       <div className="flex flex-col gap-1">
-                        {payload.map((entry: any) => {
-                          if (!entry.value || entry.value === 0) return null;
-                          const tool = topTools.find(
-                            (t) => t.name === entry.dataKey,
-                          );
+                        {payload.map((entry) => {
+                          const dataKey = String(entry.dataKey ?? "");
+                          const value =
+                            typeof entry.value === "number" ? entry.value : 0;
+                          const color =
+                            typeof entry.color === "string"
+                              ? entry.color
+                              : undefined;
+                          if (!value || value === 0) return null;
+                          const tool = topTools.find((t) => t.name === dataKey);
                           const connection = connectionMap.get(
                             tool?.connectionId || "",
                           );
                           return (
                             <div
-                              key={entry.dataKey}
+                              key={dataKey}
                               className="flex items-center gap-1.5"
                             >
                               <div
                                 className="size-2 shrink-0 rounded-full"
-                                style={{ backgroundColor: entry.color }}
+                                style={{ backgroundColor: color }}
                               />
                               <IntegrationIcon
                                 icon={connection?.icon || null}
-                                name={entry.dataKey}
+                                name={dataKey}
                                 size="xs"
                                 fallbackIcon={<Container />}
                                 className="shrink-0"
                               />
                               <span className="text-xs font-medium">
-                                {entry.dataKey}:
+                                {dataKey}:
                               </span>
-                              <span className="text-xs font-bold">
-                                {entry.value}
-                              </span>
+                              <span className="text-xs font-bold">{value}</span>
                             </div>
                           );
                         })}
