@@ -62,6 +62,19 @@ app.post("/connections/:connectionId/oauth-token", async (c) => {
     return c.json({ error: "accessToken is required" }, 400);
   }
 
+  if (body.tokenEndpoint) {
+    let url: URL;
+    try {
+      url = new URL(body.tokenEndpoint);
+    } catch {
+      return c.json({ error: "tokenEndpoint must be a valid URL" }, 400);
+    }
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return c.json({ error: "tokenEndpoint must be an http(s) URL" }, 400);
+    }
+  }
+
   // Calculate expiry time
   const expiresAt = body.expiresIn
     ? new Date(Date.now() + body.expiresIn * 1000)
