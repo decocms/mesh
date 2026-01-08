@@ -1,7 +1,7 @@
-import type { RegistryItem } from "@/web/components/store/registry-items-section";
+import type { RegistryItem } from "@/web/components/store/types";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { LinkExternal01 } from "@untitledui/icons";
-import type { AppData, PublisherInfo } from "./types";
+import type { MCPServerData, PublisherInfo } from "./types";
 
 /** Format date to MMM DD, YYYY format */
 function formatLastUpdated(date: unknown): string {
@@ -19,17 +19,17 @@ function formatLastUpdated(date: unknown): string {
   }
 }
 
-interface AppSidebarProps {
-  data: AppData;
+interface MCPServerDetailSidebarProps {
+  data: MCPServerData;
   publisherInfo: PublisherInfo;
   selectedItem: RegistryItem;
 }
 
-export function AppSidebar({
+export function MCPServerDetailSidebar({
   data,
   publisherInfo,
   selectedItem,
-}: AppSidebarProps) {
+}: MCPServerDetailSidebarProps) {
   return (
     <div className="lg:col-span-1 flex flex-col pt-5">
       {/* Overview */}
@@ -69,8 +69,8 @@ export function AppSidebar({
                   <span>
                     {publisherInfo.count}{" "}
                     {publisherInfo.count === 1
-                      ? "published app"
-                      : "published apps"}
+                      ? "published server"
+                      : "published servers"}
                   </span>
                 </>
               ) : (
@@ -89,6 +89,38 @@ export function AppSidebar({
             <span className="text-muted-foreground uppercase text-xs">
               v{data.version}
             </span>
+          </div>
+        )}
+
+        {data.tags && data.tags.length > 0 && (
+          <div className="flex justify-between items-start text-sm">
+            <span className="text-foreground text-sm">Tags</span>
+            <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
+              {data.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="text-xs bg-muted px-2 py-0.5 rounded"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {data.categories && data.categories.length > 0 && (
+          <div className="flex justify-between items-start text-sm">
+            <span className="text-foreground text-sm">Categories</span>
+            <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
+              {data.categories.map((cat) => (
+                <span
+                  key={cat}
+                  className="text-xs bg-muted px-2 py-0.5 rounded"
+                >
+                  {cat}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 

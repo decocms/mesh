@@ -1,8 +1,9 @@
-import type { RegistryItem } from "@/web/components/store/registry-items-section";
+import type { RegistryItem } from "@/web/components/store/types";
 
-export interface AppData {
+export interface MCPServerData {
   name: string;
   description: string;
+  shortDescription: string | null;
   icon: string | null;
   verified?: boolean;
   publisher: string;
@@ -13,6 +14,8 @@ export interface AppData {
   connectionType: string | null;
   connectionUrl: string | null;
   remoteUrl: string | null;
+  tags: string[];
+  categories: string[];
   tools: unknown[];
   models: unknown[];
   emails: unknown[];
@@ -32,8 +35,8 @@ export interface TabItem {
   count?: number;
 }
 
-export interface AppDetailProps {
-  data: AppData;
+export interface MCPServerDetailProps {
+  data: MCPServerData;
   selectedItem: RegistryItem;
   itemVersions: RegistryItem[];
   publisherInfo: PublisherInfo;

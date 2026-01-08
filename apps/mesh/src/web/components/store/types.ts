@@ -1,5 +1,80 @@
-import { RegistryItemCard, extractCardDisplayData } from "./registry-item-card";
-import type { MCPRegistryServerMeta } from "./registry-item-card";
+/**
+ * Store Types
+ *
+ * Centralized types for store discovery and registry items.
+ */
+
+/**
+ * MCP Registry Server icon structure
+ */
+export interface MCPRegistryServerIcon {
+  src: string;
+  mimeType?: string;
+  sizes?: string[];
+  theme?: "light" | "dark";
+}
+
+/**
+ * MCP Registry Server metadata structure
+ */
+export interface MCPRegistryServerMeta {
+  "mcp.mesh"?: {
+    id: string;
+    verified?: boolean;
+    scopeName?: string;
+    appName?: string;
+    publishedAt?: string;
+    updatedAt?: string;
+    friendly_name?: string;
+    short_description?: string;
+    mesh_description?: string;
+    tags?: string[];
+    categories?: string[];
+  };
+  "mcp.mesh/publisher-provided"?: {
+    friendlyName?: string | null;
+    metadata?: Record<string, unknown> | null;
+    tools?: Array<{
+      id: string;
+      name: string;
+      description?: string | null;
+    }>;
+    models?: unknown[];
+    emails?: unknown[];
+    analytics?: unknown;
+    cdn?: unknown;
+  };
+  [key: string]: unknown;
+}
+
+/**
+ * MCP Registry Server structure from LIST response
+ */
+export interface MCPRegistryServer {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  _meta?: MCPRegistryServerMeta;
+  server: {
+    $schema?: string;
+    _meta?: MCPRegistryServerMeta;
+    name: string;
+    title?: string;
+    description?: string;
+    icons?: MCPRegistryServerIcon[];
+    remotes?: Array<{
+      type: "http" | "stdio" | "sse";
+      url?: string;
+    }>;
+    version?: string;
+    repository?: {
+      url?: string;
+      source?: string;
+      subfolder?: string;
+    };
+  };
+}
 
 /**
  * Generic registry item that can come from various JSON structures.
@@ -85,40 +160,20 @@ export interface RegistryItem {
   updated_at?: string | Date;
 }
 
-interface RegistryItemsSectionProps {
-  items: RegistryItem[];
-  title: string;
-  subtitle?: string;
-  onItemClick: (item: RegistryItem) => void;
-  totalCount?: number | null;
+/** Filter item with value and count */
+export interface FilterItem {
+  value: string;
+  count: number;
 }
 
-export function RegistryItemsSection({
-  items,
-  title,
-  onItemClick,
-}: RegistryItemsSectionProps) {
-  if (items.length === 0) return null;
+/** Response from COLLECTION_REGISTRY_APP_FILTERS tool */
+export interface RegistryFiltersResponse {
+  tags?: FilterItem[];
+  categories?: FilterItem[];
+}
 
-  return (
-    <div className="flex flex-col gap-4">
-      {title && (
-        <div className="flex items-center justify-between w-max gap-2">
-          <h2 className="text-lg font-medium">{title}</h2>
-        </div>
-      )}
-      <div className="grid grid-cols-4 gap-4">
-        {items.map((item) => {
-          const displayData = extractCardDisplayData(item);
-          return (
-            <RegistryItemCard
-              key={item.id}
-              {...displayData}
-              onClick={() => onItemClick(item)}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
+/** Active filters state */
+export interface ActiveFilters {
+  tags: string[];
+  categories: string[];
 }

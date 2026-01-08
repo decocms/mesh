@@ -5,7 +5,7 @@ import {
 import { ConnectionCreateData } from "@/tools/connection/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header";
 import { StoreDiscovery } from "@/web/components/store";
-import { StoreRegistrySelect } from "@/web/components/store-registry-select";
+import { StoreRegistrySelect } from "@/web/components/store/store-registry-select";
 import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-empty-state";
 import {
   useConnectionActions,
@@ -24,9 +24,9 @@ export default function StorePage() {
   const allConnections = useConnections();
   const connectionActions = useConnectionActions();
 
-  // Check if we're viewing a child route (app detail)
+  // Check if we're viewing a child route (server detail)
   const routerState = useRouterState();
-  const isViewingAppDetail =
+  const isViewingServerDetail =
     routerState.location.pathname.includes("/store/") &&
     routerState.location.pathname.split("/").length > 3;
 
@@ -77,8 +77,8 @@ export default function StorePage() {
       (r) => r.id && !addedRegistryIds.has(r.id),
     );
 
-  // If we're viewing an app detail (child route), render the Outlet
-  if (isViewingAppDetail) {
+  // If we're viewing a server detail (child route), render the Outlet
+  if (isViewingServerDetail) {
     return <Outlet />;
   }
 

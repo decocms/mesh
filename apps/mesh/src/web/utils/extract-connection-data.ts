@@ -4,8 +4,10 @@
  */
 
 import type { OAuthConfig } from "@/tools/connection/schema";
-import type { RegistryItem } from "@/web/components/store/registry-items-section";
-import type { MCPRegistryServer } from "@/web/components/store/registry-item-card";
+import type {
+  RegistryItem,
+  MCPRegistryServer,
+} from "@/web/components/store/types";
 import {
   MCP_REGISTRY_DECOCMS_KEY,
   MCP_REGISTRY_PUBLISHER_KEY,

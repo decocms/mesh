@@ -1,4 +1,4 @@
-import type { RegistryItem } from "@/web/components/store/registry-items-section";
+import type { RegistryItem } from "@/web/components/store/types";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Plus, ChevronDown, CheckCircle } from "@untitledui/icons";
@@ -9,23 +9,23 @@ import {
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { useState } from "react";
-import type { AppData } from "./types";
+import type { MCPServerData } from "./types";
 
-interface AppHeroSectionProps {
-  data: AppData;
+interface MCPServerHeroSectionProps {
+  data: MCPServerData;
   itemVersions: RegistryItem[];
   onInstall: (versionIndex?: number) => void;
   isInstalling?: boolean;
   canInstall?: boolean;
 }
 
-export function AppHeroSection({
+export function MCPServerHeroSection({
   data,
   itemVersions,
   onInstall,
   canInstall = true,
   isInstalling = false,
-}: AppHeroSectionProps) {
+}: MCPServerHeroSectionProps) {
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
 
   const handleInstallVersion = (index: number) => {
@@ -35,7 +35,7 @@ export function AppHeroSection({
 
   return (
     <div className="flex items-center gap-4 py-8 px-5 border-b border-border">
-      {/* App Icon */}
+      {/* Server Icon */}
       <IntegrationIcon
         icon={data.icon}
         name={data.name}
@@ -43,7 +43,7 @@ export function AppHeroSection({
         className="shrink-0 shadow-sm"
       />
 
-      {/* App Info */}
+      {/* Server Info */}
       <div className="flex-1 min-w-0 flex items-center justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -56,6 +56,11 @@ export function AppHeroSection({
               />
             )}
           </div>
+          {data.shortDescription && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {data.shortDescription}
+            </p>
+          )}
         </div>
 
         {/* Install Button */}

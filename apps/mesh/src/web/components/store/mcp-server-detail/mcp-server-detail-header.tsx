@@ -1,11 +1,11 @@
 import { Button } from "@deco/ui/components/button.tsx";
 import { ArrowLeft } from "@untitledui/icons";
 
-interface AppDetailHeaderProps {
+interface MCPServerDetailHeaderProps {
   onBack: () => void;
 }
 
-export function AppDetailHeader({ onBack }: AppDetailHeaderProps) {
+export function MCPServerDetailHeader({ onBack }: MCPServerDetailHeaderProps) {
   return (
     <div className="flex items-center h-12 border-b border-border shrink-0">
       {/* Back Button */}
