@@ -85,7 +85,29 @@ async function checkOriginSupportsOAuth(
     if (response.status === 401) {
       const wwwAuth = response.headers.get("WWW-Authenticate");
       if (wwwAuth) {
-        return wwwAuth;
+        const wwwAuthLower = wwwAuth.toLowerCase();
+
+        // MCP OAuth uses RFC 9728 `resource_metadata=...` (strong signal)
+        // Some servers may not implement RFC 9728 but still include standard OAuth error hints.
+        const looksLikeOAuth =
+          wwwAuthLower.includes("resource_metadata=") ||
+          wwwAuthLower.includes("invalid_token") ||
+          wwwAuthLower.includes("oauth");
+
+        if (looksLikeOAuth) {
+          return wwwAuth;
+        }
+
+        // Heuristic: some servers (e.g. GitHub Copilot MCP) use Bearer auth with a PAT
+        // and return WWW-Authenticate without being an OAuth authorization server.
+        const bodyText = await response.text().catch(() => "");
+        const bodyLower = bodyText.toLowerCase();
+        if (bodyLower.includes("missing required authorization header")) {
+          return null;
+        }
+
+        // Default: be conservative and avoid claiming OAuth support.
+        return null;
       }
     }
 
@@ -251,7 +273,8 @@ export async function handleAuthError({
     return null;
   }
 
-  // Check if origin supports OAuth by looking for WWW-Authenticate header
+  // Check if origin supports OAuth by looking for a *meaningful* WWW-Authenticate challenge.
+  // Some servers require a Bearer token (PAT/API key) and include WWW-Authenticate without being OAuth-capable.
   const originSupportsOAuth = await fetch(connectionUrl, {
     method: "POST",
     headers: {
@@ -270,7 +293,26 @@ export async function handleAuthError({
       },
     }),
   })
-    .then((response) => response.headers.has("WWW-Authenticate"))
+    .then(async (response) => {
+      const wwwAuth = response.headers.get("WWW-Authenticate");
+      if (!wwwAuth) return false;
+
+      const wwwAuthLower = wwwAuth.toLowerCase();
+      const looksLikeOAuth =
+        wwwAuthLower.includes("resource_metadata=") ||
+        wwwAuthLower.includes("invalid_token") ||
+        wwwAuthLower.includes("oauth");
+
+      if (looksLikeOAuth) return true;
+
+      const bodyText = await response.text().catch(() => "");
+      const bodyLower = bodyText.toLowerCase();
+      if (bodyLower.includes("missing required authorization header")) {
+        return false;
+      }
+
+      return false;
+    })
     .catch(() => false);
 
   if (originSupportsOAuth) {
