@@ -15,13 +15,6 @@ describe("DownstreamTokenStorage", () => {
     database = createDatabase(":memory:");
     await createTestSchema(database.db);
 
-    // Apply migration 016 manually since it might not be in createTestSchema yet depending on how that helper is defined
-    const { up } = await import(
-      "../../migrations/016-downstream-token-client-info"
-    );
-    // Cast to unknown to satisfy Kysely type requirements in migration
-    await up(database.db as unknown as import("kysely").Kysely<unknown>);
-
     const vault = new CredentialVault(CredentialVault.generateKey());
     storage = new DownstreamTokenStorage(database.db, vault);
   });
