@@ -29,7 +29,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import type {
   MonitoringLogWithGateway,
   MonitoringLogsWithGatewayResponse,
@@ -40,6 +40,41 @@ import type {
 // ============================================================================
 
 export type MetricsMode = "requests" | "errors" | "latency";
+
+// ============================================================================
+// Context
+// ============================================================================
+
+interface MetricsModeContextValue {
+  metricsMode: MetricsMode;
+  setMetricsMode: (mode: MetricsMode) => void;
+}
+
+const MetricsModeContext = createContext<MetricsModeContextValue | undefined>(
+  undefined,
+);
+
+export function useMetricsMode() {
+  const context = useContext(MetricsModeContext);
+  if (!context) {
+    throw new Error("useMetricsMode must be used within MetricsModeProvider");
+  }
+  return context;
+}
+
+export function MetricsModeProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
+
+  return (
+    <MetricsModeContext.Provider value={{ metricsMode, setMetricsMode }}>
+      {children}
+    </MetricsModeContext.Provider>
+  );
+}
 
 interface NodeMetric {
   requests: number;
@@ -242,14 +277,8 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
 
   const handleClick = () => {
     navigate({
-      to: "/$org/monitoring",
-      params: { org: data.org },
-      search: {
-        from: "now-24h",
-        to: "now",
-        gatewayId: [data.gateway.id],
-        ...(data.metricsMode === "errors" && { status: "errors" as const }),
-      },
+      to: "/$org/gateways/$gatewayId",
+      params: { org: data.org, gatewayId: data.gateway.id },
     });
   };
 
@@ -307,14 +336,8 @@ function ServerNode({ data }: NodeProps<Node<ServerNodeData>>) {
 
   const handleClick = () => {
     navigate({
-      to: "/$org/monitoring",
-      params: { org: data.org },
-      search: {
-        from: "now-24h",
-        to: "now",
-        connectionId: [data.connection.id],
-        ...(data.metricsMode === "errors" && { status: "errors" as const }),
-      },
+      to: "/$org/mcps/$connectionId",
+      params: { org: data.org, connectionId: data.connection.id },
     });
   };
 
@@ -370,7 +393,7 @@ function MeshNode({ data }: NodeProps<Node<MeshNodeData>>) {
 
   const handleClick = () => {
     navigate({
-      to: "/$org/monitoring",
+      to: "/$org/store",
       params: { org: data.org },
     });
   };
@@ -412,18 +435,14 @@ const nodeTypes = {
 // Mesh Visualization Components
 // ============================================================================
 
-function MetricsModeSelector({
-  value,
-  onChange,
-}: {
-  value: MetricsMode;
-  onChange: (mode: MetricsMode) => void;
-}) {
+export function MetricsModeSelector() {
+  const { metricsMode, setMetricsMode } = useMetricsMode();
+
   return (
     <ToggleGroup
       type="single"
-      value={value}
-      onValueChange={(v) => v && onChange(v as MetricsMode)}
+      value={metricsMode}
+      onValueChange={(v) => v && setMetricsMode(v as MetricsMode)}
       variant="outline"
       size="sm"
       className="bg-background/80 backdrop-blur-sm"
@@ -441,8 +460,8 @@ function MetricsModeSelector({
   );
 }
 
-export function MeshVisualization({ showControls }: { showControls: boolean }) {
-  const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
+export function MeshVisualization() {
+  const { metricsMode } = useMetricsMode();
   const { org } = useProjectContext();
 
   const rawGateways: GatewayEntity[] = useGateways({ pageSize: MAX_ITEMS });
@@ -605,12 +624,6 @@ export function MeshVisualization({ showControls }: { showControls: boolean }) {
           }
         }
       `}</style>
-
-      {showControls && (
-        <div className="absolute top-4 right-4 z-10">
-          <MetricsModeSelector value={metricsMode} onChange={setMetricsMode} />
-        </div>
-      )}
 
       <ReactFlow
         nodes={nodes}

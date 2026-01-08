@@ -5,17 +5,11 @@
  * Supports graph view toggle in header.
  */
 
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { useConnections } from "@/web/hooks/collections/use-connection";
-import { useGateways } from "@/web/hooks/collections/use-gateway";
-import { useProjectContext } from "@/web/providers/project-context-provider";
-import { authClient } from "@/web/lib/auth-client";
-import { CpuChip02, Plus, X, ChartBreakoutSquare } from "@untitledui/icons";
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { useNavigate } from "@tanstack/react-router";
-import { Suspense } from "react";
-import { ErrorBoundary } from "@/web/components/error-boundary";
+import { createToolCaller } from "@/tools/client";
 import { ChatProvider, useChat } from "@/web/components/chat/chat-context";
+import { ChatInput } from "@/web/components/chat/chat-input";
+import { DecoChatSkeleton } from "@/web/components/chat/deco-chat-skeleton";
+import { GatewayIceBreakers } from "@/web/components/chat/gateway-ice-breakers";
 import {
   Chat,
   GatewaySelector,
@@ -23,24 +17,41 @@ import {
   UsageStats,
   useModels,
 } from "@/web/components/chat/index";
-import { ChatInput } from "@/web/components/chat/chat-input";
 import { NoLlmBindingEmptyState } from "@/web/components/chat/no-llm-binding-empty-state";
-import { useBindingConnections } from "@/web/hooks/use-binding";
-import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
-import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
-import { useLocalStorage } from "@/web/hooks/use-local-storage";
-import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { ThreadHistoryPopover } from "@/web/components/chat/thread-history-popover";
-import { useThreads } from "@/web/hooks/use-chat-store";
-import { useRouterState } from "@tanstack/react-router";
-import { GatewayIceBreakers } from "@/web/components/chat/gateway-ice-breakers";
-import { Loading01 } from "@untitledui/icons";
-import { toast } from "sonner";
-import { Button } from "@deco/ui/components/button.tsx";
-import { MeshVisualization, MeshVisualizationSkeleton } from "./mesh-graph.tsx";
-import { createToolCaller } from "@/tools/client";
-import { useToolCall } from "@/web/hooks/use-tool-call";
+import { ErrorBoundary } from "@/web/components/error-boundary";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import type { MonitoringLogsWithGatewayResponse } from "@/web/components/monitoring/index";
+import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useGateways } from "@/web/hooks/collections/use-gateway";
+import { useBindingConnections } from "@/web/hooks/use-binding";
+import { useThreads } from "@/web/hooks/use-chat-store";
+import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
+import { useToolCall } from "@/web/hooks/use-tool-call";
+import { authClient } from "@/web/lib/auth-client";
+import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
+import { useProjectContext } from "@/web/providers/project-context-provider";
+import { Button } from "@deco/ui/components/button.tsx";
+import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
+import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  CpuChip02,
+  GitBranch01,
+  Loading01,
+  MessageChatSquare,
+  Plus,
+} from "@untitledui/icons";
+import { Suspense } from "react";
+import { toast } from "sonner";
+import {
+  MeshVisualization,
+  MeshVisualizationSkeleton,
+  MetricsModeProvider,
+  MetricsModeSelector,
+} from "./mesh-graph.tsx";
 
 /**
  * Get time-based greeting
@@ -54,25 +65,10 @@ function getTimeBasedGreeting(): string {
 }
 
 /**
- * Hook that generates a dynamic system prompt based on context
+ * System prompt for chat
  */
-function useSystemPrompt(gatewayId?: string): string {
-  return `You are an AI assistant running in an MCP Mesh environment.
-
-## About MCP Mesh
-The Model Context Protocol (MCP) Mesh allows users to connect external Connections and expose their capabilities through Hubs. Each Hub provides access to a curated set of tools from connected Connections.
-
-## Important Notes
-- All tool calls are logged and audited for security and compliance
-- You have access to the tools exposed through the selected gateway
-- MCPs may expose resources that users can browse and edit
-- You have context to the current gateway and its tools, resources, and prompts
-
-${gatewayId ? `- Gateway ID: ${gatewayId}` : ""}
-
-Help the user understand and work with this resource.
-`;
-}
+const SYSTEM_PROMPT =
+  "You are a helpful assistant. Please try answering the user's questions using your available tools.";
 
 /**
  * Helper to find stored item in array
@@ -225,16 +221,13 @@ function HomeContent() {
     setSelectedGatewayState({ gatewayId });
   };
 
-  // Generate dynamic system prompt based on context
-  const systemPrompt = useSystemPrompt(selectedGateway?.id);
-
   // Get the onToolCall handler for invalidating collection queries
   const onToolCall = useInvalidateCollectionsOnToolCall();
 
   // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
   const chat = usePersistedChat({
     threadId: activeThreadId,
-    systemPrompt,
+    systemPrompt: SYSTEM_PROMPT,
     onToolCall,
     onCreateThread: (thread) =>
       createThread({
@@ -246,8 +239,6 @@ function HomeContent() {
 
   // Get branching state from context
   const { branchContext, clearBranch } = useChat();
-
-  const { isEmpty } = chat;
 
   const handleSendMessage = async (text: string) => {
     if (!selectedModel) {
@@ -273,6 +264,7 @@ function HomeContent() {
         id: selectedModel.id,
         connectionId: selectedModel.connectionId,
         provider: selectedModel.provider ?? undefined,
+        limits: selectedModel.limits ?? undefined,
       },
       gateway: { id: selectedGateway.id },
       user: {
@@ -286,140 +278,6 @@ function HomeContent() {
 
   const userName = user?.name?.split(" ")[0] || "there";
   const greeting = getTimeBasedGreeting();
-
-  // Show full screen chat when there are messages
-  if (!isEmpty) {
-    return (
-      <Chat>
-        <Chat.Header>
-          <Chat.Header.Left>
-            <IntegrationIcon
-              icon={selectedGateway?.icon}
-              name={selectedGateway?.title || "deco chat"}
-              size="xs"
-              fallbackIcon={<CpuChip02 size={12} />}
-            />
-            <span className="text-sm font-medium">
-              {selectedGateway?.title || "deco chat"}
-            </span>
-          </Chat.Header.Left>
-          <Chat.Header.Right>
-            <button
-              type="button"
-              onClick={() => createThread()}
-              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
-              title="New chat"
-            >
-              <Plus
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
-            <ThreadHistoryPopover
-              threads={threads}
-              activeThreadId={activeThreadId}
-              onSelectThread={setActiveThreadId}
-              onRemoveThread={hideThread}
-              onOpen={() => refetch()}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                // Create a new thread to go back to greeting
-                createThread();
-              }}
-              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent transition-colors group cursor-pointer"
-              title="Back to home"
-            >
-              <X
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
-          </Chat.Header.Right>
-        </Chat.Header>
-
-        <Chat.Main>
-          {isEmpty ? (
-            <Chat.EmptyState>
-              <div className="flex flex-col items-center gap-6 w-full px-4">
-                <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
-                  <IntegrationIcon
-                    icon={selectedGateway?.icon}
-                    name={selectedGateway?.title || "deco chat"}
-                    size="lg"
-                    fallbackIcon={<CpuChip02 size={32} />}
-                    className="size-[60px]! rounded-[18px]!"
-                  />
-                  <h3 className="text-xl font-medium text-foreground">
-                    {selectedGateway?.title || "Ask deco chat"}
-                  </h3>
-                  <div className="text-muted-foreground text-center text-sm max-w-md">
-                    {selectedGateway?.description ??
-                      "Ask anything about configuring model providers or using MCP Mesh."}
-                  </div>
-                </div>
-              </div>
-            </Chat.EmptyState>
-          ) : (
-            <Chat.Messages
-              messages={chat.messages}
-              status={chat.status}
-              minHeightOffset={240}
-            />
-          )}
-        </Chat.Main>
-
-        <Chat.Footer>
-          <div className="flex flex-col gap-2">
-            <Chat.BranchPreview
-              branchContext={branchContext}
-              clearBranchContext={clearBranch}
-              onGoToOriginalMessage={() => {
-                if (!branchContext) return;
-                setActiveThreadId(branchContext.originalThreadId);
-                clearBranch();
-                setInputValue("");
-              }}
-              setInputValue={setInputValue}
-            />
-            <Chat.Input
-              value={inputValue}
-              onChange={setInputValue}
-              onSubmit={async () => {
-                if (!inputValue.trim()) return;
-                await handleSendMessage(inputValue.trim());
-              }}
-              onStop={chat.stop}
-              disabled={!selectedModel || !selectedGateway?.id}
-              isStreaming={
-                chat.status === "submitted" || chat.status === "streaming"
-              }
-              placeholder={
-                !selectedModel
-                  ? "Select a model to start chatting"
-                  : "Ask anything or @ for context"
-              }
-            >
-              <GatewaySelector
-                selectedGatewayId={selectedGateway?.id}
-                onGatewayChange={handleGatewayChange}
-                placeholder="Gateway"
-                variant="borderless"
-              />
-              <ModelSelector
-                selectedModel={selectedModel ?? undefined}
-                onModelChange={handleModelChange}
-                placeholder="Model"
-                variant="borderless"
-              />
-              <UsageStats messages={chat.messages} />
-            </Chat.Input>
-          </div>
-        </Chat.Footer>
-      </Chat>
-    );
-  }
 
   // Show empty state when no LLM binding is found
   if (!hasModelsBinding) {
@@ -442,167 +300,225 @@ function HomeContent() {
     );
   }
 
-  // Graph view
-  if (viewMode === "graph") {
-    return (
-      <div className="flex flex-col size-full bg-background">
-        {/* Header */}
-        <header className="flex items-center justify-between h-12 px-5 border-b border-border shrink-0">
-          <button
-            type="button"
-            onClick={() => setViewMode("chat")}
-            className="text-sm font-medium text-foreground hover:text-foreground/80 transition-colors"
-          >
-            {org.name || org.slug}
-          </button>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setViewMode("chat")}
-              className="h-7 px-2 gap-1.5"
-            >
-              <X size={14} />
-              <span className="text-xs">Close Graph</span>
-            </Button>
-          </div>
-        </header>
-
-        {/* Graph content */}
-        <div className="flex-1 overflow-hidden relative">
-          <ErrorBoundary
-            fallback={
-              <div className="bg-background p-5 text-sm text-muted-foreground h-full flex items-center justify-center">
-                Failed to load mesh visualization
-              </div>
-            }
-          >
-            <Suspense fallback={<MeshVisualizationSkeleton />}>
-              <MeshVisualization showControls />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-      </div>
-    );
-  }
-
-  // Chat view (default)
   return (
-    <div className="flex flex-col size-full bg-background">
-      {/* Header */}
-      <header className="flex items-center justify-between h-12 px-5 border-b border-border shrink-0">
-        <button
-          type="button"
-          className="text-sm font-medium text-foreground hover:text-foreground/80 transition-colors"
-        >
-          {org.name || org.slug}
-        </button>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode("graph")}
-            className="h-7 px-2 gap-1.5"
-            title="View Graph"
-          >
-            <ChartBreakoutSquare size={16} />
-          </Button>
-          <button
-            type="button"
-            onClick={() => createThread()}
-            className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
-            title="New chat"
-          >
-            <Plus
-              size={16}
-              className="text-muted-foreground group-hover:text-foreground transition-colors"
-            />
-          </button>
-          <ThreadHistoryPopover
-            threads={threads}
-            activeThreadId={activeThreadId}
-            onSelectThread={(threadId) => {
-              setActiveThreadId(threadId);
-            }}
-            onRemoveThread={hideThread}
-            onOpen={() => refetch()}
-          />
-        </div>
-      </header>
-
-      {/* Greeting + Chat Input + Hub Cards */}
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 py-10">
-        <div className="flex flex-col items-center gap-6 w-full max-w-[550px]">
-          {/* Greeting */}
-          <div className="text-center">
-            <p className="text-lg font-medium text-foreground">
-              {greeting} {userName},
-            </p>
-            <p className="text-base text-muted-foreground">
-              What are we building today?
-            </p>
-          </div>
-
-          {/* Ice breakers for selected hub */}
-          {selectedGateway?.id && (
-            <ErrorBoundary key={selectedGateway.id} fallback={null}>
-              <Suspense
-                fallback={
-                  <div className="flex justify-center">
-                    <Loading01
-                      size={20}
-                      className="animate-spin text-muted-foreground"
-                    />
-                  </div>
-                }
-              >
-                <GatewayIceBreakers
-                  gatewayId={selectedGateway.id}
-                  onSelect={(prompt) => {
-                    handleSendMessage(prompt.description ?? prompt.name);
-                  }}
-                  className="w-full"
+    <MetricsModeProvider>
+      <Chat>
+        <Chat.Header>
+          <Chat.Header.Left>
+            {viewMode === "graph" ? (
+              <span className="text-sm font-medium text-foreground">
+                Summary
+              </span>
+            ) : (
+              <span className="text-sm font-medium text-foreground">Chat</span>
+            )}
+          </Chat.Header.Left>
+          <Chat.Header.Right>
+            {viewMode === "graph" && <MetricsModeSelector />}
+            {viewMode !== "graph" && !chat.isEmpty && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-7 border border-input"
+                  onClick={() => createThread()}
+                  aria-label="New chat"
+                >
+                  <Plus size={16} />
+                </Button>
+                <ThreadHistoryPopover
+                  threads={threads}
+                  activeThreadId={activeThreadId}
+                  onSelectThread={setActiveThreadId}
+                  onRemoveThread={hideThread}
+                  onOpen={() => refetch()}
+                  variant="outline"
                 />
+              </>
+            )}
+            {viewMode !== "graph" && chat.isEmpty && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-7 border border-input"
+                  onClick={() => createThread()}
+                  aria-label="New chat"
+                >
+                  <Plus size={16} />
+                </Button>
+                <ThreadHistoryPopover
+                  threads={threads}
+                  activeThreadId={activeThreadId}
+                  onSelectThread={(threadId) => {
+                    setActiveThreadId(threadId);
+                  }}
+                  onRemoveThread={hideThread}
+                  onOpen={() => refetch()}
+                  variant="outline"
+                />
+              </>
+            )}
+            <ViewModeToggle
+              value={viewMode}
+              onValueChange={setViewMode}
+              size="sm"
+              options={[
+                { value: "chat", icon: <MessageChatSquare /> },
+                { value: "graph", icon: <GitBranch01 /> },
+              ]}
+            />
+          </Chat.Header.Right>
+        </Chat.Header>
+
+        {viewMode === "graph" ? (
+          <div className="flex-1 overflow-hidden relative">
+            <ErrorBoundary
+              fallback={
+                <div className="bg-background p-5 text-sm text-muted-foreground h-full flex items-center justify-center">
+                  Failed to load mesh visualization
+                </div>
+              }
+            >
+              <Suspense fallback={<MeshVisualizationSkeleton />}>
+                <MeshVisualization />
               </Suspense>
             </ErrorBoundary>
-          )}
-
-          {/* Chat Input */}
-          <div className="w-full shadow-sm rounded-xl">
-            <ChatInput
-              value={inputValue}
-              onChange={setInputValue}
-              onSubmit={async () => {
-                if (inputValue.trim()) {
-                  await handleSendMessage(inputValue.trim());
-                }
-              }}
-              placeholder="Ask anything or @ for context"
-              maxTextHeight="65px"
-            >
-              <GatewaySelector
-                selectedGatewayId={selectedGateway?.id}
-                onGatewayChange={handleGatewayChange}
-                placeholder="Gateway"
-                variant="borderless"
-              />
-              <ModelSelector
-                selectedModel={selectedModel ?? undefined}
-                onModelChange={handleModelChange}
-                placeholder="Model"
-                variant="borderless"
-              />
-            </ChatInput>
           </div>
+        ) : !chat.isEmpty ? (
+          <>
+            <Chat.Main>
+              <Chat.Messages
+                messages={chat.messages}
+                status={chat.status}
+                minHeightOffset={240}
+              />
+            </Chat.Main>
+            <Chat.Footer>
+              <div className="flex flex-col gap-2">
+                <Chat.BranchPreview
+                  branchContext={branchContext}
+                  clearBranchContext={clearBranch}
+                  onGoToOriginalMessage={() => {
+                    if (!branchContext) return;
+                    setActiveThreadId(branchContext.originalThreadId);
+                    clearBranch();
+                    setInputValue("");
+                  }}
+                  setInputValue={setInputValue}
+                />
+                <Chat.Input
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSubmit={async () => {
+                    if (!inputValue.trim()) return;
+                    await handleSendMessage(inputValue.trim());
+                  }}
+                  onStop={chat.stop}
+                  disabled={!selectedModel || !selectedGateway?.id}
+                  isStreaming={
+                    chat.status === "submitted" || chat.status === "streaming"
+                  }
+                  placeholder={
+                    !selectedModel
+                      ? "Select a model to start chatting"
+                      : "Ask anything or @ for context"
+                  }
+                >
+                  <GatewaySelector
+                    selectedGatewayId={selectedGateway?.id}
+                    onGatewayChange={handleGatewayChange}
+                    placeholder="Gateway"
+                    variant="borderless"
+                  />
+                  <ModelSelector
+                    selectedModel={selectedModel ?? undefined}
+                    onModelChange={handleModelChange}
+                    placeholder="Model"
+                    variant="borderless"
+                  />
+                  <UsageStats messages={chat.messages} />
+                </Chat.Input>
+              </div>
+            </Chat.Footer>
+          </>
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 py-10">
+            <div className="flex flex-col items-center gap-6 w-full max-w-[550px]">
+              {/* Greeting */}
+              <div className="text-center">
+                <p className="text-lg font-medium text-foreground">
+                  {greeting} {userName},
+                </p>
+                <p className="text-base text-muted-foreground">
+                  What are we building today?
+                </p>
+              </div>
 
-          {/* Hub Cards Grid - sorted by tool calls */}
-          <TopHubsGrid
-            gateways={gateways}
-            onSelectGateway={handleGatewayChange}
-          />
-        </div>
-      </div>
-    </div>
+              {/* Ice breakers for selected hub */}
+              {selectedGateway?.id && (
+                <ErrorBoundary key={selectedGateway.id} fallback={null}>
+                  <Suspense
+                    fallback={
+                      <div className="flex justify-center">
+                        <Loading01
+                          size={20}
+                          className="animate-spin text-muted-foreground"
+                        />
+                      </div>
+                    }
+                  >
+                    <GatewayIceBreakers
+                      gatewayId={selectedGateway.id}
+                      onSelect={(prompt) => {
+                        handleSendMessage(prompt.description ?? prompt.name);
+                      }}
+                      className="w-full"
+                    />
+                  </Suspense>
+                </ErrorBoundary>
+              )}
+
+              {/* Chat Input */}
+              <div className="w-full shadow-sm rounded-xl">
+                <ChatInput
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSubmit={async () => {
+                    if (inputValue.trim()) {
+                      await handleSendMessage(inputValue.trim());
+                    }
+                  }}
+                  placeholder="Ask anything or @ for context"
+                  maxTextHeight="65px"
+                >
+                  <GatewaySelector
+                    selectedGatewayId={selectedGateway?.id}
+                    onGatewayChange={handleGatewayChange}
+                    placeholder="Gateway"
+                    variant="borderless"
+                  />
+                  <ModelSelector
+                    selectedModel={selectedModel ?? undefined}
+                    onModelChange={handleModelChange}
+                    placeholder="Model"
+                    variant="borderless"
+                  />
+                </ChatInput>
+              </div>
+
+              {/* Hub Cards Grid - sorted by tool calls */}
+              <TopHubsGrid
+                gateways={gateways}
+                onSelectGateway={handleGatewayChange}
+              />
+            </div>
+          </div>
+        )}
+      </Chat>
+    </MetricsModeProvider>
   );
 }
 
@@ -666,7 +582,9 @@ export default function OrgHomePage() {
 
   return (
     <ChatProvider key={routerState.location.pathname}>
-      <HomeContent />
+      <Suspense fallback={<DecoChatSkeleton />}>
+        <HomeContent />
+      </Suspense>
     </ChatProvider>
   );
 }

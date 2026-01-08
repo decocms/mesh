@@ -194,6 +194,12 @@ const gatewayDetailRoute = createRoute({
   ),
 });
 
+const orgWorkflowRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/workflows",
+  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
+});
+
 const oauthCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/oauth/callback",
@@ -214,6 +220,7 @@ const shellRouteTree = shellLayout.addChildren([
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
   orgSettingsRoute,
+  orgWorkflowRoute,
   connectionLayoutRoute,
   collectionDetailsRoute,
 ]);
