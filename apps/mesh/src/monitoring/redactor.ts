@@ -11,7 +11,6 @@ import { tracer } from "../observability";
 // ============================================================================
 // Redactor Interface
 // ============================================================================
-
 export interface Redactor {
   /**
    * Redact PII from any data structure (objects, arrays, primitives)
