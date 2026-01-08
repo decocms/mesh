@@ -118,17 +118,13 @@ const PRETTIER_OPTIONS = {
 
 const EDITOR_BASE_OPTIONS: EditorProps["options"] = {
   fontSize: 13,
-  lineNumbers: "on",
   scrollBeyondLastLine: false,
   automaticLayout: true,
-  foldingStrategy: "auto",
+  lineNumbersMinChars: 2,
   stickyScroll: { enabled: false },
-  tabSize: 2,
   wordWrap: "on",
   folding: true,
   bracketPairColorization: { enabled: true },
-  formatOnPaste: true,
-  formatOnType: true,
   suggestOnTriggerCharacters: true,
   quickSuggestions: {
     other: true,

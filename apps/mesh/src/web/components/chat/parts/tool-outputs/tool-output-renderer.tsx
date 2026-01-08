@@ -12,11 +12,13 @@ export function ToolOutputRenderer({ output }: ToolOutputRendererProps) {
     : stringifiedOutput;
 
   return (
-    <MonacoCodeEditor
-      code={outputContent}
-      language="json"
-      height="100%"
-      readOnly={true}
-    />
+    <div className="h-full">
+      <MonacoCodeEditor
+        code={outputContent}
+        language="json"
+        height="100%"
+        readOnly={true}
+      />
+    </div>
   );
 }
