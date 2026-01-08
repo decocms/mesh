@@ -36,7 +36,7 @@ interface MCPServerCardProps {
  * Extract display data from a registry item for the card component
  * Handles name parsing, icon extraction, and verification status
  */
-export function extractCardDisplayData(
+function extractCardDisplayData(
   item: RegistryItem,
 ): Omit<MCPServerCardProps, "onClick"> {
   const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
@@ -101,7 +101,7 @@ export function extractCardDisplayData(
 /**
  * Card component for displaying an MCP Server in the store grid
  */
-export function MCPServerCard({
+function MCPServerCard({
   icon,
   scopeName,
   displayName,
