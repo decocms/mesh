@@ -122,6 +122,7 @@ const EDITOR_BASE_OPTIONS: EditorProps["options"] = {
   scrollBeyondLastLine: false,
   automaticLayout: true,
   foldingStrategy: "auto",
+  stickyScroll: { enabled: false },
   tabSize: 2,
   wordWrap: "on",
   folding: true,
@@ -133,6 +134,9 @@ const EDITOR_BASE_OPTIONS: EditorProps["options"] = {
     other: true,
     comments: false,
     strings: true,
+  },
+  minimap: {
+    enabled: false,
   },
   parameterHints: { enabled: true },
   inlineSuggest: { enabled: true },
@@ -276,8 +280,6 @@ const InternalMonacoEditor = memo(function InternalMonacoEditor({
 
       // Then call onSave with the formatted value
       const value = editor.getValue();
-
-      console.log({ value, returnType });
 
       onSaveRef.current?.(value, returnType as Record<string, unknown> | null);
     });

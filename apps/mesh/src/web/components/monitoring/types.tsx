@@ -30,7 +30,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { MONITORING_CONFIG } from "./config.ts";
-import { JsonSyntaxHighlighter } from "@/web/components/json-syntax-highlighter.tsx";
 
 // ============================================================================
 // Types
@@ -40,6 +39,7 @@ import type {
   MonitoringLog as BaseMonitoringLog,
   MonitoringLogsResponse as BaseMonitoringLogsResponse,
 } from "./monitoring-stats-row.tsx";
+import { MonacoCodeEditor } from "../details/workflow/components/monaco-editor.tsx";
 
 // Re-export base types for convenience
 export type { BaseMonitoringLog, BaseMonitoringLogsResponse };
@@ -558,7 +558,12 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
               </div>
             </div>
             <div className="h-[200px] md:h-[300px] overflow-auto">
-              <JsonSyntaxHighlighter jsonString={inputJson.content} />
+              <MonacoCodeEditor
+                code={inputJson.content}
+                language="json"
+                height="100%"
+                readOnly
+              />
             </div>
           </div>
         </div>
@@ -604,7 +609,12 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
               </div>
             </div>
             <div className="h-[200px] md:h-[300px] overflow-auto">
-              <JsonSyntaxHighlighter jsonString={outputJson.content} />
+              <MonacoCodeEditor
+                code={outputJson.content}
+                language="json"
+                height="100%"
+                readOnly
+              />
             </div>
           </div>
         </div>

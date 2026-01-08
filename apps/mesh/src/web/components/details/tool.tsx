@@ -37,7 +37,7 @@ import {
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { useMcp } from "@/web/hooks/use-mcp";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { JsonSyntaxHighlighter } from "@/web/components/json-syntax-highlighter.tsx";
+import { MonacoCodeEditor } from "./workflow/components/monaco-editor";
 
 export interface ToolDetailsViewProps {
   itemId: string;
@@ -523,9 +523,11 @@ function ToolDetailsAuthenticated({
           <div className="relative flex-1 overflow-auto bg-muted/50">
             {executionResult ? (
               <>
-                <JsonSyntaxHighlighter
-                  jsonString={JSON.stringify(executionResult, null, 2)}
-                  padding="1.5rem"
+                <MonacoCodeEditor
+                  code={JSON.stringify(executionResult, null, 2)}
+                  language="json"
+                  height="100%"
+                  readOnly
                 />
                 <Button
                   size="icon"
