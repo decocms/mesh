@@ -39,8 +39,7 @@ interface MCPServerCardProps {
 export function extractCardDisplayData(
   item: RegistryItem,
 ): Omit<MCPServerCardProps, "onClick"> {
-  const rawTitle =
-    item.title || item.server.title || item.id || "Unnamed Item";
+  const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
   const meshMeta = item._meta?.["mcp.mesh"];
 
   // Description priority: short_description > mesh_description > server.description
@@ -216,4 +215,3 @@ export function MCPServerCardGrid({
     </div>
   );
 }
-

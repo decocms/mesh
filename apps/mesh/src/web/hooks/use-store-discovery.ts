@@ -75,11 +75,7 @@ export function useStoreDiscovery({
 
   // Fetch available filters (only if supported)
   const { data: filtersData } = useSuspenseQuery<RegistryFiltersResponse>({
-    queryKey: KEYS.toolCall(
-      registryId,
-      filtersToolName || "no-filters",
-      "{}",
-    ),
+    queryKey: KEYS.toolCall(registryId, filtersToolName || "no-filters", "{}"),
     queryFn: async () => {
       if (!filtersToolName) {
         return { tags: [], categories: [] };
@@ -184,4 +180,3 @@ export function useStoreDiscovery({
     hasActiveFilters,
   };
 }
-

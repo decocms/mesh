@@ -61,4 +61,3 @@ export function MCPServerDetailNotFoundState({ onBack }: NotFoundStateProps) {
     </div>
   );
 }
-

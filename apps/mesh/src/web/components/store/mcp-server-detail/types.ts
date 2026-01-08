@@ -49,4 +49,3 @@ export interface MCPServerDetailProps {
   onBackClick: () => void;
   onTabChange: (tabId: string) => void;
 }
-

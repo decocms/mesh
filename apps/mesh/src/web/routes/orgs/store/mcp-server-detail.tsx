@@ -552,4 +552,3 @@ export default function StoreMCPServerDetail() {
     </StoreMCPServerDetailErrorBoundary>
   );
 }
-

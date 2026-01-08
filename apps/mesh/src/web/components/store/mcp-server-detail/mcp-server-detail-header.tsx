@@ -23,4 +23,3 @@ export function MCPServerDetailHeader({ onBack }: MCPServerDetailHeaderProps) {
     </div>
   );
 }
-

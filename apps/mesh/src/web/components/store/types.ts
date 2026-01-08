@@ -177,4 +177,3 @@ export interface ActiveFilters {
   tags: string[];
   categories: string[];
 }
-

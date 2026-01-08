@@ -6,11 +6,6 @@
 
 // Main components
 export { StoreDiscovery } from "./store-discovery";
-export {
-  MCPServerCard,
-  MCPServerCardGrid,
-  extractCardDisplayData,
-} from "./mcp-server-card";
 
 // Types
 export type {
