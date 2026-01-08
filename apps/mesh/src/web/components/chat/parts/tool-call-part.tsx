@@ -78,7 +78,6 @@ export function ToolCallPart({ part }: ToolCallPartProps) {
             </div>
 
             <div className="flex flex-col gap-4 flex-1 min-w-0 pt-2">
-              {/* Input: cheap <pre> during streaming, syntax highlighter after */}
               {showInput && (
                 <div className="flex flex-col gap-0.5">
                   <div className="px-1 h-5 flex items-center">
