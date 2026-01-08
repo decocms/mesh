@@ -221,3 +221,4 @@ if (!values["skip-migrations"]) {
 // Import and start the server
 // We import dynamically to ensure migrations run first
 await import("./index");
+
