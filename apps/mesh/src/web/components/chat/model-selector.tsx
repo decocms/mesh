@@ -63,7 +63,7 @@ export function useModels(): ModelInfoWithConnection[] {
     connections: allConnections,
     binding: "LLMS",
   });
-  const modelsData = useLLMsFromConnection(modelsConnection?.id, { 
+  const modelsData = useLLMsFromConnection(modelsConnection?.id, {
     pageSize: 999,
   });
 
