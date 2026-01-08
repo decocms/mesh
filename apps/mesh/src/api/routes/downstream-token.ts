@@ -36,7 +36,13 @@ app.post("/connections/:connectionId/oauth-token", async (c) => {
   }
 
   // Verify connection exists and user has access
-  const connection = await ctx.storage.connections.findById(connectionId);
+  // Pass organizationId to ensure the user has access to this connection
+  // Connections are scoped to organizations, and ctx.storage.connections.findById
+  // enforces this check if organizationId is provided.
+  const connection = await ctx.storage.connections.findById(
+    connectionId,
+    ctx.organization?.id,
+  );
   if (!connection) {
     return c.json({ error: "Connection not found" }, 404);
   }
