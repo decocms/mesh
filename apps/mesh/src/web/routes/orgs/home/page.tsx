@@ -370,6 +370,24 @@ function HomeContent() {
             </Chat.Main>
             <Chat.Footer>
               <div className="flex flex-col gap-2">
+                <Chat.ErrorBanner
+                  error={chat.error}
+                  onFixInChat={() => {
+                    if (chat.error) {
+                      handleSendMessage(
+                        `I encountered this error: ${chat.error.message}. Can you help me fix it?`,
+                      );
+                    }
+                  }}
+                  onDismiss={chat.clearError}
+                />
+                <Chat.FinishReasonWarning
+                  finishReason={chat.finishReason}
+                  onContinue={() => {
+                    handleSendMessage("Please continue.");
+                  }}
+                  onDismiss={chat.clearFinishReason}
+                />
                 <Chat.BranchPreview
                   branchContext={branchContext}
                   clearBranchContext={clearBranch}

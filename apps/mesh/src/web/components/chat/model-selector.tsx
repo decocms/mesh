@@ -53,6 +53,26 @@ export interface ModelInfoWithConnection extends ModelInfo {
   connectionName: string;
 }
 
+// Prioritized models in order
+const prioritizedModelIds = [
+  "x-ai/grok-code-fast-1",
+  "anthropic/claude-sonnet-4.5",
+  "google/gemini-2.5-flash",
+  "xiaomi/mimo-v2-flash:free",
+  "google/gemini-3-flash-preview",
+  "deepseek/deepseek-v3.2",
+  "anthropic/claude-opus-4.5",
+  "x-ai/grok-4.1-fast",
+  "google/gemini-2.5-flash-lite",
+  "google/gemini-2.0-flash-001",
+];
+
+// Create a map for quick priority lookup
+const priorityMap = new Map<string, number>();
+prioritizedModelIds.forEach((modelId, index) => {
+  priorityMap.set(modelId, index);
+});
+
 /**
  * Hook to fetch and map LLM models from connected model providers.
  * Returns models with connection information attached.
@@ -71,7 +91,8 @@ export function useModels(): ModelInfoWithConnection[] {
     return [];
   }
 
-  return modelsData
+  const mappedModels = modelsData
+    .filter((m) => m.limits?.contextWindow && m.limits?.maxOutputTokens)
     .map((m) => ({
       ...m,
       name: m.title,
@@ -83,7 +104,25 @@ export function useModels(): ModelInfoWithConnection[] {
       connectionId: modelsConnection.id,
       connectionName: modelsConnection.title,
     }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      // First, check if either model is prioritized
+      const aPriority = priorityMap.get(a.id);
+      const bPriority = priorityMap.get(b.id);
+
+      // If both are prioritized, sort by priority order
+      if (aPriority !== undefined && bPriority !== undefined) {
+        return aPriority - bPriority;
+      }
+
+      // If only one is prioritized, it comes first
+      if (aPriority !== undefined) return -1;
+      if (bPriority !== undefined) return 1;
+
+      // If neither is prioritized, sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
+
+  return mappedModels;
 }
 
 const CAPABILITY_CONFIGS: Record<
