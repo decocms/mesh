@@ -91,7 +91,7 @@ export interface PersistedChatResult {
  * - Transport creation for the org
  * - Loading persisted messages from IndexedDB
  * - Persisting new messages on completion
- * - Creating/updating thread titles
+ * - Creating thread titles (only on thread creation, never updated)
  *
  * @param options - Configuration options
  * @returns Chat state and actions
@@ -196,11 +196,10 @@ export function usePersistedChat(
       return;
     }
 
-    // Update existing thread
+    // Update existing thread (only update timestamp, never update title)
     threadActions.update.mutate({
       id: threadId,
       updates: {
-        title: existingThread.title || msgTitle,
         updated_at: new Date().toISOString(),
       },
     });

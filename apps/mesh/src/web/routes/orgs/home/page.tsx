@@ -98,6 +98,55 @@ function useStoredSelection<TState, TItem>(
 
 type HomeViewMode = "chat" | "graph";
 
+// ---------- Typewriter Title Component ----------
+
+function TypewriterTitle({
+  text,
+  className = "",
+  speed = 30,
+}: {
+  text: string;
+  className?: string;
+  speed?: number;
+}) {
+  // Calculate animation duration based on text length and speed
+  const animationDuration = (text.length / speed) * 1000;
+  const steps = text.length;
+  // Use ch units (character width) for accurate character-based width
+  const maxWidth = `${text.length}ch`;
+
+  return (
+    <span
+      className={className}
+      key={text}
+      style={
+        {
+          "--typewriter-duration": `${animationDuration}ms`,
+          "--typewriter-steps": steps,
+          "--typewriter-max-width": maxWidth,
+        } as React.CSSProperties
+      }
+    >
+      <span className="typewriter-text">{text}</span>
+      <style>{`
+        .typewriter-text {
+          display: inline-block;
+          width: 0;
+          overflow: hidden;
+          white-space: nowrap;
+          animation: typewriter var(--typewriter-duration) steps(var(--typewriter-steps)) forwards;
+        }
+
+        @keyframes typewriter {
+          to {
+            width: var(--typewriter-max-width);
+          }
+        }
+      `}</style>
+    </span>
+  );
+}
+
 // ---------- Main Content ----------
 
 function HomeContent() {
@@ -218,6 +267,9 @@ function HomeContent() {
   const userName = user?.name?.split(" ")[0] || "there";
   const greeting = getTimeBasedGreeting();
 
+  // Find the active thread
+  const activeThread = threads?.find((thread) => thread.id === activeThreadId);
+
   // Show empty state when no LLM binding is found
   if (!hasModelsBinding) {
     return (
@@ -248,13 +300,18 @@ function HomeContent() {
               <span className="text-sm font-medium text-foreground">
                 Summary
               </span>
+            ) : !chat.isEmpty && activeThread?.title ? (
+              <TypewriterTitle
+                text={activeThread.title}
+                className="text-sm font-medium text-foreground"
+              />
             ) : (
               <span className="text-sm font-medium text-foreground">Chat</span>
             )}
           </Chat.Header.Left>
           <Chat.Header.Right>
             {viewMode === "graph" && <MetricsModeSelector />}
-            {viewMode !== "graph" && !chat.isEmpty && (
+            {viewMode !== "graph" && (
               <>
                 <Button
                   type="button"
@@ -270,30 +327,6 @@ function HomeContent() {
                   threads={threads}
                   activeThreadId={activeThreadId}
                   onSelectThread={setActiveThreadId}
-                  onRemoveThread={hideThread}
-                  onOpen={() => refetch()}
-                  variant="outline"
-                />
-              </>
-            )}
-            {viewMode !== "graph" && chat.isEmpty && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="size-7 border border-input"
-                  onClick={() => createThread()}
-                  aria-label="New chat"
-                >
-                  <Plus size={16} />
-                </Button>
-                <ThreadHistoryPopover
-                  threads={threads}
-                  activeThreadId={activeThreadId}
-                  onSelectThread={(threadId) => {
-                    setActiveThreadId(threadId);
-                  }}
                   onRemoveThread={hideThread}
                   onOpen={() => refetch()}
                   variant="outline"
