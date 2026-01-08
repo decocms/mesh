@@ -33,12 +33,12 @@ export type BindingRegistry = Record<string, readonly ToolBinder[]>;
  */
 export const BindingOf = <
   TRegistry extends BindingRegistry,
-  TName extends keyof TRegistry | "*",
+  TName extends (keyof TRegistry | "*") & z.util.Literal,
 >(
   name: TName,
 ) => {
   return z.object({
-    __type: z.literal(name as string).default(name as string),
+    __type: z.literal(name).default(name as any),
     value: z.string(),
   });
 };
