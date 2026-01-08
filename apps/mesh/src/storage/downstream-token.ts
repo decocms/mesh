@@ -216,7 +216,13 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
         ? token.expiresAt
         : new Date(token.expiresAt);
 
-    return expiresAt.getTime() - bufferMs < Date.now();
+    const expiryTime = expiresAt.getTime();
+    if (Number.isNaN(expiryTime)) {
+      // Fail-safe: if date is invalid, treat as expired
+      return true;
+    }
+
+    return expiryTime - bufferMs < Date.now();
   }
 
   /**
