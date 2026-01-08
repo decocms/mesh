@@ -1,8 +1,7 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useDeferredValue } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Inbox01, SearchMd, Loading01, FilterLines } from "@untitledui/icons";
 import { useConnection } from "@/web/hooks/collections/use-connection";
-import { useDebounce } from "@/web/hooks/use-debounce";
 import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { slugify } from "@/web/utils/slugify";
@@ -62,8 +61,8 @@ function StoreDiscoveryContent({
   filtersToolName?: string;
 }) {
   const [search, setSearch] = useState("");
-  // Debounce search for server-side query (300ms delay)
-  const debouncedSearch = useDebounce(search, 300);
+  // Defer search updates for server-side query (React controls timing)
+  const deferredSearch = useDeferredValue(search);
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -86,7 +85,7 @@ function StoreDiscoveryContent({
     registryId,
     listToolName,
     filtersToolName,
-    search: debouncedSearch,
+    search: deferredSearch,
   });
 
   // Always apply local filter when search is active
@@ -95,7 +94,7 @@ function StoreDiscoveryContent({
 
   // Show searching indicator when server-side search is pending or fetching
   const isSearching =
-    (search !== debouncedSearch || isFetching) &&
+    (search !== deferredSearch || isFetching) &&
     !isInitialLoading &&
     Boolean(search);
 
