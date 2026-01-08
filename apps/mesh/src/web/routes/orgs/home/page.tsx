@@ -447,7 +447,6 @@ function HomeContent() {
                   />
                 </ChatInput>
               </div>
-
             </div>
           </div>
         )}
@@ -455,7 +454,6 @@ function HomeContent() {
     </MetricsModeProvider>
   );
 }
-
 
 export default function OrgHomePage() {
   // Force remount on navigation to reset chat view
