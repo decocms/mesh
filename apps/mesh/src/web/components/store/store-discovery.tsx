@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Inbox01, SearchMd, Loading01, FilterLines } from "@untitledui/icons";
 import { useConnection } from "@/web/hooks/collections/use-connection";
+import { useDebounce } from "@/web/hooks/use-debounce";
 import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { slugify } from "@/web/utils/slugify";
@@ -61,6 +62,8 @@ function StoreDiscoveryContent({
   filtersToolName?: string;
 }) {
   const [search, setSearch] = useState("");
+  // Debounce search for server-side query (300ms delay)
+  const debouncedSearch = useDebounce(search, 300);
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -69,8 +72,8 @@ function StoreDiscoveryContent({
     items,
     hasMore,
     isLoadingMore,
-    isFiltering,
     isInitialLoading,
+    isFetching,
     loadMore,
     availableTags,
     availableCategories,
@@ -83,10 +86,18 @@ function StoreDiscoveryContent({
     registryId,
     listToolName,
     filtersToolName,
+    search: debouncedSearch,
   });
 
-  // Apply local search filter
-  const filteredItems = filterItemsBySearch(items, search);
+  // Always apply local filter when search is active
+  // This ensures instant feedback and handles keepPreviousData showing unfiltered cached data
+  const filteredItems = search ? filterItemsBySearch(items, search) : items;
+
+  // Show searching indicator when server-side search is pending or fetching
+  const isSearching =
+    (search !== debouncedSearch || isFetching) &&
+    !isInitialLoading &&
+    Boolean(search);
 
   // Separate verified and non-verified items
   const verifiedItems = filteredItems.filter(isItemVerified);
@@ -112,7 +123,7 @@ function StoreDiscoveryContent({
 
   // Infinite scroll: load more when near bottom
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!hasMore || search || isLoadingMore) return;
+    if (!hasMore || isLoadingMore) return;
 
     const target = e.currentTarget;
     const scrollBottom =
@@ -130,11 +141,7 @@ function StoreDiscoveryContent({
         value={search}
         onChange={setSearch}
         placeholder="Search for an MCP Server..."
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            setSearch(e.currentTarget.value);
-          }
-        }}
+        isSearching={isSearching}
       />
 
       {/* Filters */}
@@ -174,7 +181,7 @@ function StoreDiscoveryContent({
                   This store doesn't have any available items yet.
                 </p>
               </div>
-            ) : items.length === 0 && hasActiveFilters ? (
+            ) : items.length === 0 && hasActiveFilters && !search ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <FilterLines size={48} className="text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No matching items</h3>
@@ -182,7 +189,8 @@ function StoreDiscoveryContent({
                   Try adjusting your filters to find more results.
                 </p>
               </div>
-            ) : search && filteredItems.length === 0 ? (
+            ) : search && filteredItems.length === 0 && !isSearching ? (
+              // Only show "No results" when search is complete (not while searching)
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <SearchMd size={48} className="text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No results found</h3>
@@ -192,11 +200,16 @@ function StoreDiscoveryContent({
               </div>
             ) : (
               <div className="flex flex-col gap-8">
-                {/* Filtering indicator */}
-                {isFiltering && (
-                  <div className="flex items-center gap-2 text-muted-foreground py-2">
-                    <Loading01 size={16} className="animate-spin" />
-                    <span className="text-sm">Updating results...</span>
+                {/* Searching indicator when no local results yet */}
+                {isSearching && filteredItems.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Loading01
+                      size={32}
+                      className="animate-spin text-muted-foreground mb-4"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Searching...
+                    </p>
                   </div>
                 )}
 
@@ -217,7 +230,7 @@ function StoreDiscoveryContent({
                 )}
 
                 {/* Loading more indicator */}
-                {hasMore && !search && isLoadingMore && (
+                {hasMore && isLoadingMore && (
                   <div className="flex justify-center py-8">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Loading01 size={20} className="animate-spin" />
