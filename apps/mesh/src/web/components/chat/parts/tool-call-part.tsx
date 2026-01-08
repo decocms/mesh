@@ -106,11 +106,7 @@ export function ToolCallPart({ part }: ToolCallPartProps) {
                     </span>
                   </div>
                   <div className="border border-border rounded-lg max-h-[200px] overflow-auto p-2">
-                    <ToolOutputRenderer
-                      toolName={toolName}
-                      input={part.input}
-                      output={part.output}
-                    />
+                    <ToolOutputRenderer output={part.output} />
                   </div>
                 </div>
               )}
