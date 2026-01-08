@@ -15,6 +15,7 @@ export interface TokenRefreshResult {
   accessToken?: string;
   refreshToken?: string;
   expiresIn?: number;
+  scope?: string;
   error?: string;
 }
 
@@ -116,6 +117,7 @@ export async function refreshAccessToken(
       // Some servers return a new refresh token, some don't
       refreshToken: data.refresh_token || token.refreshToken,
       expiresIn: data.expires_in,
+      scope: data.scope,
     };
   } catch (error) {
     console.error("[TokenRefresh] Error refreshing token:", error);

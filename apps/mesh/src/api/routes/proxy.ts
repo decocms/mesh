@@ -287,7 +287,7 @@ async function createMCPProxyDoNotUseDirectly(
                 accessToken: refreshResult.accessToken,
                 refreshToken:
                   refreshResult.refreshToken ?? cachedToken.refreshToken,
-                scope: cachedToken.scope,
+                scope: refreshResult.scope ?? cachedToken.scope,
                 expiresAt: refreshResult.expiresIn
                   ? new Date(Date.now() + refreshResult.expiresIn * 1000)
                   : null,
