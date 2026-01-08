@@ -92,7 +92,8 @@ export function useStoreDiscovery({
   });
 
   // Build where clause for server-side search
-  const searchWhereClause = search
+  // Only search if there's actually a search term
+  const searchWhereClause = search?.trim()
     ? {
         operator: "or" as const,
         conditions: [
