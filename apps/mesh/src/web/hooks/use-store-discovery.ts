@@ -172,7 +172,9 @@ export function useStoreDiscovery({
   const items = flattenPaginatedItems<RegistryItem>(data?.pages);
 
   const hasActiveFilters =
-    selectedTags.length > 0 || selectedCategories.length > 0 || Boolean(search);
+    selectedTags.length > 0 ||
+    selectedCategories.length > 0 ||
+    Boolean(search?.trim());
 
   // Show filtering indicator when fetching due to filter change
   const isFiltering =
