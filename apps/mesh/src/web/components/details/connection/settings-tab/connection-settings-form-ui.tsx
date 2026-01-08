@@ -289,9 +289,18 @@ function ConnectionFields({
                 </FormControl>
                 {isGitHubCopilotMcp && (
                   <FormDescription>
-                    GitHub’s hosted MCP at{" "}
+                    (!) GitHub’s hosted MCP at{" "}
                     <code>api.githubcopilot.com/mcp</code> currently requires a
-                    PAT. Mesh will send it as{" "}
+                    Personal Access Token (PAT). Create one at{" "}
+                    <a
+                      href="https://github.com/settings/personal-access-tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
+                      github.com/settings/personal-access-tokens
+                    </a>
+                    . Mesh will send it as{" "}
                     <code>Authorization: Bearer &lt;PAT&gt;</code>.
                   </FormDescription>
                 )}
