@@ -409,4 +409,3 @@ MIT License - see [LICENSE](../../LICENSE.md) for details.
 <p align="center">
   Built with 💚 by <a href="https://decocms.com">decocms.com</a>
 </p>
-
