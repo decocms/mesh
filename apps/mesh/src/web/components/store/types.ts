@@ -67,6 +67,13 @@ export interface MCPRegistryServer {
       type: "http" | "stdio" | "sse";
       url?: string;
     }>;
+    packages?: Array<{
+      name: string;
+      version?: string;
+      runtime?: string;
+      registryUrl?: string;
+      env?: string[];
+    }>;
     version?: string;
     repository?: {
       url?: string;
@@ -145,6 +152,18 @@ export interface RegistryItem {
         value?: string;
         description?: string;
       }>;
+      // STDIO-specific fields
+      command?: string;
+      args?: string[];
+      env?: Record<string, string>;
+    }>;
+    // NPM packages for STDIO connections
+    packages?: Array<{
+      name: string;
+      version?: string;
+      runtime?: string;
+      registryUrl?: string;
+      env?: string[];
     }>;
     icons?: Array<{ src: string }>;
     tools?: unknown[];
