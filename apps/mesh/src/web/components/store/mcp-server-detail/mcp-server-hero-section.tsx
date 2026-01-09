@@ -1,9 +1,6 @@
 import type { RegistryItem } from "@/web/components/store/types";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import {
-  getRemoteDisplayName,
-  getPackageDisplayName,
-} from "@/web/utils/extract-connection-data";
+import { getPackageDisplayName } from "@/web/utils/extract-connection-data";
 import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Plus, ChevronDown, CheckCircle } from "@untitledui/icons";
@@ -13,8 +10,59 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { MCPServerData } from "./types";
+
+interface RemoteWithIndex {
+  index: number;
+  type?: string;
+  url?: string;
+  hostname: string;
+}
+
+interface GroupedRemotes {
+  hostname: string;
+  remotes: RemoteWithIndex[];
+}
+
+/**
+ * Extract hostname from URL for grouping
+ */
+function getHostname(url?: string): string {
+  if (!url) return "Unknown";
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Group remotes by hostname
+ */
+function groupRemotesByHostname(
+  remotes: Array<{ type?: string; url?: string }>,
+): GroupedRemotes[] {
+  const groups = new Map<string, RemoteWithIndex[]>();
+
+  remotes.forEach((remote, index) => {
+    const hostname = getHostname(remote.url);
+    if (!groups.has(hostname)) {
+      groups.set(hostname, []);
+    }
+    groups.get(hostname)!.push({
+      index,
+      type: remote.type,
+      url: remote.url,
+      hostname,
+    });
+  });
+
+  return Array.from(groups.entries()).map(([hostname, remotes]) => ({
+    hostname,
+    remotes,
+  }));
+}
 
 interface MCPServerHeroSectionProps {
   data: MCPServerData;
@@ -44,10 +92,21 @@ export function MCPServerHeroSection({
   const selectedVersion = itemVersions[selectedVersionIndex] || itemVersions[0];
   const remotes = selectedVersion?.server?.remotes ?? [];
   const packages = selectedVersion?.server?.packages ?? [];
-  const hasMultipleRemotes = remotes.length > 1;
   const hasMultiplePackages = packages.length > 1;
   const hasPackages = packages.length > 0;
   const hasRemotes = remotes.length > 0;
+
+  // Group remotes by hostname for better UX
+  const groupedRemotes = useMemo(
+    () => groupRemotesByHostname(remotes),
+    [remotes],
+  );
+  const hasMultipleGroups = groupedRemotes.length > 1;
+  const hasMultipleRemotesInAnyGroup = groupedRemotes.some(
+    (g) => g.remotes.length > 1,
+  );
+  const hasMultipleRemoteOptions =
+    hasMultipleGroups || hasMultipleRemotesInAnyGroup;
 
   // Determine available install modes
   const availableModes: InstallMode[] = [];
@@ -118,7 +177,7 @@ export function MCPServerHeroSection({
         {canInstall ? (
           <div className="shrink-0 flex items-center gap-2">
             {/* Endpoint Selector - shown when multiple remotes OR packages available */}
-            {(hasMultipleRemotes ||
+            {(hasMultipleRemoteOptions ||
               hasMultiplePackages ||
               hasMultipleModes) && (
               <DropdownMenu>
@@ -128,19 +187,25 @@ export function MCPServerHeroSection({
                     disabled={isInstalling}
                     className="shrink-0 cursor-pointer"
                   >
-                    <span className="max-w-[150px] truncate">
+                    <span className="max-w-[200px] truncate">
                       {installMode === "package"
                         ? getPackageDisplayName(packages[selectedPackageIndex])
-                        : getRemoteDisplayName(remotes[selectedRemoteIndex])}
+                        : (() => {
+                            const remote = remotes[selectedRemoteIndex];
+                            const hostname = getHostname(remote?.url);
+                            const type =
+                              getConnectionTypeLabel(remote?.type) || "HTTP";
+                            return `${hostname} (${type})`;
+                          })()}
                     </span>
                     <ChevronDown size={16} className="ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-64 max-h-[300px] overflow-y-auto"
+                  className="w-80 max-h-[400px] overflow-y-auto"
                 >
-                  {/* Remote options */}
+                  {/* Remote options grouped by hostname */}
                   {hasRemotes && (
                     <>
                       {hasMultipleModes && (
@@ -148,34 +213,48 @@ export function MCPServerHeroSection({
                           Remote Endpoints
                         </div>
                       )}
-                      {remotes.map((remote, index) => (
-                        <DropdownMenuItem
-                          key={`remote-${index}`}
-                          onClick={() => {
-                            setSelectedRemoteIndex(index);
-                            setInstallMode("remote");
-                          }}
-                          disabled={isInstalling}
-                          className="cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between gap-2 w-full">
-                            <div className="flex flex-col gap-0.5 min-w-0">
-                              <div className="font-medium text-sm truncate">
-                                {getRemoteDisplayName(remote)}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {getConnectionTypeLabel(remote.type) || "HTTP"}
-                              </div>
+                      {groupedRemotes.map((group) => (
+                        <div key={group.hostname}>
+                          {/* Show hostname as header if multiple groups */}
+                          {hasMultipleGroups && (
+                            <div className="px-2 py-1.5 text-xs font-medium text-foreground bg-muted/50 border-y border-border mt-1 first:mt-0 first:border-t-0">
+                              {group.hostname}
                             </div>
-                            {installMode === "remote" &&
-                              index === selectedRemoteIndex && (
-                                <CheckCircle
-                                  size={16}
-                                  className="text-muted-foreground shrink-0"
-                                />
-                              )}
-                          </div>
-                        </DropdownMenuItem>
+                          )}
+                          {/* Show connection types for this hostname */}
+                          {group.remotes.map((remote) => (
+                            <DropdownMenuItem
+                              key={`remote-${remote.index}`}
+                              onClick={() => {
+                                setSelectedRemoteIndex(remote.index);
+                                setInstallMode("remote");
+                              }}
+                              disabled={isInstalling}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center justify-between gap-2 w-full">
+                                <div className="flex flex-col gap-0.5 min-w-0">
+                                  <div className="font-medium text-sm">
+                                    {getConnectionTypeLabel(remote.type) ||
+                                      "HTTP"}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground truncate">
+                                    {hasMultipleGroups
+                                      ? remote.url
+                                      : group.hostname}
+                                  </div>
+                                </div>
+                                {installMode === "remote" &&
+                                  remote.index === selectedRemoteIndex && (
+                                    <CheckCircle
+                                      size={16}
+                                      className="text-muted-foreground shrink-0"
+                                    />
+                                  )}
+                              </div>
+                            </DropdownMenuItem>
+                          ))}
+                        </div>
                       ))}
                     </>
                   )}
@@ -204,7 +283,7 @@ export function MCPServerHeroSection({
                                 {getPackageDisplayName(pkg)}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                NPX • {pkg.name}
+                                NPX • {pkg.identifier || pkg.name}
                               </div>
                             </div>
                             {installMode === "package" &&
