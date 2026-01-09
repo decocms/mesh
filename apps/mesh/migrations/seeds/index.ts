@@ -9,7 +9,7 @@ import type { Kysely } from "kysely";
 import type { Database } from "../../src/storage/types";
 
 export type { BenchmarkSeedResult } from "./benchmark";
-export type { DemoSeedResult } from "./demo";
+export type { DemoSeedResult } from "./demo/index";
 
 /**
  * Seed function signature

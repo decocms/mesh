@@ -8,4 +8,4 @@
  */
 
 export { seed } from "./demo/index";
-export type { DemoSeedResult } from "./demo/types";
+export type { DemoSeedResult } from "./demo/index";
