@@ -41,10 +41,14 @@ export function getRemoteDisplayName(remote?: { url?: string }): string {
 /**
  * Get a display name for a package
  */
-export function getPackageDisplayName(pkg?: { name?: string }): string {
-  if (!pkg?.name) return "Unknown";
+export function getPackageDisplayName(pkg?: {
+  identifier?: string;
+  name?: string;
+}): string {
+  const packageName = pkg?.identifier || pkg?.name;
+  if (!packageName) return "Unknown";
   // Extract package name (remove scope if present)
-  const name = pkg.name.replace(/^@[^/]+\//, "");
+  const name = packageName.replace(/^@[^/]+\//, "");
   return name.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -136,11 +140,12 @@ export function extractConnectionData(
 
   if (selectedPackage) {
     // STDIO connection using NPX
+    const packageName = selectedPackage.identifier || selectedPackage.name;
     connectionType = "STDIO";
     connectionUrl = "";
     connectionHeaders = {
       command: "npx",
-      args: ["-y", selectedPackage.name],
+      args: packageName ? ["-y", packageName] : [],
     };
   } else if (selectedRemote) {
     connectionType = (getConnectionTypeLabel(selectedRemote.type) || "HTTP") as

@@ -68,11 +68,21 @@ export interface MCPRegistryServer {
       url?: string;
     }>;
     packages?: Array<{
-      name: string;
+      identifier: string;
+      name?: string;
       version?: string;
-      runtime?: string;
-      registryUrl?: string;
-      env?: string[];
+      transport?: {
+        type: "stdio" | "http" | "sse";
+      };
+      registryType?: string;
+      registryBaseUrl?: string;
+      environmentVariables?: Array<{
+        name: string;
+        format?: string;
+        description?: string;
+        isRequired?: boolean;
+        isSecret?: boolean;
+      }>;
     }>;
     version?: string;
     repository?: {
@@ -159,8 +169,28 @@ export interface RegistryItem {
     }>;
     // NPM packages for STDIO connections
     packages?: Array<{
-      name: string;
+      /** Package identifier (e.g., "mcp-jira-server") */
+      identifier: string;
+      /** Package name (alternative to identifier) */
+      name?: string;
       version?: string;
+      /** Transport configuration */
+      transport?: {
+        type: "stdio" | "http" | "sse";
+      };
+      /** Registry type (e.g., "npm") */
+      registryType?: string;
+      /** Registry base URL (e.g., "https://registry.npmjs.org") */
+      registryBaseUrl?: string;
+      /** Environment variables required by the package */
+      environmentVariables?: Array<{
+        name: string;
+        format?: string;
+        description?: string;
+        isRequired?: boolean;
+        isSecret?: boolean;
+      }>;
+      /** Legacy fields */
       runtime?: string;
       registryUrl?: string;
       env?: string[];
