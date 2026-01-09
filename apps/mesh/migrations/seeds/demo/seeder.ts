@@ -11,6 +11,7 @@
 import type { Kysely } from "kysely";
 import type { Database } from "../../../src/storage/types";
 import { hashPassword } from "better-auth/crypto";
+import { fetchToolsFromMCP } from "../../../src/tools/connection/fetch-tools";
 
 // =============================================================================
 // Shared Configuration
@@ -394,16 +395,40 @@ export async function createOrg(
   }
   const ownerUserId = userIds[config.ownerUserKey]!;
 
-  const connectionRecords = Object.entries(config.connections).map(
-    ([key, conn]) =>
-      createConnectionRecord(
+  // Fetch tools dynamically for connections that don't have them defined
+  const connectionRecords = await Promise.all(
+    Object.entries(config.connections).map(async ([key, conn]) => {
+      let tools = conn.tools ?? null;
+
+      // If tools not provided, fetch them from the MCP server (production behavior)
+      if (!tools) {
+        const fetchedTools = await fetchToolsFromMCP({
+          id: connectionIds[key]!,
+          title: conn.title,
+          connection_type: "HTTP",
+          connection_url: conn.connectionUrl,
+          connection_token: conn.connectionToken,
+          connection_headers: null,
+        }).catch((error) => {
+          console.warn(
+            `Failed to fetch tools for ${conn.title} (${conn.connectionUrl}):`,
+            error instanceof Error ? error.message : error,
+          );
+          return null;
+        });
+
+        tools = fetchedTools;
+      }
+
+      return createConnectionRecord(
         connectionIds[key]!,
         orgId,
         ownerUserId,
         conn,
         now,
-        conn.tools ?? null,
-      ),
+        tools,
+      );
+    }),
   );
   await db.insertInto("connections").values(connectionRecords).execute();
 

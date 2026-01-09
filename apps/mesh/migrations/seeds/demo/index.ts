@@ -3,11 +3,11 @@
  *
  * Creates two complete demo environments:
  *
- * 1. **Onboarding** - Clean slate for demonstrating first steps
- *    - 2 users (admin + developer)
- *    - 3 connections (GitHub, OpenRouter, Notion)
- *    - 1 gateway
- *    - ~16 logs
+ * 1. **Onboarding** - Clean slate matching production behavior
+ *    - 1 owner user
+ *    - 3 well-known connections (Mesh MCP, MCP Registry, Deco Store)
+ *    - 1 default gateway
+ *    - No monitoring logs (start from scratch)
  *
  * 2. **Deco Bank** - Mature corporate banking environment
  *    - 12 users in realistic hierarchy
@@ -87,7 +87,6 @@ export async function seed(db: Kysely<Database>): Promise<DemoSeedResult> {
   console.log("");
   console.log("   Onboarding only:");
   console.log(`     - ${onboarding.userEmails.admin} (owner)`);
-  console.log(`     - ${onboarding.userEmails.developer} (member)`);
   console.log("   Deco Bank only:");
   console.log(`     - ${decoBank.userEmails.techLead} (admin)`);
   console.log(`     - ${decoBank.userEmails.seniorDev1} (member)`);
