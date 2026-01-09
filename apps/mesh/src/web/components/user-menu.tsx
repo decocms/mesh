@@ -16,6 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
+import {
+  SidebarMenuItem,
+  SidebarMenuButton,
+} from "@deco/ui/components/sidebar.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import {
   AuthUIContext,
@@ -133,79 +137,83 @@ function MeshUserMenuBase({
   // Return skeleton/placeholder if no session yet
   return (
     <>
-      <UserMenu
-        user={user}
-        trigger={() => (
-          <div className="relative">
-            <Avatar
-              url={userImage}
-              fallback={user.name || user.email || "U"}
-              shape="circle"
-              size="sm"
-              className="cursor-pointer hover:ring-2 ring-muted-foreground transition-all"
-            />
-            {hasInvites && (
-              <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background" />
-            )}
-          </div>
-        )}
-        align="end"
-      >
-        <UserMenu.Item onClick={() => setProfileOpen(true)}>
-          <UserCircle className="text-muted-foreground" size={18} />
-          Profile
-        </UserMenu.Item>
-
-        {showInvitesItem && (
-          <UserMenu.Item onClick={() => setInvitesOpen(true)}>
-            <Mail01 className="text-muted-foreground" size={18} />
-            Invitations
-            {hasInvites && (
-              <span className="ml-auto h-2 w-2 rounded-full bg-destructive" />
-            )}
+      <SidebarMenuItem className="w-full">
+        <UserMenu
+          user={user}
+          trigger={() => (
+            <SidebarMenuButton className="group/nav-item cursor-pointer text-foreground/90 hover:text-foreground relative">
+              <Avatar
+                url={userImage}
+                fallback={user.name || user.email || "U"}
+                shape="circle"
+                size="xs"
+              />
+              <span className="text-sm truncate flex-1">
+                {user.name || user.email}
+              </span>
+              {hasInvites && (
+                <span className="absolute top-1.5 left-7 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar" />
+              )}
+            </SidebarMenuButton>
+          )}
+          align="end"
+        >
+          <UserMenu.Item onClick={() => setProfileOpen(true)}>
+            <UserCircle className="text-muted-foreground" size={18} />
+            Profile
           </UserMenu.Item>
-        )}
 
-        <UserMenu.Separator />
+          {showInvitesItem && (
+            <UserMenu.Item onClick={() => setInvitesOpen(true)}>
+              <Mail01 className="text-muted-foreground" size={18} />
+              Invitations
+              {hasInvites && (
+                <span className="ml-auto h-2 w-2 rounded-full bg-destructive" />
+              )}
+            </UserMenu.Item>
+          )}
 
-        <UserMenu.Item asChild>
-          <a
-            href="https://github.com/decocms/admin"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-full items-center gap-2 text-sm cursor-pointer"
-          >
-            <GitHubIcon className="w-4 h-4 text-muted-foreground" />
-            decocms/admin
-            <LinkExternal01
-              size={18}
-              className="text-muted-foreground ml-auto"
-            />
-          </a>
-        </UserMenu.Item>
-        <UserMenu.Item asChild>
-          <a
-            href="https://decocms.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-full items-center gap-2 text-sm cursor-pointer"
-          >
-            <Globe01 className="text-muted-foreground" size={18} />
-            Homepage
-            <LinkExternal01
-              size={18}
-              className="ml-auto text-muted-foreground"
-            />
-          </a>
-        </UserMenu.Item>
+          <UserMenu.Separator />
 
-        <UserMenu.Separator />
+          <UserMenu.Item asChild>
+            <a
+              href="https://github.com/decocms/admin"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full items-center gap-2 text-sm cursor-pointer"
+            >
+              <GitHubIcon className="w-4 h-4 text-muted-foreground" />
+              decocms/admin
+              <LinkExternal01
+                size={18}
+                className="text-muted-foreground ml-auto"
+              />
+            </a>
+          </UserMenu.Item>
+          <UserMenu.Item asChild>
+            <a
+              href="https://decocms.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full items-center gap-2 text-sm cursor-pointer"
+            >
+              <Globe01 className="text-muted-foreground" size={18} />
+              Homepage
+              <LinkExternal01
+                size={18}
+                className="ml-auto text-muted-foreground"
+              />
+            </a>
+          </UserMenu.Item>
 
-        <UserMenu.Item onClick={() => authClient.signOut()}>
-          <LogOut01 size={18} className="text-muted-foreground" />
-          Log out
-        </UserMenu.Item>
-      </UserMenu>
+          <UserMenu.Separator />
+
+          <UserMenu.Item onClick={() => authClient.signOut()}>
+            <LogOut01 size={18} className="text-muted-foreground" />
+            Log out
+          </UserMenu.Item>
+        </UserMenu>
+      </SidebarMenuItem>
 
       {profileOpen && (
         <ProfileDialog
@@ -234,14 +242,12 @@ export function MeshUserMenu() {
   // Return skeleton/placeholder if no session yet
   if (!session?.user) {
     return (
-      <Avatar
-        url={undefined}
-        fallback="U"
-        shape="circle"
-        size="sm"
-        className="cursor-pointer"
-        muted
-      />
+      <SidebarMenuItem>
+        <div className="peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-lg px-2 py-1.5 text-left text-sm outline-hidden transition-colors duration-150 ease-out hover:transition-none hover:bg-sidebar-accent text-foreground/90 hover:text-foreground active:text-sidebar-foreground h-7 font-[450]">
+          <Avatar url={undefined} fallback="U" shape="circle" size="xs" muted />
+          <span className="text-sm truncate flex-1">Loading...</span>
+        </div>
+      </SidebarMenuItem>
     );
   }
 
