@@ -12,14 +12,12 @@ import { useConnections } from "@/web/hooks/collections/use-connection";
 import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { KEYS } from "@/web/lib/query-keys";
-import {
-  MCP_REGISTRY_DECOCMS_KEY,
-  MCP_REGISTRY_PUBLISHER_KEY,
-} from "@/web/utils/constants";
+import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
 import { findListToolName } from "@/web/utils/registry-utils";
 
 /**
  * Registry item from the registry API response.
+ * UPDATED: All metadata including tools is now in _meta["mcp.mesh"] at root level
  */
 interface RegistryItemWithBinding {
   id: string;
@@ -30,24 +28,18 @@ interface RegistryItemWithBinding {
       scopeName?: string;
       appName?: string;
       binding?: boolean;
+      // Tools are now part of mcp.mesh metadata
+      tools?: Array<{
+        id?: string;
+        name: string;
+        description?: string | null;
+        inputSchema?: Record<string, unknown> | null;
+        outputSchema?: Record<string, unknown> | null;
+      }>;
     };
     [key: string]: unknown;
   };
   server?: {
-    _meta?: {
-      [MCP_REGISTRY_PUBLISHER_KEY]?: {
-        friendlyName?: string | null;
-        metadata?: Record<string, unknown> | null;
-        tools?: Array<{
-          id?: string;
-          name: string;
-          description?: string | null;
-          inputSchema?: Record<string, unknown> | null;
-          outputSchema?: Record<string, unknown> | null;
-        }>;
-      };
-      [key: string]: unknown;
-    };
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -77,11 +69,12 @@ function parseAppName(appName: string): string {
 
 /**
  * Extract tools from a registry item as binding definitions
+ * UPDATED: Tools are now in _meta["mcp.mesh"] at root level
  */
 function extractBindingTools(
   item: RegistryItemWithBinding,
 ): BindingDefinition[] | undefined {
-  const tools = item.server?._meta?.[MCP_REGISTRY_PUBLISHER_KEY]?.tools;
+  const tools = item._meta?.[MCP_REGISTRY_DECOCMS_KEY]?.tools;
 
   if (!tools || tools.length === 0) {
     return undefined;

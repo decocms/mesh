@@ -8,16 +8,14 @@ import type {
   RegistryItem,
   MCPRegistryServer,
 } from "@/web/components/store/types";
-import {
-  MCP_REGISTRY_DECOCMS_KEY,
-  MCP_REGISTRY_PUBLISHER_KEY,
-} from "@/web/utils/constants";
+import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
 import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
 import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
  * Extract connection data from a registry item for installation
+ * UPDATED: All metadata is now in item._meta["mcp.mesh"] at root level
  */
 export function extractConnectionData(
   item: RegistryItem,
@@ -26,14 +24,10 @@ export function extractConnectionData(
 ) {
   const server = item.server as MCPRegistryServer["server"] | undefined;
 
-  const meshMeta =
-    item._meta?.[MCP_REGISTRY_DECOCMS_KEY] ??
-    server?._meta?.[MCP_REGISTRY_DECOCMS_KEY];
-  const publisherMeta =
-    item._meta?.[MCP_REGISTRY_PUBLISHER_KEY] ??
-    server?._meta?.[MCP_REGISTRY_PUBLISHER_KEY];
+  // UPDATED: All data is now in item._meta["mcp.mesh"]
+  const meshMeta = item._meta?.[MCP_REGISTRY_DECOCMS_KEY];
 
-  const appMetadata = publisherMeta?.metadata as
+  const appMetadata = meshMeta?.metadata as
     | Record<string, unknown>
     | null
     | undefined;
@@ -48,7 +42,8 @@ export function extractConnectionData(
   const now = new Date().toISOString();
 
   const title =
-    publisherMeta?.friendlyName ||
+    meshMeta?.friendlyName ||
+    meshMeta?.friendly_name ||
     item.title ||
     server?.title ||
     server?.name ||
@@ -113,7 +108,7 @@ export function extractConnectionData(
       registry_item_id: item.id,
       verified: meshMeta?.verified ?? false,
       scopeName: meshMeta?.scopeName ?? null,
-      toolsCount: publisherMeta?.tools?.length ?? 0,
+      toolsCount: meshMeta?.tools?.length ?? 0,
       publishedAt: meshMeta?.publishedAt ?? null,
       repository, // Repository info for README display
     },
@@ -125,40 +120,4 @@ export function extractConnectionData(
     bindings: null,
     status: "inactive" as const,
   };
-}
-
-/**
- * Find a registry item by binding type (e.g., "@deco/database")
- * Returns the matching item or undefined
- */
-export function findRegistryItemByBinding(
-  items: RegistryItem[],
-  bindingType: string,
-): RegistryItem | undefined {
-  if (!bindingType?.startsWith("@")) {
-    return undefined;
-  }
-
-  // Parse @scope/appName format
-  const [scope, appName] = bindingType.replace("@", "").split("/");
-  if (!scope || !appName) {
-    return undefined;
-  }
-
-  return items.find((item) => {
-    const meta = item._meta?.["mcp.mesh"];
-    const serverName = item.server.name;
-
-    // Match by meta (scopeName + appName)
-    if (meta?.scopeName === scope && meta?.appName === appName) {
-      return true;
-    }
-
-    // Match by server.name (format: "scope/appName")
-    if (serverName === `${scope}/${appName}`) {
-      return true;
-    }
-
-    return false;
-  });
 }

@@ -16,7 +16,7 @@ export interface MCPRegistryServerIcon {
 
 /**
  * MCP Registry Server metadata structure
- * 
+ *
  * IMPORTANT: Structure has changed! All data is now in _meta["mcp.mesh"]
  * at root level. There's no longer _meta inside server, and no longer
  * "mcp.mesh/publisher-provided".
