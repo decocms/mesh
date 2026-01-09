@@ -30,7 +30,7 @@ import {
   getConnectionTypeLabel,
   extractSchemaVersion,
 } from "@/web/utils/registry-utils";
-import { extractDisplayNameFromDomain } from "@/web/utils/app-name";
+import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { InfoCircle } from "@untitledui/icons";
 import {
