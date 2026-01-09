@@ -20,7 +20,8 @@ Faz proxy de requisições MCP para uma única connection upstream.
 
 ### Agent (MCP virtual)
 
-- `POST /mcp/gateway/:gatewayId`
+- `POST /mcp/gateway/:gatewayId` (compatibilidade: o path HTTP ainda usa `gateway`, mas refere-se ao Agent)
+- `POST /mcp/gateway` (Agent padrão da org; requer `x-org-id` ou `x-org-slug`)
 
 Faz proxy de requisições MCP para um agent (agregação + estratégia de exposição).
 
