@@ -60,9 +60,9 @@ interface UseBindingSchemaFromRegistryResult {
  * - "@deco/database" -> "@deco/database" (unchanged)
  * - "deco/database" -> "@deco/database" (adds @)
  */
-function parseAppName(appName: string): string {
+function parseServerName(serverName: string): string {
   // Ensure @ prefix is present (server expects @scope/name format)
-  return appName.startsWith("@") ? appName : `@${appName}`;
+  return serverName.startsWith("@") ? serverName : `@${serverName}`;
 }
 
 /**
@@ -90,7 +90,7 @@ function extractBindingTools(
  * Queries ALL installed registries in parallel to find the MCP Server and returns
  * the first matching MCP Server's tools as the binding schema.
  *
- * @param appName - The MCP Server name to fetch (e.g., "@deco/database")
+ * @param serverName - The MCP Server name to fetch (e.g., "@deco/database")
  * @returns Object with bindingSchema
  *
  * @example
@@ -100,18 +100,18 @@ function extractBindingTools(
  * ```
  */
 export function useBindingSchemaFromRegistry(
-  appName: string | undefined,
+  serverName: string | undefined,
 ): UseBindingSchemaFromRegistryResult {
   // Get all connections and filter to registry connections
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
 
   // Parse the MCP Server name for the query
-  const parsedAppName = appName ? parseAppName(appName) : "";
+  const parsedServerName = serverName ? parseServerName(serverName) : "";
 
   // Build query input params using proper WhereExpression format
-  const toolInputParams = parsedAppName
-    ? { where: { appName: parsedAppName }, includeTools: true }
+  const toolInputParams = parsedServerName
+    ? { where: { appName: parsedServerName }, includeTools: true }
     : {};
 
   // Create queries for all registries in parallel
@@ -125,7 +125,7 @@ export function useBindingSchemaFromRegistry(
       return {
         queryKey: KEYS.toolCall(registryId, listToolName, paramsKey),
         queryFn: async (): Promise<RegistryItemWithBinding | null> => {
-          if (!listToolName || !parsedAppName) {
+          if (!listToolName || !parsedServerName) {
             return null;
           }
 

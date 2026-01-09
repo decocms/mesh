@@ -102,14 +102,14 @@ function StoreDiscoveryContent({
   );
 
   const handleItemClick = (item: RegistryItem) => {
-    const appNameSlug = slugify(
+    const serverSlug = slugify(
       item.name || item.title || item.server.title || "",
     );
     const serverName = item.server.name;
 
     navigate({
       to: "/$org/store/$appName",
-      params: { org: org.slug, appName: appNameSlug },
+      params: { org: org.slug, appName: serverSlug },
       search: {
         registryId,
         serverName,

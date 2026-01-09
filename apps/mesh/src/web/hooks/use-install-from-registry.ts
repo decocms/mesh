@@ -43,8 +43,8 @@ interface UseInstallFromRegistryResult {
  * - "@deco/database" -> "@deco/database" (unchanged)
  * - "deco/database" -> "@deco/database" (adds @)
  */
-function parseAppName(appName: string): string {
-  return appName.startsWith("@") ? appName : `@${appName}`;
+function parseServerName(serverName: string): string {
+  return serverName.startsWith("@") ? serverName : `@${serverName}`;
 }
 
 /**
@@ -69,7 +69,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
       return undefined;
     }
 
-    const parsedAppName = parseAppName(bindingType);
+    const parsedServerName = parseServerName(bindingType);
 
     // Query all registries in parallel to find the MCP Server
     const results = await Promise.all(
@@ -80,7 +80,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
         const toolCaller = createToolCaller(registryConnection.id);
         try {
           const result = await toolCaller(listToolName, {
-            where: { appName: parsedAppName },
+            where: { appName: parsedServerName },
           });
           const items = extractItemsFromResponse<RegistryItem>(result ?? []);
           return items[0] ?? null;
