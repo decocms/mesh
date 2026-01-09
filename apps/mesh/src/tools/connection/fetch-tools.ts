@@ -112,12 +112,6 @@ async function fetchToolsFromHttpMCP(
           { ...tool.outputSchema, additionalProperties: true }
         : undefined,
     }));
-  } catch (error) {
-    console.error(
-      `Failed to fetch tools from HTTP connection ${connection.id}:`,
-      error,
-    );
-    return null;
   } finally {
     try {
       if (client && typeof client.close === "function") {
@@ -177,12 +171,6 @@ async function fetchToolsFromStdioMCP(
       inputSchema: tool.inputSchema ?? {},
       outputSchema: tool.outputSchema ?? undefined,
     }));
-  } catch (error) {
-    console.error(
-      `Failed to fetch tools from STDIO connection ${connection.id}:`,
-      error,
-    );
-    return null;
   } finally {
     try {
       if (client && typeof client.close === "function") {
