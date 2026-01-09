@@ -1,5 +1,7 @@
 import type { RegistryItem } from "@/web/components/store/types";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { getRemoteDisplayName } from "@/web/utils/extract-connection-data";
+import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Plus, ChevronDown, CheckCircle } from "@untitledui/icons";
 import {
@@ -14,7 +16,7 @@ import type { MCPServerData } from "./types";
 interface MCPServerHeroSectionProps {
   data: MCPServerData;
   itemVersions: RegistryItem[];
-  onInstall: (versionIndex?: number) => void;
+  onInstall: (versionIndex?: number, remoteIndex?: number) => void;
   isInstalling?: boolean;
   canInstall?: boolean;
 }
@@ -27,10 +29,20 @@ export function MCPServerHeroSection({
   isInstalling = false,
 }: MCPServerHeroSectionProps) {
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
+  const [selectedRemoteIndex, setSelectedRemoteIndex] = useState<number>(0);
 
-  const handleInstallVersion = (index: number) => {
-    setSelectedVersionIndex(index);
-    onInstall(index);
+  const selectedVersion = itemVersions[selectedVersionIndex] || itemVersions[0];
+  const remotes = selectedVersion?.server?.remotes ?? [];
+  const hasMultipleRemotes = remotes.length > 1;
+
+  const handleInstallVersion = (versionIndex: number) => {
+    setSelectedVersionIndex(versionIndex);
+    onInstall(versionIndex, selectedRemoteIndex);
+  };
+
+  const handleInstallRemote = (remoteIndex: number) => {
+    setSelectedRemoteIndex(remoteIndex);
+    onInstall(selectedVersionIndex, remoteIndex);
   };
 
   return (
@@ -65,7 +77,56 @@ export function MCPServerHeroSection({
 
         {/* Install Button */}
         {canInstall ? (
-          <div className="shrink-0">
+          <div className="shrink-0 flex items-center gap-2">
+            {/* Remote Selector - shown when multiple remotes available */}
+            {hasMultipleRemotes && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={isInstalling}
+                    className="shrink-0 cursor-pointer"
+                  >
+                    <span className="max-w-[150px] truncate">
+                      {getRemoteDisplayName(remotes[selectedRemoteIndex])}
+                    </span>
+                    <ChevronDown size={16} className="ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64 max-h-[300px] overflow-y-auto"
+                >
+                  {remotes.map((remote, index) => (
+                    <DropdownMenuItem
+                      key={index}
+                      onClick={() => setSelectedRemoteIndex(index)}
+                      disabled={isInstalling}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between gap-2 w-full">
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <div className="font-medium text-sm truncate">
+                            {getRemoteDisplayName(remote)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {getConnectionTypeLabel(remote.type) || "HTTP"}
+                          </div>
+                        </div>
+                        {index === selectedRemoteIndex && (
+                          <CheckCircle
+                            size={16}
+                            className="text-muted-foreground shrink-0"
+                          />
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Version Selector or Simple Install Button */}
             {itemVersions.length > 1 ? (
               <div className="flex">
                 <Button
@@ -75,7 +136,7 @@ export function MCPServerHeroSection({
                   className="shrink-0 rounded-r-none cursor-pointer"
                 >
                   <Plus size={20} />
-                  {isInstalling ? "Connecting..." : "Connect Connection"}
+                  {isInstalling ? "Connecting..." : "Connect"}
                 </Button>
 
                 <DropdownMenu>
@@ -131,12 +192,12 @@ export function MCPServerHeroSection({
             ) : (
               <Button
                 variant="brand"
-                onClick={() => onInstall()}
+                onClick={() => handleInstallRemote(selectedRemoteIndex)}
                 disabled={itemVersions.length === 0 || isInstalling}
                 className="shrink-0"
               >
                 <Plus size={20} />
-                {isInstalling ? "Connecting..." : "Connect MCP Server"}
+                {isInstalling ? "Connecting..." : "Connect"}
               </Button>
             )}
           </div>
