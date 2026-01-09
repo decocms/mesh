@@ -197,6 +197,55 @@ describe("Connection Tools", () => {
         result.item.tools?.some((t) => t.name === "COLLECTION_LLM_LIST"),
       ).toBe(true);
     });
+
+    it("should prefer downstream OAuth token over existing connection_token when both exist", async () => {
+      const connection = await ctx.storage.connections.create({
+        id: "conn_oauth_tools_prefer_downstream",
+        organization_id: "org_123",
+        created_by: "user_1",
+        title: "OAuth MCP",
+        connection_type: "HTTP",
+        connection_url: "https://example.com/mcp",
+        connection_token: "stale-connection-token",
+        tools: null,
+      });
+
+      const tokenStorage = new DownstreamTokenStorage(database.db, vault);
+      await tokenStorage.upsert({
+        connectionId: connection.id,
+        userId: "user_1",
+        accessToken: "oauth-access-token",
+        refreshToken: null,
+        scope: null,
+        expiresAt: new Date(Date.now() + 60_000),
+        clientId: null,
+        clientSecret: null,
+        tokenEndpoint: null,
+      });
+
+      const fetchSpy = vi
+        .spyOn(fetchToolsModule, "fetchToolsFromMCP")
+        .mockImplementation(async (input) => {
+          expect(input.connection_token).toBe("oauth-access-token");
+          return [
+            {
+              name: "COLLECTION_LLM_LIST",
+              description: "List models",
+              inputSchema: {},
+            },
+          ];
+        });
+
+      const result = await COLLECTION_CONNECTIONS_UPDATE.execute(
+        { id: connection.id, data: {} },
+        ctx,
+      );
+
+      expect(fetchSpy).toHaveBeenCalled();
+      expect(
+        result.item.tools?.some((t) => t.name === "COLLECTION_LLM_LIST"),
+      ).toBe(true);
+    });
   });
 
   describe("COLLECTION_CONNECTIONS_LIST", () => {
