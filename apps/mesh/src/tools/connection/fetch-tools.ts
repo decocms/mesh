@@ -6,6 +6,7 @@
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type {
@@ -40,14 +41,12 @@ export async function fetchToolsFromMCP(
   switch (connection.connection_type) {
     case "STDIO":
       return fetchToolsFromStdioMCP(connection);
-
     case "HTTP":
-    case "SSE":
     case "Websocket":
       return fetchToolsFromHttpMCP(connection);
-
+    case "SSE":
+      return fetchToolsFromSSEMCP(connection);
     default:
-      console.error(`Unknown connection type: ${connection.connection_type}`);
       return null;
   }
 }
@@ -123,8 +122,75 @@ async function fetchToolsFromHttpMCP(
       if (client && typeof client.close === "function") {
         await client.close();
       }
-    } catch {
-      // Ignore close errors
+    } catch (error) {
+      console.warn(`Failed to close HTTP client for ${connection.id}:`, error);
+    }
+  }
+}
+
+/**
+ * Fetch tools from an SSE-based MCP connection
+ */
+async function fetchToolsFromSSEMCP(
+  connection: ConnectionForToolFetch,
+): Promise<ToolDefinition[] | null> {
+  if (!connection.connection_url) {
+    console.error(`SSE connection ${connection.id} missing URL`);
+    return null;
+  }
+
+  let client: Client | null = null;
+
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (connection.connection_token) {
+      headers.Authorization = `Bearer ${connection.connection_token}`;
+    }
+
+    const httpParams =
+      connection.connection_headers as HttpConnectionParameters | null;
+    if (httpParams?.headers) {
+      Object.assign(headers, httpParams.headers);
+    }
+
+    const transport = new SSEClientTransport(
+      new URL(connection.connection_url),
+      { requestInit: { headers } },
+    );
+
+    client = new Client({ name: "mcp-mesh-tool-fetcher", version: "1.0.0" });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("SSE connection timeout")), 15_000);
+    });
+
+    await Promise.race([client.connect(transport), timeoutPromise]);
+    const result = await Promise.race([client.listTools(), timeoutPromise]);
+
+    if (!result.tools || result.tools.length === 0) return null;
+
+    return result.tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description ?? undefined,
+      inputSchema: tool.inputSchema ?? {},
+      outputSchema: tool.outputSchema
+        ? { ...tool.outputSchema, additionalProperties: true }
+        : undefined,
+    }));
+  } catch (error) {
+    console.error(
+      `Failed to fetch tools from SSE connection ${connection.id}:`,
+      error,
+    );
+    return null;
+  } finally {
+    try {
+      await client?.close();
+    } catch (error) {
+      console.warn(`Failed to close SSE client for ${connection.id}:`, error);
     }
   }
 }
@@ -188,8 +254,8 @@ async function fetchToolsFromStdioMCP(
       if (client && typeof client.close === "function") {
         await client.close();
       }
-    } catch {
-      // Ignore close errors
+    } catch (error) {
+      console.warn(`Failed to close STDIO client for ${connection.id}:`, error);
     }
   }
 }
