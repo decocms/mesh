@@ -1,7 +1,6 @@
 import type { RegistryItem } from "@/web/components/store/types";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { getPackageDisplayName } from "@/web/utils/extract-connection-data";
-import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Plus, ChevronDown, CheckCircle } from "@untitledui/icons";
 import {
@@ -13,20 +12,19 @@ import {
 import { useState, useEffect, useMemo } from "react";
 import type { MCPServerData } from "./types";
 
-interface RemoteWithIndex {
-  index: number;
-  type?: string;
-  url?: string;
-  hostname: string;
-}
+type Protocol = "http" | "sse";
 
-interface GroupedRemotes {
+interface HostnameGroup {
   hostname: string;
-  remotes: RemoteWithIndex[];
+  protocols: {
+    type: Protocol;
+    index: number;
+    url?: string;
+  }[];
 }
 
 /**
- * Extract hostname from URL for grouping
+ * Extract hostname from URL
  */
 function getHostname(url?: string): string {
   if (!url) return "Unknown";
@@ -38,30 +36,50 @@ function getHostname(url?: string): string {
 }
 
 /**
- * Group remotes by hostname
+ * Normalize remote type to protocol
+ */
+function normalizeProtocol(type?: string): Protocol {
+  if (!type) return "http";
+  const lower = type.toLowerCase();
+  if (lower === "sse") return "sse";
+  // streamable-http, http, etc. -> http
+  return "http";
+}
+
+/**
+ * Group remotes by hostname with available protocols
+ * Returns: { "docs.mcp.cloudflare.com": { protocols: [{type: "http", index: 0}, {type: "sse", index: 1}] } }
  */
 function groupRemotesByHostname(
   remotes: Array<{ type?: string; url?: string }>,
-): GroupedRemotes[] {
-  const groups = new Map<string, RemoteWithIndex[]>();
+): HostnameGroup[] {
+  const groups = new Map<string, HostnameGroup>();
 
   remotes.forEach((remote, index) => {
     const hostname = getHostname(remote.url);
+    const protocol = normalizeProtocol(remote.type);
+
     if (!groups.has(hostname)) {
-      groups.set(hostname, []);
+      groups.set(hostname, { hostname, protocols: [] });
     }
-    groups.get(hostname)!.push({
-      index,
-      type: remote.type,
-      url: remote.url,
-      hostname,
-    });
+
+    // Only add if this protocol isn't already added for this hostname
+    const group = groups.get(hostname)!;
+    if (!group.protocols.some((p) => p.type === protocol)) {
+      group.protocols.push({ type: protocol, index, url: remote.url });
+    }
   });
 
-  return Array.from(groups.entries()).map(([hostname, remotes]) => ({
-    hostname,
-    remotes,
-  }));
+  // Sort protocols: HTTP first, then SSE
+  for (const group of groups.values()) {
+    group.protocols.sort((a, b) => {
+      if (a.type === "http" && b.type === "sse") return -1;
+      if (a.type === "sse" && b.type === "http") return 1;
+      return 0;
+    });
+  }
+
+  return Array.from(groups.values());
 }
 
 interface MCPServerHeroSectionProps {
@@ -86,38 +104,40 @@ export function MCPServerHeroSection({
   isInstalling = false,
 }: MCPServerHeroSectionProps) {
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
-  const [selectedRemoteIndex, setSelectedRemoteIndex] = useState<number>(0);
   const [selectedPackageIndex, setSelectedPackageIndex] = useState<number>(0);
 
   const selectedVersion = itemVersions[selectedVersionIndex] || itemVersions[0];
   const remotes = selectedVersion?.server?.remotes ?? [];
   const packages = selectedVersion?.server?.packages ?? [];
-  const hasMultiplePackages = packages.length > 1;
   const hasPackages = packages.length > 0;
   const hasRemotes = remotes.length > 0;
+  const hasMultiplePackages = packages.length > 1;
 
-  // Group remotes by hostname for better UX
-  const groupedRemotes = useMemo(
+  // Group remotes by hostname
+  const hostnameGroups = useMemo(
     () => groupRemotesByHostname(remotes),
     [remotes],
   );
-  const hasMultipleGroups = groupedRemotes.length > 1;
-  const hasMultipleRemotesInAnyGroup = groupedRemotes.some(
-    (g) => g.remotes.length > 1,
-  );
-  const hasMultipleRemoteOptions =
-    hasMultipleGroups || hasMultipleRemotesInAnyGroup;
 
-  // Determine available install modes
-  const availableModes: InstallMode[] = [];
-  if (hasRemotes) availableModes.push("remote");
-  if (hasPackages) availableModes.push("package");
-  const hasMultipleModes = availableModes.length > 1;
-
-  // Default install mode: prefer remote if available, otherwise package
+  // Separate state for hostname and protocol selection
+  const [selectedHostname, setSelectedHostname] = useState<string>("");
+  const [selectedProtocol, setSelectedProtocol] = useState<Protocol>("http");
   const [installMode, setInstallMode] = useState<InstallMode>("remote");
 
-  // Update install mode when available modes change
+  // Initialize selections when data changes
+  useEffect(() => {
+    const firstGroup = hostnameGroups[0];
+    if (firstGroup) {
+      setSelectedHostname(firstGroup.hostname);
+      // Default to HTTP if available
+      const httpProtocol = firstGroup.protocols.find((p) => p.type === "http");
+      const defaultProtocol =
+        httpProtocol?.type ?? firstGroup.protocols[0]?.type ?? "http";
+      setSelectedProtocol(defaultProtocol);
+    }
+  }, [hostnameGroups]);
+
+  // Update install mode based on available options
   useEffect(() => {
     if (!hasRemotes && hasPackages) {
       setInstallMode("package");
@@ -126,20 +146,43 @@ export function MCPServerHeroSection({
     }
   }, [hasRemotes, hasPackages]);
 
-  const handleInstallVersion = (versionIndex: number) => {
-    setSelectedVersionIndex(versionIndex);
-    if (installMode === "package") {
-      onInstall(versionIndex, undefined, selectedPackageIndex);
-    } else {
-      onInstall(versionIndex, selectedRemoteIndex, undefined);
-    }
-  };
+  // Get current hostname group
+  const currentGroup = useMemo(
+    () => hostnameGroups.find((g) => g.hostname === selectedHostname),
+    [hostnameGroups, selectedHostname],
+  );
+
+  // Get available protocols for current hostname
+  const availableProtocols = currentGroup?.protocols ?? [];
+
+  // Derive the remote index from hostname + protocol selection
+  const selectedRemoteIndex = useMemo(() => {
+    if (!currentGroup) return 0;
+    const protocol = currentGroup.protocols.find(
+      (p) => p.type === selectedProtocol,
+    );
+    return protocol?.index ?? currentGroup.protocols[0]?.index ?? 0;
+  }, [currentGroup, selectedProtocol]);
+
+  // Visibility logic
+  const hasMultipleHostnames = hostnameGroups.length > 1;
+  const hasMultipleProtocols = availableProtocols.length > 1;
+  const hasMultipleModes = hasRemotes && hasPackages;
 
   const handleInstall = () => {
     if (installMode === "package") {
       onInstall(selectedVersionIndex, undefined, selectedPackageIndex);
     } else {
       onInstall(selectedVersionIndex, selectedRemoteIndex, undefined);
+    }
+  };
+
+  const handleInstallVersion = (versionIndex: number) => {
+    setSelectedVersionIndex(versionIndex);
+    if (installMode === "package") {
+      onInstall(versionIndex, undefined, selectedPackageIndex);
+    } else {
+      onInstall(versionIndex, selectedRemoteIndex, undefined);
     }
   };
 
@@ -173,141 +216,204 @@ export function MCPServerHeroSection({
           )}
         </div>
 
-        {/* Install Button */}
+        {/* Install Controls */}
         {canInstall ? (
           <div className="shrink-0 flex items-center gap-2">
-            {/* Endpoint Selector - shown when multiple remotes OR packages available */}
-            {(hasMultipleRemoteOptions ||
-              hasMultiplePackages ||
-              hasMultipleModes) && (
+            {/* Install Mode Toggle - only show if both remotes and packages available */}
+            {hasMultipleModes && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
+                    size="sm"
                     disabled={isInstalling}
-                    className="shrink-0 cursor-pointer"
+                    className="cursor-pointer"
                   >
-                    <span className="max-w-[200px] truncate">
-                      {installMode === "package"
-                        ? getPackageDisplayName(packages[selectedPackageIndex])
-                        : (() => {
-                            const remote = remotes[selectedRemoteIndex];
-                            const hostname = getHostname(remote?.url);
-                            const type =
-                              getConnectionTypeLabel(remote?.type) || "HTTP";
-                            return `${hostname} (${type})`;
-                          })()}
-                    </span>
-                    <ChevronDown size={16} className="ml-1" />
+                    {installMode === "remote" ? "Remote" : "Local (NPX)"}
+                    <ChevronDown size={14} className="ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-80 max-h-[400px] overflow-y-auto"
-                >
-                  {/* Remote options grouped by hostname */}
-                  {hasRemotes && (
-                    <>
-                      {hasMultipleModes && (
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                          Remote Endpoints
-                        </div>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem
+                    onClick={() => setInstallMode("remote")}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>Remote</span>
+                      {installMode === "remote" && (
+                        <CheckCircle
+                          size={14}
+                          className="text-muted-foreground"
+                        />
                       )}
-                      {groupedRemotes.map((group) => (
-                        <div key={group.hostname}>
-                          {/* Show hostname as header if multiple groups */}
-                          {hasMultipleGroups && (
-                            <div className="px-2 py-1.5 text-xs font-medium text-foreground bg-muted/50 border-y border-border mt-1 first:mt-0 first:border-t-0">
-                              {group.hostname}
-                            </div>
-                          )}
-                          {/* Show connection types for this hostname */}
-                          {group.remotes.map((remote) => (
-                            <DropdownMenuItem
-                              key={`remote-${remote.index}`}
-                              onClick={() => {
-                                setSelectedRemoteIndex(remote.index);
-                                setInstallMode("remote");
-                              }}
-                              disabled={isInstalling}
-                              className="cursor-pointer"
-                            >
-                              <div className="flex items-center justify-between gap-2 w-full">
-                                <div className="flex flex-col gap-0.5 min-w-0">
-                                  <div className="font-medium text-sm">
-                                    {getConnectionTypeLabel(remote.type) ||
-                                      "HTTP"}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground truncate">
-                                    {hasMultipleGroups
-                                      ? remote.url
-                                      : group.hostname}
-                                  </div>
-                                </div>
-                                {installMode === "remote" &&
-                                  remote.index === selectedRemoteIndex && (
-                                    <CheckCircle
-                                      size={16}
-                                      className="text-muted-foreground shrink-0"
-                                    />
-                                  )}
-                              </div>
-                            </DropdownMenuItem>
-                          ))}
-                        </div>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Package options */}
-                  {hasPackages && (
-                    <>
-                      {hasMultipleModes && (
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                          NPM Packages (Local)
-                        </div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setInstallMode("package")}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>Local (NPX)</span>
+                      {installMode === "package" && (
+                        <CheckCircle
+                          size={14}
+                          className="text-muted-foreground"
+                        />
                       )}
-                      {packages.map((pkg, index) => (
-                        <DropdownMenuItem
-                          key={`package-${index}`}
-                          onClick={() => {
-                            setSelectedPackageIndex(index);
-                            setInstallMode("package");
-                          }}
-                          disabled={isInstalling}
-                          className="cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between gap-2 w-full">
-                            <div className="flex flex-col gap-0.5 min-w-0">
-                              <div className="font-medium text-sm truncate">
-                                {getPackageDisplayName(pkg)}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                NPX • {pkg.identifier || pkg.name}
-                              </div>
-                            </div>
-                            {installMode === "package" &&
-                              index === selectedPackageIndex && (
-                                <CheckCircle
-                                  size={16}
-                                  className="text-muted-foreground shrink-0"
-                                />
-                              )}
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                    </>
-                  )}
+                    </div>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
 
-            {/* Version Selector or Simple Install Button */}
+            {/* Remote mode selectors */}
+            {installMode === "remote" && (
+              <>
+                {/* Server/Hostname Selector - only if multiple hostnames */}
+                {hasMultipleHostnames && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isInstalling}
+                        className="cursor-pointer max-w-[200px]"
+                      >
+                        <span className="truncate">{selectedHostname}</span>
+                        <ChevronDown size={14} className="ml-1 shrink-0" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-64 max-h-[300px] overflow-y-auto"
+                    >
+                      {hostnameGroups.map((group) => (
+                        <DropdownMenuItem
+                          key={group.hostname}
+                          onClick={() => {
+                            setSelectedHostname(group.hostname);
+                            // Reset to HTTP if available for new hostname
+                            const httpProtocol = group.protocols.find(
+                              (p) => p.type === "http",
+                            );
+                            const defaultProtocol =
+                              httpProtocol?.type ??
+                              group.protocols[0]?.type ??
+                              "http";
+                            setSelectedProtocol(defaultProtocol);
+                          }}
+                          disabled={isInstalling}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className="truncate">{group.hostname}</span>
+                            {group.hostname === selectedHostname && (
+                              <CheckCircle
+                                size={14}
+                                className="text-muted-foreground shrink-0"
+                              />
+                            )}
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                {/* Protocol Selector - only if multiple protocols available */}
+                {hasMultipleProtocols && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isInstalling}
+                        className="cursor-pointer"
+                      >
+                        {selectedProtocol.toUpperCase()}
+                        <ChevronDown size={14} className="ml-1" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-32">
+                      {availableProtocols.map((protocol) => (
+                        <DropdownMenuItem
+                          key={protocol.type}
+                          onClick={() => setSelectedProtocol(protocol.type)}
+                          disabled={isInstalling}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>{protocol.type.toUpperCase()}</span>
+                            {protocol.type === selectedProtocol && (
+                              <CheckCircle
+                                size={14}
+                                className="text-muted-foreground"
+                              />
+                            )}
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </>
+            )}
+
+            {/* Package mode selector */}
+            {installMode === "package" && hasMultiplePackages && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isInstalling}
+                    className="cursor-pointer max-w-[200px]"
+                  >
+                    <span className="truncate">
+                      {getPackageDisplayName(packages[selectedPackageIndex])}
+                    </span>
+                    <ChevronDown size={14} className="ml-1 shrink-0" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64 max-h-[300px] overflow-y-auto"
+                >
+                  {packages.map((pkg, index) => (
+                    <DropdownMenuItem
+                      key={index}
+                      onClick={() => setSelectedPackageIndex(index)}
+                      disabled={isInstalling}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex flex-col min-w-0">
+                          <span className="truncate">
+                            {getPackageDisplayName(pkg)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {pkg.identifier || pkg.name}
+                          </span>
+                        </div>
+                        {index === selectedPackageIndex && (
+                          <CheckCircle
+                            size={14}
+                            className="text-muted-foreground shrink-0"
+                          />
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Connect Button - with version selector if multiple versions */}
             {itemVersions.length > 1 ? (
               <div className="flex">
                 <Button
                   variant="brand"
-                  onClick={() => handleInstallVersion(0)}
+                  onClick={handleInstall}
                   disabled={isInstalling}
                   className="shrink-0 rounded-r-none cursor-pointer"
                 >
@@ -370,7 +476,7 @@ export function MCPServerHeroSection({
                 variant="brand"
                 onClick={handleInstall}
                 disabled={itemVersions.length === 0 || isInstalling}
-                className="shrink-0"
+                className="shrink-0 cursor-pointer"
               >
                 <Plus size={20} />
                 {isInstalling ? "Connecting..." : "Connect"}
