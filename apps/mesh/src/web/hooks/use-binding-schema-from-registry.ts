@@ -149,12 +149,14 @@ export function useBindingSchemaFromRegistry(
   });
 
   // Find the first successful result with an MCP Server
-  const foundApp = queries
+  const foundServer = queries
     .map((query) => query.data)
-    .find((app): app is RegistryItemWithBinding => app !== null);
+    .find((server): server is RegistryItemWithBinding => server !== null);
 
   // Extract binding schema from the found MCP Server
-  const bindingSchema = foundApp ? extractBindingTools(foundApp) : undefined;
+  const bindingSchema = foundServer
+    ? extractBindingTools(foundServer)
+    : undefined;
 
   return { bindingSchema };
 }

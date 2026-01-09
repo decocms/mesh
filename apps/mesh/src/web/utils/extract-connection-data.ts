@@ -1,6 +1,6 @@
 /**
  * Utility to extract connection data from a registry item for installation.
- * Shared between store-app-detail and inline installation flows.
+ * Shared between store server detail and inline installation flows.
  */
 
 import type { OAuthConfig } from "@/tools/connection/schema";

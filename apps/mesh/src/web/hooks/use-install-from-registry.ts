@@ -71,7 +71,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
 
     const parsedAppName = parseAppName(bindingType);
 
-    // Query all registries in parallel to find the app
+    // Query all registries in parallel to find the MCP Server
     const results = await Promise.all(
       registryConnections.map(async (registryConnection) => {
         const listToolName = findListToolName(registryConnection.tools);
