@@ -25,11 +25,6 @@ export function extractConnectionData(
 
   const meshMeta = item._meta?.[MCP_REGISTRY_DECOCMS_KEY];
 
-  const appMetadata = meshMeta?.metadata as
-    | Record<string, unknown>
-    | null
-    | undefined;
-
   const remote = server?.remotes?.[0];
 
   const connectionType = (getConnectionTypeLabel(remote?.type) || "HTTP") as
@@ -53,7 +48,7 @@ export function extractConnectionData(
   const icon =
     server?.icons?.[0]?.src || getGitHubAvatarUrl(server?.repository) || null;
 
-  const rawOauthConfig = appMetadata?.oauth_config as
+  const rawOauthConfig = meshMeta?.oauth_config as
     | Record<string, unknown>
     | null
     | undefined;
@@ -68,11 +63,11 @@ export function extractConnectionData(
       ? (rawOauthConfig as unknown as OAuthConfig)
       : null;
 
-  const configState = appMetadata?.configuration_state as
+  const configState = meshMeta?.configuration_state as
     | Record<string, unknown>
     | null
     | undefined;
-  const configScopes = appMetadata?.configuration_scopes as
+  const configScopes = meshMeta?.configuration_scopes as
     | string[]
     | null
     | undefined;
@@ -101,14 +96,13 @@ export function extractConnectionData(
     configuration_state: configState ?? null,
     configuration_scopes: configScopes ?? null,
     metadata: {
-      ...appMetadata,
       source: "store",
       registry_item_id: item.id,
       verified: meshMeta?.verified ?? false,
       scopeName: meshMeta?.scopeName ?? null,
       toolsCount: meshMeta?.tools?.length ?? 0,
       publishedAt: meshMeta?.publishedAt ?? null,
-      repository, // Repository info for README display
+      repository,
     },
     created_at: now,
     updated_at: now,

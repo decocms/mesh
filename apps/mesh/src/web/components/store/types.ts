@@ -31,7 +31,9 @@ export interface MCPRegistryServerMeta {
     tags?: string[];
     categories?: string[];
     friendlyName?: string | null;
-    metadata?: Record<string, unknown> | null;
+    oauth_config?: Record<string, unknown>;
+    configuration_state?: Record<string, unknown>;
+    configuration_scopes?: string[];
     tools?: Array<{
       id: string;
       name: string;
