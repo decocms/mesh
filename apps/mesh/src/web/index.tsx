@@ -7,6 +7,7 @@ import {
   createRouter,
   lazyRouteComponent,
   Outlet,
+  Route,
   RouterProvider,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
@@ -14,6 +15,9 @@ import { SplashScreen } from "@/web/components/splash-screen";
 import * as z from "zod";
 
 import "../../index.css";
+
+import { sourcePlugins } from "./plugins.ts";
+import { AnyPlugin, PluginSetupContext } from "@decocms/bindings/plugins";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -117,27 +121,6 @@ const orgMonitoringRoute = createRoute({
   ),
 });
 
-const orgStoreRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/store",
-  component: lazyRouteComponent(() => import("./routes/orgs/store/page.tsx")),
-});
-
-const storeServerDetailRoute = createRoute({
-  getParentRoute: () => orgStoreRoute,
-  path: "/$appName",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/store/mcp-server-detail.tsx"),
-  ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      registryId: z.string().optional(),
-      serverName: z.string().optional(),
-      itemId: z.string().optional(),
-    }),
-  ),
-});
-
 const connectionLayoutRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/mcps/$connectionId",
@@ -200,9 +183,39 @@ const oauthCallbackRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
 });
 
-const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
-  storeServerDetailRoute,
-]);
+const pluginLayoutRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/$pluginId",
+  component: Outlet,
+});
+
+/**
+ * In-memory state for plugins to register stuff via callbacks.
+ */
+export const pluginRootSidebarItems: {
+  pluginId: string;
+  icon: React.ReactNode;
+  label: string;
+}[] = [];
+const pluginLayoutRoutes: Route[] = [];
+
+export const plugins = sourcePlugins.forEach((plugin: AnyPlugin) => {
+  const context: PluginSetupContext = {
+    parentRoute: pluginLayoutRoute as unknown as Route,
+    routing: {
+      createRoute: createRoute,
+      lazyRouteComponent: lazyRouteComponent,
+    },
+    registerRootSidebarItem: (item) =>
+      pluginRootSidebarItems.push({ pluginId: plugin.id, ...item }),
+    registerPluginRoutes: (routes) => pluginLayoutRoutes.push(...routes),
+  };
+
+  plugin.setup(context);
+});
+
+const pluginLayoutWithChildren =
+  pluginLayoutRoute.addChildren(pluginLayoutRoutes);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
@@ -212,11 +225,11 @@ const shellRouteTree = shellLayout.addChildren([
   orgGatewaysRoute,
   gatewayDetailRoute,
   orgMonitoringRoute,
-  orgStoreRouteWithChildren,
   orgSettingsRoute,
   orgWorkflowRoute,
   connectionLayoutRoute,
   collectionDetailsRoute,
+  pluginLayoutWithChildren,
 ]);
 
 const routeTree = rootRoute.addChildren([
