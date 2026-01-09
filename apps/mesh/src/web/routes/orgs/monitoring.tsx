@@ -280,7 +280,7 @@ function FiltersPopover({
 
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Gateways
+                Agents
               </label>
               <MultiSelect
                 options={gatewayOptions}
