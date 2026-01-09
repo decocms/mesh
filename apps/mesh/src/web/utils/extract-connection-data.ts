@@ -54,12 +54,12 @@ export function extractConnectionData(
     | undefined;
   const oauthConfig: OAuthConfig | null =
     rawOauthConfig &&
-    typeof rawOauthConfig.authorizationEndpoint === "string" &&
-    typeof rawOauthConfig.tokenEndpoint === "string" &&
-    typeof rawOauthConfig.clientId === "string" &&
-    Array.isArray(rawOauthConfig.scopes) &&
-    (rawOauthConfig.grantType === "authorization_code" ||
-      rawOauthConfig.grantType === "client_credentials")
+      typeof rawOauthConfig.authorizationEndpoint === "string" &&
+      typeof rawOauthConfig.tokenEndpoint === "string" &&
+      typeof rawOauthConfig.clientId === "string" &&
+      Array.isArray(rawOauthConfig.scopes) &&
+      (rawOauthConfig.grantType === "authorization_code" ||
+        rawOauthConfig.grantType === "client_credentials")
       ? (rawOauthConfig as unknown as OAuthConfig)
       : null;
 
@@ -75,10 +75,10 @@ export function extractConnectionData(
   // Extract repository info for README support (stored in metadata)
   const repository = server?.repository
     ? {
-        url: server.repository.url,
-        source: server.repository.source,
-        subfolder: server.repository.subfolder,
-      }
+      url: server.repository.url,
+      source: server.repository.source,
+      subfolder: server.repository.subfolder,
+    }
     : null;
 
   return {
