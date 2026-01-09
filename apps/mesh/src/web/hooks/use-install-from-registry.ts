@@ -38,7 +38,7 @@ interface UseInstallFromRegistryResult {
 }
 
 /**
- * Normalize app name format, ensuring @ prefix is present
+ * Normalize MCP Server name format, ensuring @ prefix is present
  * @example
  * - "@deco/database" -> "@deco/database" (unchanged)
  * - "deco/database" -> "@deco/database" (adds @)
@@ -60,7 +60,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
 
-  // Installation function - queries registries directly with appName filter
+  // Installation function - queries registries directly with MCP Server name filter
   const installByBinding = async (
     bindingType: string,
   ): Promise<InstallResult | undefined> => {

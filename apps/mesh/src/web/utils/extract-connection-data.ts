@@ -40,7 +40,7 @@ export function extractConnectionData(
     item.title ||
     server?.title ||
     server?.name ||
-    "Unnamed App";
+    "Unnamed MCP Server";
 
   const description = server?.description || null;
 

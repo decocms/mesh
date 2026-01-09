@@ -103,8 +103,6 @@ export interface RegistryItem {
   publisher?: string;
   /** Publisher logo URL */
   publisher_logo?: string;
-  /** Number of published apps */
-  published_apps_count?: number;
   /** Available tools */
   tools?: Array<{
     id?: string;

@@ -1,9 +1,9 @@
 /**
- * Utilities for extracting and formatting MCP app names
+ * Utilities for extracting and formatting MCP Server names
  */
 
 /**
- * Extracts the display name from an app name in reverse domain format.
+ * Extracts the display name from an MCP Server name in reverse domain format.
  *
  * Examples:
  * - "ai.zine/mcp" -> "zine"
@@ -11,7 +11,7 @@
  * - "simple-name" -> "simple-name"
  * - "io.modelcontextprotocol.registry/github" -> "github"
  *
- * @param fullName - The full app name (may be in domain/app format)
+ * @param fullName - The full MCP Server name (may be in domain/server format)
  * @returns The formatted name for display
  */
 export function extractDisplayNameFromDomain(fullName: string): string {
