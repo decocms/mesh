@@ -30,6 +30,7 @@ export interface MCPRegistryServerMeta {
     mesh_description?: string;
     tags?: string[];
     categories?: string[];
+    official?: boolean;
     friendlyName?: string | null;
     oauth_config?: Record<string, unknown>;
     configuration_state?: Record<string, unknown>;
