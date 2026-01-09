@@ -15,7 +15,6 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
  * Extract connection data from a registry item for installation
- * UPDATED: All metadata is now in item._meta["mcp.mesh"] at root level
  */
 export function extractConnectionData(
   item: RegistryItem,
@@ -24,7 +23,6 @@ export function extractConnectionData(
 ) {
   const server = item.server as MCPRegistryServer["server"] | undefined;
 
-  // UPDATED: All data is now in item._meta["mcp.mesh"]
   const meshMeta = item._meta?.[MCP_REGISTRY_DECOCMS_KEY];
 
   const appMetadata = meshMeta?.metadata as

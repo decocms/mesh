@@ -17,7 +17,6 @@ import { findListToolName } from "@/web/utils/registry-utils";
 
 /**
  * Registry item from the registry API response.
- * UPDATED: All metadata including tools is now in _meta["mcp.mesh"] at root level
  */
 interface RegistryItemWithBinding {
   id: string;
@@ -28,7 +27,6 @@ interface RegistryItemWithBinding {
       scopeName?: string;
       appName?: string;
       binding?: boolean;
-      // Tools are now part of mcp.mesh metadata
       tools?: Array<{
         id?: string;
         name: string;
@@ -69,7 +67,6 @@ function parseAppName(appName: string): string {
 
 /**
  * Extract tools from a registry item as binding definitions
- * UPDATED: Tools are now in _meta["mcp.mesh"] at root level
  */
 function extractBindingTools(
   item: RegistryItemWithBinding,

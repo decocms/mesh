@@ -89,8 +89,6 @@ function getPublisherInfo(
 
 /** Helper to extract data from different JSON structures */
 function extractItemData(item: RegistryItem): MCPServerData {
-  // UPDATED: publisherMeta no longer exists in server._meta
-  // All data is now in item._meta?.["mcp.mesh"]
   const decoMeta = item._meta?.["mcp.mesh"];
   const officialMeta =
     item._meta?.["io.modelcontextprotocol.registry/official"];
@@ -157,7 +155,6 @@ function extractItemData(item: RegistryItem): MCPServerData {
     remoteUrl: null,
     tags: tags,
     categories: categories,
-    // UPDATED: publisherMeta is now part of decoMeta
     tools: item.tools || server.tools || decoMeta?.tools || [],
     models: item.models || server.models || decoMeta?.models || [],
     emails: item.emails || server.emails || decoMeta?.emails || [],
