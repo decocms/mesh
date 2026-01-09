@@ -54,7 +54,7 @@ function slugify(input: string): string {
  */
 const ORG_NAME_TECH_SUFFIXES = [
   "labs",
-  "hub",
+  "agent",
   "studio",
   "workspace",
   "systems",
