@@ -5,8 +5,11 @@
  * - 12 users across multiple departments
  * - 24 connections (3 well-known + verified MCPs from Deco Store)
  * - 6 gateways (Default Hub + 5 specialized)
- * - ~1M synthetic + static monitoring logs maximally distributed across 30 days
- *   with smooth 24/7 activity (60% business hours 7am-10pm, 40% off-hours)
+ * - ~1M synthetic + static monitoring logs with realistic activity patterns:
+ *   - Peak hours: 9-11am (morning) and 2-4pm (afternoon)
+ *   - Weekends with 80% reduced activity (visible valleys)
+ *   - Special spike days on deployments (days 2, 7, 14, 21, 28)
+ *   - Night/lunch hours with minimal activity (realistic lows)
  */
 
 import type { Kysely } from "kysely";
@@ -717,67 +720,120 @@ function generateSyntheticLogs(targetCount: number): MonitoringLog[] {
     ([key, weight]) => ({ key, weight }),
   );
 
-  for (let i = 0; i < targetCount; i++) {
-    const template = weightedRandom(TOOL_TEMPLATES);
-    const userEntry = weightedRandom(userWeights);
-    const isError = Math.random() < 0.08;
+  // Pre-calculate logs per day with realistic distribution
+  const logsPerDay: number[] = [];
+  const totalDays = 30;
 
-    // Generate timestamp with maximum spread over 30 days
-    // Completely uniform distribution with smooth variations
-    const dayOffset = Math.random() * 30; // 0 to 30 days ago
+  for (let day = 0; day < totalDays; day++) {
+    const now = new Date();
+    const targetDate = new Date(now.getTime() - day * TIME.DAY);
+    const dayOfWeek = targetDate.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-    // Add hour variation across full 24h period
-    // Mix of concentrated business hours (60%) and off-hours (40%)
-    let hourOffset: number;
-    if (Math.random() < 0.6) {
-      // Business hours: 7am to 10pm (15 hours)
-      hourOffset = 7 + Math.random() * 15;
+    // Special spike days (deployments, incidents)
+    const isSpikeDay = [2, 7, 14, 21, 28].includes(day);
+
+    // Calculate base activity for this day
+    let dayMultiplier = 1.0;
+    if (isWeekend) {
+      dayMultiplier = 0.3; // 30% activity on weekends (visible valley)
+    } else if (isSpikeDay) {
+      dayMultiplier = 2.5; // 250% activity on spike days (visible peak)
     } else {
-      // Off hours: 10pm to 7am (9 hours)
-      const offHour = Math.random() * 9;
-      hourOffset = offHour < 5 ? 22 + offHour : offHour - 5; // 22-24 or 0-7
+      // Normal weekdays with slight variation
+      dayMultiplier = 0.85 + Math.random() * 0.3; // 85-115% of base
     }
 
-    // Add minute/second noise for maximum distribution
-    const minuteOffset = Math.random() * 60;
-    const secondOffset = Math.random() * 60;
+    logsPerDay.push(dayMultiplier);
+  }
 
-    // Calculate total offset in milliseconds
-    const randomOffset =
-      dayOffset * TIME.DAY +
-      hourOffset * TIME.HOUR +
-      minuteOffset * TIME.MINUTE +
-      secondOffset * 1000;
+  // Normalize to hit target count
+  const totalMultiplier = logsPerDay.reduce((sum, m) => sum + m, 0);
+  const logsPerDayFinal = logsPerDay.map((m) =>
+    Math.floor((m / totalMultiplier) * targetCount),
+  );
 
-    const totalOffsetMs = -randomOffset;
+  // Generate logs for each day
+  for (let day = 0; day < totalDays; day++) {
+    const logsForThisDay = logsPerDayFinal[day] || 0;
 
-    const duration =
-      template.avgDurationMs +
-      (Math.random() - 0.5) * 2 * template.durationVariance;
-    const input = template.sampleInputs[
-      Math.floor(Math.random() * template.sampleInputs.length)
-    ] as Record<string, unknown>;
-    const output = (
-      isError
-        ? { error: "Internal error" }
-        : template.sampleOutputs[
-            Math.floor(Math.random() * template.sampleOutputs.length)
-          ]
-    ) as Record<string, unknown>;
+    for (let logIdx = 0; logIdx < logsForThisDay; logIdx++) {
+      const template = weightedRandom(TOOL_TEMPLATES);
+      const userEntry = weightedRandom(userWeights);
+      const isError = Math.random() < 0.08;
 
-    logs.push({
-      connectionKey: template.connectionKey,
-      toolName: template.toolName,
-      input,
-      output,
-      isError,
-      durationMs: Math.max(50, Math.round(duration)),
-      offsetMs: totalOffsetMs,
-      userKey: userEntry.key,
-      userAgent: "mesh-client/1.0",
-      gatewayKey: CONNECTION_TO_GATEWAY[template.connectionKey] || "allAccess",
-      properties: template.properties,
-    });
+      // Create realistic hourly patterns with clear peaks
+      // Peak hours: 9-11am (morning peak), 2-4pm (afternoon peak)
+      // Low activity: 12-1pm (lunch), 5pm-7am (evening/night)
+      let hourOffset: number;
+      const hourPattern = Math.random();
+
+      if (hourPattern < 0.25) {
+        // 25% - Morning peak (9-11am) - HIGHEST activity
+        hourOffset = 9 + Math.random() * 2;
+      } else if (hourPattern < 0.45) {
+        // 20% - Afternoon peak (2-4pm) - HIGH activity
+        hourOffset = 14 + Math.random() * 2;
+      } else if (hourPattern < 0.6) {
+        // 15% - Early morning ramp-up (7-9am)
+        hourOffset = 7 + Math.random() * 2;
+      } else if (hourPattern < 0.75) {
+        // 15% - Late afternoon (4-6pm)
+        hourOffset = 16 + Math.random() * 2;
+      } else if (hourPattern < 0.85) {
+        // 10% - Lunch dip (12-2pm) - LOWER activity
+        hourOffset = 12 + Math.random() * 2;
+      } else if (hourPattern < 0.93) {
+        // 8% - Evening (6-10pm) - LOW activity
+        hourOffset = 18 + Math.random() * 4;
+      } else {
+        // 7% - Night/early morning (10pm-7am) - MINIMAL activity
+        const nightHour = Math.random() * 9;
+        hourOffset = nightHour < 2 ? 22 + nightHour : nightHour - 2;
+      }
+
+      // Add minute/second variation for spreading within the hour
+      const minuteOffset = Math.random() * 60;
+      const secondOffset = Math.random() * 60;
+
+      // Calculate total offset in milliseconds
+      const randomOffset =
+        day * TIME.DAY +
+        hourOffset * TIME.HOUR +
+        minuteOffset * TIME.MINUTE +
+        secondOffset * 1000;
+
+      const totalOffsetMs = -randomOffset;
+
+      const duration =
+        template.avgDurationMs +
+        (Math.random() - 0.5) * 2 * template.durationVariance;
+      const input = template.sampleInputs[
+        Math.floor(Math.random() * template.sampleInputs.length)
+      ] as Record<string, unknown>;
+      const output = (
+        isError
+          ? { error: "Internal error" }
+          : template.sampleOutputs[
+              Math.floor(Math.random() * template.sampleOutputs.length)
+            ]
+      ) as Record<string, unknown>;
+
+      logs.push({
+        connectionKey: template.connectionKey,
+        toolName: template.toolName,
+        input,
+        output,
+        isError,
+        durationMs: Math.max(50, Math.round(duration)),
+        offsetMs: totalOffsetMs,
+        userKey: userEntry.key,
+        userAgent: "mesh-client/1.0",
+        gatewayKey:
+          CONNECTION_TO_GATEWAY[template.connectionKey] || "allAccess",
+        properties: template.properties,
+      });
+    }
   }
 
   return logs.sort((a, b) => a.offsetMs - b.offsetMs);
