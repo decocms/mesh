@@ -590,7 +590,6 @@ export async function isConnectionAuthenticated({
       return { isAuthenticated: true, supportsOAuth: true };
     }
 
-    // Try to get error message from response body
     let error: string | undefined;
     try {
       const body = await response.json();
@@ -599,7 +598,6 @@ export async function isConnectionAuthenticated({
       // Ignore JSON parse errors
     }
 
-    // Handle 5xx server errors separately - we can't determine OAuth support
     if (response.status >= 500) {
       return {
         isAuthenticated: false,
@@ -609,7 +607,6 @@ export async function isConnectionAuthenticated({
       };
     }
 
-    // For 401/403, check if server supports OAuth by looking for WWW-Authenticate header
     const wwwAuth = response.headers.get("WWW-Authenticate");
     const supportsOAuth = !!wwwAuth;
 
@@ -619,7 +616,6 @@ export async function isConnectionAuthenticated({
       error: error || `HTTP ${response.status}`,
     };
   } catch (error) {
-    console.error("[isConnectionAuthenticated] Error:", error);
     return {
       isAuthenticated: false,
       supportsOAuth: false,

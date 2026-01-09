@@ -26,6 +26,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { SSEClientTransport } from "@/api/utils/sse-client-transport";
 import {
   type CallToolRequest,
   CallToolRequestSchema,
@@ -387,36 +388,43 @@ async function createMCPProxyDoNotUseDirectly(
       }
 
       case "HTTP":
-      case "SSE":
       case "Websocket": {
         if (!connection.connection_url) {
-          throw new Error(
-            `${connection.connection_type} connection missing URL`,
-          );
+          throw new Error(`${connection.connection_type} connection missing URL`);
         }
 
-        // HTTP/SSE/WebSocket - create fresh client per request
-        const client = new Client({
-          name: "mcp-mesh-proxy",
-          version: "1.0.0",
-        });
-
+        const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
         const headers = await buildRequestHeaders();
-
-        // Add custom headers from connection_headers
         if (httpParams?.headers) {
           Object.assign(headers, httpParams.headers);
         }
 
-        // Create transport to downstream MCP using StreamableHTTP
-        // TODO: Add SSE transport support when needed
         const transport = new StreamableHTTPClientTransport(
           new URL(connection.connection_url),
           { requestInit: { headers } },
         );
 
         await client.connect(transport);
+        return client;
+      }
 
+      case "SSE": {
+        if (!connection.connection_url) {
+          throw new Error(`${connection.connection_type} connection missing URL`);
+        }
+
+        const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
+        const headers = await buildRequestHeaders();
+        if (httpParams?.headers) {
+          Object.assign(headers, httpParams.headers);
+        }
+
+        const transport = new SSEClientTransport(
+          new URL(connection.connection_url),
+          { requestInit: { headers } },
+        );
+
+        await client.connect(transport);
         return client;
       }
 
@@ -878,7 +886,6 @@ app.all("/:connectionId", async (c) => {
       return c.json({ error: err.message }, 404);
     }
     if (err.message.includes("does not belong to the active organization")) {
-      // Return 404 to prevent leaking connection existence across organizations
       return c.json({ error: "Connection not found" }, 404);
     }
     if (err.message.includes("inactive")) {

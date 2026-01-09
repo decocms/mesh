@@ -1,9 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
 
-/**
- * Tool definition from MCP protocol
- */
 export interface McpTool {
   name: string;
   description?: string;
@@ -19,18 +16,12 @@ export interface McpTool {
   };
 }
 
-/**
- * JSON-RPC 2.0 error object
- */
 interface JsonRpcError {
   code: number;
   message: string;
   data?: unknown;
 }
 
-/**
- * JSON-RPC 2.0 response
- */
 interface JsonRpcResponse<T = unknown> {
   jsonrpc: "2.0";
   id: number | string;
@@ -38,26 +29,14 @@ interface JsonRpcResponse<T = unknown> {
   error?: JsonRpcError;
 }
 
-/**
- * MCP connection state
- */
 export type McpState = "disconnected" | "connecting" | "ready" | "error";
 
-/**
- * Options for useMcp hook
- */
 export interface UseMcpOptions {
-  /** MCP server URL */
   url: string;
-  /** Optional authorization token */
   token?: string | null;
-  /** Whether to enable the query (default: true) */
   enabled?: boolean;
 }
 
-/**
- * Result from useMcp hook
- */
 export interface UseMcpResult {
   tools: McpTool[];
   state: McpState;
@@ -66,12 +45,6 @@ export interface UseMcpResult {
   refetch: () => void;
 }
 
-/**
- * MCP hook using React Query
- *
- * Fetches tools from an MCP server.
- * Just provide the URL and optionally a token.
- */
 export function useMcp({
   url,
   token,
@@ -91,7 +64,6 @@ export function useMcp({
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      // Initialize MCP connection
       const initResponse = await fetch(url, {
         method: "POST",
         headers,
@@ -102,10 +74,7 @@ export function useMcp({
           params: {
             protocolVersion: "2025-06-18",
             capabilities: {},
-            clientInfo: {
-              name: "mesh-mcp",
-              version: "1.0.0",
-            },
+            clientInfo: { name: "mesh-mcp", version: "1.0.0" },
           },
         }),
       });
@@ -121,7 +90,6 @@ export function useMcp({
         );
       }
 
-      // List tools
       const toolsResponse = await fetch(url, {
         method: "POST",
         headers,
@@ -148,7 +116,7 @@ export function useMcp({
       return toolsData.result?.tools || [];
     },
     enabled: enabled && !!url,
-    staleTime: 30000, // 30 seconds
+    staleTime: 30000,
     retry: false,
   });
 

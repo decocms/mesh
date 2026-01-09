@@ -168,6 +168,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     // If the connection uses OAuth (token stored in downstream_tokens), use the per-user
     // access token to discover tools after authentication.
     let tokenForToolFetch = data.connection_token ?? existing.connection_token;
+
     if (!tokenForToolFetch) {
       try {
         const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
