@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -20,6 +22,7 @@ export interface NavigationSidebarItem {
 
 interface NavigationSidebarProps {
   navigationItems: NavigationSidebarItem[];
+  header?: ReactNode;
   footer?: ReactNode;
   additionalContent?: ReactNode;
   variant?: "sidebar" | "floating" | "inset";
@@ -32,6 +35,7 @@ interface NavigationSidebarProps {
  */
 export function NavigationSidebar({
   navigationItems,
+  header,
   footer,
   additionalContent,
   variant = "sidebar",
@@ -39,14 +43,15 @@ export function NavigationSidebar({
 }: NavigationSidebarProps) {
   return (
     <Sidebar variant={variant} collapsible={collapsible}>
+      {header && <SidebarHeader className="p-0">{header}</SidebarHeader>}
       <SidebarContent className="flex-1 overflow-x-hidden">
-        <SidebarGroup className="font-medium">
+        <SidebarGroup className="font-medium mt-1.5 px-2">
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
-                    className="group/nav-item cursor-pointer text-foreground/90 hover:text-foreground"
+                    className="group/nav-item cursor-pointer text-foreground/90 hover:text-foreground h-7 px-2 gap-2"
                     onClick={item.onClick}
                     isActive={item.isActive}
                     tooltip={item.label}
@@ -54,7 +59,7 @@ export function NavigationSidebar({
                     <span className="text-muted-foreground group-hover/nav-item:text-foreground transition-colors [&>svg]:size-4">
                       {item.icon}
                     </span>
-                    <span className="truncate">{item.label}</span>
+                    <span className="truncate text-sm">{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -63,7 +68,11 @@ export function NavigationSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      {footer}
+      {footer && (
+        <SidebarFooter className="border-t border-border py-2 px-2 mt-1.5">
+          {footer}
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }

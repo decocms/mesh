@@ -1,8 +1,6 @@
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { MeshSidebar } from "@/web/components/mesh-sidebar";
-import { MeshOrgSwitcher } from "@/web/components/org-switcher";
 import { SplashScreen } from "@/web/components/splash-screen";
-import { MeshUserMenu } from "@/web/components/user-menu";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
@@ -13,16 +11,12 @@ import {
   ProjectContextProvider,
   ProjectContextProviderProps,
 } from "@/web/providers/project-context-provider";
-import { AppTopbar } from "@deco/ui/components/app-topbar.tsx";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
 import { DecoChatSkeleton } from "@/web/components/chat/deco-chat-skeleton";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@deco/ui/components/resizable.tsx";
-import { SidebarToggleButton } from "@deco/ui/components/sidebar-toggle-button.tsx";
 import {
   SidebarInset,
   SidebarLayout,
@@ -31,71 +25,9 @@ import {
 import { cn } from "@deco/ui/lib/utils.js";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
-import { PropsWithChildren, Suspense, useTransition, useRef } from "react";
+import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
-
-// Capybara avatar URL from decopilotAgent
-const CAPYBARA_AVATAR_URL =
-  "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
-
-function Topbar({
-  showSidebarToggle = false,
-  showOrgSwitcher = false,
-  showDecoChat = false,
-  disableDecoChat = false,
-}: {
-  showSidebarToggle?: boolean;
-  showOrgSwitcher?: boolean;
-  showDecoChat?: boolean;
-  disableDecoChat?: boolean;
-}) {
-  const [isOpen, setChatOpen] = useDecoChatOpen();
-  const prevDisableRef = useRef(disableDecoChat);
-
-  // Close chat panel if disabled (synchronous check)
-  if (disableDecoChat && isOpen && prevDisableRef.current !== disableDecoChat) {
-    setChatOpen(false);
-  }
-  prevDisableRef.current = disableDecoChat;
-
-  const toggleChat = () => {
-    if (!disableDecoChat) {
-      setChatOpen((prev) => !prev);
-    }
-  };
-
-  return (
-    <AppTopbar>
-      {showSidebarToggle && (
-        <AppTopbar.Sidebar>
-          <SidebarToggleButton />
-        </AppTopbar.Sidebar>
-      )}
-      <AppTopbar.Left>
-        {showOrgSwitcher && (
-          <Suspense fallback={<MeshOrgSwitcher.Skeleton />}>
-            <MeshOrgSwitcher />
-          </Suspense>
-        )}
-      </AppTopbar.Left>
-      <AppTopbar.Right className="gap-2">
-        {showDecoChat && !disableDecoChat && (
-          <Button size="sm" variant="default" onClick={toggleChat}>
-            <Avatar
-              url={CAPYBARA_AVATAR_URL}
-              fallback="DC"
-              size="2xs"
-              className="rounded-sm"
-            />
-            deco chat
-          </Button>
-        )}
-        <MeshUserMenu />
-      </AppTopbar.Right>
-    </AppTopbar>
-  );
-}
 
 /**
  * This component persists the width of the chat panel across reloads.
@@ -205,10 +137,7 @@ function ShellLayoutContent() {
   if (!projectContext) {
     return (
       <div className="min-h-screen bg-background">
-        <Topbar />
-        <div className="pt-12">
-          <Outlet />
-        </div>
+        <Outlet />
       </div>
     );
   }
@@ -216,28 +145,20 @@ function ShellLayoutContent() {
   return (
     <ProjectContextProvider {...projectContext}>
       <PersistentSidebarProvider>
-        <div className="flex flex-col h-screen">
-          <Topbar
-            showSidebarToggle
-            showOrgSwitcher
-            showDecoChat
-            disableDecoChat={isHomeRoute}
-          />
-          <SidebarLayout
-            className="flex-1 bg-sidebar"
-            style={
-              {
-                "--sidebar-width": "13rem",
-                "--sidebar-width-mobile": "11rem",
-              } as Record<string, string>
-            }
-          >
-            <MeshSidebar />
-            <SidebarInset className="pt-12">
-              <ChatPanels disableChat={isHomeRoute} />
-            </SidebarInset>
-          </SidebarLayout>
-        </div>
+        <SidebarLayout
+          className="h-screen"
+          style={
+            {
+              "--sidebar-width": "14rem",
+              "--sidebar-width-mobile": "11rem",
+            } as Record<string, string>
+          }
+        >
+          <MeshSidebar />
+          <SidebarInset>
+            <ChatPanels disableChat={isHomeRoute} />
+          </SidebarInset>
+        </SidebarLayout>
       </PersistentSidebarProvider>
     </ProjectContextProvider>
   );

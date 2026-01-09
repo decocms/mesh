@@ -34,17 +34,18 @@ interface UserMenuSeparatorProps {
 function UserMenuRoot({
   user,
   trigger,
-  align = "start",
+  align: _align = "start",
   children,
 }: UserMenuProps) {
   return (
     <ResponsiveDropdown>
-      <ResponsiveDropdownTrigger asChild>
-        <div>{trigger(user)}</div>
+      <ResponsiveDropdownTrigger asChild className="w-full">
+        {trigger(user)}
       </ResponsiveDropdownTrigger>
       <ResponsiveDropdownContent
         side="top"
-        align={align}
+        align="end"
+        alignOffset={-32}
         className="md:w-[240px]"
       >
         {children}

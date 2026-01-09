@@ -5,7 +5,7 @@ import { Separator } from "./separator.tsx";
 import { Avatar } from "./avatar.tsx";
 import { createContext, useContext, type ReactNode } from "react";
 import { cn } from "../lib/utils.ts";
-import { ChevronSelectorVertical } from "@untitledui/icons";
+import { ChevronDown } from "@untitledui/icons";
 
 export interface TopbarSwitcherEntity {
   slug: string;
@@ -37,11 +37,13 @@ function useTopbarSwitcherContext() {
 interface TopbarSwitcherRootProps {
   children: ReactNode;
   onItemHover?: (slug: string | null) => void;
+  collapsed?: boolean;
 }
 
 function TopbarSwitcherRoot({
   children,
   onItemHover,
+  collapsed = false,
 }: TopbarSwitcherRootProps) {
   const [hoveredItem, setHoveredItemInternal] = React.useState<string | null>(
     null,
@@ -54,7 +56,7 @@ function TopbarSwitcherRoot({
 
   return (
     <TopbarSwitcherContext.Provider value={{ hoveredItem, setHoveredItem }}>
-      <Popover>{children}</Popover>
+      {collapsed ? <>{children}</> : <Popover>{children}</Popover>}
     </TopbarSwitcherContext.Provider>
   );
 }
@@ -63,28 +65,40 @@ function TopbarSwitcherRoot({
 interface TopbarSwitcherTriggerProps {
   children: ReactNode;
   onClick?: () => void;
+  collapsed?: boolean;
 }
 
 function TopbarSwitcherTrigger({
   children,
   onClick,
+  collapsed = false,
 }: TopbarSwitcherTriggerProps) {
-  return (
-    <div className="flex items-center gap-1">
+  if (collapsed) {
+    return (
       <Button
         variant="link"
-        className="p-0.5 h-auto"
+        className="p-0 h-auto min-w-0 flex-1"
         onClick={onClick}
         type="button"
       >
         {children}
       </Button>
-      <PopoverTrigger asChild>
-        <Button size="icon" variant="ghost" className="w-6 h-6 p-0">
-          <ChevronSelectorVertical size={16} className="opacity-50" />
-        </Button>
-      </PopoverTrigger>
-    </div>
+    );
+  }
+
+  return (
+    <PopoverTrigger asChild>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="justify-start !pl-1 !pr-1.5 min-w-0 flex-1"
+        onClick={onClick}
+        type="button"
+      >
+        {children}
+        <ChevronDown size={16} className="opacity-50 shrink-0" />
+      </Button>
+    </PopoverTrigger>
   );
 }
 
@@ -92,21 +106,28 @@ function TopbarSwitcherTrigger({
 interface TopbarSwitcherCurrentItemProps<T extends TopbarSwitcherEntity> {
   item: T | undefined;
   fallback?: string;
+  collapsed?: boolean;
 }
 
 function TopbarSwitcherCurrentItem<T extends TopbarSwitcherEntity>({
   item,
   fallback = "",
+  collapsed = false,
 }: TopbarSwitcherCurrentItemProps<T>) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 min-w-0">
       <Avatar
         url={item?.avatarUrl ?? ""}
         fallback={item?.name ?? fallback}
-        size="xs"
-        objectFit="contain"
+        size="sm"
+        objectFit="cover"
+        className="shrink-0 size-5 rounded-md"
       />
-      <span>{item?.name ?? fallback}</span>
+      {!collapsed && (
+        <span className="truncate font-medium text-[14px]">
+          {item?.name ?? fallback}
+        </span>
+      )}
     </div>
   );
 }

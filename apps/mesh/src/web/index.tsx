@@ -21,7 +21,7 @@ const rootRoute = createRootRoute({
       <Suspense fallback={<SplashScreen />}>
         <Outlet />
       </Suspense>
-      <TanStackRouterDevtools />
+      <TanStackRouterDevtools position="bottom-right" />
     </Providers>
   ),
 });
