@@ -1,6 +1,6 @@
 ---
 title: API Reference
-description: Endpoints HTTP centrais do Mesh para MCP, gateways, OAuth e operação
+description: Endpoints HTTP centrais do Mesh para MCP, agents, OAuth e operação
 icon: Code
 ---
 
@@ -10,7 +10,7 @@ icon: Code
 
 - `POST /mcp`
 
-Esse endpoint expõe **management tools** via MCP (orgs, connections, gateways, API keys, monitoring, etc.).
+Esse endpoint expõe **management tools** via MCP (orgs, connections, agents, API keys, monitoring, etc.).
 
 ### Proxy de connection
 
@@ -18,11 +18,12 @@ Esse endpoint expõe **management tools** via MCP (orgs, connections, gateways, 
 
 Faz proxy de requisições MCP para uma única connection upstream.
 
-### Gateway (MCP virtual)
+### Agent (MCP virtual)
 
-- `POST /mcp/gateway/:gatewayId`
+- `POST /mcp/gateway/:gatewayId` (compatibilidade: o path HTTP ainda usa `gateway`, mas refere-se ao Agent)
+- `POST /mcp/gateway` (Agent padrão da org; requer `x-org-id` ou `x-org-slug`)
 
-Faz proxy de requisições MCP para um gateway (agregação + estratégia de exposição).
+Faz proxy de requisições MCP para um agent (agregação + estratégia de exposição).
 
 ## Endpoints de autenticação (alto nível)
 

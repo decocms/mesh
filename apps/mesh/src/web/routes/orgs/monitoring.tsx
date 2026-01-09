@@ -280,7 +280,7 @@ function FiltersPopover({
 
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Gateways
+                Agents
               </label>
               <MultiSelect
                 options={gatewayOptions}
@@ -288,7 +288,7 @@ function FiltersPopover({
                 onValueChange={(values) =>
                   onUpdateFilters({ gatewayId: values })
                 }
-                placeholder="All Hubs"
+                placeholder="All Agents"
                 variant="secondary"
                 className="w-full"
                 maxCount={2}
@@ -670,9 +670,9 @@ function MonitoringLogsTableContent({
               Tool / Connection
             </div>
 
-            {/* Gateway Column */}
+            {/* Agent Column */}
             <div className="w-24 md:w-32 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              Gateway
+              Agent
             </div>
 
             {/* User name Column */}

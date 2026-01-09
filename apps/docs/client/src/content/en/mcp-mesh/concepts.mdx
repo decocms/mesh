@@ -1,17 +1,17 @@
 ---
 title: Concepts
-description: The mental model for organizations, connections, gateways, API keys, and tool calls
+description: The mental model for organizations, connections, agents, API keys, and tool calls
 icon: BookOpen
 ---
 
 ## Core entities
 
-- **Organization**: the top-level tenant boundary. Everything (connections, gateways, logs) is org-scoped.
+- **Organization**: the top-level tenant boundary. Everything (connections, agents, logs) is org-scoped.
 - **Members**: users invited into an organization.
 - **Roles**: role assignments for members, used by access control checks.
 - **Connection**: a configured upstream MCP endpoint (usually HTTP), optionally with stored credentials.
-- **Hub**: a virtual MCP server that aggregates multiple connections into a single MCP surface.
-- **Tool call**: a `tools/call` request routed through the Mesh to a downstream MCP server (or via a gateway).
+- **Agent**: a virtual MCP server that aggregates multiple connections into a single MCP surface.
+- **Tool call**: a `tools/call` request routed through the Mesh to a downstream MCP server (or via an agent).
 - **Monitoring log**: a record of a tool call (inputs, outputs, duration, error), used for debugging and ops.
 
 ## Data and security boundaries
@@ -25,7 +25,7 @@ icon: BookOpen
 2. The client calls either:
    - the **Management MCP** (admin tools), or
    - a **Proxy endpoint** (one connection), or
-   - a **Hub endpoint** (aggregated tools/resources/prompts).
+   - an **Agent endpoint** (aggregated tools/resources/prompts).
 3. The Mesh authorizes, loads credentials, proxies to the downstream Connection(s), and logs monitoring events.
 
 

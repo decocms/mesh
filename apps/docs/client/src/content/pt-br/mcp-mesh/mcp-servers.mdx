@@ -14,14 +14,14 @@ Cada connection guarda:
 - **credenciais/config** (quando necessário, armazenadas no vault)
 - metadados para operação (nome, status, etc.)
 
-## Quando usar vs Hub
+## Quando usar vs Agent
 
 - Use **connection** para isolar e depurar um upstream específico.
-- Use **Hub** para expor um surface agregado/curado para os clients.
+- Use **Agent** para expor um surface agregado/curado para os clients.
 
 ## Boas práticas
 
 - Mantenha URLs e credenciais por ambiente (dev/staging/prod).
-- Evite expor uma connection diretamente em produção; prefira um Hub para governança.
+- Evite expor uma connection diretamente em produção; prefira um Agent para governança.
 
 

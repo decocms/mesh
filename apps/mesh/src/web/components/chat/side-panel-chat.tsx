@@ -5,7 +5,7 @@ import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { CpuChip02, Loading01, Plus, X } from "@untitledui/icons";
 import { Suspense } from "react";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { useThreads } from "../../hooks/use-chat-store";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { usePersistedChat } from "../../hooks/use-persisted-chat";
 import { useStoredSelection } from "../../hooks/use-stored-selection";
+import { useSystem } from "../../hooks/use-system";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./chat-context";
@@ -33,64 +34,6 @@ import { ThreadHistoryPopover } from "./thread-history-popover";
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
   "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
-
-/**
- * Route context extracted from collection detail routes
- */
-interface RouteContext {
-  connectionId: string | null;
-  collectionName: string | null;
-  itemId: string | null;
-}
-
-/**
- * Parse route context from the current URL pathname
- * Looks for pattern: /:org/mcps/:connectionId/:collectionName/:itemId
- */
-function parseRouteContext(pathname: string): RouteContext {
-  const mcpsPattern = /\/[^/]+\/mcps\/([^/]+)\/([^/]+)\/([^/]+)/;
-  const match = pathname.match(mcpsPattern);
-
-  if (match && match[1] && match[2] && match[3]) {
-    return {
-      connectionId: decodeURIComponent(match[1]),
-      collectionName: decodeURIComponent(match[2]),
-      itemId: decodeURIComponent(match[3]),
-    };
-  }
-
-  return { connectionId: null, collectionName: null, itemId: null };
-}
-
-/**
- * Hook that generates a dynamic system prompt based on context
- */
-function useSystemPrompt(gatewayId?: string): string {
-  const routerState = useRouterState();
-  const { connectionId, collectionName, itemId } = parseRouteContext(
-    routerState.location.pathname,
-  );
-
-  return `You are an AI assistant running in an MCP Mesh environment.
-
-## About MCP Mesh
-The Model Context Protocol (MCP) Mesh allows users to connect external Connections and expose their capabilities through Hubs. Each Hub provides access to a curated set of tools from connected Connections.
-
-## Important Notes
-- All tool calls are logged and audited for security and compliance
-- You have access to the tools exposed through the selected gateway
-- MCPs may expose resources that users can browse and edit
-- You have context to the current gateway and its tools, resources, and prompts
-
-## Current Editing Context
-${connectionId ? `- Connection ID: ${connectionId}` : ""}
-${collectionName ? `- Collection Name: ${collectionName}` : ""}
-${itemId ? `- Item ID: ${itemId}` : ""}
-${gatewayId ? `- Gateway ID: ${gatewayId}` : ""}
-
-Help the user understand and work with this resource.
-`;
-}
 
 function ChatPanelContent() {
   const {
@@ -140,7 +83,7 @@ function ChatPanelContent() {
   );
 
   // Generate dynamic system prompt based on context
-  const systemPrompt = useSystemPrompt(selectedGateway?.id);
+  const systemPrompt = useSystem(selectedGateway?.id);
 
   // Get the onToolCall handler for invalidating collection queries
   const onToolCall = useInvalidateCollectionsOnToolCall();
@@ -179,7 +122,7 @@ function ChatPanelContent() {
     }
 
     if (!selectedGateway?.id) {
-      toast.error("No Hub configured");
+      toast.error("No Agent configured");
       return;
     }
 
@@ -223,14 +166,14 @@ function ChatPanelContent() {
     if (!hasModelsBinding && !hasGateways) {
       title = "Connect your providers";
       description =
-        "Connect an LLM provider and create a Hub to unlock AI-powered features.";
+        "Connect an LLM provider and create an Agent to unlock AI-powered features.";
     } else if (!hasModelsBinding) {
       title = "No model provider connected";
       description =
         "Connect to a model provider to unlock AI-powered features.";
     } else {
-      title = "No Hubs configured";
-      description = "Create a Hub to expose your MCP tools to the chat.";
+      title = "No Agents configured";
+      description = "Create an Agent to expose your MCP tools to the chat.";
     }
 
     return (
@@ -450,7 +393,7 @@ function ChatPanelContent() {
             <GatewaySelector
               selectedGatewayId={selectedGateway?.id}
               onGatewayChange={handleGatewayChange}
-              placeholder="Hub"
+              placeholder="Agent"
               variant="borderless"
             />
             <ModelSelector

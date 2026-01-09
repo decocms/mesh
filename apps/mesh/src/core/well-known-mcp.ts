@@ -160,7 +160,7 @@ export function getWellKnownOpenRouterConnection(
 
 /**
  * Get well-known connection definition for MCP Studio.
- * Used by hubs and workflows pages to offer installation when no provider is connected.
+ * Used by agents and workflows pages to offer installation when no provider is connected.
  */
 export function getWellKnownMcpStudioConnection(): ConnectionCreateData {
   return {

@@ -28,7 +28,7 @@ The Mesh centralizes these concerns once, so you can operate MCP traffic like an
 │ MCP Clients       │   │ MCP Mesh (Proxy) │   │ Downstream MCPs     │
 │ - Cursor          │──▶│ - AuthN/AuthZ    │──▶│ - Slack / Gmail     │
 │ - Claude Desktop  │   │ - Vault          │   │ - Notion / Stripe   │
-│ - Custom agents   │   │ - Gateways       │   │ - Your MCP servers  │
+│ - Custom agents   │   │ - Agents         │   │ - Your MCP servers  │
 └───────────────────┘   │ - Monitoring     │   └────────────────────┘
                         └──────────────────┘
 ```
@@ -36,9 +36,9 @@ The Mesh centralizes these concerns once, so you can operate MCP traffic like an
 ## What the Mesh centralizes
 
 - **Routing + execution**: which MCP to call and how to authenticate it
-- **Policy enforcement**: who can access which tools (and through which gateways)
+- **Policy enforcement**: who can access which tools (and through which agents)
 - **Observability**: logs, latency, errors, and request context across tool calls
-- **Runtime strategies (gateways)**: different exposure strategies as tool surfaces grow
+- **Runtime strategies (agents)**: different exposure strategies as tool surfaces grow
 
 ## Product surfaces (what you can do today)
 

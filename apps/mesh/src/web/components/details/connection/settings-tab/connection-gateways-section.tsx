@@ -70,7 +70,7 @@ function CreateGatewayButton({
 
   const handleCreateGateway = async () => {
     const result = await actions.create.mutateAsync({
-      title: `${connectionTitle} Hub`,
+      title: `${connectionTitle} Agent`,
       description: connectionDescription ?? null,
       icon: connectionIcon ?? null,
       status: "active",
@@ -106,7 +106,7 @@ function CreateGatewayButton({
         ) : (
           <Plus size={16} />
         )}
-        Create another Hub
+        Create another Agent
       </Button>
     );
   }
@@ -123,7 +123,7 @@ function CreateGatewayButton({
       ) : (
         <CpuChip02 size={20} />
       )}
-      Expose via Hub
+      Create an agent
     </Button>
   );
 }
@@ -151,7 +151,7 @@ export function ConnectionGatewaysSection({
             Use in your IDE
           </h4>
           <p className="text-xs text-muted-foreground">
-            Expose this connection via a Hub to use it in Cursor, VS Code,
+            Expose this connection via an Agent to use it in Cursor, VS Code,
             Claude Desktop, and other MCP-compatible tools.
           </p>
         </div>
@@ -171,9 +171,9 @@ export function ConnectionGatewaysSection({
   return (
     <div className="p-5 flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h4 className="text-sm font-medium text-foreground">Hubs</h4>
+        <h4 className="text-sm font-medium text-foreground">Agents</h4>
         <p className="text-xs text-muted-foreground">
-          This connection is exposed via the following Hubs.
+          This connection is used on the following agents.
         </p>
       </div>
       <div className="flex flex-col gap-2">

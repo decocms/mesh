@@ -19,4 +19,6 @@ export const LOCALSTORAGE_KEYS = {
   sidebarOpen: () => `mesh:sidebar-open`,
   selectedRegistry: (org: string) => `mesh:store:selected-registry:${org}`,
   orgHomeQuickstart: (org: string) => `mesh:org-home:quickstart:${org}`,
+  gatewaySystemPrompts: (locator: ProjectLocator) =>
+    `mesh:gateway:system-prompts:${locator}`,
 } as const;
