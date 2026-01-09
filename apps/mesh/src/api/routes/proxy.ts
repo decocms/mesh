@@ -23,6 +23,7 @@ import {
   isStdioParameters,
 } from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
@@ -383,7 +384,6 @@ async function createMCPProxyDoNotUseDirectly(
       }
 
       case "HTTP":
-      case "SSE":
       case "Websocket": {
         if (!connection.connection_url) {
           throw new Error(
@@ -391,28 +391,38 @@ async function createMCPProxyDoNotUseDirectly(
           );
         }
 
-        // HTTP/SSE/WebSocket - create fresh client per request
-        const client = new Client({
-          name: "mcp-mesh-proxy",
-          version: "1.0.0",
-        });
-
+        const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
         const headers = await buildRequestHeaders();
-
-        // Add custom headers from connection_headers
         if (httpParams?.headers) {
           Object.assign(headers, httpParams.headers);
         }
 
-        // Create transport to downstream MCP using StreamableHTTP
-        // TODO: Add SSE transport support when needed
         const transport = new StreamableHTTPClientTransport(
           new URL(connection.connection_url),
           { requestInit: { headers } },
         );
 
         await client.connect(transport);
+        return client;
+      }
 
+      case "SSE": {
+        if (!connection.connection_url) {
+          throw new Error("SSE connection missing URL");
+        }
+
+        const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
+        const headers = await buildRequestHeaders();
+        if (httpParams?.headers) {
+          Object.assign(headers, httpParams.headers);
+        }
+
+        const transport = new SSEClientTransport(
+          new URL(connection.connection_url),
+          { requestInit: { headers } },
+        );
+
+        await client.connect(transport);
         return client;
       }
 
