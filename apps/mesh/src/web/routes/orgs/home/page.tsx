@@ -506,15 +506,79 @@ function HomeContent() {
   );
 }
 
+/**
+ * Error fallback for the home chat page
+ * Displays a clean error state that allows retry without breaking navigation
+ */
+function HomeChatErrorFallback({
+  error,
+  onRetry,
+}: {
+  error: Error | null;
+  onRetry: () => void;
+}) {
+  // Check if it's an auth-related error (401)
+  const isAuthError =
+    error?.message?.includes("401") ||
+    error?.message?.toLowerCase().includes("unauthorized");
+
+  return (
+    <Chat>
+      <Chat.Header>
+        <Chat.Header.Left>
+          <span className="text-sm font-medium text-foreground">Chat</span>
+        </Chat.Header.Left>
+        <Chat.Header.Right />
+      </Chat.Header>
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-sm space-y-4">
+          <div className="bg-destructive/10 p-3 rounded-full mx-auto w-fit">
+            <MessageChatSquare className="h-6 w-6 text-destructive" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-lg font-medium">
+              {isAuthError ? "Unable to load models" : "Something went wrong"}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {isAuthError
+                ? "There was an authentication error while loading the models. This might be due to an expired session or invalid API key."
+                : error?.message || "An unexpected error occurred"}
+            </p>
+          </div>
+          <Button variant="outline" onClick={onRetry}>
+            Try again
+          </Button>
+        </div>
+      </div>
+    </Chat>
+  );
+}
+
+/**
+ * Wrapper component that handles errors in HomeContent
+ * Uses a key to force remount when retrying
+ */
+function HomeContentWithErrorBoundary() {
+  return (
+    <ErrorBoundary
+      fallback={({ error, resetError }) => (
+        <HomeChatErrorFallback error={error} onRetry={resetError} />
+      )}
+    >
+      <Suspense fallback={<DecoChatSkeleton />}>
+        <HomeContent />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
 export default function OrgHomePage() {
   // Force remount on navigation to reset chat view
   const routerState = useRouterState();
 
   return (
     <ChatProvider key={routerState.location.pathname}>
-      <Suspense fallback={<DecoChatSkeleton />}>
-        <HomeContent />
-      </Suspense>
+      <HomeContentWithErrorBoundary />
     </ChatProvider>
   );
 }

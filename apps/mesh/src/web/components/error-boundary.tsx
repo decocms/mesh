@@ -2,9 +2,22 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { AlertTriangle } from "@untitledui/icons";
 
+/**
+ * Props for the fallback render function
+ */
+export interface ErrorFallbackProps {
+  error: Error | null;
+  resetError: () => void;
+}
+
+/**
+ * Fallback can be either a static ReactNode or a render function
+ */
+type FallbackType = ReactNode | ((props: ErrorFallbackProps) => ReactNode);
+
 interface Props {
   children: ReactNode;
-  fallback?: ReactNode;
+  fallback?: FallbackType;
 }
 
 interface State {
@@ -26,12 +39,28 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error("Uncaught error:", error, errorInfo);
   }
 
+  private resetError = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   override render() {
     if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback;
+      const { fallback } = this.props;
+
+      // If fallback is a function, call it with error props
+      if (typeof fallback === "function") {
+        return fallback({
+          error: this.state.error,
+          resetError: this.resetError,
+        });
       }
 
+      // If fallback is provided as a static node, use it
+      if (fallback !== undefined) {
+        return fallback;
+      }
+
+      // Default fallback UI
       return (
         <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
           <div className="bg-destructive/10 p-3 rounded-full">
@@ -43,10 +72,7 @@ export class ErrorBoundary extends Component<Props, State> {
               {this.state.error?.message || "An unexpected error occurred"}
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => this.setState({ hasError: false, error: null })}
-          >
+          <Button variant="outline" onClick={this.resetError}>
             Try again
           </Button>
         </div>
