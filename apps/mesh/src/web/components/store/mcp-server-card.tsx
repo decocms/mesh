@@ -8,74 +8,20 @@ import { Card } from "@deco/ui/components/card.js";
 import { IntegrationIcon } from "../integration-icon.tsx";
 import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
 import { extractDisplayNameFromDomain } from "@/web/utils/app-name";
-import type { RegistryItem } from "./registry-items-section";
+import type { RegistryItem } from "./types";
+
+// Re-export types for backwards compatibility
+export type {
+  MCPRegistryServer,
+  MCPRegistryServerIcon,
+  MCPRegistryServerMeta,
+  RegistryItem,
+} from "./types";
 
 /**
- * MCP Registry Server structure from LIST response
+ * Props for MCPServerCard - receives processed data
  */
-export interface MCPRegistryServerIcon {
-  src: string;
-  mimeType?: string;
-  sizes?: string[];
-  theme?: "light" | "dark";
-}
-
-export interface MCPRegistryServerMeta {
-  "mcp.mesh"?: {
-    id: string;
-    verified?: boolean;
-    scopeName?: string;
-    appName?: string;
-    publishedAt?: string;
-    updatedAt?: string;
-  };
-  "mcp.mesh/publisher-provided"?: {
-    friendlyName?: string | null;
-    metadata?: Record<string, unknown> | null;
-    tools?: Array<{
-      id: string;
-      name: string;
-      description?: string | null;
-    }>;
-    models?: unknown[];
-    emails?: unknown[];
-    analytics?: unknown;
-    cdn?: unknown;
-  };
-  [key: string]: unknown;
-}
-
-export interface MCPRegistryServer {
-  id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
-  _meta?: MCPRegistryServerMeta;
-  server: {
-    $schema?: string;
-    _meta?: MCPRegistryServerMeta;
-    name: string;
-    title?: string;
-    description?: string;
-    icons?: MCPRegistryServerIcon[];
-    remotes?: Array<{
-      type: "http" | "stdio" | "sse";
-      url?: string;
-    }>;
-    version?: string;
-    repository?: {
-      url?: string;
-      source?: string;
-      subfolder?: string;
-    };
-  };
-}
-
-/**
- * Simplified props for RegistryItemCard - receives processed data
- * Reduces component responsibility to just rendering
- */
-interface RegistryItemCardProps {
+interface MCPServerCardProps {
   icon: string | null;
   scopeName: string | null;
   displayName: string;
@@ -90,16 +36,24 @@ interface RegistryItemCardProps {
  * Extract display data from a registry item for the card component
  * Handles name parsing, icon extraction, and verification status
  */
-export function extractCardDisplayData(
+function extractCardDisplayData(
   item: RegistryItem,
-): Omit<RegistryItemCardProps, "onClick"> {
+): Omit<MCPServerCardProps, "onClick"> {
   const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
-  const description = item.server.description || null;
+  const meshMeta = item._meta?.["mcp.mesh"];
+
+  // Description priority: short_description > mesh_description > server.description
+  const description =
+    meshMeta?.short_description ||
+    meshMeta?.mesh_description ||
+    item.server.description ||
+    null;
+
   const icon =
     item.server.icons?.[0]?.src ||
     getGitHubAvatarUrl(item.server.repository) ||
     null;
-  const isVerified = item._meta?.["mcp.mesh"]?.verified ?? false;
+  const isVerified = meshMeta?.verified ?? false;
   const version = item.server.version;
   const hasRemotes = (item.server.remotes?.length ?? 0) > 0;
   const canInstall = hasRemotes;
@@ -119,13 +73,18 @@ export function extractCardDisplayData(
 
   // Fallback to _meta if scopeName wasn't extracted from title
   if (!scopeName) {
-    const metaScopeName = item._meta?.["mcp.mesh"]?.scopeName;
-    const metaAppName = item._meta?.["mcp.mesh"]?.appName;
+    const metaScopeName = meshMeta?.scopeName;
+    const metaAppName = meshMeta?.appName;
     if (metaScopeName && metaAppName) {
       scopeName = `${metaScopeName}/${metaAppName}`;
     } else if (metaScopeName) {
       scopeName = metaScopeName;
     }
+  }
+
+  // PRIORITY: Use friendly_name if available, otherwise use displayName
+  if (meshMeta?.friendly_name) {
+    displayName = meshMeta.friendly_name;
   }
 
   return {
@@ -139,7 +98,10 @@ export function extractCardDisplayData(
   };
 }
 
-export function RegistryItemCard({
+/**
+ * Card component for displaying an MCP Server in the store grid
+ */
+function MCPServerCard({
   icon,
   scopeName,
   displayName,
@@ -148,7 +110,7 @@ export function RegistryItemCard({
   isVerified,
   canInstall,
   onClick,
-}: RegistryItemCardProps) {
+}: MCPServerCardProps) {
   return (
     <Card
       className="p-6 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -207,5 +169,49 @@ export function RegistryItemCard({
         </div>
       </div>
     </Card>
+  );
+}
+
+/**
+ * Props for MCPServerCardGrid
+ */
+interface MCPServerCardGridProps {
+  items: RegistryItem[];
+  title: string;
+  subtitle?: string;
+  onItemClick: (item: RegistryItem) => void;
+  totalCount?: number | null;
+}
+
+/**
+ * Grid component for displaying multiple MCP Server cards
+ */
+export function MCPServerCardGrid({
+  items,
+  title,
+  onItemClick,
+}: MCPServerCardGridProps) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {title && (
+        <div className="flex items-center justify-between w-max gap-2">
+          <h2 className="text-lg font-medium">{title}</h2>
+        </div>
+      )}
+      <div className="grid grid-cols-4 gap-4">
+        {items.map((item) => {
+          const displayData = extractCardDisplayData(item);
+          return (
+            <MCPServerCard
+              key={item.id}
+              {...displayData}
+              onClick={() => onItemClick(item)}
+            />
+          );
+        })}
+      </div>
+    </div>
   );
 }

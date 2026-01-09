@@ -1,30 +1,42 @@
+import { Locator } from "@/web/lib/locator";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js";
-import { Locator } from "@/web/lib/locator";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  Home02,
+  BarChart10,
   Building02,
   Container,
   CpuChip02,
-  Users01,
+  Home02,
   Settings01,
-  BarChart10,
+  Users01,
   Zap,
 } from "@untitledui/icons";
 
 export function useProjectSidebarItems() {
   const { locator } = useProjectContext();
   const navigate = useNavigate();
+  const routerState = useRouterState();
   const { org } = Locator.parse(locator);
   const isOrgAdminProject = Locator.isOrgAdminProject(locator);
+
+  const isOnHome =
+    routerState.location.pathname === `/${org}` ||
+    routerState.location.pathname === `/${org}/`;
 
   const KNOWN_ORG_ADMIN_SIDEBAR_ITEMS: NavigationSidebarItem[] = [
     {
       key: "home",
       label: "Home",
       icon: <Home02 />,
-      onClick: () => navigate({ to: "/$org", params: { org } }),
+      onClick: () => {
+        if (isOnHome) {
+          // Trigger a custom event to reset home view
+          window.dispatchEvent(new CustomEvent("reset-home-view"));
+        } else {
+          navigate({ to: "/$org", params: { org } });
+        }
+      },
     },
     {
       key: "store",
@@ -48,7 +60,7 @@ export function useProjectSidebarItems() {
       key: "workflow",
       label: "Workflows",
       icon: <Zap />,
-      onClick: () => navigate({ to: "/$org/workflow", params: { org } }),
+      onClick: () => navigate({ to: "/$org/workflows", params: { org } }),
     },
     {
       key: "monitoring",

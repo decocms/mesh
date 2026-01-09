@@ -102,6 +102,7 @@ const orgMonitoringRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
+      tab: z.enum(["logs", "analytics"]).default("logs"),
       from: z.string().default("now-24h"),
       to: z.string().default("now"),
       connectionId: z.array(z.string()).optional().default([]),
@@ -119,20 +120,14 @@ const orgMonitoringRoute = createRoute({
 const orgStoreRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/store",
-  component: lazyRouteComponent(() => import("./routes/orgs/store.tsx")),
+  component: lazyRouteComponent(() => import("./routes/orgs/store/page.tsx")),
 });
 
-const orgWorkflowRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/workflow",
-  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
-});
-
-const storeAppDetailRoute = createRoute({
+const storeServerDetailRoute = createRoute({
   getParentRoute: () => orgStoreRoute,
   path: "/$appName",
   component: lazyRouteComponent(
-    () => import("./routes/orgs/store-app-detail.tsx"),
+    () => import("./routes/orgs/store/mcp-server-detail.tsx"),
   ),
   validateSearch: z.lazy(() =>
     z.object({
@@ -193,6 +188,12 @@ const gatewayDetailRoute = createRoute({
   ),
 });
 
+const orgWorkflowRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/workflows",
+  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
+});
+
 const oauthCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/oauth/callback",
@@ -200,7 +201,7 @@ const oauthCallbackRoute = createRoute({
 });
 
 const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
-  storeAppDetailRoute,
+  storeServerDetailRoute,
 ]);
 
 const shellRouteTree = shellLayout.addChildren([
@@ -212,8 +213,8 @@ const shellRouteTree = shellLayout.addChildren([
   gatewayDetailRoute,
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
-  orgWorkflowRoute,
   orgSettingsRoute,
+  orgWorkflowRoute,
   connectionLayoutRoute,
   collectionDetailsRoute,
 ]);

@@ -16,6 +16,19 @@ export function findListToolName(
 }
 
 /**
+ * Find the FILTERS tool from a tools array
+ * Returns the tool name if found, empty string otherwise
+ * Note: Not all registries support filters
+ */
+export function findFiltersToolName(
+  tools?: Array<{ name: string }> | null,
+): string {
+  if (!tools) return "";
+  const filtersTool = tools.find((tool) => tool.name.endsWith("_FILTERS"));
+  return filtersTool?.name ?? "";
+}
+
+/**
  * Flatten paginated items from multiple pages into a single array
  * Handles both direct array responses and nested array responses
  */

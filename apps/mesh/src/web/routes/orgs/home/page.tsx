@@ -1,313 +1,520 @@
 /**
  * Organization Home Page
  *
- * Displays either a mesh visualization (graph view) or dashboard view
- * with KPIs, recent activity, and top tools.
+ * Dashboard with greeting, hub selector, ice breakers, and chat input.
+ * Supports graph view toggle in header.
  */
 
-import { createToolCaller } from "@/tools/client";
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
+import { ChatProvider, useChat } from "@/web/components/chat/chat-context";
+import { ChatInput } from "@/web/components/chat/chat-input";
+import { DecoChatSkeleton } from "@/web/components/chat/deco-chat-skeleton";
+import { GatewayIceBreakers } from "@/web/components/chat/gateway-ice-breakers";
+import {
+  Chat,
+  GatewaySelector,
+  ModelSelector,
+  UsageStats,
+  useModels,
+} from "@/web/components/chat/index";
+import { NoLlmBindingEmptyState } from "@/web/components/chat/no-llm-binding-empty-state";
+import { ThreadHistoryPopover } from "@/web/components/chat/thread-history-popover";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { useToolCall } from "@/web/hooks/use-tool-call";
+import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useGateways } from "@/web/hooks/collections/use-gateway";
+import { useBindingConnections } from "@/web/hooks/use-binding";
+import { useThreads } from "@/web/hooks/use-chat-store";
+import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
+import { authClient } from "@/web/lib/auth-client";
+import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { getLast24HoursDateRange } from "@/web/utils/date-range";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
+import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  ShoppingBag01,
-  Plus,
-  BarChart01,
   GitBranch01,
+  Loading01,
+  MessageChatSquare,
+  Plus,
 } from "@untitledui/icons";
-import { useNavigate } from "@tanstack/react-router";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
+import { toast } from "sonner";
 import {
   MeshVisualization,
   MeshVisualizationSkeleton,
-  type MetricsMode,
+  MetricsModeProvider,
+  MetricsModeSelector,
 } from "./mesh-graph.tsx";
-import { MonitoringKPIs } from "./monitoring-kpis.tsx";
-import {
-  hasMonitoringActivity,
-  type MonitoringStats,
-} from "@/web/components/monitoring";
-import { RecentActivity } from "./recent-activity.tsx";
-import { TopGateways } from "./top-gateways.tsx";
-import { TopServers } from "./top-servers.tsx";
-import { TopTools } from "./top-tools.tsx";
 
-// ============================================================================
-// Types
-// ============================================================================
+/**
+ * Get time-based greeting
+ */
+function getTimeBasedGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Morning";
+  if (hour >= 12 && hour < 17) return "Afternoon";
+  if (hour >= 17 && hour < 22) return "Evening";
+  return "Night";
+}
 
-type ViewMode = "graph" | "dashboard";
+/**
+ * System prompt for chat
+ */
+const SYSTEM_PROMPT =
+  "You are a helpful assistant. Please try answering the user's questions using your available tools.";
 
-// ============================================================================
-// Welcome Overlay
-// ============================================================================
+/**
+ * Helper to find stored item in array
+ */
+function findOrFirst<T>(
+  array: T[],
+  predicate: (item: T) => boolean,
+): T | undefined {
+  return array.find(predicate) ?? array[0];
+}
 
-function WelcomeOverlay() {
+/**
+ * Hook to manage stored selection
+ */
+function useStoredSelection<TState, TItem>(
+  key: string,
+  items: TItem[],
+  predicate: (item: TItem, state: TState) => boolean,
+  initialValue: TState | null = null,
+) {
+  const [storedState, setStoredState] = useLocalStorage<TState | null>(
+    key,
+    initialValue,
+  );
+  const selectedItem = findOrFirst(items, (item) =>
+    storedState ? predicate(item, storedState) : false,
+  );
+  return [selectedItem, setStoredState] as const;
+}
+
+// ---------- View Mode Types ----------
+
+type HomeViewMode = "chat" | "graph";
+
+// ---------- Typewriter Title Component ----------
+
+function TypewriterTitle({
+  text,
+  className = "",
+  speed = 30,
+}: {
+  text: string;
+  className?: string;
+  speed?: number;
+}) {
+  // Calculate animation duration based on text length and speed
+  const animationDuration = (text.length / speed) * 1000;
+  const steps = text.length;
+  // Use ch units (character width) for accurate character-based width
+  const maxWidth = `${text.length}ch`;
+
+  return (
+    <span
+      className={className}
+      key={text}
+      style={
+        {
+          "--typewriter-duration": `${animationDuration}ms`,
+          "--typewriter-steps": steps,
+          "--typewriter-max-width": maxWidth,
+        } as React.CSSProperties
+      }
+    >
+      <span className="typewriter-text">{text}</span>
+      <style>{`
+        .typewriter-text {
+          display: inline-block;
+          width: 0;
+          overflow: hidden;
+          white-space: nowrap;
+          animation: typewriter var(--typewriter-duration) steps(var(--typewriter-steps)) forwards;
+        }
+
+        @keyframes typewriter {
+          to {
+            width: var(--typewriter-max-width);
+          }
+        }
+      `}</style>
+    </span>
+  );
+}
+
+// ---------- Main Content ----------
+
+function HomeContent() {
   const { org, locator } = useProjectContext();
+  const { data: session } = authClient.useSession();
+  const user = session?.user;
   const navigate = useNavigate();
-  const toolCaller = createToolCaller();
-  const dateRange = getLast24HoursDateRange();
+  const {
+    inputValue,
+    setInputValue,
+    createThread,
+    activeThreadId,
+    setActiveThreadId,
+    hideThread,
+  } = useChat();
+  const { threads, refetch } = useThreads();
 
-  const { data: stats } = useToolCall<
-    { startDate: string; endDate: string },
-    MonitoringStats
-  >({
-    toolCaller,
-    toolName: "MONITORING_STATS",
-    toolInputParams: dateRange,
-    scope: locator,
-    staleTime: 60_000,
-    refetchInterval: (query) =>
-      hasMonitoringActivity(query.state.data) ? false : 1_000,
+  // View mode state (chat vs graph)
+  const [viewMode, setViewMode] = useLocalStorage<HomeViewMode>(
+    `${locator}:home-view-mode`,
+    "chat",
+  );
+
+  // Get gateways and models
+  const gateways = useGateways();
+  const models = useModels();
+
+  // Check for LLM binding connection
+  const allConnections = useConnections();
+  const [modelsConnection] = useBindingConnections({
+    connections: allConnections,
+    binding: "LLMS",
   });
 
-  if (hasMonitoringActivity(stats)) return null;
+  const hasModelsBinding = Boolean(modelsConnection);
 
-  const handleAddMcp = () => {
-    navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
-      search: { action: "create" },
-    });
-  };
-
-  const handleBrowseStore = () => {
-    navigate({ to: "/$org/store", params: { org: org.slug } });
-  };
-
-  return (
-    <div className="absolute inset-0 flex items-center justify-center p-4 bg-background/80 backdrop-blur-[3px] z-10">
-      <div className="max-w-md w-full bg-background rounded-xl border border-border shadow-lg pointer-events-auto overflow-hidden">
-        <div className="p-2">
-          <div className="bg-muted border border-border rounded-lg h-[250px] overflow-hidden flex items-center justify-center">
-            <img
-              src="/empty-state-home.png"
-              alt="MCP Mesh illustration"
-              className="w-full h-full object-cover"
-            />
-          </div>
-        </div>
-
-        <div className="px-6 py-6 space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">
-            Welcome to your MCP Mesh
-          </h2>
-          <p className="text-sm text-muted-foreground leading-normal">
-            Connect your first Connection to unlock real-time metrics, activity
-            logs, and analytics right here on your home.
-          </p>
-        </div>
-
-        <div className="border-t border-border px-4 py-4 flex items-center justify-center gap-2">
-          <Button onClick={handleBrowseStore} size="default">
-            <ShoppingBag01 size={16} />
-            Browse Store
-          </Button>
-          <Button variant="outline" onClick={handleAddMcp} size="default">
-            <Plus size={16} />
-            Custom Connection
-          </Button>
-        </div>
-      </div>
-    </div>
+  const [selectedModel, setSelectedModelState] = useStoredSelection<
+    { id: string; connectionId: string },
+    (typeof models)[number]
+  >(
+    LOCALSTORAGE_KEYS.chatSelectedModel(locator),
+    models,
+    (m, state) => m.id === state.id && m.connectionId === state.connectionId,
   );
-}
 
-// ============================================================================
-// Dashboard View
-// ============================================================================
+  const [selectedGateway, setSelectedGatewayState] = useStoredSelection<
+    { gatewayId: string },
+    (typeof gateways)[number]
+  >(
+    `${locator}:selected-gateway`,
+    gateways,
+    (g, state) => g.id === state.gatewayId,
+  );
 
-function DashboardView({
-  metricsMode,
-  onMetricsModeChange,
-}: {
-  metricsMode: MetricsMode;
-  onMetricsModeChange: (mode: MetricsMode) => void;
-}) {
+  const handleModelChange = (model: { id: string; connectionId: string }) => {
+    setSelectedModelState(model);
+  };
+
+  const handleGatewayChange = (gatewayId: string) => {
+    setSelectedGatewayState({ gatewayId });
+  };
+
+  // Get the onToolCall handler for invalidating collection queries
+  const onToolCall = useInvalidateCollectionsOnToolCall();
+
+  // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
+  const chat = usePersistedChat({
+    threadId: activeThreadId,
+    systemPrompt: SYSTEM_PROMPT,
+    onToolCall,
+    onCreateThread: (thread) =>
+      createThread({
+        id: thread.id,
+        title: thread.title,
+        gatewayId: selectedGateway?.id,
+      }),
+  });
+
+  // Get branching state from context
+  const { branchContext, clearBranch } = useChat();
+
+  const handleSendMessage = async (text: string) => {
+    if (!selectedModel) {
+      toast.error("No model configured");
+      return;
+    }
+
+    if (!selectedGateway?.id) {
+      toast.error("No Hub configured");
+      return;
+    }
+
+    // Clear input
+    setInputValue("");
+
+    // Clear editing state before sending
+    clearBranch();
+
+    const metadata: Metadata = {
+      created_at: new Date().toISOString(),
+      thread_id: activeThreadId,
+      model: {
+        id: selectedModel.id,
+        connectionId: selectedModel.connectionId,
+        provider: selectedModel.provider ?? undefined,
+        limits: selectedModel.limits ?? undefined,
+      },
+      gateway: { id: selectedGateway.id },
+      user: {
+        avatar: user?.image ?? undefined,
+        name: user?.name ?? "you",
+      },
+    };
+
+    await chat.sendMessage(text, metadata);
+  };
+
+  const userName = user?.name?.split(" ")[0] || "there";
+  const greeting = getTimeBasedGreeting();
+
+  // Find the active thread
+  const activeThread = threads?.find((thread) => thread.id === activeThreadId);
+
+  // Show empty state when no LLM binding is found
+  if (!hasModelsBinding) {
+    return (
+      <div className="flex flex-col size-full bg-background items-center justify-center">
+        <NoLlmBindingEmptyState
+          orgSlug={org.slug}
+          orgId={org.id}
+          userId={user?.id || ""}
+          allConnections={allConnections ?? []}
+          onInstallMcpServer={() => {
+            navigate({
+              to: "/$org/mcps",
+              params: { org: org.slug },
+              search: { action: "create" },
+            });
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full">
-      {/* Grid with internal dividers only */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[0.5px] bg-border">
-        {/* Row 1: 3 KPI bar charts */}
-        <div className="lg:col-span-2">
-          <ErrorBoundary
-            fallback={
-              <div className="bg-background p-5 text-sm text-muted-foreground">
-                Failed to load monitoring stats
-              </div>
-            }
-          >
-            <Suspense fallback={<MonitoringKPIs.Skeleton />}>
-              <MonitoringKPIs.Content />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-
-        {/* Left: Recent Activity - uses CSS Grid subgrid to match right column height */}
-        <div className="lg:col-span-1 lg:row-span-3 bg-background grid">
-          <ErrorBoundary
-            fallback={
-              <div className="bg-background p-5 text-sm text-muted-foreground">
-                Failed to load recent activity
-              </div>
-            }
-          >
-            <Suspense fallback={<RecentActivity.Skeleton />}>
-              <RecentActivity.Content />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-
-        {/* Top Tools */}
-        <div className="lg:col-span-1 lg:row-span-1 bg-background">
-          <ErrorBoundary
-            fallback={
-              <div className="bg-background p-5 text-sm text-muted-foreground">
-                Failed to load top tools
-              </div>
-            }
-          >
-            <Suspense fallback={<TopTools.Skeleton />}>
-              <TopTools.Content metricsMode={metricsMode} />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-
-        {/* Connections */}
-        <div className="lg:col-span-1 lg:row-span-1 bg-background">
-          <ErrorBoundary
-            fallback={
-              <div className="bg-background p-5 text-sm text-muted-foreground">
-                Failed to load top servers
-              </div>
-            }
-          >
-            <Suspense fallback={<TopServers.Skeleton />}>
-              <TopServers.Content
-                metricsMode={metricsMode}
-                onMetricsModeChange={onMetricsModeChange}
+    <MetricsModeProvider>
+      <Chat>
+        <Chat.Header>
+          <Chat.Header.Left>
+            {viewMode === "graph" ? (
+              <span className="text-sm font-medium text-foreground">
+                Summary
+              </span>
+            ) : !chat.isEmpty && activeThread?.title ? (
+              <TypewriterTitle
+                text={activeThread.title}
+                className="text-sm font-medium text-foreground"
               />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
+            ) : (
+              <span className="text-sm font-medium text-foreground">Chat</span>
+            )}
+          </Chat.Header.Left>
+          <Chat.Header.Right>
+            {viewMode === "graph" && <MetricsModeSelector />}
+            {viewMode !== "graph" && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-7 border border-input"
+                  onClick={() => createThread()}
+                  aria-label="New chat"
+                >
+                  <Plus size={16} />
+                </Button>
+                <ThreadHistoryPopover
+                  threads={threads}
+                  activeThreadId={activeThreadId}
+                  onSelectThread={setActiveThreadId}
+                  onRemoveThread={hideThread}
+                  onOpen={() => refetch()}
+                  variant="outline"
+                />
+              </>
+            )}
+            <ViewModeToggle
+              value={viewMode}
+              onValueChange={setViewMode}
+              size="sm"
+              options={[
+                { value: "chat", icon: <MessageChatSquare /> },
+                { value: "graph", icon: <GitBranch01 /> },
+              ]}
+            />
+          </Chat.Header.Right>
+        </Chat.Header>
 
-        {/* Hubs */}
-        <div className="lg:col-span-1 lg:row-span-1 bg-background">
-          <ErrorBoundary
-            fallback={
-              <div className="bg-background p-5 text-sm text-muted-foreground">
-                Failed to load top gateways
+        {viewMode === "graph" ? (
+          <div className="flex-1 overflow-hidden relative">
+            <ErrorBoundary
+              fallback={
+                <div className="bg-background p-5 text-sm text-muted-foreground h-full flex items-center justify-center">
+                  Failed to load mesh visualization
+                </div>
+              }
+            >
+              <Suspense fallback={<MeshVisualizationSkeleton />}>
+                <MeshVisualization />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+        ) : !chat.isEmpty ? (
+          <>
+            <Chat.Main>
+              <Chat.Messages
+                messages={chat.messages}
+                status={chat.status}
+                minHeightOffset={240}
+              />
+            </Chat.Main>
+            <Chat.Footer>
+              <div className="flex flex-col gap-2">
+                <Chat.ErrorBanner
+                  error={chat.error}
+                  onFixInChat={() => {
+                    if (chat.error) {
+                      handleSendMessage(
+                        `I encountered this error: ${chat.error.message}. Can you help me fix it?`,
+                      );
+                    }
+                  }}
+                  onDismiss={chat.clearError}
+                />
+                <Chat.FinishReasonWarning
+                  finishReason={chat.finishReason}
+                  onContinue={() => {
+                    handleSendMessage("Please continue.");
+                  }}
+                  onDismiss={chat.clearFinishReason}
+                />
+                <Chat.BranchPreview
+                  branchContext={branchContext}
+                  clearBranchContext={clearBranch}
+                  onGoToOriginalMessage={() => {
+                    if (!branchContext) return;
+                    setActiveThreadId(branchContext.originalThreadId);
+                    clearBranch();
+                    setInputValue("");
+                  }}
+                  setInputValue={setInputValue}
+                />
+                <Chat.Input
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSubmit={async () => {
+                    if (!inputValue.trim()) return;
+                    await handleSendMessage(inputValue.trim());
+                  }}
+                  onStop={chat.stop}
+                  disabled={!selectedModel || !selectedGateway?.id}
+                  isStreaming={
+                    chat.status === "submitted" || chat.status === "streaming"
+                  }
+                  placeholder={
+                    !selectedModel
+                      ? "Select a model to start chatting"
+                      : "Ask anything or @ for context"
+                  }
+                >
+                  <GatewaySelector
+                    selectedGatewayId={selectedGateway?.id}
+                    onGatewayChange={handleGatewayChange}
+                    placeholder="Gateway"
+                    variant="borderless"
+                  />
+                  <ModelSelector
+                    selectedModel={selectedModel ?? undefined}
+                    onModelChange={handleModelChange}
+                    placeholder="Model"
+                    variant="borderless"
+                  />
+                  <UsageStats messages={chat.messages} />
+                </Chat.Input>
               </div>
-            }
-          >
-            <Suspense fallback={<TopGateways.Skeleton />}>
-              <TopGateways.Content metricsMode={metricsMode} />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-      </div>
-    </div>
+            </Chat.Footer>
+          </>
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 py-10">
+            <div className="flex flex-col items-center gap-6 w-full max-w-[550px]">
+              {/* Greeting */}
+              <div className="text-center">
+                <p className="text-lg font-medium text-foreground">
+                  {greeting} {userName},
+                </p>
+                <p className="text-base text-muted-foreground">
+                  What are we building today?
+                </p>
+              </div>
+
+              {/* Ice breakers for selected hub */}
+              {selectedGateway?.id && (
+                <ErrorBoundary key={selectedGateway.id} fallback={null}>
+                  <Suspense
+                    fallback={
+                      <div className="flex justify-center">
+                        <Loading01
+                          size={20}
+                          className="animate-spin text-muted-foreground"
+                        />
+                      </div>
+                    }
+                  >
+                    <GatewayIceBreakers
+                      gatewayId={selectedGateway.id}
+                      onSelect={(prompt) => {
+                        handleSendMessage(prompt.description ?? prompt.name);
+                      }}
+                      className="w-full"
+                    />
+                  </Suspense>
+                </ErrorBoundary>
+              )}
+
+              {/* Chat Input */}
+              <div className="w-full shadow-sm rounded-xl">
+                <ChatInput
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSubmit={async () => {
+                    if (inputValue.trim()) {
+                      await handleSendMessage(inputValue.trim());
+                    }
+                  }}
+                  placeholder="Ask anything or @ for context"
+                  maxTextHeight="65px"
+                >
+                  <GatewaySelector
+                    selectedGatewayId={selectedGateway?.id}
+                    onGatewayChange={handleGatewayChange}
+                    placeholder="Gateway"
+                    variant="borderless"
+                  />
+                  <ModelSelector
+                    selectedModel={selectedModel ?? undefined}
+                    onModelChange={handleModelChange}
+                    placeholder="Model"
+                    variant="borderless"
+                  />
+                </ChatInput>
+              </div>
+            </div>
+          </div>
+        )}
+      </Chat>
+    </MetricsModeProvider>
   );
 }
-
-// ============================================================================
-// Main Page Component
-// ============================================================================
 
 export default function OrgHomePage() {
-  const { org, locator } = useProjectContext();
-  const navigate = useNavigate();
-  const toolCaller = createToolCaller();
-  const dateRange = getLast24HoursDateRange();
-
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const stored = localStorage.getItem("org-home-view-mode");
-    return stored === "dashboard" || stored === "graph" ? stored : "dashboard";
-  });
-
-  const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
-
-  // Check if there's monitoring activity to show/hide controls
-  const { data: stats } = useToolCall<
-    { startDate: string; endDate: string },
-    MonitoringStats
-  >({
-    toolCaller,
-    toolName: "MONITORING_STATS",
-    toolInputParams: dateRange,
-    scope: locator,
-    staleTime: 60_000,
-    refetchInterval: (query) =>
-      hasMonitoringActivity(query.state.data) ? false : 1_000,
-  });
-
-  const showControls = hasMonitoringActivity(stats);
-
-  const handleViewModeChange = (mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem("org-home-view-mode", mode);
-  };
-
-  const handleAddMcp = () => {
-    navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
-      search: { action: "create" },
-    });
-  };
+  // Force remount on navigation to reset chat view
+  const routerState = useRouterState();
 
   return (
-    <CollectionPage>
-      <WelcomeOverlay />
-
-      <CollectionHeader
-        title={org.name}
-        ctaButton={
-          <div className="flex items-center gap-2">
-            {showControls && (
-              <ViewModeToggle
-                value={viewMode}
-                onValueChange={handleViewModeChange}
-                size="sm"
-                options={[
-                  { value: "dashboard", icon: <BarChart01 /> },
-                  { value: "graph", icon: <GitBranch01 /> },
-                ]}
-              />
-            )}
-            <Button variant="outline" size="sm" onClick={handleAddMcp}>
-              <Plus size={16} />
-              Connect MCP Server
-            </Button>
-          </div>
-        }
-      />
-
-      <div className="flex-1 overflow-auto relative">
-        {viewMode === "graph" ? (
-          <ErrorBoundary
-            fallback={
-              <div className="bg-background p-5 text-sm text-muted-foreground h-full flex items-center justify-center">
-                Failed to load mesh visualization
-              </div>
-            }
-          >
-            <Suspense fallback={<MeshVisualizationSkeleton />}>
-              <MeshVisualization showControls={showControls} />
-            </Suspense>
-          </ErrorBoundary>
-        ) : (
-          <DashboardView
-            metricsMode={metricsMode}
-            onMetricsModeChange={setMetricsMode}
-          />
-        )}
-      </div>
-    </CollectionPage>
+    <ChatProvider key={routerState.location.pathname}>
+      <Suspense fallback={<DecoChatSkeleton />}>
+        <HomeContent />
+      </Suspense>
+    </ChatProvider>
   );
 }

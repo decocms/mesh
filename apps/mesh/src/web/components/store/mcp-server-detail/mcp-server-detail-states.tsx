@@ -4,8 +4,8 @@ interface LoadingStateProps {
   message?: string;
 }
 
-export function AppDetailLoadingState({
-  message = "Loading app details...",
+export function MCPServerDetailLoadingState({
+  message = "Loading MCP Server details...",
 }: LoadingStateProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full">
@@ -20,13 +20,13 @@ interface ErrorStateProps {
   onBack: () => void;
 }
 
-export function AppDetailErrorState({ error, onBack }: ErrorStateProps) {
+export function MCPServerDetailErrorState({ error, onBack }: ErrorStateProps) {
   const errorMessage = error instanceof Error ? error.message : error;
 
   return (
     <div className="flex flex-col items-center justify-center h-full">
       <AlertCircle size={48} className="text-destructive mb-4" />
-      <h3 className="text-lg font-medium mb-2">Error loading app</h3>
+      <h3 className="text-lg font-medium mb-2">Error loading MCP Server</h3>
       <p className="text-muted-foreground max-w-md text-center">
         {errorMessage}
       </p>
@@ -44,13 +44,13 @@ interface NotFoundStateProps {
   onBack: () => void;
 }
 
-export function AppDetailNotFoundState({ onBack }: NotFoundStateProps) {
+export function MCPServerDetailNotFoundState({ onBack }: NotFoundStateProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full">
       <SearchLg size={48} className="text-muted-foreground mb-4" />
-      <h3 className="text-lg font-medium mb-2">App not found</h3>
+      <h3 className="text-lg font-medium mb-2">MCP Server not found</h3>
       <p className="text-muted-foreground max-w-md text-center">
-        The app you're looking for doesn't exist in this store.
+        The MCP Server you're looking for doesn't exist in this store.
       </p>
       <button
         onClick={onBack}

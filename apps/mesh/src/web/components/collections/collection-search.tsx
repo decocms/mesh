@@ -1,4 +1,4 @@
-import { SearchMd } from "@untitledui/icons";
+import { SearchMd, Loading01 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 
@@ -8,6 +8,8 @@ interface CollectionSearchProps {
   placeholder?: string;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   className?: string;
+  /** Show a subtle loading spinner when searching in background */
+  isSearching?: boolean;
 }
 
 /**
@@ -26,13 +28,21 @@ export function CollectionSearch({
   placeholder = "Search...",
   onKeyDown,
   className,
+  isSearching,
 }: CollectionSearchProps) {
   return (
     <div
       className={cn("shrink-0 w-full border-b border-border h-12", className)}
     >
       <label className="flex items-center gap-2.5 h-12 px-4 cursor-text">
-        <SearchMd size={16} className="text-muted-foreground shrink-0" />
+        {isSearching ? (
+          <Loading01
+            size={16}
+            className="animate-spin text-muted-foreground shrink-0"
+          />
+        ) : (
+          <SearchMd size={16} className="text-muted-foreground shrink-0" />
+        )}
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
