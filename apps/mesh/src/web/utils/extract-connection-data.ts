@@ -143,9 +143,21 @@ export function extractConnectionData(
     const packageName = selectedPackage.identifier || selectedPackage.name;
     connectionType = "STDIO";
     connectionUrl = "";
+
+    // Build envVars from package environmentVariables (with empty values for user to fill)
+    const envVars: Record<string, string> = {};
+    if (selectedPackage.environmentVariables) {
+      for (const envVar of selectedPackage.environmentVariables) {
+        if (envVar.name) {
+          envVars[envVar.name] = "";
+        }
+      }
+    }
+
     connectionHeaders = {
       command: "npx",
       args: packageName ? ["-y", packageName] : [],
+      ...(Object.keys(envVars).length > 0 && { envVars }),
     };
   } else if (selectedRemote) {
     connectionType = (getConnectionTypeLabel(selectedRemote.type) || "HTTP") as
