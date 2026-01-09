@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$comment": "Full config.json example. Copy to config.json and customize. See also auth-config.example.json for auth-only config.",
+  "auth": {
+    "emailAndPassword": {
+      "enabled": true
+    },
+    "socialProviders": {
+      "google": {
+        "clientId": "your-google-client-id",
+        "clientSecret": "your-google-client-secret"
+      }
+    }
+  },
+  "theme": {
+    "light": {
+      "--primary": "oklch(0.6 0.2 250)",
+      "--primary-foreground": "oklch(0.98 0.01 250)",
+      "--brand-green-light": "#00a86b",
+      "--brand-green-dark": "#004d31"
+    },
+    "dark": {
+      "--primary": "oklch(0.7 0.2 250)",
+      "--primary-foreground": "oklch(0.15 0.01 250)"
+    }
+  },
+  "monitoring": {
+    "enabled": false
+  },
+  "autoCreateOrganizationOnSignup": true
+}

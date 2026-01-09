@@ -8,6 +8,9 @@
 import { ProjectLocator } from "./locator";
 
 export const KEYS = {
+  // Public config (no auth required)
+  publicConfig: () => ["publicConfig"] as const,
+
   // Auth-related queries
   authConfig: () => ["authConfig"] as const,
 

@@ -13,6 +13,33 @@ const DEFAULT_AUTH_CONFIG: Partial<BetterAuthOptions> = {
     enabled: true,
   },
 };
+
+/**
+ * Theme configuration for customizing the UI appearance.
+ * Allows overriding CSS variables for light and dark modes.
+ *
+ * @example
+ * ```json
+ * {
+ *   "theme": {
+ *     "light": {
+ *       "--primary": "oklch(0.6 0.2 250)",
+ *       "--brand-green-light": "#00ff00"
+ *     },
+ *     "dark": {
+ *       "--primary": "oklch(0.5 0.2 250)"
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface ThemeConfig {
+  /** CSS variable overrides for light mode */
+  light?: Record<string, string>;
+  /** CSS variable overrides for dark mode */
+  dark?: Record<string, string>;
+}
+
 export interface Config {
   auth: Partial<BetterAuthOptions> & {
     ssoConfig?: SSOConfig;
@@ -22,6 +49,11 @@ export interface Config {
     jwt?: { secret?: string };
   };
   monitoring?: Partial<MonitoringConfig>;
+  /**
+   * Theme customization for the UI.
+   * Allows overriding CSS variables for light and dark modes.
+   */
+  theme?: ThemeConfig;
   /**
    * Whether to automatically create an organization when a new user signs up.
    * @default true
@@ -89,4 +121,11 @@ export function getMonitoringConfig(): MonitoringConfig {
     ...DEFAULT_MONITORING_CONFIG,
     ...config.monitoring,
   };
+}
+
+/**
+ * Get theme configuration
+ */
+export function getThemeConfig(): ThemeConfig | undefined {
+  return config.theme;
 }
