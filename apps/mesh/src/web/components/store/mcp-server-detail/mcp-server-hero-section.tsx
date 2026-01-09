@@ -12,7 +12,7 @@ import {
 import { useState, useEffect, useMemo } from "react";
 import type { MCPServerData } from "./types";
 
-type Protocol = "http" | "sse";
+type Protocol = "http" | "sse" | "stdio";
 
 interface HostnameGroup {
   hostname: string;
@@ -24,9 +24,13 @@ interface HostnameGroup {
 }
 
 /**
- * Extract hostname from URL
+ * Extract hostname from URL or return placeholder for STDIO
  */
-function getHostname(url?: string): string {
+function getHostname(url?: string, type?: string): string {
+  // STDIO remotes might not have a URL
+  if (type?.toLowerCase() === "stdio") {
+    return url ? url : "Local (STDIO)";
+  }
   if (!url) return "Unknown";
   try {
     return new URL(url).hostname;
@@ -42,8 +46,23 @@ function normalizeProtocol(type?: string): Protocol {
   if (!type) return "http";
   const lower = type.toLowerCase();
   if (lower === "sse") return "sse";
+  if (lower === "stdio") return "stdio";
   // streamable-http, http, etc. -> http
   return "http";
+}
+
+/**
+ * Get display label for protocol
+ */
+function getProtocolLabel(protocol: Protocol): string {
+  switch (protocol) {
+    case "http":
+      return "HTTP";
+    case "sse":
+      return "SSE";
+    case "stdio":
+      return "STDIO";
+  }
 }
 
 /**
@@ -56,8 +75,8 @@ function groupRemotesByHostname(
   const groups = new Map<string, HostnameGroup>();
 
   remotes.forEach((remote, index) => {
-    const hostname = getHostname(remote.url);
     const protocol = normalizeProtocol(remote.type);
+    const hostname = getHostname(remote.url, remote.type);
 
     if (!groups.has(hostname)) {
       groups.set(hostname, { hostname, protocols: [] });
@@ -70,13 +89,12 @@ function groupRemotesByHostname(
     }
   });
 
-  // Sort protocols: HTTP first, then SSE
+  // Sort protocols: HTTP first, then SSE, then STDIO
+  const protocolOrder: Record<Protocol, number> = { http: 0, sse: 1, stdio: 2 };
   for (const group of groups.values()) {
-    group.protocols.sort((a, b) => {
-      if (a.type === "http" && b.type === "sse") return -1;
-      if (a.type === "sse" && b.type === "http") return 1;
-      return 0;
-    });
+    group.protocols.sort(
+      (a, b) => protocolOrder[a.type] - protocolOrder[b.type],
+    );
   }
 
   return Array.from(groups.values());
@@ -330,7 +348,7 @@ export function MCPServerHeroSection({
                         disabled={isInstalling}
                         className="cursor-pointer"
                       >
-                        {selectedProtocol.toUpperCase()}
+                        {getProtocolLabel(selectedProtocol)}
                         <ChevronDown size={14} className="ml-1" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -343,7 +361,7 @@ export function MCPServerHeroSection({
                           className="cursor-pointer"
                         >
                           <div className="flex items-center justify-between w-full">
-                            <span>{protocol.type.toUpperCase()}</span>
+                            <span>{getProtocolLabel(protocol.type)}</span>
                             {protocol.type === selectedProtocol && (
                               <CheckCircle
                                 size={14}
