@@ -263,8 +263,7 @@ export interface OAuthRefreshTokenTable {
  */
 export interface DownstreamTokenTable {
   id: string; // Primary key
-  connectionId: string; // Foreign key
-  userId: string | null; // Null for client_credentials tokens
+  connectionId: string; // Foreign key (unique - one token per connection)
   accessToken: string; // Encrypted
   refreshToken: string | null; // Encrypted
   scope: string | null;
@@ -330,7 +329,6 @@ export interface OAuthRefreshToken {
 export interface DownstreamToken {
   id: string;
   connectionId: string;
-  userId: string | null;
   accessToken: string;
   refreshToken: string | null;
   scope: string | null;

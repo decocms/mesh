@@ -165,13 +165,13 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     }
 
     // Fetch tools from the MCP server.
-    // If the connection uses OAuth (token stored in downstream_tokens), use the per-user
+    // If the connection uses OAuth (token stored in downstream_tokens), use the
     // access token to discover tools after authentication.
     let tokenForToolFetch = data.connection_token ?? existing.connection_token;
     if (!tokenForToolFetch) {
       try {
         const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
-        const cachedToken = await tokenStorage.get(id, userId);
+        const cachedToken = await tokenStorage.get(id);
         if (cachedToken?.accessToken) {
           tokenForToolFetch = cachedToken.accessToken;
         }

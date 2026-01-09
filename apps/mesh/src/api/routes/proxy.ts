@@ -262,70 +262,66 @@ async function createMCPProxyDoNotUseDirectly(
 
     // Try to get cached token from downstream_tokens first
     // This supports OAuth token refresh for connections that use OAuth
-    const userId = ctx.auth.user?.id ?? ctx.auth.apiKey?.userId ?? null;
     let accessToken: string | null = null;
 
-    if (userId) {
-      const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
-      const cachedToken = await tokenStorage.get(connectionId, userId);
+    const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
+    const cachedToken = await tokenStorage.get(connectionId);
 
-      if (cachedToken) {
-        const canRefresh =
-          !!cachedToken.refreshToken && !!cachedToken.tokenEndpoint;
-        // If we can refresh, treat "expiring soon" as expired to proactively refresh.
-        // If we cannot refresh, only treat as expired at actual expiry (no buffer),
-        // otherwise short-lived tokens would be deleted immediately.
-        const isExpired = tokenStorage.isExpired(
-          cachedToken,
-          canRefresh ? 5 * 60 * 1000 : 0,
-        );
+    if (cachedToken) {
+      const canRefresh =
+        !!cachedToken.refreshToken && !!cachedToken.tokenEndpoint;
+      // If we can refresh, treat "expiring soon" as expired to proactively refresh.
+      // If we cannot refresh, only treat as expired at actual expiry (no buffer),
+      // otherwise short-lived tokens would be deleted immediately.
+      const isExpired = tokenStorage.isExpired(
+        cachedToken,
+        canRefresh ? 5 * 60 * 1000 : 0,
+      );
 
-        if (isExpired) {
-          // Try to refresh if we have refresh capability
-          if (canRefresh) {
-            console.log(
-              `[Proxy] Token expired for ${connectionId}, attempting refresh`,
-            );
-            const refreshResult = await refreshAccessToken(cachedToken);
+      if (isExpired) {
+        // Try to refresh if we have refresh capability
+        if (canRefresh) {
+          console.log(
+            `[Proxy] Token expired for ${connectionId}, attempting refresh`,
+          );
+          const refreshResult = await refreshAccessToken(cachedToken);
 
-            if (refreshResult.success && refreshResult.accessToken) {
-              // Save refreshed token
-              await tokenStorage.upsert({
-                connectionId,
-                userId,
-                accessToken: refreshResult.accessToken,
-                refreshToken:
-                  refreshResult.refreshToken ?? cachedToken.refreshToken,
-                scope: refreshResult.scope ?? cachedToken.scope,
-                expiresAt: refreshResult.expiresIn
-                  ? new Date(Date.now() + refreshResult.expiresIn * 1000)
-                  : null,
-                clientId: cachedToken.clientId,
-                clientSecret: cachedToken.clientSecret,
-                tokenEndpoint: cachedToken.tokenEndpoint,
-              });
+          if (refreshResult.success && refreshResult.accessToken) {
+            // Save refreshed token
+            await tokenStorage.upsert({
+              connectionId,
+              accessToken: refreshResult.accessToken,
+              refreshToken:
+                refreshResult.refreshToken ?? cachedToken.refreshToken,
+              scope: refreshResult.scope ?? cachedToken.scope,
+              expiresAt: refreshResult.expiresIn
+                ? new Date(Date.now() + refreshResult.expiresIn * 1000)
+                : null,
+              clientId: cachedToken.clientId,
+              clientSecret: cachedToken.clientSecret,
+              tokenEndpoint: cachedToken.tokenEndpoint,
+            });
 
-              accessToken = refreshResult.accessToken;
-              console.log(`[Proxy] Token refreshed for ${connectionId}`);
-            } else {
-              // Refresh failed - token is invalid
-              // Delete the cached token so user gets prompted to re-auth
-              await tokenStorage.delete(connectionId, userId);
-              console.error(
-                `[Proxy] Token refresh failed for ${connectionId}: ${refreshResult.error}`,
-              );
-            }
+            accessToken = refreshResult.accessToken;
+            console.log(`[Proxy] Token refreshed for ${connectionId}`);
           } else {
-            // Token expired but no refresh capability - delete it
-            await tokenStorage.delete(connectionId, userId);
-            console.log(
-              `[Proxy] Token expired without refresh capability for ${connectionId}`,
+            // Refresh failed - token is invalid
+            // Delete the cached token so user gets prompted to re-auth
+            await tokenStorage.delete(connectionId);
+            console.error(
+              `[Proxy] Token refresh failed for ${connectionId}: ${refreshResult.error}`,
             );
           }
         } else {
-          // Token is still valid
-          accessToken = cachedToken.accessToken;
+          // Token expired but no refresh capability - delete it
+          await tokenStorage.delete(connectionId);
+          console.log(
+            `[Proxy] Token expired without refresh capability for ${connectionId}`,
+          );
         }
+      } else {
+        // Token is still valid
+        accessToken = cachedToken.accessToken;
       }
     }
 

@@ -15,7 +15,6 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
  */
 export interface DownstreamTokenData {
   connectionId: string;
-  userId: string | null;
   accessToken: string;
   refreshToken: string | null;
   scope: string | null;
@@ -31,12 +30,9 @@ export interface DownstreamTokenData {
  */
 export interface DownstreamTokenStoragePort {
   /**
-   * Get cached token for a connection + user
+   * Get cached token for a connection
    */
-  get(
-    connectionId: string,
-    userId: string | null,
-  ): Promise<DownstreamToken | null>;
+  get(connectionId: string): Promise<DownstreamToken | null>;
 
   /**
    * Save or update a token
@@ -44,14 +40,9 @@ export interface DownstreamTokenStoragePort {
   upsert(data: DownstreamTokenData): Promise<DownstreamToken>;
 
   /**
-   * Delete token for a connection + user
+   * Delete token for a connection
    */
-  delete(connectionId: string, userId: string | null): Promise<void>;
-
-  /**
-   * Delete all tokens for a connection
-   */
-  deleteByConnection(connectionId: string): Promise<void>;
+  delete(connectionId: string): Promise<void>;
 
   /**
    * Check if token is expired or will expire within buffer time
@@ -68,19 +59,12 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
     private vault: CredentialVault,
   ) {}
 
-  async get(
-    connectionId: string,
-    userId: string | null,
-  ): Promise<DownstreamToken | null> {
-    const query = this.db
+  async get(connectionId: string): Promise<DownstreamToken | null> {
+    const row = await this.db
       .selectFrom("downstream_tokens")
       .selectAll()
-      .where("connectionId", "=", connectionId);
-
-    const row = await (userId
-      ? query.where("userId", "=", userId)
-      : query.where("userId", "is", null)
-    ).executeTakeFirst();
+      .where("connectionId", "=", connectionId)
+      .executeTakeFirst();
 
     if (!row) return null;
 
@@ -102,15 +86,11 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
     // Use transaction to prevent race conditions during upsert
     return await this.db.transaction().execute(async (trx) => {
       // Check for existing token within transaction
-      const query = trx
+      const existing = await trx
         .selectFrom("downstream_tokens")
         .select(["id", "createdAt"])
-        .where("connectionId", "=", data.connectionId);
-
-      const existing = await (data.userId
-        ? query.where("userId", "=", data.userId)
-        : query.where("userId", "is", null)
-      ).executeTakeFirst();
+        .where("connectionId", "=", data.connectionId)
+        .executeTakeFirst();
 
       if (existing) {
         // Update existing token
@@ -132,7 +112,6 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
         return {
           id: existing.id,
           connectionId: data.connectionId,
-          userId: data.userId,
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
           scope: data.scope,
@@ -153,7 +132,6 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
         .values({
           id,
           connectionId: data.connectionId,
-          userId: data.userId,
           accessToken: encryptedAccessToken,
           refreshToken: encryptedRefreshToken,
           scope: data.scope,
@@ -169,7 +147,6 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
       return {
         id,
         connectionId: data.connectionId,
-        userId: data.userId,
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
         scope: data.scope,
@@ -183,18 +160,7 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
     });
   }
 
-  async delete(connectionId: string, userId: string | null): Promise<void> {
-    const query = this.db
-      .deleteFrom("downstream_tokens")
-      .where("connectionId", "=", connectionId);
-
-    await (userId
-      ? query.where("userId", "=", userId)
-      : query.where("userId", "is", null)
-    ).execute();
-  }
-
-  async deleteByConnection(connectionId: string): Promise<void> {
+  async delete(connectionId: string): Promise<void> {
     await this.db
       .deleteFrom("downstream_tokens")
       .where("connectionId", "=", connectionId)
@@ -233,7 +199,6 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
   private async decryptToken(row: {
     id: string;
     connectionId: string;
-    userId: string | null;
     accessToken: string;
     refreshToken: string | null;
     scope: string | null;
@@ -255,7 +220,6 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
     return {
       id: row.id,
       connectionId: row.connectionId,
-      userId: row.userId,
       accessToken,
       refreshToken,
       scope: row.scope,

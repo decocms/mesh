@@ -86,7 +86,6 @@ app.post("/connections/:connectionId/oauth-token", async (c) => {
   // Save token
   const tokenData: DownstreamTokenData = {
     connectionId,
-    userId,
     accessToken: body.accessToken,
     refreshToken: body.refreshToken ?? null,
     scope: body.scope ?? null,
@@ -119,7 +118,7 @@ app.delete("/connections/:connectionId/oauth-token", async (c) => {
   }
 
   const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
-  await tokenStorage.delete(connectionId, userId);
+  await tokenStorage.delete(connectionId);
 
   return c.json({ success: true });
 });
@@ -127,7 +126,7 @@ app.delete("/connections/:connectionId/oauth-token", async (c) => {
 /**
  * GET /api/connections/:connectionId/oauth-token/status
  *
- * Check if user has a valid cached token for a connection.
+ * Check if there's a valid cached token for a connection.
  */
 app.get("/connections/:connectionId/oauth-token/status", async (c) => {
   const ctx = c.get("meshContext");
@@ -139,7 +138,7 @@ app.get("/connections/:connectionId/oauth-token/status", async (c) => {
   }
 
   const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
-  const token = await tokenStorage.get(connectionId, userId);
+  const token = await tokenStorage.get(connectionId);
 
   if (!token) {
     return c.json({

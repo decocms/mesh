@@ -27,7 +27,6 @@ describe("DownstreamTokenStorage", () => {
     const token = {
       id: "test",
       connectionId: "c1",
-      userId: "u1",
       accessToken: "at",
       refreshToken: null,
       scope: null,
@@ -48,7 +47,6 @@ describe("DownstreamTokenStorage", () => {
     const token = {
       id: "test",
       connectionId: "c1",
-      userId: "u1",
       accessToken: "at",
       refreshToken: null,
       scope: null,
@@ -69,7 +67,6 @@ describe("DownstreamTokenStorage", () => {
   it("should upsert token atomically", async () => {
     const data: DownstreamTokenData = {
       connectionId: "conn_atomic",
-      userId: "user_atomic",
       accessToken: "access_1",
       refreshToken: "refresh_1",
       scope: "scope_1",
