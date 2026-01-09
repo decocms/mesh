@@ -1,5 +1,6 @@
-# Auth configuration (contains secrets)
+# Configuration files (may contain secrets)
 auth-config.json
+config.json
 
 # Database files
 data/
