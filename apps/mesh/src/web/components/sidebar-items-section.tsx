@@ -1,12 +1,11 @@
 import { SidebarItem } from "@/storage/types";
-import { X, File06 } from "@untitledui/icons";
 import {
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { useNavigate } from "@tanstack/react-router";
+import { File06, X } from "@untitledui/icons";
 import { PropsWithChildren, Suspense } from "react";
 import {
   useOrganizationSettings,
@@ -117,7 +116,6 @@ function SidebarItemSkeleton() {
 function SidebarItemLayout({ children }: PropsWithChildren) {
   return (
     <>
-      <SidebarSeparator className="my-2 -ml-1" />
       <SidebarMenuItem>
         <div className="group-data-[collapsible=icon]:hidden px-2 py-0 text-xs font-medium h-6 text-muted-foreground flex items-center justify-between">
           <span className="whitespace-nowrap">Pinned Views</span>

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -7,6 +7,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "./sidebar.tsx";
 import { Skeleton } from "./skeleton.tsx";
 
@@ -16,6 +17,7 @@ export interface NavigationSidebarItem {
   icon: ReactNode;
   onClick: () => void;
   isActive?: boolean;
+  after?: ReactNode;
 }
 
 interface NavigationSidebarProps {
@@ -44,21 +46,34 @@ export function NavigationSidebar({
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
               {navigationItems.map((item) => (
-                <SidebarMenuItem key={item.key}>
-                  <SidebarMenuButton
-                    className="group/nav-item cursor-pointer text-foreground/90 hover:text-foreground"
-                    onClick={item.onClick}
-                    isActive={item.isActive}
-                    tooltip={item.label}
-                  >
-                    <span className="text-muted-foreground group-hover/nav-item:text-foreground transition-colors [&>svg]:size-4">
-                      {item.icon}
-                    </span>
-                    <span className="truncate">{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <div key={item.key}>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      className="group/nav-item cursor-pointer text-foreground/90 hover:text-foreground"
+                      onClick={item.onClick}
+                      isActive={item.isActive}
+                      tooltip={item.label}
+                    >
+                      <span className="text-muted-foreground group-hover/nav-item:text-foreground transition-colors [&>svg]:size-4">
+                        {item.icon}
+                      </span>
+                      <span className="truncate">{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {item.after}
+                </div>
               ))}
-              {additionalContent}
+
+              {navigationItems.length > 0 && (
+                <SidebarSeparator className="my-2 -ml-1" />
+              )}
+
+              {Children.map(additionalContent, (child) => (
+                <>
+                  {child}
+                  <SidebarSeparator className="my-2 -ml-1" />
+                </>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

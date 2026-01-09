@@ -144,10 +144,13 @@ const connectionLayoutRoute = createRoute({
   component: lazyRouteComponent(
     () => import("./routes/orgs/connection-detail.tsx"),
   ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      tab: z.string().optional(),
-    }),
+});
+
+const connectionLayoutTabRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/mcps/$connectionId/$tab",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/connection-detail.tsx"),
   ),
 });
 
@@ -181,10 +184,13 @@ const gatewayDetailRoute = createRoute({
   component: lazyRouteComponent(
     () => import("./routes/orgs/gateway-detail.tsx"),
   ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      tab: z.string().optional(),
-    }),
+});
+
+const gatewayDetailTabRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/gateways/$gatewayId/$tab",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/gateway-detail.tsx"),
   ),
 });
 
@@ -211,11 +217,13 @@ const shellRouteTree = shellLayout.addChildren([
   orgConnectionsRoute,
   orgGatewaysRoute,
   gatewayDetailRoute,
+  gatewayDetailTabRoute,
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
   orgSettingsRoute,
   orgWorkflowRoute,
   connectionLayoutRoute,
+  connectionLayoutTabRoute,
   collectionDetailsRoute,
 ]);
 

@@ -6,20 +6,15 @@ import {
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
 import { useCollectionBindings } from "@/web/hooks/use-binding";
+import { useConnectionDetailTabs } from "@/web/hooks/use-connection-detail-tabs";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Loading01 } from "@untitledui/icons";
-import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
-import {
-  useNavigate,
-  useParams,
-  useRouter,
-  useSearch,
-} from "@tanstack/react-router";
+import { useNavigate, useParams, useRouter } from "@tanstack/react-router";
 import { Suspense } from "react";
-import { ViewLayout, ViewTabs } from "../layout";
+import { ViewLayout } from "../layout";
 import { CollectionTab } from "./collection-tab";
 import { PromptsTab } from "./prompts-tab";
 import { ReadmeTab } from "./readme-tab";
@@ -31,7 +26,6 @@ function ConnectionInspectorViewWithConnection({
   connection,
   connectionId,
   org,
-  requestedTabId,
   collections,
   onUpdate,
   isUpdating,
@@ -41,7 +35,6 @@ function ConnectionInspectorViewWithConnection({
   connection: ConnectionEntity;
   connectionId: string;
   org: string;
-  requestedTabId: string;
   collections: ReturnType<typeof useCollectionBindings>;
   onUpdate: (connection: Partial<ConnectionEntity>) => Promise<void>;
   isUpdating: boolean;
@@ -54,7 +47,6 @@ function ConnectionInspectorViewWithConnection({
   }>;
 }) {
   const router = useRouter();
-  const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
 
   const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
@@ -67,34 +59,12 @@ function ConnectionInspectorViewWithConnection({
     | undefined;
   const hasRepository = !!repository?.url;
 
-  const toolsCount = connection?.tools?.length ?? 0;
-  const promptsCount = prompts.length;
-  const resourcesCount = resources.length;
-
-  const tabs = [
-    { id: "settings", label: "Settings" },
-    ...(isMCPAuthenticated && toolsCount > 0
-      ? [{ id: "tools", label: "Tools", count: toolsCount }]
-      : []),
-    ...(isMCPAuthenticated && promptsCount > 0
-      ? [{ id: "prompts", label: "Prompts", count: promptsCount }]
-      : []),
-    ...(isMCPAuthenticated && resourcesCount > 0
-      ? [{ id: "resources", label: "Resources", count: resourcesCount }]
-      : []),
-    ...(isMCPAuthenticated
-      ? (collections || []).map((c) => ({ id: c.name, label: c.displayName }))
-      : []),
-    ...(hasRepository ? [{ id: "readme", label: "README" }] : []),
-  ];
-
-  const activeTabId = tabs.some((t) => t.id === requestedTabId)
-    ? requestedTabId
-    : "settings";
-
-  const handleTabChange = (tabId: string) => {
-    navigate({ search: (prev) => ({ ...prev, tab: tabId }), replace: true });
-  };
+  // Use centralized tab hook
+  const { activeTabId, setTab } = useConnectionDetailTabs({
+    connection,
+    prompts,
+    resources,
+  });
 
   const activeCollection = (collections || []).find(
     (c) => c.name === activeTabId,
@@ -102,13 +72,6 @@ function ConnectionInspectorViewWithConnection({
 
   return (
     <ViewLayout onBack={() => router.history.back()}>
-      <ViewTabs>
-        <ResourceTabs
-          tabs={tabs}
-          activeTab={activeTabId}
-          onTabChange={handleTabChange}
-        />
-      </ViewTabs>
       <div className="flex h-full w-full bg-background overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0 bg-background overflow-auto">
           <ErrorBoundary key={activeTabId}>
@@ -149,7 +112,7 @@ function ConnectionInspectorViewWithConnection({
                   supportsOAuth={authStatus.supportsOAuth}
                   isServerError={authStatus.isServerError}
                   onViewReadme={
-                    hasRepository ? () => handleTabChange("readme") : undefined
+                    hasRepository ? () => setTab("readme") : undefined
                   }
                 />
               ) : activeTabId === "readme" && hasRepository ? (
@@ -176,14 +139,11 @@ function ConnectionInspectorViewWithConnection({
 }
 
 function ConnectionInspectorViewContent() {
-  const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
-  const { connectionId, org } = useParams({
-    from: "/shell/$org/mcps/$connectionId",
-  });
-
-  // We can use search params for active tab if we want persistent tabs
-  const search = useSearch({ from: "/shell/$org/mcps/$connectionId" });
-  const requestedTabId = search.tab || "settings";
+  const navigate = useNavigate();
+  const { connectionId, org } = useParams({ strict: false }) as {
+    connectionId: string;
+    org: string;
+  };
 
   const connection = useConnection(connectionId);
   const actions = useConnectionActions();
@@ -237,7 +197,6 @@ function ConnectionInspectorViewContent() {
       org={org}
       connection={connection}
       connectionId={connectionId}
-      requestedTabId={requestedTabId}
       collections={collections}
       onUpdate={handleUpdateConnection}
       isUpdating={actions.update.isPending}
