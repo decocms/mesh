@@ -6,7 +6,7 @@
  */
 
 import { useSuspenseQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import type { PublicConfig } from "@/api/routes/public-config";
 import { KEYS } from "@/web/lib/query-keys";
 
@@ -69,9 +69,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     staleTime: Infinity,
   });
 
-  // Inject theme variables when config is loaded
-  // This runs on every render but is idempotent (removes old style first)
-  injectThemeVariables(publicConfig.theme);
+  // Inject theme variables synchronously before paint to avoid FOUC
+  // useLayoutEffect is correct here (not useEffect) for DOM mutations that affect visual appearance
+  useLayoutEffect(() => {
+    injectThemeVariables(publicConfig.theme);
+  }, [publicConfig.theme]);
 
   return <>{children}</>;
 }
