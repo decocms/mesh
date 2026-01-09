@@ -15,23 +15,15 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
  * Get a display name for a remote endpoint
- * Tries to extract a meaningful name from the URL path
+ * Uses the hostname (without common suffixes) as the display name
+ * Example: "https://graphql.mcp.cloudflare.com/mcp" -> "graphql.mcp.cloudflare.com"
  */
 export function getRemoteDisplayName(remote?: { url?: string }): string {
   if (!remote?.url) return "Unknown";
 
   try {
     const url = new URL(remote.url);
-    // Get the last meaningful path segment
-    const pathSegments = url.pathname.split("/").filter(Boolean);
-    const lastSegment = pathSegments.at(-1);
-    if (lastSegment) {
-      // Capitalize and clean up
-      return lastSegment
-        .replace(/[-_]/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
-    }
-    // Fallback to hostname
+    // Return the full hostname as the display name
     return url.hostname;
   } catch {
     return remote.url;
