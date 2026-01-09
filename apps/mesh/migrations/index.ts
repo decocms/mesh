@@ -15,6 +15,7 @@ import * as migration013monitoringuseragentgateway from "./013-monitoring-user-a
 import * as migration014gatewayresourcesprompts from "./014-gateway-resources-prompts.ts";
 import * as migration015monitoringproperties from "./015-monitoring-properties.ts";
 import * as migration016downstreamtokenclientinfo from "./016-downstream-token-client-info.ts";
+import * as migration017downstreamtokensorglevel from "./017-downstream-tokens-org-level.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -33,6 +34,7 @@ const migrations = {
   "014-gateway-resources-prompts": migration014gatewayresourcesprompts,
   "015-monitoring-properties": migration015monitoringproperties,
   "016-downstream-token-client-info": migration016downstreamtokenclientinfo,
+  "017-downstream-tokens-org-level": migration017downstreamtokensorglevel,
 } satisfies Record<string, Migration>;
 
 export default migrations;

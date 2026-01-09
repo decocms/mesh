@@ -12,10 +12,13 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
  * Data for creating/updating a downstream token
+ *
+ * Note: Tokens are currently scoped to connections only (org-level).
+ * userId is stored for audit purposes but not used for token lookup.
+ * Future: may add support for per-user tokens vs org-shared tokens.
  */
 export interface DownstreamTokenData {
   connectionId: string;
-  userId: string | null;
   accessToken: string;
   refreshToken: string | null;
   scope: string | null;
@@ -31,12 +34,9 @@ export interface DownstreamTokenData {
  */
 export interface DownstreamTokenStoragePort {
   /**
-   * Get cached token for a connection + user
+   * Get cached token for a connection (org-level)
    */
-  get(
-    connectionId: string,
-    userId: string | null,
-  ): Promise<DownstreamToken | null>;
+  get(connectionId: string): Promise<DownstreamToken | null>;
 
   /**
    * Save or update a token
@@ -44,12 +44,12 @@ export interface DownstreamTokenStoragePort {
   upsert(data: DownstreamTokenData): Promise<DownstreamToken>;
 
   /**
-   * Delete token for a connection + user
+   * Delete token for a connection
    */
-  delete(connectionId: string, userId: string | null): Promise<void>;
+  delete(connectionId: string): Promise<void>;
 
   /**
-   * Delete all tokens for a connection
+   * Delete all tokens for a connection (alias for delete)
    */
   deleteByConnection(connectionId: string): Promise<void>;
 
@@ -61,6 +61,9 @@ export interface DownstreamTokenStoragePort {
 
 /**
  * Downstream Token Storage Implementation
+ *
+ * Tokens are scoped to connections only (org-level).
+ * When a user authenticates via OAuth, the token is stored for the entire org.
  */
 export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
   constructor(
@@ -68,19 +71,14 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
     private vault: CredentialVault,
   ) {}
 
-  async get(
-    connectionId: string,
-    userId: string | null,
-  ): Promise<DownstreamToken | null> {
-    const query = this.db
+  async get(connectionId: string): Promise<DownstreamToken | null> {
+    // Get org-level token (userId is null)
+    const row = await this.db
       .selectFrom("downstream_tokens")
       .selectAll()
-      .where("connectionId", "=", connectionId);
-
-    const row = await (userId
-      ? query.where("userId", "=", userId)
-      : query.where("userId", "is", null)
-    ).executeTakeFirst();
+      .where("connectionId", "=", connectionId)
+      .where("userId", "is", null)
+      .executeTakeFirst();
 
     if (!row) return null;
 
@@ -101,16 +99,13 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
 
     // Use transaction to prevent race conditions during upsert
     return await this.db.transaction().execute(async (trx) => {
-      // Check for existing token within transaction
-      const query = trx
+      // Check for existing org-level token (userId is null)
+      const existing = await trx
         .selectFrom("downstream_tokens")
         .select(["id", "createdAt"])
-        .where("connectionId", "=", data.connectionId);
-
-      const existing = await (data.userId
-        ? query.where("userId", "=", data.userId)
-        : query.where("userId", "is", null)
-      ).executeTakeFirst();
+        .where("connectionId", "=", data.connectionId)
+        .where("userId", "is", null)
+        .executeTakeFirst();
 
       if (existing) {
         // Update existing token
@@ -132,7 +127,7 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
         return {
           id: existing.id,
           connectionId: data.connectionId,
-          userId: data.userId,
+          userId: null,
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
           scope: data.scope,
@@ -145,7 +140,7 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
         };
       }
 
-      // Create new token
+      // Create new org-level token (userId is null)
       const id = generatePrefixedId("dtok");
 
       await trx
@@ -153,7 +148,7 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
         .values({
           id,
           connectionId: data.connectionId,
-          userId: data.userId,
+          userId: null, // Org-level token
           accessToken: encryptedAccessToken,
           refreshToken: encryptedRefreshToken,
           scope: data.scope,
@@ -169,7 +164,7 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
       return {
         id,
         connectionId: data.connectionId,
-        userId: data.userId,
+        userId: null,
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
         scope: data.scope,
@@ -183,18 +178,17 @@ export class DownstreamTokenStorage implements DownstreamTokenStoragePort {
     });
   }
 
-  async delete(connectionId: string, userId: string | null): Promise<void> {
-    const query = this.db
+  async delete(connectionId: string): Promise<void> {
+    // Delete org-level token (userId is null)
+    await this.db
       .deleteFrom("downstream_tokens")
-      .where("connectionId", "=", connectionId);
-
-    await (userId
-      ? query.where("userId", "=", userId)
-      : query.where("userId", "is", null)
-    ).execute();
+      .where("connectionId", "=", connectionId)
+      .where("userId", "is", null)
+      .execute();
   }
 
   async deleteByConnection(connectionId: string): Promise<void> {
+    // Delete all tokens for the connection (including any legacy user-specific ones)
     await this.db
       .deleteFrom("downstream_tokens")
       .where("connectionId", "=", connectionId)

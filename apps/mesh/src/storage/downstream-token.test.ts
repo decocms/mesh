@@ -66,10 +66,9 @@ describe("DownstreamTokenStorage", () => {
     expect(storage.isExpired(token, 5 * 60 * 1000)).toBe(true);
   });
 
-  it("should upsert token atomically", async () => {
+  it("should upsert token atomically (org-level)", async () => {
     const data: DownstreamTokenData = {
       connectionId: "conn_atomic",
-      userId: "user_atomic",
       accessToken: "access_1",
       refreshToken: "refresh_1",
       scope: "scope_1",
@@ -83,6 +82,7 @@ describe("DownstreamTokenStorage", () => {
     const t1 = await storage.upsert(data);
     expect(t1.accessToken).toBe("access_1");
     expect(t1.clientId).toBe("client_1");
+    expect(t1.userId).toBe(null); // Org-level token
 
     // Update
     const data2 = { ...data, accessToken: "access_2", clientId: "client_2" };
