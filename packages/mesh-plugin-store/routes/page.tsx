@@ -1,137 +1,69 @@
-// import {
-//   getWellKnownCommunityRegistryConnection,
-//   getWellKnownRegistryConnection,
-// } from "@/core/well-known-mcp";
-// import { ConnectionCreateData } from "@/tools/connection/schema";
-// import { CollectionHeader } from "@/web/components/collections/collection-header";
-// import { StoreDiscovery } from "@/web/components/store";
-// import { StoreRegistrySelect } from "@/web/components/store-registry-select";
-// import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-empty-state";
-// import {
-//   useConnectionActions,
-//   useConnections,
-// } from "@/web/hooks/collections/use-connection";
-// import { useRegistryConnections } from "@/web/hooks/use-binding";
-// import { useLocalStorage } from "@/web/hooks/use-local-storage";
-// import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-// import { useProjectContext } from "@/web/providers/project-context-provider";
-// import { Loading01 } from "@untitledui/icons";
-// import { Outlet, useRouterState } from "@tanstack/react-router";
-// import { Suspense } from "react";
+import { storeRouter } from "../index";
 
-// export default function StorePage() {
-//   const { org } = useProjectContext();
-//   const allConnections = useConnections();
-//   const connectionActions = useConnectionActions();
+const SAMPLE_APPS = [
+  { id: "github", name: "GitHub MCP", description: "GitHub API integration" },
+  {
+    id: "slack",
+    name: "Slack MCP",
+    description: "Slack messaging integration",
+  },
+  { id: "notion", name: "Notion MCP", description: "Notion workspace access" },
+  { id: "linear", name: "Linear MCP", description: "Linear issue tracking" },
+  { id: "postgres", name: "PostgreSQL MCP", description: "Database querying" },
+];
 
-//   // Check if we're viewing a child route (app detail)
-//   const routerState = useRouterState();
-//   const isViewingAppDetail =
-//     routerState.location.pathname.includes("/store/") &&
-//     routerState.location.pathname.split("/").length > 3;
+export default function StorePage() {
+  const navigate = storeRouter.useNavigate();
+  const location = storeRouter.useLocation();
+  const Link = storeRouter.Link;
 
-//   // Filter to only show registry connections (those with collections)
-//   const registryConnections = useRegistryConnections(allConnections);
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-2">MCP Store</h1>
+      <p className="text-muted-foreground mb-6">
+        Browse and install MCP servers for your workspace.
+      </p>
 
-//   const registryOptions = registryConnections.map((c) => ({
-//     id: c.id,
-//     name: c.title,
-//     icon: c.icon || undefined,
-//   }));
+      <div className="text-sm text-muted-foreground mb-4">
+        Current path:{" "}
+        <code className="bg-muted px-1 rounded">{location.pathname}</code>
+      </div>
 
-//   // Persist selected registry in localStorage (scoped by org)
-//   const [selectedRegistryId, setSelectedRegistryId] = useLocalStorage<string>(
-//     LOCALSTORAGE_KEYS.selectedRegistry(org.slug),
-//     () => "",
-//   );
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {SAMPLE_APPS.map((app) => (
+          <div
+            key={app.id}
+            className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer"
+            onClick={() =>
+              navigate({
+                to: "/$appName",
+                params: { appName: app.id },
+                search: { serverName: app.name },
+              })
+            }
+          >
+            <h3 className="font-semibold">{app.name}</h3>
+            <p className="text-sm text-muted-foreground">{app.description}</p>
+          </div>
+        ))}
+      </div>
 
-//   const selectedRegistry = registryConnections.find(
-//     (c) => c.id === selectedRegistryId,
-//   );
-
-//   // If there's only one registry, use it; otherwise use the selected one if it still exists.
-//   // If not found, that's fine: the connection may have been deleted/changed.
-//   const effectiveRegistry =
-//     selectedRegistry?.id || registryConnections[0]?.id || "";
-
-//   // Well-known registries to show in select (hidden/less prominent)
-//   const wellKnownRegistriesForSelect = [getWellKnownRegistryConnection(org.id)];
-
-//   // Well-known registries to show in empty state (only Community Registry)
-//   const wellKnownRegistriesForEmptyState = [
-//     getWellKnownCommunityRegistryConnection(),
-//   ];
-
-//   const addNewKnownRegistry = async (registry: ConnectionCreateData) => {
-//     const created = await connectionActions.create.mutateAsync(registry);
-//     setSelectedRegistryId(created.id);
-//   };
-
-//   // Filter out well-known registries that are already added
-//   const addedRegistryIds = new Set(registryConnections.map((c) => c.id));
-//   const availableWellKnownRegistries = wellKnownRegistriesForSelect.filter(
-//     (r) => r.id && !addedRegistryIds.has(r.id),
-//   );
-//   const availableWellKnownRegistriesForEmptyState =
-//     wellKnownRegistriesForEmptyState.filter(
-//       (r) => r.id && !addedRegistryIds.has(r.id),
-//     );
-
-//   // If we're viewing an app detail (child route), render the Outlet
-//   if (isViewingAppDetail) {
-//     return <Outlet />;
-//   }
-
-//   return (
-//     <div className="h-full flex flex-col overflow-hidden">
-//       <CollectionHeader
-//         title="Store"
-//         ctaButton={
-//           <StoreRegistrySelect
-//             wellKnownRegistries={availableWellKnownRegistries}
-//             registries={registryOptions}
-//             value={effectiveRegistry}
-//             onValueChange={setSelectedRegistryId}
-//             onAddWellKnown={async (registry) => addNewKnownRegistry(registry)}
-//             placeholder="Select store..."
-//           />
-//         }
-//       />
-
-//       {/* Content Section */}
-//       <div className="h-full flex flex-col overflow-hidden">
-//         <Suspense
-//           fallback={
-//             <div className="flex flex-col items-center justify-center h-full">
-//               <Loading01
-//                 size={32}
-//                 className="animate-spin text-muted-foreground mb-4"
-//               />
-//               <p className="text-sm text-muted-foreground">
-//                 Loading store items...
-//               </p>
-//             </div>
-//           }
-//         >
-//           {effectiveRegistry ? (
-//             <StoreDiscovery registryId={effectiveRegistry} />
-//           ) : (
-//             <div className="flex flex-col items-center justify-center h-full">
-//               <StoreRegistryEmptyState
-//                 registries={availableWellKnownRegistriesForEmptyState}
-//                 onConnected={(createdRegistryId) => {
-//                   // Auto-select the newly created registry
-//                   setSelectedRegistryId(createdRegistryId);
-//                 }}
-//               />
-//             </div>
-//           )}
-//         </Suspense>
-//       </div>
-//     </div>
-//   );
-// }
-
-export default function fakeStorePage() {
-  return <div>Fake store page</div>;
+      <div className="mt-8 border-t pt-6">
+        <h2 className="text-lg font-semibold mb-4">Navigation Test Links</h2>
+        <div className="flex flex-wrap gap-2">
+          {SAMPLE_APPS.map((app) => (
+            <Link
+              key={app.id}
+              to="/$appName"
+              params={{ appName: app.id }}
+              search={{ registryId: "test-registry" }}
+              className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded hover:opacity-90"
+            >
+              {app.name}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

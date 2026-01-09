@@ -42,7 +42,11 @@ export function useProjectSidebarItems() {
       key: item.pluginId,
       label: item.label,
       icon: item.icon,
-      onClick: () => navigate({ to: "/$org/$pluginId", params: { org, pluginId: item.pluginId } }),
+      onClick: () =>
+        navigate({
+          to: "/$org/$pluginId",
+          params: { org, pluginId: item.pluginId },
+        }),
     })),
     {
       key: "mcps",

@@ -227,14 +227,16 @@ export const plugins = sourcePlugins.forEach((plugin: AnyPlugin) => {
       createRoute: createRoute,
       lazyRouteComponent: lazyRouteComponent,
     },
-    registerRootSidebarItem: (item) => pluginRootSidebarItems.push({ pluginId: plugin.id, ...item }),
-    registerRootPluginRoute: (route) => pluginLayoutRoutes.push(route),
+    registerRootSidebarItem: (item) =>
+      pluginRootSidebarItems.push({ pluginId: plugin.id, ...item }),
+    registerPluginRoutes: (routes) => pluginLayoutRoutes.push(...routes),
   };
 
   plugin.setup(context);
 });
 
-const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginLayoutRoutes);
+const pluginLayoutWithChildren =
+  pluginLayoutRoute.addChildren(pluginLayoutRoutes);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
