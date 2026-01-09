@@ -40,12 +40,12 @@ function filterItemsBySearch(
 
 /**
  * Check if an item is verified
+ * UPDATED: _meta no longer exists inside server in the new structure
  */
 function isItemVerified(item: RegistryItem): boolean {
   return (
     item.verified === true ||
-    item._meta?.["mcp.mesh"]?.verified === true ||
-    item.server._meta?.["mcp.mesh"]?.verified === true
+    item._meta?.["mcp.mesh"]?.verified === true
   );
 }
 

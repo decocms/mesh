@@ -3,7 +3,9 @@ import { z } from "zod";
 
 export const MCP_REGISTRY_DECOCMS_KEY = "mcp.mesh";
 
-export const MCP_REGISTRY_PUBLISHER_KEY = "mcp.mesh/publisher-provided";
+// DEPRECATED: mcp.mesh/publisher-provided no longer exists in the new structure
+// All data is now in _meta["mcp.mesh"] at root level
+// export const MCP_REGISTRY_PUBLISHER_KEY = "mcp.mesh/publisher-provided";
 
 export type JsonSchema = {
   type?: string;

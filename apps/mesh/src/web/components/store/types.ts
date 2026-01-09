@@ -16,6 +16,10 @@ export interface MCPRegistryServerIcon {
 
 /**
  * MCP Registry Server metadata structure
+ * 
+ * IMPORTANT: Structure has changed! All data is now in _meta["mcp.mesh"]
+ * at root level. There's no longer _meta inside server, and no longer
+ * "mcp.mesh/publisher-provided".
  */
 export interface MCPRegistryServerMeta {
   "mcp.mesh"?: {
@@ -30,8 +34,7 @@ export interface MCPRegistryServerMeta {
     mesh_description?: string;
     tags?: string[];
     categories?: string[];
-  };
-  "mcp.mesh/publisher-provided"?: {
+    // Fields that were previously in "mcp.mesh/publisher-provided"
     friendlyName?: string | null;
     metadata?: Record<string, unknown> | null;
     tools?: Array<{
@@ -58,7 +61,7 @@ export interface MCPRegistryServer {
   _meta?: MCPRegistryServerMeta;
   server: {
     $schema?: string;
-    _meta?: MCPRegistryServerMeta;
+    // REMOVED: _meta no longer exists inside server in the new structure
     name: string;
     title?: string;
     description?: string;
@@ -154,7 +157,8 @@ export interface RegistryItem {
     emails?: unknown[];
     analytics?: unknown;
     cdn?: unknown;
-    _meta?: MCPRegistryServerMeta;
+    // REMOVED: _meta no longer exists inside server in the new structure
+    // All metadata is now in _meta at root level
   };
   /** When the item was last updated */
   updated_at?: string | Date;
