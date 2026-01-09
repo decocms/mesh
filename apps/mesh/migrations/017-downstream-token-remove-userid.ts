@@ -13,12 +13,13 @@ import { sql, type Kysely } from "kysely";
 export async function up(db: Kysely<unknown>): Promise<void> {
   // Step 1: Delete duplicate tokens, keeping only the most recently updated per connectionId
   // This handles cases where multiple users had tokens for the same connection
+  // Note: Column names must be quoted for PostgreSQL (camelCase)
   await sql`
     DELETE FROM downstream_tokens
     WHERE id NOT IN (
       SELECT id FROM (
-        SELECT id, connectionId,
-          ROW_NUMBER() OVER (PARTITION BY connectionId ORDER BY updatedAt DESC) as rn
+        SELECT id, "connectionId",
+          ROW_NUMBER() OVER (PARTITION BY "connectionId" ORDER BY "updatedAt" DESC) as rn
         FROM downstream_tokens
       ) ranked
       WHERE rn = 1
