@@ -173,7 +173,7 @@ export function ConnectionGatewaysSection({
       <div className="flex flex-col gap-1">
         <h4 className="text-sm font-medium text-foreground">Agents</h4>
         <p className="text-xs text-muted-foreground">
-          This connection is exposed via the following Agents.
+          This connection is used on the following agents.
         </p>
       </div>
       <div className="flex flex-col gap-2">
