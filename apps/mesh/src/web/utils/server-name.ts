@@ -1,9 +1,9 @@
 /**
- * Utilities for extracting and formatting MCP app names
+ * Utilities for extracting and formatting MCP Server names
  */
 
 /**
- * Extracts the display name from an app name in reverse domain format.
+ * Extracts the display name from an MCP Server name in reverse domain format.
  *
  * Examples:
  * - "ai.zine/mcp" -> "zine"
@@ -11,7 +11,7 @@
  * - "simple-name" -> "simple-name"
  * - "io.modelcontextprotocol.registry/github" -> "github"
  *
- * @param fullName - The full app name (may be in domain/app format)
+ * @param fullName - The full MCP Server name (may be in domain/server format)
  * @returns The formatted name for display
  */
 export function extractDisplayNameFromDomain(fullName: string): string {
@@ -22,10 +22,10 @@ export function extractDisplayNameFromDomain(fullName: string): string {
 
   const parts = fullName.split("/");
   const domain = parts[0];
-  const appName = parts[1];
+  const serverName = parts[1];
 
   // If unable to extract parts, return original
-  if (!domain || !appName) {
+  if (!domain || !serverName) {
     return fullName;
   }
 
@@ -34,21 +34,21 @@ export function extractDisplayNameFromDomain(fullName: string): string {
     const domainParts = domain.split(".");
     const lastDomainPart = domainParts[domainParts.length - 1] || domain;
 
-    // Remove common suffixes like "mcp" or "mcp-server" from appName
-    const cleanAppName = appName
+    // Remove common suffixes like "mcp" or "mcp-server" from serverName
+    const cleanServerName = serverName
       .replace(/^mcp-?/, "")
       .replace(/-?mcp$/, "")
       .replace(/^server-?/, "")
       .replace(/-?server$/, "");
 
-    // If after cleaning the appName is empty or too short, use the last domain part
-    if (!cleanAppName || cleanAppName.length < 2) {
+    // If after cleaning the serverName is empty or too short, use the last domain part
+    if (!cleanServerName || cleanServerName.length < 2) {
       return lastDomainPart;
     }
 
-    return cleanAppName;
+    return cleanServerName;
   }
 
-  // If domain has no dots, return appName
-  return appName;
+  // If domain has no dots, return serverName
+  return serverName;
 }

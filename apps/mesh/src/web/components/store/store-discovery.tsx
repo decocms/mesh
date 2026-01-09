@@ -42,11 +42,7 @@ function filterItemsBySearch(
  * Check if an item is verified
  */
 function isItemVerified(item: RegistryItem): boolean {
-  return (
-    item.verified === true ||
-    item._meta?.["mcp.mesh"]?.verified === true ||
-    item.server._meta?.["mcp.mesh"]?.verified === true
-  );
+  return item.verified === true || item._meta?.["mcp.mesh"]?.verified === true;
 }
 
 /**
@@ -106,14 +102,14 @@ function StoreDiscoveryContent({
   );
 
   const handleItemClick = (item: RegistryItem) => {
-    const appNameSlug = slugify(
+    const serverSlug = slugify(
       item.name || item.title || item.server.title || "",
     );
     const serverName = item.server.name;
 
     navigate({
       to: "/$org/store/$appName",
-      params: { org: org.slug, appName: appNameSlug },
+      params: { org: org.slug, appName: serverSlug },
       search: {
         registryId,
         serverName,

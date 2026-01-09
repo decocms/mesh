@@ -78,7 +78,7 @@ function extractFieldName(childId: string): string {
 }
 
 /**
- * Check if a binding schema value represents an app name that needs dynamic resolution.
+ * Check if a binding schema value represents an MCP Server name that needs dynamic resolution.
  * @example "@deco/database" -> true, "deco/database" -> true, [{name: "TOOL"}] -> false
  */
 function isDynamicBindingSchema(

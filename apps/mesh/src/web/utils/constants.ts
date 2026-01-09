@@ -3,8 +3,6 @@ import { z } from "zod";
 
 export const MCP_REGISTRY_DECOCMS_KEY = "mcp.mesh";
 
-export const MCP_REGISTRY_PUBLISHER_KEY = "mcp.mesh/publisher-provided";
-
 export type JsonSchema = {
   type?: string;
   properties?: Record<string, JsonSchema>;

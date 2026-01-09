@@ -38,13 +38,13 @@ interface UseInstallFromRegistryResult {
 }
 
 /**
- * Normalize app name format, ensuring @ prefix is present
+ * Normalize MCP Server name format, ensuring @ prefix is present
  * @example
  * - "@deco/database" -> "@deco/database" (unchanged)
  * - "deco/database" -> "@deco/database" (adds @)
  */
-function parseAppName(appName: string): string {
-  return appName.startsWith("@") ? appName : `@${appName}`;
+function parseServerName(serverName: string): string {
+  return serverName.startsWith("@") ? serverName : `@${serverName}`;
 }
 
 /**
@@ -60,7 +60,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
 
-  // Installation function - queries registries directly with appName filter
+  // Installation function - queries registries directly with MCP Server name filter
   const installByBinding = async (
     bindingType: string,
   ): Promise<InstallResult | undefined> => {
@@ -69,9 +69,9 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
       return undefined;
     }
 
-    const parsedAppName = parseAppName(bindingType);
+    const parsedServerName = parseServerName(bindingType);
 
-    // Query all registries in parallel to find the app
+    // Query all registries in parallel to find the MCP Server
     const results = await Promise.all(
       registryConnections.map(async (registryConnection) => {
         const listToolName = findListToolName(registryConnection.tools);
@@ -80,7 +80,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
         const toolCaller = createToolCaller(registryConnection.id);
         try {
           const result = await toolCaller(listToolName, {
-            where: { appName: parsedAppName },
+            where: { appName: parsedServerName },
           });
           const items = extractItemsFromResponse<RegistryItem>(result ?? []);
           return items[0] ?? null;
