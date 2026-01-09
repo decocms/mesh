@@ -9,7 +9,7 @@ import {
   Home02,
   Settings01,
   Users01,
-  Zap
+  Zap,
 } from "@untitledui/icons";
 import { pluginRootSidebarItems } from "../index.tsx";
 

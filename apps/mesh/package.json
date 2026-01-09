@@ -50,6 +50,7 @@
     "@deco/ui": "workspace:*",
     "@decocms/better-auth": "1.5.17",
     "@decocms/bindings": "workspace:*",
+    "@decocms/mesh-sdk": "workspace:*",
     "@decocms/runtime": "workspace:*",
     "@decocms/vite-plugin": "workspace:*",
     "@hookform/resolvers": "^5.2.2",

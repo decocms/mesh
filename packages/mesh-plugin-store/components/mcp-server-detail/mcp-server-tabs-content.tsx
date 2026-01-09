@@ -1,9 +1,12 @@
-import { EmptyState } from "@/web/components/empty-state";
-import { ReadmeViewer } from "@/web/components/store/readme-viewer";
+import { ReadmeViewer } from "@deco/ui/components/readme-viewer.tsx";
 import { Loading01 } from "@untitledui/icons";
-import { ToolsList, type Tool } from "@/web/components/tools";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import type { MCPServerData, TabItem } from "./types";
+
+interface Tool {
+  name: string;
+  description?: string;
+}
 
 interface MCPServerTabsContentProps {
   data: MCPServerData;
@@ -55,17 +58,24 @@ export function MCPServerTabsContent({
               </span>
             </div>
           ) : effectiveTools.length > 0 ? (
-            <ToolsList
-              tools={tools}
-              showToolbar={false}
-              emptyMessage="This MCP Server doesn't have any tools."
-            />
+            <div className="divide-y divide-border">
+              {tools.map((tool) => (
+                <div key={tool.name} className="px-4 py-3">
+                  <div className="font-medium text-sm">{tool.name}</div>
+                  {tool.description && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {tool.description}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
-            <EmptyState
-              image={null}
-              title="No tools available"
-              description="This MCP Server doesn't have any tools."
-            />
+            <div className="flex flex-col items-center justify-center p-8 text-center">
+              <p className="text-muted-foreground text-sm">
+                This MCP Server doesn't have any tools.
+              </p>
+            </div>
           )}
         </div>
       )}
