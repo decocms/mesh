@@ -28,7 +28,7 @@ O Mesh centraliza isso uma vez, para você operar MCP como qualquer outra superf
 │ MCP Clients       │   │ MCP Mesh (Proxy) │   │ Downstream MCPs     │
 │ - Cursor          │──▶│ - AuthN/AuthZ    │──▶│ - Slack / Gmail     │
 │ - Claude Desktop  │   │ - Vault          │   │ - Notion / Stripe   │
-│ - Custom agents   │   │ - Gateways       │   │ - Seus MCP servers  │
+│ - Custom agents   │   │ - Agents         │   │ - Seus MCP servers  │
 └───────────────────┘   │ - Monitoring     │   └────────────────────┘
                         └──────────────────┘
 ```
@@ -36,9 +36,9 @@ O Mesh centraliza isso uma vez, para você operar MCP como qualquer outra superf
 ## O que o Mesh centraliza
 
 - **Roteamento + execução**: qual MCP chamar e como autenticar
-- **Policy enforcement**: quem pode acessar quais tools (e via quais gateways)
+- **Policy enforcement**: quem pode acessar quais tools (e via quais agents)
 - **Observabilidade**: logs, latência, erros e contexto de requisição
-- **Runtime strategies (gateways)**: diferentes estratégias de exposição de tools conforme a superfície cresce
+- **Runtime strategies (agents)**: diferentes estratégias de exposição de tools conforme a superfície cresce
 
 ## Superfícies do produto (o que dá para fazer hoje)
 

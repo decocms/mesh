@@ -86,9 +86,9 @@ function OrgGatewaysContent() {
 
     // Auto-create gateway with all connections
     const result = await actions.create.mutateAsync({
-      title: "New Hub",
+      title: "New Agent",
       description:
-        "Hubs let you securely expose integrated tools to the outside world.",
+        "Agents let you securely expose integrated tools to the outside world.",
       status: "active",
       tool_selection_strategy: "passthrough",
       tool_selection_mode: "inclusion",
@@ -238,7 +238,7 @@ function OrgGatewaysContent() {
       className="h-7 px-3 rounded-lg text-sm font-medium"
       disabled={actions.create.isPending}
     >
-      {actions.create.isPending ? "Creating..." : "Create Hub"}
+      {actions.create.isPending ? "Creating..." : "Create Agent"}
     </Button>
   );
 
@@ -251,7 +251,7 @@ function OrgGatewaysContent() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Hub?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Agent?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete{" "}
               <span className="font-medium text-foreground">
@@ -274,7 +274,7 @@ function OrgGatewaysContent() {
 
       {/* Collection Header */}
       <CollectionHeader
-        title="Hubs"
+        title="Agents"
         viewMode={listState.viewMode}
         onViewModeChange={listState.setViewMode}
         sortKey={listState.sortKey}
@@ -292,7 +292,7 @@ function OrgGatewaysContent() {
       <CollectionSearch
         value={listState.search}
         onChange={listState.setSearch}
-        placeholder="Search for a hub..."
+        placeholder="Search for an agent..."
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             listState.setSearch("");
@@ -307,11 +307,11 @@ function OrgGatewaysContent() {
           {gateways.length === 0 ? (
             <EmptyState
               image={<CpuChip02 size={36} className="text-muted-foreground" />}
-              title={listState.search ? "No hubs found" : "No hubs yet"}
+              title={listState.search ? "No agents found" : "No agents yet"}
               description={
                 listState.search
-                  ? `No hubs match "${listState.search}"`
-                  : "Create a hub to aggregate tools from multiple Connections."
+                  ? `No agents match "${listState.search}"`
+                  : "Create an agent to aggregate tools from multiple Connections."
               }
             />
           ) : (
@@ -416,16 +416,16 @@ function OrgGatewaysContent() {
                 image={
                   <CpuChip02 size={36} className="text-muted-foreground" />
                 }
-                title="No hubs found"
-                description={`No hubs match "${listState.search}"`}
+                title="No agents found"
+                description={`No agents match "${listState.search}"`}
               />
             ) : (
               <EmptyState
                 image={
                   <CpuChip02 size={36} className="text-muted-foreground" />
                 }
-                title="No hubs yet"
-                description="Create a hub to aggregate tools from multiple Connections."
+                title="No agents yet"
+                description="Create an agent to aggregate tools from multiple Connections."
               />
             )
           }

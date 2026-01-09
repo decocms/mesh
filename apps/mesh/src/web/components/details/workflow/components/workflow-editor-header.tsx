@@ -89,7 +89,7 @@ export function WorkflowEditorHeader({
                 selectedGatewayId={selectedGatewayId ?? undefined}
                 onGatewayChange={setSelectedGatewayId}
                 variant="bordered"
-                placeholder="Select Hub"
+                placeholder="Select Agent"
               />
             </Suspense>
 
@@ -217,7 +217,7 @@ function RunWorkflowButton() {
     if (isExecutionCancelled) return "Workflow is currently cancelled";
     if (isRunning) return "Workflow is currently running";
     if (isDirty) return "Save your changes before running";
-    if (hasNoGateway) return "Select a Hub first";
+    if (hasNoGateway) return "Select an Agent first";
     if (hasEmptySteps) return "Add at least one step to the workflow";
     return null;
   };
