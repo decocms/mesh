@@ -1,42 +1,49 @@
 import * as z from "zod";
-import type { AnyPlugin, Plugin } from "@decocms/bindings/plugins";
+import type { AnyPlugin } from "@decocms/bindings/plugins";
+import { createPluginRouter } from "@decocms/bindings/plugins";
 import { Building02 } from "@untitledui/icons";
-import { Route } from "@tanstack/react-router";
+import type { Route } from "@tanstack/react-router";
 
+export const storeRouter = createPluginRouter((ctx) => {
+  const indexRoute = ctx.routing.createRoute({
+    getParentRoute: () => ctx.parentRoute,
+    path: "/",
+    component: ctx.routing.lazyRouteComponent(
+      () => import("./routes/page.tsx"),
+    ),
+  });
+
+  const detailRoute = ctx.routing.createRoute({
+    getParentRoute: () => ctx.parentRoute,
+    path: "/$appName",
+    component: ctx.routing.lazyRouteComponent(
+      () => import("./routes/mcp-server-detail.tsx"),
+    ),
+    validateSearch: z.object({
+      registryId: z.string().optional(),
+      serverName: z.string().optional(),
+      itemId: z.string().optional(),
+    }),
+  });
+
+  // Return array of sibling routes
+  return [indexRoute, detailRoute];
+});
+
+/**
+ * Store plugin definition.
+ */
 export const storePlugin: AnyPlugin = {
   id: "store",
   binding: [],
   setup: (ctx) => {
-    const orgStoreRoute = ctx.routing.createRoute({
-      getParentRoute: () => ctx.parentRoute,
-      path: "/",
-      component: ctx.routing.lazyRouteComponent(() => import("./routes/page.tsx")),
-    });
-
-    const storeServerDetailRoute = ctx.routing.createRoute({
-      getParentRoute: () => orgStoreRoute,
-      path: "/$appName",
-      component: ctx.routing.lazyRouteComponent(
-        () => import("./routes/mcp-server-detail.tsx"),
-      ),
-      validateSearch: z.lazy(() =>
-        z.object({
-          registryId: z.string().optional(),
-          serverName: z.string().optional(),
-          itemId: z.string().optional(),
-        }),
-      ),
-    });
-
-    const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
-      storeServerDetailRoute,
-    ]);
+    const routes = storeRouter.createRoutes(ctx);
 
     ctx.registerRootSidebarItem({
       icon: <Building02 />,
       label: "Store",
     });
 
-    ctx.registerRootPluginRoute(orgStoreRouteWithChildren as unknown as Route);
+    ctx.registerPluginRoutes(routes as unknown as Route[]);
   },
 };

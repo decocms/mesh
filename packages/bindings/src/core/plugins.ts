@@ -1,8 +1,6 @@
 import { createRoute, lazyRouteComponent, Route } from "@tanstack/react-router";
 import { Binder } from "./binder";
 import type { ReactNode } from "react";
-import { Tool } from "@modelcontextprotocol/sdk/types";
-import { MCPConnection } from "./connection";
 
 export interface ToolViewItem {
   toolName: string;
@@ -26,7 +24,7 @@ export interface PluginSetupContext {
     lazyRouteComponent: typeof lazyRouteComponent;
   };
   registerRootSidebarItem: (params: RegisterRootSidebarItemParams) => void;
-  registerRootPluginRoute: (route: Route) => void;
+  registerPluginRoutes: (route: Route[]) => void;
 }
 
 export type PluginSetup = (context: PluginSetupContext) => void;
@@ -38,3 +36,13 @@ export interface Plugin<TBinding extends Binder> {
 }
 
 export type AnyPlugin = Plugin<any>;
+
+// Re-export plugin router utilities
+export {
+  createPluginRouter,
+  type PluginRouteIds,
+  type PluginRoutes,
+  type AnyRoute,
+  type RouteIds,
+  type RouteById,
+} from "./plugin-router";
