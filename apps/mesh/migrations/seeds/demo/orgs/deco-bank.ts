@@ -5,7 +5,8 @@
  * - 12 users across multiple departments
  * - 24 connections (3 well-known + verified MCPs from Deco Store)
  * - 6 gateways (Default Hub + 5 specialized)
- * - ~1M synthetic + static monitoring logs (200k in last 24h, 800k in last 30 days)
+ * - ~1M synthetic + static monitoring logs maximally distributed across 30 days
+ *   with smooth 24/7 activity (60% business hours 7am-10pm, 40% off-hours)
  */
 
 import type { Kysely } from "kysely";
@@ -721,25 +722,33 @@ function generateSyntheticLogs(targetCount: number): MonitoringLog[] {
     const userEntry = weightedRandom(userWeights);
     const isError = Math.random() < 0.08;
 
-    // Generate timestamp distributed over last 30 days (20% last 24h, 30% days 1-3, 25% days 3-7, 25% days 7-30)
-    const r = Math.random();
-    let randomOffset: number;
+    // Generate timestamp with maximum spread over 30 days
+    // Completely uniform distribution with smooth variations
+    const dayOffset = Math.random() * 30; // 0 to 30 days ago
 
-    if (r < 0.2) {
-      // Last 24h: 0 to 1 day ago
-      randomOffset = Math.random() * TIME.DAY;
-    } else if (r < 0.5) {
-      // Days 1-3: between 1 and 3 days ago
-      randomOffset = TIME.DAY + Math.random() * 2 * TIME.DAY;
-    } else if (r < 0.75) {
-      // Days 3-7: between 3 and 7 days ago
-      randomOffset = 3 * TIME.DAY + Math.random() * 4 * TIME.DAY;
+    // Add hour variation across full 24h period
+    // Mix of concentrated business hours (60%) and off-hours (40%)
+    let hourOffset: number;
+    if (Math.random() < 0.6) {
+      // Business hours: 7am to 10pm (15 hours)
+      hourOffset = 7 + Math.random() * 15;
     } else {
-      // Days 7-30: between 7 and 30 days ago
-      randomOffset = 7 * TIME.DAY + Math.random() * 23 * TIME.DAY;
+      // Off hours: 10pm to 7am (9 hours)
+      const offHour = Math.random() * 9;
+      hourOffset = offHour < 5 ? 22 + offHour : offHour - 5; // 22-24 or 0-7
     }
 
-    // Calculate total offset as negative milliseconds from now
+    // Add minute/second noise for maximum distribution
+    const minuteOffset = Math.random() * 60;
+    const secondOffset = Math.random() * 60;
+
+    // Calculate total offset in milliseconds
+    const randomOffset =
+      dayOffset * TIME.DAY +
+      hourOffset * TIME.HOUR +
+      minuteOffset * TIME.MINUTE +
+      secondOffset * 1000;
+
     const totalOffsetMs = -randomOffset;
 
     const duration =
