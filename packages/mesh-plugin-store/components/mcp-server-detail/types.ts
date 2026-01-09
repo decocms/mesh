@@ -1,4 +1,8 @@
-import type { RegistryItem } from "@/web/components/store/types";
+/**
+ * MCP Server Detail Types
+ */
+
+import type { RegistryItem } from "../../types";
 
 export interface MCPServerData {
   name: string;

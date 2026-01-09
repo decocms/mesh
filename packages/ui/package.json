@@ -13,6 +13,7 @@
     "./types/*": "./src/types/*"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.80.3",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-aspect-ratio": "^1.1.2",
@@ -46,6 +47,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^3.0.0",
     "embla-carousel-react": "^8.5.2",
+    "github-markdown-css": "^5.8.1",
     "input-otp": "^1.4.2",
     "marked": "^15.0.6",
     "next-themes": "^0.4.6",

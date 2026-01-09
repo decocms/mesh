@@ -1,10 +1,8 @@
-import type { ConnectionCreateData } from "@/tools/connection/schema";
-import { useConnectionActions } from "@/web/hooks/collections/use-connection";
-import { authClient } from "@/web/lib/auth-client";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import type { ConnectionCreateData } from "@decocms/mesh-sdk";
+import { useConnectionActions, useProjectContext } from "@decocms/mesh-sdk";
+import { usePluginContext } from "@decocms/bindings";
 import { Button } from "@deco/ui/components/button.tsx";
-import { EmptyState } from "@/web/components/empty-state";
-import { useNavigate } from "@tanstack/react-router";
+import { EmptyState } from "./empty-state";
 import { useState } from "react";
 
 interface StoreRegistryEmptyStateProps {
@@ -20,8 +18,8 @@ export function StoreRegistryEmptyState({
   const {
     org: { slug: orgSlug },
   } = useProjectContext();
-  const { data: session } = authClient.useSession();
-  const navigate = useNavigate();
+  // Use partial mode since empty state has no valid connection
+  const { session } = usePluginContext({ partial: true });
   const [isInstalling, setIsInstalling] = useState(false);
 
   const firstRegistry = registries[0];
@@ -39,11 +37,8 @@ export function StoreRegistryEmptyState({
   };
 
   const handleInstallMcpServer = () => {
-    navigate({
-      to: "/$org/mcps",
-      params: { org: orgSlug },
-      search: { action: "create" },
-    });
+    // Navigate outside plugin to connections page
+    window.location.href = `/${orgSlug}/mcps?action=create`;
   };
 
   return (

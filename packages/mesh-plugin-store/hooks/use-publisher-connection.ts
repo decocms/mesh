@@ -1,19 +1,23 @@
-import type { ConnectionEntity } from "../../tools/connection/schema";
-
 /**
  * Hook to find a connection that represents a publisher
  *
  * Searches through connections to find one that corresponds to the publisher
  * by matching against app_name, app_id, or title.
  *
- * @param connections - Array of available connections
- * @param publisherName - Name of the publisher to search for
- * @returns The matching connection if found, undefined otherwise
+ * Used in the detail page to show the publisher's icon.
  */
-export function usePublisherConnection(
-  connections: ConnectionEntity[] | undefined,
+
+interface ConnectionLike {
+  app_name: string | null;
+  app_id: string | null;
+  title: string;
+  icon: string | null;
+}
+
+export function usePublisherConnection<T extends ConnectionLike>(
+  connections: T[] | undefined,
   publisherName: string | undefined,
-): ConnectionEntity | undefined {
+): T | undefined {
   if (!connections || !publisherName) return undefined;
 
   const publisherLower = publisherName.toLowerCase();

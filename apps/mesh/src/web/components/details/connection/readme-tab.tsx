@@ -1,4 +1,4 @@
-import { ReadmeViewer } from "@/web/components/store/readme-viewer";
+import { ReadmeViewer } from "@deco/ui/components/readme-viewer.tsx";
 
 interface ReadmeTabProps {
   repository: {

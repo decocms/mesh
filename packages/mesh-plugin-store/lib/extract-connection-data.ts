@@ -1,17 +1,17 @@
 /**
  * Utility to extract connection data from a registry item for installation.
- * Shared between store server detail and inline installation flows.
  */
 
-import type { OAuthConfig } from "@/tools/connection/schema";
-import type {
-  RegistryItem,
-  MCPRegistryServer,
-} from "@/web/components/store/types";
-import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
-import { getGitHubAvatarUrl } from "@deco/ui/lib/github.ts";
-import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
-import { generatePrefixedId } from "@/shared/utils/generate-id";
+import type { OAuthConfig } from "@decocms/mesh-sdk";
+import type { RegistryItem, MCPRegistryServer } from "../types";
+import { getGitHubAvatarUrl, getConnectionTypeLabel } from "./utils";
+import { nanoid } from "nanoid";
+
+export const MCP_REGISTRY_MESH_KEY = "mcp.mesh";
+
+function generatePrefixedId(prefix: string) {
+  return `${prefix}_${nanoid()}`;
+}
 
 /**
  * Extract connection data from a registry item for installation
@@ -23,7 +23,7 @@ export function extractConnectionData(
 ) {
   const server = item.server as MCPRegistryServer["server"] | undefined;
 
-  const meshMeta = item._meta?.[MCP_REGISTRY_DECOCMS_KEY];
+  const meshMeta = item._meta?.[MCP_REGISTRY_MESH_KEY];
 
   const remote = server?.remotes?.[0];
 

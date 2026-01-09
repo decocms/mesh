@@ -1,5 +1,5 @@
-import type { RegistryItem } from "@/web/components/store/types";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import type { RegistryItem } from "../../types";
+import { IntegrationIcon } from "../integration-icon";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Plus, ChevronDown, CheckCircle } from "@untitledui/icons";
 import {

@@ -1,4 +1,4 @@
-import type { ConnectionCreateData } from "@/tools/connection/schema";
+import type { ConnectionCreateData } from "@decocms/mesh-sdk";
 import {
   Select,
   SelectContent,

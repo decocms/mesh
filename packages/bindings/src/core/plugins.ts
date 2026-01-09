@@ -1,4 +1,8 @@
-import { createRoute, lazyRouteComponent, Route } from "@tanstack/react-router";
+import {
+  createRoute,
+  lazyRouteComponent,
+  type AnyRoute,
+} from "@tanstack/react-router";
 import { Binder } from "./binder";
 import type { ReactNode } from "react";
 
@@ -18,13 +22,13 @@ export interface RegisterEmptyStateParams {
 }
 
 export interface PluginSetupContext {
-  parentRoute: Route;
+  parentRoute: AnyRoute;
   routing: {
     createRoute: typeof createRoute;
     lazyRouteComponent: typeof lazyRouteComponent;
   };
   registerRootSidebarItem: (params: RegisterRootSidebarItemParams) => void;
-  registerPluginRoutes: (route: Route[]) => void;
+  registerPluginRoutes: (route: AnyRoute[]) => void;
 }
 
 export type PluginSetup = (context: PluginSetupContext) => void;
@@ -33,6 +37,11 @@ export interface Plugin<TBinding extends Binder> {
   id: string;
   binding: TBinding;
   setup: PluginSetup;
+  /**
+   * Optional custom layout component for this plugin.
+   * If not provided, a default layout with connection selector will be used.
+   */
+  LayoutComponent?: React.ComponentType;
 }
 
 export type AnyPlugin = Plugin<any>;

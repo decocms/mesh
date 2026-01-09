@@ -5,18 +5,9 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { CheckVerified02, Lock01 } from "@untitledui/icons";
 import { Card } from "@deco/ui/components/card.js";
-import { IntegrationIcon } from "../integration-icon.tsx";
-import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
-import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
-import type { RegistryItem } from "./types";
-
-// Re-export types for backwards compatibility
-export type {
-  MCPRegistryServer,
-  MCPRegistryServerIcon,
-  MCPRegistryServerMeta,
-  RegistryItem,
-} from "./types";
+import { IntegrationIcon } from "./integration-icon";
+import { getGitHubAvatarUrl, extractDisplayNameFromDomain } from "../lib/utils";
+import type { RegistryItem } from "../types";
 
 /**
  * Props for MCPServerCard - receives processed data

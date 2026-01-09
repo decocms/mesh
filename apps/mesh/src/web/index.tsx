@@ -7,8 +7,8 @@ import {
   createRouter,
   lazyRouteComponent,
   Outlet,
-  Route,
   RouterProvider,
+  type AnyRoute,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { SplashScreen } from "@/web/components/splash-screen";
@@ -204,10 +204,16 @@ const oauthCallbackRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
 });
 
+/**
+ * Dynamic plugin layout route.
+ * Uses $pluginId param to determine which plugin layout to render.
+ */
 const pluginLayoutRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/$pluginId",
-  component: Outlet,
+  component: lazyRouteComponent(
+    () => import("./layouts/dynamic-plugin-layout.tsx"),
+  ),
 });
 
 /**
@@ -218,25 +224,28 @@ export const pluginRootSidebarItems: {
   icon: React.ReactNode;
   label: string;
 }[] = [];
-const pluginLayoutRoutes: Route[] = [];
+
+const pluginRoutes: AnyRoute[] = [];
 
 export const plugins = sourcePlugins.forEach((plugin: AnyPlugin) => {
   const context: PluginSetupContext = {
-    parentRoute: pluginLayoutRoute as unknown as Route,
+    parentRoute: pluginLayoutRoute as AnyRoute,
     routing: {
       createRoute: createRoute,
       lazyRouteComponent: lazyRouteComponent,
     },
     registerRootSidebarItem: (item) =>
       pluginRootSidebarItems.push({ pluginId: plugin.id, ...item }),
-    registerPluginRoutes: (routes) => pluginLayoutRoutes.push(...routes),
+    registerPluginRoutes: (routes) => {
+      pluginRoutes.push(...routes);
+    },
   };
 
   plugin.setup(context);
 });
 
-const pluginLayoutWithChildren =
-  pluginLayoutRoute.addChildren(pluginLayoutRoutes);
+// Add all plugin routes as children of the plugin layout
+const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,

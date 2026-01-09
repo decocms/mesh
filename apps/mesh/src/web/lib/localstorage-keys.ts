@@ -22,4 +22,6 @@ export const LOCALSTORAGE_KEYS = {
   gatewaySystemPrompts: (locator: ProjectLocator) =>
     `mesh:gateway:system-prompts:${locator}`,
   developerMode: () => `mesh:user:developer-mode`,
+  pluginConnection: (org: string, pluginId: string) =>
+    `mesh:plugin:connection:${org}:${pluginId}`,
 } as const;

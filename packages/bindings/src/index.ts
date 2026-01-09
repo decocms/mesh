@@ -8,11 +8,31 @@
 // Re-export core binder types and utilities
 export {
   createBindingChecker,
+  bindingClient,
+  connectionImplementsBinding,
   type Binder,
   type BindingChecker,
   type ToolBinder,
   type ToolWithSchemas,
+  type ConnectionForBinding,
 } from "./core/binder";
+
+// Re-export plugin context types and provider
+export {
+  type PluginContext,
+  type PluginContextPartial,
+  type PluginConnectionEntity,
+  type PluginOrgContext,
+  type PluginSession,
+  type TypedToolCaller,
+} from "./core/plugin-context";
+
+export {
+  PluginContextProvider,
+  usePluginContext,
+  type PluginContextProviderProps,
+  type UsePluginContextOptions,
+} from "./core/plugin-context-provider";
 
 // Re-export registry binding types
 export {
