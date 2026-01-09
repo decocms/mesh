@@ -14,18 +14,53 @@ import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
+ * Get a display name for a remote endpoint
+ * Tries to extract a meaningful name from the URL path
+ */
+export function getRemoteDisplayName(remote?: { url?: string }): string {
+  if (!remote?.url) return "Unknown";
+
+  try {
+    const url = new URL(remote.url);
+    // Get the last meaningful path segment
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+    const lastSegment = pathSegments.at(-1);
+    if (lastSegment) {
+      // Capitalize and clean up
+      return lastSegment
+        .replace(/[-_]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+    // Fallback to hostname
+    return url.hostname;
+  } catch {
+    return remote.url;
+  }
+}
+
+/**
+ * Options for extracting connection data
+ */
+export interface ExtractConnectionDataOptions {
+  /** Index of the remote to use (default: 0) */
+  remoteIndex?: number;
+}
+
+/**
  * Extract connection data from a registry item for installation
  */
 export function extractConnectionData(
   item: RegistryItem,
   organizationId: string,
   userId: string,
+  options?: ExtractConnectionDataOptions,
 ) {
   const server = item.server as MCPRegistryServer["server"] | undefined;
 
   const meshMeta = item._meta?.[MCP_REGISTRY_DECOCMS_KEY];
 
-  const remote = server?.remotes?.[0];
+  const remoteIndex = options?.remoteIndex ?? 0;
+  const remote = server?.remotes?.[remoteIndex];
 
   const connectionType = (getConnectionTypeLabel(remote?.type) || "HTTP") as
     | "HTTP"
@@ -34,13 +69,21 @@ export function extractConnectionData(
 
   const now = new Date().toISOString();
 
-  const title =
+  const baseName =
     meshMeta?.friendlyName ||
     meshMeta?.friendly_name ||
     item.title ||
     server?.title ||
     server?.name ||
     "Unnamed MCP Server";
+
+  // If there are multiple remotes, append the remote name/URL to differentiate
+  const remotes = server?.remotes ?? [];
+  const hasMultipleRemotes = remotes.length > 1;
+  const remoteSuffix = hasMultipleRemotes
+    ? ` (${getRemoteDisplayName(remote)})`
+    : "";
+  const title = baseName + remoteSuffix;
 
   const description = server?.description || null;
 
