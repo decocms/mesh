@@ -62,21 +62,7 @@ export function MCPServerDetailSidebar({
                 : data.publisher.charAt(0).toUpperCase() +
                   data.publisher.slice(1)}
             </div>
-            <div className="text-xs text-muted-foreground flex items-center gap-1">
-              {publisherInfo.count > 0 ? (
-                <>
-                  <img src="/globe.svg" alt="globe" className="w-3 h-3" />
-                  <span>
-                    {publisherInfo.count}{" "}
-                    {publisherInfo.count === 1
-                      ? "published server"
-                      : "published servers"}
-                  </span>
-                </>
-              ) : (
-                "Publisher"
-              )}
-            </div>
+            <div className="text-xs text-muted-foreground">Publisher</div>
           </div>
         </div>
       </div>

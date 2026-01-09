@@ -6,6 +6,7 @@ import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -36,7 +37,24 @@ function ConnectionFields({
   connection: ConnectionEntity;
 }) {
   const uiType = useWatch({ control: form.control, name: "ui_type" });
+  const connectionUrl = useWatch({
+    control: form.control,
+    name: "connection_url",
+  });
   const { stdioEnabled } = useAuthConfig();
+
+  const isGitHubCopilotMcp = (() => {
+    if (typeof connectionUrl !== "string" || !connectionUrl) return false;
+    try {
+      const url = new URL(connectionUrl);
+      return (
+        url.hostname === "api.githubcopilot.com" &&
+        url.pathname.replace(/\/+$/, "") === "/mcp"
+      );
+    } catch {
+      return false;
+    }
+  })();
 
   // Show STDIO options if:
   // 1. STDIO is enabled globally, OR
@@ -249,20 +267,43 @@ function ConnectionFields({
             name="connection_token"
             render={({ field }) => (
               <FormItem className="flex flex-col gap-2">
-                <FormLabel className="text-sm font-medium">Token</FormLabel>
+                <FormLabel className="text-sm font-medium">
+                  {isGitHubCopilotMcp
+                    ? "GitHub Personal Access Token"
+                    : "Token"}
+                </FormLabel>
                 <FormControl>
                   <Input
                     type="password"
                     placeholder={
                       connection.connection_token
                         ? "••••••••"
-                        : "Enter access token..."
+                        : isGitHubCopilotMcp
+                          ? "Paste your GitHub PAT (no 'Bearer' prefix)"
+                          : "Enter access token..."
                     }
                     {...field}
                     value={field.value || ""}
                     className="h-10 rounded-lg"
                   />
                 </FormControl>
+                {isGitHubCopilotMcp && (
+                  <FormDescription>
+                    (!) GitHub’s hosted MCP at{" "}
+                    <code>api.githubcopilot.com/mcp</code> currently requires a
+                    Personal Access Token (PAT). Create one at{" "}
+                    <a
+                      href="https://github.com/settings/personal-access-tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
+                      github.com/settings/personal-access-tokens
+                    </a>
+                    . Mesh will send it as{" "}
+                    <code>Authorization: Bearer &lt;PAT&gt;</code>.
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}

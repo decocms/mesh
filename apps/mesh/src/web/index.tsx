@@ -106,6 +106,7 @@ const orgMonitoringRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
+      tab: z.enum(["logs", "analytics"]).default("logs"),
       from: z.string().default("now-24h"),
       to: z.string().default("now"),
       connectionId: z.array(z.string()).optional().default([]),
@@ -118,12 +119,6 @@ const orgMonitoringRoute = createRoute({
       propertyFilters: z.string().default(""),
     }),
   ),
-});
-
-const orgWorkflowRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/workflow",
-  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
 const connectionLayoutRoute = createRoute({
@@ -176,6 +171,12 @@ const gatewayDetailRoute = createRoute({
   ),
 });
 
+const orgWorkflowRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/workflows",
+  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
+});
+
 const oauthCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/oauth/callback",
@@ -224,8 +225,8 @@ const shellRouteTree = shellLayout.addChildren([
   orgGatewaysRoute,
   gatewayDetailRoute,
   orgMonitoringRoute,
-  orgWorkflowRoute,
   orgSettingsRoute,
+  orgWorkflowRoute,
   connectionLayoutRoute,
   collectionDetailsRoute,
   pluginLayoutWithChildren,

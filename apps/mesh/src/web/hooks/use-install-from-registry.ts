@@ -12,13 +12,9 @@ import {
   useConnections,
 } from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
-import { useToolCall } from "@/web/hooks/use-tool-call";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import {
-  extractConnectionData,
-  findRegistryItemByBinding,
-} from "@/web/utils/extract-connection-data";
+import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import {
   findListToolName,
   extractItemsFromResponse,
@@ -39,10 +35,16 @@ interface UseInstallFromRegistryResult {
    * Whether an installation is in progress
    */
   isInstalling: boolean;
-  /**
-   * Registry items (for debugging/display)
-   */
-  registryItems: RegistryItem[];
+}
+
+/**
+ * Normalize MCP Server name format, ensuring @ prefix is present
+ * @example
+ * - "@deco/database" -> "@deco/database" (unchanged)
+ * - "deco/database" -> "@deco/database" (adds @)
+ */
+function parseServerName(serverName: string): string {
+  return serverName.startsWith("@") ? serverName : `@${serverName}`;
 }
 
 /**
@@ -58,27 +60,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
 
-  // Use first registry connection (could be extended to search all registries)
-  const registryId = registryConnections[0]?.id || "";
-  const registryConnection = registryConnections[0];
-
-  // Find the LIST tool from the registry connection
-  const listToolName = findListToolName(registryConnection?.tools);
-
-  const toolCaller = createToolCaller(registryId || undefined);
-
-  const { data: listResults } = useToolCall<{}, unknown>({
-    toolCaller,
-    toolName: listToolName,
-    toolInputParams: {},
-    scope: registryId,
-  });
-
-  const registryItems = extractItemsFromResponse<RegistryItem>(
-    listResults ?? [],
-  );
-
-  // Installation function
+  // Installation function - queries registries directly with MCP Server name filter
   const installByBinding = async (
     bindingType: string,
   ): Promise<InstallResult | undefined> => {
@@ -87,8 +69,32 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
       return undefined;
     }
 
-    // Find the registry item matching the binding type
-    const registryItem = findRegistryItemByBinding(registryItems, bindingType);
+    const parsedServerName = parseServerName(bindingType);
+
+    // Query all registries in parallel to find the MCP Server
+    const results = await Promise.all(
+      registryConnections.map(async (registryConnection) => {
+        const listToolName = findListToolName(registryConnection.tools);
+        if (!listToolName) return null;
+
+        const toolCaller = createToolCaller(registryConnection.id);
+        try {
+          const result = await toolCaller(listToolName, {
+            where: { appName: parsedServerName },
+          });
+          const items = extractItemsFromResponse<RegistryItem>(result ?? []);
+          return items[0] ?? null;
+        } catch {
+          // Silently fail for individual registries - we'll try others
+          return null;
+        }
+      }),
+    );
+
+    // Find the first successful result
+    const registryItem = results.find(
+      (item): item is RegistryItem => item !== null,
+    );
 
     if (!registryItem) {
       toast.error(`MCP Server not found in registry: ${bindingType}`);
@@ -121,6 +127,5 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   return {
     installByBinding,
     isInstalling: actions.create.isPending,
-    registryItems,
   };
 }

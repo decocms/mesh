@@ -30,7 +30,7 @@ export interface ToolsListProps {
 
 /**
  * Shared component for displaying a list of tools with search, sort, and view modes.
- * Can be used in both connection-detail and store-app-detail pages.
+ * Can be used in both connection detail and store server detail pages.
  */
 export function ToolsList({
   tools,

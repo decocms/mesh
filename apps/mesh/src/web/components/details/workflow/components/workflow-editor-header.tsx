@@ -28,7 +28,7 @@ import {
   useWorkflowResume,
   useWorkflowStart,
 } from "../hooks";
-import { useViewModeStore, type WorkflowViewMode } from "../stores/view-mode";
+import { useViewModeStore } from "../stores/view-mode";
 import {
   useIsDirty,
   useSelectedGatewayId,
@@ -93,7 +93,7 @@ export function WorkflowEditorHeader({
               />
             </Suspense>
 
-            <ViewModeToggle<WorkflowViewMode>
+            <ViewModeToggle
               value={viewMode}
               onValueChange={setViewMode}
               size="sm"

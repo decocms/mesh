@@ -1,66 +1,75 @@
 /**
- * Top Servers Component
+ * Top Gateways Analytics Component
  *
- * Displays a horizontal bar chart of MCP servers sorted by tool calls, errors, or latency
+ * Displays a horizontal bar chart of MCP gateways sorted by tool calls, errors, or latency.
  */
 
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { Container } from "@untitledui/icons";
-import { useConnections } from "@/web/hooks/collections/use-connection";
+import { CpuChip02 } from "@untitledui/icons";
+import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { getLast24HoursDateRange } from "@/web/utils/date-range";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@deco/ui/components/toggle-group.tsx";
 import { useNavigate } from "@tanstack/react-router";
-import { HomeGridCell } from "./home-grid-cell.tsx";
-import type { MonitoringLogsWithGatewayResponse } from "@/web/components/monitoring";
+import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
+import type { MonitoringLogsWithGatewayResponse } from "./index";
 
 type MetricsMode = "requests" | "errors" | "latency";
 
-interface ServerMetric {
-  connectionId: string;
+interface GatewayMetric {
+  gatewayId: string;
   requests: number;
   errors: number;
   errorRate: number;
   avgLatencyMs: number;
 }
 
-function aggregateServerMetrics(
+function getLast24HoursDateRange() {
+  // Round to the nearest 5 minutes to avoid infinite re-suspending
+  // (otherwise millisecond changes in Date cause new query keys each render)
+  const now = Date.now();
+  const fiveMinutes = 5 * 60 * 1000;
+  const roundedNow = Math.floor(now / fiveMinutes) * fiveMinutes;
+  const endDate = new Date(roundedNow);
+  const startDate = new Date(roundedNow - 24 * 60 * 60 * 1000);
+  return {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  };
+}
+
+function aggregateGatewayMetrics(
   logs: Array<{
-    connectionId?: string | null;
+    gatewayId?: string | null;
     isError: boolean;
     durationMs: number;
   }>,
-): Map<string, ServerMetric> {
+): Map<string, GatewayMetric> {
   const metrics = new Map<
     string,
     { requests: number; errors: number; totalLatency: number }
   >();
 
   for (const log of logs) {
-    if (!log.connectionId) continue;
+    if (!log.gatewayId) continue;
 
-    const existing = metrics.get(log.connectionId) ?? {
+    const existing = metrics.get(log.gatewayId) ?? {
       requests: 0,
       errors: 0,
       totalLatency: 0,
     };
 
-    metrics.set(log.connectionId, {
+    metrics.set(log.gatewayId, {
       requests: existing.requests + 1,
       errors: existing.errors + (log.isError ? 1 : 0),
       totalLatency: existing.totalLatency + log.durationMs,
     });
   }
 
-  const result = new Map<string, ServerMetric>();
-  for (const [connectionId, data] of metrics) {
-    result.set(connectionId, {
-      connectionId,
+  const result = new Map<string, GatewayMetric>();
+  for (const [gatewayId, data] of metrics) {
+    result.set(gatewayId, {
+      gatewayId,
       requests: data.requests,
       errors: data.errors,
       errorRate: data.requests > 0 ? (data.errors / data.requests) * 100 : 0,
@@ -71,7 +80,7 @@ function aggregateServerMetrics(
   return result;
 }
 
-function formatMetricValue(metric: ServerMetric, mode: MetricsMode): string {
+function formatMetricValue(metric: GatewayMetric, mode: MetricsMode): string {
   switch (mode) {
     case "requests":
       return metric.requests.toLocaleString();
@@ -83,7 +92,7 @@ function formatMetricValue(metric: ServerMetric, mode: MetricsMode): string {
 }
 
 function getMetricNumericValue(
-  metric: ServerMetric,
+  metric: GatewayMetric,
   mode: MetricsMode,
 ): number {
   switch (mode) {
@@ -97,7 +106,7 @@ function getMetricNumericValue(
 }
 
 function getMetricPercentage(
-  metric: ServerMetric,
+  metric: GatewayMetric,
   maxValue: number,
   mode: MetricsMode,
 ): number {
@@ -106,21 +115,17 @@ function getMetricPercentage(
   return Math.min((value / maxValue) * 100, 100);
 }
 
-interface TopServersContentProps {
+interface TopGatewaysContentProps {
   metricsMode: MetricsMode;
-  onMetricsModeChange?: (mode: MetricsMode) => void;
 }
 
-function TopServersContent({
-  metricsMode,
-  onMetricsModeChange,
-}: TopServersContentProps) {
+function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
   const { org, locator } = useProjectContext();
   const navigate = useNavigate();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
 
-  const connections = useConnections({ pageSize: 100 }) ?? [];
+  const gateways = useGateways({ pageSize: 100 }) ?? [];
 
   const { data: logsData } = useToolCall<
     { startDate: string; endDate: string; limit: number; offset: number },
@@ -135,30 +140,13 @@ function TopServersContent({
 
   const logs = logsData?.logs ?? [];
 
-  // Generate mock logs if no real data
-  const mockLogs =
-    logs.length === 0
-      ? Array.from({ length: 100 }, (_, i) => ({
-          id: `mock-${i}`,
-          connectionId:
-            ["mock-1", "mock-2", "mock-3", "mock-4"][i % 4] || "mock-1",
-          connectionTitle: "",
-          toolName: "COLLECTION_LLM_LIST",
-          isError: Math.random() > 0.9,
-          errorMessage: null,
-          durationMs: Math.floor(Math.random() * 500) + 100,
-          timestamp: new Date().toISOString(),
-        }))
-      : [];
+  const metricsMap = aggregateGatewayMetrics(logs);
 
-  const displayLogs = logs.length === 0 ? mockLogs : logs;
-  const metricsMap = aggregateServerMetrics(displayLogs);
-
-  // Filter connections that have metrics and sort them
-  const connectionsWithMetrics = connections
-    .map((connection) => ({
-      connection,
-      metric: metricsMap.get(connection.id),
+  // Filter gateways that have metrics and sort them
+  const gatewaysWithMetrics = gateways
+    .map((gateway) => ({
+      gateway,
+      metric: metricsMap.get(gateway.id),
     }))
     .filter((item) => item.metric)
     .sort(
@@ -166,21 +154,21 @@ function TopServersContent({
         getMetricNumericValue(b.metric!, metricsMode) -
         getMetricNumericValue(a.metric!, metricsMode),
     )
-    .slice(0, 6);
+    .slice(0, 15);
 
-  const firstMetric = connectionsWithMetrics[0]?.metric;
+  const firstMetric = gatewaysWithMetrics[0]?.metric;
   const maxValue = firstMetric
     ? getMetricNumericValue(firstMetric, metricsMode)
     : 1;
 
-  const handleConnectionClick = (connectionId: string) => {
+  const handleGatewayClick = (gatewayId: string) => {
     navigate({
       to: "/$org/monitoring",
       params: { org: org.slug },
       search: {
         from: "now-24h",
         to: "now",
-        connectionId: [connectionId],
+        gatewayId: [gatewayId],
         ...(metricsMode === "errors" && { status: "errors" as const }),
       },
     });
@@ -188,7 +176,7 @@ function TopServersContent({
 
   const handleTitleClick = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/gateways",
       params: { org: org.slug },
     });
   };
@@ -202,46 +190,16 @@ function TopServersContent({
 
   return (
     <HomeGridCell
-      title={<p className="text-sm text-muted-foreground">Connections</p>}
+      title={<p className="text-sm text-muted-foreground">Hubs</p>}
       onTitleClick={handleTitleClick}
-      action={
-        onMetricsModeChange ? (
-          <ToggleGroup
-            type="single"
-            value={metricsMode}
-            onValueChange={(v) => v && onMetricsModeChange(v as MetricsMode)}
-            variant="outline"
-            size="sm"
-          >
-            <ToggleGroupItem
-              value="requests"
-              className="text-xs px-2 cursor-pointer"
-            >
-              Calls
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="errors"
-              className="text-xs px-2 cursor-pointer"
-            >
-              Errors
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="latency"
-              className="text-xs px-2 cursor-pointer"
-            >
-              Latency
-            </ToggleGroupItem>
-          </ToggleGroup>
-        ) : null
-      }
     >
-      {connectionsWithMetrics.length === 0 ? (
+      {gatewaysWithMetrics.length === 0 ? (
         <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-          No server activity in the last 24 hours
+          No gateway activity in the last 24 hours
         </div>
       ) : (
         <div className="space-y-3 w-full">
-          {connectionsWithMetrics.map(({ connection, metric }) => {
+          {gatewaysWithMetrics.map(({ gateway, metric }) => {
             const percentage = getMetricPercentage(
               metric!,
               maxValue,
@@ -249,19 +207,19 @@ function TopServersContent({
             );
             return (
               <div
-                key={connection.id}
+                key={gateway.id}
                 className="group cursor-pointer flex items-center gap-2"
-                onClick={() => handleConnectionClick(connection.id)}
+                onClick={() => handleGatewayClick(gateway.id)}
               >
                 <IntegrationIcon
-                  icon={connection.icon}
-                  name={connection.title}
+                  icon={gateway.icon}
+                  name={gateway.title}
                   size="xs"
-                  fallbackIcon={<Container />}
+                  fallbackIcon={<CpuChip02 />}
                   className="shrink-0"
                 />
                 <span className="text-xs font-medium text-foreground truncate min-w-0 w-32">
-                  {connection.title}
+                  {gateway.title}
                 </span>
                 <div className="relative h-2 bg-muted/50 overflow-hidden flex-1">
                   <div
@@ -281,13 +239,11 @@ function TopServersContent({
   );
 }
 
-function TopServersSkeleton() {
+function TopGatewaysSkeleton() {
   return (
-    <HomeGridCell
-      title={<p className="text-sm text-muted-foreground">Connections</p>}
-    >
+    <HomeGridCell title={<p className="text-sm text-muted-foreground">Hubs</p>}>
       <div className="space-y-3 w-full">
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="flex items-center gap-2">
             <div className="h-6 w-6 bg-muted animate-pulse rounded-md shrink-0" />
             <div className="h-3 w-32 bg-muted animate-pulse rounded shrink-0" />
@@ -300,7 +256,7 @@ function TopServersSkeleton() {
   );
 }
 
-export const TopServers = {
-  Content: TopServersContent,
-  Skeleton: TopServersSkeleton,
+export const TopGateways = {
+  Content: TopGatewaysContent,
+  Skeleton: TopGatewaysSkeleton,
 };

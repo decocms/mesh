@@ -1,6 +1,16 @@
 import { cn } from "@deco/ui/lib/utils.ts";
-import { MessageChatSquare } from "@untitledui/icons";
 import type { GatewayPrompt } from "@/web/hooks/use-gateway-prompts";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
 
 export interface IceBreakersProps {
   prompts: GatewayPrompt[];
@@ -8,10 +18,38 @@ export interface IceBreakersProps {
   className?: string;
 }
 
+const MAX_VISIBLE = 3;
+
+function PromptPill({
+  prompt,
+  onSelect,
+}: {
+  prompt: GatewayPrompt;
+  onSelect: (prompt: GatewayPrompt) => void;
+}) {
+  const promptText = prompt.description ?? prompt.name;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => onSelect(prompt)}
+          className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer"
+        >
+          {(prompt.title ?? prompt.name).replace(/_/g, " ")}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-xs">
+        <p className="text-xs">{promptText}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 /**
  * IceBreakers - Displays gateway prompts as clickable conversation starters
  *
- * Shows prompts as cards that, when clicked, submit the prompt as the first message
+ * Shows prompts as compact pills that, when clicked, submit the prompt as the first message
  */
 export function IceBreakers({
   prompts,
@@ -20,44 +58,57 @@ export function IceBreakers({
 }: IceBreakersProps) {
   if (prompts.length === 0) return null;
 
-  // Show max 4 prompts
-  const displayPrompts = prompts.slice(0, 4);
+  const visiblePrompts = prompts.slice(0, MAX_VISIBLE);
+  const hiddenPrompts = prompts.slice(MAX_VISIBLE);
+  const hasMore = hiddenPrompts.length > 0;
 
   return (
-    <div className={cn("flex flex-col gap-3 flex-1", className)}>
-      <p className="text-xs text-muted-foreground text-center">Try asking</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {displayPrompts.map((prompt) => (
-          <button
-            key={prompt.name}
-            type="button"
-            onClick={() => onSelect(prompt)}
-            className={cn(
-              "flex items-start gap-3 p-3 rounded-xl",
-              "bg-muted/50 hover:bg-muted transition-colors",
-              "text-left cursor-pointer group",
-              "border border-transparent hover:border-border",
-            )}
-          >
-            <div className="shrink-0 mt-0.5">
-              <MessageChatSquare
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </div>
-            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-              <span className="text-sm font-medium text-foreground truncate">
-                {(prompt.title ?? prompt.name).replace(/_/g, " ")}
-              </span>
-              {prompt.description && (
-                <span className="text-xs text-muted-foreground line-clamp-2">
-                  {prompt.description}
-                </span>
-              )}
-            </div>
-          </button>
+    <TooltipProvider delayDuration={300}>
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-center gap-2",
+          className,
+        )}
+      >
+        {visiblePrompts.map((prompt) => (
+          <PromptPill key={prompt.name} prompt={prompt} onSelect={onSelect} />
         ))}
+        {hasMore && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="size-7 flex items-center justify-center text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer"
+              >
+                +{hiddenPrompts.length}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="bottom" align="center" className="w-auto p-2">
+              <div className="flex flex-col gap-1">
+                {hiddenPrompts.map((prompt) => {
+                  const promptText = prompt.description ?? prompt.name;
+                  return (
+                    <Tooltip key={prompt.name}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => onSelect(prompt)}
+                          className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-md transition-colors cursor-pointer text-left"
+                        >
+                          {(prompt.title ?? prompt.name).replace(/_/g, " ")}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs">
+                        <p className="text-xs">{promptText}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

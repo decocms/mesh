@@ -10,11 +10,14 @@ import {
   COLLECTION_CONNECTIONS_CREATE,
   COLLECTION_CONNECTIONS_LIST,
   COLLECTION_CONNECTIONS_GET,
+  COLLECTION_CONNECTIONS_UPDATE,
   CONNECTION_TEST,
 } from "./index";
 import type { BoundAuthClient, MeshContext } from "../../core/mesh-context";
 import { ConnectionStorage } from "../../storage/connection";
+import { DownstreamTokenStorage } from "../../storage/downstream-token";
 import type { EventBus } from "../../event-bus/interface";
+import * as fetchToolsModule from "./fetch-tools";
 
 // Create a mock BoundAuthClient for tests
 const createMockBoundAuth = (): BoundAuthClient =>
@@ -36,13 +39,14 @@ const createMockBoundAuth = (): BoundAuthClient =>
 describe("Connection Tools", () => {
   let database: MeshDatabase;
   let ctx: MeshContext;
+  let vault: CredentialVault;
 
   beforeAll(async () => {
     const tempDbPath = `/tmp/test-connection-tools-${Date.now()}.db`;
     database = createDatabase(`file:${tempDbPath}`);
     await createTestSchema(database.db);
 
-    const vault = new CredentialVault(CredentialVault.generateKey());
+    vault = new CredentialVault(CredentialVault.generateKey());
 
     // Create mock context
     ctx = {
@@ -73,7 +77,7 @@ describe("Connection Tools", () => {
         gateways: null as never,
         users: null as never,
       },
-      vault: null as never,
+      vault,
       authInstance: null as never,
       boundAuth: createMockBoundAuth(),
       access: {
@@ -141,6 +145,57 @@ describe("Connection Tools", () => {
       expect(result.item.title).toBe("Company Slack");
       expect(result.item.organization_id).toBe("org_123");
       expect(result.item.status).toBe("active");
+    });
+  });
+
+  describe("COLLECTION_CONNECTIONS_UPDATE (OAuth tool refresh)", () => {
+    it("should refresh tools using downstream OAuth token when connection_token is not set", async () => {
+      const connection = await ctx.storage.connections.create({
+        id: "conn_oauth_tools",
+        organization_id: "org_123",
+        created_by: "user_1",
+        title: "OAuth MCP",
+        connection_type: "HTTP",
+        connection_url: "https://example.com/mcp",
+        connection_token: null,
+        tools: null,
+      });
+
+      const tokenStorage = new DownstreamTokenStorage(database.db, vault);
+      await tokenStorage.upsert({
+        connectionId: connection.id,
+        userId: "user_1",
+        accessToken: "oauth-access-token",
+        refreshToken: null,
+        scope: null,
+        expiresAt: new Date(Date.now() + 60_000),
+        clientId: null,
+        clientSecret: null,
+        tokenEndpoint: null,
+      });
+
+      const fetchSpy = vi
+        .spyOn(fetchToolsModule, "fetchToolsFromMCP")
+        .mockImplementation(async (input) => {
+          expect(input.connection_token).toBe("oauth-access-token");
+          return [
+            {
+              name: "COLLECTION_LLM_LIST",
+              description: "List models",
+              inputSchema: {},
+            },
+          ];
+        });
+
+      const result = await COLLECTION_CONNECTIONS_UPDATE.execute(
+        { id: connection.id, data: {} },
+        ctx,
+      );
+
+      expect(fetchSpy).toHaveBeenCalled();
+      expect(
+        result.item.tools?.some((t) => t.name === "COLLECTION_LLM_LIST"),
+      ).toBe(true);
     });
   });
 

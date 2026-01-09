@@ -10,9 +10,14 @@ import {
   parseScope,
 } from "@/auth/configuration-scopes";
 import { WellKnownMCPId } from "@/core/well-known-mcp";
+import { DownstreamTokenStorage } from "@/storage/downstream-token";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import { requireAuth, requireOrganization } from "../../core/mesh-context";
+import {
+  getUserId,
+  requireAuth,
+  requireOrganization,
+} from "../../core/mesh-context";
 import { fetchToolsFromMCP } from "./fetch-tools";
 import { prop } from "./json-path";
 import {
@@ -111,6 +116,11 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     // Check authorization
     await ctx.access.check();
 
+    const userId = getUserId(ctx);
+    if (!userId) {
+      throw new Error("User ID required to update connection");
+    }
+
     const { id, data } = input;
 
     // First fetch the connection to verify ownership before updating
@@ -154,13 +164,28 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       }
     }
 
-    // Fetch tools from the MCP server
+    // Fetch tools from the MCP server.
+    // If the connection uses OAuth (token stored in downstream_tokens), use the per-user
+    // access token to discover tools after authentication.
+    let tokenForToolFetch = data.connection_token ?? existing.connection_token;
+    if (!tokenForToolFetch) {
+      try {
+        const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
+        const cachedToken = await tokenStorage.get(id, userId);
+        if (cachedToken?.accessToken) {
+          tokenForToolFetch = cachedToken.accessToken;
+        }
+      } catch {
+        // Ignore token lookup errors and fall back to unauthenticated discovery.
+      }
+    }
+
     const fetchedTools = await fetchToolsFromMCP({
       id: existing.id,
       title: data.title ?? existing.title,
       connection_type: data.connection_type ?? existing.connection_type,
       connection_url: data.connection_url ?? existing.connection_url,
-      connection_token: data.connection_token ?? existing.connection_token,
+      connection_token: tokenForToolFetch,
       connection_headers:
         data.connection_headers ?? existing.connection_headers,
     }).catch(() => null);

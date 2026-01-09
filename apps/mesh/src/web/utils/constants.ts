@@ -3,8 +3,6 @@ import { z } from "zod";
 
 export const MCP_REGISTRY_DECOCMS_KEY = "mcp.mesh";
 
-export const MCP_REGISTRY_PUBLISHER_KEY = "mcp.mesh/publisher-provided";
-
 export type JsonSchema = {
   type?: string;
   properties?: Record<string, JsonSchema>;
@@ -24,5 +22,5 @@ export type JsonSchema = {
  */
 export const BaseCollectionJsonSchema: JsonSchema = z.toJSONSchema(
   BaseCollectionEntitySchema,
-  { target: "draft-07" },
+  { target: "draft-7" },
 ) as JsonSchema;

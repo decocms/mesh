@@ -108,7 +108,7 @@ export function NoLlmBindingEmptyState({
             {isInstalling ? "Installing..." : "Install OpenRouter"}
           </Button>
           <Button variant="outline" onClick={onInstallMcpServer}>
-            Install MCP Server
+            Install Connection
           </Button>
         </>
       }

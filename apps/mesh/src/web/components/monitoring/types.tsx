@@ -64,10 +64,6 @@ export interface MonitoringLogsWithGatewayResponse {
   total: number;
 }
 
-export function hasMonitoringActivity(stats?: MonitoringStats | null): boolean {
-  return (stats?.totalCalls ?? 0) > 0;
-}
-
 // ----------------------------------------------------------------------------
 // Full Monitoring Page Types
 // ----------------------------------------------------------------------------
@@ -95,6 +91,8 @@ export interface MonitoringLogsResponse
 }
 
 export interface MonitoringSearchParams {
+  // Tab selection
+  tab?: "logs" | "analytics";
   // Time range using expressions (from/to)
   from?: string; // e.g., "now-24h", "now-7d", or ISO string
   to?: string; // e.g., "now" or ISO string

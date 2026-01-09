@@ -7,8 +7,9 @@ import {
   ResponsiveSelectTrigger,
   ResponsiveSelectValue,
 } from "@deco/ui/components/responsive-select.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useState, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useGateways as useGatewaysCollection } from "../../hooks/collections/use-gateway";
 
 export interface GatewayInfo
@@ -122,21 +123,55 @@ export function GatewaySelector({
   placeholder = "Select Hub",
 }: GatewaySelectorProps) {
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch gateways from hook
   const gateways = useGateways();
 
+  // Focus search input when dialog opens
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (open) {
+      // Small delay to ensure the dialog is fully rendered
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
+    }
+  }, [open]);
+
   const selectedGateway = gateways.find((g) => g.id === selectedGatewayId);
+
+  // Filter gateways based on search term
+  const filteredGateways = (() => {
+    if (!searchTerm.trim()) return gateways;
+
+    const search = searchTerm.toLowerCase();
+    return gateways.filter((gateway) => {
+      return (
+        gateway.title.toLowerCase().includes(search) ||
+        gateway.description?.toLowerCase().includes(search)
+      );
+    });
+  })();
 
   const handleGatewayChange = (gatewayId: string) => {
     onGatewayChange(gatewayId);
+    setSearchTerm("");
     setOpen(false);
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      setSearchTerm("");
+    }
   };
 
   return (
     <ResponsiveSelect
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
       value={selectedGatewayId || ""}
       onValueChange={handleGatewayChange}
     >
@@ -158,29 +193,46 @@ export function GatewaySelector({
       <ResponsiveSelectContent
         title={placeholder}
         className="w-full md:w-[400px] p-0"
+        side="bottom"
       >
-        <div className="flex flex-col max-h-[400px]">
-          {/* Search/Header area could go here if needed */}
+        <div className="flex flex-col max-h-[300px]">
+          {/* Search input */}
           <div className="border-b px-4 py-3 bg-background/95 backdrop-blur sticky top-0 z-10">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <SearchMd size={16} />
-              <span className="text-sm">Search for a gateway...</span>
+            <div className="relative">
+              <SearchMd
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+              />
+              <Input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search for a gateway..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 h-9 text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+              />
             </div>
           </div>
 
           <div className="overflow-y-auto p-2 flex flex-col gap-1">
-            {gateways.map((gateway) => (
-              <div
-                key={gateway.id}
-                onClick={() => handleGatewayChange(gateway.id)}
-                className="outline-none"
-              >
-                <GatewayItemContent
-                  gateway={gateway}
-                  isSelected={gateway.id === selectedGatewayId}
-                />
+            {filteredGateways.length > 0 ? (
+              filteredGateways.map((gateway) => (
+                <div
+                  key={gateway.id}
+                  onClick={() => handleGatewayChange(gateway.id)}
+                  className="outline-none"
+                >
+                  <GatewayItemContent
+                    gateway={gateway}
+                    isSelected={gateway.id === selectedGatewayId}
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                No gateways found
               </div>
-            ))}
+            )}
           </div>
         </div>
       </ResponsiveSelectContent>

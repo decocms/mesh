@@ -72,7 +72,7 @@ function getDefaultOrgMcps(organizationId: string): MCPCreationSpec[] {
     {
       data: getWellKnownCommunityRegistryConnection(),
     },
-    // Deco Store Registry - official deco MCP registry with curated integrations
+    // Deco Store Registry - official deco MCP registry with curated integrations (installed last)
     {
       data: getWellKnownRegistryConnection(organizationId),
     },
@@ -125,8 +125,12 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
             connection_headers: mcpConfig.data.connection_headers,
           }).catch(() => null));
 
+        // Add org prefix only if ID doesn't already have it
+        // (e.g., Deco Store already includes org prefix via WellKnownOrgMCPId)
         const connectionId = mcpConfig.data.id
-          ? `${organizationId}_${mcpConfig.data.id}`
+          ? mcpConfig.data.id.startsWith(`${organizationId}_`)
+            ? mcpConfig.data.id
+            : `${organizationId}_${mcpConfig.data.id}`
           : undefined;
 
         const connection = await connectionStorage.create({

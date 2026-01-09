@@ -59,13 +59,26 @@ async function getConnectionUrl(
  * This is useful for servers that support OAuth but don't implement RFC 9728 Protected Resource Metadata.
  * Returns the WWW-Authenticate header value if OAuth is supported, null otherwise.
  */
+function looksLikeOAuthWwwAuthenticate(wwwAuth: string): boolean {
+  const wwwAuthLower = wwwAuth.toLowerCase();
+  // MCP OAuth uses RFC 9728 `resource_metadata=...` (strong signal)
+  // Some servers may not implement RFC 9728 but still include standard OAuth error hints.
+  return (
+    wwwAuthLower.includes("resource_metadata=") ||
+    wwwAuthLower.includes("invalid_token") ||
+    wwwAuthLower.includes("oauth")
+  );
+}
+
 async function checkOriginSupportsOAuth(
   connectionUrl: string,
+  headers: Record<string, string> = {},
 ): Promise<string | null> {
   try {
     const response = await fetch(connectionUrl, {
       method: "POST",
       headers: {
+        ...headers,
         "Content-Type": "application/json",
         Accept: "application/json, text/event-stream",
       },
@@ -85,7 +98,9 @@ async function checkOriginSupportsOAuth(
     if (response.status === 401) {
       const wwwAuth = response.headers.get("WWW-Authenticate");
       if (wwwAuth) {
-        return wwwAuth;
+        if (looksLikeOAuthWwwAuthenticate(wwwAuth)) {
+          return wwwAuth;
+        }
       }
     }
 
@@ -251,27 +266,11 @@ export async function handleAuthError({
     return null;
   }
 
-  // Check if origin supports OAuth by looking for WWW-Authenticate header
-  const originSupportsOAuth = await fetch(connectionUrl, {
-    method: "POST",
-    headers: {
-      ...headers,
-      "Content-Type": "application/json",
-      Accept: "application/json, text/event-stream",
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 0,
-      method: "initialize",
-      params: {
-        protocolVersion: "2025-06-18",
-        capabilities: {},
-        clientInfo: { name: "mcp-mesh-proxy", version: "1.0.0" },
-      },
-    }),
-  })
-    .then((response) => response.headers.has("WWW-Authenticate"))
-    .catch(() => false);
+  // Check if origin supports OAuth by looking for a *meaningful* WWW-Authenticate challenge.
+  // Some servers require a Bearer token (PAT/API key) and include WWW-Authenticate without being OAuth-capable.
+  const originSupportsOAuth = Boolean(
+    await checkOriginSupportsOAuth(connectionUrl, headers),
+  );
 
   if (originSupportsOAuth) {
     return new Response(null, {

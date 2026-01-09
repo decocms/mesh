@@ -11,6 +11,7 @@ import {
   useConnections,
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
+import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -74,6 +75,13 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { authClient } from "@/web/lib/auth-client";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import type { RegistryItem } from "@/web/components/store/types";
+import { useToolCallQuery } from "@/web/hooks/use-tool-call";
+import {
+  findListToolName,
+  extractItemsFromResponse,
+} from "@/web/utils/registry-utils";
+import { createToolCaller } from "@/tools/client";
 
 import type {
   StdioConnectionParameters,
@@ -146,6 +154,127 @@ const connectionFormSchema = z
   );
 
 type ConnectionFormData = z.infer<typeof connectionFormSchema>;
+
+type ConnectionProviderHint = {
+  id: "github" | "perplexity" | "registry";
+  title?: string;
+  description?: string | null;
+  token?: {
+    label: string;
+    placeholder?: string;
+    helperText?: string;
+  };
+  envVarKeys?: string[];
+};
+
+function normalizeUrl(input: string): string {
+  const raw = input.trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    const normalizedPath =
+      url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;
+    return `${url.origin}${normalizedPath}`;
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+}
+
+function parseNpxLikeCommand(input: string): { packageName: string } | null {
+  const tokens = input.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return null;
+
+  const command = tokens[0]?.toLowerCase();
+  if (command !== "npx" && command !== "bunx") return null;
+
+  // Skip flags like -y, --yes
+  const args = tokens.slice(1);
+  const firstNonFlag = args.find((a) => !a.startsWith("-"));
+  if (!firstNonFlag) return null;
+
+  return { packageName: firstNonFlag };
+}
+
+function inferHardcodedProviderHint(params: {
+  uiType: ConnectionFormData["ui_type"];
+  connectionUrl?: string;
+  npxPackage?: string;
+}): ConnectionProviderHint | null {
+  const { uiType } = params;
+
+  // GitHub Copilot MCP (hardcoded)
+  const normalized = normalizeUrl(params.connectionUrl ?? "");
+  if (
+    (uiType === "HTTP" || uiType === "SSE" || uiType === "Websocket") &&
+    normalized === normalizeUrl("https://api.githubcopilot.com/mcp/")
+  ) {
+    return {
+      id: "github",
+      title: "GitHub",
+      description: "GitHub Copilot MCP",
+      token: {
+        label: "GitHub PAT",
+        placeholder: "github_pat_…",
+        helperText: "Paste a GitHub Personal Access Token (PAT)",
+      },
+    };
+  }
+
+  // Perplexity MCP (hardcoded)
+  const npxPackage = (params.npxPackage ?? "").trim();
+  if (uiType === "NPX" && npxPackage === "@perplexity-ai/mcp-server") {
+    return {
+      id: "perplexity",
+      title: "Perplexity",
+      description: "Perplexity MCP Server",
+      envVarKeys: ["PERPLEXITY_API_KEY"],
+    };
+  }
+
+  return null;
+}
+
+function inferRegistryProviderHint(params: {
+  uiType: ConnectionFormData["ui_type"];
+  connectionUrl?: string;
+  registryItems: RegistryItem[];
+}): ConnectionProviderHint | null {
+  if (params.registryItems.length === 0) return null;
+  if (
+    params.uiType !== "HTTP" &&
+    params.uiType !== "SSE" &&
+    params.uiType !== "Websocket"
+  ) {
+    return null;
+  }
+
+  const normalized = normalizeUrl(params.connectionUrl ?? "");
+  if (!normalized) return null;
+
+  const match = params.registryItems.find((item) => {
+    const remotes = item.server?.remotes ?? [];
+    return remotes.some((r) => normalizeUrl(r.url ?? "") === normalized);
+  });
+
+  if (!match) return null;
+
+  const title =
+    match.title ||
+    match.name ||
+    match.server?.title ||
+    match.server?.name ||
+    "";
+  const description =
+    match.server?.description || match.description || match.summary || null;
+
+  if (!title) return null;
+
+  return {
+    id: "registry",
+    title,
+    description,
+  };
+}
 
 /**
  * Build STDIO connection_headers from NPX form fields
@@ -262,6 +391,23 @@ function OrgMcpsContent() {
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 
+  // Optional registry lookup: use first available registry connection as a name/description source
+  const registryConnection = useRegistryConnections(connections)[0];
+  const registryId = registryConnection?.id ?? "";
+  const registryListToolName = findListToolName(registryConnection?.tools);
+  const registryToolCaller = createToolCaller(registryId || undefined);
+  const { data: registryListResults } = useToolCallQuery<{}, unknown>({
+    toolCaller: registryToolCaller,
+    toolName: registryListToolName,
+    toolInputParams: { limit: 200 },
+    scope: registryId,
+    enabled: Boolean(registryId && registryListToolName),
+    staleTime: 60 * 60 * 1000,
+  });
+  const registryItems = extractItemsFromResponse<RegistryItem>(
+    registryListResults ?? [],
+  );
+
   // Create dialog state is derived from search params
   const isCreating = search.action === "create";
 
@@ -296,6 +442,20 @@ function OrgMcpsContent() {
 
   // Watch the ui_type to conditionally render fields
   const uiType = form.watch("ui_type");
+  const connectionUrl = form.watch("connection_url");
+  const npxPackage = form.watch("npx_package");
+
+  const providerHint =
+    inferHardcodedProviderHint({
+      uiType,
+      connectionUrl: connectionUrl ?? "",
+      npxPackage: npxPackage ?? "",
+    }) ??
+    inferRegistryProviderHint({
+      uiType,
+      connectionUrl: connectionUrl ?? "",
+      registryItems,
+    });
 
   // Reset form when editing connection changes
   const editingConnection =
@@ -491,6 +651,93 @@ function OrgMcpsContent() {
     }
   };
 
+  const applyInferenceFromInput = (rawInput: string) => {
+    const raw = rawInput.trim();
+    if (!raw) return;
+
+    const titleIsDirty = Boolean(form.formState.dirtyFields.title);
+    const descriptionIsDirty = Boolean(form.formState.dirtyFields.description);
+    const envVarsIsDirty = Boolean(form.formState.dirtyFields.env_vars);
+
+    const applySuggestedMeta = (hint: ConnectionProviderHint | null) => {
+      if (!hint) return;
+
+      if (!titleIsDirty && !form.getValues("title").trim() && hint.title) {
+        form.setValue("title", hint.title, { shouldDirty: false });
+      }
+
+      if (
+        !descriptionIsDirty &&
+        !(form.getValues("description") ?? "").trim() &&
+        hint.description
+      ) {
+        form.setValue("description", hint.description, { shouldDirty: false });
+      }
+
+      if (!envVarsIsDirty && hint.envVarKeys?.length) {
+        const current = form.getValues("env_vars") ?? [];
+        const existingKeys = new Set(current.map((v) => v.key));
+        const toAdd = hint.envVarKeys.filter((k) => !existingKeys.has(k));
+        if (toAdd.length > 0) {
+          form.setValue(
+            "env_vars",
+            [...current, ...toAdd.map((key) => ({ key, value: "" }))],
+            { shouldDirty: true },
+          );
+        }
+      }
+    };
+
+    const npx = parseNpxLikeCommand(raw);
+    if (npx && stdioEnabled) {
+      form.setValue("ui_type", "NPX", { shouldDirty: true });
+      form.setValue("npx_package", npx.packageName, { shouldDirty: true });
+      // Clear HTTP fields for clarity
+      form.setValue("connection_url", "", { shouldDirty: true });
+      form.setValue("connection_token", null, { shouldDirty: true });
+
+      applySuggestedMeta(
+        inferHardcodedProviderHint({
+          uiType: "NPX",
+          npxPackage: npx.packageName,
+        }),
+      );
+      return;
+    }
+
+    if (raw.startsWith("http://") || raw.startsWith("https://")) {
+      const nextUiType =
+        uiType === "HTTP" || uiType === "SSE" || uiType === "Websocket"
+          ? uiType
+          : "HTTP";
+      form.setValue("ui_type", nextUiType, { shouldDirty: true });
+      form.setValue("connection_url", raw, { shouldDirty: true });
+
+      applySuggestedMeta(
+        inferHardcodedProviderHint({
+          uiType: nextUiType,
+          connectionUrl: raw,
+        }) ??
+          inferRegistryProviderHint({
+            uiType: nextUiType,
+            connectionUrl: raw,
+            registryItems,
+          }),
+      );
+      return;
+    }
+
+    // NPX package typed directly (no "npx" prefix)
+    if (uiType === "NPX") {
+      applySuggestedMeta(
+        inferHardcodedProviderHint({
+          uiType: "NPX",
+          npxPackage: raw,
+        }),
+      );
+    }
+  };
+
   const columns: TableColumn<ConnectionEntity>[] = [
     {
       id: "icon",
@@ -656,39 +903,6 @@ function OrgMcpsContent() {
               <div className="grid gap-4 py-4">
                 <FormField
                   control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="My Connection" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="A brief description of this connection"
-                          rows={3}
-                          {...field}
-                          value={field.value ?? ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
                   name="ui_type"
                   render={({ field }) => (
                     <FormItem>
@@ -758,6 +972,19 @@ function OrgMcpsContent() {
                               placeholder="@perplexity-ai/mcp-server"
                               {...field}
                               value={field.value ?? ""}
+                              onPaste={(e) => {
+                                const pasted = e.clipboardData.getData("text");
+                                if (!pasted) return;
+                                e.preventDefault();
+                                form.setValue("npx_package", pasted.trim(), {
+                                  shouldDirty: true,
+                                });
+                                applyInferenceFromInput(pasted);
+                              }}
+                              onBlur={(e) => {
+                                applyInferenceFromInput(e.target.value);
+                                field.onBlur();
+                              }}
                             />
                           </FormControl>
                           <p className="text-xs text-muted-foreground">
@@ -868,6 +1095,19 @@ function OrgMcpsContent() {
                               placeholder="https://example.com/mcp"
                               {...field}
                               value={field.value ?? ""}
+                              onPaste={(e) => {
+                                const pasted = e.clipboardData.getData("text");
+                                if (!pasted) return;
+                                e.preventDefault();
+                                form.setValue("connection_url", pasted.trim(), {
+                                  shouldDirty: true,
+                                });
+                                applyInferenceFromInput(pasted);
+                              }}
+                              onBlur={(e) => {
+                                applyInferenceFromInput(e.target.value);
+                                field.onBlur();
+                              }}
                             />
                           </FormControl>
                           <FormMessage />
@@ -880,21 +1120,79 @@ function OrgMcpsContent() {
                       name="connection_token"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Token (optional)</FormLabel>
+                          <FormLabel>
+                            {providerHint?.token?.label ?? "Token (optional)"}
+                          </FormLabel>
                           <FormControl>
                             <Input
                               type="password"
-                              placeholder="Bearer token or API key"
+                              placeholder={
+                                providerHint?.token?.placeholder ??
+                                "Bearer token or API key"
+                              }
                               {...field}
                               value={field.value ?? ""}
                             />
                           </FormControl>
+                          {providerHint?.token?.helperText && (
+                            <p className="text-xs text-muted-foreground">
+                              {providerHint.token.helperText}
+                              {providerHint.id === "github" && (
+                                <>
+                                  {" "}
+                                  ·{" "}
+                                  <a
+                                    className="text-foreground underline underline-offset-4 hover:text-foreground/80"
+                                    href="https://github.com/settings/personal-access-tokens"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Open GitHub PAT settings
+                                  </a>
+                                </>
+                              )}
+                            </p>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                   </>
                 )}
+
+                {/* Name/description come after connection mode/inputs so we can infer them */}
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="My Connection" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="A brief description of this connection"
+                          rows={3}
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
               <DialogFooter>

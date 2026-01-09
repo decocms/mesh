@@ -30,7 +30,7 @@ import {
   getConnectionTypeLabel,
   extractSchemaVersion,
 } from "@/web/utils/registry-utils";
-import { extractDisplayNameFromDomain } from "@/web/utils/app-name";
+import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { InfoCircle } from "@untitledui/icons";
 import {
@@ -89,7 +89,6 @@ function getPublisherInfo(
 
 /** Helper to extract data from different JSON structures */
 function extractItemData(item: RegistryItem): MCPServerData {
-  const publisherMeta = item.server._meta?.["mcp.mesh/publisher-provided"];
   const decoMeta = item._meta?.["mcp.mesh"];
   const officialMeta =
     item._meta?.["io.modelcontextprotocol.registry/official"];
@@ -156,11 +155,11 @@ function extractItemData(item: RegistryItem): MCPServerData {
     remoteUrl: null,
     tags: tags,
     categories: categories,
-    tools: item.tools || server.tools || publisherMeta?.tools || [],
-    models: item.models || server.models || publisherMeta?.models || [],
-    emails: item.emails || server.emails || publisherMeta?.emails || [],
-    analytics: item.analytics || server.analytics || publisherMeta?.analytics,
-    cdn: item.cdn || server.cdn || publisherMeta?.cdn,
+    tools: item.tools || server.tools || decoMeta?.tools || [],
+    models: item.models || server.models || decoMeta?.models || [],
+    emails: item.emails || server.emails || decoMeta?.emails || [],
+    analytics: item.analytics || server.analytics || decoMeta?.analytics,
+    cdn: item.cdn || server.cdn || decoMeta?.cdn,
   };
 }
 
