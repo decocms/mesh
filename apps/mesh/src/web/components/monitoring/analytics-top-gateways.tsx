@@ -195,7 +195,7 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
     >
       {gatewaysWithMetrics.length === 0 ? (
         <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-          No gateway activity in the last 24 hours
+          No agent activity in the last 24 hours
         </div>
       ) : (
         <div className="space-y-3 w-full">

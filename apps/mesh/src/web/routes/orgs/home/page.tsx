@@ -418,7 +418,7 @@ function HomeContent() {
                   <GatewaySelector
                     selectedGatewayId={selectedGateway?.id}
                     onGatewayChange={handleGatewayChange}
-                    placeholder="Gateway"
+                    placeholder="Agent"
                     variant="borderless"
                   />
                   <ModelSelector
@@ -485,7 +485,7 @@ function HomeContent() {
                   <GatewaySelector
                     selectedGatewayId={selectedGateway?.id}
                     onGatewayChange={handleGatewayChange}
-                    placeholder="Gateway"
+                    placeholder="Agent"
                     variant="borderless"
                   />
                   <ModelSelector

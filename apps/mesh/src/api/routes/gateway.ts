@@ -247,7 +247,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
         return c.json(
           {
             error:
-              "Gateway ID required, or provide x-org-id or x-org-slug header for Organization Agent",
+              "Agent ID required, or provide x-org-id or x-org-slug header for Organization Agent",
           },
           400,
         );
@@ -256,7 +256,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
 
     if (!gateway) {
       if (gatewayId) {
-        return c.json({ error: `Gateway not found: ${gatewayId}` }, 404);
+        return c.json({ error: `Agent not found: ${gatewayId}` }, 404);
       }
       return c.json(
         { error: "No Organization Agent configured for this organization" },
@@ -267,7 +267,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     ctx.gatewayId = gateway.id;
 
     if (gateway.status !== "active") {
-      return c.json({ error: `Gateway is inactive: ${gateway.id}` }, 503);
+      return c.json({ error: `Agent is inactive: ${gateway.id}` }, 503);
     }
 
     // Set organization context
