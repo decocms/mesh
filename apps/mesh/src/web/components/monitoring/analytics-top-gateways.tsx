@@ -190,12 +190,12 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
 
   return (
     <HomeGridCell
-      title={<p className="text-sm text-muted-foreground">Hubs</p>}
+      title={<p className="text-sm text-muted-foreground">Agents</p>}
       onTitleClick={handleTitleClick}
     >
       {gatewaysWithMetrics.length === 0 ? (
         <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-          No gateway activity in the last 24 hours
+          No agent activity in the last 24 hours
         </div>
       ) : (
         <div className="space-y-3 w-full">
@@ -241,7 +241,9 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
 
 function TopGatewaysSkeleton() {
   return (
-    <HomeGridCell title={<p className="text-sm text-muted-foreground">Hubs</p>}>
+    <HomeGridCell
+      title={<p className="text-sm text-muted-foreground">Agents</p>}
+    >
       <div className="space-y-3 w-full">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="flex items-center gap-2">

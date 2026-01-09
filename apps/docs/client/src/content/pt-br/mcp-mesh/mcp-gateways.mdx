@@ -1,21 +1,21 @@
 ---
-title: Hubs
-description: Hubs agregam e curam tools de múltiplas connections em um único endpoint MCP
+title: Agents
+description: Agents agregam e curam tools de múltiplas connections em um único endpoint MCP
 icon: Share2
 ---
 
-## O que é um Hub?
+## O que é um Agent?
 
-Um **Hub** é um "MCP virtual": ele expõe um único endpoint MCP que agrega tools/resources/prompts de múltiplas **connections**.
+Um **Agent** é um "MCP virtual": ele expõe um único endpoint MCP que agrega tools/resources/prompts de múltiplas **connections**.
 
 ## Estratégias de exposição de tools
 
-Hubs também controlam **como as tools são expostas** (útil quando o surface cresce).
+Agents também controlam **como as tools são expostas** (útil quando o surface cresce).
 Essas estratégias vêm por padrão:
 
 ### Passthrough (baseline)
 
-- Expõe todas as tools do gateway diretamente via `tools/list`.
+- Expõe todas as tools do agent diretamente via `tools/list`.
 - Melhor para superfícies pequenas e comportamento determinístico.
 
 ### Smart tool selection
@@ -34,20 +34,20 @@ Essas estratégias vêm por padrão:
   - **GATEWAY_RUN_CODE** (executa JS em um sandbox que pode chamar tools)
 - Objetivo: reduzir overhead de exposição em superfícies grandes movendo parte do trabalho para um runtime controlado.
 
-## O Default Hub (criado automaticamente por org)
+## O Default Agent (criado automaticamente por org)
 
-Toda organização nova recebe um **Default Hub**:
+Toda organização nova recebe um **Default Agent**:
 
 - **Strategy**: `passthrough`
 - **Mode**: `exclusion`
 - **Exclusões padrão**: a connection interna **Mesh MCP** (tools de administração) e a connection da **Store/Registry** são excluídas por padrão
-- **Comportamento**: todo o resto entra automaticamente — então, conforme você conecta Conexões, esse endpoint vira o Hub "com todas as tools da org"
+- **Comportamento**: todo o resto entra automaticamente — então, conforme você conecta Conexões, esse endpoint vira o Agent "com todas as tools da org"
 
 Esse é o endpoint que muitos times usam como a superfície MCP principal da organização.
 
 ## Benchmark: tradeoffs de estratégia
 
-Rodamos um benchmark aqui: [MCP Gateway Benchmark (GitHub Actions run)](https://github.com/decocms/mesh/actions/runs/20584203227).
+Rodamos um benchmark aqui: [MCP Agent Benchmark (GitHub Actions run)](https://github.com/decocms/mesh/actions/runs/20584203227).
 
 **Resumo (alto nível):**
 

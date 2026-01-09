@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Run Mesh locally, connect an Integration, create a Hub, and verify monitoring
+description: Run Mesh locally, connect an Integration, create an Agent, and verify monitoring
 icon: Rocket
 ---
 
@@ -86,10 +86,10 @@ The **Store** is a catalog of Connections you can connect to. By default, the St
 - Invite teammates
 - Assign roles (Admin/User) as needed
 
-## 4) Create a Hub (virtual server)
+## 4) Create an Agent (virtual server)
 
-- Go to **Hubs**
-- Click **Create Hub**
+- Go to **Agents**
+- Click **Create Agent**
 - Choose **Include** (only selected connections/tools) or **Exclude** (everything except the exclusions)
 
 ## 5) Generate an API key for a client
@@ -102,10 +102,10 @@ Use **Monitoring** to confirm:
 
 - tool calls are being logged
 - latency + error rates show up
-- filters (time range, tool name, connection, gateway) work as expected
+- filters (time range, tool name, connection, agent) work as expected
 
 <Callout type="tip">
-  The fastest smoke test is to call a tool through a gateway endpoint (so you exercise aggregation + proxy + monitoring).
+  The fastest smoke test is to call a tool through an agent endpoint (so you exercise aggregation + proxy + monitoring).
 </Callout>
 
 

@@ -31,6 +31,7 @@ import oauthProxyRoutes, {
   fetchProtectedResourceMetadata,
 } from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
+import publicConfigRoutes from "./routes/public-config";
 import {
   isDecoHostedMcp,
   DECO_STORE_URL,
@@ -231,6 +232,11 @@ export function createApp(options: CreateAppOptions = {}) {
       return c.text("# Error collecting metrics", 500);
     }
   });
+
+  // ============================================================================
+  // Public Configuration (no auth required)
+  // ============================================================================
+  app.route("/api/config", publicConfigRoutes);
 
   // ============================================================================
   // Better Auth Routes

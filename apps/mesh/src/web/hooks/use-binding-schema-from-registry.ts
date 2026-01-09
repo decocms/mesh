@@ -1,9 +1,9 @@
 /**
  * Hook to fetch binding schema from registry for dynamic binding resolution.
  *
- * When a binding field has `__binding.const` as an app name (e.g., "@deco/database"),
- * this hook queries ALL installed registries by app name and returns the first matching
- * app's tools as the binding schema.
+ * When a binding field has `__binding.const` as an MCP Server name (e.g., "@deco/database"),
+ * this hook queries ALL installed registries by MCP Server name and returns the first matching
+ * MCP Server's tools as the binding schema.
  */
 
 import { useSuspenseQueries } from "@tanstack/react-query";
@@ -12,10 +12,7 @@ import { useConnections } from "@/web/hooks/collections/use-connection";
 import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { KEYS } from "@/web/lib/query-keys";
-import {
-  MCP_REGISTRY_DECOCMS_KEY,
-  MCP_REGISTRY_PUBLISHER_KEY,
-} from "@/web/utils/constants";
+import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
 import { findListToolName } from "@/web/utils/registry-utils";
 
 /**
@@ -30,24 +27,17 @@ interface RegistryItemWithBinding {
       scopeName?: string;
       appName?: string;
       binding?: boolean;
+      tools?: Array<{
+        id?: string;
+        name: string;
+        description?: string | null;
+        inputSchema?: Record<string, unknown> | null;
+        outputSchema?: Record<string, unknown> | null;
+      }>;
     };
     [key: string]: unknown;
   };
   server?: {
-    _meta?: {
-      [MCP_REGISTRY_PUBLISHER_KEY]?: {
-        friendlyName?: string | null;
-        metadata?: Record<string, unknown> | null;
-        tools?: Array<{
-          id?: string;
-          name: string;
-          description?: string | null;
-          inputSchema?: Record<string, unknown> | null;
-          outputSchema?: Record<string, unknown> | null;
-        }>;
-      };
-      [key: string]: unknown;
-    };
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -58,21 +48,21 @@ interface RegistryItemWithBinding {
  */
 interface UseBindingSchemaFromRegistryResult {
   /**
-   * The resolved binding schema (tools from the binding provider app)
+   * The resolved binding schema (tools from the binding provider MCP Server)
    * Returns undefined if not found or still loading
    */
   bindingSchema: BindingDefinition[] | undefined;
 }
 
 /**
- * Normalize app name format, ensuring @ prefix is present
+ * Normalize MCP Server name format, ensuring @ prefix is present
  * @example
  * - "@deco/database" -> "@deco/database" (unchanged)
  * - "deco/database" -> "@deco/database" (adds @)
  */
-function parseAppName(appName: string): string {
+function parseServerName(serverName: string): string {
   // Ensure @ prefix is present (server expects @scope/name format)
-  return appName.startsWith("@") ? appName : `@${appName}`;
+  return serverName.startsWith("@") ? serverName : `@${serverName}`;
 }
 
 /**
@@ -81,7 +71,7 @@ function parseAppName(appName: string): string {
 function extractBindingTools(
   item: RegistryItemWithBinding,
 ): BindingDefinition[] | undefined {
-  const tools = item.server?._meta?.[MCP_REGISTRY_PUBLISHER_KEY]?.tools;
+  const tools = item._meta?.[MCP_REGISTRY_DECOCMS_KEY]?.tools;
 
   if (!tools || tools.length === 0) {
     return undefined;
@@ -95,33 +85,33 @@ function extractBindingTools(
 }
 
 /**
- * Hook to fetch binding schema from registry for an app name.
+ * Hook to fetch binding schema from registry for an MCP Server name.
  *
- * Queries ALL installed registries in parallel to find the app and returns
- * the first matching app's tools as the binding schema.
+ * Queries ALL installed registries in parallel to find the MCP Server and returns
+ * the first matching MCP Server's tools as the binding schema.
  *
- * @param appName - The app name to fetch (e.g., "@deco/database")
+ * @param serverName - The MCP Server name to fetch (e.g., "@deco/database")
  * @returns Object with bindingSchema
  *
  * @example
  * ```tsx
  * const { bindingSchema } = useBindingSchemaFromRegistry("@deco/database");
- * // bindingSchema will be the tools from the app, found in any installed registry
+ * // bindingSchema will be the tools from the MCP Server, found in any installed registry
  * ```
  */
 export function useBindingSchemaFromRegistry(
-  appName: string | undefined,
+  serverName: string | undefined,
 ): UseBindingSchemaFromRegistryResult {
   // Get all connections and filter to registry connections
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
 
-  // Parse the app name for the query
-  const parsedAppName = appName ? parseAppName(appName) : "";
+  // Parse the MCP Server name for the query
+  const parsedServerName = serverName ? parseServerName(serverName) : "";
 
   // Build query input params using proper WhereExpression format
-  const toolInputParams = parsedAppName
-    ? { where: { appName: parsedAppName }, includeTools: true }
+  const toolInputParams = parsedServerName
+    ? { where: { appName: parsedServerName }, includeTools: true }
     : {};
 
   // Create queries for all registries in parallel
@@ -135,7 +125,7 @@ export function useBindingSchemaFromRegistry(
       return {
         queryKey: KEYS.toolCall(registryId, listToolName, paramsKey),
         queryFn: async (): Promise<RegistryItemWithBinding | null> => {
-          if (!listToolName || !parsedAppName) {
+          if (!listToolName || !parsedServerName) {
             return null;
           }
 
@@ -158,13 +148,15 @@ export function useBindingSchemaFromRegistry(
     }),
   });
 
-  // Find the first successful result with an app
-  const foundApp = queries
+  // Find the first successful result with an MCP Server
+  const foundServer = queries
     .map((query) => query.data)
-    .find((app): app is RegistryItemWithBinding => app !== null);
+    .find((server): server is RegistryItemWithBinding => server !== null);
 
-  // Extract binding schema from the found app
-  const bindingSchema = foundApp ? extractBindingTools(foundApp) : undefined;
+  // Extract binding schema from the found MCP Server
+  const bindingSchema = foundServer
+    ? extractBindingTools(foundServer)
+    : undefined;
 
   return { bindingSchema };
 }

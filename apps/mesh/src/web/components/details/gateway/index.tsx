@@ -1,4 +1,7 @@
-import type { GatewayEntity } from "@/tools/gateway/schema";
+import {
+  GatewayEntitySchema,
+  type GatewayEntity,
+} from "@/tools/gateway/schema";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { PromptSetSelector } from "@/web/components/gateway/prompt-selector.tsx";
@@ -13,8 +16,15 @@ import {
 } from "@/web/hooks/collections/use-gateway";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
+import { useGatewaySystemPrompt } from "@/web/hooks/use-gateway-system-prompt";
 import { slugify } from "@/web/utils/slugify";
 import { Button } from "@deco/ui/components/button.tsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@deco/ui/components/dialog.tsx";
 import {
   Form,
   FormControl,
@@ -33,6 +43,7 @@ import {
   SelectValue,
 } from "@deco/ui/components/select.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
+import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   Tooltip,
   TooltipContent,
@@ -55,8 +66,8 @@ import {
   InfoCircle,
   Loading01,
   Save01,
+  Share07,
 } from "@untitledui/icons";
-import { formatDistanceToNow } from "date-fns";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -231,16 +242,14 @@ function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
 }
 
 // Form validation schema
-const gatewayFormSchema = z.object({
+const gatewayFormSchema = GatewayEntitySchema.pick({
+  title: true,
+  description: true,
+  status: true,
+  tool_selection_mode: true,
+  tool_selection_strategy: true,
+}).extend({
   title: z.string().min(1, "Name is required").max(255),
-  description: z.string().nullable(),
-  status: z.enum(["active", "inactive"]),
-  tool_selection_mode: z.enum(["inclusion", "exclusion"]),
-  tool_selection_strategy: z.enum([
-    "passthrough",
-    "smart_tool_selection",
-    "code_execution",
-  ]),
 });
 
 type GatewayFormData = z.infer<typeof gatewayFormSchema>;
@@ -352,255 +361,320 @@ function mergeSelectionsToGatewayConnections(
 }
 
 /**
- * Settings Tab - Gateway configuration (title, description, status, mode, strategy)
+ * Share Modal - Gateway sharing and IDE integration
+ */
+function GatewayShareModal({
+  open,
+  onOpenChange,
+  gateway,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  gateway: GatewayEntity;
+}) {
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const gatewayUrl = `${window.location.origin}/mcp/gateway/${gateway.id}`;
+
+  const handleCopyUrl = async () => {
+    await navigator.clipboard.writeText(gatewayUrl);
+    setCopiedUrl(true);
+    toast.success("Agent URL copied to clipboard");
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Share Agent</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-6">
+          {/* Copy Agent URL section */}
+          <div className="flex flex-col gap-3">
+            <div>
+              <h4 className="text-sm font-medium text-foreground mb-1">
+                Agent URL
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Share this URL to connect to the agent
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={gatewayUrl}
+                readOnly
+                className="font-mono text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleCopyUrl}
+                className="shrink-0"
+              >
+                {copiedUrl ? <Check size={16} /> : <Copy01 size={16} />}
+              </Button>
+            </div>
+          </div>
+
+          {/* IDE Integration */}
+          <div className="border-t border-border pt-6">
+            <IDEIntegration
+              serverName={gateway.title || `agent-${gateway.id.slice(0, 8)}`}
+              gatewayUrl={gatewayUrl}
+            />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Settings Tab - Agent configuration (title, description, icon, system prompt)
  */
 function GatewaySettingsTab({
   form,
-  gateway,
   icon,
+  gatewayId,
 }: {
   form: ReturnType<typeof useForm<GatewayFormData>>;
-  gateway: GatewayEntity;
   icon?: string | null;
+  gatewayId: string;
 }) {
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] h-full">
-      {/* Left panel - Settings */}
-      <div className="lg:border-r border-b lg:border-b-0 border-border overflow-auto">
-        <Form {...form}>
-          <div className="flex flex-col">
-            {/* Header section - Icon, Title, Description */}
-            <div className="flex flex-col gap-4 p-5 border-b border-border">
-              <div className="flex items-start justify-between">
-                <IntegrationIcon
-                  icon={icon}
-                  name={form.watch("title") || "Hub"}
-                  size="lg"
-                  className="shrink-0 shadow-sm"
-                  fallbackIcon={<CpuChip02 />}
-                />
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {field.value === "active" ? "Active" : "Inactive"}
-                        </span>
-                        <FormControl>
-                          <Switch
-                            checked={field.value === "active"}
-                            onCheckedChange={(checked) =>
-                              field.onChange(checked ? "active" : "inactive")
-                            }
-                          />
-                        </FormControl>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="flex flex-col">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem className="w-full space-y-0">
-                      <FormControl>
-                        <Input
-                          {...field}
-                          className="h-auto text-lg! font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
-                          placeholder="Hub Name"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem className="w-full space-y-0">
-                      <FormControl>
-                        <Input
-                          {...field}
-                          value={field.value || ""}
-                          className="h-auto text-base text-muted-foreground leading-6 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
-                          placeholder="Add a description..."
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
+  const [systemPrompt, setSystemPrompt] = useGatewaySystemPrompt(gatewayId);
 
-            {/* Settings section */}
-            <div className="flex flex-col gap-4 p-5">
-              {/* Selection Mode */}
+  return (
+    <div className="flex flex-col h-full overflow-auto">
+      <Form {...form}>
+        <div className="flex flex-col">
+          {/* Header section - Icon, Title, Description */}
+          <div className="flex flex-col gap-4 p-5 border-b border-border">
+            <div className="flex items-start justify-between">
+              <IntegrationIcon
+                icon={icon}
+                name={form.watch("title") || "Agent"}
+                size="lg"
+                className="shrink-0 shadow-sm"
+                fallbackIcon={<CpuChip02 />}
+              />
               <FormField
                 control={form.control}
-                name="tool_selection_mode"
+                name="status"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="flex items-center justify-between gap-3">
-                      <FormLabel className="mb-0">Selection Mode</FormLabel>
-                      <div className="flex items-center gap-1.5">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="size-7"
-                                aria-label="Selection mode help"
-                              >
-                                <InfoCircle
-                                  size={14}
-                                  className="text-muted-foreground"
-                                />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" className="max-w-sm">
-                              <div className="text-xs space-y-1">
-                                <div>
-                                  <strong>Include:</strong> Only selected items
-                                  are exposed.
-                                </div>
-                                <div>
-                                  <strong>Exclude:</strong> All items except
-                                  selected ones are exposed.
-                                </div>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-[180px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="inclusion">
-                              Include Selected
-                            </SelectItem>
-                            <SelectItem value="exclusion">
-                              Exclude Selected
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        {field.value === "active" ? "Active" : "Inactive"}
+                      </span>
+                      <FormControl>
+                        <Switch
+                          checked={field.value === "active"}
+                          onCheckedChange={(checked) =>
+                            field.onChange(checked ? "active" : "inactive")
+                          }
+                        />
+                      </FormControl>
                     </div>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              {/* Gateway Strategy */}
+            </div>
+            <div className="flex flex-col">
               <FormField
                 control={form.control}
-                name="tool_selection_strategy"
+                name="title"
                 render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between gap-3">
-                      <FormLabel className="mb-0">Gateway Strategy</FormLabel>
-                      <div className="flex items-center gap-1.5">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="size-7"
-                                aria-label="Hub strategy help"
-                              >
-                                <InfoCircle
-                                  size={14}
-                                  className="text-muted-foreground"
-                                />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" className="max-w-sm">
-                              <div className="text-xs space-y-1">
-                                <div>
-                                  <strong>Passthrough:</strong> Pass tools
-                                  through as-is (default).
-                                </div>
-                                <div>
-                                  <strong>Smart Tool Selection:</strong>{" "}
-                                  Intelligent tool selection behavior.
-                                </div>
-                                <div>
-                                  <strong>Code Execution:</strong> Code
-                                  execution behavior.
-                                </div>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-[180px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="passthrough">
-                              Passthrough
-                            </SelectItem>
-                            <SelectItem value="smart_tool_selection">
-                              Smart Tool Selection
-                            </SelectItem>
-                            <SelectItem value="code_execution">
-                              Code Execution
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                  <FormItem className="w-full space-y-0">
+                    <FormControl>
+                      <Input
+                        {...field}
+                        className="h-auto text-lg! font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                        placeholder="Agent Name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem className="w-full space-y-0">
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value || ""}
+                        className="h-auto text-base text-muted-foreground leading-6 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                        placeholder="Add a description..."
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
           </div>
-        </Form>
-      </div>
 
-      {/* Right panel - IDE Integration */}
-      <div className="flex flex-col overflow-auto">
-        <div className="p-5">
-          <IDEIntegration
-            serverName={gateway.title || `hub-${gateway.id.slice(0, 8)}`}
-            gatewayUrl={`${window.location.origin}/mcp/gateway/${gateway.id}`}
-          />
-        </div>
+          {/* Configuration section */}
+          <div className="flex flex-col gap-4 p-5 border-b border-border">
+            {/* Selection Mode */}
+            <FormField
+              control={form.control}
+              name="tool_selection_mode"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between gap-3">
+                    <FormLabel className="mb-0">Selection Mode</FormLabel>
+                    <div className="flex items-center gap-1.5">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              aria-label="Selection mode help"
+                            >
+                              <InfoCircle
+                                size={14}
+                                className="text-muted-foreground"
+                              />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-sm">
+                            <div className="text-xs space-y-1">
+                              <div>
+                                <strong>Include:</strong> Only selected items
+                                are exposed.
+                              </div>
+                              <div>
+                                <strong>Exclude:</strong> All items except
+                                selected ones are exposed.
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="inclusion">
+                            Include Selected
+                          </SelectItem>
+                          <SelectItem value="exclusion">
+                            Exclude Selected
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        {/* Last Updated section */}
-        <div className="flex items-center gap-4 p-5 border-t border-border">
-          <span className="flex-1 text-sm text-foreground">Last Updated</span>
-          <span className="text-muted-foreground uppercase text-xs">
-            {gateway.updated_at
-              ? formatDistanceToNow(new Date(gateway.updated_at), {
-                  addSuffix: false,
-                })
-              : "Unknown"}
-          </span>
+            {/* Agent Strategy */}
+            <FormField
+              control={form.control}
+              name="tool_selection_strategy"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between gap-3">
+                    <FormLabel className="mb-0">Agent Strategy</FormLabel>
+                    <div className="flex items-center gap-1.5">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              aria-label="Agent strategy help"
+                            >
+                              <InfoCircle
+                                size={14}
+                                className="text-muted-foreground"
+                              />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-sm">
+                            <div className="text-xs space-y-1">
+                              <div>
+                                <strong>Passthrough:</strong> Pass tools through
+                                as-is (default).
+                              </div>
+                              <div>
+                                <strong>Smart Tool Selection:</strong>{" "}
+                                Intelligent tool selection behavior.
+                              </div>
+                              <div>
+                                <strong>Code Execution:</strong> Code execution
+                                behavior.
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="passthrough">
+                            Passthrough
+                          </SelectItem>
+                          <SelectItem value="smart_tool_selection">
+                            Smart Tool Selection
+                          </SelectItem>
+                          <SelectItem value="code_execution">
+                            Code Execution
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          {/* System Prompt section */}
+          <div className="flex flex-col gap-3 p-5">
+            <div>
+              <h4 className="text-sm font-medium text-foreground mb-1">
+                System Prompt
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Stored locally for now
+              </p>
+            </div>
+            <Textarea
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              placeholder="Enter system prompt instructions..."
+              className="min-h-[240px] resize-none text-sm leading-relaxed"
+            />
+          </div>
         </div>
-      </div>
+      </Form>
     </div>
   );
 }
@@ -660,6 +734,9 @@ function GatewayInspectorViewWithGateway({
 
   // Track if any selection has changed
   const [selectionDirty, setSelectionDirty] = useState(false);
+
+  // Share modal state
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const handleToolSetChange = (newToolSet: Record<string, string[]>) => {
     setToolSet(newToolSet);
@@ -820,6 +897,26 @@ function GatewayInspectorViewWithGateway({
           </>
         )}
 
+        {/* Share button */}
+        <TooltipProvider>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <span className="inline-block">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-7 border border-input"
+                  onClick={() => setShareModalOpen(true)}
+                  aria-label="Share"
+                >
+                  <Share07 size={14} />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Share</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
         <PinToSidebarButton
           title={gateway.title}
           url={url}
@@ -845,8 +942,8 @@ function GatewayInspectorViewWithGateway({
                 {activeTabId === "settings" ? (
                   <GatewaySettingsTab
                     form={form}
-                    gateway={gateway}
                     icon={gateway.icon}
+                    gatewayId={gatewayId}
                   />
                 ) : activeTabId === "tools" ? (
                   <ToolSetSelector
@@ -871,6 +968,13 @@ function GatewayInspectorViewWithGateway({
           </div>
         </div>
       </div>
+
+      {/* Share Modal */}
+      <GatewayShareModal
+        open={shareModalOpen}
+        onOpenChange={setShareModalOpen}
+        gateway={gateway}
+      />
     </ViewLayout>
   );
 }
@@ -891,8 +995,8 @@ function GatewayInspectorViewContent() {
     return (
       <div className="flex h-full w-full bg-background">
         <EmptyState
-          title="Hub not found"
-          description="This Hub may have been deleted or you may not have access."
+          title="Agent not found"
+          description="This Agent may have been deleted or you may not have access."
           actions={
             <Button
               variant="outline"
@@ -903,7 +1007,7 @@ function GatewayInspectorViewContent() {
                 })
               }
             >
-              Back to gateways
+              Back to agents
             </Button>
           }
         />

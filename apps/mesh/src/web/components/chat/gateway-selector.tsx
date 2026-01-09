@@ -82,9 +82,7 @@ function SelectedGatewayDisplay({
   gateway: GatewayInfo | undefined;
 }) {
   if (!gateway) {
-    return (
-      <span className="text-sm text-muted-foreground">Select gateway</span>
-    );
+    return <span className="text-sm text-muted-foreground">Select agent</span>;
   }
 
   return (
@@ -120,7 +118,7 @@ export function GatewaySelector({
   onGatewayChange,
   variant = "bordered",
   className,
-  placeholder = "Select Hub",
+  placeholder = "Select Agent",
 }: GatewaySelectorProps) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -206,7 +204,7 @@ export function GatewaySelector({
               <Input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search for a gateway..."
+                placeholder="Search for an agent..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 h-9 text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
@@ -230,7 +228,7 @@ export function GatewaySelector({
               ))
             ) : (
               <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-                No gateways found
+                No agents found
               </div>
             )}
           </div>

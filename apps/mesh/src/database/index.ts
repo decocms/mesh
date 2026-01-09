@@ -71,11 +71,24 @@ interface DatabaseConfig {
 // PostgreSQL Implementation
 // ============================================================================
 
+const defaultPoolOptions = {
+  // Keep connections alive to avoid reconnection latency across regions
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
+  // Allow connections to stay idle longer (5 min instead of default 10s)
+  // This reduces reconnection overhead for cross-region databases
+  idleTimeoutMillis: 300000,
+  // Increase connection timeout for high-latency networks (30s)
+  connectionTimeoutMillis: 30000,
+  // Allow the process to exit even with idle connections
+  allowExitOnIdle: true,
+};
 function createPostgresDatabase(config: DatabaseConfig): PostgresDatabase {
   const pool = new Pool({
     connectionString: config.connectionString,
     max: config.options?.maxConnections || 10,
     ssl: process.env.DATABASE_PG_SSL === "true" ? true : false,
+    ...defaultPoolOptions,
   });
 
   const dialect = new PostgresDialect({ pool });
@@ -226,6 +239,7 @@ export function getDbDialect(databaseUrl?: string): Dialect {
         connectionString: config.connectionString,
         max: config.options?.maxConnections || 10,
         ssl: process.env.DATABASE_PG_SSL === "true" ? true : false,
+        ...defaultPoolOptions,
       }),
     });
   }

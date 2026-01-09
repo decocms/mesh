@@ -1,7 +1,7 @@
 /**
  * Organization Home Page
  *
- * Dashboard with greeting, hub selector, ice breakers, and chat input.
+ * Dashboard with greeting, agent selector, ice breakers, and chat input.
  * Supports graph view toggle in header.
  */
 
@@ -26,6 +26,7 @@ import { useThreads } from "@/web/hooks/use-chat-store";
 import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
+import { useSystem } from "@/web/hooks/use-system";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -58,12 +59,6 @@ function getTimeBasedGreeting(): string {
   if (hour >= 17 && hour < 22) return "Evening";
   return "Night";
 }
-
-/**
- * System prompt for chat
- */
-const SYSTEM_PROMPT =
-  "You are a helpful assistant. Please try answering the user's questions using your available tools.";
 
 /**
  * Helper to find stored item in array
@@ -212,10 +207,13 @@ function HomeContent() {
   // Get the onToolCall handler for invalidating collection queries
   const onToolCall = useInvalidateCollectionsOnToolCall();
 
+  // Compose system prompt with gateway context
+  const systemPrompt = useSystem(selectedGateway?.id);
+
   // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
   const chat = usePersistedChat({
     threadId: activeThreadId,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt,
     onToolCall,
     onCreateThread: (thread) =>
       createThread({
@@ -235,7 +233,7 @@ function HomeContent() {
     }
 
     if (!selectedGateway?.id) {
-      toast.error("No Hub configured");
+      toast.error("No Agent configured");
       return;
     }
 
@@ -420,7 +418,7 @@ function HomeContent() {
                   <GatewaySelector
                     selectedGatewayId={selectedGateway?.id}
                     onGatewayChange={handleGatewayChange}
-                    placeholder="Gateway"
+                    placeholder="Agent"
                     variant="borderless"
                   />
                   <ModelSelector
@@ -447,7 +445,7 @@ function HomeContent() {
                 </p>
               </div>
 
-              {/* Ice breakers for selected hub */}
+              {/* Ice breakers for selected agent */}
               {selectedGateway?.id && (
                 <ErrorBoundary key={selectedGateway.id} fallback={null}>
                   <Suspense
@@ -487,7 +485,7 @@ function HomeContent() {
                   <GatewaySelector
                     selectedGatewayId={selectedGateway?.id}
                     onGatewayChange={handleGatewayChange}
-                    placeholder="Gateway"
+                    placeholder="Agent"
                     variant="borderless"
                   />
                   <ModelSelector

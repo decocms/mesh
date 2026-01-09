@@ -7,7 +7,7 @@ import { CheckVerified02, Lock01 } from "@untitledui/icons";
 import { Card } from "@deco/ui/components/card.js";
 import { IntegrationIcon } from "../integration-icon.tsx";
 import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
-import { extractDisplayNameFromDomain } from "@/web/utils/app-name";
+import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
 import type { RegistryItem } from "./types";
 
 // Re-export types for backwards compatibility
