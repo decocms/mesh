@@ -39,11 +39,23 @@ export function getRemoteDisplayName(remote?: { url?: string }): string {
 }
 
 /**
+ * Get a display name for a package
+ */
+export function getPackageDisplayName(pkg?: { name?: string }): string {
+  if (!pkg?.name) return "Unknown";
+  // Extract package name (remove scope if present)
+  const name = pkg.name.replace(/^@[^/]+\//, "");
+  return name.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
  * Options for extracting connection data
  */
 export interface ExtractConnectionDataOptions {
   /** Index of the remote to use (default: 0) */
   remoteIndex?: number;
+  /** Index of the package to use for STDIO connections (default: 0) */
+  packageIndex?: number;
 }
 
 /**
@@ -56,17 +68,7 @@ export function extractConnectionData(
   options?: ExtractConnectionDataOptions,
 ) {
   const server = item.server as MCPRegistryServer["server"] | undefined;
-
   const meshMeta = item._meta?.[MCP_REGISTRY_DECOCMS_KEY];
-
-  const remoteIndex = options?.remoteIndex ?? 0;
-  const remote = server?.remotes?.[remoteIndex];
-
-  const connectionType = (getConnectionTypeLabel(remote?.type) || "HTTP") as
-    | "HTTP"
-    | "SSE"
-    | "Websocket";
-
   const now = new Date().toISOString();
 
   const baseName =
@@ -76,14 +78,6 @@ export function extractConnectionData(
     server?.title ||
     server?.name ||
     "Unnamed MCP Server";
-
-  // If there are multiple remotes, append the remote name/URL to differentiate
-  const remotes = server?.remotes ?? [];
-  const hasMultipleRemotes = remotes.length > 1;
-  const remoteSuffix = hasMultipleRemotes
-    ? ` (${getRemoteDisplayName(remote)})`
-    : "";
-  const title = baseName + remoteSuffix;
 
   const description = server?.description || null;
 
@@ -124,6 +118,55 @@ export function extractConnectionData(
       }
     : null;
 
+  // Check if we should use a package (STDIO/NPX) or a remote (HTTP/SSE)
+  const packages = server?.packages ?? [];
+  const remotes = server?.remotes ?? [];
+  const packageIndex = options?.packageIndex ?? 0;
+  const remoteIndex = options?.remoteIndex ?? 0;
+
+  // If packageIndex is specified and packages exist, use package (STDIO)
+  const usePackage = packages.length > 0 && options?.packageIndex !== undefined;
+  const selectedPackage = usePackage ? packages[packageIndex] : null;
+  const selectedRemote = !usePackage ? remotes[remoteIndex] : null;
+
+  // Determine connection type and parameters
+  let connectionType: "HTTP" | "SSE" | "Websocket" | "STDIO";
+  let connectionUrl: string;
+  let connectionHeaders: Record<string, unknown> | null = null;
+
+  if (selectedPackage) {
+    // STDIO connection using NPX
+    connectionType = "STDIO";
+    connectionUrl = "";
+    connectionHeaders = {
+      command: "npx",
+      args: ["-y", selectedPackage.name],
+    };
+  } else if (selectedRemote) {
+    connectionType = (getConnectionTypeLabel(selectedRemote.type) || "HTTP") as
+      | "HTTP"
+      | "SSE"
+      | "Websocket";
+    connectionUrl = selectedRemote.url || "";
+  } else {
+    // Fallback
+    connectionType = "HTTP";
+    connectionUrl = "";
+  }
+
+  // Build title with suffix for multiple options
+  const hasMultipleRemotes = remotes.length > 1;
+  const hasMultiplePackages = packages.length > 1;
+  let titleSuffix = "";
+
+  if (selectedPackage && hasMultiplePackages) {
+    titleSuffix = ` (${getPackageDisplayName(selectedPackage)})`;
+  } else if (selectedRemote && hasMultipleRemotes) {
+    titleSuffix = ` (${getRemoteDisplayName(selectedRemote)})`;
+  }
+
+  const title = baseName + titleSuffix;
+
   return {
     id: generatePrefixedId("conn"),
     title,
@@ -132,9 +175,9 @@ export function extractConnectionData(
     app_name: meshMeta?.appName || server?.name || null,
     app_id: meshMeta?.id || item.id || null,
     connection_type: connectionType,
-    connection_url: remote?.url || "",
+    connection_url: connectionUrl,
     connection_token: null as string | null,
-    connection_headers: null,
+    connection_headers: connectionHeaders,
     oauth_config: oauthConfig,
     configuration_state: configState ?? null,
     configuration_scopes: configScopes ?? null,

@@ -427,7 +427,11 @@ function StoreMCPServerDetailContent() {
       availableTabs[0]?.id ||
       "overview";
 
-  const handleInstall = async (versionIndex?: number, remoteIndex?: number) => {
+  const handleInstall = async (
+    versionIndex?: number,
+    remoteIndex?: number,
+    packageIndex?: number,
+  ) => {
     const version = allVersions[versionIndex ?? 0] || selectedItem;
     if (!version || !org || !session?.user?.id) return;
 
@@ -435,7 +439,11 @@ function StoreMCPServerDetailContent() {
       version,
       org.id,
       session.user.id,
-      { remoteIndex: remoteIndex ?? 0 },
+      {
+        remoteIndex:
+          packageIndex === undefined ? (remoteIndex ?? 0) : undefined,
+        packageIndex,
+      },
     );
 
     if (!connectionData.connection_url) {
