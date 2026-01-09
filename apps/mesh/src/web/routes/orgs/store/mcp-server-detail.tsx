@@ -483,8 +483,10 @@ function StoreMCPServerDetailContent() {
     return null;
   }
 
-  // Check if server can be installed (must have remotes)
-  const canInstall = (selectedItem?.server?.remotes?.length ?? 0) > 0;
+  // Check if server can be installed (must have remotes or packages)
+  const hasRemotes = (selectedItem?.server?.remotes?.length ?? 0) > 0;
+  const hasPackages = (selectedItem?.server?.packages?.length ?? 0) > 0;
+  const canInstall = hasRemotes || hasPackages;
 
   return (
     <div className="flex flex-col h-full border-l border-border">

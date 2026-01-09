@@ -56,7 +56,8 @@ function extractCardDisplayData(
   const isVerified = meshMeta?.verified ?? false;
   const version = item.server.version;
   const hasRemotes = (item.server.remotes?.length ?? 0) > 0;
-  const canInstall = hasRemotes;
+  const hasPackages = (item.server.packages?.length ?? 0) > 0;
+  const canInstall = hasRemotes || hasPackages;
 
   // Extract scopeName and displayName from title if it contains "/"
   let displayName = rawTitle;
