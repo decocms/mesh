@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { MCPServerData } from "./types";
 
 interface MCPServerHeroSectionProps {
@@ -40,7 +40,6 @@ export function MCPServerHeroSection({
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
   const [selectedRemoteIndex, setSelectedRemoteIndex] = useState<number>(0);
   const [selectedPackageIndex, setSelectedPackageIndex] = useState<number>(0);
-  const [installMode, setInstallMode] = useState<InstallMode>("remote");
 
   const selectedVersion = itemVersions[selectedVersionIndex] || itemVersions[0];
   const remotes = selectedVersion?.server?.remotes ?? [];
@@ -55,6 +54,18 @@ export function MCPServerHeroSection({
   if (hasRemotes) availableModes.push("remote");
   if (hasPackages) availableModes.push("package");
   const hasMultipleModes = availableModes.length > 1;
+
+  // Default install mode: prefer remote if available, otherwise package
+  const [installMode, setInstallMode] = useState<InstallMode>("remote");
+
+  // Update install mode when available modes change
+  useEffect(() => {
+    if (!hasRemotes && hasPackages) {
+      setInstallMode("package");
+    } else if (hasRemotes) {
+      setInstallMode("remote");
+    }
+  }, [hasRemotes, hasPackages]);
 
   const handleInstallVersion = (versionIndex: number) => {
     setSelectedVersionIndex(versionIndex);
