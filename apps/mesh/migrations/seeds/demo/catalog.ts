@@ -14,6 +14,40 @@ import type { Connection, Gateway } from "./seeder";
 // Well-Known Connections (installed by default in production)
 // =============================================================================
 
+// Registry tools (COLLECTION_REGISTRY_APP_* pattern)
+const REGISTRY_TOOLS = [
+  {
+    name: "COLLECTION_REGISTRY_APP_LIST",
+    description: "List all apps in the registry",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number" },
+        cursor: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "COLLECTION_REGISTRY_APP_GET",
+    description: "Get a specific app from the registry",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "COLLECTION_REGISTRY_APP_FILTERS",
+    description: "Get available filters for registry apps",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+];
+
 export const WELL_KNOWN_CONNECTIONS = {
   meshMcp: {
     title: "Mesh MCP",
@@ -23,6 +57,7 @@ export const WELL_KNOWN_CONNECTIONS = {
     connectionUrl: "https://mesh-admin.decocms.com/mcp",
     connectionToken: null,
     metadata: { provider: "deco", decoHosted: true },
+    tools: [], // Mesh MCP tools are dynamic, populated at runtime
   },
 
   mcpRegistry: {
@@ -33,6 +68,7 @@ export const WELL_KNOWN_CONNECTIONS = {
     connectionUrl: "https://sites-registry.decocache.com/mcp",
     connectionToken: null,
     metadata: { provider: "deco", decoHosted: true },
+    tools: REGISTRY_TOOLS,
   },
 
   decoStore: {
@@ -43,6 +79,7 @@ export const WELL_KNOWN_CONNECTIONS = {
     connectionUrl: "https://api.decocms.com/mcp/registry",
     connectionToken: null,
     metadata: { provider: "deco", decoHosted: true },
+    tools: REGISTRY_TOOLS,
   },
 } as const satisfies Record<string, Connection>;
 

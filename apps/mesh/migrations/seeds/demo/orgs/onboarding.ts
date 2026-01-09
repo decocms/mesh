@@ -37,8 +37,8 @@ const USERS: Record<string, OrgUser> = {
     email: `admin${EMAIL_DOMAIN}`,
   },
   developer: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Dev Developer",
     email: `developer${EMAIL_DOMAIN}`,
   },
@@ -49,7 +49,19 @@ const CONNECTIONS = {
   ...getWellKnownConnections(),
   ...pickConnections(["github", "openrouter", "notion"]),
 };
-const GATEWAYS = pickGateways(["defaultHub"]);
+
+// Override defaultHub to include only well-known connections (production behavior)
+const GATEWAYS = {
+  defaultHub: {
+    title: "Default Hub",
+    description: "Auto-created Hub for organization",
+    toolSelectionStrategy: "passthrough" as const,
+    toolSelectionMode: "inclusion" as const,
+    icon: null,
+    isDefault: true,
+    connections: ["meshMcp", "mcpRegistry", "decoStore"],
+  },
+};
 
 // =============================================================================
 // Monitoring Logs - Early adoption pattern over 48 hours
@@ -364,7 +376,12 @@ export async function seedOnboarding(
     apiKeys: [{ userKey: "admin", name: "Onboarding Admin Key" }],
     connections: CONNECTIONS,
     gateways: GATEWAYS,
-    gatewayConnections: [],
+    gatewayConnections: [
+      // Default Hub with well-known connections (production-like)
+      { gatewayKey: "defaultHub", connectionKey: "meshMcp" },
+      { gatewayKey: "defaultHub", connectionKey: "mcpRegistry" },
+      { gatewayKey: "defaultHub", connectionKey: "decoStore" },
+    ],
     logs: LOGS,
     ownerUserKey: "admin",
   };

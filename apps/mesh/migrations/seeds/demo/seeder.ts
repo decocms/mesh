@@ -42,10 +42,10 @@ export const TIME = {
 // Type Definitions
 // =============================================================================
 
-export type MemberRole = "owner" | "admin" | "member";
+export type MemberRole = "owner" | "admin" | "user";
 
 export interface OrgUser {
-  role: "admin" | "member";
+  role: "admin" | "user";
   memberRole: MemberRole;
   name: string;
   email: string;
@@ -65,6 +65,12 @@ export interface Connection {
     official?: boolean;
     decoHosted?: boolean;
   };
+  tools?: Array<{
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+  }>;
 }
 
 export interface Gateway {
@@ -210,6 +216,7 @@ function createConnectionRecord(
   createdBy: string,
   conn: Connection,
   timestamp: string,
+  tools: unknown[] | null = null,
 ) {
   return {
     id: connectionId,
@@ -228,7 +235,7 @@ function createConnectionRecord(
     configuration_state: null,
     configuration_scopes: null,
     metadata: JSON.stringify(conn.metadata),
-    tools: null,
+    tools: tools ? JSON.stringify(tools) : null,
     bindings: null,
     status: "active" as const,
     created_at: timestamp,
@@ -284,9 +291,12 @@ function createMonitoringLogRecord(
   timestamp: string,
   userId: string,
   gatewayId: string | null,
+  logIndex: number,
 ) {
+  // Use index to ensure unique IDs when generating many logs quickly
+  const timestampMs = Date.now();
   return {
-    id: generateId("log"),
+    id: `log_${timestampMs}_${logIndex.toString().padStart(7, "0")}`,
     organization_id: organizationId,
     connection_id: connectionId,
     connection_title: connectionTitle,
@@ -298,7 +308,7 @@ function createMonitoringLogRecord(
     duration_ms: log.durationMs,
     timestamp,
     user_id: userId,
-    request_id: generateId("req"),
+    request_id: `req_${timestampMs}_${logIndex.toString().padStart(7, "0")}`,
     user_agent: log.userAgent,
     gateway_id: gatewayId,
     properties: log.properties ? JSON.stringify(log.properties) : null,
@@ -383,6 +393,7 @@ export async function createOrg(
     connectionIds[key] = generateId("conn");
   }
   const ownerUserId = userIds[config.ownerUserKey]!;
+
   const connectionRecords = Object.entries(config.connections).map(
     ([key, conn]) =>
       createConnectionRecord(
@@ -391,6 +402,7 @@ export async function createOrg(
         ownerUserId,
         conn,
         now,
+        conn.tools ?? null,
       ),
   );
   await db.insertInto("connections").values(connectionRecords).execute();
@@ -419,22 +431,45 @@ export async function createOrg(
 
   // 9. Create Monitoring Logs
   if (config.logs.length > 0) {
-    const logRecords = config.logs.map((log) => {
-      const timestamp = new Date(Date.now() + log.offsetMs).toISOString();
-      const gatewayId = log.gatewayKey
-        ? (gatewayIds[log.gatewayKey] ?? null)
-        : null;
-      return createMonitoringLogRecord(
-        orgId,
-        connectionIds[log.connectionKey]!,
-        config.connections[log.connectionKey]!.title,
-        log,
-        timestamp,
-        userIds[log.userKey]!,
-        gatewayId,
-      );
-    });
-    await db.insertInto("monitoring_logs").values(logRecords).execute();
+    const BATCH_SIZE = 500; // SQLite has a strict limit on SQL variables per query
+    const totalLogs = config.logs.length;
+
+    console.log(
+      `   📊 Inserting ${totalLogs.toLocaleString()} monitoring logs...`,
+    );
+
+    for (let i = 0; i < totalLogs; i += BATCH_SIZE) {
+      const batch = config.logs.slice(i, i + BATCH_SIZE);
+      const logRecords = batch.map((log, batchIndex) => {
+        const timestamp = new Date(Date.now() + log.offsetMs).toISOString();
+        const gatewayId = log.gatewayKey
+          ? (gatewayIds[log.gatewayKey] ?? null)
+          : null;
+        // Use global index to ensure unique IDs across all batches
+        const logIndex = i + batchIndex;
+        return createMonitoringLogRecord(
+          orgId,
+          connectionIds[log.connectionKey]!,
+          config.connections[log.connectionKey]!.title,
+          log,
+          timestamp,
+          userIds[log.userKey]!,
+          gatewayId,
+          logIndex,
+        );
+      });
+      await db.insertInto("monitoring_logs").values(logRecords).execute();
+
+      if (totalLogs > BATCH_SIZE) {
+        const progress = Math.min(i + BATCH_SIZE, totalLogs);
+        const percentage = ((progress / totalLogs) * 100).toFixed(1);
+        console.log(
+          `      → ${progress.toLocaleString()}/${totalLogs.toLocaleString()} (${percentage}%)`,
+        );
+      }
+    }
+
+    console.log(`   ✅ Inserted ${totalLogs.toLocaleString()} logs`);
   }
 
   // 10. Create Organization Settings

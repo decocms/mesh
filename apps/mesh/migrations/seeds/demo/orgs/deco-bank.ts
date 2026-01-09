@@ -1,11 +1,11 @@
 /**
  * Deco Bank Organization
  *
- * Large corporate banking environment simulating 3 months of usage:
+ * Large corporate banking environment simulating 30 days of high-volume usage:
  * - 12 users across multiple departments
- * - 35+ connections (3 well-known + verified MCPs from Deco Store)
+ * - 24 connections (3 well-known + verified MCPs from Deco Store)
  * - 6 gateways (Default Hub + 5 specialized)
- * - ~2500 synthetic + static monitoring logs
+ * - ~1M synthetic + static monitoring logs (200k in last 24h, 800k in last 30 days)
  */
 
 import type { Kysely } from "kysely";
@@ -43,38 +43,38 @@ const USERS: Record<string, OrgUser> = {
     email: `ana.silva${EMAIL_DOMAIN}`,
   },
   seniorDev1: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Pedro Costa",
     email: `pedro.costa${EMAIL_DOMAIN}`,
   },
   seniorDev2: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Mariana Santos",
     email: `mariana.santos${EMAIL_DOMAIN}`,
   },
   midDev1: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Rafael Oliveira",
     email: `rafael.oliveira${EMAIL_DOMAIN}`,
   },
   junior: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Gabriel Lima",
     email: `gabriel.lima${EMAIL_DOMAIN}`,
   },
   analyst: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Lucas Fernandes",
     email: `lucas.fernandes${EMAIL_DOMAIN}`,
   },
   dataEngineer: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Beatriz Rodrigues",
     email: `beatriz.rodrigues${EMAIL_DOMAIN}`,
   },
@@ -85,20 +85,20 @@ const USERS: Record<string, OrgUser> = {
     email: `roberto.alves${EMAIL_DOMAIN}`,
   },
   compliance: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Julia Ferreira",
     email: `julia.ferreira${EMAIL_DOMAIN}`,
   },
   productManager: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Fernanda Souza",
     email: `fernanda.souza${EMAIL_DOMAIN}`,
   },
   qa: {
-    role: "member",
-    memberRole: "member",
+    role: "user",
+    memberRole: "user",
     name: "Ricardo Martins",
     email: `ricardo.martins${EMAIL_DOMAIN}`,
   },
@@ -123,77 +123,65 @@ const USER_ACTIVITY_WEIGHTS: Record<string, number> = {
 const CONNECTIONS = {
   ...getWellKnownConnections(),
   ...pickConnections([
-    // Development & Infrastructure
+    "openrouter",
     "github",
-    "vercel",
-    "supabase",
-    "prisma",
     "cloudflare",
     "aws",
-    // AI & LLM
-    "openrouter",
-    "perplexity",
-    "elevenlabs",
-    // Automation & Scraping
-    "apify",
-    "browserUse",
-    // Google Workspace
     "gmail",
     "googleCalendar",
-    "googleSheets",
     "googleDocs",
     "googleDrive",
+    "googleSheets",
     "googleTagManager",
-    "youtube",
-    // Productivity & Documentation
-    "notion",
-    "grain",
-    "airtable",
     "jira",
-    "hubspot",
-    // Communication
+    "brasilApi",
+    "apify",
+    "airtable",
+    "slack",
     "discord",
     "discordWebhook",
-    "slack",
-    "resend",
-    // Payments
-    "stripe",
-    // Brazilian APIs
-    "brasilApi",
-    "queridoDiario",
-    "datajud",
-    // Design & E-commerce
     "figma",
-    "shopify",
-    "vtex",
-    "superfrete",
+    "grain",
+    "notion",
+    "perplexity",
   ]),
 };
 
 // Default Hub (production-like) + specialized gateways
-const GATEWAYS = pickGateways([
-  "defaultHub",
-  "llm",
-  "devGateway",
-  "compliance",
-  "dataGateway",
-  "allAccess",
-]);
+const GATEWAYS = {
+  ...pickGateways([
+    "llm",
+    "devGateway",
+    "compliance",
+    "dataGateway",
+    "allAccess",
+  ]),
+  // Override defaultHub to include only well-known connections (production behavior)
+  defaultHub: {
+    title: "Default Hub",
+    description: "Auto-created Hub for organization",
+    toolSelectionStrategy: "passthrough" as const,
+    toolSelectionMode: "inclusion" as const,
+    icon: null,
+    isDefault: true,
+    connections: ["meshMcp", "mcpRegistry", "decoStore"],
+  },
+};
 
 // =============================================================================
-// Static Logs - Hand-crafted story moments over 90 days
+// Static Logs - Hand-crafted story moments over 30 days
 // =============================================================================
 
 const STATIC_LOGS: MonitoringLog[] = [
-  // 90 days ago: Q4 Planning
+  // 30 days ago: Monthly planning
   {
     connectionKey: "notion",
     toolName: "create_page",
-    input: { parent_id: "workspace_root", title: "Q1 2024 OKRs" },
-    output: { page_id: "page_q1_okrs" },
+    input: { parent_id: "workspace_root", title: "Monthly OKRs" },
+    output: { page_id: "page_monthly_okrs" },
     isError: false,
     durationMs: 345,
-    offsetMs: -90 * TIME.DAY,
+    offsetMs: -30 * TIME.DAY,
     userKey: "cto",
     userAgent: USER_AGENTS.notionDesktop,
     gatewayKey: "compliance",
@@ -201,17 +189,17 @@ const STATIC_LOGS: MonitoringLog[] = [
   {
     connectionKey: "grain",
     toolName: "get_transcript",
-    input: { meeting_id: "meet_q4_review" },
-    output: { transcript: "Q4 Review...", duration_minutes: 120 },
+    input: { meeting_id: "meet_monthly_review" },
+    output: { transcript: "Monthly Review...", duration_minutes: 120 },
     isError: false,
     durationMs: 1847,
-    offsetMs: -90 * TIME.DAY,
+    offsetMs: -30 * TIME.DAY,
     userKey: "cto",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "compliance",
   },
 
-  // 85 days ago: Security PR
+  // 28 days ago: Security PR
   {
     connectionKey: "github",
     toolName: "create_pull_request",
@@ -219,41 +207,41 @@ const STATIC_LOGS: MonitoringLog[] = [
     output: { number: 1892, state: "open" },
     isError: false,
     durationMs: 456,
-    offsetMs: -85 * TIME.DAY,
+    offsetMs: -28 * TIME.DAY,
     userKey: "security",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "devGateway",
   },
 
-  // 75 days ago: Payment refund
+  // 25 days ago: Infrastructure check
   {
-    connectionKey: "stripe",
-    toolName: "create_refund",
-    input: { charge: "ch_123", amount: 125000 },
-    output: { id: "re_123", status: "succeeded" },
-    isError: false,
-    durationMs: 1234,
-    offsetMs: -75 * TIME.DAY,
-    userKey: "techLead",
-    userAgent: USER_AGENTS.meshClient,
-    gatewayKey: "allAccess",
-  },
-
-  // 70 days ago: Deployment
-  {
-    connectionKey: "vercel",
-    toolName: "list_deployments",
-    input: { projectId: "prj_banking_mobile" },
-    output: { deployments: [{ uid: "dpl_mobile_v2", state: "READY" }] },
+    connectionKey: "cloudflare",
+    toolName: "list_zones",
+    input: {},
+    output: { zones: [{ name: "decobank.com", status: "active" }] },
     isError: false,
     durationMs: 234,
-    offsetMs: -70 * TIME.DAY,
+    offsetMs: -25 * TIME.DAY,
+    userKey: "techLead",
+    userAgent: USER_AGENTS.meshClient,
+    gatewayKey: "devGateway",
+  },
+
+  // 23 days ago: AWS resources check
+  {
+    connectionKey: "aws",
+    toolName: "list_s3_buckets",
+    input: {},
+    output: { buckets: [{ name: "decobank-prod-assets" }] },
+    isError: false,
+    durationMs: 345,
+    offsetMs: -23 * TIME.DAY,
     userKey: "seniorDev1",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "devGateway",
   },
 
-  // 65 days ago: AI code review
+  // 22 days ago: AI code review
   {
     connectionKey: "openrouter",
     toolName: "chat_completion",
@@ -264,28 +252,28 @@ const STATIC_LOGS: MonitoringLog[] = [
     output: { response: "Security concerns found...", tokens_used: 1847 },
     isError: false,
     durationMs: 3456,
-    offsetMs: -65 * TIME.DAY,
+    offsetMs: -22 * TIME.DAY,
     userKey: "seniorDev2",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "llm",
     properties: { cost_usd: "0.047" },
   },
 
-  // 60 days ago: Analytics
+  // 20 days ago: Brasil API integration
   {
-    connectionKey: "supabase",
-    toolName: "run_sql",
-    input: { project_id: "proj_analytics", query: "SELECT..." },
-    output: { rows: [{ transactions: 12847 }] },
+    connectionKey: "brasilApi",
+    toolName: "get_bank_info",
+    input: { code: "341" },
+    output: { name: "Itaú", fullName: "Itaú Unibanco" },
     isError: false,
-    durationMs: 678,
-    offsetMs: -60 * TIME.DAY,
+    durationMs: 456,
+    offsetMs: -20 * TIME.DAY,
     userKey: "analyst",
     userAgent: USER_AGENTS.meshClient,
-    gatewayKey: "allAccess",
+    gatewayKey: "dataGateway",
   },
 
-  // 55 days ago: Postmortem
+  // 18 days ago: Postmortem
   {
     connectionKey: "notion",
     toolName: "create_page",
@@ -293,27 +281,27 @@ const STATIC_LOGS: MonitoringLog[] = [
     output: { page_id: "page_postmortem" },
     isError: false,
     durationMs: 432,
-    offsetMs: -55 * TIME.DAY,
+    offsetMs: -18 * TIME.DAY,
     userKey: "techLead",
     userAgent: USER_AGENTS.notionDesktop,
     gatewayKey: "compliance",
   },
 
-  // 45 days ago: Payment reconciliation
+  // 16 days ago: Gmail automation
   {
-    connectionKey: "stripe",
-    toolName: "list_payments",
-    input: { limit: 1000 },
-    output: { data: [{ id: "pi_1", amount: 25000 }], total_count: 8734 },
+    connectionKey: "gmail",
+    toolName: "send_email",
+    input: { to: "support@decobank.com", subject: "Weekly Report" },
+    output: { id: "msg_123", threadId: "thread_456" },
     isError: false,
-    durationMs: 1234,
-    offsetMs: -45 * TIME.DAY,
+    durationMs: 567,
+    offsetMs: -16 * TIME.DAY,
     userKey: "analyst",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "allAccess",
   },
 
-  // 30 days ago: LLM cost analysis
+  // 14 days ago: LLM cost analysis
   {
     connectionKey: "openrouter",
     toolName: "get_usage_stats",
@@ -321,13 +309,13 @@ const STATIC_LOGS: MonitoringLog[] = [
     output: { total_requests: 45678, total_cost: 1234.56 },
     isError: false,
     durationMs: 234,
-    offsetMs: -30 * TIME.DAY,
+    offsetMs: -14 * TIME.DAY,
     userKey: "cto",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "llm",
   },
 
-  // 20 days ago: Bug investigation
+  // 12 days ago: Bug investigation
   {
     connectionKey: "github",
     toolName: "search_code",
@@ -338,13 +326,13 @@ const STATIC_LOGS: MonitoringLog[] = [
     },
     isError: false,
     durationMs: 567,
-    offsetMs: -20 * TIME.DAY,
+    offsetMs: -12 * TIME.DAY,
     userKey: "seniorDev2",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "devGateway",
   },
 
-  // 15 days ago: Compliance audit
+  // 10 days ago: Compliance audit
   {
     connectionKey: "grain",
     toolName: "get_transcript",
@@ -352,27 +340,27 @@ const STATIC_LOGS: MonitoringLog[] = [
     output: { transcript: "BACEN Compliance Audit...", duration_minutes: 87 },
     isError: false,
     durationMs: 2134,
-    offsetMs: -15 * TIME.DAY,
+    offsetMs: -10 * TIME.DAY,
     userKey: "compliance",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "compliance",
   },
 
-  // 7 days ago: Balance check
+  // 8 days ago: Slack notification
   {
-    connectionKey: "stripe",
-    toolName: "get_balance",
-    input: {},
-    output: { available: [{ amount: 12456789, currency: "brl" }] },
+    connectionKey: "slack",
+    toolName: "post_message",
+    input: { channel: "#engineering", text: "Deployment complete" },
+    output: { ok: true, ts: "1234567890.123456" },
     isError: false,
-    durationMs: 156,
-    offsetMs: -7 * TIME.DAY,
+    durationMs: 234,
+    offsetMs: -8 * TIME.DAY,
     userKey: "qa",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "allAccess",
   },
 
-  // 3 days ago: AI code generation
+  // 5 days ago: AI code generation
   {
     connectionKey: "openrouter",
     toolName: "chat_completion",
@@ -383,13 +371,13 @@ const STATIC_LOGS: MonitoringLog[] = [
     output: { response: "Here are the types...", tokens_used: 687 },
     isError: false,
     durationMs: 2345,
-    offsetMs: -3 * TIME.DAY,
+    offsetMs: -5 * TIME.DAY,
     userKey: "junior",
     userAgent: USER_AGENTS.meshClient,
     gatewayKey: "llm",
   },
 
-  // 2 days ago: Repository maintenance
+  // 3 days ago: Repository maintenance
   {
     connectionKey: "github",
     toolName: "list_repositories",
@@ -560,131 +548,120 @@ const TOOL_TEMPLATES: ToolTemplate[] = [
     sampleOutputs: [{ results: [], total: 67 }],
   },
 
-  // Stripe (8%)
+  // Slack (8%)
   {
-    toolName: "list_payments",
-    connectionKey: "stripe",
+    toolName: "post_message",
+    connectionKey: "slack",
     weight: 0.03,
     avgDurationMs: 240,
     durationVariance: 90,
-    sampleInputs: [{ limit: 100 }],
-    sampleOutputs: [{ data: [], has_more: true }],
+    sampleInputs: [{ channel: "#engineering", text: "Update..." }],
+    sampleOutputs: [{ ok: true, ts: "1234567890.123456" }],
   },
   {
-    toolName: "get_balance",
-    connectionKey: "stripe",
-    weight: 0.02,
-    avgDurationMs: 150,
-    durationVariance: 50,
-    sampleInputs: [{}],
-    sampleOutputs: [{ available: [{ amount: 1245678 }] }],
-  },
-  {
-    toolName: "create_refund",
-    connectionKey: "stripe",
-    weight: 0.01,
-    avgDurationMs: 320,
-    durationVariance: 120,
-    sampleInputs: [{ charge: "ch_123" }],
-    sampleOutputs: [{ id: "re_456", status: "succeeded" }],
-  },
-
-  // Vercel (9%)
-  {
-    toolName: "list_deployments",
-    connectionKey: "vercel",
-    weight: 0.04,
-    avgDurationMs: 220,
-    durationVariance: 80,
-    sampleInputs: [{ projectId: "prj_banking" }],
-    sampleOutputs: [{ deployments: [] }],
-  },
-  {
-    toolName: "get_deployment",
-    connectionKey: "vercel",
+    toolName: "list_channels",
+    connectionKey: "slack",
     weight: 0.02,
     avgDurationMs: 180,
-    durationVariance: 70,
-    sampleInputs: [{ deployment_id: "dpl_123" }],
-    sampleOutputs: [{ state: "READY" }],
-  },
-  {
-    toolName: "list_projects",
-    connectionKey: "vercel",
-    weight: 0.02,
-    avgDurationMs: 190,
     durationVariance: 60,
     sampleInputs: [{}],
-    sampleOutputs: [{ projects: [] }],
+    sampleOutputs: [{ channels: [], total: 42 }],
   },
-
-  // Supabase (6%)
   {
-    toolName: "list_projects",
-    connectionKey: "supabase",
+    toolName: "get_channel_history",
+    connectionKey: "slack",
     weight: 0.02,
     avgDurationMs: 210,
     durationVariance: 80,
-    sampleInputs: [{}],
-    sampleOutputs: [{ projects: [], total: 23 }],
+    sampleInputs: [{ channel: "C123456" }],
+    sampleOutputs: [{ messages: [], has_more: true }],
+  },
+
+  // Gmail (9%)
+  {
+    toolName: "send_email",
+    connectionKey: "gmail",
+    weight: 0.04,
+    avgDurationMs: 340,
+    durationVariance: 120,
+    sampleInputs: [{ to: "user@example.com", subject: "Report" }],
+    sampleOutputs: [{ id: "msg_123", threadId: "thread_456" }],
   },
   {
-    toolName: "get_project_health",
-    connectionKey: "supabase",
+    toolName: "list_emails",
+    connectionKey: "gmail",
+    weight: 0.03,
+    avgDurationMs: 280,
+    durationVariance: 100,
+    sampleInputs: [{ query: "is:unread" }],
+    sampleOutputs: [{ messages: [], resultSizeEstimate: 42 }],
+  },
+  {
+    toolName: "get_email",
+    connectionKey: "gmail",
+    weight: 0.02,
+    avgDurationMs: 210,
+    durationVariance: 80,
+    sampleInputs: [{ id: "msg_123" }],
+    sampleOutputs: [{ subject: "...", from: "..." }],
+  },
+
+  // Brasil API (6%)
+  {
+    toolName: "get_bank_info",
+    connectionKey: "brasilApi",
     weight: 0.02,
     avgDurationMs: 180,
     durationVariance: 70,
-    sampleInputs: [{ project_id: "proj_123" }],
-    sampleOutputs: [{ status: "healthy" }],
+    sampleInputs: [{ code: "341" }],
+    sampleOutputs: [{ name: "Itaú", fullName: "Itaú Unibanco" }],
   },
   {
-    toolName: "run_sql",
-    connectionKey: "supabase",
-    weight: 0.01,
-    avgDurationMs: 420,
-    durationVariance: 180,
-    sampleInputs: [{ query: "SELECT..." }],
-    sampleOutputs: [{ rows: [] }],
+    toolName: "get_cep",
+    connectionKey: "brasilApi",
+    weight: 0.02,
+    avgDurationMs: 150,
+    durationVariance: 50,
+    sampleInputs: [{ cep: "01310100" }],
+    sampleOutputs: [{ street: "Av. Paulista", city: "São Paulo" }],
+  },
+  {
+    toolName: "get_cnpj",
+    connectionKey: "brasilApi",
+    weight: 0.02,
+    avgDurationMs: 210,
+    durationVariance: 80,
+    sampleInputs: [{ cnpj: "00000000000191" }],
+    sampleOutputs: [{ razao_social: "Banco do Brasil" }],
   },
 
-  // GitHub Copilot (8%)
+  // Jira (8%)
   {
-    toolName: "get_completions",
-    connectionKey: "github",
-    weight: 0.05,
-    avgDurationMs: 450,
-    durationVariance: 200,
-    sampleInputs: [{ prompt: "function..." }],
-    sampleOutputs: [{ completions: [] }],
+    toolName: "create_issue",
+    connectionKey: "jira",
+    weight: 0.03,
+    avgDurationMs: 340,
+    durationVariance: 120,
+    sampleInputs: [{ project: "DECO", summary: "Bug fix" }],
+    sampleOutputs: [{ id: "10001", key: "DECO-123" }],
   },
   {
-    toolName: "explain_code",
-    connectionKey: "github",
-    weight: 0.02,
-    avgDurationMs: 1200,
-    durationVariance: 400,
-    sampleInputs: [{ code: "..." }],
-    sampleOutputs: [{ explanation: "..." }],
-  },
-
-  // Prisma (6%)
-  {
-    toolName: "generate_schema",
-    connectionKey: "prisma",
-    weight: 0.02,
-    avgDurationMs: 890,
-    durationVariance: 300,
-    sampleInputs: [{ introspect: true }],
-    sampleOutputs: [{ schema: "...", models_count: 23 }],
+    toolName: "search_issues",
+    connectionKey: "jira",
+    weight: 0.03,
+    avgDurationMs: 280,
+    durationVariance: 100,
+    sampleInputs: [{ jql: "project = DECO" }],
+    sampleOutputs: [{ issues: [], total: 234 }],
   },
   {
-    toolName: "run_migration",
-    connectionKey: "prisma",
+    toolName: "get_issue",
+    connectionKey: "jira",
     weight: 0.02,
-    avgDurationMs: 2340,
-    durationVariance: 800,
-    sampleInputs: [{ migration_name: "add_index" }],
-    sampleOutputs: [{ success: true }],
+    avgDurationMs: 210,
+    durationVariance: 80,
+    sampleInputs: [{ key: "DECO-123" }],
+    sampleOutputs: [{ summary: "...", status: "In Progress" }],
   },
 
   // Apify (5%)
@@ -710,15 +687,17 @@ const TOOL_TEMPLATES: ToolTemplate[] = [
 
 const CONNECTION_TO_GATEWAY: Record<string, string> = {
   github: "devGateway",
-  vercel: "devGateway",
-  prisma: "devGateway",
-  supabase: "devGateway",
+  cloudflare: "devGateway",
+  aws: "devGateway",
   openrouter: "llm",
-  githubCopilot: "llm",
+  perplexity: "llm",
   notion: "compliance",
   grain: "compliance",
   apify: "dataGateway",
-  stripe: "allAccess",
+  brasilApi: "dataGateway",
+  gmail: "allAccess",
+  slack: "allAccess",
+  jira: "allAccess",
 };
 
 function weightedRandom<T extends { weight: number }>(items: T[]): T {
@@ -742,22 +721,26 @@ function generateSyntheticLogs(targetCount: number): MonitoringLog[] {
     const userEntry = weightedRandom(userWeights);
     const isError = Math.random() < 0.08;
 
-    // Generate timestamp with recency bias (40% last 24h, 35% last 7d, 20% last 30d, 5% last 90d)
+    // Generate timestamp distributed over last 30 days (20% last 24h, 30% days 1-3, 25% days 3-7, 25% days 7-30)
     const r = Math.random();
-    let daysAgo =
-      r < 0.4
-        ? Math.random()
-        : r < 0.75
-          ? 1 + Math.random() * 6
-          : r < 0.95
-            ? 7 + Math.random() * 23
-            : 30 + Math.random() * 60;
+    let randomOffset: number;
 
-    const timestamp = new Date(Date.now() - daysAgo * TIME.DAY);
-    // Adjust to working hours (8-20)
-    const hour = timestamp.getHours();
-    if (hour < 8 || hour > 20)
-      timestamp.setHours(8 + Math.floor(Math.random() * 12));
+    if (r < 0.2) {
+      // Last 24h: 0 to 1 day ago
+      randomOffset = Math.random() * TIME.DAY;
+    } else if (r < 0.5) {
+      // Days 1-3: between 1 and 3 days ago
+      randomOffset = TIME.DAY + Math.random() * 2 * TIME.DAY;
+    } else if (r < 0.75) {
+      // Days 3-7: between 3 and 7 days ago
+      randomOffset = 3 * TIME.DAY + Math.random() * 4 * TIME.DAY;
+    } else {
+      // Days 7-30: between 7 and 30 days ago
+      randomOffset = 7 * TIME.DAY + Math.random() * 23 * TIME.DAY;
+    }
+
+    // Calculate total offset as negative milliseconds from now
+    const totalOffsetMs = -randomOffset;
 
     const duration =
       template.avgDurationMs +
@@ -780,7 +763,7 @@ function generateSyntheticLogs(targetCount: number): MonitoringLog[] {
       output,
       isError,
       durationMs: Math.max(50, Math.round(duration)),
-      offsetMs: timestamp.getTime() - Date.now(),
+      offsetMs: totalOffsetMs,
       userKey: userEntry.key,
       userAgent: "mesh-client/1.0",
       gatewayKey: CONNECTION_TO_GATEWAY[template.connectionKey] || "allAccess",
@@ -800,8 +783,9 @@ export const DECO_BANK_SLUG = "deco-bank";
 export async function seedDecoBank(
   db: Kysely<Database>,
 ): Promise<OrgSeedResult> {
-  // Generate ~2500 synthetic logs + static story logs
-  const syntheticLogs = generateSyntheticLogs(2500);
+  // Generate ~1M synthetic logs + static story logs
+  // This simulates high-volume production usage (200k/day peak, 1M over 30 days)
+  const syntheticLogs = generateSyntheticLogs(1_000_000);
   const allLogs = [...STATIC_LOGS, ...syntheticLogs];
 
   const config: OrgConfig = {
@@ -814,7 +798,14 @@ export async function seedDecoBank(
     ],
     connections: CONNECTIONS,
     gateways: GATEWAYS,
-    gatewayConnections: [{ gatewayKey: "llm", connectionKey: "openrouter" }],
+    gatewayConnections: [
+      // Default Hub with well-known connections (production-like)
+      { gatewayKey: "defaultHub", connectionKey: "meshMcp" },
+      { gatewayKey: "defaultHub", connectionKey: "mcpRegistry" },
+      { gatewayKey: "defaultHub", connectionKey: "decoStore" },
+      // LLM Gateway
+      { gatewayKey: "llm", connectionKey: "openrouter" },
+    ],
     logs: allLogs,
     ownerUserKey: "cto",
   };
