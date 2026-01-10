@@ -49,11 +49,34 @@ Bun is the test runner throughout. Co-locate test files next to source as `*.tes
 ## Authentication & Authorization
 Uses Better Auth for authentication (OAuth 2.1 + SSO + API keys). Authorization uses custom AccessControl layer with organization/project-level RBAC. Auth configuration is in `apps/mesh/auth-config.json` (example: `auth-config.example.json`).
 
+## Documentation Requirements
+
+**IMPORTANT**: Documentation must be updated alongside code changes. Before committing:
+
+1. **Check for relevant docs** in `apps/docs/client/src/content/` (EN + PT-BR)
+2. **Update affected docs** when changing:
+   - API behavior or endpoints
+   - Configuration options
+   - Authentication/authorization flows
+   - Connection types or proxy behavior
+   - New features or removed functionality
+3. **Update README.md** for significant features
+4. **Review docs diff** before committing to ensure accuracy
+
+Documentation locations:
+- `apps/docs/client/src/content/en/` - English docs
+- `apps/docs/client/src/content/pt-br/` - Portuguese docs
+- `README.md` - Project overview and quick start
+- `packages/*/README.md` - Package-specific docs
+
+Run `bun run docs:dev` to preview documentation changes locally.
+
 ## Commit & Pull Request Guidelines
 Follow Conventional Commit-style history: `type(scope): message`, optionally wrapping the type in brackets for chores (e.g., `[chore]: update deps`). Reference issues with `(#1234)` when applicable. PRs should include:
 - Succinct summary of changes
 - Testing notes and affected areas
 - Screenshots for UI changes
+- **Documentation updates** for any behavior changes
 - Confirm formatting (`bun run fmt`) and linting (`bun run lint`) pass
 - Run tests (`bun test`) before requesting review
 - Flag follow-up work with TODOs linked to issues

@@ -78,7 +78,7 @@ describe("JWT Utility Functions", () => {
         },
       };
 
-      const token = await issueMeshToken(payload, "1h");
+      const token = await issueMeshToken(payload, { expiresIn: "1h" });
       const decoded = decodeMeshToken(token);
 
       // Expiration should be ~1 hour from now
@@ -343,7 +343,7 @@ describe("Token Expiration", () => {
     };
 
     // Issue token with very short expiration
-    const token = await issueMeshToken(payload, "1s");
+    const token = await issueMeshToken(payload, { expiresIn: "1s" });
 
     // Token should be valid immediately
     const validResult = await verifyMeshToken(token);
@@ -369,7 +369,7 @@ describe("Token Expiration", () => {
       },
     };
 
-    const token = await issueMeshToken(payload, "1s");
+    const token = await issueMeshToken(payload, { expiresIn: "1s" });
 
     // Wait for expiration
     await new Promise((resolve) => setTimeout(resolve, 1500));

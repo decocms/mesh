@@ -40,6 +40,8 @@ interface StableConnection {
   config: StableStdioConfig;
   status: "connecting" | "connected" | "reconnecting" | "failed";
   connectPromise: Promise<StableClient> | null;
+  /** Process ID for killing the process tree on cleanup */
+  pid?: number;
 }
 
 /**
@@ -94,9 +96,18 @@ export async function getStableStdioClient(
 ): Promise<Client> {
   const existing = connectionPool.get(config.id);
 
-  // If we have an existing connection that's connected, return the stable wrapper
+  // If we have an existing connection that's connected, verify it's still alive
   if (existing?.status === "connected" && existing.stableClient) {
-    return existing.stableClient;
+    try {
+      // Quick ping to verify connection is alive (listTools has low overhead)
+      await existing.stableClient.listTools();
+      return existing.stableClient;
+    } catch {
+      // Connection is dead, mark for respawn
+      console.log(`[StableStdio] Stale connection detected: ${config.id}`);
+      existing.status = "failed";
+      existing.connectPromise = null;
+    }
   }
 
   // If we're already connecting/reconnecting, wait for that
@@ -195,7 +206,17 @@ export async function getStableStdioClient(
       }
 
       connection.status = "connected";
-      console.log(`[StableStdio] Connected: ${config.id}`);
+
+      // Capture PID for process tree cleanup during shutdown
+      // The MCP SDK stores the spawned process in _process (private but accessible)
+      const transportProcess = (
+        transport as unknown as { _process?: { pid?: number } }
+      )._process;
+      connection.pid = transportProcess?.pid;
+
+      console.log(
+        `[StableStdio] Connected: ${config.id} (PID: ${connection.pid ?? "unknown"})`,
+      );
 
       // Return the stable wrapper (close() is disabled)
       return connection.stableClient;
@@ -219,6 +240,53 @@ export async function getStableStdioClient(
 }
 
 /**
+ * Kill a process tree (parent and all children)
+ * This is needed because `bun --watch` spawns child processes
+ * that don't get killed when the parent receives SIGTERM
+ */
+async function killProcessTree(pid: number): Promise<void> {
+  try {
+    // First, find all child processes
+    const { spawn } = await import("child_process");
+
+    // Use pgrep to find children (works on macOS and Linux)
+    const pgrep = spawn("pgrep", ["-P", String(pid)]);
+    const childPids: number[] = [];
+
+    pgrep.stdout?.on("data", (data: Buffer) => {
+      const pids = data
+        .toString()
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map(Number);
+      childPids.push(...pids);
+    });
+
+    await new Promise<void>((resolve) => pgrep.on("close", resolve));
+
+    // Recursively kill children first
+    for (const childPid of childPids) {
+      await killProcessTree(childPid);
+    }
+
+    // Kill the process itself with SIGKILL
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Process might already be dead
+    }
+  } catch {
+    // Fallback: just try to kill the PID directly
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Process might already be dead
+    }
+  }
+}
+
+/**
  * Force close a stable stdio connection
  * Used for explicit shutdown (e.g., server shutdown)
  */
@@ -233,9 +301,25 @@ async function forceCloseStdioConnection(id: string): Promise<void> {
     if (connection.client) {
       connection.client.onclose = undefined;
     }
-    await connection.client?.close();
-  } catch {
-    // Ignore close errors
+
+    // Use the PID we captured when the connection was created
+    const pid = connection.pid;
+
+    // First, try graceful close
+    try {
+      await connection.client?.close();
+    } catch {
+      // Ignore close errors
+    }
+
+    // Then, kill the entire process tree to ensure children are dead
+    // This is important for `bun --watch` which spawns child processes
+    if (pid) {
+      console.log(`[StableStdio] Killing process tree for PID ${pid}`);
+      await killProcessTree(pid);
+    }
+  } catch (error) {
+    console.error(`[StableStdio] Error closing connection ${id}:`, error);
   }
 
   connectionPool.delete(id);
@@ -254,6 +338,31 @@ async function forceCloseAllStdioConnections(): Promise<void> {
 
   await Promise.allSettled(closePromises);
   connectionPool.clear();
+
+  // Small delay to ensure OS releases ports after processes are killed
+  await new Promise((resolve) => setTimeout(resolve, 100));
+}
+
+/**
+ * Force close all connections and clear the pool
+ * Used on app startup/HMR to ensure fresh processes with new credentials
+ */
+export async function resetStdioConnectionPool(): Promise<void> {
+  console.log(
+    `[StableStdio] Reset requested. Pool size: ${connectionPool.size}, keys: [${Array.from(connectionPool.keys()).join(", ")}]`,
+  );
+
+  if (connectionPool.size > 0) {
+    console.log(
+      `[StableStdio] Resetting ${connectionPool.size} connections (killing processes)`,
+    );
+    await forceCloseAllStdioConnections();
+    console.log(
+      `[StableStdio] Reset complete. Pool size: ${connectionPool.size}`,
+    );
+  } else {
+    console.log(`[StableStdio] Pool was empty, nothing to reset`);
+  }
 }
 
 // Register shutdown handlers - clean up connections before exit
