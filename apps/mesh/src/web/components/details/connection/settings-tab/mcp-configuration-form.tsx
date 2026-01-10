@@ -3,6 +3,7 @@ import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
 import { useProjectContext } from "@/web/providers/project-context-provider";
+import { GatewaySelector } from "@/web/components/chat/gateway-selector";
 import { Loading01, Plus } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -346,6 +347,31 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
         .replace(/\b\w/g, (c) => c.toUpperCase());
 
     const displayTitle = title ? formatTitle(title) : formatTitle(fieldPath);
+
+    // Special handling for agent binding - use GatewaySelector
+    if (bindingType === "@deco/agent") {
+      return (
+        <div className="flex items-center gap-3 justify-between">
+          <div className="flex-1 min-w-0">
+            <label className="text-sm font-medium truncate block">
+              {displayTitle}
+            </label>
+            {description && (
+              <p className="text-xs text-muted-foreground truncate">
+                {description}
+              </p>
+            )}
+          </div>
+          <GatewaySelector
+            selectedGatewayId={currentValue || undefined}
+            onGatewayChange={handleBindingChange}
+            variant="bordered"
+            placeholder="Select Agent"
+            className="w-[200px] shrink-0"
+          />
+        </div>
+      );
+    }
 
     return (
       <div className="flex items-center gap-3 justify-between">
