@@ -109,6 +109,7 @@ export class EventBusWorker {
   private notifySubscriber: NotifySubscriberFn;
   private running = false;
   private processing = false;
+  private pendingProcessRequest = false;
   private config: Required<EventBusConfig>;
 
   constructor(
@@ -160,10 +161,15 @@ export class EventBusWorker {
    * Called by the NotifyStrategy when events are available
    */
   async processNow(): Promise<void> {
-    if (!this.running) return;
+    if (!this.running) {
+      return;
+    }
 
-    // Prevent concurrent processing
-    if (this.processing) return;
+    // If already processing, mark that we need another run after current finishes
+    if (this.processing) {
+      this.pendingProcessRequest = true;
+      return;
+    }
 
     this.processing = true;
     try {
@@ -172,6 +178,13 @@ export class EventBusWorker {
       console.error("[EventBus] Error processing events:", error);
     } finally {
       this.processing = false;
+
+      // If processNow was called while we were processing, run again
+      if (this.pendingProcessRequest) {
+        this.pendingProcessRequest = false;
+        // Use setImmediate to avoid stack overflow on rapid fire events
+        setImmediate(() => this.processNow());
+      }
     }
   }
 
@@ -186,6 +199,8 @@ export class EventBusWorker {
     );
     if (pendingDeliveries.length === 0) return;
 
+    console.log(`[EventBus] Processing ${pendingDeliveries.length} deliveries`);
+
     // Group by subscription (connection)
     const grouped = groupByConnection(pendingDeliveries);
 
@@ -194,10 +209,19 @@ export class EventBusWorker {
 
     for (const [subscriptionId, batch] of grouped) {
       try {
+        console.log(
+          `[EventBus] Delivering ${batch.events.length} events to ${batch.connectionId}`,
+        );
+
         // Call ON_EVENTS on the subscriber connection
         const result = await this.notifySubscriber(
           batch.connectionId,
           batch.events,
+        );
+
+        console.log(
+          `[EventBus] Delivery result for ${batch.connectionId}:`,
+          JSON.stringify(result).slice(0, 200),
         );
 
         // Check if per-event results were provided

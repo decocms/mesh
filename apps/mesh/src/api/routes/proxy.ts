@@ -376,6 +376,10 @@ async function createMCPProxyDoNotUseDirectly(
       env.MESH_URL = meshUrl;
     }
 
+    // Pass the connection ID so STDIO servers can identify themselves
+    // (needed for event bus subscriptions via gateway)
+    env.MESH_CONNECTION_ID = connectionId;
+
     // Pass state as JSON for bindings
     const state = connection.configuration_state;
     if (state && Object.keys(state).length > 0) {
@@ -648,7 +652,19 @@ async function createMCPProxyDoNotUseDirectly(
       client = await createClient();
       return await client.listPrompts();
     } catch (error) {
-      console.error("[proxy:listPrompts] Error listing prompts:", error);
+      // Prompts are optional in MCP - don't log "Method not found" errors
+      // Error code -32601 is "Method not found" which is expected for MCPs without prompts
+      // Also don't log spawn failures - those are already logged by StableStdio
+      const isMethodNotFound =
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === -32601;
+      const isSpawnFailure =
+        error instanceof Error && error.message.includes("Spawn failed");
+      if (!isMethodNotFound && !isSpawnFailure) {
+        console.error("[proxy:listPrompts] Error listing prompts:", error);
+      }
       throw error;
     } finally {
       client?.close().catch(console.error);
