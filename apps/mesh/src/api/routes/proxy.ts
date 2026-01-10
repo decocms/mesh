@@ -224,8 +224,9 @@ async function createMCPProxyDoNotUseDirectly(
       connection.configuration_scopes,
     );
 
-    // Issue short-lived JWT with configuration permissions
-    // JWT can be decoded directly by downstream to access payload
+    // Issue JWT with configuration permissions
+    // HTTP connections get 5-min tokens, STDIO connections get infinite tokens
+    // STDIO servers persist tokens locally to .env for restart survival
     const userId = ctx.auth.user?.id ?? ctx.auth.apiKey?.userId;
     if (!userId) {
       console.error("User ID required to issue configuration token");
@@ -233,17 +234,24 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     try {
-      configurationToken = await issueMeshToken({
-        sub: userId,
-        user: { id: userId },
-        metadata: {
-          state: connection.configuration_state ?? undefined,
-          meshUrl: process.env.MESH_URL ?? ctx.baseUrl,
-          connectionId,
-          organizationId: ctx.organization?.id,
+      // STDIO connections get infinite tokens - they persist them locally to .env
+      // This avoids the need to re-send ON_MCP_CONFIGURATION on every request
+      const isStdioConnection = connection.connection_type === "STDIO";
+
+      configurationToken = await issueMeshToken(
+        {
+          sub: userId,
+          user: { id: userId },
+          metadata: {
+            state: connection.configuration_state ?? undefined,
+            meshUrl: process.env.MESH_URL ?? ctx.baseUrl,
+            connectionId,
+            organizationId: ctx.organization?.id,
+          },
+          permissions,
         },
-        permissions,
-      });
+        { noExpiration: isStdioConnection },
+      );
     } catch (error) {
       console.error("Failed to issue configuration token:", error);
       // Continue without configuration token - downstream will fail if it requires it
@@ -353,6 +361,30 @@ async function createMCPProxyDoNotUseDirectly(
     ? (connection.connection_headers as HttpConnectionParameters | null)
     : null;
 
+  // Build env vars for STDIO connections (token + state passed via env)
+  const buildStdioEnv = async (): Promise<Record<string, string>> => {
+    await ensureConfigurationToken();
+    const meshUrl = process.env.MESH_URL ?? ctx.baseUrl;
+
+    const env: Record<string, string> = {};
+
+    // Pass mesh credentials via env vars - STDIO servers just read these
+    if (configurationToken) {
+      env.MESH_TOKEN = configurationToken;
+    }
+    if (meshUrl) {
+      env.MESH_URL = meshUrl;
+    }
+
+    // Pass state as JSON for bindings
+    const state = connection.configuration_state;
+    if (state && Object.keys(state).length > 0) {
+      env.MESH_STATE = JSON.stringify(state);
+    }
+
+    return env;
+  };
+
   // Create client factory for downstream MCP based on connection_type
   const createClient = async () => {
     switch (connection.connection_type) {
@@ -371,16 +403,22 @@ async function createMCPProxyDoNotUseDirectly(
           throw new Error("STDIO connection missing parameters");
         }
 
+        // Build env with mesh credentials - STDIO servers read MESH_TOKEN/MESH_URL/MESH_STATE
+        const meshEnv = await buildStdioEnv();
+        const env = { ...stdioParams.envVars, ...meshEnv };
+
         // Get or create stable connection - respawns automatically if closed
         // We want stable local MCP connection - don't spawn new process per request
-        return getStableStdioClient({
+        const client = await getStableStdioClient({
           id: connectionId,
           name: connection.title,
           command: stdioParams.command,
           args: stdioParams.args,
-          env: stdioParams.envVars,
+          env,
           cwd: stdioParams.cwd,
         });
+
+        return client;
       }
 
       case "HTTP":
@@ -850,6 +888,21 @@ async function createMCPProxyDoNotUseDirectly(
       getPrompt,
     },
     callStreamableTool,
+    /**
+     * Get the configuration token for this proxy.
+     * This is the JWT that downstream MCPs can use to call back to Mesh.
+     * Useful for STDIO connections that can't receive headers per-request.
+     */
+    getConfigurationToken: async (): Promise<string | undefined> => {
+      await ensureConfigurationToken();
+      return configurationToken;
+    },
+    /**
+     * Get the Mesh URL that downstream MCPs should call back to.
+     */
+    getMeshUrl: (): string => {
+      return process.env.MESH_URL ?? ctx.baseUrl;
+    },
   };
 }
 
