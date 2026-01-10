@@ -76,10 +76,21 @@ export class PromptGateway {
 
           return { connectionId, prompts };
         } catch (error) {
-          console.error(
-            `[PromptGateway] Failed to list prompts for connection ${connectionId}:`,
-            error,
-          );
+          // Error code -32601 is "Method not found" - expected for MCPs without prompts
+          const isMethodNotFound =
+            error &&
+            typeof error === "object" &&
+            "code" in error &&
+            error.code === -32601;
+          // Spawn failures are already logged by StableStdio
+          const isSpawnFailure =
+            error instanceof Error && error.message.includes("Spawn failed");
+          if (!isMethodNotFound && !isSpawnFailure) {
+            console.error(
+              `[PromptGateway] Failed to list prompts for connection ${connectionId}:`,
+              error,
+            );
+          }
           return { connectionId, prompts: [] as Prompt[] };
         }
       },
