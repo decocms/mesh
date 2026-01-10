@@ -100,7 +100,9 @@ import {
 import { MiddlewareHandler } from "hono/types";
 import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
 import { Env } from "./env";
+import { resetStdioConnectionPool } from "../stdio/stable-transport";
 import { devLogger } from "./utils/dev-logger";
+
 const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
 const getHandleOAuthDiscoveryMetadata = () => oAuthDiscoveryMetadata(auth);
@@ -131,6 +133,12 @@ export interface CreateAppOptions {
  */
 export function createApp(options: CreateAppOptions = {}) {
   const database = options.database ?? getDb();
+
+  // Kill and respawn STDIO connections on restart/HMR
+  // Old processes have stale credentials, need fresh spawn with new tokens
+  resetStdioConnectionPool().catch((err) => {
+    console.error("[StableStdio] Error resetting pool:", err);
+  });
 
   // Stop any existing event bus worker (cleanup during HMR)
   if (currentEventBus && currentEventBus.isRunning()) {
