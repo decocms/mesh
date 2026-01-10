@@ -20,11 +20,12 @@ import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Key01, File06, Loading01 } from "@untitledui/icons";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { Key01, File06, Loading01, RefreshCw01 } from "@untitledui/icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { ViewActions } from "../../layout";
@@ -477,6 +478,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   const queryClient = useQueryClient();
   const routerState = useRouterState();
   const url = routerState.location.href;
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Check if connection has README
   const repository = connection?.metadata?.repository as
@@ -620,6 +622,20 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
     }
   };
 
+  const handleRefreshTools = async () => {
+    setIsRefreshing(true);
+    try {
+      // Trigger an update with no changes to force tool refresh
+      // Note: connectionActions.update handles success/error toasts via onSuccess/onError
+      await connectionActions.update.mutateAsync({
+        id: connection.id,
+        data: {},
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <>
       <ViewActions>
@@ -628,6 +644,20 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
           url={url}
           icon={connection.icon ?? "settings"}
         />
+        <Button
+          onClick={handleRefreshTools}
+          disabled={isRefreshing || isUpdating}
+          variant="outline"
+          size="sm"
+          className="h-7"
+          title="Refresh tools from MCP server"
+        >
+          <RefreshCw01
+            size={14}
+            className={cn("mr-1.5", isRefreshing && "animate-spin")}
+          />
+          Refresh Tools
+        </Button>
         {hasAnyChanges && (
           <Button
             onClick={handleSave}

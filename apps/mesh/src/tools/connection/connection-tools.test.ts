@@ -19,6 +19,11 @@ import { DownstreamTokenStorage } from "../../storage/downstream-token";
 import type { EventBus } from "../../event-bus/interface";
 import * as fetchToolsModule from "./fetch-tools";
 
+// Mock fetchToolsFromMCP to avoid network calls and error logs during tests
+vi.mock("./fetch-tools", () => ({
+  fetchToolsFromMCP: vi.fn().mockResolvedValue([]),
+}));
+
 // Create a mock BoundAuthClient for tests
 const createMockBoundAuth = (): BoundAuthClient =>
   ({
