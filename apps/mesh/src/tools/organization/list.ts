@@ -24,7 +24,7 @@ export const ORGANIZATION_LIST = defineTool({
         slug: z.string(),
         logo: z.string().nullable().optional(),
         metadata: z.any().optional(),
-        createdAt: z.union([z.date(), z.string()]),
+        createdAt: z.string().datetime().describe("ISO 8601 timestamp"),
       }),
     ),
   }),
@@ -46,8 +46,15 @@ export const ORGANIZATION_LIST = defineTool({
 
     const organizations = await ctx.boundAuth.organization.list(userId);
 
+    // Convert dates to ISO strings for JSON Schema compatibility
     return {
-      organizations,
+      organizations: organizations.map((org) => ({
+        ...org,
+        createdAt:
+          org.createdAt instanceof Date
+            ? org.createdAt.toISOString()
+            : org.createdAt,
+      })),
     };
   },
 });

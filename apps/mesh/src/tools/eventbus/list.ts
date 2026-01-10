@@ -38,8 +38,14 @@ export const EVENT_SUBSCRIPTION_LIST = defineTool({
         publisher: sub.publisher,
         filter: sub.filter,
         enabled: sub.enabled,
-        createdAt: sub.createdAt,
-        updatedAt: sub.updatedAt,
+        createdAt:
+          sub.createdAt instanceof Date
+            ? sub.createdAt.toISOString()
+            : sub.createdAt,
+        updatedAt:
+          sub.updatedAt instanceof Date
+            ? sub.updatedAt.toISOString()
+            : sub.updatedAt,
       })),
     };
   },

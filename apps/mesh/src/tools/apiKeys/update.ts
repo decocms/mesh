@@ -74,14 +74,22 @@ export const API_KEY_UPDATE = defineTool({
     }
 
     // Return the updated key (without key value)
+    // Convert dates to ISO strings for JSON Schema compatibility
     return {
       item: {
         id: result.id,
         name: result.name ?? input.name ?? "Unnamed Key", // Fallback if name is null
         userId: result.userId,
         permissions: result.permissions ?? {},
-        expiresAt: result.expiresAt ?? null,
-        createdAt: result.createdAt,
+        expiresAt: result.expiresAt
+          ? result.expiresAt instanceof Date
+            ? result.expiresAt.toISOString()
+            : result.expiresAt
+          : null,
+        createdAt:
+          result.createdAt instanceof Date
+            ? result.createdAt.toISOString()
+            : result.createdAt,
       },
     };
   },

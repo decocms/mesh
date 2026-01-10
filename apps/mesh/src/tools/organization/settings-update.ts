@@ -15,8 +15,8 @@ export const ORGANIZATION_SETTINGS_UPDATE = defineTool({
   outputSchema: z.object({
     organizationId: z.string(),
     sidebar_items: z.array(SidebarItemSchema).nullable().optional(),
-    createdAt: z.union([z.date(), z.string()]),
-    updatedAt: z.union([z.date(), z.string()]),
+    createdAt: z.string().datetime().describe("ISO 8601 timestamp"),
+    updatedAt: z.string().datetime().describe("ISO 8601 timestamp"),
   }),
 
   handler: async (input, ctx) => {
@@ -34,6 +34,17 @@ export const ORGANIZATION_SETTINGS_UPDATE = defineTool({
       },
     );
 
-    return settings;
+    // Convert dates to ISO strings for JSON Schema compatibility
+    return {
+      ...settings,
+      createdAt:
+        settings.createdAt instanceof Date
+          ? settings.createdAt.toISOString()
+          : settings.createdAt,
+      updatedAt:
+        settings.updatedAt instanceof Date
+          ? settings.updatedAt.toISOString()
+          : settings.updatedAt,
+    };
   },
 });

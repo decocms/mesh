@@ -86,10 +86,10 @@ const SubscriptionEntitySchema = z.object({
   enabled: z.boolean().describe("Whether subscription is enabled"),
 
   /** Created timestamp */
-  createdAt: z.union([z.string(), z.date()]).describe("Created timestamp"),
+  createdAt: z.string().datetime().describe("Created timestamp (ISO 8601)"),
 
   /** Updated timestamp */
-  updatedAt: z.union([z.string(), z.date()]).describe("Updated timestamp"),
+  updatedAt: z.string().datetime().describe("Updated timestamp (ISO 8601)"),
 });
 
 export type SubscriptionEntity = z.infer<typeof SubscriptionEntitySchema>;

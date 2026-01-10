@@ -46,13 +46,15 @@ const ApiKeyEntitySchema = z.object({
     'Permissions granted to this API key. Format: { resource: [actions] } where resource is "self" for management tools or "conn_<UUID>" for connection-specific tools. Example: { "self": ["API_KEY_CREATE"], "conn_abc123": ["SEND_MESSAGE"] }',
   ),
   expiresAt: z
-    .union([z.string(), z.date()])
+    .string()
+    .datetime()
     .nullable()
     .optional()
-    .describe("Expiration date of the API key"),
+    .describe("Expiration date of the API key (ISO 8601)"),
   createdAt: z
-    .union([z.string(), z.date()])
-    .describe("When the API key was created"),
+    .string()
+    .datetime()
+    .describe("When the API key was created (ISO 8601)"),
   // Note: key value is never returned after creation
 });
 
@@ -105,13 +107,15 @@ export const ApiKeyCreateOutputSchema = z.object({
     'Permissions granted to this API key. Format: { resource: [actions] } where resource is "self" for management tools or "conn_<UUID>" for connection-specific tools',
   ),
   expiresAt: z
-    .union([z.string(), z.date()])
+    .string()
+    .datetime()
     .nullable()
     .optional()
-    .describe("Expiration date of the API key"),
+    .describe("Expiration date of the API key (ISO 8601)"),
   createdAt: z
-    .union([z.string(), z.date()])
-    .describe("When the API key was created"),
+    .string()
+    .datetime()
+    .describe("When the API key was created (ISO 8601)"),
 });
 
 export type ApiKeyCreateOutput = z.infer<typeof ApiKeyCreateOutputSchema>;

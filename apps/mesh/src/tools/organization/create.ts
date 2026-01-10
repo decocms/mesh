@@ -31,7 +31,7 @@ export const ORGANIZATION_CREATE = defineTool({
     slug: z.string(),
     logo: z.string().nullable().optional(),
     metadata: z.any().optional(),
-    createdAt: z.union([z.date(), z.string()]),
+    createdAt: z.string().datetime().describe("ISO 8601 timestamp"),
     members: z.array(z.any()).optional(),
   }),
 
@@ -62,6 +62,13 @@ export const ORGANIZATION_CREATE = defineTool({
       throw new Error("Failed to create organization");
     }
 
-    return result;
+    // Convert dates to ISO strings for JSON Schema compatibility
+    return {
+      ...result,
+      createdAt:
+        result.createdAt instanceof Date
+          ? result.createdAt.toISOString()
+          : result.createdAt,
+    };
   },
 });

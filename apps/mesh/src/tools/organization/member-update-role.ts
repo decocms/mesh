@@ -27,7 +27,7 @@ export const ORGANIZATION_MEMBER_UPDATE_ROLE = defineTool({
       z.literal("member"),
       z.literal("owner"),
     ]),
-    createdAt: z.union([z.date(), z.string()]),
+    createdAt: z.string().datetime().describe("ISO 8601 timestamp"),
     user: z.object({
       email: z.string(),
       name: z.string(),
@@ -61,6 +61,13 @@ export const ORGANIZATION_MEMBER_UPDATE_ROLE = defineTool({
       throw new Error("Failed to update member role");
     }
 
-    return result;
+    // Convert dates to ISO strings for JSON Schema compatibility
+    return {
+      ...result,
+      createdAt:
+        result.createdAt instanceof Date
+          ? result.createdAt.toISOString()
+          : result.createdAt,
+    };
   },
 });

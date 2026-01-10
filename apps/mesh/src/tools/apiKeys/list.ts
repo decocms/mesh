@@ -58,8 +58,15 @@ export const API_KEY_LIST = defineTool({
         name: key.name ?? "Unnamed Key", // Fallback if name is null
         userId: key.userId,
         permissions: key.permissions ?? {},
-        expiresAt: key.expiresAt ?? null,
-        createdAt: key.createdAt,
+        expiresAt: key.expiresAt
+          ? key.expiresAt instanceof Date
+            ? key.expiresAt.toISOString()
+            : key.expiresAt
+          : null,
+        createdAt:
+          key.createdAt instanceof Date
+            ? key.createdAt.toISOString()
+            : key.createdAt,
       }));
 
     return {

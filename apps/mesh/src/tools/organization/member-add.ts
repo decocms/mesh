@@ -23,7 +23,7 @@ export const ORGANIZATION_MEMBER_ADD = defineTool({
     organizationId: z.string(),
     userId: z.string(),
     role: z.union([z.string(), z.array(z.string())]), // Better Auth can return string or array
-    createdAt: z.union([z.date(), z.string()]),
+    createdAt: z.string().datetime().describe("ISO 8601 timestamp"),
   }),
 
   handler: async (input, ctx) => {
@@ -53,6 +53,14 @@ export const ORGANIZATION_MEMBER_ADD = defineTool({
     }
 
     // Better Auth returns role as string, but we accept string or array
-    return result as typeof result & { role: string | string[] };
+    // Convert dates to ISO strings for JSON Schema compatibility
+    return {
+      ...result,
+      role: result.role as string | string[],
+      createdAt:
+        result.createdAt instanceof Date
+          ? result.createdAt.toISOString()
+          : result.createdAt,
+    };
   },
 });

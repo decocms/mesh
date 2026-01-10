@@ -22,7 +22,7 @@ export const ORGANIZATION_GET = defineTool({
     slug: z.string(),
     logo: z.string().nullable().optional(),
     metadata: z.any().optional(),
-    createdAt: z.union([z.date(), z.string()]),
+    createdAt: z.string().datetime().describe("ISO 8601 timestamp"),
     members: z.array(z.any()).optional(),
     invitations: z.array(z.any()).optional(),
   }),
@@ -42,6 +42,13 @@ export const ORGANIZATION_GET = defineTool({
       throw new Error("No active organization found");
     }
 
-    return organization;
+    // Convert dates to ISO strings for JSON Schema compatibility
+    return {
+      ...organization,
+      createdAt:
+        organization.createdAt instanceof Date
+          ? organization.createdAt.toISOString()
+          : organization.createdAt,
+    };
   },
 });

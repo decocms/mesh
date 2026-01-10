@@ -45,8 +45,14 @@ export const EVENT_SUBSCRIBE = defineTool({
         publisher: subscription.publisher,
         filter: subscription.filter,
         enabled: subscription.enabled,
-        createdAt: subscription.createdAt,
-        updatedAt: subscription.updatedAt,
+        createdAt:
+          subscription.createdAt instanceof Date
+            ? subscription.createdAt.toISOString()
+            : subscription.createdAt,
+        updatedAt:
+          subscription.updatedAt instanceof Date
+            ? subscription.updatedAt.toISOString()
+            : subscription.updatedAt,
       },
     };
   },

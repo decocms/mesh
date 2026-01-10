@@ -24,7 +24,7 @@ export const ORGANIZATION_MEMBER_LIST = defineTool({
         organizationId: z.string(),
         userId: z.string(),
         role: z.string(),
-        createdAt: z.union([z.date(), z.string()]),
+        createdAt: z.string().datetime().describe("ISO 8601 timestamp"),
         user: z
           .object({
             id: z.string(),
@@ -58,8 +58,15 @@ export const ORGANIZATION_MEMBER_LIST = defineTool({
       offset: input.offset,
     });
 
-    return {
-      members: Array.isArray(result) ? result : [],
-    };
+    // Convert dates to ISO strings for JSON Schema compatibility
+    const members = (Array.isArray(result) ? result : []).map((member) => ({
+      ...member,
+      createdAt:
+        member.createdAt instanceof Date
+          ? member.createdAt.toISOString()
+          : member.createdAt,
+    }));
+
+    return { members };
   },
 });

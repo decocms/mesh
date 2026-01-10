@@ -37,13 +37,24 @@ export const API_KEY_CREATE = defineTool({
     });
 
     // Return the created key with its value (only time it's visible)
+    // Convert dates to ISO strings for JSON Schema compatibility
+    const expiresAt = result.expiresAt
+      ? result.expiresAt instanceof Date
+        ? result.expiresAt.toISOString()
+        : result.expiresAt
+      : null;
+    const createdAt =
+      result.createdAt instanceof Date
+        ? result.createdAt.toISOString()
+        : result.createdAt;
+
     return {
       id: result.id,
       name: result.name ?? input.name, // Fallback to input name if null
       key: result.key, // This is the only time the key value is returned!
       permissions: result.permissions ?? {},
-      expiresAt: result.expiresAt ?? null,
-      createdAt: result.createdAt,
+      expiresAt,
+      createdAt,
     };
   },
 });
