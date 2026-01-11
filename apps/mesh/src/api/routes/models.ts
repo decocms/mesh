@@ -275,8 +275,6 @@ app.post("/:org/models/stream", async (c) => {
       modelConfig.id,
     );
 
-    console.log({tools: JSON.stringify(tools, null, 2)});
-
     // Use streamText from AI SDK with pruned messages and parameters
     const result = streamText({
       model: provider,
