@@ -199,7 +199,6 @@ app.post("/:org/models/stream", async (c) => {
   try {
     const organization = ensureOrganization(ctx, orgSlug);
     const rawPayload = await c.req.json();
-
     // Validate request using Zod schema
     const parseResult = StreamRequestSchema.safeParse(rawPayload);
     if (!parseResult.success) {

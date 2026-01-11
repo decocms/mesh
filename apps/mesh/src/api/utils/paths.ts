@@ -18,6 +18,7 @@ const PATH_PREFIXES = {
   MCP: "/mcp/",
   OAUTH_PROXY: "/oauth-proxy/",
   WELL_KNOWN: "/.well-known",
+  ORG: "/org/",
 } as const;
 
 /** Static file extensions that should be served as-is (internal use only) */
@@ -54,15 +55,21 @@ function isStaticFilePath(path: string): boolean {
   return STATIC_FILE_PATTERN.test(path);
 }
 
+/** Check if a path is an organization route */
+function isOrgPath(path: string): boolean {
+  return path.startsWith(PATH_PREFIXES.ORG);
+}
+
 /**
  * Check if a path should be handled by the API server (Hono routes)
- * Returns true for API routes, MCP routes, OAuth proxy routes, and system endpoints
+ * Returns true for API routes, MCP routes, OAuth proxy routes, org routes, and system endpoints
  */
 export function isServerPath(path: string): boolean {
   return (
     isApiPath(path) ||
     isMcpPath(path) ||
     isOAuthProxyPath(path) ||
+    isOrgPath(path) ||
     isSystemPath(path)
   );
 }
