@@ -70,3 +70,11 @@ export {
   EventBusBinding,
   type EventBusBindingClient,
 } from "./well-known/event-bus";
+
+// Re-export user API key binding types (for MCPs that need to act on behalf of a user)
+export {
+  USER_API_KEY_BINDING,
+  UserApiKeyBinding,
+  type UserApiKeyBindingClient,
+  type UserApiKeyState,
+} from "./well-known/user-api-key";

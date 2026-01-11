@@ -275,8 +275,8 @@ function createRunCodeTool(ctx: StrategyContext): ToolWithHandler {
       ),
     timeoutMs: z
       .number()
-      .default(3000)
-      .describe("Max execution time in milliseconds (default: 3000)."),
+      .default(30000)
+      .describe("Max execution time in milliseconds (default: 30000)."),
   });
 
   return {

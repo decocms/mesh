@@ -213,11 +213,54 @@ export class EventBusWorker {
           `[EventBus] Delivering ${batch.events.length} events to ${batch.connectionId}`,
         );
 
+        // #region agent log
+        fetch(
+          "http://127.0.0.1:7242/ingest/8397b2ea-9df9-487e-9ffa-b17eb1bfd701",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              location: "worker.ts:213",
+              message: "BEFORE notifySubscriber",
+              data: {
+                connectionId: batch.connectionId,
+                eventCount: batch.events.length,
+                eventTypes: batch.events.map((e: { type: string }) => e.type),
+              },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              hypothesisId: "D",
+            }),
+          },
+        ).catch(() => {});
+        // #endregion
+
         // Call ON_EVENTS on the subscriber connection
         const result = await this.notifySubscriber(
           batch.connectionId,
           batch.events,
         );
+
+        // #region agent log
+        fetch(
+          "http://127.0.0.1:7242/ingest/8397b2ea-9df9-487e-9ffa-b17eb1bfd701",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              location: "worker.ts:225",
+              message: "AFTER notifySubscriber",
+              data: {
+                connectionId: batch.connectionId,
+                success: result.success,
+                error: result.error,
+              },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              hypothesisId: "D",
+            }),
+          },
+        ).catch(() => {});
 
         console.log(
           `[EventBus] Delivery result for ${batch.connectionId}:`,

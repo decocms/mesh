@@ -47,6 +47,7 @@ const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
   },
   eventBus: null as unknown as EventBus,
   createMCPProxy: async () => ({}) as never,
+  createSuperUserMCPProxy: async () => ({}) as never,
   ...overrides,
 });
 

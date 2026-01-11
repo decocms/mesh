@@ -305,6 +305,12 @@ export interface MeshContext {
   createMCPProxy: (
     conn: Parameters<typeof createMCPProxy>[0],
   ) => ReturnType<typeof createMCPProxy>;
+
+  // Utility for creating MCP Proxies with super-user access (bypasses connection-level auth)
+  // Used by gateways which act as trusted intermediaries after gateway-level auth is verified
+  createSuperUserMCPProxy: (
+    conn: Parameters<typeof createMCPProxy>[0],
+  ) => ReturnType<typeof createMCPProxy>;
 }
 
 // ============================================================================

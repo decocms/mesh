@@ -105,6 +105,7 @@ const createMockContext = (): MeshContext => ({
     isRunning: vi.fn().mockReturnValue(false),
   } as unknown as EventBus,
   createMCPProxy: vi.fn().mockResolvedValue({}),
+  createSuperUserMCPProxy: vi.fn().mockResolvedValue({}),
 });
 
 describe("defineTool", () => {

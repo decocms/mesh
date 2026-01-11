@@ -4,7 +4,9 @@ import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-fro
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { GatewaySelector } from "@/web/components/chat/gateway-selector";
-import { Loading01, Plus } from "@untitledui/icons";
+import { useToolCallMutation } from "@/web/hooks/use-tool-call";
+import { createToolCaller } from "@/tools/client";
+import { Check, Key01, Loading01, Plus, RefreshCcw01 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Select,
@@ -316,6 +318,128 @@ function BindingSelector({
   );
 }
 
+/**
+ * Component for generating a User API Key binding.
+ * When clicked, creates an API key for the current user and stores it in the form.
+ */
+interface UserApiKeyFieldProps {
+  value: { value?: string; keyId?: string; userId?: string } | undefined;
+  onChange: (value: { value: string; keyId: string; userId: string }) => void;
+  displayTitle: string;
+  description?: string;
+}
+
+function UserApiKeyField({
+  value,
+  onChange,
+  displayTitle,
+  description,
+}: UserApiKeyFieldProps) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const hasKey = !!value?.value;
+
+  const toolCaller = createToolCaller();
+  const createApiKeyMutation = useToolCallMutation<{
+    name: string;
+    permissions?: Record<string, string[]>;
+  }>({
+    toolCaller,
+    toolName: "API_KEY_CREATE",
+  });
+
+  const handleGenerateKey = async () => {
+    setIsGenerating(true);
+    try {
+      const result = (await createApiKeyMutation.mutateAsync({
+        name: `MCP Binding - ${displayTitle}`,
+        permissions: { "*": ["*"] }, // Full permissions - inherits from user's role
+      })) as { key: string; id: string };
+
+      onChange({
+        value: result.key,
+        keyId: result.id,
+        userId: "", // Will be set server-side based on auth
+      });
+
+      toast.success("API key generated successfully");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to generate API key: ${message}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRegenerateKey = async () => {
+    // Delete the old key first if we have one
+    if (value?.keyId) {
+      // For now, just generate a new one - deletion can be handled separately
+      // The old key will be orphaned but still valid until manually deleted
+    }
+    await handleGenerateKey();
+  };
+
+  return (
+    <div className="flex items-center gap-3 justify-between">
+      <div className="flex-1 min-w-0">
+        <label className="text-sm font-medium truncate block">
+          {displayTitle}
+        </label>
+        {description && (
+          <p className="text-xs text-muted-foreground truncate">
+            {description}
+          </p>
+        )}
+      </div>
+      <div className="w-[200px] shrink-0">
+        {hasKey ? (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+              <Check size={14} />
+              <span className="truncate">Key generated</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRegenerateKey}
+              disabled={isGenerating}
+              className="h-7 px-2"
+              type="button"
+            >
+              {isGenerating ? (
+                <Loading01 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCcw01 size={14} />
+              )}
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGenerateKey}
+            disabled={isGenerating}
+            className="w-full gap-2"
+            type="button"
+          >
+            {isGenerating ? (
+              <>
+                <Loading01 size={14} className="animate-spin" />
+                <span>Generating...</span>
+              </>
+            ) : (
+              <>
+                <Key01 size={14} />
+                <span>Generate API Key</span>
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
   const { schema, formData, title, description, registry } = props;
   const formContext = registry.formContext as FormContext | undefined;
@@ -347,6 +471,35 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
         .replace(/\b\w/g, (c) => c.toUpperCase());
 
     const displayTitle = title ? formatTitle(title) : formatTitle(fieldPath);
+
+    // Special handling for user API key binding - generate key for current user
+    if (bindingType === "@deco/user-api-key") {
+      const handleApiKeyChange = (keyData: {
+        value: string;
+        keyId: string;
+        userId: string;
+      }) => {
+        const newFieldData = {
+          ...formData,
+          ...keyData,
+          __type: bindingType,
+        };
+        formContext?.onFieldChange(fieldPath, newFieldData);
+      };
+
+      return (
+        <UserApiKeyField
+          value={
+            formData as { value?: string; keyId?: string; userId?: string }
+          }
+          onChange={handleApiKeyChange}
+          displayTitle={displayTitle}
+          description={
+            typeof description === "string" ? description : undefined
+          }
+        />
+      );
+    }
 
     // Special handling for agent binding - use GatewaySelector
     if (bindingType === "@deco/agent") {

@@ -220,6 +220,7 @@ const createMockContext = (
       timestamp: new Date(),
     },
     createMCPProxy: vi.fn().mockResolvedValue({}),
+    createSuperUserMCPProxy: vi.fn().mockResolvedValue({}),
   };
 };
 

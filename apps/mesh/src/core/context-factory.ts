@@ -383,7 +383,10 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 import { BUILTIN_ROLES } from "../auth/roles";
 import { WellKnownMCPId } from "./well-known-mcp";
 import { ConnectionEntity } from "@/tools/connection/schema";
-import { createMCPProxy } from "@/api/routes/proxy";
+import {
+  createMCPProxy,
+  dangerouslyCreateSuperUserMCPProxy,
+} from "@/api/routes/proxy";
 
 /**
  * Fetch role permissions from the database
@@ -793,6 +796,9 @@ export function createMeshContextFactory(
       eventBus: config.eventBus,
       createMCPProxy: async (conn: string | ConnectionEntity) => {
         return await createMCPProxy(conn, ctx);
+      },
+      createSuperUserMCPProxy: async (conn: string | ConnectionEntity) => {
+        return await dangerouslyCreateSuperUserMCPProxy(conn, ctx);
       },
     };
 

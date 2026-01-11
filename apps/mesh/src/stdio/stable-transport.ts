@@ -107,19 +107,107 @@ export async function getStableStdioClient(
 ): Promise<Client> {
   const existing = connectionPool.get(config.id);
 
+  // #region agent log
+  fetch("http://127.0.0.1:7242/ingest/8397b2ea-9df9-487e-9ffa-b17eb1bfd701", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      location: "stable-transport.ts:108",
+      message: "getStableStdioClient ENTRY",
+      data: {
+        id: config.id,
+        existingStatus: existing?.status,
+        existingHasClient: !!existing?.stableClient,
+        existingHasPromise: !!existing?.connectPromise,
+      },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      hypothesisId: "A",
+    }),
+  }).catch(() => {});
+  // #endregion
+
   // If we have an existing connection that's connected, verify it's still alive
   if (existing?.status === "connected" && existing.stableClient) {
     try {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/8397b2ea-9df9-487e-9ffa-b17eb1bfd701",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "stable-transport.ts:115",
+            message: "listTools PING START",
+            data: { id: config.id },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            hypothesisId: "A",
+          }),
+        },
+      ).catch(() => {});
+      // #endregion
       // Quick ping to verify connection is alive (listTools has low overhead)
       await existing.stableClient.listTools();
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/8397b2ea-9df9-487e-9ffa-b17eb1bfd701",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "stable-transport.ts:120",
+            message: "listTools PING SUCCESS",
+            data: { id: config.id },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            hypothesisId: "A",
+          }),
+        },
+      ).catch(() => {});
+      // #endregion
       return existing.stableClient;
-    } catch {
+    } catch (pingError) {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/8397b2ea-9df9-487e-9ffa-b17eb1bfd701",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "stable-transport.ts:125",
+            message: "listTools PING FAILED - marking as failed",
+            data: { id: config.id, error: String(pingError) },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            hypothesisId: "A",
+          }),
+        },
+      ).catch(() => {});
+      // #endregion
       // Connection is dead, mark for respawn
       console.log(`[StableStdio] Stale connection detected: ${config.id}`);
       existing.status = "failed";
       existing.connectPromise = null;
     }
   }
+
+  // #region agent log
+  if (existing?.status === "failed" || existing?.status === "spawn_failed") {
+    fetch("http://127.0.0.1:7242/ingest/8397b2ea-9df9-487e-9ffa-b17eb1bfd701", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "stable-transport.ts:135",
+        message: "WILL RESPAWN - status is failed",
+        data: { id: config.id, status: existing?.status },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        hypothesisId: "B",
+      }),
+    }).catch(() => {});
+  }
+  // #endregion
 
   // If spawn failed recently, don't retry yet - throw immediately
   if (existing?.status === "spawn_failed" && existing.lastSpawnFailure) {
@@ -197,6 +285,23 @@ export async function getStableStdioClient(
       // Handle unexpected close - mark for respawn
       // We want stable local MCP connection - respawn on close
       client.onclose = () => {
+        // #region agent log
+        fetch(
+          "http://127.0.0.1:7242/ingest/8397b2ea-9df9-487e-9ffa-b17eb1bfd701",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              location: "stable-transport.ts:onclose",
+              message: "CLIENT ONCLOSE FIRED",
+              data: { id: config.id, previousStatus: connection.status },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              hypothesisId: "C",
+            }),
+          },
+        ).catch(() => {});
+        // #endregion
         // Only log if we were previously connected (not during initial spawn)
         if (connection.status === "connected") {
           console.log(
