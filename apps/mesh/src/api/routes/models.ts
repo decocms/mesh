@@ -70,7 +70,7 @@ function ensureOrganization(ctx: MeshContext, orgSlug: string) {
     throw new Error("Organization context is required");
   }
 
-  if (ctx.organization.slug !== orgSlug) {
+  if (ctx.organization.slug && ctx.organization.slug !== orgSlug) {
     throw new Error("Organization slug mismatch");
   }
 
@@ -199,7 +199,6 @@ app.post("/:org/models/stream", async (c) => {
   try {
     const organization = ensureOrganization(ctx, orgSlug);
     const rawPayload = await c.req.json();
-
     // Validate request using Zod schema
     const parseResult = StreamRequestSchema.safeParse(rawPayload);
     if (!parseResult.success) {
@@ -275,6 +274,8 @@ app.post("/:org/models/stream", async (c) => {
     const provider = createLLMProvider(llmBinding).languageModel(
       modelConfig.id,
     );
+
+    console.log({tools: JSON.stringify(tools, null, 2)});
 
     // Use streamText from AI SDK with pruned messages and parameters
     const result = streamText({
