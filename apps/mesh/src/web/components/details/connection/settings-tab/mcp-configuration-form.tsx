@@ -18,6 +18,7 @@ import validator from "@rjsf/validator-ajv8";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { GatewaySelector } from "@/web/components/chat/gateway-selector";
 
 interface McpConfigurationFormProps {
   formState: Record<string, unknown>;
@@ -346,6 +347,30 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
         .replace(/\b\w/g, (c) => c.toUpperCase());
 
     const displayTitle = title ? formatTitle(title) : formatTitle(fieldPath);
+
+    if (bindingType === "@deco/agent") {
+      return (
+        <div className="flex items-center gap-3 justify-between">
+          <div className="flex-1 min-w-0">
+            <label className="text-sm font-medium truncate block">
+              {displayTitle}
+            </label>
+            {description && (
+              <p className="text-xs text-muted-foreground truncate">
+                {description}
+              </p>
+            )}
+          </div>
+          <GatewaySelector
+            selectedGatewayId={currentValue || undefined}
+            onGatewayChange={handleBindingChange}
+            variant="bordered"
+            placeholder="Select Agent"
+            className="w-[200px] shrink-0"
+          />
+        </div>
+      );
+    }
 
     return (
       <div className="flex items-center gap-3 justify-between">
