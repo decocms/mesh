@@ -134,6 +134,12 @@ export function MCPServerHeroSection({
   const hasRemotes = remotes.length > 0;
   const hasMultiplePackages = packages.length > 1;
 
+  // Ensure selectedPackageIndex is valid for current packages array
+  const effectivePackageIndex = Math.min(
+    selectedPackageIndex,
+    Math.max(0, packages.length - 1),
+  );
+
   // Group remotes by hostname
   const hostnameGroups = useMemo(
     () => groupRemotesByHostname(remotes),
@@ -192,7 +198,7 @@ export function MCPServerHeroSection({
 
   const handleInstall = () => {
     if (installMode === "package") {
-      onInstall(selectedVersionIndex, undefined, selectedPackageIndex);
+      onInstall(selectedVersionIndex, undefined, effectivePackageIndex);
     } else {
       onInstall(selectedVersionIndex, selectedRemoteIndex, undefined);
     }
@@ -200,8 +206,16 @@ export function MCPServerHeroSection({
 
   const handleInstallVersion = (versionIndex: number) => {
     setSelectedVersionIndex(versionIndex);
+    // Calculate effective package index for the target version
+    const targetVersion = itemVersions[versionIndex];
+    const targetPackages = targetVersion?.server?.packages ?? [];
+    const validPackageIndex = Math.min(
+      selectedPackageIndex,
+      Math.max(0, targetPackages.length - 1),
+    );
+
     if (installMode === "package") {
-      onInstall(versionIndex, undefined, selectedPackageIndex);
+      onInstall(versionIndex, undefined, validPackageIndex);
     } else {
       onInstall(versionIndex, selectedRemoteIndex, undefined);
     }
@@ -391,7 +405,7 @@ export function MCPServerHeroSection({
                     className="cursor-pointer max-w-[200px]"
                   >
                     <span className="truncate">
-                      {getPackageDisplayName(packages[selectedPackageIndex])}
+                      {getPackageDisplayName(packages[effectivePackageIndex])}
                     </span>
                     <ChevronDown size={14} className="ml-1 shrink-0" />
                   </Button>
@@ -416,7 +430,7 @@ export function MCPServerHeroSection({
                             {pkg.identifier || pkg.name}
                           </span>
                         </div>
-                        {index === selectedPackageIndex && (
+                        {index === effectivePackageIndex && (
                           <CheckCircle
                             size={14}
                             className="text-muted-foreground shrink-0"
