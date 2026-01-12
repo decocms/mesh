@@ -23,6 +23,8 @@ interface MCPServerTabsContentProps {
   mcpIcon?: string | null;
   /** Name of the MCP server */
   mcpName?: string;
+  /** Show STDIO servers in the list */
+  showStdio?: boolean;
 }
 
 export function MCPServerTabsContent({
@@ -37,6 +39,7 @@ export function MCPServerTabsContent({
   isInstalling = false,
   mcpIcon,
   mcpName,
+  showStdio = false,
 }: MCPServerTabsContentProps) {
   // Convert tools to the expected format
   const tools: Tool[] = effectiveTools.map((tool) => {
@@ -69,6 +72,7 @@ export function MCPServerTabsContent({
             isInstalling={isInstalling}
             icon={mcpIcon}
             mcpName={mcpName}
+            showStdio={showStdio}
           />
         </div>
       )}

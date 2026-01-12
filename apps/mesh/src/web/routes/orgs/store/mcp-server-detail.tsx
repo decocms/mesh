@@ -21,6 +21,8 @@ import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useMcp } from "@/web/hooks/use-mcp";
 import { authClient } from "@/web/lib/auth-client";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import { slugify } from "@/web/utils/slugify";
@@ -204,12 +206,34 @@ function StoreMCPServerDetailContent() {
   const { appName: serverSlug } = useParams({ strict: false }) as {
     appName?: string;
   };
-  const { registryId: registryIdParam, serverName } = useSearch({
+  const {
+    registryId: registryIdParam,
+    serverName,
+    stdio: stdioParam,
+  } = useSearch({
     strict: false,
   }) as {
     registryId: string;
     serverName: string;
+    stdio?: string;
   };
+
+  // Persist showStdio preference in localStorage, URL param overrides
+  const [storedShowStdio, setStoredShowStdio] = useLocalStorage<boolean>(
+    LOCALSTORAGE_KEYS.storeShowStdio(),
+    () => false,
+  );
+  // URL param takes precedence, then localStorage
+  const showStdio =
+    stdioParam === "true"
+      ? true
+      : stdioParam === "false"
+        ? false
+        : storedShowStdio;
+  // Update localStorage when URL param is present
+  if (stdioParam !== undefined && (stdioParam === "true") !== storedShowStdio) {
+    setStoredShowStdio(stdioParam === "true");
+  }
 
   // Track active tab - no initial value, will be calculated
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -607,6 +631,7 @@ function StoreMCPServerDetailContent() {
                 isInstalling={actions.create.isPending}
                 mcpIcon={data.icon}
                 mcpName={data.name}
+                showStdio={showStdio}
               />
             </div>
           </div>
