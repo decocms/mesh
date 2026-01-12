@@ -252,7 +252,6 @@ describe("Smart Gateway - Keyword Search", () => {
   });
 });
 
-
 describe("parseStrategyFromMode", () => {
   test("returns passthrough when mode is undefined", () => {
     expect(parseStrategyFromMode(undefined)).toBe("passthrough");
