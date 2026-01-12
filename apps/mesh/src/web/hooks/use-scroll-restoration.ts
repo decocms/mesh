@@ -7,7 +7,8 @@ import { useRef } from "react";
 export function useScrollRestoration(key: string) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const storageKey = `scroll-position:${key}`;
-  const hasRestoredRef = useRef(false);
+  // Track which key was restored, not just if restored
+  const restoredKeyRef = useRef<string | null>(null);
 
   // Save scroll position
   const saveScrollPosition = () => {
@@ -18,19 +19,21 @@ export function useScrollRestoration(key: string) {
 
   // Restore scroll position (call this in onScroll or after mount)
   const restoreScrollPosition = () => {
-    if (hasRestoredRef.current) return;
+    // Skip if already restored for this key
+    if (restoredKeyRef.current === storageKey) return;
 
     const saved = sessionStorage.getItem(storageKey);
     if (saved && scrollRef.current) {
       const scrollTop = Number.parseInt(saved, 10);
       scrollRef.current.scrollTop = scrollTop;
-      hasRestoredRef.current = true;
     }
+    // Mark as restored for this key (even if no saved position)
+    restoredKeyRef.current = storageKey;
   };
 
   // Handle scroll - restore on first scroll event if not yet restored
   const handleScroll = () => {
-    if (!hasRestoredRef.current) {
+    if (restoredKeyRef.current !== storageKey) {
       restoreScrollPosition();
     }
   };
@@ -39,7 +42,7 @@ export function useScrollRestoration(key: string) {
   const setScrollRef = (element: HTMLDivElement | null) => {
     (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current =
       element;
-    if (element && !hasRestoredRef.current) {
+    if (element && restoredKeyRef.current !== storageKey) {
       // Use requestAnimationFrame to ensure layout is complete
       requestAnimationFrame(() => {
         restoreScrollPosition();
