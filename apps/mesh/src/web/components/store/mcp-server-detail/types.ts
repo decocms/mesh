@@ -1,5 +1,47 @@
 import type { RegistryItem } from "@/web/components/store/types";
 
+/**
+ * Protocol types for MCP connections
+ */
+export type Protocol = "http" | "sse" | "stdio";
+
+/**
+ * Remote type from RegistryItem server.remotes
+ */
+export type Remote = NonNullable<RegistryItem["server"]["remotes"]>[number];
+
+/**
+ * Data for a server card in the servers list
+ */
+export interface ServerCardData {
+  /** Index in the original remotes array */
+  index: number;
+  /** Connection protocol */
+  protocol: Protocol;
+  /** Remote URL */
+  url?: string;
+  /** Hostname extracted from URL */
+  hostname: string;
+  /** Service name extracted from subdomain */
+  serviceName: string;
+  /** Friendly display name */
+  displayName: string;
+  /** Original remote name */
+  name?: string;
+  /** Original remote title */
+  title?: string;
+  /** Original remote description */
+  description?: string;
+}
+
+/**
+ * Protocol filter options
+ */
+export interface ProtocolFilterOption {
+  value: Protocol | "all";
+  label: string;
+}
+
 export interface MCPServerData {
   name: string;
   description: string;
