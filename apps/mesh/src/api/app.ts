@@ -12,6 +12,8 @@ import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
+import { timing, startTime, endTime } from "hono/timing";
+import { getCookie } from "hono/cookie";
 import { auth } from "../auth";
 import {
   ContextFactory,
@@ -38,7 +40,6 @@ import {
   WellKnownOrgMCPId,
 } from "../core/well-known-mcp";
 import type { MeshContext } from "../core/mesh-context";
-
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
 
@@ -164,6 +165,12 @@ export function createApp(options: CreateAppOptions = {}) {
   // ============================================================================
   // Middleware
   // ============================================================================
+
+  // Server-Timing middleware
+  app.use("*", timing({
+    enabled: (c) => process.env.NODE_ENV !== "production" || getCookie(c, "debug") === "1"
+  }));
+
 
   // CORS middleware
   app.use(
@@ -493,8 +500,22 @@ export function createApp(options: CreateAppOptions = {}) {
       return next();
     }
 
-    const meshCtx = await ContextFactory.create(c.req.raw);
-    c.set("meshContext", meshCtx);
+    const timings = {
+      start: (name: string) => {
+        startTime(c, name);
+        
+        return () => endTime(c, name)
+      },
+    }
+
+    startTime(c, "mesh_context");
+    try {
+      const meshCtx = await ContextFactory.create(c.req.raw, { timings });
+      c.set("meshContext", meshCtx);
+    } finally {
+      endTime(c, "mesh_context");
+    }
+
     return next();
   });
 
@@ -509,6 +530,17 @@ export function createApp(options: CreateAppOptions = {}) {
   // ============================================================================
   // API Routes
   // ============================================================================
+
+  // Measure MCP route group latency (wrap entire MCP request handling)
+  app.use("/mcp/*", async (c, next) => {
+    startTime(c, "mcp");
+    try {
+      return await next();
+    } finally {
+      endTime(c, "mcp");
+    }
+
+  });
 
   const mcpAuth: MiddlewareHandler<Env> = async (c, next) => {
     const meshContext = c.var.meshContext;
@@ -536,6 +568,16 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // MCP Proxy routes (connection-specific)
   app.route("/mcp", proxyRoutes);
+
+  // Measure LLM models route latency
+  app.use("/api/:org/models/*", async (c, next) => {
+    startTime(c, "llm_models");
+    try {
+      return await next();
+    } finally {
+      endTime(c, "llm_models");
+    }
+  });
 
   // LLM API routes (OpenAI-compatible)
   app.route("/api", modelsRoutes);
