@@ -213,6 +213,8 @@ function StoreMCPServerDetailContent() {
 
   // Track active tab - no initial value, will be calculated
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  // Track selected version for installations
+  const [selectedVersionIndex, setSelectedVersionIndex] = useState(0);
 
   const actions = useConnectionActions();
   const allConnections = useConnections();
@@ -564,6 +566,8 @@ function StoreMCPServerDetailContent() {
               canInstall={canInstall}
               isInstalling={actions.create.isPending}
               hideInstallControls={hasMultipleServers}
+              selectedVersionIndex={selectedVersionIndex}
+              onVersionChange={setSelectedVersionIndex}
             />
 
             {/* SECTION 2 & 3: Two Column Layout */}
@@ -585,10 +589,19 @@ function StoreMCPServerDetailContent() {
                 onTabChange={setActiveTabId}
                 servers={allServers}
                 onInstallServer={(entry) => {
+                  // Use selected version index for installations from servers list
                   if (entry._type === "remote") {
-                    handleInstall(undefined, entry._index, undefined);
+                    handleInstall(
+                      selectedVersionIndex,
+                      entry._index,
+                      undefined,
+                    );
                   } else {
-                    handleInstall(undefined, undefined, entry._index);
+                    handleInstall(
+                      selectedVersionIndex,
+                      undefined,
+                      entry._index,
+                    );
                   }
                 }}
                 isInstalling={actions.create.isPending}

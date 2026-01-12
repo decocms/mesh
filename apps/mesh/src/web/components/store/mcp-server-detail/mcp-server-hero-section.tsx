@@ -100,6 +100,96 @@ function groupRemotesByHostname(
   return Array.from(groups.values());
 }
 
+// ============================================================================
+// Version Dropdown Component
+// ============================================================================
+
+interface VersionDropdownProps {
+  versions: RegistryItem[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+  isInstalling?: boolean;
+  variant?: "brand" | "outline";
+  showLabel?: boolean;
+}
+
+function VersionDropdown({
+  versions,
+  selectedIndex,
+  onSelect,
+  isInstalling = false,
+  variant = "brand",
+  showLabel = false,
+}: VersionDropdownProps) {
+  const selectedVersion = versions[selectedIndex];
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant={variant}
+          disabled={isInstalling}
+          size={showLabel ? "sm" : "default"}
+          className={
+            variant === "brand"
+              ? "shrink-0 rounded-l-none px-2 border-l-2 border-l-white/50 cursor-pointer"
+              : "shrink-0 cursor-pointer"
+          }
+        >
+          {showLabel && (
+            <span className="mr-1">
+              v{selectedVersion?.server?.version || "unknown"}
+            </span>
+          )}
+          <ChevronDown size={showLabel ? 14 : 20} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-56 max-h-[300px] overflow-y-auto"
+      >
+        {versions.map((version, index) => {
+          const versionMeta = version._meta?.[
+            "io.modelcontextprotocol.registry/official"
+          ] as { isLatest?: boolean } | undefined;
+
+          return (
+            <DropdownMenuItem
+              key={index}
+              onClick={() => onSelect(index)}
+              disabled={isInstalling}
+              className="cursor-pointer"
+            >
+              <div className="flex items-center justify-between gap-2 w-full">
+                <div className="flex items-center gap-2">
+                  <div className="font-medium text-sm">
+                    v{version.server?.version || "unknown"}
+                  </div>
+                  {versionMeta?.isLatest && (
+                    <div className="text-xs text-muted-foreground/50 font-semibold">
+                      LATEST
+                    </div>
+                  )}
+                </div>
+                {index === selectedIndex && (
+                  <CheckCircle
+                    size={16}
+                    className="text-muted-foreground shrink-0"
+                  />
+                )}
+              </div>
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// ============================================================================
+// Main Component
+// ============================================================================
+
 interface MCPServerHeroSectionProps {
   data: MCPServerData;
   itemVersions: RegistryItem[];
@@ -112,6 +202,10 @@ interface MCPServerHeroSectionProps {
   canInstall?: boolean;
   /** Hide install controls (when showing servers list tab instead) */
   hideInstallControls?: boolean;
+  /** Selected version index (controlled from parent when hideInstallControls is true) */
+  selectedVersionIndex?: number;
+  /** Callback when version selection changes */
+  onVersionChange?: (index: number) => void;
 }
 
 type InstallMode = "remote" | "package";
@@ -123,8 +217,17 @@ export function MCPServerHeroSection({
   canInstall = true,
   isInstalling = false,
   hideInstallControls = false,
+  selectedVersionIndex: controlledVersionIndex,
+  onVersionChange,
 }: MCPServerHeroSectionProps) {
-  const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
+  // Use controlled version index when provided (for hideInstallControls mode)
+  const [internalVersionIndex, setInternalVersionIndex] = useState<number>(0);
+  const selectedVersionIndex = controlledVersionIndex ?? internalVersionIndex;
+  const setSelectedVersionIndex = (index: number) => {
+    setInternalVersionIndex(index);
+    onVersionChange?.(index);
+  };
+
   const [selectedPackageIndex, setSelectedPackageIndex] = useState<number>(0);
 
   const selectedVersion = itemVersions[selectedVersionIndex] || itemVersions[0];
@@ -456,55 +559,13 @@ export function MCPServerHeroSection({
                   {isInstalling ? "Connecting..." : "Connect"}
                 </Button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="brand"
-                      disabled={isInstalling}
-                      className="shrink-0 rounded-l-none px-2 border-l-2 border-l-white/50 cursor-pointer"
-                    >
-                      <ChevronDown size={20} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="w-56 max-h-[300px] overflow-y-auto"
-                  >
-                    {itemVersions.map((version, index) => {
-                      const versionMeta = version._meta?.[
-                        "io.modelcontextprotocol.registry/official"
-                      ] as { isLatest?: boolean } | undefined;
-
-                      return (
-                        <DropdownMenuItem
-                          key={index}
-                          onClick={() => handleInstallVersion(index)}
-                          disabled={isInstalling}
-                          className="cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between gap-2 w-full">
-                            <div className="flex items-center gap-2">
-                              <div className="font-medium text-sm">
-                                v{version.server?.version || "unknown"}
-                              </div>
-                              {versionMeta?.isLatest && (
-                                <div className="text-xs text-muted-foreground/50 font-semibold">
-                                  LATEST
-                                </div>
-                              )}
-                            </div>
-                            {index === selectedVersionIndex && (
-                              <CheckCircle
-                                size={16}
-                                className="text-muted-foreground shrink-0"
-                              />
-                            )}
-                          </div>
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <VersionDropdown
+                  versions={itemVersions}
+                  selectedIndex={selectedVersionIndex}
+                  onSelect={handleInstallVersion}
+                  isInstalling={isInstalling}
+                  variant="brand"
+                />
               </div>
             ) : (
               <Button
@@ -521,6 +582,18 @@ export function MCPServerHeroSection({
         ) : !hideInstallControls ? (
           <div className="shrink-0 px-4 py-2 text-sm text-muted-foreground bg-muted rounded-lg">
             Cannot be connected
+          </div>
+        ) : itemVersions.length > 1 ? (
+          // Show standalone version selector when install controls are hidden but multiple versions exist
+          <div className="shrink-0">
+            <VersionDropdown
+              versions={itemVersions}
+              selectedIndex={selectedVersionIndex}
+              onSelect={setSelectedVersionIndex}
+              isInstalling={isInstalling}
+              variant="outline"
+              showLabel
+            />
           </div>
         ) : null}
       </div>
