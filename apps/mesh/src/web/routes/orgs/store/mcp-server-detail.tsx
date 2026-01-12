@@ -211,8 +211,8 @@ function StoreMCPServerDetailContent() {
     serverName: string;
   };
 
-  // Track active tab - initially "readme"
-  const [activeTabId, setActiveTabId] = useState<string>("readme");
+  // Track active tab - no initial value, will be calculated
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
   const actions = useConnectionActions();
   const allConnections = useConnections();
@@ -440,12 +440,17 @@ function StoreMCPServerDetailContent() {
   ].filter((tab) => tab.visible);
 
   // Calculate effective active tab - prioritize servers if available, then README, then tools
-  const effectiveActiveTabId = availableTabs.find((t) => t.id === activeTabId)
-    ? activeTabId
-    : availableTabs.find((t) => t.id === "servers")?.id ||
-      availableTabs.find((t) => t.id === "readme")?.id ||
-      availableTabs[0]?.id ||
-      "overview";
+  // If user has selected a tab, use that; otherwise use default priority
+  const defaultTabId =
+    availableTabs.find((t) => t.id === "servers")?.id ||
+    availableTabs.find((t) => t.id === "readme")?.id ||
+    availableTabs[0]?.id ||
+    "overview";
+
+  const effectiveActiveTabId =
+    activeTabId && availableTabs.find((t) => t.id === activeTabId)
+      ? activeTabId
+      : defaultTabId;
 
   const handleInstall = async (
     versionIndex?: number,
