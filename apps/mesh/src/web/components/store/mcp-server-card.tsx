@@ -128,15 +128,29 @@ export function MCPServerCard(props: MCPServerCardProps) {
   const isServer = variant === "server";
 
   // Server variant specific props
-  const hostname = isServer ? (props as MCPServerCardServerProps).hostname : null;
-  const protocol = isServer ? (props as MCPServerCardServerProps).protocol : null;
-  const isInstalling = isServer ? (props as MCPServerCardServerProps).isInstalling : false;
-  const actionLabel = isServer ? (props as MCPServerCardServerProps).actionLabel : undefined;
+  const hostname = isServer
+    ? (props as MCPServerCardServerProps).hostname
+    : null;
+  const protocol = isServer
+    ? (props as MCPServerCardServerProps).protocol
+    : null;
+  const isInstalling = isServer
+    ? (props as MCPServerCardServerProps).isInstalling
+    : false;
+  const actionLabel = isServer
+    ? (props as MCPServerCardServerProps).actionLabel
+    : undefined;
 
   // Store variant specific props
-  const scopeName = !isServer ? (props as MCPServerCardStoreProps).scopeName : null;
-  const isVerified = !isServer ? (props as MCPServerCardStoreProps).isVerified : false;
-  const canInstall = !isServer ? (props as MCPServerCardStoreProps).canInstall : true;
+  const scopeName = !isServer
+    ? (props as MCPServerCardStoreProps).scopeName
+    : null;
+  const isVerified = !isServer
+    ? (props as MCPServerCardStoreProps).isVerified
+    : false;
+  const canInstall = !isServer
+    ? (props as MCPServerCardStoreProps).canInstall
+    : true;
 
   return (
     <Card
@@ -261,8 +275,7 @@ export function MCPServerCard(props: MCPServerCardProps) {
 export function extractCardDisplayData(
   item: RegistryItem,
 ): Omit<MCPServerCardStoreProps, "onClick" | "variant"> {
-  const rawTitle =
-    item.title || item.server.title || item.id || "Unnamed Item";
+  const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
   const meshMeta = item._meta?.["mcp.mesh"];
 
   // Description priority: short_description > mesh_description > server.description

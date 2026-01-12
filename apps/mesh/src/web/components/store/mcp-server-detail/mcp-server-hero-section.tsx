@@ -147,7 +147,9 @@ export function MCPServerHeroSection({
   // Prefer HTTP remotes, then any remote, then packages
   const defaultRemoteIndex = (() => {
     const httpIndex = remotes.findIndex(
-      (r) => r.type?.toLowerCase() === "http" || r.type?.toLowerCase() === "streamable-http",
+      (r) =>
+        r.type?.toLowerCase() === "http" ||
+        r.type?.toLowerCase() === "streamable-http",
     );
     return httpIndex >= 0 ? httpIndex : 0;
   })();
