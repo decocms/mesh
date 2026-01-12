@@ -65,9 +65,11 @@ function StoreDiscoveryContent({
   const { org } = useProjectContext();
 
   // Preserve scroll position across navigation
-  const { scrollRef, saveScrollPosition } = useScrollRestoration(
-    `store-discovery:${registryId}`,
-  );
+  const {
+    scrollRef,
+    saveScrollPosition,
+    handleScroll: handleScrollRestore,
+  } = useScrollRestoration(`store-discovery:${registryId}`);
 
   const {
     items,
@@ -127,6 +129,9 @@ function StoreDiscoveryContent({
 
   // Infinite scroll: load more when near bottom
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    // Restore scroll position if needed
+    handleScrollRestore();
+
     if (!hasMore || isLoadingMore) return;
 
     const target = e.currentTarget;

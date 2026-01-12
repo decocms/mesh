@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Plus, Server01, Globe02, Terminal } from "@untitledui/icons";
@@ -288,7 +288,7 @@ export function MCPServersList({
   icon,
   mcpName,
 }: MCPServersListProps) {
-  const serverCards = useMemo(() => serversToCards(servers), [servers]);
+  const serverCards = serversToCards(servers);
 
   // Default to "all" if less than 13 servers, otherwise "http"
   const defaultFilter = serverCards.length < 13 ? "all" : "http";
@@ -297,22 +297,22 @@ export function MCPServersList({
   );
 
   // Calculate effective filter - fallback to "all" if < 13, otherwise first available protocol
-  const effectiveFilter = useMemo(() => {
+  const effectiveFilter = (() => {
     if (selectedFilter === "all") return "all";
     const hasSelected = serverCards.some((c) => c.protocol === selectedFilter);
     if (hasSelected) return selectedFilter;
     // Fallback: use "all" if < 13 servers, otherwise first available protocol
     if (serverCards.length < 13) return "all";
     return serverCards[0]?.protocol ?? "http";
-  }, [serverCards, selectedFilter]);
+  })();
 
-  const filteredCards = useMemo(() => {
-    if (effectiveFilter === "all") return serverCards;
-    return serverCards.filter((c) => c.protocol === effectiveFilter);
-  }, [serverCards, effectiveFilter]);
+  const filteredCards =
+    effectiveFilter === "all"
+      ? serverCards
+      : serverCards.filter((c) => c.protocol === effectiveFilter);
 
   // Get available filters based on existing protocols
-  const availableFilters = useMemo(() => {
+  const availableFilters = (() => {
     const protocols = new Set(serverCards.map((c) => c.protocol));
     const options = FILTER_OPTIONS.filter(
       (f) => f.value === "all" || protocols.has(f.value as Protocol),
@@ -321,7 +321,7 @@ export function MCPServersList({
     return protocols.size <= 1
       ? options.filter((f) => f.value !== "all")
       : options;
-  }, [serverCards]);
+  })();
 
   return (
     <div className="p-5">

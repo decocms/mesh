@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { useState, useEffect, useMemo } from "react";
+import { useState } from "react";
 import type { MCPServerData } from "./types";
 
 type Protocol = "http" | "sse" | "stdio";
@@ -244,55 +244,39 @@ export function MCPServerHeroSection({
   );
 
   // Group remotes by hostname
-  const hostnameGroups = useMemo(
-    () => groupRemotesByHostname(remotes),
-    [remotes],
-  );
+  const hostnameGroups = groupRemotesByHostname(remotes);
 
   // Separate state for hostname and protocol selection
-  const [selectedHostname, setSelectedHostname] = useState<string>("");
-  const [selectedProtocol, setSelectedProtocol] = useState<Protocol>("http");
-  const [installMode, setInstallMode] = useState<InstallMode>("remote");
-
-  // Initialize selections when data changes
-  useEffect(() => {
+  const [selectedHostname, setSelectedHostname] = useState<string>(() => {
     const firstGroup = hostnameGroups[0];
-    if (firstGroup) {
-      setSelectedHostname(firstGroup.hostname);
-      // Default to HTTP if available
-      const httpProtocol = firstGroup.protocols.find((p) => p.type === "http");
-      const defaultProtocol =
-        httpProtocol?.type ?? firstGroup.protocols[0]?.type ?? "http";
-      setSelectedProtocol(defaultProtocol);
-    }
-  }, [hostnameGroups]);
+    return firstGroup?.hostname ?? "";
+  });
+  const [selectedProtocol, setSelectedProtocol] = useState<Protocol>(() => {
+    const firstGroup = hostnameGroups[0];
+    const httpProtocol = firstGroup?.protocols.find((p) => p.type === "http");
+    return httpProtocol?.type ?? firstGroup?.protocols[0]?.type ?? "http";
+  });
+  const [installMode, setInstallMode] = useState<InstallMode>(() => {
+    if (!hasRemotes && hasPackages) return "package";
+    return "remote";
+  });
 
-  // Update install mode based on available options
-  useEffect(() => {
-    if (!hasRemotes && hasPackages) {
-      setInstallMode("package");
-    } else if (hasRemotes) {
-      setInstallMode("remote");
-    }
-  }, [hasRemotes, hasPackages]);
-
-  // Get current hostname group
-  const currentGroup = useMemo(
-    () => hostnameGroups.find((g) => g.hostname === selectedHostname),
-    [hostnameGroups, selectedHostname],
-  );
+  // Get current hostname group - fallback to first group if selected not found
+  const currentGroup =
+    hostnameGroups.find((g) => g.hostname === selectedHostname) ??
+    hostnameGroups[0];
 
   // Get available protocols for current hostname
   const availableProtocols = currentGroup?.protocols ?? [];
 
   // Derive the remote index from hostname + protocol selection
-  const selectedRemoteIndex = useMemo(() => {
+  const selectedRemoteIndex = (() => {
     if (!currentGroup) return 0;
     const protocol = currentGroup.protocols.find(
       (p) => p.type === selectedProtocol,
     );
     return protocol?.index ?? currentGroup.protocols[0]?.index ?? 0;
-  }, [currentGroup, selectedProtocol]);
+  })();
 
   // Visibility logic
   const hasMultipleHostnames = hostnameGroups.length > 1;

@@ -18,7 +18,7 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
  * Uses the hostname (without common suffixes) as the display name
  * Example: "https://graphql.mcp.cloudflare.com/mcp" -> "graphql.mcp.cloudflare.com"
  */
-export function getRemoteDisplayName(remote?: { url?: string }): string {
+function getRemoteDisplayName(remote?: { url?: string }): string {
   if (!remote?.url) return "Unknown";
 
   try {
