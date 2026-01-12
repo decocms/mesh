@@ -6,7 +6,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import type {
   Protocol,
-  Remote,
+  UnifiedServerEntry,
   ServerCardData,
   ProtocolFilterOption,
 } from "./types";
@@ -99,25 +99,27 @@ function getProtocolLabel(protocol: Protocol): string {
   return labels[protocol];
 }
 
-/** Convert remotes to server card data */
-function remotesToServerCards(remotes: Remote[]): ServerCardData[] {
-  return remotes.map((remote, index) => {
-    const protocol = normalizeProtocol(remote.type);
-    const hostname = getHostname(remote.url);
-    const serviceName = extractServiceName(remote.url);
+/** Convert unified server entries to server card data */
+function serversToCards(servers: UnifiedServerEntry[]): ServerCardData[] {
+  return servers.map((server, index) => {
+    const protocol = normalizeProtocol(server.type);
+    const hostname = getHostname(server.url);
+    const serviceName = extractServiceName(server.url);
     const displayName =
-      remote.title || remote.name || formatServiceName(serviceName);
+      server.title || server.name || formatServiceName(serviceName);
 
     return {
       index,
       protocol,
-      url: remote.url,
+      url: server.url,
       hostname,
       serviceName,
       displayName,
-      name: remote.name,
-      title: remote.title,
-      description: remote.description,
+      name: server.name,
+      title: server.title,
+      description: server.description,
+      _type: server._type,
+      _index: server._index,
     };
   });
 }
@@ -272,15 +274,15 @@ function FilterButtons({ options, selected, onSelect }: FilterButtonsProps) {
 // ============================================================================
 
 interface MCPServersListProps {
-  remotes: Remote[];
-  onInstall: (remoteIndex: number) => void;
+  servers: UnifiedServerEntry[];
+  onInstall: (entry: UnifiedServerEntry) => void;
   isInstalling?: boolean;
   icon?: string | null;
   mcpName?: string;
 }
 
 export function MCPServersList({
-  remotes,
+  servers,
   onInstall,
   isInstalling = false,
   icon,
@@ -290,7 +292,7 @@ export function MCPServersList({
     "http",
   );
 
-  const serverCards = useMemo(() => remotesToServerCards(remotes), [remotes]);
+  const serverCards = useMemo(() => serversToCards(servers), [servers]);
 
   // Calculate effective filter - fallback to first available protocol if selected doesn't exist
   const effectiveFilter = useMemo(() => {
@@ -333,7 +335,17 @@ export function MCPServersList({
             icon={icon}
             mcpName={mcpName}
             isInstalling={isInstalling}
-            onInstall={() => onInstall(card.index)}
+            onInstall={() =>
+              onInstall({
+                type: card.protocol,
+                url: card.url,
+                name: card.name,
+                title: card.title,
+                description: card.description,
+                _type: card._type,
+                _index: card._index,
+              })
+            }
           />
         ))}
       </div>

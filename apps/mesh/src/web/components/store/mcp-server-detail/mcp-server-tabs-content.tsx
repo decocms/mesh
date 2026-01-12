@@ -4,7 +4,7 @@ import { Loading01 } from "@untitledui/icons";
 import { ToolsList, type Tool } from "@/web/components/tools";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import { MCPServersList } from "./mcp-servers-list";
-import type { MCPServerData, TabItem } from "./types";
+import type { MCPServerData, TabItem, UnifiedServerEntry } from "./types";
 
 interface MCPServerTabsContentProps {
   data: MCPServerData;
@@ -13,16 +13,10 @@ interface MCPServerTabsContentProps {
   effectiveTools: unknown[];
   isLoadingTools?: boolean;
   onTabChange: (tabId: string) => void;
-  /** Remotes for the servers list tab */
-  remotes?: Array<{
-    type?: string;
-    url?: string;
-    name?: string;
-    title?: string;
-    description?: string;
-  }>;
-  /** Callback when user clicks to install from servers list */
-  onInstallRemote?: (remoteIndex: number) => void;
+  /** Unified list of remotes and packages for the servers list tab */
+  servers?: UnifiedServerEntry[];
+  /** Callback when user clicks to install a server entry */
+  onInstallServer?: (entry: UnifiedServerEntry) => void;
   /** Whether an installation is in progress */
   isInstalling?: boolean;
   /** Icon for the MCP server */
@@ -38,8 +32,8 @@ export function MCPServerTabsContent({
   effectiveTools,
   isLoadingTools = false,
   onTabChange,
-  remotes = [],
-  onInstallRemote,
+  servers = [],
+  onInstallServer,
   isInstalling = false,
   mcpIcon,
   mcpName,
@@ -67,11 +61,11 @@ export function MCPServerTabsContent({
       )}
 
       {/* Servers Tab Content */}
-      {effectiveActiveTabId === "servers" && remotes.length > 0 && (
+      {effectiveActiveTabId === "servers" && servers.length > 0 && (
         <div className="flex-1 overflow-y-auto bg-background">
           <MCPServersList
-            remotes={remotes}
-            onInstall={(remoteIndex) => onInstallRemote?.(remoteIndex)}
+            servers={servers}
+            onInstall={(entry) => onInstallServer?.(entry)}
             isInstalling={isInstalling}
             icon={mcpIcon}
             mcpName={mcpName}

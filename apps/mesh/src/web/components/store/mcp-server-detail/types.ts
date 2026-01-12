@@ -11,10 +11,25 @@ export type Protocol = "http" | "sse" | "stdio";
 export type Remote = NonNullable<RegistryItem["server"]["remotes"]>[number];
 
 /**
+ * Unified server entry that can be either a remote or a package
+ */
+export interface UnifiedServerEntry {
+  type?: string;
+  url?: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  /** Source type: 'remote' for HTTP/SSE remotes, 'package' for STDIO packages */
+  _type: "remote" | "package";
+  /** Original index in the source array (remotes or packages) */
+  _index: number;
+}
+
+/**
  * Data for a server card in the servers list
  */
 export interface ServerCardData {
-  /** Index in the original remotes array */
+  /** Index in the unified servers array */
   index: number;
   /** Connection protocol */
   protocol: Protocol;
@@ -32,6 +47,10 @@ export interface ServerCardData {
   title?: string;
   /** Original remote description */
   description?: string;
+  /** Source type: 'remote' for HTTP/SSE remotes, 'package' for STDIO packages */
+  _type: "remote" | "package";
+  /** Original index in the source array (remotes or packages) */
+  _index: number;
 }
 
 /**

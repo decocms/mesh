@@ -403,24 +403,38 @@ function StoreMCPServerDetailContent() {
   // Check if repository is available for README tab
   const repo = data?.repository ? extractGitHubRepo(data.repository) : null;
 
-  // Calculate unique hostnames to determine if we have multiple servers
+  // Combine remotes and packages into a unified list for display
   const remotes = selectedItem?.server?.remotes ?? [];
-  const uniqueHostnames = new Set(
-    remotes.map((r) => {
-      try {
-        return r.url ? new URL(r.url).hostname : "local";
-      } catch {
-        return r.url || "local";
-      }
-    }),
-  );
-  const hasMultipleServers = uniqueHostnames.size > 1;
+  const packages = selectedItem?.server?.packages ?? [];
+
+  // Convert packages to remote-like format for unified display
+  const allServers = [
+    ...remotes.map((r, idx) => ({
+      ...r,
+      _type: "remote" as const,
+      _index: idx,
+    })),
+    ...packages.map((pkg, idx) => ({
+      type: "stdio" as const,
+      url: undefined,
+      name: pkg.name || pkg.identifier,
+      title: pkg.name || pkg.identifier?.replace(/^@[^/]+\//, ""),
+      description: pkg.environmentVariables?.length
+        ? `Requires ${pkg.environmentVariables.length} environment variable(s)`
+        : undefined,
+      _type: "package" as const,
+      _index: idx,
+    })),
+  ];
+
+  // Calculate if we have multiple connection options
+  const hasMultipleServers = allServers.length > 1;
 
   const availableTabs = [
     {
       id: "servers",
       label: "Servers",
-      count: uniqueHostnames.size,
+      count: allServers.length,
       visible: hasMultipleServers,
     },
     {
@@ -569,10 +583,14 @@ function StoreMCPServerDetailContent() {
                 effectiveTools={effectiveTools}
                 isLoadingTools={isLoadingRemoteTools}
                 onTabChange={setActiveTabId}
-                remotes={remotes}
-                onInstallRemote={(remoteIndex) =>
-                  handleInstall(undefined, remoteIndex, undefined)
-                }
+                servers={allServers}
+                onInstallServer={(entry) => {
+                  if (entry._type === "remote") {
+                    handleInstall(undefined, entry._index, undefined);
+                  } else {
+                    handleInstall(undefined, undefined, entry._index);
+                  }
+                }}
                 isInstalling={actions.create.isPending}
                 mcpIcon={data.icon}
                 mcpName={data.name}
