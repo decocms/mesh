@@ -168,10 +168,13 @@ export function createApp(options: CreateAppOptions = {}) {
   // ============================================================================
 
   // Server-Timing middleware
-  app.use("*", timing({
-    enabled: (c) => process.env.NODE_ENV !== "production" || getCookie(c, "debug") === "1"
-  }));
-
+  app.use(
+    "*",
+    timing({
+      enabled: (c) =>
+        process.env.NODE_ENV !== "production" || getCookie(c, "debug") === "1",
+    }),
+  );
 
   // CORS middleware
   app.use(
@@ -505,9 +508,9 @@ export function createApp(options: CreateAppOptions = {}) {
       start: (name: string) => {
         startTime(c, name);
 
-        return () => endTime(c, name)
+        return () => endTime(c, name);
       },
-    }
+    };
 
     startTime(c, "context_creation");
     try {
@@ -540,7 +543,6 @@ export function createApp(options: CreateAppOptions = {}) {
     } finally {
       endTime(c, "mcp");
     }
-
   });
 
   const mcpAuth: MiddlewareHandler<Env> = async (c, next) => {
