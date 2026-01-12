@@ -219,14 +219,14 @@ function ServerCard({
 
       {/* Install Button */}
       <Button
-        variant="brand"
+        variant="outline"
         size="sm"
         onClick={(e) => {
           e.stopPropagation();
           onInstall();
         }}
         disabled={isInstalling}
-        className="w-full mt-auto cursor-pointer opacity-80 group-hover:opacity-100 transition-opacity"
+        className="w-full mt-auto cursor-pointer"
       >
         <Plus size={16} />
         {isInstalling ? "Connecting..." : "Connect"}
@@ -279,6 +279,8 @@ interface MCPServersListProps {
   isInstalling?: boolean;
   icon?: string | null;
   mcpName?: string;
+  /** Show STDIO servers in the list (default: false) */
+  showStdio?: boolean;
 }
 
 export function MCPServersList({
@@ -287,8 +289,14 @@ export function MCPServersList({
   isInstalling = false,
   icon,
   mcpName,
+  showStdio = false,
 }: MCPServersListProps) {
-  const serverCards = serversToCards(servers);
+  // Filter out STDIO servers if showStdio is false
+  const filteredServers = showStdio
+    ? servers
+    : servers.filter((s) => s.type?.toLowerCase() !== "stdio");
+
+  const serverCards = serversToCards(filteredServers);
 
   // Default to "all" if less than 13 servers, otherwise "http"
   const defaultFilter = serverCards.length < 13 ? "all" : "http";
@@ -314,9 +322,13 @@ export function MCPServersList({
   // Get available filters based on existing protocols
   const availableFilters = (() => {
     const protocols = new Set(serverCards.map((c) => c.protocol));
-    const options = FILTER_OPTIONS.filter(
+    let options = FILTER_OPTIONS.filter(
       (f) => f.value === "all" || protocols.has(f.value as Protocol),
     );
+    // Hide STDIO filter if showStdio is false
+    if (!showStdio) {
+      options = options.filter((f) => f.value !== "stdio");
+    }
     // Hide "All" if only one protocol type exists
     return protocols.size <= 1
       ? options.filter((f) => f.value !== "all")
