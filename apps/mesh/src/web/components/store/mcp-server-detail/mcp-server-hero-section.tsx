@@ -271,19 +271,35 @@ export function MCPServerHeroSection({
     return installMode;
   })();
 
-  // Get current hostname group - fallback to first group if selected not found
-  const currentGroup =
-    hostnameGroups.find((g) => g.hostname === selectedHostname) ??
-    hostnameGroups[0];
+  // Calculate effective hostname - fallback to first available if selected doesn't exist
+  const effectiveHostname = (() => {
+    const found = hostnameGroups.find((g) => g.hostname === selectedHostname);
+    if (found) return selectedHostname;
+    return hostnameGroups[0]?.hostname ?? "";
+  })();
+
+  // Get current hostname group using effective hostname
+  const currentGroup = hostnameGroups.find(
+    (g) => g.hostname === effectiveHostname,
+  );
 
   // Get available protocols for current hostname
   const availableProtocols = currentGroup?.protocols ?? [];
 
-  // Derive the remote index from hostname + protocol selection
+  // Calculate effective protocol - fallback to HTTP or first available if selected doesn't exist
+  const effectiveProtocol = (() => {
+    const found = availableProtocols.find((p) => p.type === selectedProtocol);
+    if (found) return selectedProtocol;
+    // Prefer HTTP, then first available
+    const httpProtocol = availableProtocols.find((p) => p.type === "http");
+    return httpProtocol?.type ?? availableProtocols[0]?.type ?? "http";
+  })();
+
+  // Derive the remote index from effective hostname + protocol selection
   const selectedRemoteIndex = (() => {
     if (!currentGroup) return 0;
     const protocol = currentGroup.protocols.find(
-      (p) => p.type === selectedProtocol,
+      (p) => p.type === effectiveProtocol,
     );
     return protocol?.index ?? currentGroup.protocols[0]?.index ?? 0;
   })();
@@ -428,7 +444,7 @@ export function MCPServerHeroSection({
                         disabled={isInstalling}
                         className="cursor-pointer max-w-[200px]"
                       >
-                        <span className="truncate">{selectedHostname}</span>
+                        <span className="truncate">{effectiveHostname}</span>
                         <ChevronDown size={14} className="ml-1 shrink-0" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -456,7 +472,7 @@ export function MCPServerHeroSection({
                         >
                           <div className="flex items-center justify-between w-full">
                             <span className="truncate">{group.hostname}</span>
-                            {group.hostname === selectedHostname && (
+                            {group.hostname === effectiveHostname && (
                               <CheckCircle
                                 size={14}
                                 className="text-muted-foreground shrink-0"
@@ -479,7 +495,7 @@ export function MCPServerHeroSection({
                         disabled={isInstalling}
                         className="cursor-pointer"
                       >
-                        {getProtocolLabel(selectedProtocol)}
+                        {getProtocolLabel(effectiveProtocol)}
                         <ChevronDown size={14} className="ml-1" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -493,7 +509,7 @@ export function MCPServerHeroSection({
                         >
                           <div className="flex items-center justify-between w-full">
                             <span>{getProtocolLabel(protocol.type)}</span>
-                            {protocol.type === selectedProtocol && (
+                            {protocol.type === effectiveProtocol && (
                               <CheckCircle
                                 size={14}
                                 className="text-muted-foreground"
