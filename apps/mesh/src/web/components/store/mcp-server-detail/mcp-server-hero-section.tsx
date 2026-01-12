@@ -261,6 +261,16 @@ export function MCPServerHeroSection({
     return "remote";
   });
 
+  // Calculate effective install mode based on current data
+  // If user selected "remote" but no remotes exist, force "package" and vice versa
+  const effectiveInstallMode = (() => {
+    if (installMode === "remote" && !hasRemotes && hasPackages)
+      return "package";
+    if (installMode === "package" && !hasPackages && hasRemotes)
+      return "remote";
+    return installMode;
+  })();
+
   // Get current hostname group - fallback to first group if selected not found
   const currentGroup =
     hostnameGroups.find((g) => g.hostname === selectedHostname) ??
@@ -284,7 +294,7 @@ export function MCPServerHeroSection({
   const hasMultipleModes = hasRemotes && hasPackages;
 
   const handleInstall = () => {
-    if (installMode === "package") {
+    if (effectiveInstallMode === "package") {
       onInstall(selectedVersionIndex, undefined, effectivePackageIndex);
     } else {
       onInstall(selectedVersionIndex, selectedRemoteIndex, undefined);
@@ -301,7 +311,22 @@ export function MCPServerHeroSection({
       Math.max(0, targetPackages.length - 1),
     );
 
-    if (installMode === "package") {
+    // Determine install mode for target version
+    const targetRemotes = targetVersion?.server?.remotes ?? [];
+    const targetHasRemotes = targetRemotes.length > 0;
+    const targetHasPackages = targetPackages.length > 0;
+    const targetInstallMode =
+      effectiveInstallMode === "remote" &&
+      !targetHasRemotes &&
+      targetHasPackages
+        ? "package"
+        : effectiveInstallMode === "package" &&
+            !targetHasPackages &&
+            targetHasRemotes
+          ? "remote"
+          : effectiveInstallMode;
+
+    if (targetInstallMode === "package") {
       onInstall(versionIndex, undefined, validPackageIndex);
     } else {
       onInstall(versionIndex, selectedRemoteIndex, undefined);
@@ -351,7 +376,9 @@ export function MCPServerHeroSection({
                     disabled={isInstalling}
                     className="cursor-pointer"
                   >
-                    {installMode === "remote" ? "Remote" : "Local (NPX)"}
+                    {effectiveInstallMode === "remote"
+                      ? "Remote"
+                      : "Local (NPX)"}
                     <ChevronDown size={14} className="ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -362,7 +389,7 @@ export function MCPServerHeroSection({
                   >
                     <div className="flex items-center justify-between w-full">
                       <span>Remote</span>
-                      {installMode === "remote" && (
+                      {effectiveInstallMode === "remote" && (
                         <CheckCircle
                           size={14}
                           className="text-muted-foreground"
@@ -376,7 +403,7 @@ export function MCPServerHeroSection({
                   >
                     <div className="flex items-center justify-between w-full">
                       <span>Local (NPX)</span>
-                      {installMode === "package" && (
+                      {effectiveInstallMode === "package" && (
                         <CheckCircle
                           size={14}
                           className="text-muted-foreground"
@@ -389,7 +416,7 @@ export function MCPServerHeroSection({
             )}
 
             {/* Remote mode selectors */}
-            {installMode === "remote" && (
+            {effectiveInstallMode === "remote" && (
               <>
                 {/* Server/Hostname Selector - only if multiple hostnames */}
                 {hasMultipleHostnames && (
@@ -482,7 +509,7 @@ export function MCPServerHeroSection({
             )}
 
             {/* Package mode selector */}
-            {installMode === "package" && hasMultiplePackages && (
+            {effectiveInstallMode === "package" && hasMultiplePackages && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
