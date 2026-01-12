@@ -12,6 +12,9 @@ import type { EventBus } from "../event-bus/interface";
 
 // Helper to create mock context
 const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
+  timings: {
+    measure: async <T>(_name: string, cb: () => Promise<T>) => await cb(),
+  },
   auth: {},
   storage: {
     connections: null as never,

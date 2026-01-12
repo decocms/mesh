@@ -164,6 +164,9 @@ const createMockContext = (
 ): MeshContext => {
   const boundAuth = createMockBoundAuth(authInstance);
   return {
+    timings: {
+      measure: async <T>(_name: string, cb: () => Promise<T>) => await cb(),
+    },
     eventBus: vi.fn().mockResolvedValue(undefined) as never,
     auth: {
       user: {

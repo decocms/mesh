@@ -107,81 +107,88 @@ export function defineTool<
     ): Promise<z.infer<TOutput>> => {
       const startTime = Date.now();
 
-      // Start OpenTelemetry span
-      return await ctx.tracer.startActiveSpan(
+      return await ctx.timings.measure(
         `tool.${definition.name}`,
-        {
-          attributes: {
-            "tool.name": definition.name,
-            "organization.id": ctx.organization?.id ?? "system",
-            "user.id":
-              ctx.auth.user?.id ?? ctx.auth.apiKey?.userId ?? "anonymous",
-          },
-        },
-        async (span) => {
-          try {
-            // Set tool name for audit logging and access control
-            ctx.toolName = definition.name;
-            ctx.access.setToolName?.(definition.name);
-
-            // MCP protocol already validated input against JSON Schema
-            // We trust the validation and execute the handler directly
-            const output = await definition.handler(input, ctx);
-
-            // Calculate duration
-            const duration = Date.now() - startTime;
-
-            // Record success metrics
-            const histogram = ctx.meter.createHistogram(
-              "tool.execution.duration",
-              {
-                description: "Duration of tool executions in milliseconds",
-                unit: "ms",
+        // Start OpenTelemetry span
+        async () =>
+          ctx.tracer.startActiveSpan(
+            `tool.${definition.name}`,
+            {
+              attributes: {
+                "tool.name": definition.name,
+                "organization.id": ctx.organization?.id ?? "system",
+                "user.id":
+                  ctx.auth.user?.id ?? ctx.auth.apiKey?.userId ?? "anonymous",
               },
-            );
-            histogram.record(duration, {
-              "tool.name": definition.name,
-              "organization.id": ctx.organization?.id ?? "system",
-              status: "success",
-            });
+            },
+            async (span) => {
+              try {
+                // Set tool name for audit logging and access control
+                ctx.toolName = definition.name;
+                ctx.access.setToolName?.(definition.name);
 
-            const counter = ctx.meter.createCounter("tool.execution.count", {
-              description: "Number of tool executions",
-            });
-            counter.add(1, {
-              "tool.name": definition.name,
-              status: "success",
-            });
+                // MCP protocol already validated input against JSON Schema
+                // We trust the validation and execute the handler directly
+                const output = await definition.handler(input, ctx);
 
-            // Mark span as successful
-            span.setStatus({ code: SpanStatusCode.OK });
+                // Calculate duration
+                const duration = Date.now() - startTime;
 
-            return output;
-          } catch (error) {
-            // Record error metrics
-            const errorCounter = ctx.meter.createCounter(
-              "tool.execution.errors",
-              {
-                description: "Number of tool execution errors",
-              },
-            );
-            errorCounter.add(1, {
-              "tool.name": definition.name,
-              "error.type": (error as Error).constructor.name,
-            });
+                // Record success metrics
+                const histogram = ctx.meter.createHistogram(
+                  "tool.execution.duration",
+                  {
+                    description: "Duration of tool executions in milliseconds",
+                    unit: "ms",
+                  },
+                );
+                histogram.record(duration, {
+                  "tool.name": definition.name,
+                  "organization.id": ctx.organization?.id ?? "system",
+                  status: "success",
+                });
 
-            // Mark span as error
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: (error as Error).message,
-            });
-            span.recordException(error as Error);
+                const counter = ctx.meter.createCounter(
+                  "tool.execution.count",
+                  {
+                    description: "Number of tool executions",
+                  },
+                );
+                counter.add(1, {
+                  "tool.name": definition.name,
+                  status: "success",
+                });
 
-            throw error;
-          } finally {
-            span.end();
-          }
-        },
+                // Mark span as successful
+                span.setStatus({ code: SpanStatusCode.OK });
+
+                return output;
+              } catch (error) {
+                // Record error metrics
+                const errorCounter = ctx.meter.createCounter(
+                  "tool.execution.errors",
+                  {
+                    description: "Number of tool execution errors",
+                  },
+                );
+                errorCounter.add(1, {
+                  "tool.name": definition.name,
+                  "error.type": (error as Error).constructor.name,
+                });
+
+                // Mark span as error
+                span.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: (error as Error).message,
+                });
+                span.recordException(error as Error);
+
+                throw error;
+              } finally {
+                span.end();
+              }
+            },
+          ),
       );
     },
   };

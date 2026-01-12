@@ -50,6 +50,9 @@ describe("Connection Tools", () => {
 
     // Create mock context
     ctx = {
+      timings: {
+        measure: async <T>(_name: string, cb: () => Promise<T>) => await cb(),
+      },
       auth: {
         user: {
           id: "user_1",
