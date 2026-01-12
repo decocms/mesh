@@ -288,17 +288,21 @@ export function MCPServersList({
   icon,
   mcpName,
 }: MCPServersListProps) {
-  const [selectedFilter, setSelectedFilter] = useState<Protocol | "all">(
-    "http",
-  );
-
   const serverCards = useMemo(() => serversToCards(servers), [servers]);
 
-  // Calculate effective filter - fallback to first available protocol if selected doesn't exist
+  // Default to "all" if less than 13 servers, otherwise "http"
+  const defaultFilter = serverCards.length < 13 ? "all" : "http";
+  const [selectedFilter, setSelectedFilter] = useState<Protocol | "all">(
+    defaultFilter,
+  );
+
+  // Calculate effective filter - fallback to "all" if < 13, otherwise first available protocol
   const effectiveFilter = useMemo(() => {
     if (selectedFilter === "all") return "all";
     const hasSelected = serverCards.some((c) => c.protocol === selectedFilter);
     if (hasSelected) return selectedFilter;
+    // Fallback: use "all" if < 13 servers, otherwise first available protocol
+    if (serverCards.length < 13) return "all";
     return serverCards[0]?.protocol ?? "http";
   }, [serverCards, selectedFilter]);
 
