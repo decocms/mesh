@@ -442,7 +442,7 @@ async function authenticateRequest(
 }> {
   const authHeader = req.headers.get("Authorization");
 
-  let span: undefined | (() => void);
+  let end: undefined | (() => void);
 
   // Try OAuth session first (getMcpSession)
   // Add X-MCP-Session-Auth header to tell the API key plugin this is an MCP OAuth session
@@ -451,16 +451,16 @@ async function authenticateRequest(
     const mcpHeaders = new Headers(req.headers);
     mcpHeaders.set("X-MCP-Session-Auth", "true");
 
-    span = timings?.start("auth_get_mcp_session");
+    end = timings?.start("auth_get_mcp_session");
     const session = (await auth.api.getMcpSession({
       headers: mcpHeaders,
     })) as OAuthSession | null;
-    span?.();
+    end?.();
 
     if (session) {
       const userId = session.userId;
 
-      span = timings?.start("auth_query_membership");
+      end = timings?.start("auth_query_membership");
 
       // For MCP OAuth sessions, we need to query the database directly
       // because getFullOrganization requires a browser session (cookies)
@@ -478,7 +478,7 @@ async function authenticateRequest(
         .where("member.userId", "=", userId)
         .executeTakeFirst();
 
-      span?.();
+      end?.();
 
       const role = membership?.role;
       const organization = membership
@@ -492,13 +492,13 @@ async function authenticateRequest(
       // Fetch role permissions for MCP OAuth sessions (non-browser)
       let permissions: Permission | undefined;
       if (membership && role) {
-        span = timings?.start("auth_fetch_role_permissions");
+        end = timings?.start("auth_fetch_role_permissions");
         permissions = await fetchRolePermissions(
           db,
           membership.organizationId,
           role,
         );
-        span?.();
+        end?.();
       }
 
       return {
@@ -521,9 +521,9 @@ async function authenticateRequest(
     // First, try to verify as Mesh JWT token
     // These are issued by mesh for downstream services calling back
     try {
-      span = timings?.start("auth_verify_mesh_jwt");
+      end = timings?.start("auth_verify_mesh_jwt");
       const meshJwtPayload = await verifyMeshToken(token);
-      span?.();
+      end?.();
 
       if (meshJwtPayload) {
         // Look up user's organization role for admin/owner bypass
@@ -563,11 +563,11 @@ async function authenticateRequest(
 
     // Try API Key authentication
     try {
-      span = timings?.start("auth_verify_api_key");
+      end = timings?.start("auth_verify_api_key");
       const result = await auth.api.verifyApiKey({
         body: { key: token },
       });
-      span?.();
+      end?.();
 
       if (result?.valid && result.key) {
         // For API keys, organization might be embedded in metadata
@@ -581,7 +581,7 @@ async function authenticateRequest(
         // Look up user's organization role for admin/owner bypass
         let role: string | undefined;
         if (result.key.userId && orgMetadata?.id) {
-          span = timings?.start("auth_query_membership");
+          end = timings?.start("auth_query_membership");
           const membership = await db
             .selectFrom("member")
             .select(["member.role"])
@@ -589,7 +589,7 @@ async function authenticateRequest(
             .where("member.organizationId", "=", orgMetadata.id)
             .executeTakeFirst();
           role = membership?.role;
-          span?.();
+          end?.();
         }
 
         return {
@@ -613,11 +613,11 @@ async function authenticateRequest(
   }
 
   try {
-    span = timings?.start("auth_get_session");
+    end = timings?.start("auth_get_session");
     const session = await auth.api.getSession({
       headers: req.headers,
     });
-    span?.();
+    end?.();
 
     if (session) {
       let organization: OrganizationContext | undefined;
@@ -625,13 +625,13 @@ async function authenticateRequest(
 
       if (session.session.activeOrganizationId) {
         // Get full organization data (includes members with roles)
-        span = timings?.start("auth_get_full_organization");
+        end = timings?.start("auth_get_full_organization");
         const orgData = await auth.api
           .getFullOrganization({
             headers: req.headers,
           })
           .catch(() => null);
-        span?.();
+        end?.();
 
         if (orgData) {
           organization = {
