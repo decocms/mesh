@@ -3,9 +3,11 @@ import { useState } from "react";
 import { authClient } from "@/web/lib/auth-client";
 import { CreateOrganizationDialog } from "./create-organization-dialog";
 import { TopbarSwitcher } from "@deco/ui/components/topbar-switcher.tsx";
+import { useSidebar } from "@deco/ui/components/sidebar.tsx";
 import { Grid01 } from "@untitledui/icons";
 
 export function MeshOrgSwitcher() {
+  const { state } = useSidebar();
   const { org } = useParams({ strict: false });
   const { data: organizations } = authClient.useListOrganizations();
   const navigate = useNavigate();
@@ -52,56 +54,64 @@ export function MeshOrgSwitcher() {
       }
     : undefined;
 
+  const isCollapsed = state === "collapsed";
+
   return (
     <>
-      <TopbarSwitcher>
+      <TopbarSwitcher collapsed={isCollapsed}>
         <TopbarSwitcher.Trigger
           onClick={() => navigate({ to: "/$org", params: { org: org ?? "" } })}
+          collapsed={isCollapsed}
         >
-          <TopbarSwitcher.CurrentItem item={mappedCurrentOrg} />
+          <TopbarSwitcher.CurrentItem
+            item={mappedCurrentOrg}
+            collapsed={isCollapsed}
+          />
         </TopbarSwitcher.Trigger>
 
-        <TopbarSwitcher.Content>
-          <TopbarSwitcher.Panel>
-            <TopbarSwitcher.Search
-              placeholder="Search organizations..."
-              value={orgSearch}
-              onChange={setOrgSearch}
-            />
+        {!isCollapsed && (
+          <TopbarSwitcher.Content>
+            <TopbarSwitcher.Panel>
+              <TopbarSwitcher.Search
+                placeholder="Search organizations..."
+                value={orgSearch}
+                onChange={setOrgSearch}
+              />
 
-            <TopbarSwitcher.Items emptyMessage="No organizations found.">
-              {mappedOrgs.map((organization) => (
-                <TopbarSwitcher.Item
-                  key={organization.slug}
-                  item={organization}
-                  onClick={(item) =>
-                    navigate({ to: "/$org", params: { org: item.slug } })
-                  }
-                />
-              ))}
-            </TopbarSwitcher.Items>
+              <TopbarSwitcher.Items emptyMessage="No organizations found.">
+                {mappedOrgs.map((organization) => (
+                  <TopbarSwitcher.Item
+                    key={organization.slug}
+                    item={organization}
+                    onClick={(item) =>
+                      navigate({ to: "/$org", params: { org: item.slug } })
+                    }
+                  />
+                ))}
+              </TopbarSwitcher.Items>
 
-            <TopbarSwitcher.Actions>
-              <TopbarSwitcher.Action
-                onClick={() => setCreatingOrganization(true)}
-                variant="muted"
-              >
-                + Create organization
-              </TopbarSwitcher.Action>
-            </TopbarSwitcher.Actions>
+              <TopbarSwitcher.Actions>
+                <TopbarSwitcher.Action
+                  onClick={() => setCreatingOrganization(true)}
+                  variant="muted"
+                >
+                  + Create organization
+                </TopbarSwitcher.Action>
+              </TopbarSwitcher.Actions>
 
-            <TopbarSwitcher.Separator />
+              <TopbarSwitcher.Separator />
 
-            <TopbarSwitcher.Actions>
-              <TopbarSwitcher.Action
-                onClick={() => navigate({ to: "/" })}
-                icon={<Grid01 />}
-              >
-                See all organizations
-              </TopbarSwitcher.Action>
-            </TopbarSwitcher.Actions>
-          </TopbarSwitcher.Panel>
-        </TopbarSwitcher.Content>
+              <TopbarSwitcher.Actions>
+                <TopbarSwitcher.Action
+                  onClick={() => navigate({ to: "/" })}
+                  icon={<Grid01 />}
+                >
+                  See all organizations
+                </TopbarSwitcher.Action>
+              </TopbarSwitcher.Actions>
+            </TopbarSwitcher.Panel>
+          </TopbarSwitcher.Content>
+        )}
       </TopbarSwitcher>
 
       <CreateOrganizationDialog
