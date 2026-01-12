@@ -1,15 +1,18 @@
 import { UserMenu } from "@deco/ui/components/user-menu.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import {
-  UserCircle,
+  Settings01,
   Globe01,
   LogOut01,
   LinkExternal01,
+  Copy01,
+  Check,
 } from "@untitledui/icons";
 import { authClient } from "@/web/lib/auth-client";
 import { GitHubIcon } from "@daveyplate/better-auth-ui";
 import { useState } from "react";
 import { UserSettingsDialog } from "@/web/components/user-settings-dialog.tsx";
+import { toast } from "sonner";
 
 function MeshUserMenuBase({
   user,
@@ -19,6 +22,15 @@ function MeshUserMenuBase({
   userImage?: string;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyUserInfo = () => {
+    const userInfo = `ID: ${user.id}\nName: ${user.name || "N/A"}\nEmail: ${user.email}`;
+    navigator.clipboard.writeText(userInfo);
+    setCopied(true);
+    toast.success("User info copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <>
@@ -35,9 +47,37 @@ function MeshUserMenuBase({
         )}
         align="end"
       >
+        <UserMenu.Item onClick={handleCopyUserInfo}>
+          <div className="group flex items-center gap-3 w-full py-1">
+            <Avatar
+              url={userImage}
+              fallback={user.name || user.email || "U"}
+              shape="circle"
+              size="sm"
+            />
+            <div className="flex-1 min-w-0 text-left">
+              <div className="text-sm font-medium truncate">
+                {user.name || "User"}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {user.email}
+              </div>
+            </div>
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              {copied ? (
+                <Check size={16} className="text-green-600" />
+              ) : (
+                <Copy01 size={16} className="text-muted-foreground" />
+              )}
+            </div>
+          </div>
+        </UserMenu.Item>
+
+        <UserMenu.Separator />
+
         <UserMenu.Item onClick={() => setSettingsOpen(true)}>
-          <UserCircle className="text-muted-foreground" size={18} />
-          Settings
+          <Settings01 className="text-muted-foreground" size={18} />
+          Profile Settings
         </UserMenu.Item>
 
         <UserMenu.Separator />
