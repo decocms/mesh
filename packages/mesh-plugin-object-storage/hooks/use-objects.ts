@@ -5,7 +5,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { usePluginContext } from "@decocms/bindings";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
-import { STORAGE_KEYS } from "../lib/query-keys";
+import { KEYS } from "../lib/query-keys";
 import type { ListObjectsOutput } from "@decocms/bindings";
 
 const PAGE_SIZE = 100;
@@ -97,7 +97,7 @@ export function useObjects(options: UseObjectsOptions = {}): UseObjectsResult {
     fetchNextPage,
     error,
   } = useInfiniteQuery({
-    queryKey: STORAGE_KEYS.objects(connectionId, prefix),
+    queryKey: KEYS.objects(connectionId, prefix),
     queryFn: async ({ pageParam }): Promise<ListObjectsOutput> => {
       const result = await toolCaller("LIST_OBJECTS", {
         prefix: prefix || undefined,

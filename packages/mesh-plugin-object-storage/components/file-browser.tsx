@@ -31,7 +31,7 @@ import {
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { STORAGE_KEYS } from "../lib/query-keys";
+import { KEYS } from "../lib/query-keys";
 
 interface FileRowProps {
   item: {
@@ -191,7 +191,7 @@ export default function FileBrowser() {
     onSuccess: (key) => {
       toast.success(`Uploaded ${getFileName(key)}`);
       queryClient.invalidateQueries({
-        queryKey: STORAGE_KEYS.objects(connectionId, prefix),
+        queryKey: KEYS.objects(connectionId, prefix),
       });
     },
     onError: (error) => {
@@ -211,7 +211,7 @@ export default function FileBrowser() {
       toast.success("Deleted successfully");
       setSelectedKeys(new Set());
       queryClient.invalidateQueries({
-        queryKey: STORAGE_KEYS.objects(connectionId, prefix),
+        queryKey: KEYS.objects(connectionId, prefix),
       });
     },
     onError: (error) => {
