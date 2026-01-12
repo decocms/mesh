@@ -4,6 +4,7 @@ import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
+  Building02,
   Container,
   CpuChip02,
   Home02,
@@ -37,6 +38,12 @@ export function useProjectSidebarItems() {
           navigate({ to: "/$org", params: { org } });
         }
       },
+    },
+    {
+      key: "store",
+      label: "Store",
+      icon: <Building02 />,
+      onClick: () => navigate({ to: "/$org/store", params: { org } }),
     },
     ...pluginRootSidebarItems.map((item) => ({
       key: item.pluginId,
