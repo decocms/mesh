@@ -90,3 +90,21 @@ export {
   EventBusBinding,
   type EventBusBindingClient,
 } from "./well-known/event-bus";
+
+// Re-export object storage binding types
+export {
+  OBJECT_STORAGE_BINDING,
+  type ObjectStorageBinding,
+  type ListObjectsInput,
+  type ListObjectsOutput,
+  type GetObjectMetadataInput,
+  type GetObjectMetadataOutput,
+  type GetPresignedUrlInput,
+  type GetPresignedUrlOutput,
+  type PutPresignedUrlInput,
+  type PutPresignedUrlOutput,
+  type DeleteObjectInput,
+  type DeleteObjectOutput,
+  type DeleteObjectsInput,
+  type DeleteObjectsOutput,
+} from "./well-known/object-storage";

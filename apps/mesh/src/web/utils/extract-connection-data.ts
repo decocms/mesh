@@ -1,6 +1,6 @@
 /**
  * Utility to extract connection data from a registry item for installation.
- * Shared between store server detail and inline installation flows.
+ * Shared between store-app-detail and inline installation flows.
  */
 
 import type { OAuthConfig } from "@/tools/connection/schema";
@@ -8,8 +8,11 @@ import type {
   RegistryItem,
   MCPRegistryServer,
 } from "@/web/components/store/types";
-import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
-import { getGitHubAvatarUrl } from "@deco/ui/lib/github.ts";
+import {
+  MCP_REGISTRY_DECOCMS_KEY,
+  MCP_REGISTRY_PUBLISHER_KEY,
+} from "@/web/utils/constants";
+import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
 import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
@@ -23,7 +26,17 @@ export function extractConnectionData(
 ) {
   const server = item.server as MCPRegistryServer["server"] | undefined;
 
-  const meshMeta = item._meta?.[MCP_REGISTRY_DECOCMS_KEY];
+  const meshMeta =
+    item._meta?.[MCP_REGISTRY_DECOCMS_KEY] ??
+    server?._meta?.[MCP_REGISTRY_DECOCMS_KEY];
+  const publisherMeta =
+    item._meta?.[MCP_REGISTRY_PUBLISHER_KEY] ??
+    server?._meta?.[MCP_REGISTRY_PUBLISHER_KEY];
+
+  const appMetadata = publisherMeta?.metadata as
+    | Record<string, unknown>
+    | null
+    | undefined;
 
   const remote = server?.remotes?.[0];
 
@@ -35,12 +48,11 @@ export function extractConnectionData(
   const now = new Date().toISOString();
 
   const title =
-    meshMeta?.friendlyName ||
-    meshMeta?.friendly_name ||
+    publisherMeta?.friendlyName ||
     item.title ||
     server?.title ||
     server?.name ||
-    "Unnamed MCP Server";
+    "Unnamed App";
 
   const description = server?.description || null;
 
@@ -48,7 +60,7 @@ export function extractConnectionData(
   const icon =
     server?.icons?.[0]?.src || getGitHubAvatarUrl(server?.repository) || null;
 
-  const rawOauthConfig = meshMeta?.oauth_config as
+  const rawOauthConfig = appMetadata?.oauth_config as
     | Record<string, unknown>
     | null
     | undefined;
@@ -63,11 +75,11 @@ export function extractConnectionData(
       ? (rawOauthConfig as unknown as OAuthConfig)
       : null;
 
-  const configState = meshMeta?.configuration_state as
+  const configState = appMetadata?.configuration_state as
     | Record<string, unknown>
     | null
     | undefined;
-  const configScopes = meshMeta?.configuration_scopes as
+  const configScopes = appMetadata?.configuration_scopes as
     | string[]
     | null
     | undefined;
@@ -96,13 +108,14 @@ export function extractConnectionData(
     configuration_state: configState ?? null,
     configuration_scopes: configScopes ?? null,
     metadata: {
+      ...appMetadata,
       source: "store",
       registry_item_id: item.id,
       verified: meshMeta?.verified ?? false,
       scopeName: meshMeta?.scopeName ?? null,
-      toolsCount: meshMeta?.tools?.length ?? 0,
+      toolsCount: publisherMeta?.tools?.length ?? 0,
       publishedAt: meshMeta?.publishedAt ?? null,
-      repository,
+      repository, // Repository info for README display
     },
     created_at: now,
     updated_at: now,
@@ -112,4 +125,40 @@ export function extractConnectionData(
     bindings: null,
     status: "inactive" as const,
   };
+}
+
+/**
+ * Find a registry item by binding type (e.g., "@deco/database")
+ * Returns the matching item or undefined
+ */
+export function findRegistryItemByBinding(
+  items: RegistryItem[],
+  bindingType: string,
+): RegistryItem | undefined {
+  if (!bindingType?.startsWith("@")) {
+    return undefined;
+  }
+
+  // Parse @scope/appName format
+  const [scope, appName] = bindingType.replace("@", "").split("/");
+  if (!scope || !appName) {
+    return undefined;
+  }
+
+  return items.find((item) => {
+    const meta = item._meta?.["mcp.mesh"];
+    const serverName = item.server.name;
+
+    // Match by meta (scopeName + appName)
+    if (meta?.scopeName === scope && meta?.appName === appName) {
+      return true;
+    }
+
+    // Match by server.name (format: "scope/appName")
+    if (serverName === `${scope}/${appName}`) {
+      return true;
+    }
+
+    return false;
+  });
 }

@@ -25,8 +25,6 @@ interface UseStoreDiscoveryOptions {
   registryId: string;
   listToolName: string;
   filtersToolName?: string;
-  /** Search term for server-side filtering */
-  search?: string;
 }
 
 interface UseStoreDiscoveryResult {
@@ -42,8 +40,6 @@ interface UseStoreDiscoveryResult {
   isFiltering: boolean;
   /** Whether initial load is in progress */
   isInitialLoading: boolean;
-  /** Whether fetching in background (for subtle loading indicator) */
-  isFetching: boolean;
   /** Function to load more items */
   loadMore: () => void;
   /** Available tags for filtering */
@@ -69,7 +65,6 @@ export function useStoreDiscovery({
   registryId,
   listToolName,
   filtersToolName,
-  search,
 }: UseStoreDiscoveryOptions): UseStoreDiscoveryResult {
   // Filter state
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -91,29 +86,11 @@ export function useStoreDiscovery({
     staleTime: 60 * 60 * 1000, // 1 hour - filters don't change often
   });
 
-  // Build where clause for server-side search
-  // Only search if there's actually a search term
-  const searchWhereClause = search?.trim()
-    ? {
-        operator: "or" as const,
-        conditions: [
-          { field: ["name"], operator: "contains" as const, value: search },
-          { field: ["title"], operator: "contains" as const, value: search },
-          {
-            field: ["description"],
-            operator: "contains" as const,
-            value: search,
-          },
-        ],
-      }
-    : undefined;
-
   // Build filter params for the LIST API call
   const filterParams = {
     limit: PAGE_SIZE,
     ...(selectedTags.length > 0 && { tags: selectedTags }),
     ...(selectedCategories.length > 0 && { categories: selectedCategories }),
-    ...(searchWhereClause && { where: searchWhereClause }),
   };
 
   const {
@@ -172,9 +149,7 @@ export function useStoreDiscovery({
   const items = flattenPaginatedItems<RegistryItem>(data?.pages);
 
   const hasActiveFilters =
-    selectedTags.length > 0 ||
-    selectedCategories.length > 0 ||
-    Boolean(search?.trim());
+    selectedTags.length > 0 || selectedCategories.length > 0;
 
   // Show filtering indicator when fetching due to filter change
   const isFiltering =
@@ -193,7 +168,6 @@ export function useStoreDiscovery({
     isLoadingMore: isFetchingNextPage,
     isFiltering,
     isInitialLoading: isLoading,
-    isFetching,
     loadMore,
     availableTags: hasFiltersSupport ? filtersData?.tags : undefined,
     availableCategories: hasFiltersSupport

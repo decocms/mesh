@@ -1,4 +1,5 @@
-import { AnyPlugin } from "@decocms/bindings/plugins";
-import { storePlugin } from "mesh-plugin-store";
+import type { AnyPlugin } from "@decocms/bindings/plugins";
+import { objectStoragePlugin } from "mesh-plugin-object-storage";
 
-export const sourcePlugins: AnyPlugin[] = [storePlugin];
+// Registered plugins
+export const sourcePlugins: AnyPlugin[] = [objectStoragePlugin];

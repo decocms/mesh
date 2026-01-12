@@ -30,11 +30,10 @@ export interface MCPRegistryServerMeta {
     mesh_description?: string;
     tags?: string[];
     categories?: string[];
-    official?: boolean;
+  };
+  "mcp.mesh/publisher-provided"?: {
     friendlyName?: string | null;
-    oauth_config?: Record<string, unknown>;
-    configuration_state?: Record<string, unknown>;
-    configuration_scopes?: string[];
+    metadata?: Record<string, unknown> | null;
     tools?: Array<{
       id: string;
       name: string;
@@ -59,6 +58,7 @@ export interface MCPRegistryServer {
   _meta?: MCPRegistryServerMeta;
   server: {
     $schema?: string;
+    _meta?: MCPRegistryServerMeta;
     name: string;
     title?: string;
     description?: string;
@@ -103,6 +103,8 @@ export interface RegistryItem {
   publisher?: string;
   /** Publisher logo URL */
   publisher_logo?: string;
+  /** Number of published apps */
+  published_apps_count?: number;
   /** Available tools */
   tools?: Array<{
     id?: string;
@@ -152,6 +154,7 @@ export interface RegistryItem {
     emails?: unknown[];
     analytics?: unknown;
     cdn?: unknown;
+    _meta?: MCPRegistryServerMeta;
   };
   /** When the item was last updated */
   updated_at?: string | Date;

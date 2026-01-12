@@ -1,10 +1,13 @@
 /**
- * Store Types
+ * Store Components
  *
- * Types used by the store plugin and other mesh components.
- * Note: Store UI components have moved to packages/mesh-plugin-store/
+ * Components for store discovery and MCP Server browsing.
  */
 
+// Main components
+export { StoreDiscovery } from "./store-discovery";
+
+// Types
 export type {
   MCPRegistryServer,
   MCPRegistryServerIcon,

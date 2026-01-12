@@ -13,11 +13,12 @@ import {
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { SplashScreen } from "@/web/components/splash-screen";
 import * as z from "zod";
+import type { ReactNode } from "react";
 
 import "../../index.css";
 
 import { sourcePlugins } from "./plugins.ts";
-import { AnyPlugin, PluginSetupContext } from "@decocms/bindings/plugins";
+import type { AnyPlugin, PluginSetupContext } from "@decocms/bindings/plugins";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -198,15 +199,9 @@ const orgWorkflowRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
-const oauthCallbackRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/oauth/callback",
-  component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
-});
-
 /**
- * Dynamic plugin layout route.
- * Uses $pluginId param to determine which plugin layout to render.
+ * Dynamic plugin route
+ * Routes to plugins based on $pluginId parameter
  */
 const pluginLayoutRoute = createRoute({
   getParentRoute: () => shellLayout,
@@ -221,7 +216,7 @@ const pluginLayoutRoute = createRoute({
  */
 export const pluginRootSidebarItems: {
   pluginId: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
 }[] = [];
 
@@ -246,6 +241,16 @@ sourcePlugins.forEach((plugin: AnyPlugin) => {
 
 // Add all plugin routes as children of the plugin layout
 const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
+
+const oauthCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/oauth/callback",
+  component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
+});
+
+const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
+  storeServerDetailRoute,
+]);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
