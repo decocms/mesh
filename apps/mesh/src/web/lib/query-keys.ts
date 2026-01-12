@@ -13,6 +13,7 @@ export const KEYS = {
 
   // Auth-related queries
   authConfig: () => ["authConfig"] as const,
+  session: () => ["session"] as const,
 
   // Chat store (IndexedDB) queries
   threads: (locator: string) => ["threads", locator] as const,

@@ -88,7 +88,7 @@ export function ChatInput({
               placeholder={placeholder}
               disabled={disabled || isStreaming}
               className={cn(
-                "placeholder:text-muted-foreground resize-none focus-visible:ring-0 border-0 p-2 text-sm min-h-[20px] w-full",
+                "placeholder:text-muted-foreground resize-none focus-visible:ring-0 border-0 p-2 !text-[15px] min-h-[20px] w-full",
                 "rounded-none shadow-none",
               )}
               rows={1}

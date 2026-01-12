@@ -8,6 +8,8 @@
 import { Hono } from "hono";
 import { authConfig } from "../../auth";
 import { KNOWN_OAUTH_PROVIDERS, OAuthProvider } from "@/auth/oauth-providers";
+import { ContextFactory } from "../../core/context-factory";
+import { z } from "zod";
 
 const app = new Hono();
 
@@ -87,6 +89,77 @@ app.get("/config", async (c) => {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Failed to load auth config";
+
+    return c.json(
+      {
+        success: false,
+        error: errorMessage,
+      },
+      500,
+    );
+  }
+});
+
+const updateUserProfileSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  email: z.string().email().optional(),
+  image: z.string().optional().nullable(),
+});
+
+/**
+ * Update User Profile Endpoint
+ *
+ * Updates the authenticated user's profile information
+ *
+ * Route: PUT /api/auth/custom/profile
+ */
+app.put("/profile", async (c) => {
+  try {
+    // Create context for this request
+    const ctx = await ContextFactory.create(c.req.raw);
+
+    // Require user authentication
+    if (!ctx.auth.user?.id) {
+      return c.json({ success: false, error: "Unauthorized" }, 401);
+    }
+
+    const body = await c.req.json();
+    const data = updateUserProfileSchema.parse(body);
+
+    // Build update object
+    const updateData: Record<string, unknown> = {};
+    if (data.name !== undefined) {
+      updateData.name = data.name;
+    }
+    if (data.email !== undefined) {
+      updateData.email = data.email;
+    }
+    if (data.image !== undefined) {
+      updateData.image = data.image || null;
+    }
+
+    // Update user in database
+    await ctx.db
+      .updateTable("user")
+      .set(updateData)
+      .where("id", "=", ctx.auth.user.id)
+      .execute();
+
+    return c.json({ success: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json(
+        {
+          success: false,
+          error: "Invalid request data",
+          details: error.issues,
+        },
+        400,
+      );
+    }
+
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to update profile";
 
     return c.json(
       {

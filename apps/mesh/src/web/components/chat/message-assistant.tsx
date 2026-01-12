@@ -64,7 +64,7 @@ function TypingIndicator() {
     <div className="flex items-center gap-1.5 py-2 opacity-60">
       <span className="flex items-center gap-1.5">
         {config.icon}
-        <span className="text-xs text-muted-foreground shimmer">
+        <span className="text-[15px] text-muted-foreground shimmer">
           {config.label}...
         </span>
       </span>
@@ -126,7 +126,7 @@ function ThoughtSummary({
           )}
           <span
             className={cn(
-              "text-xs text-muted-foreground",
+              "text-[15px] text-muted-foreground",
               isReasoningStreaming && "shimmer",
             )}
           >
@@ -160,6 +160,9 @@ interface MessagePartProps {
   id: string;
   usageStats?: ReactNode;
   isFollowedByToolCall?: boolean;
+  isFirstToolCallInSequence?: boolean;
+  isLastToolCallInSequence?: boolean;
+  hasNextToolCall?: boolean;
 }
 
 function MessagePart({
@@ -167,10 +170,21 @@ function MessagePart({
   id,
   usageStats,
   isFollowedByToolCall,
+  isFirstToolCallInSequence,
+  isLastToolCallInSequence,
+  hasNextToolCall,
 }: MessagePartProps) {
   switch (part.type) {
     case "dynamic-tool":
-      return <ToolCallPart part={part} id={id} />;
+      return (
+        <ToolCallPart
+          part={part}
+          id={id}
+          isFirstInSequence={isFirstToolCallInSequence}
+          isLastInSequence={isLastToolCallInSequence}
+          hasNextToolCall={hasNextToolCall}
+        />
+      );
     case "text":
       return (
         <MessageTextPart
@@ -191,7 +205,15 @@ function MessagePart({
       return null;
     default: {
       if (part.type.startsWith("tool-")) {
-        return <ToolCallPart part={part as ToolUIPart} id={id} />;
+        return (
+          <ToolCallPart
+            part={part as ToolUIPart}
+            id={id}
+            isFirstInSequence={isFirstToolCallInSequence}
+            isLastInSequence={isLastToolCallInSequence}
+            hasNextToolCall={hasNextToolCall}
+          />
+        );
       }
     }
   }
@@ -263,7 +285,7 @@ export function MessageAssistant<T extends Metadata>({
       )}
     >
       <div className="flex flex-col min-w-0 w-full items-start">
-        <div className="w-full min-w-0 not-only:rounded-2xl text-sm wrap-break-word overflow-wrap-anywhere bg-transparent">
+        <div className="w-full min-w-0 not-only:rounded-2xl text-[15px] wrap-break-word overflow-wrap-anywhere bg-transparent">
           {hasContent ? (
             <>
               {showThought && (
@@ -271,10 +293,25 @@ export function MessageAssistant<T extends Metadata>({
               )}
               {parts.map((part, index) => {
                 const nextPart = parts[index + 1];
+                const prevPart = parts[index - 1];
                 const isFollowedByToolCall =
                   nextPart &&
                   (nextPart.type === "dynamic-tool" ||
                     nextPart.type.startsWith("tool-"));
+                const isToolCall =
+                  part.type === "dynamic-tool" || part.type.startsWith("tool-");
+                const prevIsToolCall =
+                  prevPart &&
+                  (prevPart.type === "dynamic-tool" ||
+                    prevPart.type.startsWith("tool-"));
+                const nextIsToolCall =
+                  nextPart &&
+                  (nextPart.type === "dynamic-tool" ||
+                    nextPart.type.startsWith("tool-"));
+
+                const isFirstToolCallInSequence = isToolCall && !prevIsToolCall;
+                const isLastToolCallInSequence = isToolCall && !nextIsToolCall;
+                const hasNextToolCall = isToolCall && nextIsToolCall;
 
                 return (
                   <MessagePart
@@ -285,6 +322,9 @@ export function MessageAssistant<T extends Metadata>({
                       index === parts.length - 1 ? usageStats : undefined
                     }
                     isFollowedByToolCall={isFollowedByToolCall}
+                    isFirstToolCallInSequence={isFirstToolCallInSequence}
+                    isLastToolCallInSequence={isLastToolCallInSequence}
+                    hasNextToolCall={hasNextToolCall}
                   />
                 );
               })}
