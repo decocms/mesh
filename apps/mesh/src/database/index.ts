@@ -31,14 +31,14 @@ const queryDurationHistogram = meter.createHistogram("db.query.duration", {
   unit: "ms",
 });
 
-const SECOND_IN_MS = 1000;
+const SLOW_QUERY_TRESHOLD_MS = 400;
 const log = (event: LogEvent) => {
   const attributes = {
     "db.statement": event.query.sql,
     "db.status": event.level === "error" ? "error" : "success",
   };
 
-  if (event.queryDurationMillis > SECOND_IN_MS) {
+  if (event.queryDurationMillis > SLOW_QUERY_TRESHOLD_MS) {
     console.error("Slow query detected:", {
       durationMs: event.queryDurationMillis,
       sql: event.query.sql,
