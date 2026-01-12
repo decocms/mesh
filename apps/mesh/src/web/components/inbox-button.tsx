@@ -31,11 +31,9 @@ interface Invitation {
 function InvitationItem({
   invitation,
   onStatusChange,
-  onAcceptComplete: _onAcceptComplete,
 }: {
   invitation: Invitation;
   onStatusChange: (id: string, newStatus: string) => void;
-  onAcceptComplete?: (orgId: string) => void;
 }) {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -209,11 +207,6 @@ export function InboxButton() {
     }));
   };
 
-  const handleAcceptComplete = (_orgId: string) => {
-    // Just redirect to orgs page - the new org will be visible there
-    window.location.href = "/orgs";
-  };
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -240,7 +233,6 @@ export function InboxButton() {
                 key={invitation.id}
                 invitation={invitation}
                 onStatusChange={handleStatusChange}
-                onAcceptComplete={handleAcceptComplete}
               />
             ))
           ) : (
