@@ -70,8 +70,8 @@ function ensureOrganization(ctx: MeshContext, orgSlug: string) {
     throw new Error("Organization context is required");
   }
 
-  if (ctx.organization.slug !== orgSlug) {
-    throw new Error("Organization slug mismatch");
+  if ((ctx.organization.slug ?? ctx.organization.id) !== orgSlug) {
+    throw new Error("Organization mismatch");
   }
 
   return ctx.organization;
