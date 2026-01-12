@@ -505,20 +505,18 @@ export function createApp(options: CreateAppOptions = {}) {
     }
 
     const timings = {
-      start: (name: string) => {
+      measure: async <T>(name: string, cb: () => Promise<T>) => {
         startTime(c, name);
-
-        return () => endTime(c, name);
+        try {
+          return await cb();
+        } finally {
+          endTime(c, name);
+        }
       },
     };
-
-    startTime(c, "context_creation");
-    try {
-      const meshCtx = await ContextFactory.create(c.req.raw, { timings });
-      c.set("meshContext", meshCtx);
-    } finally {
-      endTime(c, "context_creation");
-    }
+    
+    const meshCtx = await ContextFactory.create(c.req.raw, { timings });
+    c.set("meshContext", meshCtx);
 
     return next();
   });

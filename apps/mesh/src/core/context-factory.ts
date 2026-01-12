@@ -318,10 +318,10 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
           headers,
           query: options
             ? {
-                organizationId: options.organizationId,
-                limit: options.limit,
-                offset: options.offset,
-              }
+              organizationId: options.organizationId,
+              limit: options.limit,
+              offset: options.offset,
+            }
             : undefined,
         });
       },
@@ -442,8 +442,6 @@ async function authenticateRequest(
 }> {
   const authHeader = req.headers.get("Authorization");
 
-  let end: undefined | (() => void);
-
   // Try OAuth session first (getMcpSession)
   // Add X-MCP-Session-Auth header to tell the API key plugin this is an MCP OAuth session
   // so it won't try to validate the Bearer token as an API key
@@ -451,21 +449,20 @@ async function authenticateRequest(
     const mcpHeaders = new Headers(req.headers);
     mcpHeaders.set("X-MCP-Session-Auth", "true");
 
-    end = timings?.start("auth_get_mcp_session");
-    const session = (await auth.api.getMcpSession({
-      headers: mcpHeaders,
-    })) as OAuthSession | null;
-    end?.();
+
+    const session = await timings.measure(
+      "auth_get_mcp_session",
+      () => auth.api.getMcpSession({ headers: mcpHeaders }) as Promise<OAuthSession | null>
+    );
+
 
     if (session) {
       const userId = session.userId;
 
-      end = timings?.start("auth_query_membership");
-
       // For MCP OAuth sessions, we need to query the database directly
       // because getFullOrganization requires a browser session (cookies)
       // Query user's first organization membership
-      const membership = await db
+      const membership = await timings.measure("auth_query_membership", () => db
         .selectFrom("member")
         .innerJoin("organization", "organization.id", "member.organizationId")
         .select([
@@ -476,29 +473,24 @@ async function authenticateRequest(
           "organization.name as orgName",
         ])
         .where("member.userId", "=", userId)
-        .executeTakeFirst();
-
-      end?.();
+        .executeTakeFirst()
+      )
 
       const role = membership?.role;
       const organization = membership
         ? {
-            id: membership.orgId,
-            slug: membership.orgSlug,
-            name: membership.orgName,
-          }
+          id: membership.orgId,
+          slug: membership.orgSlug,
+          name: membership.orgName,
+        }
         : undefined;
 
       // Fetch role permissions for MCP OAuth sessions (non-browser)
       let permissions: Permission | undefined;
       if (membership && role) {
-        end = timings?.start("auth_fetch_role_permissions");
-        permissions = await fetchRolePermissions(
-          db,
-          membership.organizationId,
-          role,
+        permissions = await timings.measure("auth_fetch_role_permissions",
+          () => fetchRolePermissions(db, membership.organizationId, role,)
         );
-        end?.();
       }
 
       return {
@@ -521,24 +513,24 @@ async function authenticateRequest(
     // First, try to verify as Mesh JWT token
     // These are issued by mesh for downstream services calling back
     try {
-      end = timings?.start("auth_verify_mesh_jwt");
-      const meshJwtPayload = await verifyMeshToken(token);
-      end?.();
+      const meshJwtPayload = await timings.measure(
+        "auth_verify_mesh_jwt",
+        () => verifyMeshToken(token)
+      );
 
       if (meshJwtPayload) {
         // Look up user's organization role for admin/owner bypass
         let role: string | undefined;
-        if (meshJwtPayload.sub && meshJwtPayload.metadata?.organizationId) {
-          const membership = await db
-            .selectFrom("member")
-            .select(["member.role"])
-            .where("member.userId", "=", meshJwtPayload.sub)
-            .where(
-              "member.organizationId",
-              "=",
-              meshJwtPayload.metadata.organizationId,
-            )
-            .executeTakeFirst();
+        const organizationId = meshJwtPayload.metadata?.organizationId;
+        if (meshJwtPayload.sub && organizationId) {
+          const membership = await timings.measure("auth_query_membership",
+            () => db
+              .selectFrom("member")
+              .select(["member.role"])
+              .where("member.userId", "=", meshJwtPayload.sub)
+              .where("member.organizationId", "=", organizationId)
+              .executeTakeFirst()
+          );
           role = membership?.role;
         }
 
@@ -552,8 +544,8 @@ async function authenticateRequest(
           permissions: meshJwtPayload.permissions,
           organization: meshJwtPayload.metadata?.organizationId
             ? {
-                id: meshJwtPayload.metadata?.organizationId,
-              }
+              id: meshJwtPayload.metadata?.organizationId,
+            }
             : undefined,
         };
       }
@@ -563,11 +555,10 @@ async function authenticateRequest(
 
     // Try API Key authentication
     try {
-      end = timings?.start("auth_verify_api_key");
-      const result = await auth.api.verifyApiKey({
-        body: { key: token },
-      });
-      end?.();
+      const result = await timings.measure(
+        "auth_verify_api_key",
+        () => auth.api.verifyApiKey({ body: { key: token } })
+      );
 
       if (result?.valid && result.key) {
         // For API keys, organization might be embedded in metadata
@@ -580,16 +571,16 @@ async function authenticateRequest(
 
         // Look up user's organization role for admin/owner bypass
         let role: string | undefined;
-        if (result.key.userId && orgMetadata?.id) {
-          end = timings?.start("auth_query_membership");
-          const membership = await db
+        const userId = result.key.userId;
+        if (userId && orgMetadata?.id) {
+          const membership = await timings.measure("auth_query_membership", () => db
             .selectFrom("member")
             .select(["member.role"])
-            .where("member.userId", "=", result.key.userId)
+            .where("member.userId", "=", userId)
             .where("member.organizationId", "=", orgMetadata.id)
-            .executeTakeFirst();
+            .executeTakeFirst()
+          );
           role = membership?.role;
-          end?.();
         }
 
         return {
@@ -599,10 +590,10 @@ async function authenticateRequest(
           permissions, // Store the API key's permissions
           organization: orgMetadata
             ? {
-                id: orgMetadata.id,
-                slug: orgMetadata.slug,
-                name: orgMetadata.name,
-              }
+              id: orgMetadata.id,
+              slug: orgMetadata.slug,
+              name: orgMetadata.name,
+            }
             : undefined,
         };
       }
@@ -613,11 +604,10 @@ async function authenticateRequest(
   }
 
   try {
-    end = timings?.start("auth_get_session");
-    const session = await auth.api.getSession({
-      headers: req.headers,
-    });
-    end?.();
+    const session = await timings.measure(
+      "auth_get_session",
+      () => auth.api.getSession({ headers: req.headers })
+    );
 
     if (session) {
       let organization: OrganizationContext | undefined;
@@ -625,13 +615,11 @@ async function authenticateRequest(
 
       if (session.session.activeOrganizationId) {
         // Get full organization data (includes members with roles)
-        end = timings?.start("auth_get_full_organization");
-        const orgData = await auth.api
-          .getFullOrganization({
-            headers: req.headers,
-          })
-          .catch(() => null);
-        end?.();
+
+        const orgData = await timings.measure(
+          "auth_get_full_organization",
+          () => auth.api.getFullOrganization({ headers: req.headers }).catch(() => null)
+        )
 
         if (orgData) {
           organization = {
@@ -687,8 +675,8 @@ async function authenticateRequest(
 // ============================================================================
 
 interface FactoryOptions {
-  timings?: {
-    start: (name: string) => () => void;
+  timings: {
+    measure: <T>(name: string, cb: () => Promise<T>) => Promise<T>;
   };
 }
 
@@ -705,6 +693,12 @@ export const ContextFactory = {
   },
   create: async (req?: Request, options?: FactoryOptions) => {
     return await createContextFn(req, options);
+  },
+};
+
+const DEFAULT_TIMINGS = {
+  measure: async <T>(_name: string, cb: () => Promise<T>): Promise<T> => {
+    return await cb();
   },
 };
 
@@ -741,7 +735,7 @@ export function createMeshContextFactory(
     const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = req
-      ? await authenticateRequest(req, config.auth, config.db, options?.timings)
+      ? await authenticateRequest(req, config.auth, config.db, options?.timings ?? DEFAULT_TIMINGS)
       : { user: undefined };
 
     // Create bound auth client (encapsulates HTTP headers and auth context)
