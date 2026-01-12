@@ -253,6 +253,10 @@ export interface MeshStorage {
 // MeshContext Interface
 // ============================================================================
 
+export interface Timings {
+  measure: <T>(name: string, cb: () => Promise<T>) => Promise<T>;
+}
+
 /**
  * MeshContext - The core abstraction passed to every tool handler
  *
@@ -264,6 +268,9 @@ export interface MeshContext {
   connectionId?: string;
   // Current gateway ID (from url) - if applicable
   gatewayId?: string;
+
+  // Timings for measuring performance
+  timings: Timings;
 
   // Authentication (via Better Auth)
   auth: MeshAuth;

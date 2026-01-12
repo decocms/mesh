@@ -17,13 +17,14 @@ import { ConnectionStorage } from "../storage/connection";
 import { GatewayStorage } from "../storage/gateway";
 import { SqlMonitoringStorage } from "../storage/monitoring";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
-import { UserStorage } from "../storage/user";
 import type { Database, Permission } from "../storage/types";
+import { UserStorage } from "../storage/user";
 import { AccessControl } from "./access-control";
 import type {
   BetterAuthInstance,
   BoundAuthClient,
   MeshContext,
+  Timings,
 } from "./mesh-context";
 
 // ============================================================================
@@ -380,10 +381,10 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 }
 
 // Import built-in roles from separate module to avoid circular dependency
+import { createMCPProxy } from "@/api/routes/proxy";
+import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { WellKnownMCPId } from "./well-known-mcp";
-import { ConnectionEntity } from "@/tools/connection/schema";
-import { createMCPProxy } from "@/api/routes/proxy";
 
 /**
  * Fetch role permissions from the database
@@ -682,9 +683,7 @@ async function authenticateRequest(
 // ============================================================================
 
 interface FactoryOptions {
-  timings: {
-    measure: <T>(name: string, cb: () => Promise<T>) => Promise<T>;
-  };
+  timings?: Timings;
 }
 
 type FactoryFunction = (
@@ -739,10 +738,11 @@ export function createMeshContextFactory(
     req?: Request,
     options?: FactoryOptions,
   ): Promise<MeshContext> => {
+    const timings = options?.timings ?? DEFAULT_TIMINGS;
     const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = req
-      ? await authenticateRequest(req, config.auth, config.db, options?.timings)
+      ? await authenticateRequest(req, config.auth, config.db, timings)
       : { user: undefined };
 
     // Create bound auth client (encapsulates HTTP headers and auth context)
@@ -785,6 +785,7 @@ export function createMeshContextFactory(
     );
 
     const ctx: MeshContext = {
+      timings,
       auth: meshAuth,
       connectionId,
       organization,
