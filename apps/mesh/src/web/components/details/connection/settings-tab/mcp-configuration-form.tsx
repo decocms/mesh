@@ -19,6 +19,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { GatewaySelector } from "@/web/components/chat/gateway-selector";
+import {
+  ModelChangePayload,
+  ModelSelector,
+  SelectedModelState,
+} from "@/web/components/chat";
 
 interface McpConfigurationFormProps {
   formState: Record<string, unknown>;
@@ -340,6 +345,16 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
       formContext?.onFieldChange(fieldPath, newFieldData);
     };
 
+    const handleModelChange = (model: ModelChangePayload) => {
+      formContext?.onFieldChange(fieldPath, {
+        __type: bindingType,
+        value: {
+          id: model.id,
+          connectionId: model.connectionId,
+        },
+      });
+    };
+
     const formatTitle = (str: string) =>
       str
         .toLowerCase()
@@ -366,6 +381,32 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
             onGatewayChange={handleBindingChange}
             variant="bordered"
             placeholder="Select Agent"
+            className="w-[200px] shrink-0"
+          />
+        </div>
+      );
+    }
+
+    if (bindingType === "@deco/language-model") {
+      return (
+        <div className="flex items-center gap-3 justify-between">
+          <div className="flex-1 min-w-0">
+            <label className="text-sm font-medium truncate block">
+              {displayTitle}
+            </label>
+            {description && (
+              <p className="text-xs text-muted-foreground truncate">
+                {description}
+              </p>
+            )}
+          </div>
+          <ModelSelector
+            selectedModel={
+              currentValue as unknown as SelectedModelState | undefined
+            }
+            onModelChange={handleModelChange}
+            variant="bordered"
+            placeholder="Select Language Model"
             className="w-[200px] shrink-0"
           />
         </div>
