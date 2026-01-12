@@ -503,17 +503,17 @@ export function createApp(options: CreateAppOptions = {}) {
     const timings = {
       start: (name: string) => {
         startTime(c, name);
-        
+
         return () => endTime(c, name)
       },
     }
 
-    startTime(c, "mesh_context");
+    startTime(c, "context_creation");
     try {
       const meshCtx = await ContextFactory.create(c.req.raw, { timings });
       c.set("meshContext", meshCtx);
     } finally {
-      endTime(c, "mesh_context");
+      endTime(c, "context_creation");
     }
 
     return next();
