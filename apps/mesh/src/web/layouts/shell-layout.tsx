@@ -1,4 +1,5 @@
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { InboxButton } from "@/web/components/inbox-button";
 import { MeshSidebar } from "@/web/components/mesh-sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
 import { SplashScreen } from "@/web/components/splash-screen";
@@ -80,8 +81,14 @@ function Topbar({
         )}
       </AppTopbar.Left>
       <AppTopbar.Right className="gap-2">
+        <InboxButton />
         {showDecoChat && !disableDecoChat && (
-          <Button size="sm" variant="default" onClick={toggleChat}>
+          <Button
+            size="sm"
+            variant="default"
+            onClick={toggleChat}
+            className="h-7"
+          >
             <Avatar
               url={CAPYBARA_AVATAR_URL}
               fallback="DC"

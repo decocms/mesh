@@ -11,11 +11,11 @@ export function SidebarToggleButton() {
         onClick={toggleSidebar}
         size="icon"
         variant="ghost"
-        className="w-8 h-8 rounded-md"
+        className="w-7 h-7 rounded-md"
       >
         <LayoutRight
           className="text-muted-foreground/85 group-hover:text-foreground transition-colors"
-          size={20}
+          size={18}
         />
       </Button>
     </>
@@ -24,5 +24,5 @@ export function SidebarToggleButton() {
 
 // Skeleton for the toggle button
 SidebarToggleButton.Skeleton = function SidebarToggleButtonSkeleton() {
-  return <div className="w-8 h-8 bg-muted rounded-md animate-pulse" />;
+  return <div className="w-7 h-7 bg-muted rounded-md animate-pulse" />;
 };
