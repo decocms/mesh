@@ -40,6 +40,7 @@ import {
   WellKnownOrgMCPId,
 } from "../core/well-known-mcp";
 import type { MeshContext } from "../core/mesh-context";
+
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
 
