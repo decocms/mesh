@@ -17,6 +17,9 @@
 /* Explicitly scan @deco/ui components for Tailwind classes */
 @source "../components/**/*.tsx";
 
+/* Scan mesh-plugin-store components for Tailwind classes */
+@source "../../../mesh-plugin-store/**/*.tsx";
+
 @custom-variant dark (&:is(.dark *));
 
 @utility no-scrollbar {
