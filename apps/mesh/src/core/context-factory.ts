@@ -318,10 +318,10 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
           headers,
           query: options
             ? {
-              organizationId: options.organizationId,
-              limit: options.limit,
-              offset: options.offset,
-            }
+                organizationId: options.organizationId,
+                limit: options.limit,
+                offset: options.offset,
+              }
             : undefined,
         });
       },
@@ -481,10 +481,10 @@ async function authenticateRequest(
       const role = membership?.role;
       const organization = membership
         ? {
-          id: membership.orgId,
-          slug: membership.orgSlug,
-          name: membership.orgName,
-        }
+            id: membership.orgId,
+            slug: membership.orgSlug,
+            name: membership.orgName,
+          }
         : undefined;
 
       // Fetch role permissions for MCP OAuth sessions (non-browser)
@@ -547,8 +547,8 @@ async function authenticateRequest(
           permissions: meshJwtPayload.permissions,
           organization: meshJwtPayload.metadata?.organizationId
             ? {
-              id: meshJwtPayload.metadata?.organizationId,
-            }
+                id: meshJwtPayload.metadata?.organizationId,
+              }
             : undefined,
         };
       }
@@ -595,10 +595,10 @@ async function authenticateRequest(
           permissions, // Store the API key's permissions
           organization: orgMetadata
             ? {
-              id: orgMetadata.id,
-              slug: orgMetadata.slug,
-              name: orgMetadata.name,
-            }
+                id: orgMetadata.id,
+                slug: orgMetadata.slug,
+                name: orgMetadata.name,
+              }
             : undefined,
         };
       }
@@ -742,12 +742,7 @@ export function createMeshContextFactory(
     const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = req
-      ? await authenticateRequest(
-        req,
-        config.auth,
-        config.db,
-        options?.timings,
-      )
+      ? await authenticateRequest(req, config.auth, config.db, options?.timings)
       : { user: undefined };
 
     // Create bound auth client (encapsulates HTTP headers and auth context)
