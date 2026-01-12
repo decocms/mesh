@@ -5,7 +5,7 @@
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/react": "^19.2.7"
+    "@types/react": "^19.2.0"
   },
   "peerDependencies": {
     "typescript": "^5"
