@@ -18,6 +18,7 @@ import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
 import { useGatewaySystemPrompt } from "@/web/hooks/use-gateway-system-prompt";
 import { slugify } from "@/web/utils/slugify";
+import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Dialog,
@@ -402,27 +403,25 @@ function GatewayShareModal({
           {/* Mode Selection */}
           <div className="flex flex-col gap-3">
             <div>
-              <h4 className="text-sm font-medium text-foreground mb-1">
+              <h4 className="text-sm font-medium text-foreground mt-1">
                 How should this agent work?
               </h4>
-              <p className="text-xs text-muted-foreground">
-                Choose the best approach for your use case
-              </p>
             </div>
-            <RadioGroup value={mode} onValueChange={handleModeChange}>
+            <RadioGroup
+              value={mode}
+              onValueChange={handleModeChange}
+              className="flex flex-col gap-4.5"
+            >
               {/* Passthrough Option */}
               <label
                 htmlFor="mode-passthrough"
-                className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-ring/50 cursor-pointer transition-colors has-checked:border-ring has-checked:bg-accent/5"
+                className="flex items-center gap-3 px-3 py-5 rounded-lg border border-border hover:border-ring/50 cursor-pointer transition-colors has-checked:border-ring has-checked:bg-accent/5"
               >
-                <RadioGroupItem
-                  id="mode-passthrough"
-                  value="passthrough"
-                  className="mt-0.5"
-                />
+                <div className="p-1.5 shrink-0">
+                  <ArrowsRight className="size-5 text-muted-foreground" />
+                </div>
                 <div className="flex-1 flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
-                    <ArrowsRight className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium text-foreground">
                       Direct access
                     </span>
@@ -444,21 +443,19 @@ function GatewayShareModal({
                     Best for small teams or when you need predictable behavior
                   </p>
                 </div>
+                <RadioGroupItem id="mode-passthrough" value="passthrough" />
               </label>
 
               {/* Smart Tool Selection Option */}
               <label
                 htmlFor="mode-smart"
-                className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-ring/50 cursor-pointer transition-colors has-checked:border-ring has-checked:bg-accent/5"
+                className="flex items-center gap-3 px-3 py-5 rounded-lg border border-border hover:border-ring/50 cursor-pointer transition-colors has-checked:border-ring has-checked:bg-accent/5"
               >
-                <RadioGroupItem
-                  id="mode-smart"
-                  value="smart_tool_selection"
-                  className="mt-0.5"
-                />
+                <div className="p-1.5 shrink-0">
+                  <Lightbulb02 className="size-5 text-muted-foreground" />
+                </div>
                 <div className="flex-1 flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
-                    <Lightbulb02 className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium text-foreground">
                       Smart discovery
                     </span>
@@ -482,26 +479,21 @@ function GatewayShareModal({
                     needs
                   </p>
                 </div>
+                <RadioGroupItem id="mode-smart" value="smart_tool_selection" />
               </label>
 
               {/* Code Execution Option */}
               <label
                 htmlFor="mode-code"
-                className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-ring/50 cursor-pointer transition-colors has-checked:border-ring has-checked:bg-accent/5"
+                className="relative flex items-center gap-3 px-3 py-5 rounded-lg border border-border hover:border-ring/50 cursor-pointer transition-colors has-checked:border-ring has-checked:bg-accent/5"
               >
-                <RadioGroupItem
-                  id="mode-code"
-                  value="code_execution"
-                  className="mt-0.5"
-                />
+                <div className="p-1.5 shrink-0">
+                  <Code01 className="size-5 text-muted-foreground" />
+                </div>
                 <div className="flex-1 flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
-                    <Code01 className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium text-foreground">
                       Smart execution
-                    </span>
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                      Recommended
                     </span>
                     <TooltipProvider>
                       <Tooltip>
@@ -523,6 +515,13 @@ function GatewayShareModal({
                     Maximum flexibility - AI can write code to orchestrate tools
                   </p>
                 </div>
+                <RadioGroupItem id="mode-code" value="code_execution" />
+                <Badge
+                  variant="outline"
+                  className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-background z-10"
+                >
+                  Recommended
+                </Badge>
               </label>
             </RadioGroup>
           </div>
@@ -581,9 +580,13 @@ function GatewaySettingsTab({
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">
+                      <Badge
+                        variant={
+                          field.value === "active" ? "success" : "outline"
+                        }
+                      >
                         {field.value === "active" ? "Active" : "Inactive"}
-                      </span>
+                      </Badge>
                       <FormControl>
                         <Switch
                           checked={field.value === "active"}
