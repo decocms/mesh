@@ -403,7 +403,26 @@ function StoreMCPServerDetailContent() {
   // Check if repository is available for README tab
   const repo = data?.repository ? extractGitHubRepo(data.repository) : null;
 
+  // Calculate unique hostnames to determine if we have multiple servers
+  const remotes = selectedItem?.server?.remotes ?? [];
+  const uniqueHostnames = new Set(
+    remotes.map((r) => {
+      try {
+        return r.url ? new URL(r.url).hostname : "local";
+      } catch {
+        return r.url || "local";
+      }
+    }),
+  );
+  const hasMultipleServers = uniqueHostnames.size > 1;
+
   const availableTabs = [
+    {
+      id: "servers",
+      label: "Servers",
+      count: uniqueHostnames.size,
+      visible: hasMultipleServers,
+    },
     {
       id: "readme",
       label: "README",
@@ -420,10 +439,11 @@ function StoreMCPServerDetailContent() {
     },
   ].filter((tab) => tab.visible);
 
-  // Calculate effective active tab - prioritize README, then tools, otherwise first available
+  // Calculate effective active tab - prioritize servers if available, then README, then tools
   const effectiveActiveTabId = availableTabs.find((t) => t.id === activeTabId)
     ? activeTabId
-    : availableTabs.find((t) => t.id === "readme")?.id ||
+    : availableTabs.find((t) => t.id === "servers")?.id ||
+      availableTabs.find((t) => t.id === "readme")?.id ||
       availableTabs[0]?.id ||
       "overview";
 
@@ -524,6 +544,7 @@ function StoreMCPServerDetailContent() {
               onInstall={handleInstall}
               canInstall={canInstall}
               isInstalling={actions.create.isPending}
+              hideInstallControls={hasMultipleServers}
             />
 
             {/* SECTION 2 & 3: Two Column Layout */}
@@ -543,6 +564,11 @@ function StoreMCPServerDetailContent() {
                 effectiveTools={effectiveTools}
                 isLoadingTools={isLoadingRemoteTools}
                 onTabChange={setActiveTabId}
+                remotes={remotes}
+                onInstallRemote={(remoteIndex) =>
+                  handleInstall(undefined, remoteIndex, undefined)
+                }
+                isInstalling={actions.create.isPending}
               />
             </div>
           </div>

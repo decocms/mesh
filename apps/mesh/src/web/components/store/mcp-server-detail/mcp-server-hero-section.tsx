@@ -110,6 +110,8 @@ interface MCPServerHeroSectionProps {
   ) => void;
   isInstalling?: boolean;
   canInstall?: boolean;
+  /** Hide install controls (when showing servers list tab instead) */
+  hideInstallControls?: boolean;
 }
 
 type InstallMode = "remote" | "package";
@@ -120,6 +122,7 @@ export function MCPServerHeroSection({
   onInstall,
   canInstall = true,
   isInstalling = false,
+  hideInstallControls = false,
 }: MCPServerHeroSectionProps) {
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
   const [selectedPackageIndex, setSelectedPackageIndex] = useState<number>(0);
@@ -235,7 +238,7 @@ export function MCPServerHeroSection({
         </div>
 
         {/* Install Controls */}
-        {canInstall ? (
+        {canInstall && !hideInstallControls ? (
           <div className="shrink-0 flex items-center gap-2">
             {/* Install Mode Toggle - only show if both remotes and packages available */}
             {hasMultipleModes && (
@@ -501,11 +504,11 @@ export function MCPServerHeroSection({
               </Button>
             )}
           </div>
-        ) : (
+        ) : !hideInstallControls ? (
           <div className="shrink-0 px-4 py-2 text-sm text-muted-foreground bg-muted rounded-lg">
             Cannot be connected
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { ReadmeViewer } from "@/web/components/store/readme-viewer";
 import { Loading01 } from "@untitledui/icons";
 import { ToolsList, type Tool } from "@/web/components/tools";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
+import { MCPServersList } from "./mcp-servers-list";
 import type { MCPServerData, TabItem } from "./types";
 
 interface MCPServerTabsContentProps {
@@ -12,6 +13,18 @@ interface MCPServerTabsContentProps {
   effectiveTools: unknown[];
   isLoadingTools?: boolean;
   onTabChange: (tabId: string) => void;
+  /** Remotes for the servers list tab */
+  remotes?: Array<{
+    type?: string;
+    url?: string;
+    name?: string;
+    title?: string;
+    description?: string;
+  }>;
+  /** Callback when user clicks to install from servers list */
+  onInstallRemote?: (remoteIndex: number) => void;
+  /** Whether an installation is in progress */
+  isInstalling?: boolean;
 }
 
 export function MCPServerTabsContent({
@@ -21,6 +34,9 @@ export function MCPServerTabsContent({
   effectiveTools,
   isLoadingTools = false,
   onTabChange,
+  remotes = [],
+  onInstallRemote,
+  isInstalling = false,
 }: MCPServerTabsContentProps) {
   // Convert tools to the expected format
   const tools: Tool[] = effectiveTools.map((tool) => {
@@ -40,6 +56,17 @@ export function MCPServerTabsContent({
             tabs={availableTabs}
             activeTab={effectiveActiveTabId}
             onTabChange={onTabChange}
+          />
+        </div>
+      )}
+
+      {/* Servers Tab Content */}
+      {effectiveActiveTabId === "servers" && remotes.length > 0 && (
+        <div className="flex-1 overflow-y-auto bg-background">
+          <MCPServersList
+            remotes={remotes}
+            onInstall={(remoteIndex) => onInstallRemote?.(remoteIndex)}
+            isInstalling={isInstalling}
           />
         </div>
       )}

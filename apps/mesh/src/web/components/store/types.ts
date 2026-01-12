@@ -157,6 +157,12 @@ export interface RegistryItem {
     remotes?: Array<{
       type?: string;
       url?: string;
+      /** Display name for this remote endpoint */
+      name?: string;
+      /** Display title for this remote endpoint */
+      title?: string;
+      /** Description of what this remote endpoint does */
+      description?: string;
       headers?: Array<{
         name?: string;
         value?: string;
