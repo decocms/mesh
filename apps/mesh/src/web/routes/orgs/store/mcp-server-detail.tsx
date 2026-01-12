@@ -237,8 +237,10 @@ function StoreMCPServerDetailContent() {
 
   // Track active tab - no initial value, will be calculated
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  // Track selected version for installations
-  const [selectedVersionIndex, setSelectedVersionIndex] = useState(0);
+  // Track selected version for installations (null means use latest)
+  const [selectedVersionIndex, setSelectedVersionIndex] = useState<
+    number | null
+  >(null);
 
   const actions = useConnectionActions();
   const allConnections = useConnections();
@@ -365,6 +367,20 @@ function StoreMCPServerDetailContent() {
     }
   }
 
+  // Find the index of the "latest" version (or default to 0)
+  const latestVersionIndex = (() => {
+    const latestIdx = allVersions.findIndex((v) => {
+      const meta = v._meta?.["io.modelcontextprotocol.registry/official"] as
+        | { isLatest?: boolean }
+        | undefined;
+      return meta?.isLatest === true;
+    });
+    return latestIdx >= 0 ? latestIdx : 0;
+  })();
+
+  // Use selected version or default to latest
+  const effectiveVersionIndex = selectedVersionIndex ?? latestVersionIndex;
+
   // Find the item matching the serverSlug or serverName
   let selectedItem = items.find((item) => {
     const itemName = item.name || item.title || item.server.title || "";
@@ -453,14 +469,19 @@ function StoreMCPServerDetailContent() {
     })),
   ];
 
-  // Calculate if we have multiple connection options
-  const hasMultipleServers = allServers.length > 1;
+  // Filter servers based on showStdio preference for visibility calculation
+  const visibleServers = showStdio
+    ? allServers
+    : allServers.filter((s) => s.type?.toLowerCase() !== "stdio");
+
+  // Calculate if we have multiple connection options (considering showStdio filter)
+  const hasMultipleServers = visibleServers.length > 1;
 
   const availableTabs = [
     {
       id: "servers",
       label: "Servers",
-      count: allServers.length,
+      count: visibleServers.length,
       visible: hasMultipleServers,
     },
     {
@@ -590,7 +611,7 @@ function StoreMCPServerDetailContent() {
               canInstall={canInstall}
               isInstalling={actions.create.isPending}
               hideInstallControls={hasMultipleServers}
-              selectedVersionIndex={selectedVersionIndex}
+              selectedVersionIndex={effectiveVersionIndex}
               onVersionChange={setSelectedVersionIndex}
             />
 
@@ -613,16 +634,16 @@ function StoreMCPServerDetailContent() {
                 onTabChange={setActiveTabId}
                 servers={allServers}
                 onInstallServer={(entry) => {
-                  // Use selected version index for installations from servers list
+                  // Use effective version index for installations from servers list
                   if (entry._type === "remote") {
                     handleInstall(
-                      selectedVersionIndex,
+                      effectiveVersionIndex,
                       entry._index,
                       undefined,
                     );
                   } else {
                     handleInstall(
-                      selectedVersionIndex,
+                      effectiveVersionIndex,
                       undefined,
                       entry._index,
                     );
