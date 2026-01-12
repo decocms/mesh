@@ -28,7 +28,7 @@ function AppTopbarSidebar({ children, className }: AppTopbarSlotProps) {
   return (
     <div
       className={cn(
-        "flex items-center justify-center px-2 h-full border-r border-border",
+        "flex items-center justify-center px-2.5 h-full border-r border-border",
         className,
       )}
     >
