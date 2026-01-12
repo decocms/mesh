@@ -1,15 +1,13 @@
 import { useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
-import { Plus, Server01, Globe02, Terminal } from "@untitledui/icons";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { Globe02, Server01, Terminal } from "@untitledui/icons";
+import { MCPServerCard } from "../mcp-server-card";
 import type {
   Protocol,
   UnifiedServerEntry,
   ServerCardData,
   ProtocolFilterOption,
-} from "./types";
+} from "../types";
 
 // ============================================================================
 // Constants
@@ -89,16 +87,6 @@ function normalizeProtocol(type?: string): Protocol {
   return "http";
 }
 
-/** Get display label for protocol */
-function getProtocolLabel(protocol: Protocol): string {
-  const labels: Record<Protocol, string> = {
-    http: "HTTP",
-    sse: "SSE",
-    stdio: "STDIO",
-  };
-  return labels[protocol];
-}
-
 /** Convert unified server entries to server card data */
 function serversToCards(servers: UnifiedServerEntry[]): ServerCardData[] {
   return servers.map((server, index) => {
@@ -141,98 +129,6 @@ function ProtocolIcon({ protocol, className }: ProtocolIconProps) {
     stdio: <Terminal className={className} />,
   };
   return icons[protocol];
-}
-
-interface ProtocolBadgeProps {
-  protocol: Protocol;
-}
-
-/** Badge showing protocol type with icon and color */
-function ProtocolBadge({ protocol }: ProtocolBadgeProps) {
-  const colorClasses: Record<Protocol, string> = {
-    http: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-    sse: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    stdio:
-      "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  };
-
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium shrink-0",
-        colorClasses[protocol],
-      )}
-    >
-      <ProtocolIcon protocol={protocol} className="w-3 h-3" />
-      {getProtocolLabel(protocol)}
-    </div>
-  );
-}
-
-interface ServerCardProps {
-  card: ServerCardData;
-  icon?: string | null;
-  mcpName?: string;
-  isInstalling?: boolean;
-  onInstall: () => void;
-}
-
-/** Individual server card component */
-function ServerCard({
-  card,
-  icon,
-  mcpName,
-  isInstalling,
-  onInstall,
-}: ServerCardProps) {
-  return (
-    <Card
-      className="p-4 flex flex-col gap-3 hover:bg-muted/50 transition-colors cursor-pointer group"
-      onClick={onInstall}
-    >
-      {/* Header with icon */}
-      <div className="flex items-start gap-3">
-        <IntegrationIcon
-          icon={icon}
-          name={mcpName || card.displayName}
-          size="sm"
-          className="shrink-0 shadow-sm"
-        />
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="font-medium text-sm truncate">{card.displayName}</h3>
-            <ProtocolBadge protocol={card.protocol} />
-          </div>
-          <p className="text-xs text-muted-foreground truncate mt-0.5">
-            {card.hostname}
-          </p>
-        </div>
-      </div>
-
-      {/* Description */}
-      {card.description && (
-        <p className="text-sm text-muted-foreground line-clamp-2">
-          {card.description}
-        </p>
-      )}
-
-      {/* Install Button */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          onInstall();
-        }}
-        disabled={isInstalling}
-        className="w-full mt-auto cursor-pointer"
-      >
-        <Plus size={16} />
-        {isInstalling ? "Connecting..." : "Connect"}
-      </Button>
-    </Card>
-  );
 }
 
 interface FilterButtonsProps {
@@ -345,13 +241,16 @@ export function MCPServersList({
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filteredCards.map((card) => (
-          <ServerCard
+          <MCPServerCard
             key={`${card.hostname}-${card.protocol}-${card.index}`}
-            card={card}
-            icon={icon}
-            mcpName={mcpName}
+            variant="server"
+            icon={icon ?? null}
+            displayName={mcpName ? card.displayName : card.displayName}
+            description={card.description ?? null}
+            hostname={card.hostname}
+            protocol={card.protocol}
             isInstalling={isInstalling}
-            onInstall={() =>
+            onClick={() =>
               onInstall({
                 type: card.protocol,
                 url: card.url,

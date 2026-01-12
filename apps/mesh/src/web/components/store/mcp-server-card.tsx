@@ -3,12 +3,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { CheckVerified02, Lock01 } from "@untitledui/icons";
+import { Button } from "@deco/ui/components/button.tsx";
+import {
+  CheckVerified02,
+  Lock01,
+  Plus,
+  Globe02,
+  Server01,
+  Terminal,
+} from "@untitledui/icons";
 import { Card } from "@deco/ui/components/card.js";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { IntegrationIcon } from "../integration-icon.tsx";
 import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
 import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
-import type { RegistryItem } from "./types";
+import type { RegistryItem, Protocol } from "./types";
 
 // Re-export types for backwards compatibility
 export type {
@@ -18,28 +27,242 @@ export type {
   RegistryItem,
 } from "./types";
 
-/**
- * Props for MCPServerCard - receives processed data
- */
-interface MCPServerCardProps {
+// ============================================================================
+// Protocol Badge Component
+// ============================================================================
+
+interface ProtocolBadgeProps {
+  protocol: Protocol;
+}
+
+function ProtocolIcon({
+  protocol,
+  className,
+}: {
+  protocol: Protocol;
+  className?: string;
+}) {
+  const icons: Record<Protocol, React.ReactNode> = {
+    http: <Globe02 className={className} />,
+    sse: <Server01 className={className} />,
+    stdio: <Terminal className={className} />,
+  };
+  return icons[protocol];
+}
+
+function getProtocolLabel(protocol: Protocol): string {
+  switch (protocol) {
+    case "http":
+      return "HTTP";
+    case "sse":
+      return "SSE";
+    case "stdio":
+      return "STDIO";
+  }
+}
+
+/** Badge showing protocol type with icon and color */
+export function ProtocolBadge({ protocol }: ProtocolBadgeProps) {
+  const colorClasses: Record<Protocol, string> = {
+    http: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    sse: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    stdio:
+      "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  };
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium shrink-0",
+        colorClasses[protocol],
+      )}
+    >
+      <ProtocolIcon protocol={protocol} className="w-3 h-3" />
+      {getProtocolLabel(protocol)}
+    </div>
+  );
+}
+
+// ============================================================================
+// Card Props & Types
+// ============================================================================
+
+interface MCPServerCardBaseProps {
   icon: string | null;
-  scopeName: string | null;
   displayName: string;
   description: string | null;
-  version: string | null;
-  isVerified: boolean;
-  canInstall: boolean;
   onClick: () => void;
 }
+
+interface MCPServerCardStoreProps extends MCPServerCardBaseProps {
+  variant?: "store";
+  scopeName: string | null;
+  isVerified: boolean;
+  canInstall: boolean;
+}
+
+interface MCPServerCardServerProps extends MCPServerCardBaseProps {
+  variant: "server";
+  hostname: string;
+  protocol: Protocol;
+  isInstalling?: boolean;
+  actionLabel?: string;
+}
+
+export type MCPServerCardProps =
+  | MCPServerCardStoreProps
+  | MCPServerCardServerProps;
+
+// ============================================================================
+// Main Card Component
+// ============================================================================
+
+/**
+ * Unified card component for displaying MCP Servers
+ * - variant="store": Used in the main store grid (default)
+ * - variant="server": Used in the server/remote selection list
+ */
+export function MCPServerCard(props: MCPServerCardProps) {
+  const { icon, displayName, description, onClick } = props;
+  const variant = props.variant ?? "store";
+  const isServer = variant === "server";
+
+  // Server variant specific props
+  const hostname = isServer ? (props as MCPServerCardServerProps).hostname : null;
+  const protocol = isServer ? (props as MCPServerCardServerProps).protocol : null;
+  const isInstalling = isServer ? (props as MCPServerCardServerProps).isInstalling : false;
+  const actionLabel = isServer ? (props as MCPServerCardServerProps).actionLabel : undefined;
+
+  // Store variant specific props
+  const scopeName = !isServer ? (props as MCPServerCardStoreProps).scopeName : null;
+  const isVerified = !isServer ? (props as MCPServerCardStoreProps).isVerified : false;
+  const canInstall = !isServer ? (props as MCPServerCardStoreProps).canInstall : true;
+
+  return (
+    <Card
+      className={cn(
+        "cursor-pointer hover:bg-muted/50 transition-colors",
+        isServer ? "p-4" : "p-6",
+      )}
+      onClick={onClick}
+    >
+      <div
+        className={cn(
+          "flex flex-col h-full relative",
+          isServer ? "gap-3" : "gap-4",
+        )}
+      >
+        {/* Header */}
+        <div className="flex gap-3">
+          <IntegrationIcon
+            icon={icon}
+            name={displayName}
+            size={isServer ? "sm" : "md"}
+            className="shadow-sm shrink-0"
+          />
+
+          <div className="flex gap-2 items-start min-w-0 flex-1">
+            <div className="min-w-0 flex-1">
+              {/* Title row */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 font-medium min-w-0",
+                      isServer ? "text-sm" : "text-base",
+                    )}
+                  >
+                    <span className="truncate">{displayName}</span>
+
+                    {/* Store variant badges */}
+                    {!isServer && isVerified && (
+                      <CheckVerified02
+                        size={16}
+                        className="text-success shrink-0"
+                      />
+                    )}
+                    {!isServer && !canInstall && (
+                      <Lock01
+                        size={16}
+                        className="text-muted-foreground shrink-0"
+                      />
+                    )}
+
+                    {/* Server variant badge */}
+                    {isServer && protocol && (
+                      <ProtocolBadge protocol={protocol} />
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{displayName}</p>
+                  {!isServer && !canInstall && (
+                    <p className="text-xs mt-1">No connection available</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Subtitle */}
+              {(scopeName || hostname) && (
+                <div
+                  className={cn(
+                    "text-muted-foreground truncate",
+                    isServer ? "text-xs mt-0.5" : "text-sm",
+                  )}
+                >
+                  {scopeName || hostname}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Description */}
+        {description && (
+          <div className="text-sm text-muted-foreground line-clamp-2">
+            {description}
+          </div>
+        )}
+        {!description && !isServer && (
+          <div className="text-sm text-muted-foreground line-clamp-2">
+            No description available
+          </div>
+        )}
+
+        {/* Action button (server variant only) */}
+        {isServer && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
+            disabled={isInstalling}
+            className="w-full mt-auto cursor-pointer"
+          >
+            <Plus size={16} />
+            {isInstalling ? "Connecting..." : actionLabel || "Connect"}
+          </Button>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
 
 /**
  * Extract display data from a registry item for the card component
  * Handles name parsing, icon extraction, and verification status
  */
-function extractCardDisplayData(
+export function extractCardDisplayData(
   item: RegistryItem,
-): Omit<MCPServerCardProps, "onClick"> {
-  const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
+): Omit<MCPServerCardStoreProps, "onClick" | "variant"> {
+  const rawTitle =
+    item.title || item.server.title || item.id || "Unnamed Item";
   const meshMeta = item._meta?.["mcp.mesh"];
 
   // Description priority: short_description > mesh_description > server.description
@@ -54,7 +277,6 @@ function extractCardDisplayData(
     getGitHubAvatarUrl(item.server.repository) ||
     null;
   const isVerified = meshMeta?.verified ?? false;
-  const version = item.server.version;
   const hasRemotes = (item.server.remotes?.length ?? 0) > 0;
   const hasPackages = (item.server.packages?.length ?? 0) > 0;
   const canInstall = hasRemotes || hasPackages;
@@ -93,89 +315,15 @@ function extractCardDisplayData(
     scopeName,
     displayName,
     description,
-    version: version || null,
     isVerified,
     canInstall,
   };
 }
 
-/**
- * Card component for displaying an MCP Server in the store grid
- */
-function MCPServerCard({
-  icon,
-  scopeName,
-  displayName,
-  description,
-  version: _version,
-  isVerified,
-  canInstall,
-  onClick,
-}: MCPServerCardProps) {
-  return (
-    <Card
-      className="p-6 cursor-pointer hover:bg-muted/50 transition-colors"
-      onClick={onClick}
-    >
-      <div className="flex flex-col gap-4 h-full relative">
-        <div className="flex gap-3">
-          {/* Icon */}
-          <IntegrationIcon
-            icon={icon}
-            name={displayName}
-            size="md"
-            className="shadow-sm"
-          />
-          <div className="flex gap-2 items-start min-w-0 flex-1">
-            <div className="min-w-0 flex-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-2 text-base font-medium min-w-0">
-                    <span className="truncate">{displayName}</span>
-                    {isVerified && (
-                      <CheckVerified02
-                        size={16}
-                        className="text-success shrink-0"
-                      />
-                    )}
-                    {!canInstall && (
-                      <Lock01
-                        size={16}
-                        className="text-muted-foreground shrink-0"
-                      />
-                    )}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{displayName}</p>
-                  {!canInstall && (
-                    <p className="text-xs mt-1">No connection available</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-              {scopeName && (
-                <div className="text-sm text-muted-foreground truncate">
-                  {scopeName}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+// ============================================================================
+// Grid Component
+// ============================================================================
 
-        {/* Content */}
-        <div className="grid grid-cols-1 gap-1 min-w-0">
-          <div className="text-sm text-muted-foreground line-clamp-2">
-            {description || "No description available"}
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-/**
- * Props for MCPServerCardGrid
- */
 interface MCPServerCardGridProps {
   items: RegistryItem[];
   title: string;

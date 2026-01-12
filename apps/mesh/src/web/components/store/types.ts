@@ -229,3 +229,42 @@ export interface ActiveFilters {
   tags: string[];
   categories: string[];
 }
+
+// ============================================================================
+// Server List Types (for remote/package selection)
+// ============================================================================
+
+/** Protocol types for server connections */
+export type Protocol = "http" | "sse" | "stdio";
+
+/** Unified server entry combining remotes and packages */
+export type UnifiedServerEntry = {
+  type?: string;
+  url?: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  _type: "remote" | "package";
+  _index: number;
+};
+
+/** Processed server card data for display */
+export interface ServerCardData {
+  index: number;
+  protocol: Protocol;
+  url?: string;
+  hostname: string;
+  serviceName: string;
+  displayName: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  _type: "remote" | "package";
+  _index: number;
+}
+
+/** Protocol filter option */
+export interface ProtocolFilterOption {
+  value: Protocol | "all";
+  label: string;
+}
