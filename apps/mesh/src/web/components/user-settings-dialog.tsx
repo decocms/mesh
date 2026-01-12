@@ -42,7 +42,10 @@ export function UserSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg sm:max-h-[85vh] p-0 flex flex-col" closeButtonClassName="hidden">
+      <DialogContent
+        className="sm:max-w-lg sm:max-h-[85vh] p-0 flex flex-col"
+        closeButtonClassName="hidden"
+      >
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0 relative">
           <DialogTitle className="text-base">Profile Settings</DialogTitle>
           <DialogClose className="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
