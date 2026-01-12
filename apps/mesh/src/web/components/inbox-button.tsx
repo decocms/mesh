@@ -8,6 +8,7 @@ import { Badge } from "@deco/ui/components/badge.tsx";
 import { Inbox01, Check, XClose, Mail01 } from "@untitledui/icons";
 import { AuthUIContext } from "@daveyplate/better-auth-ui";
 import { useContext, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/web/lib/auth-client";
 import { toast } from "sonner";
 
@@ -37,6 +38,7 @@ function InvitationItem({
 }) {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const navigate = useNavigate();
 
   const handleAccept = async () => {
     setIsAccepting(true);
@@ -59,10 +61,10 @@ function InvitationItem({
 
         if (setActiveResult?.data?.slug) {
           toast.success("Invitation accepted!");
-          window.location.href = `/${setActiveResult.data.slug}`;
+          navigate({ to: "/$org", params: { org: setActiveResult.data.slug } });
         } else {
           toast.success("Invitation accepted! Redirecting...");
-          window.location.href = "/orgs";
+          navigate({ to: "/" });
         }
       }
     } catch {

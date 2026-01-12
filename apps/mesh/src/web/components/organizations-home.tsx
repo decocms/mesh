@@ -27,6 +27,7 @@ function InvitationCard({ invitation }: { invitation: Invitation }) {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const handleAccept = async () => {
     setIsAccepting(true);
@@ -46,10 +47,10 @@ function InvitationCard({ invitation }: { invitation: Invitation }) {
 
         if (setActiveResult?.data?.slug) {
           toast.success("Invitation accepted!");
-          window.location.href = `/${setActiveResult.data.slug}`;
+          navigate({ to: "/$org", params: { org: setActiveResult.data.slug } });
         } else {
           toast.success("Invitation accepted! Redirecting...");
-          window.location.href = "/orgs";
+          navigate({ to: "/" });
         }
       }
     } catch {
