@@ -569,6 +569,8 @@ function StoreMCPServerDetailContent() {
                   handleInstall(undefined, remoteIndex, undefined)
                 }
                 isInstalling={actions.create.isPending}
+                mcpIcon={data.icon}
+                mcpName={data.name}
               />
             </div>
           </div>

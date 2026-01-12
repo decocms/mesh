@@ -25,6 +25,10 @@ interface MCPServerTabsContentProps {
   onInstallRemote?: (remoteIndex: number) => void;
   /** Whether an installation is in progress */
   isInstalling?: boolean;
+  /** Icon for the MCP server */
+  mcpIcon?: string | null;
+  /** Name of the MCP server */
+  mcpName?: string;
 }
 
 export function MCPServerTabsContent({
@@ -37,6 +41,8 @@ export function MCPServerTabsContent({
   remotes = [],
   onInstallRemote,
   isInstalling = false,
+  mcpIcon,
+  mcpName,
 }: MCPServerTabsContentProps) {
   // Convert tools to the expected format
   const tools: Tool[] = effectiveTools.map((tool) => {
@@ -67,6 +73,8 @@ export function MCPServerTabsContent({
             remotes={remotes}
             onInstall={(remoteIndex) => onInstallRemote?.(remoteIndex)}
             isInstalling={isInstalling}
+            icon={mcpIcon}
+            mcpName={mcpName}
           />
         </div>
       )}
