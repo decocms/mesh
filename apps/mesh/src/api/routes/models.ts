@@ -183,10 +183,12 @@ function createGatewayTransport(
     }
   }
 
-  return new StreamableHTTPClientTransport(
-    new URL(`/mcp/gateway/${gatewayId}`, baseUrl),
-    { requestInit: { headers } },
-  );
+  const gatewayUrl = new URL(`/mcp/gateway/${gatewayId}`, baseUrl);
+  gatewayUrl.searchParams.set("mode", "code_execution");
+
+  return new StreamableHTTPClientTransport(gatewayUrl, {
+    requestInit: { headers },
+  });
 }
 
 app.post("/:org/models/stream", async (c) => {
