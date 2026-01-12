@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Inbox01, SearchMd, Loading01, FilterLines } from "@untitledui/icons";
 import { useConnection } from "@/web/hooks/collections/use-connection";
 import { useDebounce } from "@/web/hooks/use-debounce";
+import { useScrollRestoration } from "@/web/hooks/use-scroll-restoration";
 import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { slugify } from "@/web/utils/slugify";
@@ -62,7 +63,11 @@ function StoreDiscoveryContent({
   const debouncedSearch = useDebounce(search, 300);
   const navigate = useNavigate();
   const { org } = useProjectContext();
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Preserve scroll position across navigation
+  const { scrollRef, saveScrollPosition } = useScrollRestoration(
+    `store-discovery:${registryId}`,
+  );
 
   const {
     items,
@@ -102,6 +107,9 @@ function StoreDiscoveryContent({
   );
 
   const handleItemClick = (item: RegistryItem) => {
+    // Save scroll position before navigating
+    saveScrollPosition();
+
     const serverSlug = slugify(
       item.name || item.title || item.server.title || "",
     );
@@ -152,7 +160,7 @@ function StoreDiscoveryContent({
 
       {/* Content */}
       <div
-        ref={scrollContainerRef}
+        ref={scrollRef}
         className="flex-1 overflow-y-auto"
         onScroll={handleScroll}
       >
