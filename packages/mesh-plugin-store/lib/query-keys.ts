@@ -4,7 +4,7 @@
  * All query keys used by the store plugin for React Query caching.
  */
 
-export const STORE_KEYS = {
+export const KEYS = {
   /**
    * Key for tool call queries
    */
@@ -29,6 +29,3 @@ export const STORE_KEYS = {
   githubReadme: (owner?: string, repo?: string) =>
     ["store", "github", "readme", owner, repo] as const,
 } as const;
-
-// Alias for backward compatibility
-export const KEYS = STORE_KEYS;

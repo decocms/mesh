@@ -12,7 +12,7 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { usePluginContext, type Binder } from "@decocms/bindings";
-import { STORE_KEYS } from "../lib/query-keys";
+import { KEYS } from "../lib/query-keys";
 import {
   flattenPaginatedItems,
   findListToolName,
@@ -91,7 +91,7 @@ export function useStoreDiscovery(
 
   // Fetch available filters (only if supported)
   const { data: filtersData } = useSuspenseQuery<RegistryFiltersResponse>({
-    queryKey: STORE_KEYS.filters(connectionId),
+    queryKey: KEYS.filters(connectionId),
     queryFn: async () => {
       if (!filtersToolName) {
         return { tags: [], categories: [] };
@@ -135,7 +135,7 @@ export function useStoreDiscovery(
     isFetching,
     isLoading,
   } = useInfiniteQuery({
-    queryKey: STORE_KEYS.discovery(connectionId, JSON.stringify(filterParams)),
+    queryKey: KEYS.discovery(connectionId, JSON.stringify(filterParams)),
     queryFn: async ({ pageParam }) => {
       if (!listToolName) {
         throw new Error("This registry does not support listing store items.");

@@ -227,7 +227,7 @@ export const pluginRootSidebarItems: {
 
 const pluginRoutes: AnyRoute[] = [];
 
-export const plugins = sourcePlugins.forEach((plugin: AnyPlugin) => {
+sourcePlugins.forEach((plugin: AnyPlugin) => {
   const context: PluginSetupContext = {
     parentRoute: pluginLayoutRoute as AnyRoute,
     routing: {
