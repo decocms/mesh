@@ -266,8 +266,15 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
       return result.item.id;
     },
 
-    getGatewayUrl: (gatewayId: string): string => {
-      return `${baseUrl}/mcp/gateway/${gatewayId}`;
+    getGatewayUrl: (
+      gatewayId: string,
+      strategy?: GatewayToolSelectionStrategy,
+    ): string => {
+      const url = new URL(`/mcp/gateway/${gatewayId}`, baseUrl);
+      if (strategy) {
+        url.searchParams.set("mode", strategy);
+      }
+      return url.href;
     },
 
     cleanup: async (): Promise<void> => {

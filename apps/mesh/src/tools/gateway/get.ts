@@ -61,7 +61,6 @@ export const COLLECTION_GATEWAY_GET = defineTool({
         description: gateway.description,
         icon: gateway.icon,
         organization_id: gateway.organizationId,
-        tool_selection_strategy: gateway.toolSelectionStrategy,
         tool_selection_mode: gateway.toolSelectionMode,
         status: gateway.status,
         is_default: gateway.isDefault,

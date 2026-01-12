@@ -18,11 +18,9 @@ import type {
   ReadResourceResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { createMCPProxy } from "../api/routes/proxy";
-import type {
-  GatewayToolSelectionStrategy,
-  ToolSelectionMode,
-} from "../storage/types";
+import type { ToolSelectionMode } from "../storage/types";
 import type { ConnectionEntity } from "../tools/connection/schema";
+import type { GatewayToolSelectionStrategy } from "./strategy";
 
 /** Proxy type returned by createMCPProxy */
 export type MCPProxy = Awaited<ReturnType<typeof createMCPProxy>>;

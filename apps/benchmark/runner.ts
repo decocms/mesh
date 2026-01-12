@@ -58,7 +58,7 @@ async function runScenario(
     // Create connection and gateway
     const connectionId = await mesh.createConnection(fakeMcp.url);
     const gatewayId = await mesh.createGateway(connectionId, scenario.strategy);
-    const gatewayUrl = mesh.getGatewayUrl(gatewayId);
+    const gatewayUrl = mesh.getGatewayUrl(gatewayId, scenario.strategy);
 
     if (config.verbose) {
       console.log(`${prefix} [Gateway] Created at ${gatewayUrl}`);

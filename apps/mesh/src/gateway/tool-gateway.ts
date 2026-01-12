@@ -10,12 +10,13 @@ import type {
   ListToolsResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { lazy } from "../common";
-import type {
-  GatewayToolSelectionStrategy,
-  ToolSelectionMode,
-} from "../storage/types";
+import type { ToolSelectionMode } from "../storage/types";
 import type { ProxyCollection } from "./proxy-collection";
-import { getStrategy, type ToolWithConnection } from "./strategy";
+import {
+  getStrategy,
+  type GatewayToolSelectionStrategy,
+  type ToolWithConnection,
+} from "./strategy";
 
 /** Maps tool name -> { connectionId, originalName } */
 interface ToolMapping {

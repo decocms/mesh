@@ -15,7 +15,6 @@ import type {
 import type {
   Database,
   Gateway,
-  GatewayToolSelectionStrategy,
   GatewayWithConnections,
   ToolSelectionMode,
 } from "./types";
@@ -26,7 +25,6 @@ type RawGatewayRow = {
   organization_id: string;
   title: string;
   description: string | null;
-  tool_selection_strategy: GatewayToolSelectionStrategy | string;
   tool_selection_mode: ToolSelectionMode | string;
   icon: string | null;
   status: "active" | "inactive";
@@ -78,8 +76,6 @@ export class GatewayStorage implements GatewayStoragePort {
             organization_id: organizationId,
             title: data.title,
             description: data.description ?? null,
-            tool_selection_strategy:
-              data.toolSelectionStrategy ?? "passthrough",
             tool_selection_mode: data.toolSelectionMode ?? "inclusion",
             icon: data.icon ?? null,
             status: data.status ?? "active",
@@ -131,7 +127,6 @@ export class GatewayStorage implements GatewayStoragePort {
         organization_id: organizationId,
         title: data.title,
         description: data.description ?? null,
-        tool_selection_strategy: data.toolSelectionStrategy ?? "passthrough",
         tool_selection_mode: data.toolSelectionMode ?? "inclusion",
         icon: data.icon ?? null,
         status: data.status ?? "active",
@@ -313,9 +308,6 @@ export class GatewayStorage implements GatewayStoragePort {
     }
     if (data.description !== undefined) {
       updateData.description = data.description;
-    }
-    if (data.toolSelectionStrategy !== undefined) {
-      updateData.tool_selection_strategy = data.toolSelectionStrategy;
     }
     if (data.toolSelectionMode !== undefined) {
       updateData.tool_selection_mode = data.toolSelectionMode;
@@ -551,9 +543,6 @@ export class GatewayStorage implements GatewayStoragePort {
       organizationId: row.organization_id,
       title: row.title,
       description: row.description,
-      toolSelectionStrategy: this.parseToolSelectionStrategy(
-        row.tool_selection_strategy,
-      ),
       toolSelectionMode: this.parseToolSelectionMode(row.tool_selection_mode),
       icon: row.icon,
       status: row.status,
@@ -563,18 +552,6 @@ export class GatewayStorage implements GatewayStoragePort {
       createdBy: row.created_by,
       updatedBy: row.updated_by,
     };
-  }
-
-  /**
-   * Parse tool selection strategy value (new: passthrough/smart_tool_selection/code_execution)
-   */
-  private parseToolSelectionStrategy(
-    value: GatewayToolSelectionStrategy | string | null,
-  ): GatewayToolSelectionStrategy {
-    if (value === "smart_tool_selection") return "smart_tool_selection";
-    if (value === "code_execution") return "code_execution";
-    // Default to passthrough for any other value
-    return "passthrough";
   }
 
   /**

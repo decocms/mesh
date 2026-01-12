@@ -9,11 +9,21 @@
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { runCode } from "../sandbox/index.ts";
-import type { GatewayToolSelectionStrategy } from "../storage/types";
 
 // ============================================================================
 // Types
 // ============================================================================
+
+/**
+ * Gateway tool selection strategy
+ * - "passthrough": Pass tools through as-is (default)
+ * - "smart_tool_selection": Smart tool selection behavior
+ * - "code_execution": Code execution behavior
+ */
+export type GatewayToolSelectionStrategy =
+  | "passthrough"
+  | "smart_tool_selection"
+  | "code_execution";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<CallToolResult>;
 
@@ -400,5 +410,19 @@ export function getStrategy(
     case "passthrough":
     default:
       return passthroughStrategy;
+  }
+}
+
+export function parseStrategyFromMode(
+  mode: string | undefined,
+): GatewayToolSelectionStrategy {
+  switch (mode) {
+    case "smart_tool_selection":
+      return "smart_tool_selection";
+    case "code_execution":
+      return "code_execution";
+    case "passthrough":
+    default:
+      return "passthrough";
   }
 }

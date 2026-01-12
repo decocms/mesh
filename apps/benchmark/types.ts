@@ -142,8 +142,11 @@ export interface MeshServerHandle {
     connectionId: string,
     strategy: GatewayToolSelectionStrategy,
   ) => Promise<string>;
-  /** Get gateway URL */
-  getGatewayUrl: (gatewayId: string) => string;
+  /** Get gateway URL with optional mode query parameter */
+  getGatewayUrl: (
+    gatewayId: string,
+    strategy?: GatewayToolSelectionStrategy,
+  ) => string;
   /** Cleanup resources */
   cleanup: () => Promise<void>;
 }

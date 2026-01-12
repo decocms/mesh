@@ -567,17 +567,6 @@ export interface EventDelivery {
 export type ToolSelectionMode = "inclusion" | "exclusion";
 
 /**
- * Gateway tool selection strategy (metadata, not used for runtime behavior yet)
- * - "passthrough": Pass tools through as-is (default)
- * - "smart_tool_selection": Smart tool selection behavior
- * - "code_execution": Code execution behavior
- */
-export type GatewayToolSelectionStrategy =
-  | "passthrough"
-  | "smart_tool_selection"
-  | "code_execution";
-
-/**
  * Gateway table definition
  * Virtual gateway entities that aggregate tools from multiple connections
  */
@@ -586,7 +575,6 @@ export interface GatewayTable {
   organization_id: string;
   title: string;
   description: string | null;
-  tool_selection_strategy: GatewayToolSelectionStrategy;
   tool_selection_mode: ToolSelectionMode;
   icon: string | null;
   status: "active" | "inactive";
@@ -605,7 +593,6 @@ export interface Gateway {
   organizationId: string;
   title: string;
   description: string | null;
-  toolSelectionStrategy: GatewayToolSelectionStrategy;
   toolSelectionMode: ToolSelectionMode;
   icon: string | null;
   status: "active" | "inactive";

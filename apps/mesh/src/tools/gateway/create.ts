@@ -51,8 +51,6 @@ export const COLLECTION_GATEWAY_CREATE = defineTool({
     const gatewayData = {
       title: input.data.title,
       description: input.data.description ?? null,
-      toolSelectionStrategy:
-        input.data.tool_selection_strategy ?? "passthrough",
       toolSelectionMode: input.data.tool_selection_mode ?? "inclusion",
       icon: input.data.icon ?? null,
       status: input.data.status,
@@ -80,7 +78,6 @@ export const COLLECTION_GATEWAY_CREATE = defineTool({
         description: gateway.description,
         icon: gateway.icon,
         organization_id: gateway.organizationId,
-        tool_selection_strategy: gateway.toolSelectionStrategy,
         tool_selection_mode: gateway.toolSelectionMode,
         status: gateway.status,
         is_default: gateway.isDefault,
