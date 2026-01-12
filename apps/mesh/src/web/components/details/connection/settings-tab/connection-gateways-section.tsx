@@ -74,7 +74,6 @@ function CreateGatewayButton({
       description: connectionDescription ?? null,
       icon: connectionIcon ?? null,
       status: "active",
-      tool_selection_strategy: "passthrough",
       tool_selection_mode: "inclusion",
       connections: [
         {

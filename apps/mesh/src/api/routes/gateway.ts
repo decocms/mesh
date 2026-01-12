@@ -47,6 +47,10 @@ import {
   type GatewayClient,
   type GatewayOptions,
 } from "../../gateway";
+import {
+  parseStrategyFromMode,
+  type GatewayToolSelectionStrategy,
+} from "../../gateway/strategy";
 import type { GatewayWithConnections } from "../../storage/types";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { Env } from "../env";
@@ -112,6 +116,7 @@ async function createMCPGateway(
 async function createMCPGatewayFromEntity(
   gateway: GatewayWithConnections,
   ctx: MeshContext,
+  strategy: GatewayToolSelectionStrategy,
 ): Promise<GatewayClient> {
   let connections: Array<{
     connection: ConnectionEntity;
@@ -207,7 +212,7 @@ async function createMCPGatewayFromEntity(
   const options: GatewayOptions = {
     connections,
     toolSelectionMode: gateway.toolSelectionMode,
-    toolSelectionStrategy: gateway.toolSelectionStrategy,
+    toolSelectionStrategy: strategy,
   };
 
   return createMCPGateway(options, ctx);
@@ -285,8 +290,16 @@ app.all("/gateway/:gatewayId?", async (c) => {
       };
     }
 
+    // Parse strategy from query string mode parameter (defaults to passthrough)
+    const mode = c.req.query("mode");
+    const strategy = parseStrategyFromMode(mode);
+
     // Create gateway from entity
-    const gatewayClient = await createMCPGatewayFromEntity(gateway, ctx);
+    const gatewayClient = await createMCPGatewayFromEntity(
+      gateway,
+      ctx,
+      strategy,
+    );
 
     // Create MCP server
     const server = new McpServer(

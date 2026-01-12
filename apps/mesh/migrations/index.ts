@@ -16,6 +16,7 @@ import * as migration014gatewayresourcesprompts from "./014-gateway-resources-pr
 import * as migration015monitoringproperties from "./015-monitoring-properties.ts";
 import * as migration016downstreamtokenclientinfo from "./016-downstream-token-client-info.ts";
 import * as migration017downstreamtokenremoveuserid from "./017-downstream-token-remove-userid.ts";
+import * as migration018dropgatewaytoolselectionstrategy from "./018-drop-gateway-tool-selection-strategy.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -35,6 +36,8 @@ const migrations = {
   "015-monitoring-properties": migration015monitoringproperties,
   "016-downstream-token-client-info": migration016downstreamtokenclientinfo,
   "017-downstream-token-remove-userid": migration017downstreamtokenremoveuserid,
+  "018-drop-gateway-tool-selection-strategy":
+    migration018dropgatewaytoolselectionstrategy,
 } satisfies Record<string, Migration>;
 
 export default migrations;

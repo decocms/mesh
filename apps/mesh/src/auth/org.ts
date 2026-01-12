@@ -151,7 +151,6 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
     await gatewayStorage.create(organizationId, createdBy, {
       title: "Organization Agent",
       description: "Use all organization connections into a single agent",
-      toolSelectionStrategy: "passthrough",
       toolSelectionMode: "exclusion",
       status: "active",
       isDefault: true,

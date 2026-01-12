@@ -34,6 +34,10 @@ import {
   FormMessage,
 } from "@deco/ui/components/form.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from "@deco/ui/components/radio-group.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import {
   Select,
@@ -59,11 +63,14 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import {
+  ArrowsRight,
   Check,
+  Code01,
   Copy01,
   CpuChip02,
   FlipBackward,
   InfoCircle,
+  Lightbulb02,
   Loading01,
   Save01,
   Share07,
@@ -88,166 +95,12 @@ function utf8ToBase64(str: string): string {
   return btoa(binary);
 }
 
-interface IDEIntegrationProps {
-  serverName: string;
-  gatewayUrl: string;
-}
-
-function IDEIntegration({ serverName, gatewayUrl }: IDEIntegrationProps) {
-  const [copiedConfig, setCopiedConfig] = useState(false);
-  const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
-
-  // Slugify the server name to ensure it's safe for MCP clients
-  const slugifiedServerName = slugify(serverName);
-
-  // MCP connection configuration (For Cursor, Claude Code, and Windsurf)
-  const connectionConfig = { type: "http", url: gatewayUrl };
-
-  // Full MCP configuration object
-  const mcpConfig = { [slugifiedServerName]: connectionConfig };
-
-  const configJson = JSON.stringify(mcpConfig, null, 2);
-  const clientConnectionConfig = (client: string) =>
-    JSON.stringify(
-      {
-        ...connectionConfig,
-        headers: {
-          "x-mesh-client": client,
-        },
-      },
-      null,
-      2,
-    );
-
-  // Generate Cursor deeplink
-  const cursorDeeplink = (() => {
-    const base64Config = utf8ToBase64(clientConnectionConfig("Cursor"));
-    return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(slugifiedServerName)}&config=${encodeURIComponent(base64Config)}`;
-  })();
-
-  // Claude Code CLI command - uses JSON format
-  const claudeConfigJson = clientConnectionConfig("Claude Code");
-  const claudeCommand = `claude mcp add "${slugifiedServerName}" --config '${claudeConfigJson.replace(/'/g, "'\\''")}'`;
-
-  const handleCopyConfig = async () => {
-    await navigator.clipboard.writeText(configJson);
-    setCopiedConfig(true);
-    toast.success("Configuration copied to clipboard");
-    setTimeout(() => setCopiedConfig(false), 2000);
-  };
-
-  const handleCopyCommand = async (command: string, label: string) => {
-    await navigator.clipboard.writeText(command);
-    setCopiedCommand(label);
-    toast.success(`${label} command copied`);
-    setTimeout(() => setCopiedCommand(null), 2000);
-  };
-
-  const handleOpenDeeplink = (url: string) => {
-    window.open(url, "_blank");
-  };
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h4 className="text-sm font-medium text-foreground mb-1">
-          Install in your IDE
-        </h4>
-      </div>
-
-      {/* MCP Configuration with copy button */}
-      <div className="relative flex flex-col gap-2 p-3 bg-muted/50 rounded-lg">
-        <div className="absolute top-2 right-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 shrink-0"
-                  onClick={handleCopyConfig}
-                >
-                  {copiedConfig ? <Check size={14} /> : <Copy01 size={14} />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Copy configuration</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        <pre
-          className="text-xs font-mono text-foreground overflow-auto max-h-40 whitespace-pre-wrap wrap-break-word cursor-pointer"
-          onClick={handleCopyConfig}
-        >
-          {configJson}
-        </pre>
-      </div>
-
-      {/* IDE buttons grid */}
-      <div className="flex flex-wrap gap-2">
-        {/* Cursor */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                className="h-auto py-3 px-4 justify-center gap-2 flex-1 min-w-fit"
-                onClick={() => handleOpenDeeplink(cursorDeeplink)}
-              >
-                <img
-                  src="/logos/cursor.svg"
-                  alt="Cursor"
-                  className="h-6 w-6"
-                  style={{
-                    filter:
-                      "brightness(0) saturate(100%) invert(11%) sepia(8%) saturate(785%) hue-rotate(1deg) brightness(95%) contrast(89%)",
-                  }}
-                />
-                <span className="text-sm font-medium">Cursor</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Add to Cursor</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        {/* Claude Code */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                className="h-auto py-3 px-4 justify-center gap-2 flex-1 min-w-fit"
-                onClick={() => handleCopyCommand(claudeCommand, "Claude")}
-              >
-                <img
-                  src="/logos/Claude Code.svg"
-                  alt="Claude Code"
-                  className="h-6 w-6"
-                  style={{
-                    filter:
-                      "brightness(0) saturate(100%) invert(55%) sepia(31%) saturate(1264%) hue-rotate(331deg) brightness(92%) contrast(86%)",
-                  }}
-                />
-                <span className="text-sm font-medium">Claude Code</span>
-                {copiedCommand === "Claude" && (
-                  <Check size={14} className="ml-2 text-green-500" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Add to Claude Code</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-    </div>
-  );
-}
-
 // Form validation schema
 const gatewayFormSchema = GatewayEntitySchema.pick({
   title: true,
   description: true,
   status: true,
   tool_selection_mode: true,
-  tool_selection_strategy: true,
 }).extend({
   title: z.string().min(1, "Name is required").max(255),
 });
@@ -361,6 +214,149 @@ function mergeSelectionsToGatewayConnections(
 }
 
 /**
+ * Shared button props interfaces
+ */
+interface GatewayShareButtonProps {
+  gatewayUrl: string;
+}
+
+interface GatewayShareWithNameProps extends GatewayShareButtonProps {
+  serverName: string;
+}
+
+/**
+ * Copy URL Button Component
+ */
+function CopyUrlButton({ gatewayUrl }: GatewayShareButtonProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(gatewayUrl);
+    setCopied(true);
+    toast.success("Agent URL copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={handleCopy}
+      className="h-auto py-3 px-4 flex flex-col items-center gap-2"
+    >
+      {copied ? (
+        <Check size={20} className="text-green-600" />
+      ) : (
+        <Copy01 size={20} />
+      )}
+      <span className="text-xs font-medium">
+        {copied ? "Copied!" : "Copy URL"}
+      </span>
+    </Button>
+  );
+}
+
+/**
+ * Install on Cursor Button Component
+ */
+function InstallCursorButton({
+  gatewayUrl,
+  serverName,
+}: GatewayShareWithNameProps) {
+  const handleInstall = () => {
+    const slugifiedServerName = slugify(serverName);
+    const connectionConfig = {
+      type: "http",
+      url: gatewayUrl,
+      headers: {
+        "x-mesh-client": "Cursor",
+      },
+    };
+    const base64Config = utf8ToBase64(
+      JSON.stringify(connectionConfig, null, 2),
+    );
+    const deeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(slugifiedServerName)}&config=${encodeURIComponent(base64Config)}`;
+
+    window.open(deeplink, "_blank");
+    toast.success("Opening Cursor...");
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={handleInstall}
+      className="h-auto py-3 px-4 flex flex-col items-center gap-2"
+    >
+      <img
+        src="/logos/cursor.svg"
+        alt="Cursor"
+        className="h-5 w-5"
+        style={{
+          filter:
+            "brightness(0) saturate(100%) invert(11%) sepia(8%) saturate(785%) hue-rotate(1deg) brightness(95%) contrast(89%)",
+        }}
+      />
+      <span className="text-xs font-medium">Install on Cursor</span>
+    </Button>
+  );
+}
+
+/**
+ * Install on Claude Code Button Component
+ */
+function InstallClaudeButton({
+  gatewayUrl,
+  serverName,
+}: GatewayShareWithNameProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleInstall = async () => {
+    const slugifiedServerName = slugify(serverName);
+    const connectionConfig = {
+      type: "http",
+      url: gatewayUrl,
+      headers: {
+        "x-mesh-client": "Claude Code",
+      },
+    };
+    const configJson = JSON.stringify(connectionConfig, null, 2);
+    const command = `claude mcp add "${slugifiedServerName}" --config '${configJson.replace(/'/g, "'\\''")}'`;
+
+    await navigator.clipboard.writeText(command);
+    setCopied(true);
+    toast.success("Claude Code command copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={handleInstall}
+      className="h-auto py-3 px-4 flex flex-col items-center gap-2"
+    >
+      {copied ? (
+        <Check size={20} className="text-green-600" />
+      ) : (
+        <img
+          src="/logos/Claude Code.svg"
+          alt="Claude Code"
+          className="h-5 w-5"
+          style={{
+            filter:
+              "brightness(0) saturate(100%) invert(55%) sepia(31%) saturate(1264%) hue-rotate(331deg) brightness(92%) contrast(86%)",
+          }}
+        />
+      )}
+      <span className="text-xs font-medium">
+        {copied ? "Copied!" : "Install on Claude"}
+      </span>
+    </Button>
+  );
+}
+
+/**
  * Share Modal - Gateway sharing and IDE integration
  */
 function GatewayShareModal({
@@ -372,15 +368,29 @@ function GatewayShareModal({
   onOpenChange: (open: boolean) => void;
   gateway: GatewayEntity;
 }) {
-  const [copiedUrl, setCopiedUrl] = useState(false);
-  const gatewayUrl = `${window.location.origin}/mcp/gateway/${gateway.id}`;
+  const [mode, setMode] = useState<
+    "passthrough" | "smart_tool_selection" | "code_execution"
+  >("code_execution");
 
-  const handleCopyUrl = async () => {
-    await navigator.clipboard.writeText(gatewayUrl);
-    setCopiedUrl(true);
-    toast.success("Agent URL copied to clipboard");
-    setTimeout(() => setCopiedUrl(false), 2000);
+  const handleModeChange = (value: string) => {
+    if (
+      value === "passthrough" ||
+      value === "smart_tool_selection" ||
+      value === "code_execution"
+    ) {
+      setMode(value);
+    }
   };
+
+  // Build URL with mode query parameter
+  const gatewayUrl = new URL(
+    `/mcp/gateway/${gateway.id}`,
+    window.location.origin,
+  );
+  gatewayUrl.searchParams.set("mode", mode);
+
+  // Server name for IDE integrations
+  const serverName = gateway.title || `agent-${gateway.id.slice(0, 8)}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -389,40 +399,147 @@ function GatewayShareModal({
           <DialogTitle>Share Agent</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-6">
-          {/* Copy Agent URL section */}
+          {/* Mode Selection */}
           <div className="flex flex-col gap-3">
             <div>
               <h4 className="text-sm font-medium text-foreground mb-1">
-                Agent URL
+                How should this agent work?
               </h4>
               <p className="text-xs text-muted-foreground">
-                Share this URL to connect to the agent
+                Choose the best approach for your use case
               </p>
             </div>
-            <div className="flex gap-2">
-              <Input
-                value={gatewayUrl}
-                readOnly
-                className="font-mono text-xs"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={handleCopyUrl}
-                className="shrink-0"
+            <RadioGroup value={mode} onValueChange={handleModeChange}>
+              {/* Passthrough Option */}
+              <label
+                htmlFor="mode-passthrough"
+                className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-ring/50 cursor-pointer transition-colors has-checked:border-ring has-checked:bg-accent/5"
               >
-                {copiedUrl ? <Check size={16} /> : <Copy01 size={16} />}
-              </Button>
-            </div>
+                <RadioGroupItem
+                  id="mode-passthrough"
+                  value="passthrough"
+                  className="mt-0.5"
+                />
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <ArrowsRight className="size-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">
+                      Direct access
+                    </span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InfoCircle className="size-3.5 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">
+                            All tools are exposed directly via tools/list. Best
+                            for small tool surfaces with deterministic behavior.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Best for small teams or when you need predictable behavior
+                  </p>
+                </div>
+              </label>
+
+              {/* Smart Tool Selection Option */}
+              <label
+                htmlFor="mode-smart"
+                className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-ring/50 cursor-pointer transition-colors has-checked:border-ring has-checked:bg-accent/5"
+              >
+                <RadioGroupItem
+                  id="mode-smart"
+                  value="smart_tool_selection"
+                  className="mt-0.5"
+                />
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <Lightbulb02 className="size-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">
+                      Smart discovery
+                    </span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InfoCircle className="size-3.5 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">
+                            Uses meta-tools (GATEWAY_SEARCH_TOOLS,
+                            GATEWAY_DESCRIBE_TOOLS, GATEWAY_CALL_TOOL) to keep
+                            the tool list small and request details on demand.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Ideal for large teams with many tools - AI finds what it
+                    needs
+                  </p>
+                </div>
+              </label>
+
+              {/* Code Execution Option */}
+              <label
+                htmlFor="mode-code"
+                className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-ring/50 cursor-pointer transition-colors has-checked:border-ring has-checked:bg-accent/5"
+              >
+                <RadioGroupItem
+                  id="mode-code"
+                  value="code_execution"
+                  className="mt-0.5"
+                />
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <Code01 className="size-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">
+                      Smart execution
+                    </span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                      Recommended
+                    </span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InfoCircle className="size-3.5 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">
+                            Exposes meta-tools for discovery + sandboxed
+                            execution (GATEWAY_RUN_CODE). Reduces overhead on
+                            large surfaces by shifting work into a controlled
+                            runtime.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Maximum flexibility - AI can write code to orchestrate tools
+                  </p>
+                </div>
+              </label>
+            </RadioGroup>
           </div>
 
-          {/* IDE Integration */}
-          <div className="border-t border-border pt-6">
-            <IDEIntegration
-              serverName={gateway.title || `agent-${gateway.id.slice(0, 8)}`}
-              gatewayUrl={gatewayUrl}
-            />
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-3 pt-2">
+            <div className="grid grid-cols-3 gap-2">
+              <CopyUrlButton gatewayUrl={gatewayUrl.href} />
+              <InstallCursorButton
+                gatewayUrl={gatewayUrl.href}
+                serverName={serverName}
+              />
+              <InstallClaudeButton
+                gatewayUrl={gatewayUrl.href}
+                serverName={serverName}
+              />
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -583,77 +700,6 @@ function GatewaySettingsTab({
                 </FormItem>
               )}
             />
-
-            {/* Agent Strategy */}
-            <FormField
-              control={form.control}
-              name="tool_selection_strategy"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between gap-3">
-                    <FormLabel className="mb-0">Agent Strategy</FormLabel>
-                    <div className="flex items-center gap-1.5">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-7"
-                              aria-label="Agent strategy help"
-                            >
-                              <InfoCircle
-                                size={14}
-                                className="text-muted-foreground"
-                              />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="left" className="max-w-sm">
-                            <div className="text-xs space-y-1">
-                              <div>
-                                <strong>Passthrough:</strong> Pass tools through
-                                as-is (default).
-                              </div>
-                              <div>
-                                <strong>Smart Tool Selection:</strong>{" "}
-                                Intelligent tool selection behavior.
-                              </div>
-                              <div>
-                                <strong>Code Execution:</strong> Code execution
-                                behavior.
-                              </div>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="passthrough">
-                            Passthrough
-                          </SelectItem>
-                          <SelectItem value="smart_tool_selection">
-                            Smart Tool Selection
-                          </SelectItem>
-                          <SelectItem value="code_execution">
-                            Code Execution
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </div>
 
           {/* System Prompt section */}
@@ -763,7 +809,6 @@ function GatewayInspectorViewWithGateway({
       description: gateway.description,
       status: gateway.status,
       tool_selection_mode: gateway.tool_selection_mode ?? "inclusion",
-      tool_selection_strategy: gateway.tool_selection_strategy ?? "passthrough",
     },
   });
 
@@ -788,7 +833,6 @@ function GatewayInspectorViewWithGateway({
         description: formData.description,
         status: formData.status,
         tool_selection_mode: formData.tool_selection_mode,
-        tool_selection_strategy: formData.tool_selection_strategy,
         connections: newConnections,
       },
     });
@@ -805,7 +849,6 @@ function GatewayInspectorViewWithGateway({
       description: gateway.description,
       status: gateway.status,
       tool_selection_mode: gateway.tool_selection_mode ?? "inclusion",
-      tool_selection_strategy: gateway.tool_selection_strategy ?? "passthrough",
     });
 
     // Reset selections to original gateway values

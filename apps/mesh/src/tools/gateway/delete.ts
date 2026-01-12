@@ -65,7 +65,6 @@ export const COLLECTION_GATEWAY_DELETE = defineTool({
         description: existing.description,
         icon: existing.icon,
         organization_id: existing.organizationId,
-        tool_selection_strategy: existing.toolSelectionStrategy,
         tool_selection_mode: existing.toolSelectionMode,
         status: existing.status,
         is_default: existing.isDefault,

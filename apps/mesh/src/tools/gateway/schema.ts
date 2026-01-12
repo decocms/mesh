@@ -21,22 +21,6 @@ const ToolSelectionModeSchema = z
 export type ToolSelectionMode = z.infer<typeof ToolSelectionModeSchema>;
 
 /**
- * Gateway tool selection strategy schema (metadata, not used for runtime behavior yet)
- * - "passthrough": Pass tools through as-is (default)
- * - "smart_tool_selection": Smart tool selection behavior
- * - "code_execution": Code execution behavior
- */
-const GatewayToolSelectionStrategySchema = z
-  .enum(["passthrough", "smart_tool_selection", "code_execution"])
-  .describe(
-    "Gateway tool selection strategy: 'passthrough' (default), 'smart_tool_selection', or 'code_execution'",
-  );
-
-export type GatewayToolSelectionStrategy = z.infer<
-  typeof GatewayToolSelectionStrategySchema
->;
-
-/**
  * Gateway connection schema - defines which connection and tools/resources/prompts are included/excluded
  */
 const GatewayConnectionSchema = z.object({
@@ -85,9 +69,6 @@ export const GatewayEntitySchema = z.object({
   organization_id: z
     .string()
     .describe("Organization ID this gateway belongs to"),
-  tool_selection_strategy: GatewayToolSelectionStrategySchema.describe(
-    "Gateway behavior strategy (metadata for now): 'passthrough', 'smart_tool_selection', or 'code_execution'",
-  ),
   tool_selection_mode: ToolSelectionModeSchema.describe(
     "Tool selection mode: 'inclusion' = include selected, 'exclusion' = exclude selected",
   ),
@@ -119,9 +100,6 @@ export const GatewayCreateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("Optional description"),
-  tool_selection_strategy: GatewayToolSelectionStrategySchema.optional()
-    .default("passthrough")
-    .describe("Gateway behavior strategy (defaults to 'passthrough')"),
   tool_selection_mode: ToolSelectionModeSchema.optional()
     .default("inclusion")
     .describe("Tool selection mode (defaults to 'inclusion')"),
@@ -180,10 +158,6 @@ export const GatewayUpdateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("New description (null to clear)"),
-  tool_selection_strategy:
-    GatewayToolSelectionStrategySchema.optional().describe(
-      "New gateway behavior strategy",
-    ),
   tool_selection_mode: ToolSelectionModeSchema.optional().describe(
     "New tool selection mode",
   ),
