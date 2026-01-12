@@ -1,7 +1,7 @@
 import { Avatar } from "@deco/ui/components/avatar.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -14,7 +14,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { Check, Code01, Copy01 } from "@untitledui/icons";
+import { Check, Code01, Copy01, X } from "@untitledui/icons";
 import { useState } from "react";
 import { useDeveloperMode } from "@/web/hooks/use-developer-mode.ts";
 
@@ -42,13 +42,17 @@ export function UserSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md p-0 flex flex-col">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
-          <DialogTitle>Profile Settings</DialogTitle>
+      <DialogContent className="sm:max-w-lg sm:max-h-[85vh] p-0 flex flex-col" closeButtonClassName="hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0 relative">
+          <DialogTitle className="text-base">Profile Settings</DialogTitle>
+          <DialogClose className="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
+            <X size={16} />
+            <span className="sr-only">Close</span>
+          </DialogClose>
         </DialogHeader>
 
         <div className="flex flex-col">
-          <div className="p-5 space-y-6">
+          <div className="p-5 space-y-6 min-h-[225px]">
             {/* User Info Display */}
             <div className="flex items-center gap-4">
               <Avatar
@@ -69,25 +73,31 @@ export function UserSettingsDialog({
             </div>
 
             {/* Developer Mode */}
-            <div className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border">
+            <button
+              type="button"
+              onClick={() => setDeveloperMode(!developerMode)}
+              className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
+            >
               <div className="flex flex-col gap-1 flex-1 min-w-0">
-                <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Label className="text-sm font-medium text-foreground flex items-center gap-2 pointer-events-none">
                   <Code01 size={16} className="text-muted-foreground" />
                   Developer Mode
                 </Label>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground pointer-events-none">
                   Show technical details like JSON input/output for tool calls
                 </p>
               </div>
-              <Switch
-                checked={developerMode}
-                onCheckedChange={setDeveloperMode}
-              />
-            </div>
+              <div onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={developerMode}
+                  onCheckedChange={setDeveloperMode}
+                />
+              </div>
+            </button>
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border px-5 py-4 flex items-center justify-between gap-2.5 shrink-0">
+          <div className="border-t border-border px-5 py-4 flex items-center shrink-0">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -112,9 +122,6 @@ export function UserSettingsDialog({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
           </div>
         </div>
       </DialogContent>
