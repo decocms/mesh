@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Plus, Server01, Globe02, Terminal } from "@untitledui/icons";
@@ -286,14 +286,24 @@ export function MCPServersList({
   icon,
   mcpName,
 }: MCPServersListProps) {
-  const [filter, setFilter] = useState<Protocol | "all">("http");
+  const [selectedFilter, setSelectedFilter] = useState<Protocol | "all">(
+    "http",
+  );
 
   const serverCards = useMemo(() => remotesToServerCards(remotes), [remotes]);
 
+  // Calculate effective filter - fallback to first available protocol if selected doesn't exist
+  const effectiveFilter = useMemo(() => {
+    if (selectedFilter === "all") return "all";
+    const hasSelected = serverCards.some((c) => c.protocol === selectedFilter);
+    if (hasSelected) return selectedFilter;
+    return serverCards[0]?.protocol ?? "http";
+  }, [serverCards, selectedFilter]);
+
   const filteredCards = useMemo(() => {
-    if (filter === "all") return serverCards;
-    return serverCards.filter((c) => c.protocol === filter);
-  }, [serverCards, filter]);
+    if (effectiveFilter === "all") return serverCards;
+    return serverCards.filter((c) => c.protocol === effectiveFilter);
+  }, [serverCards, effectiveFilter]);
 
   // Get available filters based on existing protocols
   const availableFilters = useMemo(() => {
@@ -307,22 +317,12 @@ export function MCPServersList({
       : options;
   }, [serverCards]);
 
-  // Auto-switch filter if selected protocol doesn't exist
-  useEffect(() => {
-    const hasSelectedProtocol =
-      filter === "all" || serverCards.some((c) => c.protocol === filter);
-    const firstCard = serverCards[0];
-    if (!hasSelectedProtocol && firstCard) {
-      setFilter(firstCard.protocol);
-    }
-  }, [serverCards, filter]);
-
   return (
     <div className="p-5">
       <FilterButtons
         options={availableFilters}
-        selected={filter}
-        onSelect={setFilter}
+        selected={effectiveFilter}
+        onSelect={setSelectedFilter}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
