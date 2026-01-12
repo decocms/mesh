@@ -64,12 +64,38 @@ export function removeGitHubAnchorIcons(html: string): string {
  */
 export function addExternalLinkAttributes(html: string): string {
   return html.replace(/<a\s+([^>]*href="[^"]*"[^>]*)>/gi, (match, attrs) => {
-    // Check if target is already set
-    if (attrs.includes("target=")) {
-      return match.replace(/target="[^"]*"/gi, 'target="_blank"');
+    let result = match;
+    let updatedAttrs = attrs;
+
+    // Handle target attribute
+    if (updatedAttrs.includes("target=")) {
+      result = result.replace(/target="[^"]*"/gi, 'target="_blank"');
+      updatedAttrs = updatedAttrs.replace(
+        /target="[^"]*"/gi,
+        'target="_blank"',
+      );
+    } else {
+      updatedAttrs = `${updatedAttrs} target="_blank"`;
+      result = `<a ${updatedAttrs}>`;
     }
-    // Add target and rel attributes
-    return `<a ${attrs} target="_blank" rel="noopener noreferrer">`;
+
+    // Handle rel attribute - always ensure noopener noreferrer is present
+    if (!updatedAttrs.includes("rel=")) {
+      result = result.replace(/>$/, ' rel="noopener noreferrer">');
+    } else if (
+      !updatedAttrs.includes("noopener") ||
+      !updatedAttrs.includes("noreferrer")
+    ) {
+      // Append missing values to existing rel attribute
+      result = result.replace(/rel="([^"]*)"/gi, (_relMatch, relValue) => {
+        const values = new Set(relValue.split(/\s+/).filter(Boolean));
+        values.add("noopener");
+        values.add("noreferrer");
+        return `rel="${Array.from(values).join(" ")}"`;
+      });
+    }
+
+    return result;
   });
 }
 
