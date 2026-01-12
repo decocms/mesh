@@ -1,4 +1,4 @@
 import { AnyPlugin } from "@decocms/bindings/plugins";
-import { storePlugin } from "../../../../packages/mesh-plugin-store/index.tsx";
+import { storePlugin } from "mesh-plugin-store";
 
 export const sourcePlugins: AnyPlugin[] = [storePlugin];
