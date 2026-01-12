@@ -432,7 +432,7 @@ async function authenticateRequest(
   req: Request,
   auth: BetterAuthInstance,
   db: Kysely<Database>,
-  timings: FactoryOptions["timings"],
+  timings: FactoryOptions["timings"] = DEFAULT_TIMINGS,
 ): Promise<{
   user?: AuthenticatedUser;
   role?: string;
@@ -449,12 +449,13 @@ async function authenticateRequest(
     const mcpHeaders = new Headers(req.headers);
     mcpHeaders.set("X-MCP-Session-Auth", "true");
 
-
     const session = await timings.measure(
       "auth_get_mcp_session",
-      () => auth.api.getMcpSession({ headers: mcpHeaders }) as Promise<OAuthSession | null>
+      () =>
+        auth.api.getMcpSession({
+          headers: mcpHeaders,
+        }) as Promise<OAuthSession | null>,
     );
-
 
     if (session) {
       const userId = session.userId;
@@ -462,19 +463,20 @@ async function authenticateRequest(
       // For MCP OAuth sessions, we need to query the database directly
       // because getFullOrganization requires a browser session (cookies)
       // Query user's first organization membership
-      const membership = await timings.measure("auth_query_membership", () => db
-        .selectFrom("member")
-        .innerJoin("organization", "organization.id", "member.organizationId")
-        .select([
-          "member.role",
-          "member.organizationId",
-          "organization.id as orgId",
-          "organization.slug as orgSlug",
-          "organization.name as orgName",
-        ])
-        .where("member.userId", "=", userId)
-        .executeTakeFirst()
-      )
+      const membership = await timings.measure("auth_query_membership", () =>
+        db
+          .selectFrom("member")
+          .innerJoin("organization", "organization.id", "member.organizationId")
+          .select([
+            "member.role",
+            "member.organizationId",
+            "organization.id as orgId",
+            "organization.slug as orgSlug",
+            "organization.name as orgName",
+          ])
+          .where("member.userId", "=", userId)
+          .executeTakeFirst(),
+      );
 
       const role = membership?.role;
       const organization = membership
@@ -488,8 +490,8 @@ async function authenticateRequest(
       // Fetch role permissions for MCP OAuth sessions (non-browser)
       let permissions: Permission | undefined;
       if (membership && role) {
-        permissions = await timings.measure("auth_fetch_role_permissions",
-          () => fetchRolePermissions(db, membership.organizationId, role,)
+        permissions = await timings.measure("auth_fetch_role_permissions", () =>
+          fetchRolePermissions(db, membership.organizationId, role),
         );
       }
 
@@ -513,9 +515,8 @@ async function authenticateRequest(
     // First, try to verify as Mesh JWT token
     // These are issued by mesh for downstream services calling back
     try {
-      const meshJwtPayload = await timings.measure(
-        "auth_verify_mesh_jwt",
-        () => verifyMeshToken(token)
+      const meshJwtPayload = await timings.measure("auth_verify_mesh_jwt", () =>
+        verifyMeshToken(token),
       );
 
       if (meshJwtPayload) {
@@ -523,13 +524,15 @@ async function authenticateRequest(
         let role: string | undefined;
         const organizationId = meshJwtPayload.metadata?.organizationId;
         if (meshJwtPayload.sub && organizationId) {
-          const membership = await timings.measure("auth_query_membership",
-            () => db
-              .selectFrom("member")
-              .select(["member.role"])
-              .where("member.userId", "=", meshJwtPayload.sub)
-              .where("member.organizationId", "=", organizationId)
-              .executeTakeFirst()
+          const membership = await timings.measure(
+            "auth_query_membership",
+            () =>
+              db
+                .selectFrom("member")
+                .select(["member.role"])
+                .where("member.userId", "=", meshJwtPayload.sub)
+                .where("member.organizationId", "=", organizationId)
+                .executeTakeFirst(),
           );
           role = membership?.role;
         }
@@ -555,9 +558,8 @@ async function authenticateRequest(
 
     // Try API Key authentication
     try {
-      const result = await timings.measure(
-        "auth_verify_api_key",
-        () => auth.api.verifyApiKey({ body: { key: token } })
+      const result = await timings.measure("auth_verify_api_key", () =>
+        auth.api.verifyApiKey({ body: { key: token } }),
       );
 
       if (result?.valid && result.key) {
@@ -573,12 +575,15 @@ async function authenticateRequest(
         let role: string | undefined;
         const userId = result.key.userId;
         if (userId && orgMetadata?.id) {
-          const membership = await timings.measure("auth_query_membership", () => db
-            .selectFrom("member")
-            .select(["member.role"])
-            .where("member.userId", "=", userId)
-            .where("member.organizationId", "=", orgMetadata.id)
-            .executeTakeFirst()
+          const membership = await timings.measure(
+            "auth_query_membership",
+            () =>
+              db
+                .selectFrom("member")
+                .select(["member.role"])
+                .where("member.userId", "=", userId)
+                .where("member.organizationId", "=", orgMetadata.id)
+                .executeTakeFirst(),
           );
           role = membership?.role;
         }
@@ -604,9 +609,8 @@ async function authenticateRequest(
   }
 
   try {
-    const session = await timings.measure(
-      "auth_get_session",
-      () => auth.api.getSession({ headers: req.headers })
+    const session = await timings.measure("auth_get_session", () =>
+      auth.api.getSession({ headers: req.headers }),
     );
 
     if (session) {
@@ -618,8 +622,11 @@ async function authenticateRequest(
 
         const orgData = await timings.measure(
           "auth_get_full_organization",
-          () => auth.api.getFullOrganization({ headers: req.headers }).catch(() => null)
-        )
+          () =>
+            auth.api
+              .getFullOrganization({ headers: req.headers })
+              .catch(() => null),
+        );
 
         if (orgData) {
           organization = {
@@ -735,7 +742,12 @@ export function createMeshContextFactory(
     const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = req
-      ? await authenticateRequest(req, config.auth, config.db, options?.timings ?? DEFAULT_TIMINGS)
+      ? await authenticateRequest(
+        req,
+        config.auth,
+        config.db,
+        options?.timings,
+      )
       : { user: undefined };
 
     // Create bound auth client (encapsulates HTTP headers and auth context)

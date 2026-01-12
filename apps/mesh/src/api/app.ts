@@ -514,7 +514,7 @@ export function createApp(options: CreateAppOptions = {}) {
         }
       },
     };
-    
+
     const meshCtx = await ContextFactory.create(c.req.raw, { timings });
     c.set("meshContext", meshCtx);
 
