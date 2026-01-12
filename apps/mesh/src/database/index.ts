@@ -11,16 +11,51 @@
  */
 
 import { existsSync, mkdirSync } from "fs";
-import { type Dialect, Kysely, PostgresDialect, sql } from "kysely";
+import { type Dialect, Kysely, LogEvent, PostgresDialect, sql } from "kysely";
 import { BunWorkerDialect } from "kysely-bun-worker";
 import * as path from "path";
 import { Pool } from "pg";
 import type { Database as DatabaseSchema } from "../storage/types";
+import { meter } from "../observability";
 
 // ============================================================================
 // MeshDatabase Types - Discriminated Union
 // ============================================================================
 
+/**
+ * OpenTelemetry histogram for database query durations
+ * Records query execution time with the SQL statement as an attribute
+ */
+const queryDurationHistogram = meter.createHistogram("db.query.duration", {
+  description: "Database query execution duration in milliseconds",
+  unit: "ms",
+});
+
+const SECOND_IN_MS = 1000;
+const log = (event: LogEvent) => {
+  const attributes = {
+    "db.statement": event.query.sql,
+    "db.status": event.level === "error" ? "error" : "success",
+  };
+
+  if (event.queryDurationMillis > SECOND_IN_MS) {
+    console.error("Slow query detected:", {
+      durationMs: event.queryDurationMillis,
+      sql: event.query.sql,
+      params: event.query.parameters,
+    });
+  }
+
+  queryDurationHistogram.record(event.queryDurationMillis, attributes);
+
+  if (event.level === "error") {
+    console.error("Query failed:", {
+      durationMs: event.queryDurationMillis,
+      error: event.error,
+      sql: event.query.sql,
+    });
+  }
+};
 /**
  * Supported database types
  */
@@ -92,7 +127,10 @@ function createPostgresDatabase(config: DatabaseConfig): PostgresDatabase {
   });
 
   const dialect = new PostgresDialect({ pool });
-  const db = new Kysely<DatabaseSchema>({ dialect });
+  const db = new Kysely<DatabaseSchema>({
+    dialect,
+    log,
+  });
 
   return { type: "postgres", db, pool };
 }
@@ -143,7 +181,10 @@ function createSqliteDatabase(config: DatabaseConfig): SqliteDatabase {
     url: dbPath || ":memory:",
   });
 
-  const db = new Kysely<DatabaseSchema>({ dialect });
+  const db = new Kysely<DatabaseSchema>({
+    dialect,
+    log,
+  });
 
   // Enable WAL mode and busy timeout for non-memory databases
   if (dbPath !== ":memory:" && config.options?.enableWAL !== false) {
