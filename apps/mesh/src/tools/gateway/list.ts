@@ -218,8 +218,25 @@ export const COLLECTION_GATEWAY_LIST = defineTool({
         )
       : await ctx.storage.gateways.list(organization.id);
 
-    // Gateways are already in GatewayEntity format (snake_case)
-    let filtered: GatewayEntity[] = gateways;
+    let filtered: GatewayEntity[] = gateways.map((gateway) => ({
+      id: gateway.id,
+      title: gateway.title,
+      description: gateway.description,
+      icon: gateway.icon,
+      organization_id: gateway.organizationId,
+      tool_selection_mode: gateway.toolSelectionMode,
+      status: gateway.status,
+      connections: gateway.connections.map((conn) => ({
+        connection_id: conn.connectionId,
+        selected_tools: conn.selectedTools,
+        selected_resources: conn.selectedResources,
+        selected_prompts: conn.selectedPrompts,
+      })),
+      created_at: gateway.createdAt as string,
+      updated_at: gateway.updatedAt as string,
+      created_by: gateway.createdBy,
+      updated_by: gateway.updatedBy ?? undefined,
+    }));
 
     // Apply where filter if specified
     if (input.where) {

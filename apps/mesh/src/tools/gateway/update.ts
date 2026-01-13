@@ -53,20 +53,65 @@ export const COLLECTION_GATEWAY_UPDATE = defineTool({
     if (!existing) {
       throw new Error(`Gateway not found: ${input.id}`);
     }
-    if (existing.organization_id !== organization.id) {
+    if (existing.organizationId !== organization.id) {
       throw new Error(`Gateway not found: ${input.id}`);
     }
 
-    // Update the gateway (input.data is already in the correct format)
+    // Transform input to storage format
+    const updateData: Parameters<typeof ctx.storage.gateways.update>[2] = {};
+
+    if (input.data.title !== undefined) {
+      updateData.title = input.data.title;
+    }
+    if (input.data.description !== undefined) {
+      updateData.description = input.data.description;
+    }
+    if (input.data.tool_selection_mode !== undefined) {
+      updateData.toolSelectionMode = input.data.tool_selection_mode;
+    }
+    if (input.data.icon !== undefined) {
+      updateData.icon = input.data.icon;
+    }
+    if (input.data.status !== undefined) {
+      updateData.status = input.data.status;
+    }
+    if (input.data.connections !== undefined) {
+      updateData.connections = input.data.connections.map((conn) => ({
+        connectionId: conn.connection_id,
+        selectedTools: conn.selected_tools ?? null,
+        selectedResources: conn.selected_resources ?? null,
+        selectedPrompts: conn.selected_prompts ?? null,
+      }));
+    }
+
+    // Update the gateway
     const gateway = await ctx.storage.gateways.update(
       input.id,
       userId,
-      input.data,
+      updateData,
     );
 
-    // Return gateway entity directly (already in correct format)
+    // Transform to entity format
     return {
-      item: gateway,
+      item: {
+        id: gateway.id,
+        title: gateway.title,
+        description: gateway.description,
+        icon: gateway.icon,
+        organization_id: gateway.organizationId,
+        tool_selection_mode: gateway.toolSelectionMode,
+        status: gateway.status,
+        connections: gateway.connections.map((conn) => ({
+          connection_id: conn.connectionId,
+          selected_tools: conn.selectedTools,
+          selected_resources: conn.selectedResources,
+          selected_prompts: conn.selectedPrompts,
+        })),
+        created_at: gateway.createdAt as string,
+        updated_at: gateway.updatedAt as string,
+        created_by: gateway.createdBy,
+        updated_by: gateway.updatedBy ?? undefined,
+      },
     };
   },
 });

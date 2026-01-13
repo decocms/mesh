@@ -7,11 +7,8 @@
 
 import type { ConnectionEntity } from "../tools/connection/schema";
 import type {
-  GatewayEntity,
-  GatewayCreateData,
-  GatewayUpdateData,
-} from "../tools/gateway/schema";
-import type {
+  Gateway,
+  GatewayWithConnections,
   MonitoringLog,
   OrganizationSettings,
 } from "./types";
@@ -93,25 +90,56 @@ export interface MonitoringStorage {
 // Gateway Storage Port
 // ============================================================================
 
-// Re-export types from schema for convenience
-export type { GatewayEntity, GatewayCreateData, GatewayUpdateData, ToolSelectionMode } from "../tools/gateway/schema";
+/**
+ * Data for creating a gateway
+ */
+export interface GatewayCreateData {
+  title: string;
+  description?: string | null;
+  toolSelectionMode?: Gateway["toolSelectionMode"];
+  icon?: string | null;
+  status?: Gateway["status"];
+  connections: Array<{
+    connectionId: string;
+    selectedTools?: string[] | null;
+    selectedResources?: string[] | null;
+    selectedPrompts?: string[] | null;
+  }>;
+}
+
+/**
+ * Data for updating a gateway
+ */
+export interface GatewayUpdateData {
+  title?: string;
+  description?: string | null;
+  toolSelectionMode?: Gateway["toolSelectionMode"];
+  icon?: string | null;
+  status?: Gateway["status"];
+  connections?: Array<{
+    connectionId: string;
+    selectedTools?: string[] | null;
+    selectedResources?: string[] | null;
+    selectedPrompts?: string[] | null;
+  }>;
+}
 
 export interface GatewayStoragePort {
   create(
     organizationId: string,
     userId: string,
     data: GatewayCreateData,
-  ): Promise<GatewayEntity>;
-  findById(id: string): Promise<GatewayEntity | null>;
-  list(organizationId: string): Promise<GatewayEntity[]>;
+  ): Promise<GatewayWithConnections>;
+  findById(id: string): Promise<GatewayWithConnections | null>;
+  list(organizationId: string): Promise<GatewayWithConnections[]>;
   listByConnectionId(
     organizationId: string,
     connectionId: string,
-  ): Promise<GatewayEntity[]>;
+  ): Promise<GatewayWithConnections[]>;
   update(
     id: string,
     userId: string,
     data: GatewayUpdateData,
-  ): Promise<GatewayEntity>;
+  ): Promise<GatewayWithConnections>;
   delete(id: string): Promise<void>;
 }

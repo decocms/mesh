@@ -18,6 +18,7 @@ import {
 } from "../use-collections";
 import {
   getWellKnownDecopilotAgent,
+  gatewayWithConnectionsToEntity,
   WellKnownGatewayId,
 } from "@/core/well-known-mcp";
 
@@ -61,7 +62,7 @@ export function useGateway(gatewayId: string | undefined) {
   // Handle Decopilot (well-known agent)
   const decopilotAgent = useMemo(() => {
     if (gatewayId === WellKnownGatewayId.DECOPILOT) {
-      return getWellKnownDecopilotAgent(org.id);
+      return gatewayWithConnectionsToEntity(getWellKnownDecopilotAgent(org.id));
     }
     return null;
   }, [gatewayId, org.id]);

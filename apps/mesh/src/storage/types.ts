@@ -585,6 +585,23 @@ export interface GatewayTable {
 }
 
 /**
+ * Gateway entity - Runtime representation
+ */
+export interface Gateway {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  toolSelectionMode: ToolSelectionMode;
+  icon: string | null;
+  status: "active" | "inactive";
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  createdBy: string;
+  updatedBy: string | null;
+}
+
+/**
  * Gateway connection table definition
  * Many-to-many relationship linking gateways to connections with selected tools/resources/prompts
  */
@@ -596,6 +613,31 @@ export interface GatewayConnectionTable {
   selected_resources: JsonArray<string[]> | null; // null = all resources, supports URI patterns with * and **
   selected_prompts: JsonArray<string[]> | null; // null = all prompts
   created_at: ColumnType<Date, Date | string, never>;
+}
+
+/**
+ * Gateway connection entity - Runtime representation
+ */
+export interface GatewayConnection {
+  id: string;
+  gatewayId: string;
+  connectionId: string;
+  selectedTools: string[] | null;
+  selectedResources: string[] | null; // URI patterns with * and ** wildcards
+  selectedPrompts: string[] | null;
+  createdAt: Date | string;
+}
+
+/**
+ * Gateway with connections - Full entity for API responses
+ */
+export interface GatewayWithConnections extends Gateway {
+  connections: Array<{
+    connectionId: string;
+    selectedTools: string[] | null;
+    selectedResources: string[] | null;
+    selectedPrompts: string[] | null;
+  }>;
 }
 
 /**

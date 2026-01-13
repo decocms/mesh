@@ -43,16 +43,40 @@ export const COLLECTION_GATEWAY_DELETE = defineTool({
     if (!existing) {
       throw new Error(`Gateway not found: ${input.id}`);
     }
-    if (existing.organization_id !== organization.id) {
+    if (existing.organizationId !== organization.id) {
       throw new Error(`Gateway not found: ${input.id}`);
     }
 
     // Delete the gateway (connections are deleted via CASCADE)
     await ctx.storage.gateways.delete(input.id);
 
-    // Return gateway entity directly (already in correct format)
+    // Transform to entity format
     return {
-      item: existing,
+      item: {
+        id: existing.id,
+        title: existing.title,
+        description: existing.description,
+        icon: existing.icon,
+        organization_id: existing.organizationId,
+        tool_selection_mode: existing.toolSelectionMode,
+        status: existing.status,
+        connections: existing.connections.map((conn) => ({
+          connection_id: conn.connectionId,
+          selected_tools: conn.selectedTools,
+          selected_resources: conn.selectedResources,
+          selected_prompts: conn.selectedPrompts,
+        })),
+        created_at:
+          existing.createdAt instanceof Date
+            ? existing.createdAt.toISOString()
+            : existing.createdAt,
+        updated_at:
+          existing.updatedAt instanceof Date
+            ? existing.updatedAt.toISOString()
+            : existing.updatedAt,
+        created_by: existing.createdBy,
+        updated_by: existing.updatedBy ?? undefined,
+      },
     };
   },
 });
