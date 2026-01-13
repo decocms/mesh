@@ -3,6 +3,7 @@
  *
  * Main list-view file browser for S3-compatible storage.
  * Features: breadcrumb navigation, folder navigation, file actions, upload.
+ * Path is persisted in the URL for refresh persistence.
  */
 
 import { useState, useRef } from "react";
@@ -32,6 +33,7 @@ import {
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
+import { objectStorageRouter } from "../lib/router";
 
 interface FileRowProps {
   item: {
@@ -151,8 +153,16 @@ function Breadcrumb({ prefix, onNavigate }: BreadcrumbProps) {
 }
 
 export default function FileBrowser() {
-  const [prefix, setPrefix] = useState("");
+  // Path is persisted in URL for refresh persistence
+  const { path: prefix = "" } = objectStorageRouter.useSearch({ from: "/" });
+  const navigate = objectStorageRouter.useNavigate();
+
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+
+  const setPrefix = (newPath: string) => {
+    setSelectedKeys(new Set()); // Clear selection when navigating folders
+    navigate({ to: "/", search: { path: newPath || undefined } });
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 

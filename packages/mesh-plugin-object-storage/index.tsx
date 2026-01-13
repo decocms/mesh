@@ -9,6 +9,7 @@ import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
 import type { Plugin, PluginSetupContext } from "@decocms/bindings/plugins";
 import { Folder } from "@untitledui/icons";
 import { lazy } from "react";
+import { objectStorageRouter } from "./lib/router";
 
 // Lazy load the header/empty state components that use UI dependencies
 const PluginHeader = lazy(() => import("./components/plugin-header"));
@@ -24,13 +25,7 @@ export const objectStoragePlugin: Plugin<typeof OBJECT_STORAGE_BINDING> = {
   renderHeader: (props) => <PluginHeader {...props} />,
   renderEmptyState: () => <PluginEmptyState />,
   setup: (context: PluginSetupContext) => {
-    const {
-      parentRoute,
-      routing,
-      registerRootSidebarItem,
-      registerPluginRoutes,
-    } = context;
-    const { createRoute, lazyRouteComponent } = routing;
+    const { registerRootSidebarItem, registerPluginRoutes } = context;
 
     // Register sidebar item
     registerRootSidebarItem({
@@ -38,13 +33,8 @@ export const objectStoragePlugin: Plugin<typeof OBJECT_STORAGE_BINDING> = {
       label: "Files",
     });
 
-    // Create plugin routes
-    const indexRoute = createRoute({
-      getParentRoute: () => parentRoute,
-      path: "/",
-      component: lazyRouteComponent(() => import("./components/file-browser")),
-    });
-
-    registerPluginRoutes([indexRoute]);
+    // Create and register plugin routes using the typed router
+    const routes = objectStorageRouter.createRoutes(context);
+    registerPluginRoutes(routes);
   },
 };
