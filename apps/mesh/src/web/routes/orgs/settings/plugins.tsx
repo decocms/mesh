@@ -20,31 +20,60 @@ export default function PluginsSettings() {
   const orgSettings = useOrganizationSettings(org.id);
   const { update } = useOrganizationSettingsActions(org.id);
 
-  // Track local state for optimistic updates
-  const [enabledPlugins, setEnabledPlugins] = useState<string[]>(
-    orgSettings?.enabled_plugins ?? [],
+  // Track only pending changes (pluginId -> intended state)
+  // This pattern avoids sync issues: we derive state from server + pending changes
+  const [pendingChanges, setPendingChanges] = useState<Record<string, boolean>>(
+    {},
   );
   const [isSaving, setIsSaving] = useState(false);
 
+  const serverPlugins = orgSettings?.enabled_plugins ?? [];
+
+  // Derive whether a plugin is enabled: pending changes override server state
+  const isPluginEnabled = (pluginId: string): boolean => {
+    const pending = pendingChanges[pluginId];
+    if (pending !== undefined) {
+      return pending;
+    }
+    return serverPlugins.includes(pluginId);
+  };
+
+  // Compute the full list of enabled plugins for saving
+  const getEnabledPluginsList = (): string[] => {
+    const result = new Set(serverPlugins);
+    for (const [pluginId, enabled] of Object.entries(pendingChanges)) {
+      if (enabled) {
+        result.add(pluginId);
+      } else {
+        result.delete(pluginId);
+      }
+    }
+    return Array.from(result);
+  };
+
   // Check if there are unsaved changes
-  const originalPlugins = orgSettings?.enabled_plugins ?? [];
-  const hasChanges =
-    enabledPlugins.length !== originalPlugins.length ||
-    enabledPlugins.some((id) => !originalPlugins.includes(id)) ||
-    originalPlugins.some((id) => !enabledPlugins.includes(id));
+  const hasChanges = Object.keys(pendingChanges).length > 0;
 
   const handleTogglePlugin = (pluginId: string, enabled: boolean) => {
-    if (enabled) {
-      setEnabledPlugins((prev) => [...prev, pluginId]);
+    const serverEnabled = serverPlugins.includes(pluginId);
+
+    if (enabled === serverEnabled) {
+      // User toggled back to server state, remove from pending changes
+      setPendingChanges((prev) => {
+        const { [pluginId]: _, ...rest } = prev;
+        return rest;
+      });
     } else {
-      setEnabledPlugins((prev) => prev.filter((id) => id !== pluginId));
+      // User changed from server state, track as pending change
+      setPendingChanges((prev) => ({ ...prev, [pluginId]: enabled }));
     }
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await update.mutateAsync({ enabled_plugins: enabledPlugins });
+      await update.mutateAsync({ enabled_plugins: getEnabledPluginsList() });
+      setPendingChanges({}); // Clear pending changes on success
       toast.success("Plugin settings saved");
     } catch {
       toast.error("Failed to save plugin settings");
@@ -54,7 +83,7 @@ export default function PluginsSettings() {
   };
 
   const handleCancel = () => {
-    setEnabledPlugins(orgSettings?.enabled_plugins ?? []);
+    setPendingChanges({});
   };
 
   // Get plugin metadata from sidebar items
@@ -99,7 +128,7 @@ export default function PluginsSettings() {
                   {sourcePlugins.map((plugin) => {
                     const meta = getPluginMeta(plugin.id);
                     const description = getPluginDescription(plugin.id);
-                    const isEnabled = enabledPlugins.includes(plugin.id);
+                    const isEnabled = isPluginEnabled(plugin.id);
 
                     return (
                       <Card
