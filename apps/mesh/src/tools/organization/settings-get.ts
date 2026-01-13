@@ -12,6 +12,7 @@ export const ORGANIZATION_SETTINGS_GET = defineTool({
   outputSchema: z.object({
     organizationId: z.string(),
     sidebar_items: z.array(SidebarItemSchema).nullable().optional(),
+    enabled_plugins: z.array(z.string()).nullable().optional(),
     createdAt: z.string().datetime().optional().describe("ISO 8601 timestamp"),
     updatedAt: z.string().datetime().optional().describe("ISO 8601 timestamp"),
   }),

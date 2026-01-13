@@ -19,6 +19,7 @@ const PluginEmptyState = lazy(() => import("./components/plugin-empty-state"));
  */
 export const objectStoragePlugin: Plugin<typeof OBJECT_STORAGE_BINDING> = {
   id: "object-storage",
+  description: "Browse and manage files in S3-compatible object storage",
   binding: OBJECT_STORAGE_BINDING,
   renderHeader: (props) => <PluginHeader {...props} />,
   renderEmptyState: () => <PluginEmptyState />,

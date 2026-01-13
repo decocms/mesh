@@ -10,11 +10,13 @@ export const ORGANIZATION_SETTINGS_UPDATE = defineTool({
   inputSchema: z.object({
     organizationId: z.string(),
     sidebar_items: z.array(SidebarItemSchema).optional(),
+    enabled_plugins: z.array(z.string()).optional(),
   }),
 
   outputSchema: z.object({
     organizationId: z.string(),
     sidebar_items: z.array(SidebarItemSchema).nullable().optional(),
+    enabled_plugins: z.array(z.string()).nullable().optional(),
     createdAt: z.string().datetime().describe("ISO 8601 timestamp"),
     updatedAt: z.string().datetime().describe("ISO 8601 timestamp"),
   }),
@@ -31,6 +33,7 @@ export const ORGANIZATION_SETTINGS_UPDATE = defineTool({
       input.organizationId,
       {
         sidebar_items: input.sidebar_items,
+        enabled_plugins: input.enabled_plugins,
       },
     );
 

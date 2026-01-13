@@ -13,13 +13,23 @@ import {
   Zap,
 } from "@untitledui/icons";
 import { pluginRootSidebarItems } from "../index.tsx";
+import { useOrganizationSettings } from "./collections/use-organization-settings";
 
 export function useProjectSidebarItems() {
-  const { locator } = useProjectContext();
+  const { locator, org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
   const { org } = Locator.parse(locator);
   const isOrgAdminProject = Locator.isOrgAdminProject(locator);
+
+  // Get organization settings to filter enabled plugins
+  const orgSettings = useOrganizationSettings(orgContext.id);
+  const enabledPlugins = orgSettings?.enabled_plugins ?? [];
+
+  // Filter plugins to only show enabled ones
+  const enabledPluginItems = pluginRootSidebarItems.filter((item) =>
+    enabledPlugins.includes(item.pluginId),
+  );
 
   const isOnHome =
     routerState.location.pathname === `/${org}` ||
@@ -45,7 +55,7 @@ export function useProjectSidebarItems() {
       icon: <Building02 />,
       onClick: () => navigate({ to: "/$org/store", params: { org } }),
     },
-    ...pluginRootSidebarItems.map((item) => ({
+    ...enabledPluginItems.map((item) => ({
       key: item.pluginId,
       label: item.label,
       icon: item.icon,

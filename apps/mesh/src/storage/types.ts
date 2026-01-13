@@ -127,6 +127,7 @@ export interface SidebarItem {
 export interface OrganizationSettingsTable {
   organizationId: string;
   sidebar_items: JsonArray<SidebarItem[]> | null;
+  enabled_plugins: JsonArray<string[]> | null;
   createdAt: ColumnType<Date, Date | string, never>;
   updatedAt: ColumnType<Date, Date | string, Date | string>;
 }
@@ -134,6 +135,7 @@ export interface OrganizationSettingsTable {
 export interface OrganizationSettings {
   organizationId: string;
   sidebar_items: SidebarItem[] | null;
+  enabled_plugins: string[] | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

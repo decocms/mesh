@@ -45,6 +45,10 @@ export interface PluginRenderHeaderProps {
 
 export interface Plugin<TBinding extends Binder> {
   id: string;
+  /**
+   * Short description of the plugin shown in the settings UI.
+   */
+  description?: string;
   binding: TBinding;
   setup: PluginSetup;
   /**
