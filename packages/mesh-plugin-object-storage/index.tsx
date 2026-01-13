@@ -10,8 +10,9 @@ import type { Plugin, PluginSetupContext } from "@decocms/bindings/plugins";
 import { Folder } from "@untitledui/icons";
 import { lazy } from "react";
 
-// Lazy load the layout component
-const ObjectStorageLayout = lazy(() => import("./layout"));
+// Lazy load the header/empty state components that use UI dependencies
+const PluginHeader = lazy(() => import("./components/plugin-header"));
+const PluginEmptyState = lazy(() => import("./components/plugin-empty-state"));
 
 /**
  * Object Storage Plugin Definition
@@ -19,7 +20,8 @@ const ObjectStorageLayout = lazy(() => import("./layout"));
 export const objectStoragePlugin: Plugin<typeof OBJECT_STORAGE_BINDING> = {
   id: "object-storage",
   binding: OBJECT_STORAGE_BINDING,
-  LayoutComponent: ObjectStorageLayout,
+  renderHeader: (props) => <PluginHeader {...props} />,
+  renderEmptyState: () => <PluginEmptyState />,
   setup: (context: PluginSetupContext) => {
     const {
       parentRoute,

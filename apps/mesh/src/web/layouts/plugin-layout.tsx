@@ -14,6 +14,7 @@ import {
   PluginContextPartial,
   PluginSession,
 } from "@decocms/bindings";
+import type { PluginRenderHeaderProps } from "@decocms/bindings/plugins";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -36,11 +37,7 @@ interface PluginLayoutProps {
    * Render the header with connection selector.
    * Receives the list of valid connections and current selection handlers.
    */
-  renderHeader: (props: {
-    connections: ConnectionEntity[];
-    selectedConnectionId: string;
-    onConnectionChange: (connectionId: string) => void;
-  }) => ReactNode;
+  renderHeader: (props: PluginRenderHeaderProps) => ReactNode;
 
   /**
    * Render the empty state when no valid connections are available.
@@ -172,7 +169,7 @@ export function PluginLayout({
     <PluginContextProvider value={pluginContext}>
       <div className="h-full flex flex-col overflow-hidden">
         {renderHeader({
-          connections: validConnections,
+          connections: validConnections.map(toPluginConnectionEntity),
           selectedConnectionId: effectiveConnection.id,
           onConnectionChange: setSelectedConnectionId,
         })}
