@@ -5,38 +5,15 @@
  * Supports graph view toggle in header.
  */
 
-import { ChatProvider, useChat } from "@/web/components/chat/chat-context";
-import { ChatInput } from "@/web/components/chat/chat-input";
-import { DecoChatSkeleton } from "@/web/components/chat/deco-chat-skeleton";
-import { GatewayInputWrapper } from "@/web/components/chat/gateway-input-wrapper";
-import { GatewayIceBreakers } from "@/web/components/chat/ice-breakers";
-import {
-  Chat,
-  GatewaySelector,
-  ModelSelector,
-  UsageStats,
-} from "@/web/components/chat/index";
-import { NoLlmBindingEmptyState } from "@/web/components/chat/no-llm-binding-empty-state";
-import { ThreadHistoryPopover } from "@/web/components/chat/thread-history-popover";
+import { Chat, useChat } from "@/web/components/chat/index";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { useConnections } from "@/web/hooks/collections/use-connection";
-import { useGateways } from "@/web/hooks/collections/use-gateway";
-import { useModelConnections } from "@/web/hooks/collections/use-llm";
-import { useThreads } from "@/web/hooks/use-chat-store";
-import { useContext } from "@/web/hooks/use-context";
-import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
-import { useModelState } from "@/web/hooks/use-model-state";
-import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
-import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import { GitBranch01, MessageChatSquare, Plus } from "@untitledui/icons";
 import { Suspense } from "react";
-import { toast } from "sonner";
 import {
   MeshVisualization,
   MeshVisualizationSkeleton,
@@ -112,18 +89,8 @@ function TypewriterTitle({
 
 function HomeContent() {
   const { org, locator } = useProjectContext();
-  const { data: session } = authClient.useSession();
-  const user = session?.user;
-  const navigate = useNavigate();
-  const {
-    inputValue,
-    setInputValue,
-    createThread,
-    activeThreadId,
-    setActiveThreadId,
-    hideThread,
-  } = useChat();
-  const { threads, refetch } = useThreads();
+  const { createThread, activeThread, hasModelsBinding, chat, user } =
+    useChat();
 
   // View mode state (chat vs graph)
   const [viewMode, setViewMode] = useLocalStorage<HomeViewMode>(
@@ -131,114 +98,14 @@ function HomeContent() {
     "chat",
   );
 
-  // Get gateways
-  const gateways = useGateways();
-
-  // Check for LLM binding connection
-  const allConnections = useConnections();
-  const modelsConnections = useModelConnections();
-
-  const hasModelsBinding = Boolean(modelsConnections.length > 0);
-
-  // Get stored model selection (contains both id and connectionId)
-  const [selectedModel, setModel] = useModelState(locator, modelsConnections);
-
-  const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
-    string | null
-  >(`${locator}:selected-gateway-id`, null);
-
-  // Find the selected gateway from the list
-  const selectedGateway = storedSelectedGatewayId
-    ? (gateways.find((g) => g.id === storedSelectedGatewayId) ?? null)
-    : null;
-
-  const selectedGatewayId = selectedGateway?.id ?? null;
-
-  // Show gateway selector when using default gateway (no badge)
-  const showGatewaySelector = !selectedGatewayId;
-
-  const handleModelChange = (model: { id: string; connectionId: string }) => {
-    setModel(model);
-  };
-
-  const handleGatewayChange = (gatewayId: string | null) => {
-    setSelectedGatewayId(gatewayId);
-  };
-
-  // Get the onToolCall handler for invalidating collection queries
-  const onToolCall = useInvalidateCollectionsOnToolCall();
-
-  // Get context for the AI assistant based on current state
-  const contextPrompt = useContext(selectedGatewayId);
-
-  // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
-  const chat = usePersistedChat({
-    threadId: activeThreadId,
-    gatewayId: selectedGatewayId ?? undefined,
-    systemPrompt: contextPrompt,
-    onToolCall,
-  });
-
-  // Get branching state from context
-  const { branchContext, clearBranch } = useChat();
-
-  const handleSendMessage = async (text: string) => {
-    if (!selectedModel) {
-      toast.error("No model configured");
-      return;
-    }
-
-    // Clear input
-    setInputValue("");
-
-    // Clear editing state before sending
-    clearBranch();
-
-    const metadata: Metadata = {
-      created_at: new Date().toISOString(),
-      thread_id: activeThreadId,
-      model: {
-        id: selectedModel.id,
-        connectionId: selectedModel.connectionId,
-        provider: selectedModel.provider ?? undefined,
-        limits: selectedModel.limits ?? undefined,
-      },
-      gateway: { id: selectedGatewayId },
-      user: {
-        avatar: user?.image ?? undefined,
-        name: user?.name ?? "you",
-      },
-    };
-
-    await chat.sendMessage(text, metadata);
-  };
-
   const userName = user?.name?.split(" ")[0] || "there";
   const greeting = getTimeBasedGreeting();
-
-  // Find the active thread
-  const activeThread = threads?.find((thread) => thread.id === activeThreadId);
-
-  const isStreaming =
-    chat.status === "submitted" || chat.status === "streaming";
 
   // Show empty state when no LLM binding is found
   if (!hasModelsBinding) {
     return (
       <div className="flex flex-col size-full bg-background items-center justify-center">
-        <NoLlmBindingEmptyState
-          orgSlug={org.slug}
-          orgId={org.id}
-          userId={user?.id || ""}
-          allConnections={allConnections ?? []}
-          onInstallMcpServer={() => {
-            navigate({
-              to: "/$org/mcps",
-              params: { org: org.slug },
-              search: { action: "create" },
-            });
-          }}
-        />
+        <Chat.NoLlmBindingEmptyState org={org} />
       </div>
     );
   }
@@ -275,14 +142,7 @@ function HomeContent() {
                 >
                   <Plus size={16} />
                 </Button>
-                <ThreadHistoryPopover
-                  threads={threads}
-                  activeThreadId={activeThreadId}
-                  onSelectThread={setActiveThreadId}
-                  onRemoveThread={hideThread}
-                  onOpen={() => refetch()}
-                  variant="outline"
-                />
+                <Chat.ThreadHistoryPopover variant="outline" />
               </>
             )}
             <ViewModeToggle
@@ -314,83 +174,10 @@ function HomeContent() {
         ) : !chat.isEmpty ? (
           <>
             <Chat.Main>
-              <Chat.Messages
-                messages={chat.messages}
-                status={chat.status}
-                minHeightOffset={280}
-              />
+              <Chat.Messages minHeightOffset={280} />
             </Chat.Main>
             <Chat.Footer>
-              <div className="flex flex-col gap-2">
-                <Chat.ErrorBanner
-                  error={chat.error}
-                  onFixInChat={() => {
-                    if (chat.error) {
-                      handleSendMessage(
-                        `I encountered this error: ${chat.error.message}. Can you help me fix it?`,
-                      );
-                    }
-                  }}
-                  onDismiss={chat.clearError}
-                />
-                <Chat.FinishReasonWarning
-                  finishReason={chat.finishReason}
-                  onContinue={() => {
-                    handleSendMessage("Please continue.");
-                  }}
-                  onDismiss={chat.clearFinishReason}
-                />
-                <Chat.BranchPreview
-                  branchContext={branchContext}
-                  clearBranchContext={clearBranch}
-                  onGoToOriginalMessage={() => {
-                    if (!branchContext) return;
-                    setActiveThreadId(branchContext.originalThreadId);
-                    clearBranch();
-                    setInputValue("");
-                  }}
-                  setInputValue={setInputValue}
-                />
-                <GatewayInputWrapper
-                  gateway={selectedGateway ?? undefined}
-                  onGatewayChange={handleGatewayChange}
-                  disabled={isStreaming}
-                >
-                  <Chat.Input
-                    value={inputValue}
-                    onChange={setInputValue}
-                    onSubmit={async () => {
-                      if (!inputValue.trim()) return;
-                      await handleSendMessage(inputValue.trim());
-                    }}
-                    onStop={chat.stop}
-                    disabled={!selectedModel}
-                    isStreaming={isStreaming}
-                    placeholder={
-                      !selectedModel
-                        ? "Select a model to start chatting"
-                        : "Ask anything or @ for context"
-                    }
-                  >
-                    {/* GatewaySelector only shown when default is selected (no badge) */}
-                    {showGatewaySelector && (
-                      <GatewaySelector
-                        selectedGatewayId={selectedGatewayId}
-                        onGatewayChange={handleGatewayChange}
-                        placeholder="Agent"
-                        disabled={isStreaming}
-                      />
-                    )}
-                    <ModelSelector
-                      selectedModel={selectedModel ?? undefined}
-                      onModelChange={handleModelChange}
-                      placeholder="Model"
-                      variant="borderless"
-                    />
-                    <UsageStats messages={chat.messages} />
-                  </Chat.Input>
-                </GatewayInputWrapper>
-              </div>
+              <Chat.Input />
             </Chat.Footer>
           </>
         ) : (
@@ -407,55 +194,10 @@ function HomeContent() {
               </div>
 
               {/* Chat Input */}
-              <GatewayInputWrapper
-                gateway={selectedGateway ?? undefined}
-                onGatewayChange={handleGatewayChange}
-                disabled={isStreaming}
-              >
-                <ChatInput
-                  value={inputValue}
-                  onChange={setInputValue}
-                  placeholder="Ask anything or @ for context"
-                  maxTextHeight="65px"
-                  onSubmit={async () => {
-                    if (inputValue.trim()) {
-                      await handleSendMessage(inputValue.trim());
-                    }
-                  }}
-                >
-                  {/* GatewaySelector only shown when default is selected (no badge) */}
-                  {showGatewaySelector && (
-                    <GatewaySelector
-                      selectedGatewayId={selectedGatewayId}
-                      onGatewayChange={handleGatewayChange}
-                      placeholder="Agent"
-                      disabled={isStreaming}
-                    />
-                  )}
-                  <ModelSelector
-                    selectedModel={selectedModel ?? undefined}
-                    onModelChange={handleModelChange}
-                    placeholder="Model"
-                    variant="borderless"
-                  />
-                </ChatInput>
-              </GatewayInputWrapper>
+              <Chat.Input />
 
               {/* Ice breakers for selected agent */}
-              <GatewayIceBreakers.Container className="w-full">
-                {selectedGatewayId && (
-                  <ErrorBoundary key={selectedGatewayId} fallback={null}>
-                    <Suspense fallback={<GatewayIceBreakers.Fallback />}>
-                      <GatewayIceBreakers
-                        gatewayId={selectedGatewayId}
-                        onSelect={(prompt) => {
-                          handleSendMessage(prompt.description ?? prompt.name);
-                        }}
-                      />
-                    </Suspense>
-                  </ErrorBoundary>
-                )}
-              </GatewayIceBreakers.Container>
+              <Chat.IceBreakers className="w-full" />
             </div>
           </div>
         )}
@@ -512,31 +254,21 @@ function HomeChatErrorFallback({
   );
 }
 
-/**
- * Wrapper component that handles errors in HomeContent
- * Uses a key to force remount when retrying
- */
-function HomeContentWithErrorBoundary() {
+export default function OrgHomePage() {
+  // Force remount on navigation to reset chat view
+  const routerState = useRouterState();
+
   return (
     <ErrorBoundary
       fallback={({ error, resetError }) => (
         <HomeChatErrorFallback error={error} onRetry={resetError} />
       )}
     >
-      <Suspense fallback={<DecoChatSkeleton />}>
-        <HomeContent />
+      <Suspense fallback={<Chat.Skeleton />}>
+        <Chat.Provider key={routerState.location.pathname}>
+          <HomeContent />
+        </Chat.Provider>
       </Suspense>
     </ErrorBoundary>
-  );
-}
-
-export default function OrgHomePage() {
-  // Force remount on navigation to reset chat view
-  const routerState = useRouterState();
-
-  return (
-    <ChatProvider key={routerState.location.pathname}>
-      <HomeContentWithErrorBoundary />
-    </ChatProvider>
   );
 }

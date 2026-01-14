@@ -1,4 +1,4 @@
-import { useGateways } from "@/web/components/chat/gateway-selector";
+import { useGateways } from "@/web/components/chat/select-gateway";
 import {
   Select,
   SelectContent,

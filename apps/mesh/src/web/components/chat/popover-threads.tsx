@@ -12,6 +12,8 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
 import { useState } from "react";
+import { useChat } from "./context";
+import { useThreads } from "../../hooks/use-chat-store";
 import type { Thread } from "@/web/types/chat-threads";
 
 type ThreadSection = {
@@ -101,20 +103,12 @@ function groupThreadsByDate(threads: Thread[]): ThreadSection[] {
 }
 
 export function ThreadHistoryPopover({
-  threads,
-  activeThreadId,
-  onSelectThread,
-  onRemoveThread,
-  onOpen,
   variant = "icon",
 }: {
-  threads: Thread[];
-  activeThreadId: string;
-  onSelectThread: (id: string) => void;
-  onRemoveThread: (id: string) => void;
-  onOpen?: () => void;
   variant?: "outline" | "icon";
 }) {
+  const { threads, refetch } = useThreads();
+  const { activeThreadId, setActiveThreadId, hideThread } = useChat();
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredThreads = searchQuery.trim()
@@ -129,7 +123,7 @@ export function ThreadHistoryPopover({
 
   const handleOpenChange = (open: boolean) => {
     if (open) {
-      onOpen?.();
+      refetch();
     } else {
       setSearchQuery("");
     }
@@ -207,7 +201,7 @@ export function ThreadHistoryPopover({
                           className={`flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer group ${
                             isActive ? "bg-accent/50" : ""
                           }`}
-                          onClick={() => onSelectThread(thread.id)}
+                          onClick={() => setActiveThreadId(thread.id)}
                         >
                           <div className="flex-1 min-w-0 flex items-center gap-2">
                             <span className="text-sm truncate">
@@ -225,7 +219,7 @@ export function ThreadHistoryPopover({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onRemoveThread(thread.id);
+                              hideThread(thread.id);
                             }}
                             className="opacity-0 cursor-pointer group/trash group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity"
                             title="Remove chat"

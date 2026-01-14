@@ -8,10 +8,10 @@ import {
   Lightbulb01,
   ChevronRight,
 } from "@untitledui/icons";
-import { MessageProps } from "./message-user.tsx";
+import { MessageProps } from "./user.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
-import { UsageStats } from "./usage-stats.tsx";
+import { UsageStats } from "../usage-stats.tsx";
 import { MemoizedMarkdown } from "@deco/ui/components/chat/chat-markdown.tsx";
 
 type ThinkingStage = "planning" | "thinking";

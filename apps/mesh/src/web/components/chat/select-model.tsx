@@ -340,7 +340,7 @@ function SelectedModelDisplay({
   }
 
   return (
-    <div className="flex items-center gap-2 min-w-0 max-w-full">
+    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
       {model.logo && (
         <img
           src={model.logo}
@@ -348,7 +348,7 @@ function SelectedModelDisplay({
           alt={model.title}
         />
       )}
-      <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 max-w-[200px] hidden sm:inline-block">
+      <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 hidden sm:inline-block">
         {model.title}
       </span>
     </div>
@@ -636,7 +636,7 @@ export function ModelSelector({
           variant={variant === "borderless" ? "ghost" : "outline"}
           size="sm"
           className={cn(
-            "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full justify-start",
+            "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 shrink justify-start overflow-hidden",
             variant === "borderless" && "md:border-none",
             className,
           )}
@@ -645,7 +645,6 @@ export function ModelSelector({
             model={currentModel}
             placeholder={placeholder}
           />
-          <ChevronSelectorVertical className="size-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
       <PopoverContent

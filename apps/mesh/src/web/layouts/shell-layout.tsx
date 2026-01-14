@@ -1,4 +1,3 @@
-import { ErrorBoundary } from "@/web/components/error-boundary";
 import { InboxButton } from "@/web/components/inbox-button";
 import { MeshSidebar } from "@/web/components/mesh-sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
@@ -15,9 +14,8 @@ import {
   ProjectContextProviderProps,
 } from "@/web/providers/project-context-provider";
 import { AppTopbar } from "@deco/ui/components/app-topbar.tsx";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { DecoChatSkeleton } from "@/web/components/chat/deco-chat-skeleton";
+import { MessageChatSquare } from "@untitledui/icons";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -35,10 +33,6 @@ import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition, useRef } from "react";
 import { KEYS } from "../lib/query-keys";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
-
-// Capybara avatar URL from decopilotAgent
-const CAPYBARA_AVATAR_URL =
-  "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
 
 function Topbar({
   showSidebarToggle = false,
@@ -87,15 +81,10 @@ function Topbar({
             size="sm"
             variant="default"
             onClick={toggleChat}
-            className="h-7"
+            className="h-7 gap-2"
           >
-            <Avatar
-              url={CAPYBARA_AVATAR_URL}
-              fallback="DC"
-              size="2xs"
-              className="rounded-sm"
-            />
-            deco chat
+            <MessageChatSquare size={16} />
+            Chat
           </Button>
         )}
         <MeshUserMenu />
@@ -167,11 +156,7 @@ function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
       <PersistentResizablePanel
         className={shouldShowChat ? "max-w-none" : "max-w-0"}
       >
-        <ErrorBoundary>
-          <Suspense fallback={<DecoChatSkeleton />}>
-            <ChatPanel />
-          </Suspense>
-        </ErrorBoundary>
+        <ChatPanel />
       </PersistentResizablePanel>
     </ResizablePanelGroup>
   );

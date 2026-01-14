@@ -23,7 +23,7 @@ export function UsageStats({ messages }: UsageStatsProps) {
         <Button
           variant="ghost"
           size="sm"
-          className="text-muted-foreground hover:text-foreground pl-1! h-6 gap-1 whitespace-nowrap"
+          className="text-muted-foreground hover:text-foreground pl-1! h-6 gap-1 whitespace-nowrap shrink-0"
         >
           <Coins01 size={12} />
           <span className="text-[10px] font-mono tabular-nums">

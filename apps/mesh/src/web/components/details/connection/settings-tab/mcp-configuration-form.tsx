@@ -18,7 +18,7 @@ import validator from "@rjsf/validator-ajv8";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { GatewaySelector } from "@/web/components/chat/gateway-selector";
+import { GatewaySelector } from "@/web/components/chat/select-gateway";
 import {
   ModelChangePayload,
   ModelSelector,

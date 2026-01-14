@@ -9,7 +9,7 @@ import type {
   BranchContext,
   ChatInteractionState,
   ChatInteractionAction,
-} from "./chat-context";
+} from "./context";
 
 // Import the reducer directly for testing
 // Since it's not exported, we'll test through the exported types

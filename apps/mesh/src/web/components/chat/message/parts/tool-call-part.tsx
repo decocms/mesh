@@ -3,7 +3,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { ToolOutputRenderer } from "./tool-outputs/tool-output-renderer.tsx";
 import { useState } from "react";
-import { MonacoCodeEditor } from "../../details/workflow/components/monaco-editor.tsx";
+import { MonacoCodeEditor } from "../../../details/workflow/components/monaco-editor.tsx";
 import { useDeveloperMode } from "@/web/hooks/use-developer-mode.ts";
 import {
   Collapsible,

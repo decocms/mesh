@@ -1,8 +1,7 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
-import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { AlertCircle, AlertTriangle, CornerUpLeft, X } from "@untitledui/icons";
+import { X } from "@untitledui/icons";
 import type { UIMessage } from "ai";
 import type {
   PropsWithChildren,
@@ -11,21 +10,21 @@ import type {
   RefObject,
 } from "react";
 import { Children, isValidElement, useRef } from "react";
-import { ChatInput } from "./chat-input";
-import type { BranchContext } from "./chat-context";
-import { ChatProvider } from "./chat-context";
-import { MessageAssistant } from "./message-assistant.tsx";
-import { MessageFooter, MessageList } from "./message-list.tsx";
-import { MessageUser } from "./message-user.tsx";
+import { ChatInput } from "./input";
+import { ChatProvider, useChat } from "./context";
+import { GatewayIceBreakers } from "./ice-breakers";
+import { MessageAssistant } from "./message/assistant.tsx";
+import { MessageFooter, MessageList } from "./message/list.tsx";
+import { MessageUser } from "./message/user.tsx";
+import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
+import { ThreadHistoryPopover } from "./popover-threads";
+import { DecoChatSkeleton } from "./skeleton";
 
-export { GatewaySelector, useGateways } from "./gateway-selector";
-export type { GatewayInfo } from "./gateway-selector";
-export type { GatewayInputWrapperProps } from "./gateway-input-wrapper";
-export { ModelSelector, useModels } from "./model-selector.tsx";
-export type {
-  ModelChangePayload,
-  SelectedModelState,
-} from "./model-selector.tsx";
+export { useChat } from "./context";
+export { GatewaySelector, useGateways } from "./select-gateway";
+export type { GatewayInfo } from "./select-gateway";
+export { ModelSelector, useModels } from "./select-model";
+export type { ModelChangePayload, SelectedModelState } from "./select-model";
 export { UsageStats } from "./usage-stats";
 
 export type ChatMessage = UIMessage<Metadata>;
@@ -126,15 +125,9 @@ function ChatEmptyState({ children }: PropsWithChildren) {
   );
 }
 
-function ChatMessages({
-  messages,
-  status,
-  minHeightOffset = 240,
-}: {
-  messages: ChatMessage[];
-  status?: ChatStatus;
-  minHeightOffset?: number;
-}) {
+function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
+  const { chat } = useChat();
+  const { messages, status } = chat;
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useChatAutoScroll({ messageCount: messages.length, sentinelRef });
@@ -182,7 +175,7 @@ function ChatFooter({
 /**
  * Highlight component - reusable banner for errors, warnings, and info messages.
  */
-function ChatHighlight({
+export function ChatHighlight({
   title,
   description,
   icon,
@@ -260,129 +253,6 @@ function ChatHighlight({
   );
 }
 
-/**
- * Branch preview banner - shows when editing a message from a branch.
- */
-function ChatBranchPreview({
-  branchContext,
-  clearBranchContext,
-  onGoToOriginalMessage,
-  setInputValue,
-}: {
-  branchContext: BranchContext | null;
-  clearBranchContext: () => void;
-  onGoToOriginalMessage: () => void;
-  setInputValue: (value: string) => void;
-}) {
-  if (!branchContext) return null;
-
-  return (
-    <ChatHighlight
-      variant="default"
-      title="Editing message (click to view original)"
-      description={branchContext.originalMessageText}
-      icon={<CornerUpLeft size={14} />}
-      onDismiss={() => {
-        clearBranchContext();
-        setInputValue("");
-      }}
-    >
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={onGoToOriginalMessage}
-        className="h-7 text-xs"
-      >
-        View original
-      </Button>
-    </ChatHighlight>
-  );
-}
-
-/**
- * Error banner - shows when a chat error occurs.
- */
-function ChatErrorBanner({
-  error,
-  onFixInChat,
-  onDismiss,
-}: {
-  error: Error | undefined;
-  onFixInChat: () => void;
-  onDismiss: () => void;
-}) {
-  if (!error) return null;
-
-  return (
-    <ChatHighlight
-      variant="danger"
-      title="Error occurred"
-      description={error.message}
-      icon={<AlertCircle size={16} />}
-      onDismiss={onDismiss}
-    >
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={onFixInChat}
-        className="h-7 text-xs"
-      >
-        Fix in chat
-      </Button>
-      <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-        Report
-      </Button>
-    </ChatHighlight>
-  );
-}
-
-/**
- * Finish reason warning - shows when completion stops for non-"stop" reasons.
- */
-function ChatFinishReasonWarning({
-  finishReason,
-  onContinue,
-  onDismiss,
-}: {
-  finishReason: string | null;
-  onContinue: () => void;
-  onDismiss: () => void;
-}) {
-  if (!finishReason || finishReason === "stop") return null;
-
-  const getMessage = (reason: string): string => {
-    switch (reason) {
-      case "length":
-        return "Response reached the model's output limit. Different models have different limits. Try switching models or asking it to continue.";
-      case "content-filter":
-        return "Response was filtered due to content policy.";
-      case "tool-calls":
-        return "Response paused after tool execution to prevent infinite loops and save costs. Click continue to keep working.";
-      default:
-        return `Response stopped unexpectedly: ${reason}`;
-    }
-  };
-
-  return (
-    <ChatHighlight
-      variant="warning"
-      title="Response incomplete"
-      description={getMessage(finishReason)}
-      icon={<AlertTriangle size={16} />}
-      onDismiss={onDismiss}
-    >
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={onContinue}
-        className="h-7 text-xs"
-      >
-        Continue
-      </Button>
-    </ChatHighlight>
-  );
-}
-
 export const Chat = Object.assign(ChatRoot, {
   Header: Object.assign(ChatHeader, {
     Left: ChatHeaderLeft,
@@ -393,8 +263,9 @@ export const Chat = Object.assign(ChatRoot, {
   EmptyState: ChatEmptyState,
   Footer: ChatFooter,
   Input: ChatInput,
-  BranchPreview: ChatBranchPreview,
-  ErrorBanner: ChatErrorBanner,
-  FinishReasonWarning: ChatFinishReasonWarning,
   Provider: ChatProvider,
+  Skeleton: DecoChatSkeleton,
+  IceBreakers: GatewayIceBreakers,
+  NoLlmBindingEmptyState: NoLlmBindingEmptyState,
+  ThreadHistoryPopover: ThreadHistoryPopover,
 });

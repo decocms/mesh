@@ -15,35 +15,17 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { PropsWithChildren } from "react";
+import { Suspense } from "react";
+import { ErrorBoundary } from "../error-boundary";
+import { useChat } from "./context";
 
-export interface IceBreakersProps {
+interface IceBreakersProps {
   prompts: GatewayPrompt[];
   onSelect: (prompt: GatewayPrompt) => void;
   className?: string;
 }
 
 const MAX_VISIBLE = 3;
-
-/**
- * Container component that maintains min-height to prevent layout shift
- */
-function IceBreakersContainer({
-  children,
-  className,
-}: PropsWithChildren<{ className?: string }>) {
-  return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center justify-center gap-2",
-        className,
-      )}
-      style={{ minHeight: "32px" }}
-    >
-      {children}
-    </div>
-  );
-}
 
 function PromptPill({
   prompt,
@@ -135,8 +117,6 @@ function IceBreakers({ prompts, onSelect, className }: IceBreakersProps) {
 }
 
 interface GatewayIceBreakersProps {
-  gatewayId: string;
-  onSelect: (prompt: GatewayPrompt) => void;
   className?: string;
 }
 
@@ -144,28 +124,47 @@ interface GatewayIceBreakersProps {
  * Fallback component for Suspense that maintains min-height to prevent layout shift
  * Shows skeleton pills matching the actual IceBreakers appearance
  */
-function GatewayIceBreakersFallback({ className }: { className?: string }) {
+function IceBreakersFallback() {
+  return (
+    <>
+      <Skeleton className="h-6 w-20 rounded-full border border-border" />
+      <Skeleton className="h-6 w-24 rounded-full border border-border" />
+    </>
+  );
+}
+
+/**
+ * Ice breakers component that uses suspense to fetch gateway prompts
+ * Uses the chat context for gateway selection and message sending.
+ * Includes ErrorBoundary, Suspense, and container internally.
+ */
+export function GatewayIceBreakers({ className }: GatewayIceBreakersProps) {
+  const { selectedGatewayId } = useChat();
+
   return (
     <div
       className={cn(
         "flex flex-wrap items-center justify-center gap-2",
         className,
       )}
+      style={{ minHeight: "32px" }}
     >
-      <Skeleton className="h-6 w-20 rounded-full border border-border" />
-      <Skeleton className="h-6 w-24 rounded-full border border-border" />
+      {selectedGatewayId && (
+        <ErrorBoundary key={selectedGatewayId} fallback={null}>
+          <Suspense fallback={<IceBreakersFallback />}>
+            <GatewayIceBreakersContent gatewayId={selectedGatewayId} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
     </div>
   );
 }
 
 /**
- * Ice breakers component that uses suspense to fetch gateway prompts
+ * Inner component that fetches and displays prompts for a specific gateway
  */
-export function GatewayIceBreakers({
-  gatewayId,
-  onSelect,
-  className,
-}: GatewayIceBreakersProps) {
+function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
+  const { handleSendMessage } = useChat();
   const { data: prompts } = useGatewayPrompts(gatewayId);
 
   if (prompts.length === 0) {
@@ -173,9 +172,11 @@ export function GatewayIceBreakers({
   }
 
   return (
-    <IceBreakers prompts={prompts} onSelect={onSelect} className={className} />
+    <IceBreakers
+      prompts={prompts}
+      onSelect={(prompt) =>
+        handleSendMessage(prompt.description ?? prompt.name)
+      }
+    />
   );
 }
-
-GatewayIceBreakers.Fallback = GatewayIceBreakersFallback;
-GatewayIceBreakers.Container = IceBreakersContainer;

@@ -19,10 +19,10 @@ import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { Edit02 } from "@untitledui/icons";
 import { type UIMessage } from "ai";
 import { useContext, useState } from "react";
-import { MessageListContext } from "./message-list.tsx";
+import { MessageListContext } from "./list.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
-import { useChat } from "./chat-context";
-import { useBranchMessage } from "../../hooks/use-branch-message";
+import { useChat } from "../context";
+import { useBranchMessage } from "../../../hooks/use-branch-message";
 
 export interface MessageProps<T extends Metadata> {
   message: UIMessage<T>;
