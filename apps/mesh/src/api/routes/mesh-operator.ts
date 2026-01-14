@@ -3,8 +3,8 @@ import { LanguageModelBinding } from "@decocms/bindings/llm";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
-  CallToolResultSchema,
   type CallToolResult,
+  CallToolResultSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   convertToModelMessages,
@@ -24,6 +24,7 @@ import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import { createLLMProvider } from "../llm-provider";
 import { fixProtocol } from "./oauth-proxy";
+import { Thread, ThreadMessage } from "@/storage/types";
 
 // Default values
 const DEFAULT_MAX_TOKENS = 32768;
@@ -69,7 +70,8 @@ Follow this state machine when handling user requests:
 };
 
 const StreamRequestSchema = z.object({
-  messages: z.any(), // Complex type from frontend, keeping as any
+  additionalContext: z.record(z.string(), z.unknown()).optional(),
+  message: z.any(), // Complex type from frontend, keeping as any
   model: z
     .object({
       id: z.string(),
@@ -234,7 +236,7 @@ function createGatewayTransport(
   });
 }
 
-app.post("/:org/models/stream", async (c) => {
+app.post("/:org/mesh-operator/stream", async (c) => {
   const ctx = c.get("meshContext");
   const orgSlug = c.req.param("org");
 
@@ -261,11 +263,27 @@ app.post("/:org/models/stream", async (c) => {
     const {
       model: modelConfig,
       gateway: gatewayConfig,
-      messages,
+      additionalContext,
+      message,
       temperature,
       maxWindowSize = DEFAULT_MEMORY,
       thread_id: threadId,
     } = payload;
+    const userId = ctx.auth.user?.id;
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+    let thread: Thread | null = null;
+    let threadMessages: ThreadMessage[] = [];
+    if (threadId) {
+      thread = await ctx.storage.threads.get(threadId);
+      if (thread) {
+        threadMessages = await ctx.storage.threads.listMessages(threadId);
+      }
+    }
+    const threads = await ctx.storage.threads.listByUserId(userId);
+    console.log("threads", threads);
+    console.log("threadMessages", threadMessages);
 
     // Use limits from model config, fallback to default
     const maxOutputTokens =
@@ -281,7 +299,9 @@ app.post("/:org/models/stream", async (c) => {
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
     const [modelMessages, connection] = await Promise.all([
-      convertToModelMessages(messages, { ignoreIncompleteToolCalls: true }),
+      convertToModelMessages([...threadMessages, ...message], {
+        ignoreIncompleteToolCalls: true,
+      }),
       getConnectionById(ctx, organization.id, modelConfig.connectionId),
       client.connect(transport),
     ]);
@@ -299,6 +319,12 @@ app.post("/:org/models/stream", async (c) => {
     const systemMessages = [
       DECOPILOT_SYSTEM_MESSAGE,
       ...modelMessages.filter((m) => m.role === "system"),
+      {
+        role: "system",
+        content: `
+        Additional context: ${JSON.stringify(additionalContext)}
+        `,
+      } as SystemModelMessage,
     ];
 
     // Filter out system messages (they go to system param, not messages array)
@@ -312,6 +338,8 @@ app.post("/:org/models/stream", async (c) => {
       toolCalls: "none",
     }).slice(-maxWindowSize);
 
+    console.log("prunedMessages", prunedMessages);
+
     // Build properties for monitoring correlation
     const monitoringProperties = threadId ? { thread_id: threadId } : undefined;
 
@@ -324,13 +352,92 @@ app.post("/:org/models/stream", async (c) => {
     const provider = createLLMProvider(llmBinding).languageModel(
       modelConfig.id,
     );
+    const toolset: ToolSet = {
+      ...tools,
+      listThreads: tool<
+        {
+          limit: number;
+        },
+        Thread[]
+      >({
+        title: "List Threads",
+        description: "List all threads",
+        inputSchema: jsonSchema(
+          z.toJSONSchema(
+            z.object({
+              limit: z.number().optional(),
+            }),
+          ) as JSONSchema7,
+        ),
+        outputSchema: jsonSchema(
+          z.toJSONSchema(
+            z.array(
+              z.object({
+                id: z.string(),
+                title: z.string(),
+                description: z.string().optional(),
+                createdAt: z.string(),
+                updatedAt: z.string(),
+              }),
+            ),
+          ) as JSONSchema7,
+        ),
+
+        execute: async ({ limit }) => {
+          const { threads } = await ctx.storage.threads.list(organization.id, {
+            limit,
+          });
+          return threads;
+        },
+      }),
+      listMessages: tool<
+        {
+          threadId: string;
+        },
+        ThreadMessage[]
+      >({
+        title: "List Messages",
+        description: "List all messages for a thread",
+        inputSchema: jsonSchema(
+          z.toJSONSchema(
+            z.object({
+              threadId: z.string(),
+            }),
+          ) as JSONSchema7,
+        ),
+        outputSchema: jsonSchema(
+          z.toJSONSchema(
+            z.array(
+              z.object({
+                id: z.string(),
+                threadId: z.string(),
+                role: z.string(),
+                parts: z.array(
+                  z.object({
+                    type: z.string(),
+                    text: z.string().optional(),
+                    reasoning: z.string().optional(),
+                  }),
+                ),
+                createdAt: z.string(),
+                updatedAt: z.string(),
+              }),
+            ),
+          ) as JSONSchema7,
+        ),
+        execute: async ({ threadId }) => {
+          return await ctx.storage.threads.listMessages(threadId);
+        },
+      }),
+    };
 
     // Use streamText from AI SDK with pruned messages and parameters
     const result = streamText({
       model: provider,
       system: systemMessages,
       messages: prunedMessages,
-      tools,
+
+      tools: toolset,
       temperature,
       maxOutputTokens: maxOutputTokens,
       abortSignal: c.req.raw.signal,
@@ -339,7 +446,7 @@ app.post("/:org/models/stream", async (c) => {
         console.error("[models:stream] Error", error);
         await client.close().catch(console.error);
       },
-      onFinish: async () => {
+      onFinish: async ({}) => {
         await client.close().catch(console.error);
       },
     });
@@ -379,6 +486,35 @@ app.post("/:org/models/stream", async (c) => {
         }
         return {};
       },
+      onFinish: async ({ messages }) => {
+        console.log("finished messages", messages);
+        console.log("initial message", message);
+        if (!thread) {
+          const newThread = await ctx.storage.threads.create({
+            id: threadId, // Use the ID from the frontend payload
+            organizationId: organization.id,
+            createdBy: userId,
+            title: "New Thread",
+            description: "New Thread",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          thread = newThread;
+
+          if (!thread) throw new Error("Failed to create thread");
+        }
+        // Create messages sequentially to ensure correct timestamp ordering.
+        // Using Promise.all would create messages in parallel with the same
+        // timestamp, causing ORDER BY created_at to return them in undefined order.
+        const allMessages = [...message, ...messages];
+        for (const m of allMessages) {
+          await ctx.storage.threads.createMessage({
+            threadId: thread!.id,
+            role: m.role,
+            parts: m.parts as ThreadMessage["parts"],
+          });
+        }
+      },
     });
   } catch (error) {
     const err = error as Error;
@@ -406,5 +542,3 @@ app.post("/:org/models/stream", async (c) => {
     return c.json({ error: err.message }, 500);
   }
 });
-
-export default app;

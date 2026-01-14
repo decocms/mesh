@@ -22,6 +22,7 @@ export type ToolCategory =
   | "Organizations"
   | "Connections"
   | "Gateways"
+  | "Threads"
   | "Monitoring"
   | "Users"
   | "API Keys"
@@ -81,6 +82,13 @@ const ALL_TOOL_NAMES = [
   "CODE_EXECUTION_SEARCH_TOOLS",
   "CODE_EXECUTION_DESCRIBE_TOOLS",
   "CODE_EXECUTION_RUN_CODE",
+  // Thread tools
+  "COLLECTION_THREADS_CREATE",
+  "COLLECTION_THREADS_LIST",
+  "COLLECTION_THREADS_GET",
+  "COLLECTION_THREADS_UPDATE",
+  "COLLECTION_THREADS_DELETE",
+  "COLLECTION_THREAD_MESSAGES_LIST",
 ] as const;
 
 /**
@@ -336,6 +344,38 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Code Execution",
     dangerous: true,
   },
+  // Thread tools
+  {
+    name: "COLLECTION_THREADS_CREATE",
+    description: "Create threads",
+    category: "Threads",
+  },
+  {
+    name: "COLLECTION_THREADS_LIST",
+    description: "List threads",
+    category: "Threads",
+  },
+  {
+    name: "COLLECTION_THREADS_GET",
+    description: "View thread details",
+    category: "Threads",
+  },
+  {
+    name: "COLLECTION_THREADS_UPDATE",
+    description: "Update threads",
+    category: "Threads",
+  },
+  {
+    name: "COLLECTION_THREADS_DELETE",
+    description: "Delete threads",
+    category: "Threads",
+    dangerous: true,
+  },
+  {
+    name: "COLLECTION_THREAD_MESSAGES_LIST",
+    description: "List thread messages",
+    category: "Threads",
+  },
 ];
 
 /**
@@ -383,6 +423,12 @@ const TOOL_LABELS: Record<ToolName, string> = {
   CODE_EXECUTION_SEARCH_TOOLS: "Search tools",
   CODE_EXECUTION_DESCRIBE_TOOLS: "Describe tools",
   CODE_EXECUTION_RUN_CODE: "Run code",
+  COLLECTION_THREADS_CREATE: "Create threads",
+  COLLECTION_THREADS_LIST: "List threads",
+  COLLECTION_THREADS_GET: "View thread details",
+  COLLECTION_THREADS_UPDATE: "Update threads",
+  COLLECTION_THREADS_DELETE: "Delete threads",
+  COLLECTION_THREAD_MESSAGES_LIST: "List thread messages",
 };
 
 // ============================================================================
@@ -397,6 +443,7 @@ export function getToolsByCategory() {
     Organizations: [],
     Connections: [],
     Gateways: [],
+    Threads: [],
     Monitoring: [],
     Users: [],
     "API Keys": [],

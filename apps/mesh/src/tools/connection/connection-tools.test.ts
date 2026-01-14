@@ -77,6 +77,7 @@ describe("Connection Tools", () => {
           }),
         } as never,
         monitoring: null as never,
+        threads: null as never,
         gateways: null as never,
         users: null as never,
       },

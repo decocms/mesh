@@ -13,6 +13,7 @@
 
 import type { ColumnType } from "kysely";
 import type { OAuthConfig, ToolDefinition } from "../tools/connection/schema";
+import type { UIMessagePart } from "ai";
 
 // ============================================================================
 // Type Utilities
@@ -601,6 +602,61 @@ export interface GatewayConnectionTable {
 }
 
 /**
+ * Thread table definition
+ * Threads are organization-scoped and store messages
+ */
+export interface ThreadTable {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string | null;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+  created_by: string;
+  updated_by: string | null;
+}
+
+export interface Thread {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  createdBy: string;
+  updatedBy: string | null;
+}
+
+export interface ThreadMessageTable {
+  id: string;
+  thread_id: string;
+  metadata?: string;
+  parts: JsonArray<Record<string, unknown>>;
+  role: "user" | "assistant";
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+export interface ThreadMessage {
+  id: string;
+  threadId: string;
+  metadata?: Record<string, unknown>;
+  parts: UIMessagePart<
+    {
+      type: "text" | "reasoning" | "tool-call" | "tool-result";
+      text?: string;
+      reasoning?: string;
+      toolName?: string;
+      toolCallId?: string;
+      providerExecuted?: boolean;
+    },
+    {}
+  >[];
+  role: "user" | "assistant";
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+/**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
  *
@@ -635,4 +691,7 @@ export interface Database {
   // Gateway tables
   gateways: GatewayTable;
   gateway_connections: GatewayConnectionTable;
+
+  threads: ThreadTable;
+  thread_messages: ThreadMessageTable;
 }
