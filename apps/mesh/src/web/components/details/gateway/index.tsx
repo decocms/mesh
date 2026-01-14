@@ -1,6 +1,6 @@
 import {
-  GatewayEntitySchema,
   type GatewayEntity,
+  GatewayEntitySchema,
 } from "@/tools/gateway/schema";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -16,7 +16,6 @@ import {
 } from "@/web/hooks/collections/use-gateway";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
-import { useGatewaySystemPrompt } from "@/web/hooks/use-gateway-system-prompt";
 import { slugify } from "@/web/utils/slugify";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -48,7 +47,6 @@ import {
   SelectValue,
 } from "@deco/ui/components/select.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
-import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   Tooltip,
   TooltipContent,
@@ -276,7 +274,9 @@ function InstallCursorButton({
     const base64Config = utf8ToBase64(
       JSON.stringify(connectionConfig, null, 2),
     );
-    const deeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(slugifiedServerName)}&config=${encodeURIComponent(base64Config)}`;
+    const deeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(
+      slugifiedServerName,
+    )}&config=${encodeURIComponent(base64Config)}`;
 
     window.open(deeplink, "_blank");
     toast.success("Opening Cursor...");
@@ -322,7 +322,10 @@ function InstallClaudeButton({
       },
     };
     const configJson = JSON.stringify(connectionConfig, null, 2);
-    const command = `claude mcp add "${slugifiedServerName}" --config '${configJson.replace(/'/g, "'\\''")}'`;
+    const command = `claude mcp add "${slugifiedServerName}" --config '${configJson.replace(
+      /'/g,
+      "'\\''",
+    )}'`;
 
     await navigator.clipboard.writeText(command);
     setCopied(true);
@@ -552,14 +555,11 @@ function GatewayShareModal({
 function GatewaySettingsTab({
   form,
   icon,
-  gatewayId,
 }: {
   form: ReturnType<typeof useForm<GatewayFormData>>;
   icon?: string | null;
   gatewayId: string;
 }) {
-  const [systemPrompt, setSystemPrompt] = useGatewaySystemPrompt(gatewayId);
-
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Form {...form}>
@@ -702,24 +702,6 @@ function GatewaySettingsTab({
                   <FormMessage />
                 </FormItem>
               )}
-            />
-          </div>
-
-          {/* System Prompt section */}
-          <div className="flex flex-col gap-3 p-5">
-            <div>
-              <h4 className="text-sm font-medium text-foreground mb-1">
-                System Prompt
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Stored locally for now
-              </p>
-            </div>
-            <Textarea
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="Enter system prompt instructions..."
-              className="min-h-[240px] resize-none text-sm leading-relaxed"
             />
           </div>
         </div>

@@ -21,6 +21,7 @@ export interface Metadata {
   reasoning_start_at?: string | Date;
   reasoning_end_at?: string | Date;
   model?: ChatModelConfig;
+  additionalContext?: Record<string, unknown>;
   gateway?: ChatGatewayConfig;
   user?: ChatUserConfig;
   created_at?: string | Date;
