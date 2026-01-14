@@ -189,13 +189,12 @@ export function usePersistedChat(
       return;
     }
 
-    // Update existing thread (only update timestamp, never update title)
     threadActions.update.mutate({
       id: threadId,
       updates: {
         title: existingThread.title || msgTitle,
+        gatewayId: existingThread.gatewayId || gatewayId,
         updated_at: new Date().toISOString(),
-        gatewayId,
       },
     });
   };
