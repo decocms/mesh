@@ -70,53 +70,31 @@ async function validateConfiguration(
     }
   }
 
-  // Get all referenced connection IDs (may include gateways with gw_ prefix)
-  const referencedIds = getReferencedConnectionIds(state, scopes);
+  // Get all referenced connection IDs
+  const referencedConnections = getReferencedConnectionIds(state, scopes);
 
-  // Validate all referenced entities (connections or gateways)
-  for (const refId of referencedIds) {
-    if (refId === WellKnownMCPId.SELF) {
+  // Validate all referenced connections
+  for (const refConnectionId of referencedConnections) {
+    if (refConnectionId === WellKnownMCPId.SELF) {
       continue;
     }
+    // Verify connection exists and belongs to same organization
+    // Use consistent error message to prevent cross-org information disclosure
+    const refConnection =
+      await ctx.storage.connections.findById(refConnectionId);
+    if (!refConnection || refConnection.organization_id !== organizationId) {
+      throw new Error(`Referenced connection not found: ${refConnectionId}`);
+    }
 
-    // Check if this is a gateway reference (gw_ prefix) or connection (conn_ prefix)
-    const isGateway = refId.startsWith("gw_");
-
-    if (isGateway) {
-      // Verify gateway exists and belongs to same organization
-      const refGateway = await ctx.storage.gateways.findById(refId);
-      if (!refGateway || refGateway.organizationId !== organizationId) {
-        throw new Error(`Referenced gateway not found: ${refId}`);
-      }
-
-      // Verify user has access to the referenced gateway
-      try {
-        await ctx.access.check(refId);
-      } catch (error) {
-        throw new Error(
-          `Access denied to referenced gateway: ${refId}. ${
-            (error as Error).message
-          }`,
-        );
-      }
-    } else {
-      // Verify connection exists and belongs to same organization
-      // Use consistent error message to prevent cross-org information disclosure
-      const refConnection = await ctx.storage.connections.findById(refId);
-      if (!refConnection || refConnection.organization_id !== organizationId) {
-        throw new Error(`Referenced connection not found: ${refId}`);
-      }
-
-      // Verify user has access to the referenced connection
-      try {
-        await ctx.access.check(refId);
-      } catch (error) {
-        throw new Error(
-          `Access denied to referenced connection: ${refId}. ${
-            (error as Error).message
-          }`,
-        );
-      }
+    // Verify user has access to the referenced connection
+    try {
+      await ctx.access.check(refConnectionId);
+    } catch (error) {
+      throw new Error(
+        `Access denied to referenced connection: ${refConnectionId}. ${
+          (error as Error).message
+        }`,
+      );
     }
   }
 }
