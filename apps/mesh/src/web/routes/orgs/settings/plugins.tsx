@@ -5,18 +5,26 @@ import {
   useOrganizationSettingsActions,
 } from "@/web/hooks/collections/use-organization-settings";
 import { useProjectContext } from "@/web/providers/project-context-provider";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import { ArrowLeft } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
 import { sourcePlugins } from "../../../plugins";
 import { pluginRootSidebarItems } from "../../../index";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 
 export default function PluginsSettings() {
   const { org } = useProjectContext();
+  const navigate = useNavigate();
   const orgSettings = useOrganizationSettings(org.id);
   const { update } = useOrganizationSettingsActions(org.id);
 
@@ -73,7 +81,7 @@ export default function PluginsSettings() {
     setIsSaving(true);
     try {
       await update.mutateAsync({ enabled_plugins: getEnabledPluginsList() });
-      setPendingChanges({}); // Clear pending changes on success
+      setPendingChanges({});
       toast.success("Plugin settings saved");
     } catch {
       toast.error("Failed to save plugin settings");
@@ -99,54 +107,72 @@ export default function PluginsSettings() {
 
   return (
     <CollectionPage>
-      <CollectionHeader title="Plugins" />
+      <CollectionHeader
+        title={
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/$org/settings" params={{ org: org.slug }}>
+                    Settings
+                  </Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Plugins</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        }
+        leftElement={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground"
+            onClick={() =>
+              navigate({ to: "/$org/settings", params: { org: org.slug } })
+            }
+          >
+            <ArrowLeft className="size-4" />
+          </Button>
+        }
+      />
 
       <div className="flex-1 overflow-auto">
         <div className="flex h-full">
           <div className="flex-1 overflow-auto">
             <div className="p-5 max-w-2xl">
               <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                  <Link
-                    to="/$org/settings"
-                    params={{ org: org.slug }}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <ArrowLeft className="h-5 w-5" />
-                  </Link>
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">
-                      Plugins
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Enable or disable plugins for your organization.
-                    </p>
-                  </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Enable or disable plugins for your organization.
+                  </p>
                 </div>
 
-                <div className="space-y-3">
+                <div className="divide-y divide-border border-y border-border">
                   {sourcePlugins.map((plugin) => {
                     const meta = getPluginMeta(plugin.id);
                     const description = getPluginDescription(plugin.id);
                     const isEnabled = isPluginEnabled(plugin.id);
 
                     return (
-                      <Card
+                      <div
                         key={plugin.id}
-                        className="p-4 flex items-center justify-between gap-4"
+                        className="flex items-center justify-between gap-4 py-3"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           {meta?.icon && (
-                            <div className="flex-shrink-0 text-muted-foreground">
+                            <div className="flex-shrink-0 text-muted-foreground [&>svg]:size-4">
                               {meta.icon}
                             </div>
                           )}
                           <div className="min-w-0">
-                            <div className="font-medium text-foreground">
+                            <div className="text-sm font-medium text-foreground">
                               {meta?.label ?? plugin.id}
                             </div>
                             {description && (
-                              <p className="text-sm text-muted-foreground truncate">
+                              <p className="text-xs text-muted-foreground">
                                 {description}
                               </p>
                             )}
@@ -159,16 +185,16 @@ export default function PluginsSettings() {
                           }
                           disabled={isSaving}
                         />
-                      </Card>
+                      </div>
                     );
                   })}
-
-                  {sourcePlugins.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No plugins available
-                    </div>
-                  )}
                 </div>
+
+                {sourcePlugins.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No plugins available.
+                  </p>
+                )}
 
                 <div className="flex items-center gap-3 pt-4">
                   <Button
