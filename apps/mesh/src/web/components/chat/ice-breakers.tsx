@@ -76,11 +76,7 @@ function PromptPill({
  *
  * Shows prompts as compact pills that, when clicked, submit the prompt as the first message
  */
-function IceBreakers({
-  prompts,
-  onSelect,
-  className,
-}: IceBreakersProps) {
+function IceBreakers({ prompts, onSelect, className }: IceBreakersProps) {
   if (prompts.length === 0) return null;
 
   const visiblePrompts = prompts.slice(0, MAX_VISIBLE);
