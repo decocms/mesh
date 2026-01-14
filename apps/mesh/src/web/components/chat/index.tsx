@@ -22,7 +22,6 @@ export { GatewaySelector, useGateways } from "./gateway-selector";
 export type { GatewayInfo } from "./gateway-selector";
 export type { GatewayInputWrapperProps } from "./gateway-input-wrapper";
 export { ModelSelector, useModels } from "./model-selector.tsx";
-export { useModelConnections } from "../../hooks/collections/use-llm";
 export type {
   ModelChangePayload,
   SelectedModelState,

@@ -13,10 +13,8 @@ import type { ProjectLocator } from "../lib/locator";
 /**
  * Find an item by id in an array, or return the first item, or null
  */
-export const findOrFirst = <T extends { id: string }>(
-  array?: T[],
-  id?: string,
-) => array?.find((item) => item.id === id) ?? array?.[0] ?? null;
+const findOrFirst = <T extends { id: string }>(array?: T[], id?: string) =>
+  array?.find((item) => item.id === id) ?? array?.[0] ?? null;
 
 /**
  * Hook to manage model selection state with connection validation
