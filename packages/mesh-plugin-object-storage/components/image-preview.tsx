@@ -19,33 +19,41 @@ interface ImagePreviewProps {
 }
 
 /**
- * Custom hook to detect when an element is visible in the viewport
+ * Custom hook to detect when an element is visible in the viewport.
+ * Uses callback ref pattern - no useEffect needed.
+ * Returns [isIntersecting, setRef] where setRef should be passed as the ref prop.
  */
 function useIntersectionObserver(
-  ref: React.RefObject<HTMLElement | null>,
   options?: IntersectionObserverInit,
-): boolean {
+): [boolean, (node: HTMLElement | null) => void] {
   const [isIntersecting, setIsIntersecting] = useState(false);
-
-  // Use a ref to track if we've already triggered (only trigger once)
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const hasTriggered = useRef(false);
 
-  // Set up the observer
-  if (typeof window !== "undefined" && ref.current && !hasTriggered.current) {
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry?.isIntersecting && !hasTriggered.current) {
-        hasTriggered.current = true;
-        setIsIntersecting(true);
-        observer.disconnect();
-      }
-    }, options);
+  // Callback ref - called when element mounts (with node) or unmounts (with null)
+  const setRef = (node: HTMLElement | null) => {
+    // Cleanup any existing observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
 
-    observer.observe(ref.current);
+    // Set up new observer if we have a node and haven't triggered yet
+    if (node && !hasTriggered.current) {
+      observerRef.current = new IntersectionObserver(([entry]) => {
+        if (entry?.isIntersecting && !hasTriggered.current) {
+          hasTriggered.current = true;
+          setIsIntersecting(true);
+          observerRef.current?.disconnect();
+          observerRef.current = null;
+        }
+      }, options);
 
-    // Cleanup handled by disconnect on intersection
-  }
+      observerRef.current.observe(node);
+    }
+  };
 
-  return isIntersecting;
+  return [isIntersecting, setRef];
 }
 
 export function ImagePreview({
@@ -53,12 +61,11 @@ export function ImagePreview({
   alt,
   className = "",
 }: ImagePreviewProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const { connectionId, toolCaller } =
     usePluginContext<typeof OBJECT_STORAGE_BINDING>();
 
-  // Detect when the component is visible
-  const isVisible = useIntersectionObserver(containerRef, {
+  // Detect when the component is visible (callback ref pattern)
+  const [isVisible, setContainerRef] = useIntersectionObserver({
     rootMargin: "100px", // Start loading slightly before it's visible
     threshold: 0,
   });
@@ -81,7 +88,7 @@ export function ImagePreview({
 
   return (
     <div
-      ref={containerRef}
+      ref={setContainerRef}
       className={`relative w-full h-full flex items-center justify-center overflow-hidden ${className}`}
     >
       {!isVisible || isLoading ? (
