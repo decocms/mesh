@@ -79,7 +79,7 @@ export function useMcp({
 }: UseMcpOptions): UseMcpResult {
   const query = useQuery({
     queryKey: KEYS.mcpTools(url, token),
-    queryFn: async (): Promise<McpTool[]> => {
+    queryFn: async ({ signal }): Promise<McpTool[]> => {
       if (!url) return [];
 
       const headers: Record<string, string> = {
@@ -95,6 +95,7 @@ export function useMcp({
       const initResponse = await fetch(url, {
         method: "POST",
         headers,
+        signal,
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: 1,
@@ -126,6 +127,7 @@ export function useMcp({
       const toolsResponse = await fetch(url, {
         method: "POST",
         headers,
+        signal,
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: 2,
