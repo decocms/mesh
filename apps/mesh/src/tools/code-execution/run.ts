@@ -12,7 +12,7 @@
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { RunCodeInputSchema, RunCodeOutputSchema } from "./schema";
-import { createRunCodeToolHandler, getToolsWithConnections } from "./utils";
+import { getToolsWithConnections, runCodeWithTools } from "./utils";
 
 export const CODE_EXECUTION_RUN_CODE = defineTool({
   name: "CODE_EXECUTION_RUN_CODE",
@@ -30,19 +30,13 @@ export const CODE_EXECUTION_RUN_CODE = defineTool({
     // Get tools from connections (gateway-specific or all org connections)
     const toolContext = await getToolsWithConnections(ctx);
 
-    // Use shared handler factory (no filtering for management MCP)
-    const { handler } = createRunCodeToolHandler(
+    // Run code with tools
+    const result = await runCodeWithTools(
+      input.code,
       toolContext,
-      "CODE_EXECUTION",
-      false,
+      input.timeoutMs,
     );
 
-    // Execute and extract result
-    const result = await handler(input);
-    const text = result.content[0];
-    if (text?.type === "text") {
-      return JSON.parse(text.text);
-    }
-    throw new Error("Unexpected handler result");
+    return result;
   },
 });

@@ -12,7 +12,7 @@
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { DescribeToolsInputSchema, DescribeToolsOutputSchema } from "./schema";
-import { createDescribeToolHandler, getToolsWithConnections } from "./utils";
+import { describeTools, getToolsWithConnections } from "./utils";
 
 export const CODE_EXECUTION_DESCRIBE_TOOLS = defineTool({
   name: "CODE_EXECUTION_DESCRIBE_TOOLS",
@@ -30,19 +30,9 @@ export const CODE_EXECUTION_DESCRIBE_TOOLS = defineTool({
     // Get tools from connections (gateway-specific or all org connections)
     const toolContext = await getToolsWithConnections(ctx);
 
-    // Use shared handler factory (no filtering for management MCP)
-    const { handler } = createDescribeToolHandler(
-      toolContext,
-      "CODE_EXECUTION",
-      false,
-    );
+    // Describe requested tools
+    const result = describeTools(input.tools, toolContext.tools);
 
-    // Execute and extract result
-    const result = await handler(input);
-    const text = result.content[0];
-    if (text?.type === "text") {
-      return JSON.parse(text.text);
-    }
-    throw new Error("Unexpected handler result");
+    return result;
   },
 });

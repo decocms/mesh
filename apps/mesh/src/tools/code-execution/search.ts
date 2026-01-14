@@ -12,7 +12,7 @@
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { SearchToolsInputSchema, SearchToolsOutputSchema } from "./schema";
-import { createSearchToolHandler, getToolsWithConnections } from "./utils";
+import { getToolsWithConnections, searchTools } from "./utils";
 
 export const CODE_EXECUTION_SEARCH_TOOLS = defineTool({
   name: "CODE_EXECUTION_SEARCH_TOOLS",
@@ -30,19 +30,17 @@ export const CODE_EXECUTION_SEARCH_TOOLS = defineTool({
     // Get tools from connections (gateway-specific or all org connections)
     const toolContext = await getToolsWithConnections(ctx);
 
-    // Use shared handler factory (no filtering for management MCP)
-    const { handler } = createSearchToolHandler(
-      toolContext,
-      "CODE_EXECUTION",
-      false,
-    );
+    // Search tools by query
+    const results = searchTools(input.query, toolContext.tools, input.limit);
 
-    // Execute and extract result
-    const result = await handler(input);
-    const text = result.content[0];
-    if (text?.type === "text") {
-      return JSON.parse(text.text);
-    }
-    throw new Error("Unexpected handler result");
+    return {
+      query: input.query,
+      results: results.map((t) => ({
+        name: t.name,
+        description: t.description,
+        connection: t._meta.connectionTitle,
+      })),
+      totalAvailable: toolContext.tools.length,
+    };
   },
 });

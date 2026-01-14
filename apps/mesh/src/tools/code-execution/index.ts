@@ -11,5 +11,5 @@ export { CODE_EXECUTION_SEARCH_TOOLS } from "./search";
 export { CODE_EXECUTION_DESCRIBE_TOOLS } from "./describe";
 export { CODE_EXECUTION_RUN_CODE } from "./run";
 
-// Re-export schemas
+// Re-export schemas for external use
 export * from "./schema";

@@ -6,18 +6,20 @@
  * - smart_tool_selection: (tools) => [search, describe, execute]
  * - code_execution: (tools) => [search, describe, run_code]
  *
- * Uses shared utilities from tools/code-execution/utils.ts for 100% code reuse.
+ * Uses shared utilities from tools/code-execution/utils.ts for core logic.
  */
 
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import {
-  createSearchToolHandler,
-  createDescribeToolHandler,
-  createCallToolHandler,
-  createRunCodeToolHandler,
+  searchTools,
+  describeTools,
+  runCodeWithTools,
+  filterCodeExecutionTools,
+  jsonResult,
+  jsonError,
   type ToolWithConnection,
   type ToolContext,
-  type ToolWithHandler,
 } from "../tools/code-execution/utils.ts";
 
 // ============================================================================
@@ -34,6 +36,13 @@ export type GatewayToolSelectionStrategy =
   | "passthrough"
   | "smart_tool_selection"
   | "code_execution";
+
+type ToolHandler = (args: Record<string, unknown>) => Promise<CallToolResult>;
+
+interface ToolWithHandler {
+  tool: Tool;
+  handler: ToolHandler;
+}
 
 // Re-export ToolWithConnection for backwards compatibility
 export type { ToolWithConnection };
@@ -54,6 +63,196 @@ export interface StrategyResult {
 
 /** Strategy function signature */
 export type ToolSelectionStrategyFn = (ctx: StrategyContext) => StrategyResult;
+
+// ============================================================================
+// Tool Factories (Gateway-specific)
+// ============================================================================
+
+function createSearchTool(ctx: StrategyContext): ToolWithHandler {
+  const inputSchema = z.object({
+    query: z
+      .string()
+      .describe(
+        "Natural language search query (e.g., 'send email', 'create order')",
+      ),
+    limit: z
+      .number()
+      .default(10)
+      .describe("Maximum results to return (default: 10)"),
+  });
+
+  // Filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterCodeExecutionTools(ctx.tools);
+
+  const categoryList =
+    ctx.categories.length > 0
+      ? ` Available categories: ${ctx.categories.join(", ")}.`
+      : "";
+
+  return {
+    tool: {
+      name: "GATEWAY_SEARCH_TOOLS",
+      description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas. Use this to discover tools before calling GATEWAY_DESCRIBE_TOOLS for detailed schemas.${categoryList} Total tools: ${filteredTools.length}.`,
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      // Use shared search logic
+      const results = searchTools(
+        parsed.data.query,
+        filteredTools,
+        parsed.data.limit,
+      );
+      return jsonResult({
+        query: parsed.data.query,
+        results: results.map((t) => ({
+          name: t.name,
+          description: t.description,
+          connection: t._meta.connectionTitle,
+        })),
+        totalAvailable: filteredTools.length,
+      });
+    },
+  };
+}
+
+function createDescribeTool(ctx: StrategyContext): ToolWithHandler {
+  const inputSchema = z.object({
+    tools: z
+      .array(z.string())
+      .min(1)
+      .describe("Array of tool names to get detailed schemas for"),
+  });
+
+  // Filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterCodeExecutionTools(ctx.tools);
+
+  return {
+    tool: {
+      name: "GATEWAY_DESCRIBE_TOOLS",
+      description:
+        "Get detailed schemas for specific tools. Call after GATEWAY_SEARCH_TOOLS to get full input/output schemas.",
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      // Use shared describe logic
+      const result = describeTools(parsed.data.tools, filteredTools);
+      return jsonResult({
+        tools: result.tools,
+        notFound: result.notFound,
+      });
+    },
+  };
+}
+
+function createCallTool(ctx: StrategyContext): ToolWithHandler {
+  // Filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterCodeExecutionTools(ctx.tools);
+  const toolNames = filteredTools.map((t) => t.name);
+  const toolMap = new Map(filteredTools.map((t) => [t.name, t]));
+
+  const inputSchema = z.object({
+    name: z
+      .enum(toolNames as [string, ...string[]])
+      .describe("The name of the tool to execute"),
+    arguments: z
+      .record(z.string(), z.unknown())
+      .default({})
+      .describe("Arguments to pass to the tool"),
+  });
+
+  return {
+    tool: {
+      name: "GATEWAY_CALL_TOOL",
+      description:
+        "Execute a tool by name. Use GATEWAY_DESCRIBE_TOOLS first to understand the input schema.",
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      const { name: innerName, arguments: innerArgs } = parsed.data;
+
+      if (!toolMap.has(innerName)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Tool not found: ${innerName}. Use GATEWAY_SEARCH_TOOLS to find available tools.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      return ctx.callTool(innerName, innerArgs);
+    },
+  };
+}
+
+function createRunCodeTool(ctx: StrategyContext): ToolWithHandler {
+  const inputSchema = z.object({
+    code: z
+      .string()
+      .min(1)
+      .describe(
+        "JavaScript code to execute. It runs as an async function body; you can use top-level `return` and `await`.",
+      ),
+    timeoutMs: z
+      .number()
+      .default(3000)
+      .describe("Max execution time in milliseconds (default: 3000)."),
+  });
+
+  // Filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterCodeExecutionTools(ctx.tools);
+
+  return {
+    tool: {
+      name: "GATEWAY_RUN_CODE",
+      description:
+        'Run JavaScript code in a sandbox. Code must be an ES module that `export default`s an async function that receives (tools) as its first parameter. Use GATEWAY_DESCRIBE_TOOLS to understand the input/output schemas for a tool before calling it. Use `await tools.toolName(args)` or `await tools["tool-name"](args)` to call tools.',
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      // Create filtered context for runCodeWithTools
+      const filteredContext: ToolContext = {
+        ...ctx,
+        tools: filteredTools,
+      };
+
+      // Use shared run code logic
+      const result = await runCodeWithTools(
+        parsed.data.code,
+        filteredContext,
+        parsed.data.timeoutMs,
+      );
+
+      if (result.error) {
+        return jsonError(result);
+      }
+
+      return jsonResult(result);
+    },
+  };
+}
 
 // ============================================================================
 // Strategy Helpers
@@ -112,9 +311,9 @@ const passthroughStrategy: ToolSelectionStrategyFn = (ctx) => ({
  */
 const codeExecutionStrategy: ToolSelectionStrategyFn = (ctx) =>
   createStrategyFromTools([
-    createSearchToolHandler(ctx, "GATEWAY", true),
-    createDescribeToolHandler(ctx, "GATEWAY", true),
-    createRunCodeToolHandler(ctx, "GATEWAY", true),
+    createSearchTool(ctx),
+    createDescribeTool(ctx),
+    createRunCodeTool(ctx),
   ]);
 
 /**
@@ -127,9 +326,9 @@ const codeExecutionStrategy: ToolSelectionStrategyFn = (ctx) =>
  */
 const smartToolSelectionStrategy: ToolSelectionStrategyFn = (ctx) =>
   createStrategyFromTools([
-    createSearchToolHandler(ctx, "GATEWAY", true),
-    createDescribeToolHandler(ctx, "GATEWAY", true),
-    createCallToolHandler(ctx, "GATEWAY", true),
+    createSearchTool(ctx),
+    createDescribeTool(ctx),
+    createCallTool(ctx),
   ]);
 
 // ============================================================================
