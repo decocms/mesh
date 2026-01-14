@@ -9,7 +9,7 @@ export interface ChatModelConfig {
 }
 
 export interface ChatGatewayConfig {
-  id: string;
+  id: string | null;
 }
 
 export interface ChatUserConfig {

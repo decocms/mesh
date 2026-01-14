@@ -11,8 +11,8 @@ import {
   useGateways,
   useGatewayActions,
 } from "@/web/hooks/collections/use-gateway";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useListState } from "@/web/hooks/use-list-state";
+import { useCreateGateway } from "@/web/hooks/use-create-gateway";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   AlertDialog,
@@ -42,7 +42,6 @@ import {
 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useReducer } from "react";
-import { toast } from "sonner";
 
 type DialogState =
   | { mode: "idle" }
@@ -71,36 +70,13 @@ function OrgGatewaysContent() {
     resource: "gateways",
   });
 
-  const actions = useGatewayActions();
   const gateways = useGateways(listState);
-  const connections = useConnections({});
+  const { createGateway, isCreating } = useCreateGateway({
+    navigateOnCreate: true,
+  });
+  const actions = useGatewayActions();
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
-
-  const handleCreateGateway = async () => {
-    // Check if there are any connections available
-    if (connections.length === 0) {
-      toast.error("Create at least one Connection first");
-      return;
-    }
-
-    // Auto-create gateway with all connections
-    const result = await actions.create.mutateAsync({
-      title: "New Agent",
-      description:
-        "Agents let you securely expose integrated tools to the outside world.",
-      status: "active",
-      tool_selection_mode: "inclusion",
-      connections: [],
-    });
-
-    // Navigate to the created gateway settings
-
-    navigate({
-      to: "/$org/gateways/$gatewayId",
-      params: { org: org.slug, gatewayId: result.id },
-    });
-  };
 
   const confirmDelete = async () => {
     if (dialogState.mode !== "deleting") return;
@@ -232,12 +208,12 @@ function OrgGatewaysContent() {
 
   const ctaButton = (
     <Button
-      onClick={handleCreateGateway}
+      onClick={createGateway}
       size="sm"
       className="h-7 px-3 rounded-lg text-sm font-medium"
-      disabled={actions.create.isPending}
+      disabled={isCreating}
     >
-      {actions.create.isPending ? "Creating..." : "Create Agent"}
+      {isCreating ? "Creating..." : "Create Agent"}
     </Button>
   );
 

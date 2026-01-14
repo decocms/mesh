@@ -1,4 +1,5 @@
 import type { ConnectionCreateData } from "@/tools/connection/schema";
+import type { GatewayEntity } from "@/tools/gateway/schema";
 
 /** Deco CMS API host for detecting deco-hosted MCPs */
 export const DECO_CMS_API_HOST = "api.decocms.com";
@@ -180,5 +181,46 @@ export function getWellKnownMcpStudioConnection(): ConnectionCreateData {
       isDefault: false,
       type: "mcp-studio",
     },
+  };
+}
+
+/**
+ * Get well-known Decopilot Agent gateway entity.
+ * This is the default agent that aggregates all org connections except Mesh MCP and Store/Registry.
+ *
+ * @param organizationId - Organization ID
+ * @returns GatewayEntity representing the Decopilot agent
+ */
+export function getWellKnownDecopilotAgent(
+  organizationId: string,
+): GatewayEntity {
+  return {
+    id: `decopilot-${organizationId}`,
+    organization_id: organizationId,
+    title: "Decopilot",
+    description: "Default agent that aggregates all organization connections",
+    icon: "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png",
+    tool_selection_mode: "exclusion",
+    status: "active",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    created_by: "system",
+    updated_by: undefined,
+    connections: [
+      {
+        // Exclude Mesh MCP (self connection)
+        connection_id: WellKnownOrgMCPId.SELF(organizationId),
+        selected_tools: null, // null means exclude entire connection
+        selected_resources: null,
+        selected_prompts: null,
+      },
+      {
+        // Exclude Deco Store Registry
+        connection_id: WellKnownOrgMCPId.REGISTRY(organizationId),
+        selected_tools: null,
+        selected_resources: null,
+        selected_prompts: null,
+      },
+    ],
   };
 }

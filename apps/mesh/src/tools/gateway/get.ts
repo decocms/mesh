@@ -44,7 +44,7 @@ export const COLLECTION_GATEWAY_GET = defineTool({
     const gateway = await ctx.storage.gateways.findById(input.id);
 
     // Check organization ownership
-    if (gateway && gateway.organizationId !== organization.id) {
+    if (gateway && gateway.organization_id !== organization.id) {
       // Don't leak existence of gateways in other organizations
       return { item: null };
     }
@@ -53,28 +53,9 @@ export const COLLECTION_GATEWAY_GET = defineTool({
       return { item: null };
     }
 
-    // Transform to entity format
+    // Return gateway entity directly (already in correct format)
     return {
-      item: {
-        id: gateway.id,
-        title: gateway.title,
-        description: gateway.description,
-        icon: gateway.icon,
-        organization_id: gateway.organizationId,
-        tool_selection_mode: gateway.toolSelectionMode,
-        status: gateway.status,
-        is_default: gateway.isDefault,
-        connections: gateway.connections.map((conn) => ({
-          connection_id: conn.connectionId,
-          selected_tools: conn.selectedTools,
-          selected_resources: conn.selectedResources,
-          selected_prompts: conn.selectedPrompts,
-        })),
-        created_at: gateway.createdAt as string,
-        updated_at: gateway.updatedAt as string,
-        created_by: gateway.createdBy,
-        updated_by: gateway.updatedBy ?? undefined,
-      },
+      item: gateway,
     };
   },
 });

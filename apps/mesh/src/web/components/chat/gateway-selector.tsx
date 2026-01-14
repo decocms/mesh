@@ -1,16 +1,29 @@
 import type { GatewayEntity } from "@/tools/gateway/schema";
-import { Check, SearchMd, CpuChip02 } from "@untitledui/icons";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import {
-  ResponsiveSelect,
-  ResponsiveSelectContent,
-  ResponsiveSelectTrigger,
-  ResponsiveSelectValue,
-} from "@deco/ui/components/responsive-select.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { Check, CpuChip02, SearchMd } from "@untitledui/icons";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { useGateways as useGatewaysCollection } from "../../hooks/collections/use-gateway";
+import { useCreateGateway } from "../../hooks/use-create-gateway";
 
 export interface GatewayInfo
   extends Pick<GatewayEntity, "id" | "title" | "description" | "icon"> {
@@ -19,18 +32,12 @@ export interface GatewayInfo
 
 /**
  * Hook to fetch and map gateways for the selector.
- * Returns gateway info with fallback icons attached.
+ * Returns only real gateways from the database.
+ * When no gateway is selected (null), the default gateway route is used.
  */
 export function useGateways(): GatewayInfo[] {
   const gatewaysData = useGatewaysCollection();
-
-  return (gatewaysData ?? []).map((g) => ({
-    id: g.id,
-    title: g.title,
-    description: g.description ?? null,
-    icon: g.icon ?? null,
-    fallbackIcon: (<CpuChip02 />) as ReactNode,
-  }));
+  return gatewaysData ?? [];
 }
 
 function GatewayItemContent({
@@ -43,7 +50,7 @@ function GatewayItemContent({
   return (
     <div
       className={cn(
-        "flex items-start gap-3 py-3 px-3 hover:bg-accent cursor-pointer rounded-lg",
+        "flex items-start gap-3 py-3 px-3 hover:bg-accent cursor-pointer rounded-xl transition-colors",
         isSelected && "bg-accent",
       )}
     >
@@ -53,7 +60,7 @@ function GatewayItemContent({
         name={gateway.title}
         size="sm"
         fallbackIcon={gateway.fallbackIcon ?? <CpuChip02 />}
-        className="size-10"
+        className="size-10 rounded-xl border border-stone-200/60 shadow-sm shrink-0"
       />
 
       {/* Text Content */}
@@ -76,52 +83,134 @@ function GatewayItemContent({
   );
 }
 
-function SelectedGatewayDisplay({
-  gateway,
-}: {
-  gateway: GatewayInfo | undefined;
-}) {
-  if (!gateway) {
-    return <span className="text-sm text-muted-foreground">Select agent</span>;
-  }
+// ---------- Shared Popover Content ----------
+
+export interface GatewayPopoverContentProps {
+  gateways: GatewayInfo[];
+  selectedGatewayId?: string | null;
+  onGatewayChange: (gatewayId: string) => void;
+  searchInputRef?: RefObject<HTMLInputElement | null>;
+}
+
+/**
+ * Shared popover content for gateway selection.
+ * Contains search input and gateway grid.
+ * Used by both GatewaySelector and GatewayBadge.
+ */
+export function GatewayPopoverContent({
+  gateways,
+  selectedGatewayId,
+  onGatewayChange,
+  searchInputRef,
+}: GatewayPopoverContentProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const internalRef = useRef<HTMLInputElement>(null);
+  const inputRef = searchInputRef ?? internalRef;
+  const { createGateway, isCreating } = useCreateGateway({
+    navigateOnCreate: true,
+  });
+
+  // Filter gateways based on search term
+  const filteredGateways = (() => {
+    if (!searchTerm.trim()) return gateways;
+
+    const search = searchTerm.toLowerCase();
+    return gateways.filter((gateway) => {
+      return (
+        gateway.title.toLowerCase().includes(search) ||
+        gateway.description?.toLowerCase().includes(search)
+      );
+    });
+  })();
+
+  const handleSelect = (gatewayId: string) => {
+    onGatewayChange(gatewayId);
+    setSearchTerm("");
+  };
 
   return (
-    <div className="flex items-center gap-2 min-w-0 max-w-full">
-      <IntegrationIcon
-        icon={gateway.icon}
-        name={gateway.title}
-        size="xs"
-        fallbackIcon={gateway.fallbackIcon ?? <CpuChip02 />}
-        className="w-5! h-5! min-w-5! shrink-0 rounded-sm"
-      />
-      <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 max-w-[200px] hidden sm:inline-block">
-        {gateway.title}
-      </span>
+    <div className="flex flex-col max-h-[400px]">
+      {/* Search input */}
+      <div className="border-b px-4 py-3 bg-background/95 backdrop-blur sticky top-0 z-10">
+        <div className="relative flex items-center gap-2">
+          <SearchMd
+            size={16}
+            className="text-muted-foreground pointer-events-none shrink-0"
+          />
+          <Input
+            ref={inputRef}
+            type="text"
+            placeholder="Search for an agent..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1 h-8 text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none p-0"
+          />
+          <Button
+            onClick={createGateway}
+            variant="outline"
+            size="sm"
+            className="h-8 px-3 rounded-lg text-sm font-medium shrink-0"
+            disabled={isCreating}
+          >
+            {isCreating ? "Creating..." : "Create Agent"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Gateway grid */}
+      <div className="overflow-y-auto p-1.5">
+        {filteredGateways.length > 0 ? (
+          <div className="grid grid-cols-2 gap-0.5">
+            {filteredGateways.map((gateway) => (
+              <div
+                key={gateway.id}
+                onClick={() => handleSelect(gateway.id)}
+                className="outline-none"
+              >
+                <GatewayItemContent
+                  gateway={gateway}
+                  isSelected={gateway.id === selectedGatewayId}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+            No agents found
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
+// ---------- Gateway Selector Component ----------
+
 export interface GatewaySelectorProps {
-  selectedGatewayId?: string;
+  selectedGatewayId?: string | null;
   onGatewayChange: (gatewayId: string) => void;
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
+  showTooltip?: boolean;
+  disabled?: boolean;
 }
 
 /**
- * Rich gateway selector with avatar, name, and description.
- * Fetches gateways internally from the connected gateway providers.
+ * Gateway selector with icon button trigger and tooltip.
+ * Opens a popover with searchable gateway list.
+ * Used when no gateway is selected (null/default state).
  */
 export function GatewaySelector({
   selectedGatewayId,
   onGatewayChange,
-  variant = "bordered",
+  variant: _variant,
   className,
   placeholder = "Select Agent",
+  showTooltip = true,
+  disabled = false,
 }: GatewaySelectorProps) {
   const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch gateways from hook
@@ -138,102 +227,80 @@ export function GatewaySelector({
     }
   }, [open]);
 
-  const selectedGateway = gateways.find((g) => g.id === selectedGatewayId);
-
-  // Filter gateways based on search term
-  const filteredGateways = (() => {
-    if (!searchTerm.trim()) return gateways;
-
-    const search = searchTerm.toLowerCase();
-    return gateways.filter((gateway) => {
-      return (
-        gateway.title.toLowerCase().includes(search) ||
-        gateway.description?.toLowerCase().includes(search)
-      );
-    });
-  })();
+  const selectedGateway = selectedGatewayId
+    ? gateways.find((g) => g.id === selectedGatewayId)
+    : null;
 
   const handleGatewayChange = (gatewayId: string) => {
     onGatewayChange(gatewayId);
-    setSearchTerm("");
     setOpen(false);
   };
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (!newOpen) {
-      setSearchTerm("");
-    }
   };
 
-  return (
-    <ResponsiveSelect
-      open={open}
-      onOpenChange={handleOpenChange}
-      value={selectedGatewayId || ""}
-      onValueChange={handleGatewayChange}
+  const triggerButton = (
+    <button
+      type="button"
+      disabled={disabled}
+      className={cn(
+        "flex items-center justify-center p-1 rounded-md transition-colors shrink-0",
+        disabled
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer hover:bg-accent",
+        className,
+      )}
+      aria-label={placeholder}
     >
-      <ResponsiveSelectTrigger
-        size="sm"
-        className={cn(
-          "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
-          variant === "borderless" && "border-0 md:border-none",
-          className,
-        )}
-      >
-        <ResponsiveSelectValue
-          placeholder={placeholder}
-          className="min-w-0 max-w-full"
-        >
-          <SelectedGatewayDisplay gateway={selectedGateway} />
-        </ResponsiveSelectValue>
-      </ResponsiveSelectTrigger>
-      <ResponsiveSelectContent
-        title={placeholder}
-        className="w-full md:w-[400px] p-0"
-        side="bottom"
-      >
-        <div className="flex flex-col max-h-[300px]">
-          {/* Search input */}
-          <div className="border-b px-4 py-3 bg-background/95 backdrop-blur sticky top-0 z-10">
-            <div className="relative">
-              <SearchMd
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-              />
-              <Input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search for an agent..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 h-9 text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
-              />
-            </div>
-          </div>
+      {selectedGateway ? (
+        <IntegrationIcon
+          icon={selectedGateway.icon}
+          name={selectedGateway.title}
+          size="xs"
+          fallbackIcon={selectedGateway.fallbackIcon ?? <CpuChip02 size={12} />}
+          className="size-5 rounded-md"
+        />
+      ) : (
+        <img
+          src="/favicon.svg"
+          alt="Default Agent"
+          className="size-5 rounded-md"
+        />
+      )}
+    </button>
+  );
 
-          <div className="overflow-y-auto p-2 flex flex-col gap-1">
-            {filteredGateways.length > 0 ? (
-              filteredGateways.map((gateway) => (
-                <div
-                  key={gateway.id}
-                  onClick={() => handleGatewayChange(gateway.id)}
-                  className="outline-none"
-                >
-                  <GatewayItemContent
-                    gateway={gateway}
-                    isSelected={gateway.id === selectedGatewayId}
-                  />
-                </div>
-              ))
-            ) : (
-              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-                No agents found
-              </div>
-            )}
-          </div>
-        </div>
-      </ResponsiveSelectContent>
-    </ResponsiveSelect>
+  return (
+    <Popover
+      open={disabled ? false : open}
+      onOpenChange={disabled ? undefined : handleOpenChange}
+    >
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+          </TooltipTrigger>
+          {showTooltip && !open && (
+            <TooltipContent side="top" className="text-xs">
+              {selectedGateway?.title ?? "Choose an agent to chat with"}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+      <PopoverContent
+        className="w-[550px] p-0 overflow-hidden"
+        align="start"
+        side="top"
+        sideOffset={8}
+      >
+        <GatewayPopoverContent
+          gateways={gateways}
+          selectedGatewayId={selectedGatewayId}
+          onGatewayChange={handleGatewayChange}
+          searchInputRef={searchInputRef}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }

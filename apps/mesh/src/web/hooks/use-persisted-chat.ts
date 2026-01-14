@@ -44,11 +44,8 @@ export interface UsePersistedChatOptions {
   threadId: string;
   /** Optional system prompt to prepend. Not persisted. */
   systemPrompt?: string;
-  /**
-   * Called when a thread needs to be created (first message completion).
-   * If not provided, uses internal thread actions.
-   */
-  onCreateThread?: (thread: { id: string; title: string }) => void;
+  /** Optional gateway ID to associate with the thread */
+  gatewayId?: string;
   /** Called when an error occurs */
   onError?: (error: Error) => void;
   /** Called when a tool is invoked during chat */
@@ -99,8 +96,7 @@ export interface PersistedChatResult {
 export function usePersistedChat(
   options: UsePersistedChatOptions,
 ): PersistedChatResult {
-  const { threadId, systemPrompt, onCreateThread, onError, onToolCall } =
-    options;
+  const { threadId, systemPrompt, gatewayId, onError, onToolCall } = options;
 
   const {
     org: { slug: orgSlug },
@@ -180,19 +176,16 @@ export function usePersistedChat(
 
     if (!existingThread) {
       // Create new thread
-      if (onCreateThread) {
-        onCreateThread({ id: threadId, title: msgTitle });
-      } else {
-        const now = new Date().toISOString();
-        const newThread: Thread = {
-          id: threadId,
-          title: msgTitle,
-          created_at: now,
-          updated_at: now,
-          hidden: false,
-        };
-        threadActions.insert.mutate(newThread);
-      }
+      const now = new Date().toISOString();
+      const newThread: Thread = {
+        id: threadId,
+        title: msgTitle,
+        created_at: now,
+        updated_at: now,
+        hidden: false,
+        gatewayId,
+      };
+      threadActions.insert.mutate(newThread);
       return;
     }
 
@@ -200,7 +193,9 @@ export function usePersistedChat(
     threadActions.update.mutate({
       id: threadId,
       updates: {
+        title: existingThread.title || msgTitle,
         updated_at: new Date().toISOString(),
+        gatewayId,
       },
     });
   };

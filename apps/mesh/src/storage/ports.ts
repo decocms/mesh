@@ -7,11 +7,11 @@
 
 import type { ConnectionEntity } from "../tools/connection/schema";
 import type {
-  Gateway,
-  GatewayWithConnections,
-  MonitoringLog,
-  OrganizationSettings,
-} from "./types";
+  GatewayEntity,
+  GatewayCreateData,
+  GatewayUpdateData,
+} from "../tools/gateway/schema";
+import type { MonitoringLog, OrganizationSettings } from "./types";
 
 // ============================================================================
 // Connection Storage Port
@@ -90,66 +90,30 @@ export interface MonitoringStorage {
 // Gateway Storage Port
 // ============================================================================
 
-/**
- * Data for creating a gateway
- */
-export interface GatewayCreateData {
-  title: string;
-  description?: string | null;
-  toolSelectionMode?: Gateway["toolSelectionMode"];
-  icon?: string | null;
-  status?: Gateway["status"];
-  isDefault?: boolean;
-  connections: Array<{
-    connectionId: string;
-    selectedTools?: string[] | null;
-    selectedResources?: string[] | null;
-    selectedPrompts?: string[] | null;
-  }>;
-}
-
-/**
- * Data for updating a gateway
- */
-export interface GatewayUpdateData {
-  title?: string;
-  description?: string | null;
-  toolSelectionMode?: Gateway["toolSelectionMode"];
-  icon?: string | null;
-  status?: Gateway["status"];
-  isDefault?: boolean;
-  connections?: Array<{
-    connectionId: string;
-    selectedTools?: string[] | null;
-    selectedResources?: string[] | null;
-    selectedPrompts?: string[] | null;
-  }>;
-}
+// Re-export types from schema for convenience
+export type {
+  GatewayEntity,
+  GatewayCreateData,
+  GatewayUpdateData,
+  ToolSelectionMode,
+} from "../tools/gateway/schema";
 
 export interface GatewayStoragePort {
   create(
     organizationId: string,
     userId: string,
     data: GatewayCreateData,
-  ): Promise<GatewayWithConnections>;
-  findById(id: string): Promise<GatewayWithConnections | null>;
-  list(organizationId: string): Promise<GatewayWithConnections[]>;
+  ): Promise<GatewayEntity>;
+  findById(id: string): Promise<GatewayEntity | null>;
+  list(organizationId: string): Promise<GatewayEntity[]>;
   listByConnectionId(
     organizationId: string,
     connectionId: string,
-  ): Promise<GatewayWithConnections[]>;
+  ): Promise<GatewayEntity[]>;
   update(
     id: string,
     userId: string,
     data: GatewayUpdateData,
-  ): Promise<GatewayWithConnections>;
+  ): Promise<GatewayEntity>;
   delete(id: string): Promise<void>;
-  getDefaultByOrgId(
-    organizationId: string,
-  ): Promise<GatewayWithConnections | null>;
-  getDefaultByOrgSlug(orgSlug: string): Promise<GatewayWithConnections | null>;
-  setDefault(
-    gatewayId: string,
-    userId: string,
-  ): Promise<GatewayWithConnections>;
 }

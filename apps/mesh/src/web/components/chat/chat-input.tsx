@@ -67,11 +67,7 @@ export function ChatInput({
 
   return (
     <form onSubmit={handleSubmit} className={cn("w-full", className)}>
-      <div
-        className={cn(
-          "relative rounded-xl border border-border bg-background w-full min-h-[130px] flex flex-col",
-        )}
-      >
+      <div className="relative rounded-xl w-full min-h-[130px] flex flex-col border border-border bg-background">
         <div className="relative flex flex-col gap-2 p-2.5 flex-1">
           {/* Context Resources (files, mentions, etc) */}
           {contextContent && <div className="mb-1">{contextContent}</div>}
