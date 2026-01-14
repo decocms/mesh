@@ -25,7 +25,8 @@ export type ToolCategory =
   | "Monitoring"
   | "Users"
   | "API Keys"
-  | "Event Bus";
+  | "Event Bus"
+  | "Code Execution";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -76,6 +77,10 @@ const ALL_TOOL_NAMES = [
   "EVENT_SYNC_SUBSCRIPTIONS",
   // User tools
   "USER_GET",
+  // Code Execution tools
+  "CODE_EXECUTION_SEARCH_TOOLS",
+  "CODE_EXECUTION_DESCRIBE_TOOLS",
+  "CODE_EXECUTION_RUN_CODE",
 ] as const;
 
 /**
@@ -314,6 +319,23 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Get a user by id",
     category: "Users",
   },
+  // Code Execution tools
+  {
+    name: "CODE_EXECUTION_SEARCH_TOOLS",
+    description: "Search available tools by name or description",
+    category: "Code Execution",
+  },
+  {
+    name: "CODE_EXECUTION_DESCRIBE_TOOLS",
+    description: "Get detailed schemas for specific tools",
+    category: "Code Execution",
+  },
+  {
+    name: "CODE_EXECUTION_RUN_CODE",
+    description: "Run JavaScript code in a sandbox with tool access",
+    category: "Code Execution",
+    dangerous: true,
+  },
 ];
 
 /**
@@ -358,6 +380,9 @@ const TOOL_LABELS: Record<ToolName, string> = {
   EVENT_SYNC_SUBSCRIPTIONS: "Sync subscriptions to desired state",
 
   USER_GET: "Get user by id",
+  CODE_EXECUTION_SEARCH_TOOLS: "Search tools",
+  CODE_EXECUTION_DESCRIBE_TOOLS: "Describe tools",
+  CODE_EXECUTION_RUN_CODE: "Run code",
 };
 
 // ============================================================================
@@ -376,6 +401,7 @@ export function getToolsByCategory() {
     Users: [],
     "API Keys": [],
     "Event Bus": [],
+    "Code Execution": [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

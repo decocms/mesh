@@ -4,11 +4,22 @@
  * Each strategy is a function that transforms tools:
  * - passthrough: (tools) => tools
  * - smart_tool_selection: (tools) => [search, describe, execute]
+ * - code_execution: (tools) => [search, describe, run_code]
+ *
+ * Uses shared utilities from tools/code-execution/utils.ts to avoid duplication.
  */
 
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { runCode } from "../sandbox/index.ts";
+import {
+  searchTools,
+  describeTools,
+  filterCodeExecutionTools,
+  jsonResult,
+  jsonError,
+  type ToolWithConnection,
+} from "../tools/code-execution/utils.ts";
 
 // ============================================================================
 // Types
@@ -32,13 +43,8 @@ interface ToolWithHandler {
   handler: ToolHandler;
 }
 
-/** Extended tool info with connection metadata */
-export interface ToolWithConnection extends Tool {
-  _meta: {
-    connectionId: string;
-    connectionTitle: string;
-  };
-}
+// Re-export ToolWithConnection for backwards compatibility
+export type { ToolWithConnection };
 
 /** Context provided to strategy functions */
 export interface StrategyContext {
@@ -68,76 +74,6 @@ export interface StrategyResult {
 export type ToolSelectionStrategyFn = (ctx: StrategyContext) => StrategyResult;
 
 // ============================================================================
-// Keyword Search
-// ============================================================================
-
-function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/[\s_\-./]+/)
-    .filter((term) => term.length >= 2);
-}
-
-function calculateScore(terms: string[], tool: ToolWithConnection): number {
-  let score = 0;
-  const nameLower = tool.name.toLowerCase();
-  const descLower = (tool.description ?? "").toLowerCase();
-  const connLower = tool._meta.connectionTitle.toLowerCase();
-
-  for (const term of terms) {
-    if (nameLower === term) {
-      score += 10;
-    } else if (nameLower.includes(term)) {
-      score += 3;
-    }
-    if (descLower.includes(term)) {
-      score += 2;
-    }
-    if (connLower.includes(term)) {
-      score += 1;
-    }
-  }
-
-  return score;
-}
-
-function searchTools(
-  query: string,
-  tools: ToolWithConnection[],
-  limit: number,
-): ToolWithConnection[] {
-  const terms = tokenize(query);
-
-  if (terms.length === 0) {
-    return tools.slice(0, limit);
-  }
-
-  return tools
-    .map((tool) => ({ tool, score: calculateScore(terms, tool) }))
-    .filter((r) => r.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map((r) => r.tool);
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function jsonResult(data: unknown): CallToolResult {
-  return {
-    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-  };
-}
-
-function jsonError(data: unknown): CallToolResult {
-  return {
-    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-    isError: true,
-  };
-}
-
-// ============================================================================
 // Tool Factories
 // ============================================================================
 
@@ -154,6 +90,9 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
       .describe("Maximum results to return (default: 10)"),
   });
 
+  // Filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterCodeExecutionTools(ctx.tools);
+
   const categoryList =
     ctx.categories.length > 0
       ? ` Available categories: ${ctx.categories.join(", ")}.`
@@ -162,7 +101,7 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
   return {
     tool: {
       name: "GATEWAY_SEARCH_TOOLS",
-      description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas.${categoryList} Total tools: ${ctx.tools.length}.`,
+      description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas.${categoryList} Total tools: ${filteredTools.length}.`,
       inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
     },
     handler: async (args) => {
@@ -171,9 +110,10 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
         return jsonError({ error: parsed.error.flatten() });
       }
 
+      // Use shared search logic with filtered tools
       const results = searchTools(
         parsed.data.query,
-        ctx.tools,
+        filteredTools,
         parsed.data.limit,
       );
       return jsonResult({
@@ -183,7 +123,7 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
           description: t.description,
           connection: t._meta.connectionTitle,
         })),
-        totalAvailable: ctx.tools.length,
+        totalAvailable: filteredTools.length,
       });
     },
   };
@@ -196,6 +136,9 @@ function createDescribeTool(ctx: StrategyContext): ToolWithHandler {
       .min(1)
       .describe("Array of tool names to get detailed schemas for"),
   });
+
+  // Filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterCodeExecutionTools(ctx.tools);
 
   return {
     tool: {
@@ -210,28 +153,21 @@ function createDescribeTool(ctx: StrategyContext): ToolWithHandler {
         return jsonError({ error: parsed.error.flatten() });
       }
 
-      const toolMap = new Map(ctx.tools.map((t) => [t.name, t]));
-      const tools = parsed.data.tools
-        .map((n) => toolMap.get(n))
-        .filter((t): t is ToolWithConnection => t !== undefined);
-
+      // Use shared describe logic with filtered tools
+      const result = describeTools(parsed.data.tools, filteredTools);
       return jsonResult({
-        tools: tools.map((t) => ({
-          name: t.name,
-          description: t.description,
-          connection: t._meta.connectionTitle,
-          inputSchema: t.inputSchema,
-          outputSchema: t.outputSchema,
-        })),
-        notFound: parsed.data.tools.filter((n) => !toolMap.has(n)),
+        tools: result.tools,
+        notFound: result.notFound,
       });
     },
   };
 }
 
 function createCallTool(ctx: StrategyContext): ToolWithHandler {
-  const toolNames = ctx.tools.map((t) => t.name);
-  const toolMap = new Map(ctx.tools.map((t) => [t.name, t]));
+  // Filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterCodeExecutionTools(ctx.tools);
+  const toolNames = filteredTools.map((t) => t.name);
+  const toolMap = new Map(filteredTools.map((t) => [t.name, t]));
 
   const inputSchema = z.object({
     name: z
@@ -289,6 +225,9 @@ function createRunCodeTool(ctx: StrategyContext): ToolWithHandler {
       .describe("Max execution time in milliseconds (default: 3000)."),
   });
 
+  // Filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterCodeExecutionTools(ctx.tools);
+
   return {
     tool: {
       name: "GATEWAY_RUN_CODE",
@@ -306,7 +245,7 @@ function createRunCodeTool(ctx: StrategyContext): ToolWithHandler {
         string,
         (args: Record<string, unknown>) => Promise<CallToolResult>
       > = Object.fromEntries(
-        ctx.tools.map((tool) => [
+        filteredTools.map((tool) => [
           tool.name,
           async (innerArgs) => ctx.callTool(tool.name, innerArgs ?? {}),
         ]),
@@ -374,6 +313,9 @@ const passthroughStrategy: ToolSelectionStrategyFn = (ctx) => ({
  * Code execution strategy: expose meta-tools for discovery and code execution.
  *
  * (tools) => [GATEWAY_SEARCH_TOOLS, GATEWAY_DESCRIBE_TOOLS, GATEWAY_RUN_CODE]
+ *
+ * Note: CODE_EXECUTION_* tools are filtered from search results to avoid
+ * duplication (since they're already exposed as GATEWAY_* equivalents).
  */
 const codeExecutionStrategy: ToolSelectionStrategyFn = (ctx) =>
   createStrategyFromTools([
@@ -386,6 +328,9 @@ const codeExecutionStrategy: ToolSelectionStrategyFn = (ctx) =>
  * Smart tool selection strategy: expose meta-tools for dynamic discovery
  *
  * (tools) => [GATEWAY_SEARCH_TOOLS, GATEWAY_DESCRIBE_TOOLS, GATEWAY_CALL_TOOL]
+ *
+ * Note: CODE_EXECUTION_* tools are filtered from search results to avoid
+ * duplication (since they're already exposed as GATEWAY_* equivalents).
  */
 const smartToolSelectionStrategy: ToolSelectionStrategyFn = (ctx) =>
   createStrategyFromTools([
