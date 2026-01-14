@@ -82,6 +82,17 @@ We ran an agent strategy benchmark here: [MCP Agent Benchmark (GitHub Actions ru
 
 If you want the raw numbers, open the run and download the **benchmark-results** artifact.
 
+## Code Execution Tools in the Management MCP
 
+In addition to gateway strategies, you can use code execution tools directly from the **Management MCP** (`/mcp`):
 
+- `CODE_EXECUTION_SEARCH_TOOLS` - search tools by name or description
+- `CODE_EXECUTION_DESCRIBE_TOOLS` - get detailed tool schemas
+- `CODE_EXECUTION_RUN_CODE` - run JS in a sandbox with tool access
+
+These tools operate on:
+- All active connections in the organization (by default)
+- Agent-specific connections (if `gatewayId` is set in context)
+
+This lets you use the code execution paradigm without configuring a specific gateway strategy.
 

@@ -13,21 +13,3 @@ export { CODE_EXECUTION_RUN_CODE } from "./run";
 
 // Re-export schemas
 export * from "./schema";
-
-// Re-export utilities for use by gateway strategy
-export {
-  searchTools,
-  describeTools,
-  runCodeWithTools,
-  getToolsWithConnections,
-  resolveGatewayConnections,
-  getAllOrgConnections,
-  filterCodeExecutionTools,
-  jsonResult,
-  jsonError,
-  CODE_EXECUTION_TOOL_NAMES,
-  type ToolWithConnection,
-  type ToolContext,
-  type ToolDescription,
-  type ConnectionWithSelection,
-} from "./utils";

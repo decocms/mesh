@@ -8,7 +8,7 @@
  */
 
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
-import { lazy } from "../../common";
+import { z } from "zod";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireOrganization } from "../../core/mesh-context";
 import { ProxyCollection } from "../../gateway/proxy-collection";
@@ -30,7 +30,7 @@ export interface ToolWithConnection extends Tool {
 }
 
 /** Connection with tool/resource/prompt selection */
-export interface ConnectionWithSelection {
+interface ConnectionWithSelection {
   connection: ConnectionEntity;
   selectedTools: string[] | null;
   selectedResources: string[] | null;
@@ -51,7 +51,7 @@ export interface ToolContext {
 }
 
 /** Tool description for describe tools output */
-export interface ToolDescription {
+interface ToolDescription {
   name: string;
   description?: string;
   connection: string;
@@ -66,7 +66,7 @@ export interface ToolDescription {
 /**
  * Resolve gateway connections with exclusion/inclusion logic
  */
-export async function resolveGatewayConnections(
+async function resolveGatewayConnections(
   gateway: GatewayEntity,
   ctx: MeshContext,
 ): Promise<ConnectionWithSelection[]> {
@@ -161,7 +161,7 @@ export async function resolveGatewayConnections(
 /**
  * Get all active connections for an organization
  */
-export async function getAllOrgConnections(
+async function getAllOrgConnections(
   organizationId: string,
   ctx: MeshContext,
 ): Promise<ConnectionWithSelection[]> {
@@ -322,14 +322,6 @@ export async function getToolsWithConnections(
   return loadToolsFromConnections(connections, selectionMode, ctx);
 }
 
-/**
- * Create a lazy-loaded tool context
- * Useful for caching tool loading across multiple operations
- */
-export function createLazyToolContext(ctx: MeshContext): Promise<ToolContext> {
-  return lazy(() => getToolsWithConnections(ctx));
-}
-
 // ============================================================================
 // Search Tools
 // ============================================================================
@@ -378,7 +370,7 @@ function calculateScore(terms: string[], tool: ToolWithConnection): number {
  * @param limit - Maximum results to return
  * @returns Matching tools sorted by relevance
  */
-export function searchTools(
+function searchTools(
   query: string,
   tools: ToolWithConnection[],
   limit: number,
@@ -408,7 +400,7 @@ export function searchTools(
  * @param tools - All available tools
  * @returns Tool descriptions and not found names
  */
-export function describeTools(
+function describeTools(
   names: string[],
   tools: ToolWithConnection[],
 ): { tools: ToolDescription[]; notFound: string[] } {
@@ -442,7 +434,7 @@ export function describeTools(
  * @param timeoutMs - Execution timeout in milliseconds
  * @returns Run result with return value, error, and console logs
  */
-export async function runCodeWithTools(
+async function runCodeWithTools(
   code: string,
   toolContext: ToolContext,
   timeoutMs: number,
@@ -472,7 +464,7 @@ export async function runCodeWithTools(
 /**
  * Create a JSON result for tool output
  */
-export function jsonResult(data: unknown): CallToolResult {
+function jsonResult(data: unknown): CallToolResult {
   return {
     content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
   };
@@ -481,7 +473,7 @@ export function jsonResult(data: unknown): CallToolResult {
 /**
  * Create a JSON error result for tool output
  */
-export function jsonError(data: unknown): CallToolResult {
+function jsonError(data: unknown): CallToolResult {
   return {
     content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
     isError: true,
@@ -492,7 +484,7 @@ export function jsonError(data: unknown): CallToolResult {
  * Tool names to exclude from search results when used in gateway strategy
  * (to avoid duplication with meta-tools)
  */
-export const CODE_EXECUTION_TOOL_NAMES = [
+const CODE_EXECUTION_TOOL_NAMES = [
   "CODE_EXECUTION_SEARCH_TOOLS",
   "CODE_EXECUTION_DESCRIBE_TOOLS",
   "CODE_EXECUTION_RUN_CODE",
@@ -502,9 +494,281 @@ export const CODE_EXECUTION_TOOL_NAMES = [
  * Filter out CODE_EXECUTION_* tools from search results
  * Used by gateway strategy to avoid duplication
  */
-export function filterCodeExecutionTools(
+function filterCodeExecutionTools(
   tools: ToolWithConnection[],
 ): ToolWithConnection[] {
   const excludeSet = new Set<string>(CODE_EXECUTION_TOOL_NAMES);
   return tools.filter((t) => !excludeSet.has(t.name));
+}
+
+// ============================================================================
+// Tool Handler Factories
+// ============================================================================
+
+/** Tool handler type */
+type ToolHandler = (args: Record<string, unknown>) => Promise<CallToolResult>;
+
+/** Tool with handler for strategy */
+export interface ToolWithHandler {
+  tool: Tool;
+  handler: ToolHandler;
+}
+
+/** Options for tool name prefix */
+export type ToolNamePrefix = "GATEWAY" | "CODE_EXECUTION";
+
+/**
+ * Create a search tool with configurable name prefix
+ *
+ * @param toolContext - Tool context with tools and categories
+ * @param prefix - Name prefix ("GATEWAY" or "CODE_EXECUTION")
+ * @param filterTools - Whether to filter out CODE_EXECUTION_* tools (for gateway deduplication)
+ */
+export function createSearchToolHandler(
+  toolContext: ToolContext,
+  prefix: ToolNamePrefix,
+  filterTools = false,
+): ToolWithHandler {
+  const inputSchema = z.object({
+    query: z
+      .string()
+      .describe(
+        "Natural language search query (e.g., 'send email', 'create order')",
+      ),
+    limit: z
+      .number()
+      .default(10)
+      .describe("Maximum results to return (default: 10)"),
+  });
+
+  // Optionally filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterTools
+    ? filterCodeExecutionTools(toolContext.tools)
+    : toolContext.tools;
+
+  const categoryList =
+    toolContext.categories.length > 0
+      ? ` Available categories: ${toolContext.categories.join(", ")}.`
+      : "";
+
+  const describeToolName =
+    prefix === "GATEWAY"
+      ? "GATEWAY_DESCRIBE_TOOLS"
+      : "CODE_EXECUTION_DESCRIBE_TOOLS";
+
+  return {
+    tool: {
+      name: `${prefix}_SEARCH_TOOLS`,
+      description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas. Use this to discover tools before calling ${describeToolName} for detailed schemas.${categoryList} Total tools: ${filteredTools.length}.`,
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      const results = searchTools(
+        parsed.data.query,
+        filteredTools,
+        parsed.data.limit,
+      );
+      return jsonResult({
+        query: parsed.data.query,
+        results: results.map((t) => ({
+          name: t.name,
+          description: t.description,
+          connection: t._meta.connectionTitle,
+        })),
+        totalAvailable: filteredTools.length,
+      });
+    },
+  };
+}
+
+/**
+ * Create a describe tool with configurable name prefix
+ *
+ * @param toolContext - Tool context with tools
+ * @param prefix - Name prefix ("GATEWAY" or "CODE_EXECUTION")
+ * @param filterTools - Whether to filter out CODE_EXECUTION_* tools (for gateway deduplication)
+ */
+export function createDescribeToolHandler(
+  toolContext: ToolContext,
+  prefix: ToolNamePrefix,
+  filterTools = false,
+): ToolWithHandler {
+  const inputSchema = z.object({
+    tools: z
+      .array(z.string())
+      .min(1)
+      .describe("Array of tool names to get detailed schemas for"),
+  });
+
+  // Optionally filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterTools
+    ? filterCodeExecutionTools(toolContext.tools)
+    : toolContext.tools;
+
+  const searchToolName =
+    prefix === "GATEWAY"
+      ? "GATEWAY_SEARCH_TOOLS"
+      : "CODE_EXECUTION_SEARCH_TOOLS";
+
+  return {
+    tool: {
+      name: `${prefix}_DESCRIBE_TOOLS`,
+      description: `Get detailed schemas for specific tools. Call after ${searchToolName} to get full input/output schemas.`,
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      const result = describeTools(parsed.data.tools, filteredTools);
+      return jsonResult({
+        tools: result.tools,
+        notFound: result.notFound,
+      });
+    },
+  };
+}
+
+/**
+ * Create a call tool with configurable name prefix (for smart_tool_selection strategy)
+ *
+ * @param toolContext - Tool context with tools and callTool function
+ * @param prefix - Name prefix ("GATEWAY" or "CODE_EXECUTION")
+ * @param filterTools - Whether to filter out CODE_EXECUTION_* tools (for gateway deduplication)
+ */
+export function createCallToolHandler(
+  toolContext: ToolContext,
+  prefix: ToolNamePrefix,
+  filterTools = false,
+): ToolWithHandler {
+  // Optionally filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterTools
+    ? filterCodeExecutionTools(toolContext.tools)
+    : toolContext.tools;
+  const toolNames = filteredTools.map((t) => t.name);
+  const toolMap = new Map(filteredTools.map((t) => [t.name, t]));
+
+  const inputSchema = z.object({
+    name: z
+      .enum(toolNames as [string, ...string[]])
+      .describe("The name of the tool to execute"),
+    arguments: z
+      .record(z.string(), z.unknown())
+      .default({})
+      .describe("Arguments to pass to the tool"),
+  });
+
+  const describeToolName =
+    prefix === "GATEWAY"
+      ? "GATEWAY_DESCRIBE_TOOLS"
+      : "CODE_EXECUTION_DESCRIBE_TOOLS";
+  const searchToolName =
+    prefix === "GATEWAY"
+      ? "GATEWAY_SEARCH_TOOLS"
+      : "CODE_EXECUTION_SEARCH_TOOLS";
+
+  return {
+    tool: {
+      name: `${prefix}_CALL_TOOL`,
+      description: `Execute a tool by name. Use ${describeToolName} first to understand the input schema.`,
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      const { name: innerName, arguments: innerArgs } = parsed.data;
+
+      if (!toolMap.has(innerName)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Tool not found: ${innerName}. Use ${searchToolName} to find available tools.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      return toolContext.callTool(innerName, innerArgs);
+    },
+  };
+}
+
+/**
+ * Create a run code tool with configurable name prefix
+ *
+ * @param toolContext - Tool context with tools and callTool function
+ * @param prefix - Name prefix ("GATEWAY" or "CODE_EXECUTION")
+ * @param filterTools - Whether to filter out CODE_EXECUTION_* tools (for gateway deduplication)
+ */
+export function createRunCodeToolHandler(
+  toolContext: ToolContext,
+  prefix: ToolNamePrefix,
+  filterTools = false,
+): ToolWithHandler {
+  const inputSchema = z.object({
+    code: z
+      .string()
+      .min(1)
+      .describe(
+        "JavaScript code to execute. It runs as an async function body; you can use top-level `return` and `await`.",
+      ),
+    timeoutMs: z
+      .number()
+      .default(3000)
+      .describe("Max execution time in milliseconds (default: 3000)."),
+  });
+
+  // Optionally filter out CODE_EXECUTION_* tools to avoid duplication
+  const filteredTools = filterTools
+    ? filterCodeExecutionTools(toolContext.tools)
+    : toolContext.tools;
+
+  const describeToolName =
+    prefix === "GATEWAY"
+      ? "GATEWAY_DESCRIBE_TOOLS"
+      : "CODE_EXECUTION_DESCRIBE_TOOLS";
+
+  return {
+    tool: {
+      name: `${prefix}_RUN_CODE`,
+      description: `Run JavaScript code in a sandbox. Code must be an ES module that \`export default\`s an async function that receives (tools) as its first parameter. Use ${describeToolName} to understand the input/output schemas for a tool before calling it. Use \`await tools.toolName(args)\` or \`await tools["tool-name"](args)\` to call tools.`,
+      inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
+    },
+    handler: async (args) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return jsonError({ error: parsed.error.flatten() });
+      }
+
+      // Create tool context with filtered tools
+      const filteredContext: ToolContext = {
+        ...toolContext,
+        tools: filteredTools,
+      };
+
+      const result = await runCodeWithTools(
+        parsed.data.code,
+        filteredContext,
+        parsed.data.timeoutMs,
+      );
+
+      if (result.error) {
+        return jsonError(result);
+      }
+
+      return jsonResult(result);
+    },
+  };
 }

@@ -4,9 +4,11 @@
  * Lazy-loading gateway for aggregating resource templates from multiple connections
  */
 
-import type {
-  ListResourceTemplatesResult,
-  ResourceTemplate,
+import {
+  ErrorCode,
+  McpError,
+  type ListResourceTemplatesResult,
+  type ResourceTemplate,
 } from "@modelcontextprotocol/sdk/types.js";
 import { lazy } from "../common";
 import type { ProxyCollection } from "./proxy-collection";
@@ -41,10 +43,15 @@ export class ResourceTemplateGateway {
           const result = await entry.proxy.client.listResourceTemplates();
           return { connectionId, templates: result.resourceTemplates };
         } catch (error) {
-          console.error(
-            `[gateway] Failed to list resource templates for connection ${connectionId}:`,
-            error,
-          );
+          if (
+            !(error instanceof McpError) ||
+            error.code !== ErrorCode.MethodNotFound
+          ) {
+            console.error(
+              `[gateway] Failed to list resource templates for connection ${connectionId}: (defaulting to empty array)`,
+              error,
+            );
+          }
           return { connectionId, templates: [] as ResourceTemplate[] };
         }
       },
