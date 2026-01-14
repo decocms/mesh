@@ -14,6 +14,7 @@ import {
   pruneMessages,
   stepCountIs,
   streamText,
+  SystemModelMessage,
   tool,
   ToolSet,
 } from "ai";
@@ -34,7 +35,9 @@ const DEFAULT_MEMORY = 50; // last N messages to keep
  * Base instructions for the AI assistant running in the MCP Mesh environment.
  * This prompt is prepended to any user-provided context from the frontend.
  */
-const DECOPILOT_SYSTEM_PROMPT = `You are an AI assistant running in an MCP Mesh environment.
+const DECOPILOT_SYSTEM_MESSAGE: SystemModelMessage = {
+  role: "system",
+  content: `You are an AI assistant running in an MCP Mesh environment.
 
 ## About MCP Mesh
 
@@ -62,7 +65,8 @@ Follow this state machine when handling user requests:
 - All tool calls are logged and audited for security and compliance
 - You have access to the tools exposed through the selected agent/gateway
 - Connections may expose resources that users can browse and edit
-- When users mention "agents", they are typically referring to gateways`;
+- When users mention "agents", they are typically referring to gateways`,
+};
 
 const StreamRequestSchema = z.object({
   messages: z.any(), // Complex type from frontend, keeping as any
@@ -292,18 +296,10 @@ app.post("/:org/models/stream", async (c) => {
     mcpClient = client;
 
     // Extract context from frontend system message and combine with base prompt
-    const frontendSystemMessage = modelMessages.find(
-      (m) => m.role === "system",
-    );
-    const frontendContext =
-      frontendSystemMessage?.role === "system"
-        ? frontendSystemMessage.content
-        : undefined;
-
-    // Combine base Decopilot prompt with frontend context
-    const systemContent = frontendContext
-      ? `${DECOPILOT_SYSTEM_PROMPT}\n\n## Current Context\n\n${frontendContext}`
-      : DECOPILOT_SYSTEM_PROMPT;
+    const systemMessages = [
+      DECOPILOT_SYSTEM_MESSAGE,
+      ...modelMessages.filter((m) => m.role === "system"),
+    ];
 
     // Filter out system messages (they go to system param, not messages array)
     const nonSystemMessages = modelMessages.filter((m) => m.role !== "system");
@@ -332,7 +328,7 @@ app.post("/:org/models/stream", async (c) => {
     // Use streamText from AI SDK with pruned messages and parameters
     const result = streamText({
       model: provider,
-      system: systemContent,
+      system: systemMessages,
       messages: prunedMessages,
       tools,
       temperature,
