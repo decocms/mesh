@@ -607,7 +607,12 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
       <div className="flex h-full">
         {/* Left sidebar - Connection Settings (2/5) */}
         <div className="w-2/5 shrink-0 border-r border-border overflow-auto">
-          <ConnectionSettingsFormUI form={form} connection={connection} />
+          <ConnectionSettingsFormUI
+            form={form}
+            connection={connection}
+            isMCPAuthenticated={props.isMCPAuthenticated}
+            supportsOAuth={props.supportsOAuth}
+          />
         </div>
 
         {/* Right panel - MCP Configuration (3/5) */}

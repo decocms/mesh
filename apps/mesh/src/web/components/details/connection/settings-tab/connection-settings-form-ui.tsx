@@ -3,6 +3,7 @@ import { EnvVarsEditor } from "@/web/components/env-vars-editor";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useProjectContext } from "@/web/providers/project-context-provider";
+import { Badge } from "@deco/ui/components/badge.tsx";
 import {
   Form,
   FormControl,
@@ -20,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
-import { Container, Globe02, Terminal } from "@untitledui/icons";
+import { CheckCircle, Container, Globe02, Terminal } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useForm, useWatch } from "react-hook-form";
 import { ConnectionGatewaysSection } from "./connection-gateways-section";
@@ -32,9 +33,13 @@ import type { ConnectionFormData } from "./schema";
 function ConnectionFields({
   form,
   connection,
+  isMCPAuthenticated,
+  supportsOAuth,
 }: {
   form: ReturnType<typeof useForm<ConnectionFormData>>;
   connection: ConnectionEntity;
+  isMCPAuthenticated?: boolean;
+  supportsOAuth?: boolean;
 }) {
   const uiType = useWatch({ control: form.control, name: "ui_type" });
   const connectionUrl = useWatch({
@@ -262,6 +267,16 @@ function ConnectionFields({
             )}
           />
 
+          {/* OAuth authentication badge */}
+          {isMCPAuthenticated && supportsOAuth && (
+            <div className="flex items-center">
+              <Badge variant="success" className="gap-1.5">
+                <CheckCircle size={12} />
+                Authenticated via OAuth
+              </Badge>
+            </div>
+          )}
+
           <FormField
             control={form.control}
             name="connection_token"
@@ -285,11 +300,17 @@ function ConnectionFields({
                     {...field}
                     value={field.value || ""}
                     className="h-10 rounded-lg"
+                    disabled={isMCPAuthenticated && supportsOAuth}
                   />
                 </FormControl>
-                {isGitHubCopilotMcp && (
+                {isMCPAuthenticated && supportsOAuth ? (
                   <FormDescription>
-                    (!) GitHub’s hosted MCP at{" "}
+                    This connection uses OAuth for authentication. Manage access
+                    in the MCP Configuration panel.
+                  </FormDescription>
+                ) : isGitHubCopilotMcp ? (
+                  <FormDescription>
+                    (!) GitHub's hosted MCP at{" "}
                     <code>api.githubcopilot.com/mcp</code> currently requires a
                     Personal Access Token (PAT). Create one at{" "}
                     <a
@@ -303,7 +324,7 @@ function ConnectionFields({
                     . Mesh will send it as{" "}
                     <code>Authorization: Bearer &lt;PAT&gt;</code>.
                   </FormDescription>
-                )}
+                ) : null}
                 <FormMessage />
               </FormItem>
             )}
@@ -317,9 +338,13 @@ function ConnectionFields({
 export function ConnectionSettingsFormUI({
   form,
   connection,
+  isMCPAuthenticated,
+  supportsOAuth,
 }: {
   form: ReturnType<typeof useForm<ConnectionFormData>>;
   connection: ConnectionEntity;
+  isMCPAuthenticated?: boolean;
+  supportsOAuth?: boolean;
 }) {
   const { org } = useProjectContext();
 
@@ -374,7 +399,12 @@ export function ConnectionSettingsFormUI({
         </div>
 
         {/* Connection section */}
-        <ConnectionFields form={form} connection={connection} />
+        <ConnectionFields
+          form={form}
+          connection={connection}
+          isMCPAuthenticated={isMCPAuthenticated}
+          supportsOAuth={supportsOAuth}
+        />
 
         {/* Last Updated section */}
         <div className="flex items-center gap-4 p-5 border-b border-border">

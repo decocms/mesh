@@ -243,8 +243,8 @@ export async function authenticateMcp(params: {
         const storageKey = `${OAUTH_CALLBACK_STORAGE_KEY}${oauthState}`;
 
         const cleanup = () => {
-          if (resolved) return;
-          resolved = true;
+          // Note: Race condition prevention is handled in processCallback by setting
+          // resolved = true immediately. This function just does the actual cleanup.
           window.removeEventListener("message", handleMessage);
           window.removeEventListener("storage", handleStorageEvent);
           clearTimeout(timeoutId);
@@ -262,7 +262,9 @@ export async function authenticateMcp(params: {
           state?: string;
           error?: string;
         }) => {
+          // Set resolved immediately to prevent race condition with concurrent callbacks
           if (resolved) return;
+          resolved = true;
 
           if (!data.success) {
             cleanup();
@@ -354,6 +356,8 @@ export async function authenticateMcp(params: {
         window.addEventListener("storage", handleStorageEvent);
 
         timeoutId = setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
           cleanup();
           reject(new Error("OAuth authentication timeout"));
         }, timeout);
