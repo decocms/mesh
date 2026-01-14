@@ -387,20 +387,20 @@ export default function FileBrowser() {
             {/* View toggle buttons */}
             <div className="flex items-center gap-1">
               <Button
-                variant={view === "table" ? "secondary" : "ghost"}
-                size="sm"
-                className="size-8 p-0"
-                onClick={() => setView("table")}
-              >
-                <List size={16} />
-              </Button>
-              <Button
                 variant={view === "grid" ? "secondary" : "ghost"}
                 size="sm"
                 className="size-8 p-0"
                 onClick={() => setView("grid")}
               >
                 <Grid01 size={16} />
+              </Button>
+              <Button
+                variant={view === "table" ? "secondary" : "ghost"}
+                size="sm"
+                className="size-8 p-0"
+                onClick={() => setView("table")}
+              >
+                <List size={16} />
               </Button>
             </div>
 
@@ -472,20 +472,20 @@ export default function FileBrowser() {
           {/* View toggle buttons */}
           <div className="flex items-center gap-1">
             <Button
-              variant={view === "table" ? "secondary" : "ghost"}
-              size="sm"
-              className="size-8 p-0"
-              onClick={() => setView("table")}
-            >
-              <List size={16} />
-            </Button>
-            <Button
               variant={view === "grid" ? "secondary" : "ghost"}
               size="sm"
               className="size-8 p-0"
               onClick={() => setView("grid")}
             >
               <Grid01 size={16} />
+            </Button>
+            <Button
+              variant={view === "table" ? "secondary" : "ghost"}
+              size="sm"
+              className="size-8 p-0"
+              onClick={() => setView("table")}
+            >
+              <List size={16} />
             </Button>
           </div>
 
