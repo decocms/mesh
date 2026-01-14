@@ -76,7 +76,7 @@ function PromptPill({
  *
  * Shows prompts as compact pills that, when clicked, submit the prompt as the first message
  */
-export function IceBreakers({
+function IceBreakers({
   prompts,
   onSelect,
   className,
