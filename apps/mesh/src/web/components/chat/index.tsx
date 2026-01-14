@@ -24,8 +24,6 @@ export type { GatewayInputWrapperProps } from "./gateway-input-wrapper";
 export { ModelSelector, useModels } from "./model-selector.tsx";
 export type {
   ModelChangePayload,
-  ModelInfo,
-  ModelInfoWithConnection,
   SelectedModelState,
 } from "./model-selector.tsx";
 export { UsageStats } from "./usage-stats";

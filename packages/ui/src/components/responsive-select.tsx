@@ -64,16 +64,16 @@ const ResponsiveSelectContent = ({
   children,
   title,
   headerActions,
+  className,
   ...props
 }: React.ComponentProps<typeof select.SelectContent> & {
   title?: string;
   headerActions?: React.ReactNode;
 }) => {
   const { isMobile } = useResponsiveSelectContext();
-  const { className, ...restProps } = props;
 
   return isMobile ? (
-    <drawer.DrawerContent {...restProps}>
+    <drawer.DrawerContent {...props}>
       <drawer.DrawerHeader
         className={cn(
           headerActions
@@ -89,7 +89,9 @@ const ResponsiveSelectContent = ({
       </div>
     </drawer.DrawerContent>
   ) : (
-    <select.SelectContent {...props}>{children}</select.SelectContent>
+    <select.SelectContent className={className} {...props}>
+      {children}
+    </select.SelectContent>
   );
 };
 

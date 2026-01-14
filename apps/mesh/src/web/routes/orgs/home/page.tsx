@@ -28,7 +28,6 @@ import { useContext } from "@/web/hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
-import { useStoredSelection } from "@/web/hooks/use-stored-selection";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -133,27 +132,35 @@ function HomeContent() {
     "chat",
   );
 
-  // Get gateways and models
+  // Get gateways
   const gateways = useGateways();
-  const models = useModels();
 
   // Check for LLM binding connection
   const allConnections = useConnections();
-  const [modelsConnection] = useBindingConnections({
+  const modelsConnections = useBindingConnections({
     connections: allConnections,
     binding: "LLMS",
   });
 
-  const hasModelsBinding = Boolean(modelsConnection);
+  const hasModelsBinding = Boolean(modelsConnections.length > 0);
 
-  const [selectedModel, setSelectedModelState] = useStoredSelection<
-    { id: string; connectionId: string },
-    (typeof models)[number]
-  >(
-    LOCALSTORAGE_KEYS.chatSelectedModel(locator),
-    models,
-    (m, state) => m.id === state.id && m.connectionId === state.connectionId,
-  );
+  // Get stored model selection (contains both id and connectionId)
+  const [storedModelState, setStoredModelState] = useLocalStorage<{
+    id: string;
+    connectionId: string;
+  } | null>(LOCALSTORAGE_KEYS.chatSelectedModel(locator), null);
+
+  // Determine connectionId to use (from stored selection or first available)
+  const connectionIdForModels =
+    storedModelState?.connectionId ?? modelsConnections[0]?.id ?? null;
+
+  // Fetch models for the selected connection
+  const models = useModels(connectionIdForModels);
+
+  // Find the selected model from the fetched models using stored state
+  const selectedModel = storedModelState
+    ? (models.find((m) => m.id === storedModelState.id) ?? null)
+    : null;
 
   const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
     string | null
@@ -170,7 +177,7 @@ function HomeContent() {
   const showGatewaySelector = !selectedGatewayId;
 
   const handleModelChange = (model: { id: string; connectionId: string }) => {
-    setSelectedModelState(model);
+    setStoredModelState(model);
   };
 
   const handleGatewayChange = (gatewayId: string | null) => {
@@ -211,7 +218,7 @@ function HomeContent() {
       thread_id: activeThreadId,
       model: {
         id: selectedModel.id,
-        connectionId: selectedModel.connectionId,
+        connectionId: storedModelState?.connectionId ?? "",
         provider: selectedModel.provider ?? undefined,
         limits: selectedModel.limits ?? undefined,
       },
@@ -394,7 +401,7 @@ function HomeContent() {
                       />
                     )}
                     <ModelSelector
-                      selectedModel={selectedModel ?? undefined}
+                      selectedModel={storedModelState ?? undefined}
                       onModelChange={handleModelChange}
                       placeholder="Model"
                       variant="borderless"
@@ -406,7 +413,7 @@ function HomeContent() {
             </Chat.Footer>
           </>
         ) : (
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 py-10">
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 pb-32 pt-10">
             <div className="flex flex-col items-center gap-6 w-full max-w-[550px]">
               {/* Greeting */}
               <div className="text-center">
@@ -445,7 +452,7 @@ function HomeContent() {
                     />
                   )}
                   <ModelSelector
-                    selectedModel={selectedModel ?? undefined}
+                    selectedModel={storedModelState ?? undefined}
                     onModelChange={handleModelChange}
                     placeholder="Model"
                     variant="borderless"

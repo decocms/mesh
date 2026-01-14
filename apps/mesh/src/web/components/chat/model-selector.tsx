@@ -1,57 +1,36 @@
-/* eslint-disable ban-memoization/ban-memoization */
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
-import {
-  ResponsiveSelect,
-  ResponsiveSelectContent,
-  ResponsiveSelectTrigger,
-  ResponsiveSelectValue,
-} from "@deco/ui/components/responsive-select.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { memo, useState, useRef, useEffect, type ReactNode } from "react";
 import {
-  Stars01,
-  Image01,
-  File06,
-  SearchMd,
-  Check,
-  Grid01,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
+import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  ChevronSelectorVertical,
   CurrencyDollar,
+  File06,
+  Grid01,
+  Image01,
   LogOut04,
-  InfoCircle,
+  SearchMd,
+  Stars01,
 } from "@untitledui/icons";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useConnections } from "../../hooks/collections/use-connection";
-import { useLLMsFromConnection } from "../../hooks/collections/use-llm";
+import {
+  useLLMsFromConnection,
+  type LLM,
+} from "../../hooks/collections/use-llm";
 import { useBindingConnections } from "../../hooks/use-binding";
-
-export interface ModelInfo {
-  id: string;
-  name: string;
-  logo?: string | null;
-  description?: string | null;
-  capabilities?: string[];
-  contextWindow?: number | null;
-  inputCost?: number | null;
-  outputCost?: number | null;
-  outputLimit?: number | null;
-  provider?: string | null;
-  limits?: {
-    contextWindow: number;
-    maxOutputTokens: number;
-  } | null;
-}
-
-/**
- * Extended model info that includes connection information
- */
-export interface ModelInfoWithConnection extends ModelInfo {
-  connectionId: string;
-  connectionName: string;
-}
 
 // Prioritized models in order
 const prioritizedModelIds = [
@@ -74,125 +53,107 @@ prioritizedModelIds.forEach((modelId, index) => {
 });
 
 /**
- * Hook to fetch and map LLM models from connected model providers.
- * Returns models with connection information attached.
+ * Hook to fetch LLM models from a specific connection.
+ * Returns filtered and sorted models.
  */
-export function useModels(): ModelInfoWithConnection[] {
+export function useModels(connectionId: string | null): LLM[] {
   const allConnections = useConnections();
-  const [modelsConnection] = useBindingConnections({
+  const modelsConnections = useBindingConnections({
     connections: allConnections,
     binding: "LLMS",
   });
-  const modelsData = useLLMsFromConnection(modelsConnection?.id, {
+
+  // Find the connection to fetch models from
+  const connection = connectionId
+    ? modelsConnections.find((conn) => conn.id === connectionId)
+    : null;
+
+  // Fetch models from the selected connection using the collection hook
+  const models = useLLMsFromConnection(connection?.id, {
     pageSize: 999,
   });
 
-  if (!modelsData || !modelsConnection) {
-    return [];
-  }
+  // Filter models that have required limits
+  const filteredModels = models.filter(
+    (m) => m.limits?.contextWindow && m.limits?.maxOutputTokens,
+  );
 
-  const mappedModels = modelsData
-    .filter((m) => m.limits?.contextWindow && m.limits?.maxOutputTokens)
-    .map((m) => ({
-      ...m,
-      name: m.title,
-      contextWindow: m.limits?.contextWindow,
-      outputLimit: m.limits?.maxOutputTokens,
-      inputCost: m.costs?.input,
-      outputCost: m.costs?.output,
-      provider: m.provider,
-      connectionId: modelsConnection.id,
-      connectionName: modelsConnection.title,
-    }))
-    .sort((a, b) => {
-      // First, check if either model is prioritized
-      const aPriority = priorityMap.get(a.id);
-      const bPriority = priorityMap.get(b.id);
+  // Sort models
+  return filteredModels.sort((a, b) => {
+    // First, check if either model is prioritized
+    const aPriority = priorityMap.get(a.id);
+    const bPriority = priorityMap.get(b.id);
 
-      // If both are prioritized, sort by priority order
-      if (aPriority !== undefined && bPriority !== undefined) {
-        return aPriority - bPriority;
-      }
+    // If both are prioritized, sort by priority order
+    if (aPriority !== undefined && bPriority !== undefined) {
+      return aPriority - bPriority;
+    }
 
-      // If only one is prioritized, it comes first
-      if (aPriority !== undefined) return -1;
-      if (bPriority !== undefined) return 1;
+    // If only one is prioritized, it comes first
+    if (aPriority !== undefined) return -1;
+    if (bPriority !== undefined) return 1;
 
-      // If neither is prioritized, sort alphabetically
-      return a.name.localeCompare(b.name);
-    });
-
-  return mappedModels;
+    // If neither is prioritized, sort alphabetically
+    return a.title.localeCompare(b.title);
+  });
 }
 
-const CAPABILITY_CONFIGS: Record<
-  string,
-  { icon: ReactNode; bg: string; text: string; label: string }
-> = {
+const CAPABILITY_CONFIGS: Record<string, { icon: ReactNode; label: string }> = {
   reasoning: {
     icon: <Stars01 className="size-4" />,
-    bg: "bg-purple-100",
-    text: "text-purple-700",
     label: "Reasoning",
   },
   "image-upload": {
     icon: <Image01 className="size-4" />,
-    bg: "bg-teal-100",
-    text: "text-teal-700",
     label: "Can analyze images",
   },
   "file-upload": {
     icon: <File06 className="size-4" />,
-    bg: "bg-blue-100",
-    text: "text-blue-700",
     label: "Can analyze files",
   },
   "web-search": {
     icon: <SearchMd className="size-4" />,
-    bg: "bg-amber-100",
-    text: "text-amber-700",
     label: "Can search the web to answer questions",
   },
 };
 
-const CapabilityBadge = memo(function CapabilityBadge({
-  capability,
-}: {
-  capability: string;
-}) {
+function CapabilityBadge({ capability }: { capability: string }) {
   const config = (() => {
     const knownConfig = CAPABILITY_CONFIGS[capability];
     return (
       knownConfig || {
-        icon: <Check className="size-4" />,
-        bg: "bg-slate-200",
-        text: "text-slate-700",
+        icon: null,
         label: capability,
       }
     );
   })();
 
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          className={`flex items-center justify-center h-6 w-6 rounded-sm ${config.bg} ${config.text}`}
-        >
-          {config.icon}
-        </div>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>{config.label}</p>
-      </TooltipContent>
-    </Tooltip>
-  );
-});
+  const displayLabel = config.label
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 
-const ModelDetailsPanel = memo(function ModelDetailsPanel({
+  const chartColorVar = `var(--chart-1)`;
+
+  return (
+    <div
+      className="flex items-center gap-1.5 py-0.5 px-1.5 rounded-md text-xs font-medium"
+      style={{
+        backgroundColor: `color-mix(in oklch, ${chartColorVar} 15%, transparent)`,
+        color: chartColorVar,
+      }}
+    >
+      {config.icon}
+      <span>{displayLabel}</span>
+    </div>
+  );
+}
+
+function ModelDetailsPanel({
   model,
   compact = false,
 }: {
-  model: ModelInfo | null;
+  model: LLM | null;
   compact?: boolean;
 }) {
   if (!model) {
@@ -205,19 +166,19 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
 
   // Check if model has extended info (contextWindow, costs, etc)
   const hasDetails =
-    model.contextWindow ||
-    model.inputCost ||
-    model.outputCost ||
-    model.outputLimit;
+    model.limits?.contextWindow ||
+    model.costs?.input ||
+    model.costs?.output ||
+    model.limits?.maxOutputTokens;
 
   if (!hasDetails && !compact) {
     return (
       <div className="flex flex-col gap-3 py-1 px-1.5">
         <div className="flex items-center gap-3 py-2 px-0">
           {model.logo && (
-            <img src={model.logo} className="w-6 h-6" alt={model.name} />
+            <img src={model.logo} className="w-6 h-6" alt={model.title} />
           )}
-          <p className="text-lg font-medium leading-7">{model.name}</p>
+          <p className="text-lg font-medium leading-7">{model.title}</p>
         </div>
         {model.description && (
           <p className="text-sm text-muted-foreground">{model.description}</p>
@@ -234,38 +195,38 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
   if (compact) {
     return (
       <div className="flex flex-col gap-2.5 pt-3 pb-3 px-3 rounded-b-lg text-xs">
-        {model.contextWindow && (
+        {model.limits?.contextWindow && (
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Context</span>
             <span className="text-foreground font-medium">
-              {model.contextWindow.toLocaleString()} tokens
+              {model.limits.contextWindow.toLocaleString()} tokens
             </span>
           </div>
         )}
 
-        {model.inputCost && (
+        {model.costs?.input && (
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Input cost</span>
             <span className="text-foreground font-medium">
-              ${model.inputCost.toFixed(2)} / 1M
+              ${model.costs.input.toFixed(2)} / 1M
             </span>
           </div>
         )}
 
-        {model.outputCost && (
+        {model.costs?.output && (
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Output cost</span>
             <span className="text-foreground font-medium">
-              ${model.outputCost.toFixed(2)} / 1M
+              ${model.costs.output.toFixed(2)} / 1M
             </span>
           </div>
         )}
 
-        {model.outputLimit && (
+        {model.limits?.maxOutputTokens && (
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Output limit</span>
             <span className="text-foreground font-medium">
-              {model.outputLimit.toLocaleString()} tokens
+              {model.limits.maxOutputTokens.toLocaleString()} tokens
             </span>
           </div>
         )}
@@ -277,11 +238,17 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
   return (
     <div className="flex flex-col gap-3 py-1 px-1.5">
       <div className="flex flex-col gap-3 py-2 px-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {model.logo && (
-            <img src={model.logo} className="w-6 h-6" alt={model.name} />
+            <img
+              src={model.logo}
+              className="w-6 h-6 shrink-0"
+              alt={model.title}
+            />
           )}
-          <p className="text-lg font-medium leading-7">{model.name}</p>
+          <p className="text-lg font-medium leading-7 wrap-break-word min-w-0">
+            {model.title}
+          </p>
         </div>
         {model.capabilities && model.capabilities.length > 0 && (
           <div className="flex items-center gap-2">
@@ -293,100 +260,95 @@ const ModelDetailsPanel = memo(function ModelDetailsPanel({
       </div>
 
       <div className="flex flex-col gap-4">
-        {model.contextWindow && (
+        {model.limits?.contextWindow && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
               <Grid01 className="w-3.5 h-3.5 text-muted-foreground" />
               <p className="text-sm text-foreground">Context window</p>
             </div>
             <p className="text-sm text-muted-foreground">
-              {model.contextWindow.toLocaleString()} tokens
+              {model.limits.contextWindow.toLocaleString()} tokens
             </p>
           </div>
         )}
 
-        {(model.inputCost || model.outputCost) && (
+        {(model.costs?.input || model.costs?.output) && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
               <CurrencyDollar className="w-3.5 h-3.5 text-muted-foreground" />
               <p className="text-sm text-foreground">Costs</p>
             </div>
             <div className="flex flex-col gap-0.5">
-              {model.inputCost !== null && model.inputCost !== undefined && (
-                <p className="text-sm text-muted-foreground">
-                  ${model.inputCost.toFixed(2)} / 1M tokens (input)
-                </p>
-              )}
-              {model.outputCost !== null && model.outputCost !== undefined && (
-                <p className="text-sm text-muted-foreground">
-                  ${model.outputCost.toFixed(2)} / 1M tokens (output)
-                </p>
-              )}
+              {model.costs?.input !== null &&
+                model.costs?.input !== undefined && (
+                  <p className="text-sm text-muted-foreground">
+                    ${model.costs.input.toFixed(2)} / 1M tokens (input)
+                  </p>
+                )}
+              {model.costs?.output !== null &&
+                model.costs?.output !== undefined && (
+                  <p className="text-sm text-muted-foreground">
+                    ${model.costs.output.toFixed(2)} / 1M tokens (output)
+                  </p>
+                )}
             </div>
           </div>
         )}
 
-        {model.outputLimit && (
+        {model.limits?.maxOutputTokens && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
               <LogOut04 className="w-4.5 h-4.5 text-muted-foreground/70" />
               <p className="text-sm text-foreground">Output limit</p>
             </div>
             <p className="text-sm text-muted-foreground">
-              {model.outputLimit.toLocaleString()} token limit
+              {model.limits.maxOutputTokens.toLocaleString()} token limit
             </p>
           </div>
         )}
       </div>
     </div>
   );
-});
+}
 
-const ModelItemContent = memo(function ModelItemContent({
+function ModelItemContent({
   model,
   onHover,
-  isSelected,
-  hasExpandedInfo,
 }: {
-  model: ModelInfo;
-  onHover: (model: ModelInfo) => void;
-  isSelected?: boolean;
-  hasExpandedInfo?: boolean;
+  model: LLM;
+  onHover: (model: LLM) => void;
 }) {
   return (
     <div
-      className={cn(
-        "flex items-center gap-2 h-10 py-4 px-3 hover:bg-accent cursor-pointer",
-        hasExpandedInfo ? "rounded-t-lg" : "rounded-lg",
-      )}
+      className="flex items-center gap-2 min-h-8 py-3 px-3 hover:bg-accent cursor-pointer rounded-lg"
       onMouseEnter={() => onHover(model)}
     >
       {model.logo && (
-        <img src={model.logo} className="w-5 h-5 shrink-0" alt={model.name} />
+        <img src={model.logo} className="w-5 h-5 shrink-0" alt={model.title} />
       )}
-      <span className="text-sm text-foreground">{model.name}</span>
-      {hasExpandedInfo &&
-        model.capabilities &&
-        model.capabilities.length > 0 && (
-          <div className="md:hidden flex items-center gap-1.5 ml-auto">
-            {model.capabilities.map((capability) => (
-              <CapabilityBadge key={capability} capability={capability} />
-            ))}
-          </div>
-        )}
-      {isSelected && !hasExpandedInfo && (
-        <Check className="w-4 h-4 text-foreground ml-auto" />
-      )}
-      {isSelected && hasExpandedInfo && (
-        <Check className="w-4 h-4 text-foreground ml-2 shrink-0" />
+      <span className="text-sm text-foreground flex-1 min-w-0 line-clamp-1">
+        {model.title}
+      </span>
+      {model.capabilities && model.capabilities.length > 0 && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          {model.capabilities.slice(0, 2).map((capability) => (
+            <CapabilityBadge key={capability} capability={capability} />
+          ))}
+        </div>
       )}
     </div>
   );
-});
+}
 
-function SelectedModelDisplay({ model }: { model: ModelInfo | undefined }) {
+function SelectedModelDisplay({
+  model,
+  placeholder = "Select model",
+}: {
+  model: LLM | undefined;
+  placeholder?: string;
+}) {
   if (!model) {
-    return <span className="text-sm text-muted-foreground">Select model</span>;
+    return <span className="text-sm text-muted-foreground">{placeholder}</span>;
   }
 
   return (
@@ -395,11 +357,11 @@ function SelectedModelDisplay({ model }: { model: ModelInfo | undefined }) {
         <img
           src={model.logo}
           className="w-5 h-5 shrink-0 rounded-sm"
-          alt={model.name}
+          alt={model.title}
         />
       )}
       <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 max-w-[200px] hidden sm:inline-block">
-        {model.name}
+        {model.title}
       </span>
     </div>
   );
@@ -422,6 +384,232 @@ export interface ModelChangePayload {
   provider?: string;
 }
 
+/**
+ * Loading state for ModelSelectorContent
+ */
+function ModelSelectorContentFallback() {
+  return (
+    <div className="flex flex-col md:flex-row h-[350px]">
+      {/* Left column - model list with search */}
+      <div className="flex-1 flex flex-col md:border-r md:w-[400px] md:min-w-[400px]">
+        {/* Search input skeleton */}
+        <div className="border-b border-border h-12 bg-background/95 backdrop-blur sticky top-0 z-10">
+          <div className="flex items-center gap-2.5 h-12 px-4">
+            <Skeleton className="size-4 shrink-0" />
+            <Skeleton className="flex-1 h-6" />
+            <Skeleton className="w-[140px] h-8 shrink-0" />
+          </div>
+        </div>
+
+        {/* Model list skeleton */}
+        <div className="flex-1 overflow-y-auto px-0.5 pt-2 space-y-1">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 min-h-8 py-3 px-3 rounded-lg"
+            >
+              <Skeleton className="size-5 shrink-0 rounded-sm" />
+              <Skeleton className="flex-1 h-4" />
+              <Skeleton className="w-16 h-5 shrink-0 rounded-md" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Right column - details panel skeleton (desktop only) */}
+      <div className="hidden md:block md:w-[320px] md:shrink-0 p-3">
+        <div className="flex flex-col gap-3 py-1 px-1.5">
+          <div className="flex flex-col gap-3 py-2 px-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <Skeleton className="size-6 shrink-0" />
+              <Skeleton className="h-6 w-32" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-6 w-20 rounded-md" />
+              <Skeleton className="h-6 w-24 rounded-md" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-40" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Modal content component for model selection
+ */
+function ModelSelectorContent({
+  selectedModel,
+  onModelChange,
+  onClose,
+}: {
+  selectedModel?: SelectedModelState;
+  onModelChange: (model: ModelChangePayload) => void;
+  onClose: () => void;
+}) {
+  const [hoveredModel, setHoveredModel] = useState<LLM | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [scid, setSelectedConnectionId] = useState<string | null>(
+    selectedModel?.connectionId ?? null,
+  );
+
+  const allConnections = useConnections();
+  const modelsConnections = useBindingConnections({
+    connections: allConnections,
+    binding: "LLMS",
+  });
+
+  // Derive connection ID from selectedModel or first available
+  const selectedConnectionId = scid ?? modelsConnections[0]?.id ?? null;
+
+  // Fetch models only for the selected connection
+  const models = useModels(selectedConnectionId);
+
+  // Focus search input when mounted
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    // Small delay to ensure the dialog is fully rendered
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 0);
+  }, []);
+
+  // Filter models based on search term
+  const filteredModels = searchTerm.trim()
+    ? models.filter((model) => {
+        const search = searchTerm.toLowerCase();
+        return (
+          model.title.toLowerCase().includes(search) ||
+          model.provider?.toLowerCase().includes(search) ||
+          model.description?.toLowerCase().includes(search)
+        );
+      })
+    : models;
+
+  const handleConnectionChange = (connectionId: string) => {
+    setSelectedConnectionId(connectionId);
+  };
+
+  const handleModelChange = (modelId: string) => {
+    const selected = models.find((m) => m.id === modelId);
+
+    if (!selected || !selectedConnectionId) {
+      return;
+    }
+
+    onModelChange({
+      id: selected.id,
+      connectionId: selectedConnectionId,
+      provider: selected.provider ?? undefined,
+    });
+    setSearchTerm("");
+    onClose();
+  };
+
+  return (
+    <div className="flex flex-col md:flex-row h-[350px]">
+      {/* Left column - model list with search */}
+      <div className="flex-1 flex flex-col md:border-r md:w-[400px] md:min-w-[400px]">
+        {/* Search input */}
+        <div className="border-b border-border h-12 bg-background/95 backdrop-blur sticky top-0 z-10">
+          <label className="flex items-center gap-2.5 h-12 px-4 cursor-text">
+            <SearchMd size={16} className="text-muted-foreground shrink-0" />
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search for a model..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 border-0 shadow-none focus-visible:ring-0 px-0 h-full text-sm placeholder:text-muted-foreground/50 bg-transparent"
+            />
+            {modelsConnections.length > 0 && (
+              <Select
+                value={selectedConnectionId ?? ""}
+                onValueChange={handleConnectionChange}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="w-auto min-w-[140px] h-8 shrink-0 [&>svg:last-child]:hidden"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <SelectValue placeholder="Select connection" />
+                  <ChevronSelectorVertical className="size-4 opacity-50 shrink-0 pointer-events-none" />
+                </SelectTrigger>
+                <SelectContent>
+                  {modelsConnections.map((conn) => (
+                    <SelectItem key={conn.id} value={conn.id}>
+                      <div className="flex items-center gap-2">
+                        {conn.icon ? (
+                          <img
+                            src={conn.icon}
+                            alt={conn.title}
+                            className="w-4 h-4 rounded"
+                          />
+                        ) : (
+                          <div className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                            {conn.title.slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
+                        <span>{conn.title}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </label>
+        </div>
+
+        {/* Model list */}
+        <div className="flex-1 overflow-y-auto px-0.5 pt-2">
+          {filteredModels.length > 0 ? (
+            filteredModels.map((m) => {
+              const isSelected = m.id === selectedModel?.id;
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => handleModelChange(m.id)}
+                  className={cn("rounded-lg mb-1", isSelected && "bg-accent")}
+                >
+                  <ModelItemContent model={m} onHover={setHoveredModel} />
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+              No models found
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right column - details panel (desktop only) */}
+      <div className="hidden md:block md:w-[320px] md:shrink-0 p-3">
+        <ModelDetailsPanel
+          model={
+            hoveredModel ||
+            (selectedModel
+              ? models.find((m) => m.id === selectedModel.id)
+              : null) ||
+            null
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
 export interface ModelSelectorProps {
   selectedModel?: SelectedModelState;
   onModelChange: (model: ModelChangePayload) => void;
@@ -442,175 +630,61 @@ export function ModelSelector({
   placeholder = "Select model",
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
-  const [hoveredModel, setHoveredModel] = useState<ModelInfo | null>(null);
-  const [showInfoMobile, setShowInfoMobile] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch models from hook
-  const models = useModels();
+  const allConnections = useConnections();
+  const modelsConnections = useBindingConnections({
+    connections: allConnections,
+    binding: "LLMS",
+  });
 
-  // Focus search input when dialog opens
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (open) {
-      // Small delay to ensure the dialog is fully rendered
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 0);
-    }
-  }, [open]);
+  // Derive connection ID from selectedModel or first available
+  const selectedConnectionId = selectedModel?.connectionId ?? null;
 
-  // Find selected model by matching both id and connectionId
-  const selectedModelId = selectedModel
-    ? models.find(
-        (m) =>
-          m.id === selectedModel.id &&
-          m.connectionId === selectedModel.connectionId,
-      )?.id
+  // Fetch models only for the selected connection
+  const models = useModels(selectedConnectionId);
+
+  // Find selected model by id
+  const currentModel = selectedModel
+    ? models.find((m) => m.id === selectedModel.id)
     : undefined;
 
-  const currentModel = models.find((m) => m.id === selectedModelId);
-
-  // Filter models based on search term
-  const filteredModels = (() => {
-    if (!searchTerm.trim()) return models;
-
-    const search = searchTerm.toLowerCase();
-    return models.filter((model) => {
-      return (
-        model.name.toLowerCase().includes(search) ||
-        model.provider?.toLowerCase().includes(search) ||
-        model.description?.toLowerCase().includes(search)
-      );
-    });
-  })();
-
-  const handleModelChange = (modelId: string) => {
-    const selected = models.find((m) => m.id === modelId);
-    if (!selected) return;
-    onModelChange({
-      id: selected.id,
-      connectionId: selected.connectionId,
-      provider: selected.provider ?? undefined,
-    });
-    setSearchTerm("");
-    setOpen(false);
-  };
-
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (!newOpen) {
-      setSearchTerm("");
-    }
-  };
-
-  if (models.length === 0) {
+  if (modelsConnections.length === 0) {
     return null;
   }
 
   return (
-    <ResponsiveSelect
-      open={open}
-      onOpenChange={handleOpenChange}
-      value={selectedModelId || ""}
-      onValueChange={handleModelChange}
-    >
-      <ResponsiveSelectTrigger
-        size="sm"
-        className={cn(
-          "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full",
-          variant === "borderless" && "md:border-none",
-          className,
-        )}
-      >
-        <ResponsiveSelectValue
-          placeholder={placeholder}
-          className="min-w-0 max-w-full"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant={variant === "borderless" ? "ghost" : "outline"}
+          size="sm"
+          className={cn(
+            "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 max-w-full justify-start",
+            variant === "borderless" && "md:border-none",
+            className,
+          )}
         >
-          <SelectedModelDisplay model={currentModel} />
-        </ResponsiveSelectValue>
-      </ResponsiveSelectTrigger>
-      <ResponsiveSelectContent
-        title={placeholder}
-        className="w-full md:w-auto md:min-w-[600px] [&_button[aria-label='Scroll down']]:!hidden [&_button[aria-label='Scroll up']]:!hidden"
-        headerActions={
-          <button
-            type="button"
-            onClick={() => setShowInfoMobile(!showInfoMobile)}
-            className="md:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-accent transition-colors"
-            aria-label="Toggle model info"
-          >
-            <InfoCircle
-              className={cn(
-                "w-5 h-5 transition-colors",
-                showInfoMobile ? "text-foreground" : "text-muted-foreground",
-              )}
-            />
-          </button>
-        }
+          <SelectedModelDisplay
+            model={currentModel}
+            placeholder={placeholder}
+          />
+          <ChevronSelectorVertical className="size-4 opacity-50 shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-full md:w-auto p-0"
+        align="start"
+        side="bottom"
+        sideOffset={8}
       >
-        <div className="flex flex-col md:flex-row h-[350px]">
-          {/* Left column - model list with search */}
-          <div className="flex-1 flex flex-col md:border-r">
-            {/* Search input */}
-            <div className="border-b px-4 py-3 bg-background/95 backdrop-blur sticky top-0 z-10">
-              <div className="relative">
-                <SearchMd
-                  size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-                />
-                <Input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search for a model..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 h-9 text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
-                />
-              </div>
-            </div>
-
-            {/* Model list */}
-            <div className="flex-1 overflow-y-auto px-0.5">
-              {filteredModels.length > 0 ? (
-                filteredModels.map((m) => (
-                  <div
-                    key={m.id}
-                    onClick={() => handleModelChange(m.id)}
-                    className={cn(
-                      "rounded-lg mb-1",
-                      m.id === selectedModelId && "bg-accent",
-                    )}
-                  >
-                    <ModelItemContent
-                      model={m}
-                      onHover={setHoveredModel}
-                      isSelected={m.id === selectedModelId}
-                      hasExpandedInfo={showInfoMobile}
-                    />
-                    {/* Mobile info panel - shows inside model item when toggled */}
-                    {showInfoMobile && (
-                      <div className="md:hidden">
-                        <ModelDetailsPanel model={m} compact />
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-                  No models found
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right column - details panel (desktop only) */}
-          <div className="hidden md:block md:w-[300px] p-3">
-            <ModelDetailsPanel model={hoveredModel || currentModel || null} />
-          </div>
-        </div>
-      </ResponsiveSelectContent>
-    </ResponsiveSelect>
+        <Suspense fallback={<ModelSelectorContentFallback />}>
+          <ModelSelectorContent
+            selectedModel={selectedModel}
+            onModelChange={onModelChange}
+            onClose={() => setOpen(false)}
+          />
+        </Suspense>
+      </PopoverContent>
+    </Popover>
   );
 }
