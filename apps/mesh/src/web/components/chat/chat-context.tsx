@@ -38,8 +38,6 @@ export interface ChatInteractionState {
   inputValue: string;
   /** Active branch context if branching is in progress */
   branchContext: BranchContext | null;
-  /** Whether there's a pending message submit */
-  pendingSubmit: boolean;
 }
 
 /**
@@ -49,7 +47,6 @@ export type ChatInteractionAction =
   | { type: "SET_INPUT"; payload: string }
   | { type: "START_BRANCH"; payload: BranchContext }
   | { type: "CLEAR_BRANCH" }
-  | { type: "SET_PENDING_SUBMIT"; payload: boolean }
   | { type: "RESET" };
 
 /**
@@ -58,7 +55,6 @@ export type ChatInteractionAction =
 const initialInteractionState: ChatInteractionState = {
   inputValue: "",
   branchContext: null,
-  pendingSubmit: false,
 };
 
 /**
@@ -75,8 +71,6 @@ function chatInteractionReducer(
       return { ...state, branchContext: action.payload };
     case "CLEAR_BRANCH":
       return { ...state, branchContext: null };
-    case "SET_PENDING_SUBMIT":
-      return { ...state, pendingSubmit: action.payload };
     case "RESET":
       return initialInteractionState;
     default:
@@ -183,7 +177,6 @@ export function useChat() {
     // Interaction state
     inputValue: interactionState.inputValue,
     branchContext: interactionState.branchContext,
-    pendingSubmit: interactionState.pendingSubmit,
 
     // Interaction actions
     setInputValue: (value: string) =>
@@ -191,8 +184,6 @@ export function useChat() {
     startBranch: (branchContext: BranchContext) =>
       interactionDispatch({ type: "START_BRANCH", payload: branchContext }),
     clearBranch: () => interactionDispatch({ type: "CLEAR_BRANCH" }),
-    setPendingSubmit: (pending: boolean) =>
-      interactionDispatch({ type: "SET_PENDING_SUBMIT", payload: pending }),
     reset: () => interactionDispatch({ type: "RESET" }),
 
     // Thread management
