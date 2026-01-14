@@ -2,7 +2,6 @@ import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { isDefaultGateway } from "@/web/utils/gateway-color";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate } from "@tanstack/react-router";
 import { CpuChip02, Plus, X } from "@untitledui/icons";
@@ -100,7 +99,7 @@ function ChatPanelContent() {
 
   const { isEmpty } = chat;
 
-  const showGatewaySelector = isDefaultGateway(selectedGatewayId);
+  const showGatewaySelector = !selectedGatewayId;
 
   // Handle clicking on the branch preview to go back to original thread
   const handleGoToOriginalMessage = () => {

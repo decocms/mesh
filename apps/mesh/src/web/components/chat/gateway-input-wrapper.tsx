@@ -1,6 +1,6 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { getGatewayColor, isDefaultGateway } from "@/web/utils/gateway-color";
+import { getGatewayColor } from "@/web/utils/gateway-color";
 import {
   Popover,
   PopoverContent,
@@ -64,7 +64,7 @@ function GatewayBadge({
   }, [open]);
 
   // Don't render for default gateway or if no gateway
-  if (!gateway || isDefaultGateway(gateway.id)) {
+  if (!gateway?.id) {
     return null;
   }
 

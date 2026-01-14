@@ -32,7 +32,6 @@ import { useStoredSelection } from "@/web/hooks/use-stored-selection";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { isDefaultGateway } from "@/web/utils/gateway-color";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
@@ -166,7 +165,7 @@ function HomeContent() {
     : null;
 
   // Show gateway selector when using default gateway (no badge)
-  const showGatewaySelector = isDefaultGateway(selectedGatewayId);
+  const showGatewaySelector = !selectedGatewayId;
 
   const handleModelChange = (model: { id: string; connectionId: string }) => {
     setSelectedModelState(model);

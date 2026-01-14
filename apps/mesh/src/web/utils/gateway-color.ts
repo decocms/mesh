@@ -120,13 +120,3 @@ export function getGatewayColor(
   const index = hash % GATEWAY_COLORS.length;
   return GATEWAY_COLORS[index]!;
 }
-
-/**
- * Check if using the default gateway (no specific gateway selected).
- * null/undefined means default gateway.
- */
-export function isDefaultGateway(
-  gatewayId: string | null | undefined,
-): boolean {
-  return !gatewayId;
-}
