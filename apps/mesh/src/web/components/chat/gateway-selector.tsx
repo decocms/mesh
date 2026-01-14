@@ -164,8 +164,16 @@ export function GatewayPopoverContent({
             {filteredGateways.map((gateway) => (
               <div
                 key={gateway.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => handleSelect(gateway.id)}
-                className="outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleSelect(gateway.id);
+                  }
+                }}
+                className="outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-xl"
               >
                 <GatewayItemContent
                   gateway={gateway}
