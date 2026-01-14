@@ -8,14 +8,12 @@ import { CpuChip02, Plus, X } from "@untitledui/icons";
 import { Suspense } from "react";
 import { toast } from "sonner";
 import { useConnections } from "../../hooks/collections/use-connection";
-import { useBindingConnections } from "../../hooks/use-binding";
+import { useModelConnections } from "../../hooks/collections/use-llm";
 import { useThreads } from "../../hooks/use-chat-store";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { usePersistedChat } from "../../hooks/use-persisted-chat";
-import { useStoredSelection } from "../../hooks/use-stored-selection";
 import { useContext } from "../../hooks/use-context";
-import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./chat-context";
 import { GatewayInputWrapper } from "./gateway-input-wrapper";
@@ -26,10 +24,10 @@ import {
   ModelSelector,
   UsageStats,
   useGateways,
-  useModels,
 } from "./index";
 import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
 import { ThreadHistoryPopover } from "./thread-history-popover";
+import { useModelState } from "../../hooks/use-model-state";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
@@ -49,27 +47,17 @@ function ChatPanelContent() {
     useChat();
   const { threads, refetch } = useThreads();
 
-  // Fetch gateways and models directly from hooks
+  // Fetch gateways directly from hooks
   const gateways = useGateways();
-  const models = useModels();
 
   // Check for LLM binding connection
   const allConnections = useConnections();
-  const [modelsConnection] = useBindingConnections({
-    connections: allConnections,
-    binding: "LLMS",
-  });
+  const modelsConnections = useModelConnections();
 
-  const hasModelsBinding = Boolean(modelsConnection);
+  const hasModelsBinding = Boolean(modelsConnections.length > 0);
 
-  const [selectedModel, setSelectedModelState] = useStoredSelection<
-    { id: string; connectionId: string },
-    (typeof models)[number]
-  >(
-    LOCALSTORAGE_KEYS.chatSelectedModel(locator),
-    models,
-    (m, state) => m.id === state.id && m.connectionId === state.connectionId,
-  );
+  // Get stored model selection (contains both id and connectionId)
+  const [selectedModel, setModel] = useModelState(locator, modelsConnections);
 
   const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
     string | null
@@ -144,7 +132,7 @@ function ChatPanelContent() {
   };
 
   const handleModelChange = (model: { id: string; connectionId: string }) => {
-    setSelectedModelState(model);
+    setModel(model);
   };
 
   const handleGatewayChange = (gatewayId: string | null) => {

@@ -15,22 +15,20 @@ import {
   GatewaySelector,
   ModelSelector,
   UsageStats,
-  useModels,
 } from "@/web/components/chat/index";
 import { NoLlmBindingEmptyState } from "@/web/components/chat/no-llm-binding-empty-state";
 import { ThreadHistoryPopover } from "@/web/components/chat/thread-history-popover";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useGateways } from "@/web/hooks/collections/use-gateway";
-import { useBindingConnections } from "@/web/hooks/use-binding";
+import { useModelConnections } from "@/web/hooks/collections/use-llm";
 import { useThreads } from "@/web/hooks/use-chat-store";
 import { useContext } from "@/web/hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { useModelState } from "@/web/hooks/use-model-state";
 import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
-import { useStoredSelection } from "@/web/hooks/use-stored-selection";
 import { authClient } from "@/web/lib/auth-client";
-import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
@@ -133,27 +131,17 @@ function HomeContent() {
     "chat",
   );
 
-  // Get gateways and models
+  // Get gateways
   const gateways = useGateways();
-  const models = useModels();
 
   // Check for LLM binding connection
   const allConnections = useConnections();
-  const [modelsConnection] = useBindingConnections({
-    connections: allConnections,
-    binding: "LLMS",
-  });
+  const modelsConnections = useModelConnections();
 
-  const hasModelsBinding = Boolean(modelsConnection);
+  const hasModelsBinding = Boolean(modelsConnections.length > 0);
 
-  const [selectedModel, setSelectedModelState] = useStoredSelection<
-    { id: string; connectionId: string },
-    (typeof models)[number]
-  >(
-    LOCALSTORAGE_KEYS.chatSelectedModel(locator),
-    models,
-    (m, state) => m.id === state.id && m.connectionId === state.connectionId,
-  );
+  // Get stored model selection (contains both id and connectionId)
+  const [selectedModel, setModel] = useModelState(locator, modelsConnections);
 
   const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
     string | null
@@ -170,7 +158,7 @@ function HomeContent() {
   const showGatewaySelector = !selectedGatewayId;
 
   const handleModelChange = (model: { id: string; connectionId: string }) => {
-    setSelectedModelState(model);
+    setModel(model);
   };
 
   const handleGatewayChange = (gatewayId: string | null) => {
@@ -406,7 +394,7 @@ function HomeContent() {
             </Chat.Footer>
           </>
         ) : (
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 py-10">
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 pb-32 pt-10">
             <div className="flex flex-col items-center gap-6 w-full max-w-[550px]">
               {/* Greeting */}
               <div className="text-center">
