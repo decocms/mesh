@@ -236,7 +236,7 @@ function createGatewayTransport(
   });
 }
 
-app.post("/:org/mesh-operator/stream", async (c) => {
+app.post("/:org/decopilot/stream", async (c) => {
   const ctx = c.get("meshContext");
   const orgSlug = c.req.param("org");
 
@@ -281,10 +281,6 @@ app.post("/:org/mesh-operator/stream", async (c) => {
         threadMessages = await ctx.storage.threads.listMessages(threadId);
       }
     }
-    const threads = await ctx.storage.threads.listByUserId(userId);
-    console.log("threads", threads);
-    console.log("threadMessages", threadMessages);
-
     // Use limits from model config, fallback to default
     const maxOutputTokens =
       modelConfig.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
@@ -352,92 +348,13 @@ app.post("/:org/mesh-operator/stream", async (c) => {
     const provider = createLLMProvider(llmBinding).languageModel(
       modelConfig.id,
     );
-    const toolset: ToolSet = {
-      ...tools,
-      listThreads: tool<
-        {
-          limit: number;
-        },
-        Thread[]
-      >({
-        title: "List Threads",
-        description: "List all threads",
-        inputSchema: jsonSchema(
-          z.toJSONSchema(
-            z.object({
-              limit: z.number().optional(),
-            }),
-          ) as JSONSchema7,
-        ),
-        outputSchema: jsonSchema(
-          z.toJSONSchema(
-            z.array(
-              z.object({
-                id: z.string(),
-                title: z.string(),
-                description: z.string().optional(),
-                createdAt: z.string(),
-                updatedAt: z.string(),
-              }),
-            ),
-          ) as JSONSchema7,
-        ),
-
-        execute: async ({ limit }) => {
-          const { threads } = await ctx.storage.threads.list(organization.id, {
-            limit,
-          });
-          return threads;
-        },
-      }),
-      listMessages: tool<
-        {
-          threadId: string;
-        },
-        ThreadMessage[]
-      >({
-        title: "List Messages",
-        description: "List all messages for a thread",
-        inputSchema: jsonSchema(
-          z.toJSONSchema(
-            z.object({
-              threadId: z.string(),
-            }),
-          ) as JSONSchema7,
-        ),
-        outputSchema: jsonSchema(
-          z.toJSONSchema(
-            z.array(
-              z.object({
-                id: z.string(),
-                threadId: z.string(),
-                role: z.string(),
-                parts: z.array(
-                  z.object({
-                    type: z.string(),
-                    text: z.string().optional(),
-                    reasoning: z.string().optional(),
-                  }),
-                ),
-                createdAt: z.string(),
-                updatedAt: z.string(),
-              }),
-            ),
-          ) as JSONSchema7,
-        ),
-        execute: async ({ threadId }) => {
-          return await ctx.storage.threads.listMessages(threadId);
-        },
-      }),
-    };
 
     // Use streamText from AI SDK with pruned messages and parameters
     const result = streamText({
       model: provider,
       system: systemMessages,
       messages: prunedMessages,
-
-      tools: toolset,
+      tools,
       temperature,
       maxOutputTokens: maxOutputTokens,
       abortSignal: c.req.raw.signal,
@@ -446,7 +363,7 @@ app.post("/:org/mesh-operator/stream", async (c) => {
         console.error("[models:stream] Error", error);
         await client.close().catch(console.error);
       },
-      onFinish: async ({}) => {
+      onFinish: async () => {
         await client.close().catch(console.error);
       },
     });
@@ -542,3 +459,5 @@ app.post("/:org/mesh-operator/stream", async (c) => {
     return c.json({ error: err.message }, 500);
   }
 });
+
+export default app;
