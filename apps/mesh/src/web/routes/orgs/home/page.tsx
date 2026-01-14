@@ -15,21 +15,20 @@ import {
   GatewaySelector,
   ModelSelector,
   UsageStats,
-  useModels,
 } from "@/web/components/chat/index";
 import { NoLlmBindingEmptyState } from "@/web/components/chat/no-llm-binding-empty-state";
 import { ThreadHistoryPopover } from "@/web/components/chat/thread-history-popover";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useGateways } from "@/web/hooks/collections/use-gateway";
-import { useBindingConnections } from "@/web/hooks/use-binding";
+import { useModelConnections } from "@/web/hooks/collections/use-llm";
 import { useThreads } from "@/web/hooks/use-chat-store";
 import { useContext } from "@/web/hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { useModelState } from "@/web/hooks/use-model-state";
 import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
 import { authClient } from "@/web/lib/auth-client";
-import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
@@ -137,30 +136,12 @@ function HomeContent() {
 
   // Check for LLM binding connection
   const allConnections = useConnections();
-  const modelsConnections = useBindingConnections({
-    connections: allConnections,
-    binding: "LLMS",
-  });
+  const modelsConnections = useModelConnections();
 
   const hasModelsBinding = Boolean(modelsConnections.length > 0);
 
   // Get stored model selection (contains both id and connectionId)
-  const [storedModelState, setStoredModelState] = useLocalStorage<{
-    id: string;
-    connectionId: string;
-  } | null>(LOCALSTORAGE_KEYS.chatSelectedModel(locator), null);
-
-  // Determine connectionId to use (from stored selection or first available)
-  const connectionIdForModels =
-    storedModelState?.connectionId ?? modelsConnections[0]?.id ?? null;
-
-  // Fetch models for the selected connection
-  const models = useModels(connectionIdForModels);
-
-  // Find the selected model from the fetched models using stored state
-  const selectedModel = storedModelState
-    ? (models.find((m) => m.id === storedModelState.id) ?? null)
-    : null;
+  const [selectedModel, setModel] = useModelState(locator, modelsConnections);
 
   const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
     string | null
@@ -177,7 +158,7 @@ function HomeContent() {
   const showGatewaySelector = !selectedGatewayId;
 
   const handleModelChange = (model: { id: string; connectionId: string }) => {
-    setStoredModelState(model);
+    setModel(model);
   };
 
   const handleGatewayChange = (gatewayId: string | null) => {
@@ -218,7 +199,7 @@ function HomeContent() {
       thread_id: activeThreadId,
       model: {
         id: selectedModel.id,
-        connectionId: storedModelState?.connectionId ?? "",
+        connectionId: selectedModel.connectionId,
         provider: selectedModel.provider ?? undefined,
         limits: selectedModel.limits ?? undefined,
       },
@@ -401,7 +382,7 @@ function HomeContent() {
                       />
                     )}
                     <ModelSelector
-                      selectedModel={storedModelState ?? undefined}
+                      selectedModel={selectedModel ?? undefined}
                       onModelChange={handleModelChange}
                       placeholder="Model"
                       variant="borderless"
@@ -452,7 +433,7 @@ function HomeContent() {
                     />
                   )}
                   <ModelSelector
-                    selectedModel={storedModelState ?? undefined}
+                    selectedModel={selectedModel ?? undefined}
                     onModelChange={handleModelChange}
                     placeholder="Model"
                     variant="borderless"

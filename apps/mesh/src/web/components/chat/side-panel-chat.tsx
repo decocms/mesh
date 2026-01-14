@@ -8,13 +8,12 @@ import { CpuChip02, Plus, X } from "@untitledui/icons";
 import { Suspense } from "react";
 import { toast } from "sonner";
 import { useConnections } from "../../hooks/collections/use-connection";
-import { useBindingConnections } from "../../hooks/use-binding";
+import { useModelConnections } from "../../hooks/collections/use-llm";
 import { useThreads } from "../../hooks/use-chat-store";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { usePersistedChat } from "../../hooks/use-persisted-chat";
 import { useContext } from "../../hooks/use-context";
-import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./chat-context";
 import { GatewayInputWrapper } from "./gateway-input-wrapper";
@@ -25,10 +24,10 @@ import {
   ModelSelector,
   UsageStats,
   useGateways,
-  useModels,
 } from "./index";
 import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
 import { ThreadHistoryPopover } from "./thread-history-popover";
+import { useModelState } from "../../hooks/use-model-state";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
@@ -53,30 +52,12 @@ function ChatPanelContent() {
 
   // Check for LLM binding connection
   const allConnections = useConnections();
-  const modelsConnections = useBindingConnections({
-    connections: allConnections,
-    binding: "LLMS",
-  });
+  const modelsConnections = useModelConnections();
 
   const hasModelsBinding = Boolean(modelsConnections.length > 0);
 
   // Get stored model selection (contains both id and connectionId)
-  const [storedModelState, setStoredModelState] = useLocalStorage<{
-    id: string;
-    connectionId: string;
-  } | null>(LOCALSTORAGE_KEYS.chatSelectedModel(locator), null);
-
-  // Determine connectionId to use (from stored selection or first available)
-  const connectionIdForModels =
-    storedModelState?.connectionId ?? modelsConnections[0]?.id ?? null;
-
-  // Fetch models for the selected connection
-  const models = useModels(connectionIdForModels);
-
-  // Find the selected model from the fetched models using stored state
-  const selectedModel = storedModelState
-    ? (models.find((m) => m.id === storedModelState.id) ?? null)
-    : null;
+  const [selectedModel, setModel] = useModelState(locator, modelsConnections);
 
   const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
     string | null
@@ -136,7 +117,7 @@ function ChatPanelContent() {
       thread_id: activeThreadId,
       model: {
         id: selectedModel.id,
-        connectionId: storedModelState?.connectionId ?? "",
+        connectionId: selectedModel.connectionId,
         provider: selectedModel.provider ?? undefined,
         limits: selectedModel.limits ?? undefined,
       },
@@ -151,7 +132,7 @@ function ChatPanelContent() {
   };
 
   const handleModelChange = (model: { id: string; connectionId: string }) => {
-    setStoredModelState(model);
+    setModel(model);
   };
 
   const handleGatewayChange = (gatewayId: string | null) => {
@@ -365,7 +346,7 @@ function ChatPanelContent() {
                 />
               )}
               <ModelSelector
-                selectedModel={storedModelState ?? undefined}
+                selectedModel={selectedModel ?? undefined}
                 onModelChange={handleModelChange}
                 placeholder="Model"
                 variant="borderless"

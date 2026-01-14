@@ -25,12 +25,11 @@ import {
   Stars01,
 } from "@untitledui/icons";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { useConnections } from "../../hooks/collections/use-connection";
 import {
   useLLMsFromConnection,
+  useModelConnections,
   type LLM,
 } from "../../hooks/collections/use-llm";
-import { useBindingConnections } from "../../hooks/use-binding";
 
 // Prioritized models in order
 const prioritizedModelIds = [
@@ -57,19 +56,8 @@ prioritizedModelIds.forEach((modelId, index) => {
  * Returns filtered and sorted models.
  */
 export function useModels(connectionId: string | null): LLM[] {
-  const allConnections = useConnections();
-  const modelsConnections = useBindingConnections({
-    connections: allConnections,
-    binding: "LLMS",
-  });
-
-  // Find the connection to fetch models from
-  const connection = connectionId
-    ? modelsConnections.find((conn) => conn.id === connectionId)
-    : null;
-
-  // Fetch models from the selected connection using the collection hook
-  const models = useLLMsFromConnection(connection?.id, {
+  // Fetch models from the connection using the collection hook
+  const models = useLLMsFromConnection(connectionId ?? undefined, {
     pageSize: 999,
   });
 
@@ -460,18 +448,11 @@ function ModelSelectorContent({
   const [hoveredModel, setHoveredModel] = useState<LLM | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [scid, setSelectedConnectionId] = useState<string | null>(
-    selectedModel?.connectionId ?? null,
-  );
+  const [selectedConnectionId, setSelectedConnectionId] = useState<
+    string | null
+  >(selectedModel?.connectionId ?? null);
 
-  const allConnections = useConnections();
-  const modelsConnections = useBindingConnections({
-    connections: allConnections,
-    binding: "LLMS",
-  });
-
-  // Derive connection ID from selectedModel or first available
-  const selectedConnectionId = scid ?? modelsConnections[0]?.id ?? null;
+  const modelsConnections = useModelConnections();
 
   // Fetch models only for the selected connection
   const models = useModels(selectedConnectionId);
@@ -631,11 +612,7 @@ export function ModelSelector({
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
 
-  const allConnections = useConnections();
-  const modelsConnections = useBindingConnections({
-    connections: allConnections,
-    binding: "LLMS",
-  });
+  const modelsConnections = useModelConnections();
 
   // Derive connection ID from selectedModel or first available
   const selectedConnectionId = selectedModel?.connectionId ?? null;

@@ -12,6 +12,8 @@ import {
   useCollectionList,
   type UseCollectionListOptions,
 } from "../use-collections";
+import { useConnections } from "./use-connection";
+import { useBindingConnections } from "../use-binding";
 
 // LLM type matching ModelSchema from @decocms/bindings
 export type LLM = z.infer<typeof ModelCollectionEntitySchema>;
@@ -38,4 +40,19 @@ export function useLLMsFromConnection(
   const toolCaller = createToolCaller(safeConnectionId);
 
   return useCollectionList<LLM>(safeConnectionId, "LLM", toolCaller, options);
+}
+
+/**
+ * Hook to get all connections that support the LLMS binding
+ *
+ * @returns Array of connections with LLMS binding
+ */
+export function useModelConnections() {
+  const allConnections = useConnections();
+  const modelsConnections = useBindingConnections({
+    connections: allConnections,
+    binding: "LLMS",
+  });
+
+  return modelsConnections;
 }
