@@ -8,11 +8,31 @@
 // Re-export core binder types and utilities
 export {
   createBindingChecker,
+  bindingClient,
+  connectionImplementsBinding,
   type Binder,
   type BindingChecker,
   type ToolBinder,
   type ToolWithSchemas,
+  type ConnectionForBinding,
 } from "./core/binder";
+
+// Re-export plugin context types and provider
+export {
+  type PluginContext,
+  type PluginContextPartial,
+  type PluginConnectionEntity,
+  type PluginOrgContext,
+  type PluginSession,
+  type TypedToolCaller,
+} from "./core/plugin-context";
+
+export {
+  PluginContextProvider,
+  usePluginContext,
+  type PluginContextProviderProps,
+  type UsePluginContextOptions,
+} from "./core/plugin-context-provider";
 
 // Re-export registry binding types
 export {
@@ -70,3 +90,21 @@ export {
   EventBusBinding,
   type EventBusBindingClient,
 } from "./well-known/event-bus";
+
+// Re-export object storage binding types
+export {
+  OBJECT_STORAGE_BINDING,
+  type ObjectStorageBinding,
+  type ListObjectsInput,
+  type ListObjectsOutput,
+  type GetObjectMetadataInput,
+  type GetObjectMetadataOutput,
+  type GetPresignedUrlInput,
+  type GetPresignedUrlOutput,
+  type PutPresignedUrlInput,
+  type PutPresignedUrlOutput,
+  type DeleteObjectInput,
+  type DeleteObjectOutput,
+  type DeleteObjectsInput,
+  type DeleteObjectsOutput,
+} from "./well-known/object-storage";

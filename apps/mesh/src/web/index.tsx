@@ -8,12 +8,17 @@ import {
   lazyRouteComponent,
   Outlet,
   RouterProvider,
+  type AnyRoute,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { SplashScreen } from "@/web/components/splash-screen";
 import * as z from "zod";
+import type { ReactNode } from "react";
 
 import "../../index.css";
+
+import { sourcePlugins } from "./plugins.ts";
+import type { AnyPlugin, PluginSetupContext } from "@decocms/bindings/plugins";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -94,6 +99,14 @@ const orgSettingsRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/settings",
   component: lazyRouteComponent(() => import("./routes/orgs/settings.tsx")),
+});
+
+const orgSettingsPluginsRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/settings/plugins",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/plugins.tsx"),
+  ),
 });
 
 const orgMonitoringRoute = createRoute({
@@ -194,6 +207,49 @@ const orgWorkflowRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
+/**
+ * Dynamic plugin route
+ * Routes to plugins based on $pluginId parameter
+ */
+const pluginLayoutRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/$pluginId",
+  component: lazyRouteComponent(
+    () => import("./layouts/dynamic-plugin-layout.tsx"),
+  ),
+});
+
+/**
+ * In-memory state for plugins to register stuff via callbacks.
+ */
+export const pluginRootSidebarItems: {
+  pluginId: string;
+  icon: ReactNode;
+  label: string;
+}[] = [];
+
+const pluginRoutes: AnyRoute[] = [];
+
+sourcePlugins.forEach((plugin: AnyPlugin) => {
+  const context: PluginSetupContext = {
+    parentRoute: pluginLayoutRoute as AnyRoute,
+    routing: {
+      createRoute: createRoute,
+      lazyRouteComponent: lazyRouteComponent,
+    },
+    registerRootSidebarItem: (item) =>
+      pluginRootSidebarItems.push({ pluginId: plugin.id, ...item }),
+    registerPluginRoutes: (routes) => {
+      pluginRoutes.push(...routes);
+    },
+  };
+
+  plugin.setup(context);
+});
+
+// Add all plugin routes as children of the plugin layout
+const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
+
 const oauthCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/oauth/callback",
@@ -214,9 +270,11 @@ const shellRouteTree = shellLayout.addChildren([
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
   orgSettingsRoute,
+  orgSettingsPluginsRoute,
   orgWorkflowRoute,
   connectionLayoutRoute,
   collectionDetailsRoute,
+  pluginLayoutWithChildren,
 ]);
 
 const routeTree = rootRoute.addChildren([

@@ -36,6 +36,7 @@ export function useOrganizationSettings(organizationId: string) {
         return {
           organizationId,
           sidebar_items: null,
+          enabled_plugins: null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         } as OrganizationSettings;
@@ -61,7 +62,9 @@ export function useOrganizationSettingsActions(organizationId: string) {
 
   const update = useMutation({
     mutationFn: async (
-      updates: Partial<Pick<OrganizationSettings, "sidebar_items">>,
+      updates: Partial<
+        Pick<OrganizationSettings, "sidebar_items" | "enabled_plugins">
+      >,
     ) => {
       const settings = (await toolCaller("ORGANIZATION_SETTINGS_UPDATE", {
         organizationId,
@@ -70,10 +73,8 @@ export function useOrganizationSettingsActions(organizationId: string) {
 
       return settings;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.organizationSettings(organizationId),
-      });
+    onSuccess: (data) => {
+      queryClient.setQueryData(KEYS.organizationSettings(organizationId), data);
     },
   });
 

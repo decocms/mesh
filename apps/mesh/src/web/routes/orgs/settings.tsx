@@ -16,8 +16,8 @@ import {
 import { Input } from "@deco/ui/components/input.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { Upload01, X } from "@untitledui/icons";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ChevronRight, LayersTwo01, Upload01, X } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -346,6 +346,38 @@ export default function OrgSettings() {
                     </div>
                   </form>
                 </Form>
+
+                <div className="border-t border-border pt-6 mt-6">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      More Settings
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Additional configuration options for your organization.
+                    </p>
+                  </div>
+
+                  <div className="mt-4">
+                    <Link
+                      to="/$org/settings/plugins"
+                      params={{ org: org.slug }}
+                      className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <LayersTwo01 className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <div className="font-medium text-foreground">
+                            Plugins
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Enable or disable plugins for your organization
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </Link>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -93,7 +93,10 @@ function ConnectionInspectorViewWithConnection({
     : "settings";
 
   const handleTabChange = (tabId: string) => {
-    navigate({ search: (prev) => ({ ...prev, tab: tabId }), replace: true });
+    navigate({
+      search: (prev: { tab?: string }) => ({ ...prev, tab: tabId }),
+      replace: true,
+    });
   };
 
   const activeCollection = (collections || []).find(

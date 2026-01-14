@@ -177,3 +177,46 @@ export function createBindingChecker<TDefinition extends readonly ToolBinder[]>(
     },
   };
 }
+
+/**
+ * Generic connection type for binding checking.
+ * Any connection object with a tools array can be checked.
+ */
+export interface ConnectionForBinding {
+  tools?: Array<{
+    name: string;
+    inputSchema?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+  }> | null;
+}
+
+/**
+ * Checks if a connection implements a binding by validating its tools.
+ * Used by plugin layouts to filter connections by binding.
+ */
+export function connectionImplementsBinding(
+  connection: ConnectionForBinding,
+  binding: Binder,
+): boolean {
+  const tools = connection.tools;
+
+  if (!tools || tools.length === 0) {
+    return false;
+  }
+
+  // Prepare tools for checker (only input schema, skip output for detection)
+  const toolsForChecker = tools.map((t) => ({
+    name: t.name,
+    inputSchema: t.inputSchema,
+  }));
+
+  // Create binding checker without output schemas
+  const bindingForChecker = binding.map((b) => ({
+    name: b.name,
+    inputSchema: b.inputSchema,
+    opt: b.opt,
+  }));
+
+  const checker = createBindingChecker(bindingForChecker);
+  return checker.isImplementedBy(toolsForChecker);
+}

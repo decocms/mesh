@@ -40,7 +40,9 @@ export interface OrganizationSettingsStoragePort {
   get(organizationId: string): Promise<OrganizationSettings | null>;
   upsert(
     organizationId: string,
-    data?: Partial<Pick<OrganizationSettings, "sidebar_items">>,
+    data?: Partial<
+      Pick<OrganizationSettings, "sidebar_items" | "enabled_plugins">
+    >,
   ): Promise<OrganizationSettings>;
 }
 
