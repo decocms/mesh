@@ -3,23 +3,6 @@
  */
 
 /**
- * Check if a key represents a folder (ends with /)
- */
-export function isFolder(key: string): boolean {
-  return key.endsWith("/");
-}
-
-/**
- * Get the parent path from a key
- * e.g., "folder/subfolder/file.txt" -> "folder/subfolder/"
- */
-export function getParentPath(key: string): string {
-  const parts = key.split("/").filter(Boolean);
-  if (parts.length <= 1) return "";
-  return parts.slice(0, -1).join("/") + "/";
-}
-
-/**
  * Get the name of the file/folder from a key
  * e.g., "folder/subfolder/file.txt" -> "file.txt"
  */
