@@ -62,7 +62,7 @@ function getProtocolLabel(protocol: Protocol): string {
 }
 
 /** Badge showing protocol type with icon and color */
-export function ProtocolBadge({ protocol }: ProtocolBadgeProps) {
+function ProtocolBadge({ protocol }: ProtocolBadgeProps) {
   const colorClasses: Record<Protocol, string> = {
     http: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
     sse: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -272,7 +272,7 @@ export function MCPServerCard(props: MCPServerCardProps) {
  * Extract display data from a registry item for the card component
  * Handles name parsing, icon extraction, and verification status
  */
-export function extractCardDisplayData(
+function extractCardDisplayData(
   item: RegistryItem,
 ): Omit<MCPServerCardStoreProps, "onClick" | "variant"> {
   const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";

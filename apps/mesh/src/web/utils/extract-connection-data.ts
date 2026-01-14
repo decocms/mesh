@@ -33,7 +33,7 @@ function getRemoteDisplayName(remote?: { url?: string }): string {
 /**
  * Get a display name for a package
  */
-export function getPackageDisplayName(pkg?: {
+function getPackageDisplayName(pkg?: {
   identifier?: string;
   name?: string;
 }): string {
