@@ -38,6 +38,12 @@ const ListObjectsInputSchema = z.object({
     .string()
     .optional()
     .describe("Token for pagination from previous response"),
+  delimiter: z
+    .string()
+    .optional()
+    .describe(
+      "Delimiter for grouping keys (typically '/'). When set, commonPrefixes returns folder paths.",
+    ),
 });
 
 const ListObjectsOutputSchema = z.object({
@@ -54,6 +60,12 @@ const ListObjectsOutputSchema = z.object({
     .optional()
     .describe("Token for fetching next page of results"),
   isTruncated: z.boolean().describe("Whether there are more results available"),
+  commonPrefixes: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Folder paths when delimiter is used (e.g., ['photos/2024/', 'photos/2025/'])",
+    ),
 });
 
 export type ListObjectsInput = z.infer<typeof ListObjectsInputSchema>;

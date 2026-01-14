@@ -10,10 +10,12 @@ import * as z from "zod";
 
 /**
  * Search schema for the file browser route.
- * Persists the current folder path in the URL.
+ * Persists the current folder path, view mode, and display options in the URL.
  */
 export const fileBrowserSearchSchema = z.object({
   path: z.string().optional().default(""),
+  flat: z.boolean().optional().default(false),
+  view: z.enum(["table", "grid"]).optional().default("table"),
 });
 
 export type FileBrowserSearch = z.infer<typeof fileBrowserSearchSchema>;

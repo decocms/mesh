@@ -1,12 +1,12 @@
 /**
  * File Browser Component
  *
- * Main list-view file browser for S3-compatible storage.
+ * Main file browser for S3-compatible storage with table and grid views.
  * Features: breadcrumb navigation, folder navigation, file actions, upload.
- * Path is persisted in the URL for refresh persistence.
+ * Path and view mode are persisted in the URL for refresh persistence.
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, lazy, Suspense } from "react";
 import { usePluginContext } from "@decocms/bindings";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
 import { useObjects } from "../hooks/use-objects";
@@ -29,11 +29,15 @@ import {
   Loading01,
   AlertCircle,
   FolderPlus,
+  List,
+  Grid01,
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
 import { objectStorageRouter } from "../lib/router";
+
+const GridView = lazy(() => import("./grid-view"));
 
 interface FileRowProps {
   item: {
@@ -43,6 +47,7 @@ interface FileRowProps {
     isFolder: boolean;
   };
   selected: boolean;
+  showFullPath?: boolean;
   onSelect: (selected: boolean) => void;
   onNavigate: (path: string) => void;
   onDownload: (key: string) => void;
@@ -52,12 +57,13 @@ interface FileRowProps {
 function FileRow({
   item,
   selected,
+  showFullPath = false,
   onSelect,
   onNavigate,
   onDownload,
   onDelete,
 }: FileRowProps) {
-  const name = getFileName(item.key);
+  const name = showFullPath ? item.key : getFileName(item.key);
 
   return (
     <div className="group flex items-center gap-3 px-4 py-2 hover:bg-muted/50 border-b border-border last:border-b-0">
@@ -153,16 +159,48 @@ function Breadcrumb({ prefix, onNavigate }: BreadcrumbProps) {
 }
 
 export default function FileBrowser() {
-  // Path is persisted in URL for refresh persistence
-  const { path: prefix = "" } = objectStorageRouter.useSearch({ from: "/" });
+  // Path and view mode are persisted in URL for refresh persistence
+  const {
+    path: prefix = "",
+    flat = false,
+    view = "table",
+  } = objectStorageRouter.useSearch({
+    from: "/",
+  });
   const navigate = objectStorageRouter.useNavigate();
 
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
   const setPrefix = (newPath: string) => {
     setSelectedKeys(new Set()); // Clear selection when navigating folders
-    navigate({ to: "/", search: { path: newPath || undefined } });
+    navigate({ to: "/", search: { path: newPath || undefined, flat, view } });
   };
+
+  const setFlat = (newFlat: boolean) => {
+    setSelectedKeys(new Set()); // Clear selection when switching view mode
+    // Reset to root when switching to flat mode, preserve path in directory mode
+    navigate({
+      to: "/",
+      search: {
+        path: newFlat ? undefined : prefix || undefined,
+        flat: newFlat,
+        view,
+      },
+    });
+  };
+
+  const setView = (newView: "table" | "grid") => {
+    setSelectedKeys(new Set()); // Clear selection when switching view
+    navigate({
+      to: "/",
+      search: {
+        path: prefix || undefined,
+        flat,
+        view: newView,
+      },
+    });
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -170,7 +208,7 @@ export default function FileBrowser() {
     usePluginContext<typeof OBJECT_STORAGE_BINDING>();
 
   const { objects, isLoading, isFetchingMore, hasMore, loadMore, error } =
-    useObjects({ prefix });
+    useObjects({ prefix, flat });
 
   // Upload mutation
   const uploadMutation = useMutation({
@@ -229,11 +267,30 @@ export default function FileBrowser() {
     },
   });
 
-  // Download handler
+  // Download handler - fetches file and triggers browser download
   const handleDownload = async (key: string) => {
     try {
       const { url } = await toolCaller("GET_PRESIGNED_URL", { key });
-      window.open(url, "_blank");
+
+      // Fetch the file content
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
+
+      // Create blob and trigger download
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = getFileName(key);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up the object URL
+      URL.revokeObjectURL(objectUrl);
     } catch (error) {
       toast.error(
         `Download failed: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -301,46 +358,172 @@ export default function FileBrowser() {
     );
   }
 
+  // Grid view handles its own rendering
+  if (view === "grid") {
+    return (
+      <div className="flex flex-col h-full">
+        {/* Header for grid view */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background">
+          {/* Left side: Breadcrumb or flat title */}
+          {flat ? (
+            <span className="text-sm text-muted-foreground">
+              All files (flat)
+            </span>
+          ) : (
+            <Breadcrumb prefix={prefix} onNavigate={setPrefix} />
+          )}
+
+          {/* Right side: Options and view toggle */}
+          <div className="flex items-center gap-4">
+            {/* Directory mode toggle */}
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={!flat}
+                onCheckedChange={(checked) => setFlat(!checked)}
+              />
+              <span className="text-muted-foreground">Show as directories</span>
+            </label>
+
+            {/* View toggle buttons */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant={view === "table" ? "secondary" : "ghost"}
+                size="sm"
+                className="size-8 p-0"
+                onClick={() => setView("table")}
+              >
+                <List size={16} />
+              </Button>
+              <Button
+                variant={view === "grid" ? "secondary" : "ghost"}
+                size="sm"
+                className="size-8 p-0"
+                onClick={() => setView("grid")}
+              >
+                <Grid01 size={16} />
+              </Button>
+            </div>
+
+            {/* Upload button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadMutation.isPending}
+            >
+              {uploadMutation.isPending ? (
+                <Loading01 size={14} className="mr-1 animate-spin" />
+              ) : (
+                <Upload01 size={14} className="mr-1" />
+              )}
+              Upload
+            </Button>
+          </div>
+        </div>
+
+        {/* Grid content */}
+        <Suspense
+          fallback={
+            <div className="flex-1 flex items-center justify-center">
+              <Loading01
+                size={32}
+                className="animate-spin text-muted-foreground"
+              />
+            </div>
+          }
+        >
+          <GridView prefix={prefix} flat={flat} onNavigate={setPrefix} />
+        </Suspense>
+      </div>
+    );
+  }
+
+  // Table view
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background">
-        <Breadcrumb prefix={prefix} onNavigate={setPrefix} />
+        {/* Left side: Breadcrumb (directory mode) or title (flat mode) */}
+        {flat ? (
+          <span className="text-sm text-muted-foreground">
+            All files (flat)
+          </span>
+        ) : (
+          <Breadcrumb prefix={prefix} onNavigate={setPrefix} />
+        )}
 
-        <div className="flex items-center gap-2">
-          {selectedKeys.size > 0 && (
+        <div className="flex items-center gap-4">
+          {/* Directory mode toggle (table view only) */}
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={!flat}
+              onCheckedChange={(checked) => setFlat(!checked)}
+            />
+            <span className="text-muted-foreground">Show as directories</span>
+          </label>
+
+          {/* View toggle buttons */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant={view === "table" ? "secondary" : "ghost"}
+              size="sm"
+              className="size-8 p-0"
+              onClick={() => setView("table")}
+            >
+              <List size={16} />
+            </Button>
+            <Button
+              variant={view === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              className="size-8 p-0"
+              onClick={() => setView("grid")}
+            >
+              <Grid01 size={16} />
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {selectedKeys.size > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive"
+                onClick={handleDeleteSelected}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash01 size={14} className="mr-1" />
+                Delete ({selectedKeys.size})
+              </Button>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+            />
             <Button
               variant="outline"
               size="sm"
-              className="text-destructive"
-              onClick={handleDeleteSelected}
-              disabled={deleteMutation.isPending}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadMutation.isPending}
             >
-              <Trash01 size={14} className="mr-1" />
-              Delete ({selectedKeys.size})
+              {uploadMutation.isPending ? (
+                <Loading01 size={14} className="mr-1 animate-spin" />
+              ) : (
+                <Upload01 size={14} className="mr-1" />
+              )}
+              Upload
             </Button>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleFileChange}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadMutation.isPending}
-          >
-            {uploadMutation.isPending ? (
-              <Loading01 size={14} className="mr-1 animate-spin" />
-            ) : (
-              <Upload01 size={14} className="mr-1" />
-            )}
-            Upload
-          </Button>
+          </div>
         </div>
       </div>
 
@@ -390,6 +573,7 @@ export default function FileBrowser() {
                 key={item.key}
                 item={item}
                 selected={selectedKeys.has(item.key)}
+                showFullPath={flat}
                 onSelect={(selected) => handleSelect(item.key, selected)}
                 onNavigate={setPrefix}
                 onDownload={handleDownload}
