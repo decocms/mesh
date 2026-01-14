@@ -71,14 +71,16 @@ function ChatPanelContent() {
     (m, state) => m.id === state.id && m.connectionId === state.connectionId,
   );
 
-  const [selectedGatewayId, setSelectedGatewayId] = useLocalStorage<
+  const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
     string | null
   >(`${locator}:selected-gateway-id`, null);
 
   // Find the selected gateway from the list
-  const selectedGateway = selectedGatewayId
-    ? (gateways.find((g) => g.id === selectedGatewayId) ?? null)
+  const selectedGateway = storedSelectedGatewayId
+    ? (gateways.find((g) => g.id === storedSelectedGatewayId) ?? null)
     : null;
+
+  const selectedGatewayId = selectedGateway?.id ?? null;
 
   // Get context for the AI assistant based on current state
   const contextPrompt = useContext(selectedGatewayId);
