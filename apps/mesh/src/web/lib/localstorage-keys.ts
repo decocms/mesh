@@ -21,6 +21,7 @@ export const LOCALSTORAGE_KEYS = {
   orgHomeQuickstart: (org: string) => `mesh:org-home:quickstart:${org}`,
   gatewaySystemPrompts: (locator: ProjectLocator) =>
     `mesh:gateway:system-prompts:${locator}`,
+  storeShowStdio: () => `mesh:store:show-stdio`,
   developerMode: () => `mesh:user:developer-mode`,
   pluginConnection: (org: string, pluginId: string) =>
     `mesh:plugin:connection:${org}:${pluginId}`,

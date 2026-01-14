@@ -1,5 +1,5 @@
-import { GatewaySelector } from "@/web/components/chat/gateway-selector";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
+import { GatewaySelect } from "./gateway-select";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import {
@@ -85,10 +85,9 @@ export function WorkflowEditorHeader({
             <PinToSidebarButton title={title} url={url} icon="workflow" />
 
             <Suspense fallback={<Spinner size="xs" />}>
-              <GatewaySelector
-                selectedGatewayId={selectedGatewayId ?? undefined}
+              <GatewaySelect
+                selectedGatewayId={selectedGatewayId}
                 onGatewayChange={setSelectedGatewayId}
-                variant="bordered"
                 placeholder="Select Agent"
               />
             </Suspense>

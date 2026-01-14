@@ -21,6 +21,8 @@ import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useMcp } from "@/web/hooks/use-mcp";
 import { authClient } from "@/web/lib/auth-client";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import { slugify } from "@/web/utils/slugify";
@@ -204,15 +206,41 @@ function StoreMCPServerDetailContent() {
   const { appName: serverSlug } = useParams({ strict: false }) as {
     appName?: string;
   };
-  const { registryId: registryIdParam, serverName } = useSearch({
+  const {
+    registryId: registryIdParam,
+    serverName,
+    stdio: stdioParam,
+  } = useSearch({
     strict: false,
   }) as {
     registryId: string;
     serverName: string;
+    stdio?: string;
   };
 
-  // Track active tab - initially "readme"
-  const [activeTabId, setActiveTabId] = useState<string>("readme");
+  // Persist showStdio preference in localStorage, URL param overrides
+  const [storedShowStdio, setStoredShowStdio] = useLocalStorage<boolean>(
+    LOCALSTORAGE_KEYS.storeShowStdio(),
+    () => false,
+  );
+  // URL param takes precedence, then localStorage
+  const showStdio =
+    stdioParam === "true"
+      ? true
+      : stdioParam === "false"
+        ? false
+        : storedShowStdio;
+  // Update localStorage when URL param is present
+  if (stdioParam !== undefined && (stdioParam === "true") !== storedShowStdio) {
+    setStoredShowStdio(stdioParam === "true");
+  }
+
+  // Track active tab - no initial value, will be calculated
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  // Track selected version for installations (null means use latest)
+  const [selectedVersionIndex, setSelectedVersionIndex] = useState<
+    number | null
+  >(null);
 
   const actions = useConnectionActions();
   const allConnections = useConnections();
@@ -339,6 +367,20 @@ function StoreMCPServerDetailContent() {
     }
   }
 
+  // Find the index of the "latest" version (or default to 0)
+  const latestVersionIndex = (() => {
+    const latestIdx = allVersions.findIndex((v) => {
+      const meta = v._meta?.["io.modelcontextprotocol.registry/official"] as
+        | { isLatest?: boolean }
+        | undefined;
+      return meta?.isLatest === true;
+    });
+    return latestIdx >= 0 ? latestIdx : 0;
+  })();
+
+  // Use selected version or default to latest
+  const effectiveVersionIndex = selectedVersionIndex ?? latestVersionIndex;
+
   // Find the item matching the serverSlug or serverName
   let selectedItem = items.find((item) => {
     const itemName = item.name || item.title || item.server.title || "";
@@ -403,7 +445,45 @@ function StoreMCPServerDetailContent() {
   // Check if repository is available for README tab
   const repo = data?.repository ? extractGitHubRepo(data.repository) : null;
 
+  // Combine remotes and packages into a unified list for display
+  const remotes = selectedItem?.server?.remotes ?? [];
+  const packages = selectedItem?.server?.packages ?? [];
+
+  // Convert packages to remote-like format for unified display
+  const allServers = [
+    ...remotes.map((r, idx) => ({
+      ...r,
+      _type: "remote" as const,
+      _index: idx,
+    })),
+    ...packages.map((pkg, idx) => ({
+      type: "stdio" as const,
+      url: undefined,
+      name: pkg.name || pkg.identifier,
+      title: pkg.name || pkg.identifier?.replace(/^@[^/]+\//, ""),
+      description: pkg.environmentVariables?.length
+        ? `Requires ${pkg.environmentVariables.length} environment variable(s)`
+        : undefined,
+      _type: "package" as const,
+      _index: idx,
+    })),
+  ];
+
+  // Filter servers based on showStdio preference for visibility calculation
+  const visibleServers = showStdio
+    ? allServers
+    : allServers.filter((s) => s.type?.toLowerCase() !== "stdio");
+
+  // Calculate if we have multiple connection options (considering showStdio filter)
+  const hasMultipleServers = visibleServers.length > 1;
+
   const availableTabs = [
+    {
+      id: "servers",
+      label: "Servers",
+      count: visibleServers.length,
+      visible: hasMultipleServers,
+    },
     {
       id: "readme",
       label: "README",
@@ -420,14 +500,24 @@ function StoreMCPServerDetailContent() {
     },
   ].filter((tab) => tab.visible);
 
-  // Calculate effective active tab - prioritize README, then tools, otherwise first available
-  const effectiveActiveTabId = availableTabs.find((t) => t.id === activeTabId)
-    ? activeTabId
-    : availableTabs.find((t) => t.id === "readme")?.id ||
-      availableTabs[0]?.id ||
-      "overview";
+  // Calculate effective active tab - prioritize servers if available, then README, then tools
+  // If user has selected a tab, use that; otherwise use default priority
+  const defaultTabId =
+    availableTabs.find((t) => t.id === "servers")?.id ||
+    availableTabs.find((t) => t.id === "readme")?.id ||
+    availableTabs[0]?.id ||
+    "overview";
 
-  const handleInstall = async (versionIndex?: number) => {
+  const effectiveActiveTabId =
+    activeTabId && availableTabs.find((t) => t.id === activeTabId)
+      ? activeTabId
+      : defaultTabId;
+
+  const handleInstall = async (
+    versionIndex?: number,
+    remoteIndex?: number,
+    packageIndex?: number,
+  ) => {
     const version = allVersions[versionIndex ?? 0] || selectedItem;
     if (!version || !org || !session?.user?.id) return;
 
@@ -435,11 +525,25 @@ function StoreMCPServerDetailContent() {
       version,
       org.id,
       session.user.id,
+      {
+        remoteIndex:
+          packageIndex === undefined ? (remoteIndex ?? 0) : undefined,
+        packageIndex,
+      },
     );
 
-    if (!connectionData.connection_url) {
+    // Validate connection data based on type
+    const isStdioConnection = connectionData.connection_type === "STDIO";
+    const hasUrl = Boolean(connectionData.connection_url);
+    const hasStdioConfig =
+      isStdioConnection &&
+      connectionData.connection_headers &&
+      typeof connectionData.connection_headers === "object" &&
+      "command" in connectionData.connection_headers;
+
+    if (!hasUrl && !hasStdioConfig) {
       toast.error(
-        "This MCP Server cannot be connected: no connection URL available",
+        "This MCP Server cannot be connected: no connection method available",
       );
       return;
     }
@@ -474,8 +578,10 @@ function StoreMCPServerDetailContent() {
     return null;
   }
 
-  // Check if server can be installed (must have remotes)
-  const canInstall = (selectedItem?.server?.remotes?.length ?? 0) > 0;
+  // Check if server can be installed (must have remotes or packages)
+  const hasRemotes = (selectedItem?.server?.remotes?.length ?? 0) > 0;
+  const hasPackages = (selectedItem?.server?.packages?.length ?? 0) > 0;
+  const canInstall = hasRemotes || hasPackages;
 
   return (
     <div className="flex flex-col h-full border-l border-border">
@@ -504,6 +610,9 @@ function StoreMCPServerDetailContent() {
               onInstall={handleInstall}
               canInstall={canInstall}
               isInstalling={actions.create.isPending}
+              hideInstallControls={hasMultipleServers}
+              selectedVersionIndex={effectiveVersionIndex}
+              onVersionChange={setSelectedVersionIndex}
             />
 
             {/* SECTION 2 & 3: Two Column Layout */}
@@ -523,6 +632,27 @@ function StoreMCPServerDetailContent() {
                 effectiveTools={effectiveTools}
                 isLoadingTools={isLoadingRemoteTools}
                 onTabChange={setActiveTabId}
+                servers={allServers}
+                onInstallServer={(entry) => {
+                  // Use effective version index for installations from servers list
+                  if (entry._type === "remote") {
+                    handleInstall(
+                      effectiveVersionIndex,
+                      entry._index,
+                      undefined,
+                    );
+                  } else {
+                    handleInstall(
+                      effectiveVersionIndex,
+                      undefined,
+                      entry._index,
+                    );
+                  }
+                }}
+                isInstalling={actions.create.isPending}
+                mcpIcon={data.icon}
+                mcpName={data.name}
+                showStdio={showStdio}
               />
             </div>
           </div>

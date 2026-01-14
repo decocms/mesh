@@ -1,25 +1,25 @@
-import { EmptyState } from "@/web/components/empty-state";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { Button } from "@deco/ui/components/button.tsx";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate } from "@tanstack/react-router";
-import { CpuChip02, Loading01, Plus, X } from "@untitledui/icons";
+import { CpuChip02, Plus, X } from "@untitledui/icons";
 import { Suspense } from "react";
 import { toast } from "sonner";
 import { useConnections } from "../../hooks/collections/use-connection";
 import { useBindingConnections } from "../../hooks/use-binding";
 import { useThreads } from "../../hooks/use-chat-store";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
+import { useLocalStorage } from "../../hooks/use-local-storage";
 import { usePersistedChat } from "../../hooks/use-persisted-chat";
 import { useStoredSelection } from "../../hooks/use-stored-selection";
-import { useSystem } from "../../hooks/use-system";
+import { useContext } from "../../hooks/use-context";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./chat-context";
-import { GatewayIceBreakers } from "./gateway-ice-breakers";
+import { GatewayInputWrapper } from "./gateway-input-wrapper";
+import { GatewayIceBreakers } from "./ice-breakers";
 import {
   Chat,
   GatewaySelector,
@@ -61,8 +61,6 @@ function ChatPanelContent() {
   });
 
   const hasModelsBinding = Boolean(modelsConnection);
-  const hasGateways = gateways.length > 0;
-  const hasRequiredSetup = hasModelsBinding && hasGateways;
 
   const [selectedModel, setSelectedModelState] = useStoredSelection<
     { id: string; connectionId: string },
@@ -73,17 +71,19 @@ function ChatPanelContent() {
     (m, state) => m.id === state.id && m.connectionId === state.connectionId,
   );
 
-  const [selectedGateway, setSelectedGatewayState] = useStoredSelection<
-    { gatewayId: string },
-    (typeof gateways)[number]
-  >(
-    `${locator}:selected-gateway`,
-    gateways,
-    (g, state) => g.id === state.gatewayId,
-  );
+  const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
+    string | null
+  >(`${locator}:selected-gateway-id`, null);
 
-  // Generate dynamic system prompt based on context
-  const systemPrompt = useSystem(selectedGateway?.id);
+  // Find the selected gateway from the list
+  const selectedGateway = storedSelectedGatewayId
+    ? (gateways.find((g) => g.id === storedSelectedGatewayId) ?? null)
+    : null;
+
+  const selectedGatewayId = selectedGateway?.id ?? null;
+
+  // Get context for the AI assistant based on current state
+  const contextPrompt = useContext(selectedGatewayId);
 
   // Get the onToolCall handler for invalidating collection queries
   const onToolCall = useInvalidateCollectionsOnToolCall();
@@ -91,20 +91,17 @@ function ChatPanelContent() {
   // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
   const chat = usePersistedChat({
     threadId: activeThreadId,
-    systemPrompt,
+    systemPrompt: contextPrompt,
     onToolCall,
-    onCreateThread: (thread) =>
-      createThread({
-        id: thread.id,
-        title: thread.title,
-        gatewayId: selectedGateway?.id,
-      }),
+    gatewayId: selectedGatewayId ?? undefined,
   });
 
   // Get input and branching state from context
   const { inputValue, setInputValue, branchContext, clearBranch } = useChat();
 
   const { isEmpty } = chat;
+
+  const showGatewaySelector = !selectedGatewayId;
 
   // Handle clicking on the branch preview to go back to original thread
   const handleGoToOriginalMessage = () => {
@@ -118,11 +115,6 @@ function ChatPanelContent() {
   const handleSendMessage = async (text: string) => {
     if (!selectedModel) {
       toast.error("No model configured");
-      return;
-    }
-
-    if (!selectedGateway?.id) {
-      toast.error("No Agent configured");
       return;
     }
 
@@ -141,7 +133,7 @@ function ChatPanelContent() {
         provider: selectedModel.provider ?? undefined,
         limits: selectedModel.limits ?? undefined,
       },
-      gateway: { id: selectedGateway.id },
+      gateway: { id: selectedGatewayId },
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
@@ -155,26 +147,17 @@ function ChatPanelContent() {
     setSelectedModelState(model);
   };
 
-  const handleGatewayChange = (gatewayId: string) => {
-    setSelectedGatewayState({ gatewayId });
+  const handleGatewayChange = (gatewayId: string | null) => {
+    setSelectedGatewayId(gatewayId);
   };
 
-  if (!hasRequiredSetup) {
-    let title: string;
-    let description: string;
+  const isStreaming =
+    chat.status === "submitted" || chat.status === "streaming";
 
-    if (!hasModelsBinding && !hasGateways) {
-      title = "Connect your providers";
-      description =
-        "Connect an LLM provider and create an Agent to unlock AI-powered features.";
-    } else if (!hasModelsBinding) {
-      title = "No model provider connected";
-      description =
-        "Connect to a model provider to unlock AI-powered features.";
-    } else {
-      title = "No Agents configured";
-      description = "Create an Agent to expose your MCP tools to the chat.";
-    }
+  if (!hasModelsBinding) {
+    const title = "No model provider connected";
+    const description =
+      "Connect to a model provider to unlock AI-powered features.";
 
     return (
       <Chat>
@@ -204,42 +187,21 @@ function ChatPanelContent() {
 
         <Chat.Main className="flex flex-col items-center">
           <Chat.EmptyState>
-            {!hasModelsBinding ? (
-              <NoLlmBindingEmptyState
-                title={title}
-                description={description}
-                orgSlug={orgSlug}
-                orgId={orgId}
-                userId={user?.id ?? ""}
-                allConnections={allConnections}
-                onInstallMcpServer={() =>
-                  navigate({
-                    to: "/$org/mcps",
-                    params: { org: orgSlug },
-                    search: { action: "create" },
-                  })
-                }
-              />
-            ) : (
-              <EmptyState
-                title={title}
-                description={description}
-                actions={
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      navigate({
-                        to: "/$org/mcps",
-                        params: { org: orgSlug },
-                        search: { action: "create" },
-                      })
-                    }
-                  >
-                    Custom Connection
-                  </Button>
-                }
-              />
-            )}
+            <NoLlmBindingEmptyState
+              title={title}
+              description={description}
+              orgSlug={orgSlug}
+              orgId={orgId}
+              userId={user?.id ?? ""}
+              allConnections={allConnections}
+              onInstallMcpServer={() =>
+                navigate({
+                  to: "/$org/mcps",
+                  params: { org: orgSlug },
+                  search: { action: "create" },
+                })
+              }
+            />
           </Chat.EmptyState>
         </Chat.Main>
       </Chat>
@@ -251,8 +213,8 @@ function ChatPanelContent() {
       <Chat.Header>
         <Chat.Header.Left>
           <IntegrationIcon
-            icon={selectedGateway?.icon}
-            name={selectedGateway?.title || "deco chat"}
+            icon={selectedGateway?.icon ?? "/favicon.svg"}
+            name={selectedGateway?.title ?? "deco chat"}
             size="xs"
             fallbackIcon={<CpuChip02 size={12} />}
           />
@@ -299,7 +261,7 @@ function ChatPanelContent() {
             <div className="flex flex-col items-center gap-6 w-full px-4">
               <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
                 <IntegrationIcon
-                  icon={selectedGateway?.icon}
+                  icon={selectedGateway?.icon ?? "/favicon.svg"}
                   name={selectedGateway?.title || "deco chat"}
                   size="lg"
                   fallbackIcon={<CpuChip02 size={32} />}
@@ -313,35 +275,28 @@ function ChatPanelContent() {
                     "Ask anything about configuring model providers or using MCP Mesh."}
                 </div>
               </div>
-              {selectedGateway?.id && (
-                <ErrorBoundary key={selectedGateway.id} fallback={null}>
-                  <Suspense
-                    fallback={
-                      <div className="flex justify-center">
-                        <Loading01
-                          size={20}
-                          className="animate-spin text-muted-foreground"
-                        />
-                      </div>
-                    }
-                  >
-                    <GatewayIceBreakers
-                      gatewayId={selectedGateway.id}
-                      onSelect={(prompt) => {
-                        // Submit the prompt name as the first message
-                        handleSendMessage(prompt.description ?? prompt.name);
-                      }}
-                    />
-                  </Suspense>
-                </ErrorBoundary>
-              )}
+              <GatewayIceBreakers.Container>
+                {selectedGatewayId && (
+                  <ErrorBoundary key={selectedGatewayId} fallback={null}>
+                    <Suspense fallback={<GatewayIceBreakers.Fallback />}>
+                      <GatewayIceBreakers
+                        gatewayId={selectedGatewayId}
+                        onSelect={(prompt) => {
+                          // Submit the prompt name as the first message
+                          handleSendMessage(prompt.description ?? prompt.name);
+                        }}
+                      />
+                    </Suspense>
+                  </ErrorBoundary>
+                )}
+              </GatewayIceBreakers.Container>
             </div>
           </Chat.EmptyState>
         ) : (
           <Chat.Messages
             messages={chat.messages}
             status={chat.status}
-            minHeightOffset={240}
+            minHeightOffset={280}
           />
         )}
       </Chat.Main>
@@ -372,38 +327,45 @@ function ChatPanelContent() {
             onGoToOriginalMessage={handleGoToOriginalMessage}
             setInputValue={setInputValue}
           />
-          <Chat.Input
-            value={inputValue}
-            onChange={setInputValue}
-            onSubmit={async () => {
-              if (!inputValue.trim()) return;
-              await handleSendMessage(inputValue.trim());
-            }}
-            onStop={chat.stop}
-            disabled={!selectedModel || !selectedGateway?.id}
-            isStreaming={
-              chat.status === "submitted" || chat.status === "streaming"
-            }
-            placeholder={
-              !selectedModel
-                ? "Select a model to start chatting"
-                : "Ask anything or @ for context"
-            }
+          <GatewayInputWrapper
+            gateway={selectedGateway ?? undefined}
+            onGatewayChange={handleGatewayChange}
+            disabled={isStreaming}
           >
-            <GatewaySelector
-              selectedGatewayId={selectedGateway?.id}
-              onGatewayChange={handleGatewayChange}
-              placeholder="Agent"
-              variant="borderless"
-            />
-            <ModelSelector
-              selectedModel={selectedModel ?? undefined}
-              onModelChange={handleModelChange}
-              placeholder="Model"
-              variant="borderless"
-            />
-            <UsageStats messages={chat.messages} />
-          </Chat.Input>
+            <Chat.Input
+              value={inputValue}
+              onChange={setInputValue}
+              onSubmit={async () => {
+                if (!inputValue.trim()) return;
+                await handleSendMessage(inputValue.trim());
+              }}
+              onStop={chat.stop}
+              disabled={!selectedModel}
+              isStreaming={isStreaming}
+              placeholder={
+                !selectedModel
+                  ? "Select a model to start chatting"
+                  : "Ask anything or @ for context"
+              }
+            >
+              {/* GatewaySelector only shown when default is selected (no badge) */}
+              {showGatewaySelector && (
+                <GatewaySelector
+                  selectedGatewayId={selectedGatewayId}
+                  onGatewayChange={handleGatewayChange}
+                  placeholder="Agent"
+                  disabled={isStreaming}
+                />
+              )}
+              <ModelSelector
+                selectedModel={selectedModel ?? undefined}
+                onModelChange={handleModelChange}
+                placeholder="Model"
+                variant="borderless"
+              />
+              <UsageStats messages={chat.messages} />
+            </Chat.Input>
+          </GatewayInputWrapper>
         </div>
       </Chat.Footer>
     </Chat>

@@ -108,9 +108,18 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
       session.user.id,
     );
 
-    if (!connectionData.connection_url) {
+    // Validate connection data based on type
+    const isStdioConnection = connectionData.connection_type === "STDIO";
+    const hasUrl = Boolean(connectionData.connection_url);
+    const hasStdioConfig =
+      isStdioConnection &&
+      connectionData.connection_headers &&
+      typeof connectionData.connection_headers === "object" &&
+      "command" in connectionData.connection_headers;
+
+    if (!hasUrl && !hasStdioConfig) {
       toast.error(
-        "This MCP Server cannot be connected: no connection URL available",
+        "This MCP Server cannot be connected: no connection method available",
       );
       return undefined;
     }

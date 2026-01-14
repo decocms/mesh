@@ -67,6 +67,23 @@ export interface MCPRegistryServer {
       type: "http" | "stdio" | "sse";
       url?: string;
     }>;
+    packages?: Array<{
+      identifier: string;
+      name?: string;
+      version?: string;
+      transport?: {
+        type: "stdio" | "http" | "sse";
+      };
+      registryType?: string;
+      registryBaseUrl?: string;
+      environmentVariables?: Array<{
+        name: string;
+        format?: string;
+        description?: string;
+        isRequired?: boolean;
+        isSecret?: boolean;
+      }>;
+    }>;
     version?: string;
     repository?: {
       url?: string;
@@ -140,11 +157,49 @@ export interface RegistryItem {
     remotes?: Array<{
       type?: string;
       url?: string;
+      /** Display name for this remote endpoint */
+      name?: string;
+      /** Display title for this remote endpoint */
+      title?: string;
+      /** Description of what this remote endpoint does */
+      description?: string;
       headers?: Array<{
         name?: string;
         value?: string;
         description?: string;
       }>;
+      // STDIO-specific fields
+      command?: string;
+      args?: string[];
+      env?: Record<string, string>;
+    }>;
+    // NPM packages for STDIO connections
+    packages?: Array<{
+      /** Package identifier (e.g., "mcp-jira-server") */
+      identifier: string;
+      /** Package name (alternative to identifier) */
+      name?: string;
+      version?: string;
+      /** Transport configuration */
+      transport?: {
+        type: "stdio" | "http" | "sse";
+      };
+      /** Registry type (e.g., "npm") */
+      registryType?: string;
+      /** Registry base URL (e.g., "https://registry.npmjs.org") */
+      registryBaseUrl?: string;
+      /** Environment variables required by the package */
+      environmentVariables?: Array<{
+        name: string;
+        format?: string;
+        description?: string;
+        isRequired?: boolean;
+        isSecret?: boolean;
+      }>;
+      /** Legacy fields */
+      runtime?: string;
+      registryUrl?: string;
+      env?: string[];
     }>;
     icons?: Array<{ src: string }>;
     tools?: unknown[];
@@ -173,4 +228,43 @@ export interface RegistryFiltersResponse {
 export interface ActiveFilters {
   tags: string[];
   categories: string[];
+}
+
+// ============================================================================
+// Server List Types (for remote/package selection)
+// ============================================================================
+
+/** Protocol types for server connections */
+export type Protocol = "http" | "sse" | "stdio";
+
+/** Unified server entry combining remotes and packages */
+export type UnifiedServerEntry = {
+  type?: string;
+  url?: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  _type: "remote" | "package";
+  _index: number;
+};
+
+/** Processed server card data for display */
+export interface ServerCardData {
+  index: number;
+  protocol: Protocol;
+  url?: string;
+  hostname: string;
+  serviceName: string;
+  displayName: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  _type: "remote" | "package";
+  _index: number;
+}
+
+/** Protocol filter option */
+export interface ProtocolFilterOption {
+  value: Protocol | "all";
+  label: string;
 }

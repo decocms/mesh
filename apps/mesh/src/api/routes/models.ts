@@ -14,6 +14,7 @@ import {
   pruneMessages,
   stepCountIs,
   streamText,
+  SystemModelMessage,
   tool,
   ToolSet,
 } from "ai";
@@ -27,6 +28,45 @@ import { fixProtocol } from "./oauth-proxy";
 // Default values
 const DEFAULT_MAX_TOKENS = 32768;
 const DEFAULT_MEMORY = 50; // last N messages to keep
+
+/**
+ * Decopilot System Prompt
+ *
+ * Base instructions for the AI assistant running in the MCP Mesh environment.
+ * This prompt is prepended to any user-provided context from the frontend.
+ */
+const DECOPILOT_SYSTEM_MESSAGE: SystemModelMessage = {
+  role: "system",
+  content: `You are an AI assistant running in an MCP Mesh environment.
+
+## About MCP Mesh
+
+The Model Context Protocol (MCP) Mesh allows users to connect external services and expose their capabilities through a unified interface.
+
+### Terminology
+- **Agents** (also called **Gateways**): Entry points that provide access to a curated set of tools from connected services
+- **Connections** (also called **MCP Servers**): External services integrated into the mesh that expose tools, resources, and prompts
+
+The user is currently interacting with one of these agents/gateways and may ask questions about these entities or the resources they expose.
+
+## Interaction Guidelines
+
+Follow this state machine when handling user requests:
+
+1. **Understand Intent**: If the user asks something trivial (greetings, simple questions), respond directly without tool exploration.
+
+2. **Tool Discovery**: For non-trivial requests, search and explore available tools to understand what capabilities are at your disposal.
+
+3. **Tool Selection**: After discovery, decide which tools are appropriate for the task. Describe the chosen tools to the user, explaining what they do and how they help.
+
+4. **Execution**: Execute the tools thoughtfully and produce a final answer. Prefer aggregations and summaries over raw results. Return only the subset of information relevant to the user's request.
+
+## Important Notes
+- All tool calls are logged and audited for security and compliance
+- You have access to the tools exposed through the selected agent/gateway
+- Connections may expose resources that users can browse and edit
+- When users mention "agents", they are typically referring to gateways`,
+};
 
 const StreamRequestSchema = z.object({
   messages: z.any(), // Complex type from frontend, keeping as any
@@ -54,7 +94,7 @@ const StreamRequestSchema = z.object({
         .optional(),
     })
     .loose(),
-  gateway: z.object({ id: z.string() }).loose(),
+  gateway: z.object({ id: z.string().nullable() }).loose(),
   stream: z.boolean().optional(),
   temperature: z.number().optional(),
   maxWindowSize: z.number().optional(),
@@ -168,14 +208,15 @@ const toolsFromMCP = async (
 
 function createGatewayTransport(
   req: Request,
-  gatewayId: string,
+  organizationId: string,
+  gatewayId: string | null | undefined,
 ): StreamableHTTPClientTransport {
   // Build base URL for gateway
   const url = fixProtocol(new URL(req.url));
   const baseUrl = `${url.protocol}//${url.host}`;
 
   // Forward cookie and authorization headers
-  const headers = new Headers();
+  const headers = new Headers([["x-org-id", organizationId]]);
   const toProxy = ["cookie", "authorization"];
   for (const header of toProxy) {
     if (req.headers.has(header)) {
@@ -183,7 +224,9 @@ function createGatewayTransport(
     }
   }
 
-  const gatewayUrl = new URL(`/mcp/gateway/${gatewayId}`, baseUrl);
+  // Use /mcp/gateway/ for default, /mcp/gateway/:id for specific gateway
+  const gatewayPath = gatewayId ? `/mcp/gateway/${gatewayId}` : "/mcp/gateway";
+  const gatewayUrl = new URL(gatewayPath, baseUrl);
   gatewayUrl.searchParams.set("mode", "code_execution");
 
   return new StreamableHTTPClientTransport(gatewayUrl, {
@@ -228,7 +271,11 @@ app.post("/:org/models/stream", async (c) => {
     const maxOutputTokens =
       modelConfig.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
-    const transport = createGatewayTransport(c.req.raw, gatewayConfig.id);
+    const transport = createGatewayTransport(
+      c.req.raw,
+      organization.id,
+      gatewayConfig.id,
+    );
 
     const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
 
@@ -248,10 +295,11 @@ app.post("/:org/models/stream", async (c) => {
 
     mcpClient = client;
 
-    // Extract system message from messages (first message with role "system")
-    const systemMessage = modelMessages.find((m) => m.role === "system");
-    const systemContent =
-      systemMessage?.role === "system" ? systemMessage.content : undefined;
+    // Extract context from frontend system message and combine with base prompt
+    const systemMessages = [
+      DECOPILOT_SYSTEM_MESSAGE,
+      ...modelMessages.filter((m) => m.role === "system"),
+    ];
 
     // Filter out system messages (they go to system param, not messages array)
     const nonSystemMessages = modelMessages.filter((m) => m.role !== "system");
@@ -280,7 +328,7 @@ app.post("/:org/models/stream", async (c) => {
     // Use streamText from AI SDK with pruned messages and parameters
     const result = streamText({
       model: provider,
-      system: systemContent,
+      system: systemMessages,
       messages: prunedMessages,
       tools,
       temperature,

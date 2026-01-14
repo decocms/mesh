@@ -46,18 +46,25 @@ export function useGateways(options: UseGatewaysOptions = {}) {
 /**
  * Hook to get a single gateway by ID
  *
- * @param gatewayId - The ID of the gateway to fetch
- * @returns Suspense query result with the gateway as GatewayEntity | null
+ * @param gatewayId - The ID of the gateway to fetch (null/undefined for default gateway)
+ * @returns GatewayEntity | null - null means use default gateway
  */
-export function useGateway(gatewayId: string | undefined) {
+export function useGateway(
+  gatewayId: string | null | undefined,
+): GatewayEntity | null {
   const { org } = useProjectContext();
   const toolCaller = createToolCaller();
-  return useCollectionItem<GatewayEntity>(
+
+  // If null/undefined, return null (use default gateway)
+  // Use collection item hook for database gateways
+  const dbGateway = useCollectionItem<GatewayEntity>(
     org.slug,
     "GATEWAY",
-    gatewayId,
+    gatewayId ?? undefined,
     toolCaller,
   );
+
+  return dbGateway;
 }
 
 /**

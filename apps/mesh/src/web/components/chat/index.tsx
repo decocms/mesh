@@ -20,6 +20,7 @@ import { MessageUser } from "./message-user.tsx";
 
 export { GatewaySelector, useGateways } from "./gateway-selector";
 export type { GatewayInfo } from "./gateway-selector";
+export type { GatewayInputWrapperProps } from "./gateway-input-wrapper";
 export { ModelSelector, useModels } from "./model-selector.tsx";
 export type {
   ModelChangePayload,

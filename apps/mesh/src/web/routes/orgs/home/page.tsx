@@ -8,7 +8,8 @@
 import { ChatProvider, useChat } from "@/web/components/chat/chat-context";
 import { ChatInput } from "@/web/components/chat/chat-input";
 import { DecoChatSkeleton } from "@/web/components/chat/deco-chat-skeleton";
-import { GatewayIceBreakers } from "@/web/components/chat/gateway-ice-breakers";
+import { GatewayInputWrapper } from "@/web/components/chat/gateway-input-wrapper";
+import { GatewayIceBreakers } from "@/web/components/chat/ice-breakers";
 import {
   Chat,
   GatewaySelector,
@@ -23,10 +24,11 @@ import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useGateways } from "@/web/hooks/collections/use-gateway";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useThreads } from "@/web/hooks/use-chat-store";
+import { useContext } from "@/web/hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "@/web/hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { usePersistedChat } from "@/web/hooks/use-persisted-chat";
-import { useSystem } from "@/web/hooks/use-system";
+import { useStoredSelection } from "@/web/hooks/use-stored-selection";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
@@ -34,12 +36,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  GitBranch01,
-  Loading01,
-  MessageChatSquare,
-  Plus,
-} from "@untitledui/icons";
+import { GitBranch01, MessageChatSquare, Plus } from "@untitledui/icons";
 import { Suspense } from "react";
 import { toast } from "sonner";
 import {
@@ -58,35 +55,6 @@ function getTimeBasedGreeting(): string {
   if (hour >= 12 && hour < 17) return "Afternoon";
   if (hour >= 17 && hour < 22) return "Evening";
   return "Night";
-}
-
-/**
- * Helper to find stored item in array
- */
-function findOrFirst<T>(
-  array: T[],
-  predicate: (item: T) => boolean,
-): T | undefined {
-  return array.find(predicate) ?? array[0];
-}
-
-/**
- * Hook to manage stored selection
- */
-function useStoredSelection<TState, TItem>(
-  key: string,
-  items: TItem[],
-  predicate: (item: TItem, state: TState) => boolean,
-  initialValue: TState | null = null,
-) {
-  const [storedState, setStoredState] = useLocalStorage<TState | null>(
-    key,
-    initialValue,
-  );
-  const selectedItem = findOrFirst(items, (item) =>
-    storedState ? predicate(item, storedState) : false,
-  );
-  return [selectedItem, setStoredState] as const;
 }
 
 // ---------- View Mode Types ----------
@@ -187,40 +155,40 @@ function HomeContent() {
     (m, state) => m.id === state.id && m.connectionId === state.connectionId,
   );
 
-  const [selectedGateway, setSelectedGatewayState] = useStoredSelection<
-    { gatewayId: string },
-    (typeof gateways)[number]
-  >(
-    `${locator}:selected-gateway`,
-    gateways,
-    (g, state) => g.id === state.gatewayId,
-  );
+  const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
+    string | null
+  >(`${locator}:selected-gateway-id`, null);
+
+  // Find the selected gateway from the list
+  const selectedGateway = storedSelectedGatewayId
+    ? (gateways.find((g) => g.id === storedSelectedGatewayId) ?? null)
+    : null;
+
+  const selectedGatewayId = selectedGateway?.id ?? null;
+
+  // Show gateway selector when using default gateway (no badge)
+  const showGatewaySelector = !selectedGatewayId;
 
   const handleModelChange = (model: { id: string; connectionId: string }) => {
     setSelectedModelState(model);
   };
 
-  const handleGatewayChange = (gatewayId: string) => {
-    setSelectedGatewayState({ gatewayId });
+  const handleGatewayChange = (gatewayId: string | null) => {
+    setSelectedGatewayId(gatewayId);
   };
 
   // Get the onToolCall handler for invalidating collection queries
   const onToolCall = useInvalidateCollectionsOnToolCall();
 
-  // Compose system prompt with gateway context
-  const systemPrompt = useSystem(selectedGateway?.id);
+  // Get context for the AI assistant based on current state
+  const contextPrompt = useContext(selectedGatewayId);
 
   // Use shared persisted chat hook - must be called unconditionally (Rules of Hooks)
   const chat = usePersistedChat({
     threadId: activeThreadId,
-    systemPrompt,
+    gatewayId: selectedGatewayId ?? undefined,
+    systemPrompt: contextPrompt,
     onToolCall,
-    onCreateThread: (thread) =>
-      createThread({
-        id: thread.id,
-        title: thread.title,
-        gatewayId: selectedGateway?.id,
-      }),
   });
 
   // Get branching state from context
@@ -229,11 +197,6 @@ function HomeContent() {
   const handleSendMessage = async (text: string) => {
     if (!selectedModel) {
       toast.error("No model configured");
-      return;
-    }
-
-    if (!selectedGateway?.id) {
-      toast.error("No Agent configured");
       return;
     }
 
@@ -252,7 +215,7 @@ function HomeContent() {
         provider: selectedModel.provider ?? undefined,
         limits: selectedModel.limits ?? undefined,
       },
-      gateway: { id: selectedGateway.id },
+      gateway: { id: selectedGatewayId },
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
@@ -267,6 +230,9 @@ function HomeContent() {
 
   // Find the active thread
   const activeThread = threads?.find((thread) => thread.id === activeThreadId);
+
+  const isStreaming =
+    chat.status === "submitted" || chat.status === "streaming";
 
   // Show empty state when no LLM binding is found
   if (!hasModelsBinding) {
@@ -363,7 +329,7 @@ function HomeContent() {
               <Chat.Messages
                 messages={chat.messages}
                 status={chat.status}
-                minHeightOffset={240}
+                minHeightOffset={280}
               />
             </Chat.Main>
             <Chat.Footer>
@@ -397,38 +363,45 @@ function HomeContent() {
                   }}
                   setInputValue={setInputValue}
                 />
-                <Chat.Input
-                  value={inputValue}
-                  onChange={setInputValue}
-                  onSubmit={async () => {
-                    if (!inputValue.trim()) return;
-                    await handleSendMessage(inputValue.trim());
-                  }}
-                  onStop={chat.stop}
-                  disabled={!selectedModel || !selectedGateway?.id}
-                  isStreaming={
-                    chat.status === "submitted" || chat.status === "streaming"
-                  }
-                  placeholder={
-                    !selectedModel
-                      ? "Select a model to start chatting"
-                      : "Ask anything or @ for context"
-                  }
+                <GatewayInputWrapper
+                  gateway={selectedGateway ?? undefined}
+                  onGatewayChange={handleGatewayChange}
+                  disabled={isStreaming}
                 >
-                  <GatewaySelector
-                    selectedGatewayId={selectedGateway?.id}
-                    onGatewayChange={handleGatewayChange}
-                    placeholder="Agent"
-                    variant="borderless"
-                  />
-                  <ModelSelector
-                    selectedModel={selectedModel ?? undefined}
-                    onModelChange={handleModelChange}
-                    placeholder="Model"
-                    variant="borderless"
-                  />
-                  <UsageStats messages={chat.messages} />
-                </Chat.Input>
+                  <Chat.Input
+                    value={inputValue}
+                    onChange={setInputValue}
+                    onSubmit={async () => {
+                      if (!inputValue.trim()) return;
+                      await handleSendMessage(inputValue.trim());
+                    }}
+                    onStop={chat.stop}
+                    disabled={!selectedModel}
+                    isStreaming={isStreaming}
+                    placeholder={
+                      !selectedModel
+                        ? "Select a model to start chatting"
+                        : "Ask anything or @ for context"
+                    }
+                  >
+                    {/* GatewaySelector only shown when default is selected (no badge) */}
+                    {showGatewaySelector && (
+                      <GatewaySelector
+                        selectedGatewayId={selectedGatewayId}
+                        onGatewayChange={handleGatewayChange}
+                        placeholder="Agent"
+                        disabled={isStreaming}
+                      />
+                    )}
+                    <ModelSelector
+                      selectedModel={selectedModel ?? undefined}
+                      onModelChange={handleModelChange}
+                      placeholder="Model"
+                      variant="borderless"
+                    />
+                    <UsageStats messages={chat.messages} />
+                  </Chat.Input>
+                </GatewayInputWrapper>
               </div>
             </Chat.Footer>
           </>
@@ -445,49 +418,32 @@ function HomeContent() {
                 </p>
               </div>
 
-              {/* Ice breakers for selected agent */}
-              {selectedGateway?.id && (
-                <ErrorBoundary key={selectedGateway.id} fallback={null}>
-                  <Suspense
-                    fallback={
-                      <div className="flex justify-center">
-                        <Loading01
-                          size={20}
-                          className="animate-spin text-muted-foreground"
-                        />
-                      </div>
-                    }
-                  >
-                    <GatewayIceBreakers
-                      gatewayId={selectedGateway.id}
-                      onSelect={(prompt) => {
-                        handleSendMessage(prompt.description ?? prompt.name);
-                      }}
-                      className="w-full"
-                    />
-                  </Suspense>
-                </ErrorBoundary>
-              )}
-
               {/* Chat Input */}
-              <div className="w-full shadow-sm rounded-xl">
+              <GatewayInputWrapper
+                gateway={selectedGateway ?? undefined}
+                onGatewayChange={handleGatewayChange}
+                disabled={isStreaming}
+              >
                 <ChatInput
                   value={inputValue}
                   onChange={setInputValue}
+                  placeholder="Ask anything or @ for context"
+                  maxTextHeight="65px"
                   onSubmit={async () => {
                     if (inputValue.trim()) {
                       await handleSendMessage(inputValue.trim());
                     }
                   }}
-                  placeholder="Ask anything or @ for context"
-                  maxTextHeight="65px"
                 >
-                  <GatewaySelector
-                    selectedGatewayId={selectedGateway?.id}
-                    onGatewayChange={handleGatewayChange}
-                    placeholder="Agent"
-                    variant="borderless"
-                  />
+                  {/* GatewaySelector only shown when default is selected (no badge) */}
+                  {showGatewaySelector && (
+                    <GatewaySelector
+                      selectedGatewayId={selectedGatewayId}
+                      onGatewayChange={handleGatewayChange}
+                      placeholder="Agent"
+                      disabled={isStreaming}
+                    />
+                  )}
                   <ModelSelector
                     selectedModel={selectedModel ?? undefined}
                     onModelChange={handleModelChange}
@@ -495,7 +451,23 @@ function HomeContent() {
                     variant="borderless"
                   />
                 </ChatInput>
-              </div>
+              </GatewayInputWrapper>
+
+              {/* Ice breakers for selected agent */}
+              <GatewayIceBreakers.Container className="w-full">
+                {selectedGatewayId && (
+                  <ErrorBoundary key={selectedGatewayId} fallback={null}>
+                    <Suspense fallback={<GatewayIceBreakers.Fallback />}>
+                      <GatewayIceBreakers
+                        gatewayId={selectedGatewayId}
+                        onSelect={(prompt) => {
+                          handleSendMessage(prompt.description ?? prompt.name);
+                        }}
+                      />
+                    </Suspense>
+                  </ErrorBoundary>
+                )}
+              </GatewayIceBreakers.Container>
             </div>
           </div>
         )}

@@ -21,7 +21,10 @@ const SCRIPT_DIR =
   import.meta.dir || dirname(new URL(import.meta.url).pathname);
 const SERVER_ENTRY_POINT = join(SCRIPT_DIR, "../src/index.ts");
 const CLI_ENTRY_POINT = join(SCRIPT_DIR, "../src/cli.ts");
-const MIGRATE_ENTRY_POINT = "kysely-bun-worker";
+const MIGRATE_ENTRY_POINTS = [
+  "kysely-bun-worker",
+  "@jitl/quickjs-wasmfile-release-sync",
+];
 
 // Parse command line arguments
 function parseArgs() {
@@ -114,16 +117,18 @@ async function resolvePackage(
 async function pruneNodeModules(): Promise<Set<string>> {
   console.log(`🔍 Tracing dependencies for server and migration scripts...`);
 
-  // Find the migration entry point file
-  // Resolve from mesh app root where kysely-bun-worker is a dependency
-  let migrateEntryPointPath: string;
-  try {
-    migrateEntryPointPath = Bun.resolveSync(MIGRATE_ENTRY_POINT, MESH_APP_ROOT);
-  } catch (error) {
-    console.error(`❌ Failed to resolve ${MIGRATE_ENTRY_POINT}:`, error);
-    process.exit(1);
+  // Resolve migration entry points from mesh app root
+  const migrateEntryPointPaths: string[] = [];
+  for (const entryPoint of MIGRATE_ENTRY_POINTS) {
+    try {
+      const resolved = Bun.resolveSync(entryPoint, MESH_APP_ROOT);
+      migrateEntryPointPaths.push(resolved);
+      console.log(`📦 Migration entry point: ${entryPoint} -> ${resolved}`);
+    } catch (error) {
+      console.error(`❌ Failed to resolve ${entryPoint}:`, error);
+      process.exit(1);
+    }
   }
-  console.log(`📦 Migration entry point: ${migrateEntryPointPath}`);
 
   // Resolve server entry point to absolute path
   const serverEntryPointPath = resolve(SERVER_ENTRY_POINT);
@@ -143,7 +148,7 @@ async function pruneNodeModules(): Promise<Set<string>> {
 
   // Trace all file dependencies for all entry points
   const { fileList } = await nodeFileTrace(
-    [migrateEntryPointPath, serverEntryPointPath, cliEntryPointPath],
+    [...migrateEntryPointPaths, serverEntryPointPath, cliEntryPointPath],
     {
       base: WORKSPACE_ROOT,
     },

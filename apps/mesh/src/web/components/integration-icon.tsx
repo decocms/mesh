@@ -11,6 +11,7 @@ interface IntegrationIconProps {
 }
 
 const SIZE_CLASSES = {
+  "2xs": "h-4 w-4",
   xs: "h-6 w-6",
   sm: "h-8 w-8",
   md: "h-12 w-12",
@@ -20,6 +21,7 @@ const SIZE_CLASSES = {
 type Size = keyof typeof SIZE_CLASSES;
 
 const MIN_WIDTH_CLASSES: Record<Size, string> = {
+  "2xs": "min-w-4",
   xs: "min-w-6",
   sm: "min-w-8",
   md: "min-w-12",
@@ -27,6 +29,7 @@ const MIN_WIDTH_CLASSES: Record<Size, string> = {
 };
 
 const ICON_SIZES: Record<Size, number> = {
+  "2xs": 8,
   xs: 12,
   sm: 16,
   md: 24,

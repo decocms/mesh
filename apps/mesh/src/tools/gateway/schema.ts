@@ -73,10 +73,6 @@ export const GatewayEntitySchema = z.object({
     "Tool selection mode: 'inclusion' = include selected, 'exclusion' = exclude selected",
   ),
   status: z.enum(["active", "inactive"]).describe("Current status"),
-  is_default: z
-    .boolean()
-    .describe("Whether this is the Organization Agent for the organization"),
-
   // Nested connections
   connections: z
     .array(GatewayConnectionSchema)
@@ -109,11 +105,6 @@ export const GatewayCreateDataSchema = z.object({
     .optional()
     .default("active")
     .describe("Initial status"),
-  is_default: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe("Whether this is the Organization Agent for the organization"),
   connections: z
     .array(
       z.object({
@@ -167,10 +158,6 @@ export const GatewayUpdateDataSchema = z.object({
     .optional()
     .describe("New icon URL (null to clear)"),
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
-  is_default: z
-    .boolean()
-    .optional()
-    .describe("Set as Organization Agent for the organization"),
   connections: z
     .array(
       z.object({

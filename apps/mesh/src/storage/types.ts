@@ -580,29 +580,10 @@ export interface GatewayTable {
   tool_selection_mode: ToolSelectionMode;
   icon: string | null;
   status: "active" | "inactive";
-  is_default: number; // SQLite uses INTEGER for boolean (0 = false, 1 = true)
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string;
   updated_by: string | null;
-}
-
-/**
- * Gateway entity - Runtime representation
- */
-export interface Gateway {
-  id: string;
-  organizationId: string;
-  title: string;
-  description: string | null;
-  toolSelectionMode: ToolSelectionMode;
-  icon: string | null;
-  status: "active" | "inactive";
-  isDefault: boolean;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-  createdBy: string;
-  updatedBy: string | null;
 }
 
 /**
@@ -617,31 +598,6 @@ export interface GatewayConnectionTable {
   selected_resources: JsonArray<string[]> | null; // null = all resources, supports URI patterns with * and **
   selected_prompts: JsonArray<string[]> | null; // null = all prompts
   created_at: ColumnType<Date, Date | string, never>;
-}
-
-/**
- * Gateway connection entity - Runtime representation
- */
-export interface GatewayConnection {
-  id: string;
-  gatewayId: string;
-  connectionId: string;
-  selectedTools: string[] | null;
-  selectedResources: string[] | null; // URI patterns with * and ** wildcards
-  selectedPrompts: string[] | null;
-  createdAt: Date | string;
-}
-
-/**
- * Gateway with connections - Full entity for API responses
- */
-export interface GatewayWithConnections extends Gateway {
-  connections: Array<{
-    connectionId: string;
-    selectedTools: string[] | null;
-    selectedResources: string[] | null;
-    selectedPrompts: string[] | null;
-  }>;
 }
 
 /**

@@ -18,6 +18,7 @@ import * as migration016downstreamtokenclientinfo from "./016-downstream-token-c
 import * as migration017downstreamtokenremoveuserid from "./017-downstream-token-remove-userid.ts";
 import * as migration018dropgatewaytoolselectionstrategy from "./018-drop-gateway-tool-selection-strategy.ts";
 import * as migration019enabledplugins from "./019-enabled-plugins.ts";
+import * as migration019removegatewayisdefault from "./019-remove-gateway-is-default.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -40,6 +41,7 @@ const migrations = {
   "018-drop-gateway-tool-selection-strategy":
     migration018dropgatewaytoolselectionstrategy,
   "019-enabled-plugins": migration019enabledplugins,
+  "019-remove-gateway-is-default": migration019removegatewayisdefault,
 } satisfies Record<string, Migration>;
 
 export default migrations;
