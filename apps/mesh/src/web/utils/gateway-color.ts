@@ -112,7 +112,7 @@ function hashString(input: string): number {
 export function getGatewayColor(
   gatewayId: string | null | undefined,
 ): GatewayColor | null {
-  if (!gatewayId) {
+  if (gatewayId == null) {
     return null;
   }
 
