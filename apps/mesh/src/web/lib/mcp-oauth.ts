@@ -262,7 +262,9 @@ export async function authenticateMcp(params: {
           state?: string;
           error?: string;
         }) => {
+          // Set resolved immediately to prevent race condition with concurrent callbacks
           if (resolved) return;
+          resolved = true;
 
           if (!data.success) {
             cleanup();
