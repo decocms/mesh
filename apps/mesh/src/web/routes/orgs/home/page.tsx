@@ -94,6 +94,8 @@ function HomeContent() {
     useChat();
   const { data: session } = authClient.useSession();
 
+  const additionalContext = useClientContext();
+
   // View mode state (chat vs graph)
   const [viewMode, setViewMode] = useLocalStorage<HomeViewMode>(
     `${locator}:home-view-mode`,

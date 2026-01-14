@@ -11,7 +11,12 @@ import type {
   GatewayCreateData,
   GatewayUpdateData,
 } from "../tools/gateway/schema";
-import type { MonitoringLog, OrganizationSettings, Thread, ThreadMessage } from "./types";
+import type {
+  MonitoringLog,
+  OrganizationSettings,
+  Thread,
+  ThreadMessage,
+} from "./types";
 
 export interface ThreadStoragePort {
   create(data: Partial<Thread>): Promise<Thread>;
