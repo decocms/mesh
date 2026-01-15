@@ -34,7 +34,6 @@ import { PropsWithChildren, Suspense, useTransition, useRef } from "react";
 import { KEYS } from "../lib/query-keys";
 import {
   ChatPanel,
-  GatewayStoreProvider,
 } from "@/web/components/chat/side-panel-chat";
 
 function Topbar({
@@ -210,7 +209,6 @@ function ShellLayoutContent() {
 
   return (
     <ProjectContextProvider {...projectContext}>
-      <GatewayStoreProvider>
         <PersistentSidebarProvider>
           <div className="flex flex-col h-screen">
             <Topbar
@@ -235,7 +233,6 @@ function ShellLayoutContent() {
             </SidebarLayout>
           </div>
         </PersistentSidebarProvider>
-      </GatewayStoreProvider>
     </ProjectContextProvider>
   );
 }
