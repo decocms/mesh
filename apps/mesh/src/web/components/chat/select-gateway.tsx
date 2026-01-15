@@ -278,7 +278,10 @@ export function GatewaySelector({
   );
 
   return (
-    <Popover open={open} onOpenChange={disabled ? undefined : handleOpenChange}>
+    <Popover
+      open={disabled ? false : open}
+      onOpenChange={disabled ? undefined : handleOpenChange}
+    >
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>

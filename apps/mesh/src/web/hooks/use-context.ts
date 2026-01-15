@@ -21,7 +21,7 @@ import { useGatewayPrompts } from "./use-gateway-prompts";
 export function useContext(gatewayId?: string | null): string {
   // Extract route parameters directly using useParams
   const params = useParams({ strict: false });
-  const { data: systemPrompt } = useGatewayPrompts(gatewayId ?? "");
+  const { data: systemPrompt } = useGatewayPrompts(gatewayId);
 
   // Get stored system prompt for this gateway
 

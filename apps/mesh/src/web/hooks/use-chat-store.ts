@@ -122,16 +122,6 @@ export async function getThreadMessages(
   }
 }
 
-export async function getThread(
-  _locator: string,
-  threadId: string,
-): Promise<Thread> {
-  const result = await meshToolCaller("COLLECTION_THREADS_GET", {
-    id: threadId,
-  });
-  return toThread(result as ThreadEntity);
-}
-
 // ============================================================================
 // React Hooks
 // ============================================================================

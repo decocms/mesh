@@ -114,7 +114,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
     const countQuery = this.db
       .selectFrom("threads")
       .select((eb) => eb.fn.count("id").as("count"))
-      .where("organization_id", "=", organizationId);
+      .where("organization_id", "=", organizationId)
+      .where("hidden", "=", false);
 
     if (options?.limit) {
       query = query.limit(options.limit);
@@ -154,6 +155,14 @@ export class SqlThreadStorage implements ThreadStoragePort {
     const threadId = data[0]?.threadId;
     if (!threadId) {
       throw new Error("threadId is required when creating multiple messages");
+    }
+    // Validate all messages target the same thread to prevent data corruption.
+    // Each message has its own threadId field, but batch inserts must be homogeneous.
+    const mismatchedMessage = data.find((m) => m.threadId !== threadId);
+    if (mismatchedMessage) {
+      throw new Error(
+        `All messages must target the same thread. Expected threadId "${threadId}", but message "${mismatchedMessage.id}" has threadId "${mismatchedMessage.threadId}"`,
+      );
     }
     // Preserve original createdAt if provided to maintain message ordering.
     // Messages in a batch may have been created at different times on the client.

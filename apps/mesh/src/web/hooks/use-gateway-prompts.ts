@@ -103,7 +103,10 @@ async function fetchGatewayPrompts(
  * Must be used within a Suspense boundary.
  * @param gatewayId - The gateway ID (required)
  */
-export function useGatewayPrompts(gatewayId: string) {
+export function useGatewayPrompts(gatewayId: string | null | undefined) {
+  if (!gatewayId) {
+    return { data: [] };
+  }
   return useSuspenseQuery({
     queryKey: KEYS.gatewayPrompts(gatewayId),
     queryFn: () => fetchGatewayPrompts(gatewayId),

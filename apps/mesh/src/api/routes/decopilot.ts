@@ -497,18 +497,25 @@ app.post("/:org/decopilot/stream", async (c) => {
             ...userMessages.map((m) => ({
               ...m,
               threadId: thread.id,
+              id: generatePrefixedId("msg"),
               createdAt: userCreatedAt,
               updatedAt: userCreatedAt,
             })),
             {
               ...(responseMessage as ThreadMessage),
-              id: generatePrefixedId("msg"),
               threadId: thread.id,
+              id: generatePrefixedId("msg"),
               createdAt: responseCreatedAt,
               updatedAt: responseCreatedAt,
             },
           ])
-          .catch(console.error);
+          .catch((error) => {
+            console.error("[models:stream] Error saving messages", error);
+            return c.json(
+              { error: "Failed to save messages after streaming" },
+              500,
+            );
+          });
       },
     });
   } catch (error) {

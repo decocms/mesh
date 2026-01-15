@@ -17,8 +17,6 @@ import {
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import {
-  getThread,
-  useMessageActions,
   useThreadActions,
   useThreadMessages,
   useThreads,
@@ -250,7 +248,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Thread state
   const threadActions = useThreadActions();
-  const messageActions = useMessageActions();
   const { threads } = useThreads();
   const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
     LOCALSTORAGE_KEYS.threadManagerState(locator) + ":active-id",
@@ -317,39 +314,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
       console.warn("[chat] Expected 2 messages, got", newMessages.length);
       return;
     }
-
-    messageActions.insertMany.mutate(newMessages);
-
-    const msgTitle =
-      newMessages
-        .find((m) => m.parts?.find((part) => part.type === "text"))
-        ?.parts?.find((part) => part.type === "text")
-        ?.text.slice(0, 100) || "";
-
-    const existingThread = await getThread(locator, activeThreadId);
-
-    if (!existingThread) {
-      const now = new Date().toISOString();
-      const newThread: Thread = {
-        id: activeThreadId,
-        title: msgTitle,
-        created_at: now,
-        updated_at: now,
-        hidden: false,
-        gatewayId: selectedGateway?.id,
-      };
-      threadActions.insert.mutate(newThread);
-      return;
-    }
-
-    threadActions.update.mutate({
-      id: activeThreadId,
-      updates: {
-        title: existingThread.title || msgTitle,
-        gatewayId: existingThread.gatewayId || selectedGateway?.id,
-        updated_at: new Date().toISOString(),
-      },
-    });
   };
 
   const onError = (error: Error) => {

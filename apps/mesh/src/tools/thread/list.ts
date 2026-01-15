@@ -152,10 +152,9 @@ export const COLLECTION_THREADS_LIST = defineTool({
 
     const organization = requireOrganization(ctx);
 
-    const { threads } = await ctx.storage.threads.list(organization.id, {
-      limit: input.limit,
-      offset: input.offset,
-    });
+    // Fetch all threads without pagination - filtering and sorting happen in-process,
+    // so we must paginate after those operations, not at the storage layer
+    const { threads } = await ctx.storage.threads.list(organization.id);
 
     let filteredThreads = threads;
 
