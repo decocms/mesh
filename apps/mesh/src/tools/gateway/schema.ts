@@ -54,10 +54,6 @@ export type GatewayConnection = z.infer<typeof GatewayConnectionSchema>;
 export const GatewayEntitySchema = z.object({
   // Base collection entity fields
   id: z.string().describe("Unique identifier for the gateway"),
-  system_prompt: z
-    .string()
-    .nullable()
-    .describe("System prompt for the gateway"),
   title: z.string().describe("Human-readable name for the gateway"),
   description: z.string().nullable().describe("Description of the gateway"),
   icon: z.string().nullable().optional().describe("Icon URL for the gateway"),
@@ -95,11 +91,6 @@ export type GatewayEntity = z.infer<typeof GatewayEntitySchema>;
  */
 export const GatewayCreateDataSchema = z.object({
   title: z.string().min(1).max(255).describe("Name for the gateway"),
-  system_prompt: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("System prompt for the gateway"),
   description: z
     .string()
     .nullable()
@@ -153,7 +144,6 @@ export type GatewayCreateData = z.infer<typeof GatewayCreateDataSchema>;
  */
 export const GatewayUpdateDataSchema = z.object({
   title: z.string().min(1).max(255).optional().describe("New name"),
-  system_prompt: z.string().nullable().optional().describe("New system prompt"),
   description: z
     .string()
     .nullable()

@@ -101,10 +101,8 @@ const gatewayFormSchema = GatewayEntitySchema.pick({
   description: true,
   status: true,
   tool_selection_mode: true,
-  system_prompt: true,
 }).extend({
   title: z.string().min(1, "Name is required").max(255),
-  system_prompt: z.string().nullable(),
 });
 
 type GatewayFormData = z.infer<typeof gatewayFormSchema>;
@@ -713,23 +711,10 @@ function GatewaySettingsTab({
                 System Prompt
               </h4>
             </div>
-            <FormField
-              control={form.control}
-              name="system_prompt"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      value={field.value || ""}
-                      onChange={(e) => field.onChange(e.target.value)}
-                      placeholder="Enter system prompt instructions..."
-                      className="min-h-[240px] resize-none text-sm leading-relaxed"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+
+            <Textarea
+              placeholder="Enter system prompt instructions..."
+              className="min-h-[240px] resize-none text-sm leading-relaxed"
             />
           </div>
         </div>
@@ -820,7 +805,6 @@ function GatewayInspectorViewWithGateway({
     defaultValues: {
       title: gateway.title,
       description: gateway.description,
-      system_prompt: gateway.system_prompt,
       status: gateway.status,
       tool_selection_mode: gateway.tool_selection_mode ?? "inclusion",
     },
@@ -847,7 +831,6 @@ function GatewayInspectorViewWithGateway({
         description: formData.description,
         status: formData.status,
         tool_selection_mode: formData.tool_selection_mode,
-        system_prompt: formData.system_prompt,
         connections: newConnections,
       },
     });

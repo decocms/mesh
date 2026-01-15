@@ -165,7 +165,9 @@ export function ThreadMessagesStoreProvider({
   children,
   threadId,
 }: PropsWithChildren<{ threadId: string }>) {
+  console.log("ThreadMessagesStoreProvider", threadId);
   const messages = useThreadMessages(threadId) as Message[];
+  console.log("messages", messages);
   const [store] = useState(() =>
     createThreadMessagesStore({ messages }, threadId),
   );
