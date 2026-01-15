@@ -133,6 +133,67 @@ export type CreatedPrompt = {
   }): Promise<GetPromptResult> | GetPromptResult;
 };
 
+// ============================================================================
+// Resource Types
+// ============================================================================
+
+/**
+ * Context passed to resource read functions.
+ */
+export interface ResourceExecutionContext {
+  uri: URL;
+  runtimeContext: AppContext;
+}
+
+/**
+ * Resource contents returned from read operations.
+ * Per MCP spec, resources return either text or blob content.
+ */
+export interface ResourceContents {
+  /** The URI of the resource */
+  uri: string;
+  /** MIME type of the content */
+  mimeType?: string;
+  /** Text content (for text-based resources) */
+  text?: string;
+  /** Base64-encoded binary content (for binary resources) */
+  blob?: string;
+}
+
+/**
+ * Resource interface for defining MCP resources.
+ * Resources are read-only, addressable entities that expose data like config, docs, or context.
+ */
+export interface Resource {
+  /** Resource URI (static) or URI template (e.g., "config://app" or "file://{path}") */
+  uri: string;
+  /** Human-readable name for the resource */
+  name: string;
+  /** Description of what the resource contains */
+  description?: string;
+  /** MIME type of the resource content */
+  mimeType?: string;
+  /** Handler function to read the resource content */
+  read(
+    context: ResourceExecutionContext,
+  ): Promise<ResourceContents> | ResourceContents;
+}
+
+/**
+ * CreatedResource is a permissive type that any Resource can be assigned to.
+ * Uses a structural type with relaxed read signature to allow resources with any context.
+ */
+export type CreatedResource = {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+  read(context: {
+    uri: URL;
+    runtimeContext: AppContext;
+  }): Promise<ResourceContents> | ResourceContents;
+};
+
 /**
  * creates a private tool that always ensure for athentication before being executed
  */
@@ -219,6 +280,39 @@ export function createPrompt<TArgs extends PromptArgsRawShape>(
         env.MESH_REQUEST_CONTEXT?.ensureAuthenticated();
       }
       return execute(input);
+    },
+  });
+}
+
+/**
+ * Creates a public resource that does not require authentication.
+ */
+export function createPublicResource(opts: Resource): Resource {
+  return {
+    ...opts,
+    read: (input: ResourceExecutionContext) => {
+      return opts.read({
+        ...input,
+        runtimeContext: createRuntimeContext(input.runtimeContext),
+      });
+    },
+  };
+}
+
+/**
+ * Creates a resource that always ensures authentication before being read.
+ * This is the default and recommended way to create resources.
+ */
+export function createResource(opts: Resource): Resource {
+  const read = opts.read;
+  return createPublicResource({
+    ...opts,
+    read: (input: ResourceExecutionContext) => {
+      const env = input.runtimeContext.env;
+      if (env) {
+        env.MESH_REQUEST_CONTEXT?.ensureAuthenticated();
+      }
+      return read(input);
     },
   });
 }
@@ -360,6 +454,17 @@ export interface CreateMCPServerOptions<
           | Promise<CreatedPrompt[]>
       >
     | ((env: TEnv) => CreatedPrompt[] | Promise<CreatedPrompt[]>);
+  resources?:
+    | Array<
+        (
+          env: TEnv,
+        ) =>
+          | Promise<CreatedResource>
+          | CreatedResource
+          | CreatedResource[]
+          | Promise<CreatedResource[]>
+      >
+    | ((env: TEnv) => CreatedResource[] | Promise<CreatedResource[]>);
 }
 
 export type Fetch<TEnv = unknown> = (
@@ -530,7 +635,7 @@ export const createMCPServer = <
 
     const server = new McpServer(
       { name: "@deco/mcp-api", version: "1.0.0" },
-      { capabilities: { tools: {}, prompts: {} } },
+      { capabilities: { tools: {}, prompts: {}, resources: {} } },
     );
 
     const toolsFn =
@@ -637,7 +742,86 @@ export const createMCPServer = <
       );
     }
 
-    return { server, tools, prompts };
+    // Resolve and register resources
+    const resourcesFn =
+      typeof options.resources === "function"
+        ? options.resources
+        : async (bindings: TEnv) => {
+            if (typeof options.resources === "function") {
+              return await options.resources(bindings);
+            }
+            return await Promise.all(
+              options.resources?.flatMap(async (resource) => {
+                const resourceResult = resource(bindings);
+                const awaited = await resourceResult;
+                if (Array.isArray(awaited)) {
+                  return awaited;
+                }
+                return [awaited];
+              }) ?? [],
+            ).then((r) => r.flat());
+          };
+    const resources = await resourcesFn(bindings);
+
+    for (const resource of resources) {
+      server.resource(
+        resource.name,
+        resource.uri,
+        {
+          description: resource.description,
+          mimeType: resource.mimeType,
+        },
+        async (uri) => {
+          const result = await resource.read({
+            uri,
+            runtimeContext: createRuntimeContext(),
+          });
+          // Build content object based on what's provided (text or blob, not both)
+          const content: {
+            uri: string;
+            mimeType?: string;
+            text?: string;
+            blob?: string;
+          } = { uri: result.uri };
+
+          if (result.mimeType) {
+            content.mimeType = result.mimeType;
+          }
+
+          // MCP SDK expects either text or blob content, not both
+          if (result.text !== undefined) {
+            return {
+              contents: [
+                {
+                  uri: result.uri,
+                  mimeType: result.mimeType,
+                  text: result.text,
+                },
+              ],
+            };
+          } else if (result.blob !== undefined) {
+            return {
+              contents: [
+                {
+                  uri: result.uri,
+                  mimeType: result.mimeType,
+                  blob: result.blob,
+                },
+              ],
+            };
+          }
+
+          // Fallback to empty text if neither provided
+          return {
+            contents: [
+              { uri: result.uri, mimeType: result.mimeType, text: "" },
+            ],
+          };
+        },
+      );
+    }
+
+    return { server, tools, prompts, resources };
   };
 
   const fetch = async (req: Request, env: TEnv) => {
