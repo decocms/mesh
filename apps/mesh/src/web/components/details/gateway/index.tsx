@@ -80,6 +80,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 import { Textarea } from "@deco/ui/components/textarea.js";
+import { useGatewaySystemPrompt } from "@/web/hooks/use-gateway-system-prompt";
 
 type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
 
@@ -556,10 +557,15 @@ function GatewayShareModal({
 function GatewaySettingsTab({
   form,
   icon,
+  gatewayId,
 }: {
   form: ReturnType<typeof useForm<GatewayFormData>>;
   icon?: string | null;
+  gatewayId?: string | null;
 }) {
+  const [systemPrompt, setSystemPrompt] = useGatewaySystemPrompt(
+    gatewayId ?? undefined,
+  );
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Form {...form}>
@@ -715,6 +721,8 @@ function GatewaySettingsTab({
             <Textarea
               placeholder="Enter system prompt instructions..."
               className="min-h-[240px] resize-none text-sm leading-relaxed"
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
             />
           </div>
         </div>
@@ -984,7 +992,11 @@ function GatewayInspectorViewWithGateway({
                 }
               >
                 {activeTabId === "settings" ? (
-                  <GatewaySettingsTab form={form} icon={gateway.icon} />
+                  <GatewaySettingsTab
+                    form={form}
+                    icon={gateway.icon}
+                    gatewayId={gatewayId}
+                  />
                 ) : activeTabId === "tools" ? (
                   <ToolSetSelector
                     toolSet={toolSet}
