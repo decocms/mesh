@@ -50,6 +50,9 @@ export function useCreateGateway(
       status: "active",
       tool_selection_mode: "inclusion",
       connections: [],
+      saved_tools: [],
+      saved_resources: [],
+      saved_prompts: [],
     });
 
     if (navigateOnCreate) {

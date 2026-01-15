@@ -222,9 +222,9 @@ function createRunCodeTool(ctx: StrategyContext): ToolWithHandler {
 
   return {
     tool: {
-      name: "GATEWAY_RUN_CODE",
+      name: "CODE_EXECUTION_RUN_CODE",
       description:
-        'Run JavaScript code in a sandbox. Code must be an ES module that `export default`s an async function that receives (tools) as its first parameter. Use GATEWAY_DESCRIBE_TOOLS to understand the input/output schemas for a tool before calling it. Use `await tools.toolName(args)` or `await tools["tool-name"](args)` to call tools.',
+        'Run JavaScript code in a sandbox. Code must be an ES module that `export default`s an async function that receives (tools) as its first parameter. Use CODE_EXECUTION_DESCRIBE_TOOLS to understand the input/output schemas for a tool before calling it. Use `await tools.toolName(args)` or `await tools["tool-name"](args)` to call tools.',
       inputSchema: z.toJSONSchema(inputSchema) as Tool["inputSchema"],
     },
     handler: async (args) => {
@@ -305,7 +305,7 @@ const passthroughStrategy: ToolSelectionStrategyFn = (ctx) => ({
 /**
  * Code execution strategy: expose meta-tools for discovery and code execution.
  *
- * (tools) => [GATEWAY_SEARCH_TOOLS, GATEWAY_DESCRIBE_TOOLS, GATEWAY_RUN_CODE]
+ * (tools) => [GATEWAY_SEARCH_TOOLS, GATEWAY_DESCRIBE_TOOLS, CODE_EXECUTION_RUN_CODE]
  *
  * Note: CODE_EXECUTION_* tools are filtered from search results to avoid
  * duplication (since they're already exposed as GATEWAY_* equivalents).

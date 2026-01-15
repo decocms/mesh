@@ -22,6 +22,7 @@ export type ToolCategory =
   | "Organizations"
   | "Connections"
   | "Gateways"
+  | "Collections"
   | "Monitoring"
   | "Users"
   | "API Keys"
@@ -57,6 +58,22 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_GATEWAY_GET",
   "COLLECTION_GATEWAY_UPDATE",
   "COLLECTION_GATEWAY_DELETE",
+  // Tool/Resource/Prompt collection tools
+  "COLLECTION_TOOLS_CREATE",
+  "COLLECTION_TOOLS_LIST",
+  "COLLECTION_TOOLS_GET",
+  "COLLECTION_TOOLS_UPDATE",
+  "COLLECTION_TOOLS_DELETE",
+  "COLLECTION_RESOURCES_CREATE",
+  "COLLECTION_RESOURCES_LIST",
+  "COLLECTION_RESOURCES_GET",
+  "COLLECTION_RESOURCES_UPDATE",
+  "COLLECTION_RESOURCES_DELETE",
+  "COLLECTION_PROMPTS_CREATE",
+  "COLLECTION_PROMPTS_LIST",
+  "COLLECTION_PROMPTS_GET",
+  "COLLECTION_PROMPTS_UPDATE",
+  "COLLECTION_PROMPTS_DELETE",
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
@@ -245,6 +262,85 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Gateways",
     dangerous: true,
   },
+  // Tool/Resource/Prompt collection tools
+  {
+    name: "COLLECTION_TOOLS_CREATE",
+    description: "Create stored tools",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_TOOLS_LIST",
+    description: "List stored tools",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_TOOLS_GET",
+    description: "View stored tool details",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_TOOLS_UPDATE",
+    description: "Update stored tools",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_TOOLS_DELETE",
+    description: "Delete stored tools",
+    category: "Collections",
+    dangerous: true,
+  },
+  {
+    name: "COLLECTION_RESOURCES_CREATE",
+    description: "Create stored resources",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_RESOURCES_LIST",
+    description: "List stored resources",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_RESOURCES_GET",
+    description: "View stored resource details",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_RESOURCES_UPDATE",
+    description: "Update stored resources",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_RESOURCES_DELETE",
+    description: "Delete stored resources",
+    category: "Collections",
+    dangerous: true,
+  },
+  {
+    name: "COLLECTION_PROMPTS_CREATE",
+    description: "Create stored prompts",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_PROMPTS_LIST",
+    description: "List stored prompts",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_PROMPTS_GET",
+    description: "View stored prompt details",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_PROMPTS_UPDATE",
+    description: "Update stored prompts",
+    category: "Collections",
+  },
+  {
+    name: "COLLECTION_PROMPTS_DELETE",
+    description: "Delete stored prompts",
+    category: "Collections",
+    dangerous: true,
+  },
   // Monitoring tools
   {
     name: "MONITORING_LOGS_LIST",
@@ -365,6 +461,21 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_GATEWAY_GET: "View gateway details",
   COLLECTION_GATEWAY_UPDATE: "Update gateways",
   COLLECTION_GATEWAY_DELETE: "Delete gateways",
+  COLLECTION_TOOLS_LIST: "List tools",
+  COLLECTION_TOOLS_GET: "View tool details",
+  COLLECTION_TOOLS_CREATE: "Create tools",
+  COLLECTION_TOOLS_UPDATE: "Update tools",
+  COLLECTION_TOOLS_DELETE: "Delete tools",
+  COLLECTION_RESOURCES_LIST: "List resources",
+  COLLECTION_RESOURCES_GET: "View resource details",
+  COLLECTION_RESOURCES_CREATE: "Create resources",
+  COLLECTION_RESOURCES_UPDATE: "Update resources",
+  COLLECTION_RESOURCES_DELETE: "Delete resources",
+  COLLECTION_PROMPTS_LIST: "List prompts",
+  COLLECTION_PROMPTS_GET: "View prompt details",
+  COLLECTION_PROMPTS_CREATE: "Create prompts",
+  COLLECTION_PROMPTS_UPDATE: "Update prompts",
+  COLLECTION_PROMPTS_DELETE: "Delete prompts",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
   API_KEY_CREATE: "Create API key",
@@ -397,6 +508,7 @@ export function getToolsByCategory() {
     Organizations: [],
     Connections: [],
     Gateways: [],
+    Collections: [],
     Monitoring: [],
     Users: [],
     "API Keys": [],

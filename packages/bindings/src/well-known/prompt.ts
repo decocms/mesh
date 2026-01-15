@@ -19,8 +19,8 @@ import {
  */
 export const PromptArgumentSchema = z.object({
   name: z.string().describe("Argument name"),
-  description: z.string().optional().describe("Argument description"),
-  required: z.boolean().optional().describe("Whether argument is required"),
+  description: z.string().describe("Argument description"),
+  required: z.boolean().describe("Whether argument is required"),
 });
 export type PromptArgument = z.infer<typeof PromptArgumentSchema>;
 
@@ -70,15 +70,23 @@ export type PromptMessage = z.infer<typeof PromptMessageSchema>;
  * Full prompt entity schema extending base collection fields
  */
 export const PromptSchema = BaseCollectionEntitySchema.extend({
+  name: z.string().describe("Prompt name (MCP identifier)"),
+  template: z
+    .string()
+    .optional()
+    .describe("Mustache template content for this prompt"),
   arguments: z
     .array(PromptArgumentSchema)
     .optional()
-    .describe("Arguments that can be passed when getting this prompt"),
+    .describe("Explicit variables that can be passed when getting this prompt"),
   icons: z
     .array(PromptIconSchema)
     .optional()
     .describe("Icons for display in user interfaces"),
-  messages: z.array(PromptMessageSchema).describe("Prompt messages template"),
+  messages: z
+    .array(PromptMessageSchema)
+    .optional()
+    .describe("Prompt messages template"),
 });
 export type Prompt = z.infer<typeof PromptSchema>;
 

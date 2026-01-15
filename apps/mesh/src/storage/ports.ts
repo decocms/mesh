@@ -11,6 +11,21 @@ import type {
   GatewayCreateData,
   GatewayUpdateData,
 } from "../tools/gateway/schema";
+import type {
+  ToolCreateData,
+  ToolEntity,
+  ToolUpdateData,
+} from "../tools/tool/schema";
+import type {
+  ResourceCreateData,
+  ResourceEntity,
+  ResourceUpdateData,
+} from "../tools/resource/schema";
+import type {
+  PromptCreateData,
+  PromptEntity,
+  PromptUpdateData,
+} from "../tools/prompt/schema";
 import type { MonitoringLog, OrganizationSettings } from "./types";
 
 // ============================================================================
@@ -117,5 +132,61 @@ export interface GatewayStoragePort {
     userId: string,
     data: GatewayUpdateData,
   ): Promise<GatewayEntity>;
+  delete(id: string): Promise<void>;
+}
+
+// ============================================================================
+// Tool Storage Port
+// ============================================================================
+
+export interface ToolStoragePort {
+  create(
+    organizationId: string,
+    userId: string,
+    data: ToolCreateData,
+  ): Promise<ToolEntity>;
+  findById(id: string, organizationId?: string): Promise<ToolEntity | null>;
+  list(organizationId: string): Promise<ToolEntity[]>;
+  update(id: string, userId: string, data: ToolUpdateData): Promise<ToolEntity>;
+  delete(id: string): Promise<void>;
+}
+
+// ============================================================================
+// Resource Storage Port
+// ============================================================================
+
+export interface ResourceStoragePort {
+  create(
+    organizationId: string,
+    userId: string,
+    data: ResourceCreateData,
+  ): Promise<ResourceEntity>;
+  findById(id: string, organizationId?: string): Promise<ResourceEntity | null>;
+  list(organizationId: string): Promise<ResourceEntity[]>;
+  update(
+    id: string,
+    userId: string,
+    data: ResourceUpdateData,
+  ): Promise<ResourceEntity>;
+  delete(id: string): Promise<void>;
+}
+
+// ============================================================================
+// Prompt Storage Port
+// ============================================================================
+
+export interface PromptStoragePort {
+  create(
+    organizationId: string,
+    userId: string,
+    data: PromptCreateData,
+  ): Promise<PromptEntity>;
+  findById(id: string, organizationId?: string): Promise<PromptEntity | null>;
+  list(organizationId: string): Promise<PromptEntity[]>;
+  update(
+    id: string,
+    userId: string,
+    data: PromptUpdateData,
+  ): Promise<PromptEntity>;
   delete(id: string): Promise<void>;
 }

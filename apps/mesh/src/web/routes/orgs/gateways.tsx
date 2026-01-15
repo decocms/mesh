@@ -35,7 +35,7 @@ import {
 } from "@deco/ui/components/dropdown-menu.tsx";
 import {
   DotsVertical,
-  Eye,
+  Share03,
   Trash01,
   Loading01,
   CpuChip02,
@@ -186,7 +186,7 @@ function OrgGatewaysContent() {
                 });
               }}
             >
-              <Eye size={16} />
+              <Share03 size={16} />
               Inspect
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -350,7 +350,7 @@ function OrgGatewaysContent() {
                             });
                           }}
                         >
-                          <Eye size={16} />
+                          <Share03 size={16} />
                           Inspect
                         </DropdownMenuItem>
                         <DropdownMenuItem

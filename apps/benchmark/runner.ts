@@ -106,7 +106,7 @@ async function runScenario(
       "GATEWAY_SEARCH_TOOLS",
       "GATEWAY_DESCRIBE_TOOLS",
       "GATEWAY_CALL_TOOL",
-      "GATEWAY_RUN_CODE",
+      "CODE_EXECUTION_RUN_CODE",
     ];
 
     // Initial prompt
@@ -178,7 +178,7 @@ async function runScenario(
             }
           }
 
-          if (calledTool === "GATEWAY_RUN_CODE") {
+          if (calledTool === "CODE_EXECUTION_RUN_CODE") {
             // Check if code references the target tool
             const args = toolCall.args as { code?: string };
             if (

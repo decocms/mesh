@@ -206,6 +206,9 @@ export function getWellKnownDecopilotAgent(
     updated_at: new Date().toISOString(),
     created_by: "system",
     updated_by: undefined,
+    saved_tools: [],
+    saved_resources: [],
+    saved_prompts: [],
     connections: [
       {
         // Exclude Mesh MCP (self connection)

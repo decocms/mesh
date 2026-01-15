@@ -15,6 +15,7 @@ import type { ToolSelectionMode } from "../../storage/types";
 import { runCode, type RunCodeResult } from "../../sandbox/index";
 import type { ConnectionEntity } from "../connection/schema";
 import type { GatewayEntity } from "../gateway/schema";
+import type { ToolEntity } from "../tool/schema";
 
 // ============================================================================
 // Types
@@ -35,6 +36,10 @@ interface ConnectionWithSelection {
   selectedResources: string[] | null;
   selectedPrompts: string[] | null;
 }
+
+const STORED_TOOL_CONNECTION_ID = "stored-tools";
+const STORED_TOOL_CONNECTION_TITLE = "Stored Tools";
+const STORED_TOOL_TIMEOUT_MS = 3000;
 
 /** Context for code execution tools */
 export interface ToolContext {
@@ -175,6 +180,59 @@ async function getAllOrgConnections(
     }));
 }
 
+function resolveStoredToolIds(
+  initialIds: string[],
+  toolById: Map<string, ToolEntity>,
+): string[] {
+  const resolved = new Set<string>();
+  const queue = [...initialIds];
+
+  while (queue.length > 0) {
+    const nextId = queue.shift();
+    if (!nextId || resolved.has(nextId)) continue;
+    const tool = toolById.get(nextId);
+    if (!tool) continue;
+    resolved.add(nextId);
+    for (const depId of tool.dependencies ?? []) {
+      if (!resolved.has(depId)) queue.push(depId);
+    }
+  }
+
+  return Array.from(resolved);
+}
+
+async function loadStoredTools(
+  ctx: MeshContext,
+  gateway?: GatewayEntity | null,
+): Promise<ToolEntity[]> {
+  const organization = requireOrganization(ctx);
+  const allTools = await ctx.storage.tools.list(organization.id);
+  const toolById = new Map(allTools.map((tool) => [tool.id, tool]));
+
+  const baseIds =
+    gateway?.saved_tools && gateway.saved_tools.length > 0
+      ? gateway.saved_tools
+      : allTools.map((tool) => tool.id);
+
+  const resolvedIds = resolveStoredToolIds(baseIds, toolById);
+  return resolvedIds
+    .map((id) => toolById.get(id))
+    .filter((tool): tool is ToolEntity => tool !== undefined);
+}
+
+function toStoredToolDefinition(tool: ToolEntity): ToolWithConnection {
+  return {
+    name: tool.name,
+    description: tool.description ?? undefined,
+    inputSchema: tool.input_schema,
+    outputSchema: tool.output_schema ?? undefined,
+    _meta: {
+      connectionId: STORED_TOOL_CONNECTION_ID,
+      connectionTitle: STORED_TOOL_CONNECTION_TITLE,
+    },
+  };
+}
+
 // ============================================================================
 // Tool Loading
 // ============================================================================
@@ -299,15 +357,17 @@ async function loadToolsFromConnections(
  */
 export async function getToolsWithConnections(
   ctx: MeshContext,
+  options: { excludeConnectionIds?: string[] } = {},
 ): Promise<ToolContext> {
   const organization = requireOrganization(ctx);
 
   let connections: ConnectionWithSelection[];
   let selectionMode: ToolSelectionMode = "inclusion";
+  let gateway: GatewayEntity | null = null;
 
   if (ctx.gatewayId) {
     // Use gateway-specific connections
-    const gateway = await ctx.storage.gateways.findById(ctx.gatewayId);
+    gateway = await ctx.storage.gateways.findById(ctx.gatewayId);
     if (!gateway) {
       throw new Error(`Gateway not found: ${ctx.gatewayId}`);
     }
@@ -318,7 +378,69 @@ export async function getToolsWithConnections(
     connections = await getAllOrgConnections(organization.id, ctx);
   }
 
-  return loadToolsFromConnections(connections, selectionMode, ctx);
+  if (options.excludeConnectionIds && options.excludeConnectionIds.length > 0) {
+    const excludeSet = new Set(options.excludeConnectionIds);
+    connections = connections.filter(
+      (entry) => !excludeSet.has(entry.connection.id),
+    );
+  }
+
+  const baseContext = await loadToolsFromConnections(
+    connections,
+    selectionMode,
+    ctx,
+  );
+
+  const storedTools = await loadStoredTools(ctx, gateway);
+  if (storedTools.length === 0) {
+    return baseContext;
+  }
+
+  const storedToolMap = new Map(storedTools.map((tool) => [tool.name, tool]));
+  const mergedTools = [...baseContext.tools];
+  const seen = new Set(baseContext.tools.map((tool) => tool.name));
+
+  for (const tool of storedTools) {
+    if (seen.has(tool.name)) continue;
+    mergedTools.push(toStoredToolDefinition(tool));
+    seen.add(tool.name);
+  }
+
+  const categories = Array.from(
+    new Set([...baseContext.categories, STORED_TOOL_CONNECTION_TITLE]),
+  ).sort();
+
+  const callTool = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<CallToolResult> => {
+    const storedTool = storedToolMap.get(name);
+    if (storedTool) {
+      const result = await runCodeWithTools(
+        storedTool.execute,
+        { tools: mergedTools, callTool, categories },
+        STORED_TOOL_TIMEOUT_MS,
+        { input: args },
+      );
+
+      if (result.error) {
+        return jsonError(result);
+      }
+
+      return jsonResult({
+        returnValue: result.returnValue,
+        consoleLogs: result.consoleLogs,
+      });
+    }
+
+    return baseContext.callTool(name, args);
+  };
+
+  return {
+    tools: mergedTools,
+    callTool,
+    categories,
+  };
 }
 
 // ============================================================================
@@ -437,6 +559,7 @@ export async function runCodeWithTools(
   code: string,
   toolContext: ToolContext,
   timeoutMs: number,
+  globals?: Record<string, unknown>,
 ): Promise<RunCodeResult> {
   // Create tools record for sandbox
   const toolsRecord: Record<
@@ -453,6 +576,7 @@ export async function runCodeWithTools(
     code,
     tools: toolsRecord,
     timeoutMs,
+    globals,
   });
 }
 

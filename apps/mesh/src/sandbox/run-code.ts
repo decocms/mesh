@@ -51,6 +51,7 @@ export interface RunCodeOptions {
   tools: Record<string, ToolHandler>;
   code: string;
   timeoutMs: number;
+  globals?: Record<string, unknown>;
 }
 
 export interface RunCodeResult {
@@ -65,6 +66,7 @@ export async function runCode({
   tools,
   code,
   timeoutMs,
+  globals,
 }: RunCodeOptions): Promise<RunCodeResult> {
   const runtime = await createSandboxRuntime({
     memoryLimitBytes: 32 * 1024 * 1024,
@@ -84,6 +86,13 @@ export async function runCode({
 
     const toolsHandle = toQuickJS(ctx, tools);
     ctx.setProp(ctx.global, "tools", toolsHandle);
+
+    if (globals) {
+      for (const [key, value] of Object.entries(globals)) {
+        const handle = toQuickJS(ctx, value);
+        ctx.setProp(ctx.global, key, handle);
+      }
+    }
 
     // When evaluating ES modules, QuickJS can return either:
     // - the module exports object, or

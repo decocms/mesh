@@ -5,6 +5,9 @@ import { ToolOutputRenderer } from "./tool-outputs/tool-output-renderer.tsx";
 import { useState } from "react";
 import { MonacoCodeEditor } from "../../../details/workflow/components/monaco-editor.tsx";
 import { useDeveloperMode } from "@/web/hooks/use-developer-mode.ts";
+import { useToolActions } from "@/web/hooks/collections/use-tool";
+import { Button } from "@deco/ui/components/button.tsx";
+import { slugify } from "@/web/utils/slugify";
 import {
   Collapsible,
   CollapsibleContent,
@@ -24,6 +27,12 @@ interface ToolCallPartProps {
  * Converts SCREAMING_SNAKE_CASE or snake_case to Title Case
  */
 function getFriendlyToolName(toolName: string): string {
+  if (toolName === "GATEWAY_SEARCH_TOOLS") {
+    return "Tool discovery";
+  }
+  if (toolName === "GATEWAY_DESCRIBE_TOOLS") {
+    return "Learning how to use tools";
+  }
   return toolName
     .split(/[_-]/)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -50,6 +59,49 @@ export function ToolCallPart({
     !!part.input;
   const showOutput = state === "output-available";
   const showError = state === "output-error";
+
+  const toolActions = useToolActions();
+  const isCodeExecutionRun = toolName === "CODE_EXECUTION_RUN_CODE";
+  const codeInput =
+    typeof part.input === "object" && part.input !== null
+      ? (part.input as Record<string, unknown>).code
+      : undefined;
+
+  const workflowLabel = (() => {
+    if (!isCodeExecutionRun) return null;
+    if (state === "input-streaming" || state === "input-available") {
+      return "Creating workflow";
+    }
+    if (state === "output-available") return "Workflow run";
+    if (state === "output-error") return "Workflow run";
+    return "Workflow";
+  })();
+
+  const handleSaveAsTool = async () => {
+    if (typeof codeInput !== "string" || codeInput.trim().length === 0) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const title = `Saved tool ${timestamp}`;
+    const name = slugify(title);
+
+    await toolActions.create.mutateAsync({
+      title,
+      name,
+      description: "Saved from code execution",
+      input_schema: {
+        type: "object",
+        additionalProperties: true,
+      },
+      output_schema: {
+        type: "object",
+        additionalProperties: true,
+      },
+      execute: codeInput,
+      dependencies: [],
+    });
+  };
 
   // Business user mode - simple inline text like Thinking indicator
   if (!developerMode) {
@@ -80,20 +132,26 @@ export function ToolCallPart({
             <>
               <span className="text-muted-foreground shimmer">Calling</span>{" "}
               <span className="text-muted-foreground/75 shimmer">
-                {friendlyName}...
+                {workflowLabel ?? `${friendlyName}...`}
               </span>
             </>
           )}
           {isComplete && (
             <>
-              <span className="text-muted-foreground">Called</span>{" "}
-              <span className="text-muted-foreground/75">{friendlyName}</span>
+              <span className="text-muted-foreground">
+                {workflowLabel ? "Running" : "Called"}
+              </span>{" "}
+              <span className="text-muted-foreground/75">
+                {workflowLabel ?? friendlyName}
+              </span>
             </>
           )}
           {isError && (
             <>
               <span className="text-destructive/90">Error calling</span>{" "}
-              <span className="text-destructive/75">{friendlyName}</span>
+              <span className="text-destructive/75">
+                {workflowLabel ?? friendlyName}
+              </span>
             </>
           )}
         </span>
@@ -130,14 +188,40 @@ export function ToolCallPart({
                     "shimmer",
                 )}
               >
-                {state === "input-streaming" &&
-                  `Streaming ${toolName} arguments`}
-                {state === "input-available" && `Calling ${toolName}`}
-                {state === "output-available" && `Called ${toolName}`}
-                {state === "output-error" && `Error calling ${toolName}`}
+                {isCodeExecutionRun ? (
+                  <>
+                    {state === "input-streaming" && "Creating workflow"}
+                    {state === "input-available" && "Creating workflow"}
+                    {state === "output-available" && "Workflow run"}
+                    {state === "output-error" && "Workflow run"}
+                  </>
+                ) : (
+                  <>
+                    {state === "input-streaming" &&
+                      `Streaming ${toolName} arguments`}
+                    {state === "input-available" && `Calling ${toolName}`}
+                    {state === "output-available" && `Called ${toolName}`}
+                    {state === "output-error" && `Error calling ${toolName}`}
+                  </>
+                )}
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {isCodeExecutionRun && typeof codeInput === "string" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleSaveAsTool();
+                  }}
+                  disabled={toolActions.create.isPending}
+                >
+                  Save workflow
+                </Button>
+              )}
               <ChevronRight
                 className={cn(
                   "size-4 text-muted-foreground transition-transform duration-200",

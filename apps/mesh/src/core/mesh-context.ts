@@ -226,6 +226,9 @@ import type { ConnectionStorage } from "../storage/connection";
 import type { GatewayStorage } from "../storage/gateway";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
+import type { PromptStorage } from "../storage/prompt";
+import type { ResourceStorage } from "../storage/resource";
+import type { ToolStorage } from "../storage/tool";
 import type { UserStorage } from "../storage/user";
 
 // Better Auth instance type - flexible for testing
@@ -246,6 +249,9 @@ export interface MeshStorage {
   organizationSettings: OrganizationSettingsStorage;
   monitoring: SqlMonitoringStorage;
   gateways: GatewayStorage;
+  tools: ToolStorage;
+  resources: ResourceStorage;
+  prompts: PromptStorage;
   users: UserStorage;
 }
 

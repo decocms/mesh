@@ -52,7 +52,7 @@ import {
 } from "@deco/ui/components/form.tsx";
 import {
   DotsVertical,
-  Eye,
+  Share03,
   Trash01,
   Loading01,
   Container,
@@ -839,8 +839,8 @@ function OrgMcpsContent() {
                 });
               }}
             >
-              <Eye size={16} />
-              Inspect
+              <Share03 size={16} />
+              Open
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"
@@ -1360,8 +1360,8 @@ function OrgMcpsContent() {
                             });
                           }}
                         >
-                          <Eye size={16} />
-                          Inspect
+                          <Share03 size={16} />
+                          Open
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"

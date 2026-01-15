@@ -41,6 +41,26 @@ export {
   REGISTRY_APP_BINDING,
 } from "./well-known/registry";
 
+// Re-export tools/resources/prompts collection bindings
+export {
+  ToolSchema,
+  type ToolCollectionEntity,
+  TOOLS_COLLECTION_BINDING,
+  TOOLS_BINDING,
+} from "./well-known/tool";
+export {
+  ResourceSchema,
+  type ResourceCollectionEntity,
+  RESOURCES_COLLECTION_BINDING,
+  RESOURCES_BINDING,
+} from "./well-known/resource";
+export {
+  PromptSchema,
+  type Prompt,
+  PROMPTS_COLLECTION_BINDING,
+  PROMPTS_BINDING,
+} from "./well-known/prompt";
+
 // Re-export event subscriber binding types (for connections that receive events)
 export {
   CloudEventSchema,

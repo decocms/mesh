@@ -600,6 +600,79 @@ export interface GatewayConnectionTable {
   created_at: ColumnType<Date, Date | string, never>;
 }
 
+// ============================================================================
+// Tools / Resources / Prompts Table Definitions
+// ============================================================================
+
+export interface ToolTable {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string | null;
+  name: string;
+  input_schema: JsonObject<Record<string, unknown>>;
+  output_schema: JsonObject<Record<string, unknown>> | null;
+  execute: string;
+  dependencies: JsonArray<string[]>;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+  created_by: string;
+  updated_by: string | null;
+}
+
+export interface ResourceTable {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string | null;
+  uri: string;
+  name: string;
+  mime_type: string | null;
+  text: string | null;
+  blob: string | null;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+  created_by: string;
+  updated_by: string | null;
+}
+
+export interface PromptTable {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string | null;
+  name: string;
+  template: string | null;
+  arguments: JsonArray<unknown[]> | null;
+  icons: JsonArray<unknown[]> | null;
+  messages: JsonArray<unknown[]> | null;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+  created_by: string;
+  updated_by: string | null;
+}
+
+export interface GatewayToolTable {
+  id: string;
+  gateway_id: string;
+  tool_id: string;
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+export interface GatewayResourceTable {
+  id: string;
+  gateway_id: string;
+  resource_id: string;
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+export interface GatewayPromptTable {
+  id: string;
+  gateway_id: string;
+  prompt_id: string;
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
 /**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
@@ -635,4 +708,10 @@ export interface Database {
   // Gateway tables
   gateways: GatewayTable;
   gateway_connections: GatewayConnectionTable;
+  tools: ToolTable;
+  resources: ResourceTable;
+  prompts: PromptTable;
+  gateway_tools: GatewayToolTable;
+  gateway_resources: GatewayResourceTable;
+  gateway_prompts: GatewayPromptTable;
 }

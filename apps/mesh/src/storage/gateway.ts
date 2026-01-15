@@ -42,6 +42,21 @@ type RawGatewayConnectionRow = {
   created_at: Date | string;
 };
 
+type RawGatewayToolRow = {
+  gateway_id: string;
+  tool_id: string;
+};
+
+type RawGatewayResourceRow = {
+  gateway_id: string;
+  resource_id: string;
+};
+
+type RawGatewayPromptRow = {
+  gateway_id: string;
+  prompt_id: string;
+};
+
 export class GatewayStorage implements GatewayStoragePort {
   constructor(private db: Kysely<Database>) {}
 
@@ -95,6 +110,13 @@ export class GatewayStorage implements GatewayStoragePort {
         .execute();
     }
 
+    await this.replaceSavedSelections(
+      id,
+      data.saved_tools,
+      data.saved_resources,
+      data.saved_prompts,
+    );
+
     const gateway = await this.findById(id);
     if (!gateway) {
       throw new Error(`Failed to create gateway with id: ${id}`);
@@ -127,9 +149,12 @@ export class GatewayStorage implements GatewayStoragePort {
       .where("gateway_id", "=", id)
       .execute();
 
+    const savedSelections = await this.loadSavedSelections([id]);
+
     return this.deserializeGatewayEntity(
       row as unknown as RawGatewayRow,
       connectionRows as RawGatewayConnectionRow[],
+      savedSelections,
     );
   }
 
@@ -161,10 +186,13 @@ export class GatewayStorage implements GatewayStoragePort {
       connectionsByGateway.set(conn.gateway_id, existing);
     }
 
+    const savedSelections = await this.loadSavedSelections(gatewayIds);
+
     return rows.map((row) =>
       this.deserializeGatewayEntity(
         row as unknown as RawGatewayRow,
         connectionsByGateway.get(row.id) ?? [],
+        savedSelections,
       ),
     );
   }
@@ -215,10 +243,13 @@ export class GatewayStorage implements GatewayStoragePort {
       connectionsByGateway.set(conn.gateway_id, existing);
     }
 
+    const savedSelections = await this.loadSavedSelections(resultGatewayIds);
+
     return rows.map((row) =>
       this.deserializeGatewayEntity(
         row as RawGatewayRow,
         connectionsByGateway.get(row.id) ?? [],
+        savedSelections,
       ),
     );
   }
@@ -290,6 +321,19 @@ export class GatewayStorage implements GatewayStoragePort {
       }
     }
 
+    if (
+      data.saved_tools !== undefined ||
+      data.saved_resources !== undefined ||
+      data.saved_prompts !== undefined
+    ) {
+      await this.replaceSavedSelections(
+        id,
+        data.saved_tools,
+        data.saved_resources,
+        data.saved_prompts,
+      );
+    }
+
     const gateway = await this.findById(id);
     if (!gateway) {
       throw new Error("Gateway not found after update");
@@ -309,6 +353,11 @@ export class GatewayStorage implements GatewayStoragePort {
   private deserializeGatewayEntity(
     row: RawGatewayRow,
     connectionRows: RawGatewayConnectionRow[],
+    savedSelections?: {
+      tools: Map<string, string[]>;
+      resources: Map<string, string[]>;
+      prompts: Map<string, string[]>;
+    },
   ): GatewayEntity {
     // Convert Date to ISO string if needed
     const createdAt =
@@ -338,6 +387,9 @@ export class GatewayStorage implements GatewayStoragePort {
         selected_resources: this.parseJson<string[]>(conn.selected_resources),
         selected_prompts: this.parseJson<string[]>(conn.selected_prompts),
       })),
+      saved_tools: savedSelections?.tools.get(row.id) ?? [],
+      saved_resources: savedSelections?.resources.get(row.id) ?? [],
+      saved_prompts: savedSelections?.prompts.get(row.id) ?? [],
     };
   }
 
@@ -365,5 +417,116 @@ export class GatewayStorage implements GatewayStoragePort {
       }
     }
     return value as T;
+  }
+
+  private async loadSavedSelections(gatewayIds: string[]) {
+    const [toolRows, resourceRows, promptRows] = await Promise.all([
+      this.db
+        .selectFrom("gateway_tools")
+        .select(["gateway_id", "tool_id"])
+        .where("gateway_id", "in", gatewayIds)
+        .execute(),
+      this.db
+        .selectFrom("gateway_resources")
+        .select(["gateway_id", "resource_id"])
+        .where("gateway_id", "in", gatewayIds)
+        .execute(),
+      this.db
+        .selectFrom("gateway_prompts")
+        .select(["gateway_id", "prompt_id"])
+        .where("gateway_id", "in", gatewayIds)
+        .execute(),
+    ]);
+
+    const tools = new Map<string, string[]>();
+    const resources = new Map<string, string[]>();
+    const prompts = new Map<string, string[]>();
+
+    for (const row of toolRows as RawGatewayToolRow[]) {
+      const list = tools.get(row.gateway_id) ?? [];
+      list.push(row.tool_id);
+      tools.set(row.gateway_id, list);
+    }
+    for (const row of resourceRows as RawGatewayResourceRow[]) {
+      const list = resources.get(row.gateway_id) ?? [];
+      list.push(row.resource_id);
+      resources.set(row.gateway_id, list);
+    }
+    for (const row of promptRows as RawGatewayPromptRow[]) {
+      const list = prompts.get(row.gateway_id) ?? [];
+      list.push(row.prompt_id);
+      prompts.set(row.gateway_id, list);
+    }
+
+    return { tools, resources, prompts };
+  }
+
+  private async replaceSavedSelections(
+    gatewayId: string,
+    toolIds?: string[],
+    resourceIds?: string[],
+    promptIds?: string[],
+  ) {
+    const now = new Date().toISOString();
+
+    if (toolIds !== undefined) {
+      await this.db
+        .deleteFrom("gateway_tools")
+        .where("gateway_id", "=", gatewayId)
+        .execute();
+      if (toolIds.length > 0) {
+        await this.db
+          .insertInto("gateway_tools")
+          .values(
+            toolIds.map((toolId) => ({
+              id: generatePrefixedId("gwt"),
+              gateway_id: gatewayId,
+              tool_id: toolId,
+              created_at: now,
+            })),
+          )
+          .execute();
+      }
+    }
+
+    if (resourceIds !== undefined) {
+      await this.db
+        .deleteFrom("gateway_resources")
+        .where("gateway_id", "=", gatewayId)
+        .execute();
+      if (resourceIds.length > 0) {
+        await this.db
+          .insertInto("gateway_resources")
+          .values(
+            resourceIds.map((resourceId) => ({
+              id: generatePrefixedId("gwr"),
+              gateway_id: gatewayId,
+              resource_id: resourceId,
+              created_at: now,
+            })),
+          )
+          .execute();
+      }
+    }
+
+    if (promptIds !== undefined) {
+      await this.db
+        .deleteFrom("gateway_prompts")
+        .where("gateway_id", "=", gatewayId)
+        .execute();
+      if (promptIds.length > 0) {
+        await this.db
+          .insertInto("gateway_prompts")
+          .values(
+            promptIds.map((promptId) => ({
+              id: generatePrefixedId("gwp"),
+              gateway_id: gatewayId,
+              prompt_id: promptId,
+              created_at: now,
+            })),
+          )
+          .execute();
+      }
+    }
   }
 }

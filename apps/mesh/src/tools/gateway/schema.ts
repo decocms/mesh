@@ -79,6 +79,16 @@ export const GatewayEntitySchema = z.object({
     .describe(
       "Connections with their selected tools (behavior depends on tool_selection_mode)",
     ),
+  // Stored collections selections (by ID)
+  saved_tools: z
+    .array(z.string())
+    .describe("Stored tool IDs attached to this gateway"),
+  saved_resources: z
+    .array(z.string())
+    .describe("Stored resource IDs attached to this gateway"),
+  saved_prompts: z
+    .array(z.string())
+    .describe("Stored prompt IDs attached to this gateway"),
 });
 
 /**
@@ -135,6 +145,12 @@ export const GatewayCreateDataSchema = z.object({
     .describe(
       "Connections to include/exclude (can be empty for exclusion mode)",
     ),
+  saved_tools: z.array(z.string()).optional().describe("Stored tool IDs"),
+  saved_resources: z
+    .array(z.string())
+    .optional()
+    .describe("Stored resource IDs"),
+  saved_prompts: z.array(z.string()).optional().describe("Stored prompt IDs"),
 });
 
 export type GatewayCreateData = z.infer<typeof GatewayCreateDataSchema>;
@@ -187,6 +203,18 @@ export const GatewayUpdateDataSchema = z.object({
     )
     .optional()
     .describe("New connections (replaces existing)"),
+  saved_tools: z
+    .array(z.string())
+    .optional()
+    .describe("Stored tool IDs (replaces existing)"),
+  saved_resources: z
+    .array(z.string())
+    .optional()
+    .describe("Stored resource IDs (replaces existing)"),
+  saved_prompts: z
+    .array(z.string())
+    .optional()
+    .describe("Stored prompt IDs (replaces existing)"),
 });
 
 export type GatewayUpdateData = z.infer<typeof GatewayUpdateDataSchema>;

@@ -201,6 +201,46 @@ const gatewayDetailRoute = createRoute({
   ),
 });
 
+const orgToolsRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/tools",
+  component: lazyRouteComponent(() => import("./routes/orgs/tools.tsx")),
+});
+
+const toolDetailRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/tools/$toolId",
+  component: lazyRouteComponent(() => import("./routes/orgs/tool-detail.tsx")),
+});
+
+const orgResourcesRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/resources",
+  component: lazyRouteComponent(() => import("./routes/orgs/resources.tsx")),
+});
+
+const resourceDetailRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/resources/$resourceId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/resource-detail.tsx"),
+  ),
+});
+
+const orgPromptsRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/prompts",
+  component: lazyRouteComponent(() => import("./routes/orgs/prompts.tsx")),
+});
+
+const promptDetailRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/prompts/$promptId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/prompt-detail.tsx"),
+  ),
+});
+
 const orgWorkflowRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/workflows",
@@ -267,6 +307,12 @@ const shellRouteTree = shellLayout.addChildren([
   orgConnectionsRoute,
   orgGatewaysRoute,
   gatewayDetailRoute,
+  orgToolsRoute,
+  toolDetailRoute,
+  orgResourcesRoute,
+  resourceDetailRoute,
+  orgPromptsRoute,
+  promptDetailRoute,
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
   orgSettingsRoute,

@@ -5,12 +5,14 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
   Building02,
+  Code01,
   Container,
   CpuChip02,
+  Database01,
   Home02,
+  MessageChatSquare,
   Settings01,
   Users01,
-  Zap,
 } from "@untitledui/icons";
 import { pluginRootSidebarItems } from "../index.tsx";
 import { useOrganizationSettings } from "./collections/use-organization-settings";
@@ -78,10 +80,22 @@ export function useProjectSidebarItems() {
       onClick: () => navigate({ to: "/$org/gateways", params: { org } }),
     },
     {
-      key: "workflow",
-      label: "Workflows",
-      icon: <Zap />,
-      onClick: () => navigate({ to: "/$org/workflows", params: { org } }),
+      key: "tools",
+      label: "Tools",
+      icon: <Code01 />,
+      onClick: () => navigate({ to: "/$org/tools", params: { org } }),
+    },
+    {
+      key: "resources",
+      label: "Resources",
+      icon: <Database01 />,
+      onClick: () => navigate({ to: "/$org/resources", params: { org } }),
+    },
+    {
+      key: "prompts",
+      label: "Prompts",
+      icon: <MessageChatSquare />,
+      onClick: () => navigate({ to: "/$org/prompts", params: { org } }),
     },
     {
       key: "monitoring",

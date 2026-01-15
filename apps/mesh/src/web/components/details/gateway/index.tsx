@@ -10,6 +10,9 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
+import { usePrompts } from "@/web/hooks/collections/use-prompt";
+import { useResources } from "@/web/hooks/collections/use-resource";
+import { useTools } from "@/web/hooks/collections/use-tool";
 import {
   useGateway,
   useGatewayActions,
@@ -20,6 +23,7 @@ import { useGatewaySystemPrompt } from "@/web/hooks/use-gateway-system-prompt";
 import { slugify } from "@/web/utils/slugify";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Checkbox } from "@deco/ui/components/checkbox.tsx";
 import {
   Dialog,
   DialogContent,
@@ -83,6 +87,77 @@ import { z } from "zod";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 
 type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
+
+type SavedItem = {
+  id: string;
+  title: string;
+  description?: string | null;
+  secondaryLabel?: string | null;
+};
+
+function SavedItemsSection({
+  title,
+  items,
+  selectedIds,
+  onToggle,
+  emptyMessage,
+}: {
+  title: string;
+  items: SavedItem[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  emptyMessage: string;
+}) {
+  return (
+    <div className="border-b border-border">
+      <div className="px-4 py-3">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="text-xs text-muted-foreground">
+          Select saved items to include in this agent.
+        </p>
+      </div>
+      {items.length === 0 ? (
+        <div className="px-4 pb-4 text-sm text-muted-foreground">
+          {emptyMessage}
+        </div>
+      ) : (
+        <div className="px-4 pb-4 space-y-2">
+          {items.map((item) => {
+            const isSelected = selectedIds.includes(item.id);
+            return (
+              <label
+                key={item.id}
+                className="flex items-start gap-3 p-2 rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
+              >
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={() => onToggle(item.id)}
+                />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {item.title}
+                    </span>
+                    {item.secondaryLabel ? (
+                      <span className="text-xs text-muted-foreground truncate">
+                        {item.secondaryLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  {item.description ? (
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {item.description}
+                    </p>
+                  ) : null}
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Unicode-safe base64 encoding for browser environments
@@ -503,9 +578,9 @@ function GatewayShareModal({
                         <TooltipContent className="max-w-xs">
                           <p className="text-xs">
                             Exposes meta-tools for discovery + sandboxed
-                            execution (GATEWAY_RUN_CODE). Reduces overhead on
-                            large surfaces by shifting work into a controlled
-                            runtime.
+                            execution (CODE_EXECUTION_RUN_CODE). Reduces
+                            overhead on large surfaces by shifting work into a
+                            controlled runtime.
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -755,6 +830,10 @@ function GatewayInspectorViewWithGateway({
   const { resourcesMap: connectionResources } =
     useConnectionsResources(connectionIds);
 
+  const storedTools = useTools();
+  const storedResources = useResources();
+  const storedPrompts = usePrompts();
+
   // Build a map of connectionId -> all tool names
   const connectionToolsMap = new Map<string, string[]>();
   for (const conn of connections) {
@@ -781,6 +860,16 @@ function GatewayInspectorViewWithGateway({
     gatewayToPromptSet(gateway),
   );
 
+  const [savedToolIds, setSavedToolIds] = useState<string[]>(
+    gateway.saved_tools ?? [],
+  );
+  const [savedResourceIds, setSavedResourceIds] = useState<string[]>(
+    gateway.saved_resources ?? [],
+  );
+  const [savedPromptIds, setSavedPromptIds] = useState<string[]>(
+    gateway.saved_prompts ?? [],
+  );
+
   // Track if any selection has changed
   const [selectionDirty, setSelectionDirty] = useState(false);
 
@@ -802,6 +891,36 @@ function GatewayInspectorViewWithGateway({
   const handlePromptSetChange = (newPromptSet: Record<string, string[]>) => {
     setPromptSet(newPromptSet);
     setSelectionDirty(true);
+  };
+
+  const toggleSavedTool = (toolId: string) => {
+    setSavedToolIds((prev) => {
+      const next = prev.includes(toolId)
+        ? prev.filter((id) => id !== toolId)
+        : [...prev, toolId];
+      setSelectionDirty(true);
+      return next;
+    });
+  };
+
+  const toggleSavedResource = (resourceId: string) => {
+    setSavedResourceIds((prev) => {
+      const next = prev.includes(resourceId)
+        ? prev.filter((id) => id !== resourceId)
+        : [...prev, resourceId];
+      setSelectionDirty(true);
+      return next;
+    });
+  };
+
+  const toggleSavedPrompt = (promptId: string) => {
+    setSavedPromptIds((prev) => {
+      const next = prev.includes(promptId)
+        ? prev.filter((id) => id !== promptId)
+        : [...prev, promptId];
+      setSelectionDirty(true);
+      return next;
+    });
   };
 
   // Form setup
@@ -837,6 +956,9 @@ function GatewayInspectorViewWithGateway({
         status: formData.status,
         tool_selection_mode: formData.tool_selection_mode,
         connections: newConnections,
+        saved_tools: savedToolIds,
+        saved_resources: savedResourceIds,
+        saved_prompts: savedPromptIds,
       },
     });
 
@@ -858,10 +980,34 @@ function GatewayInspectorViewWithGateway({
     setToolSet(gatewayToToolSet(gateway, connectionToolsMap));
     setResourceSet(gatewayToResourceSet(gateway));
     setPromptSet(gatewayToPromptSet(gateway));
+    setSavedToolIds(gateway.saved_tools ?? []);
+    setSavedResourceIds(gateway.saved_resources ?? []);
+    setSavedPromptIds(gateway.saved_prompts ?? []);
 
     // Clear dirty flag
     setSelectionDirty(false);
   };
+
+  const storedToolItems: SavedItem[] = storedTools.map((tool) => ({
+    id: tool.id,
+    title: tool.title || tool.name,
+    secondaryLabel: tool.name,
+    description: tool.description ?? null,
+  }));
+
+  const storedResourceItems: SavedItem[] = storedResources.map((resource) => ({
+    id: resource.id,
+    title: resource.title || resource.name,
+    secondaryLabel: resource.uri,
+    description: resource.description ?? null,
+  }));
+
+  const storedPromptItems: SavedItem[] = storedPrompts.map((prompt) => ({
+    id: prompt.id,
+    title: prompt.title || prompt.name,
+    secondaryLabel: prompt.name,
+    description: prompt.description ?? null,
+  }));
 
   // Define tabs
   const tabs = [
@@ -995,22 +1141,55 @@ function GatewayInspectorViewWithGateway({
                     gatewayId={gatewayId}
                   />
                 ) : activeTabId === "tools" ? (
-                  <ToolSetSelector
-                    toolSet={toolSet}
-                    onToolSetChange={handleToolSetChange}
-                  />
+                  <div className="flex h-full flex-col">
+                    <SavedItemsSection
+                      title="Saved tools"
+                      items={storedToolItems}
+                      selectedIds={savedToolIds}
+                      onToggle={toggleSavedTool}
+                      emptyMessage="No saved tools yet."
+                    />
+                    <div className="flex-1 min-h-0">
+                      <ToolSetSelector
+                        toolSet={toolSet}
+                        onToolSetChange={handleToolSetChange}
+                      />
+                    </div>
+                  </div>
                 ) : activeTabId === "resources" ? (
-                  <ResourceSetSelector
-                    resourceSet={resourceSet}
-                    onResourceSetChange={handleResourceSetChange}
-                    connectionResources={connectionResources}
-                  />
+                  <div className="flex h-full flex-col">
+                    <SavedItemsSection
+                      title="Saved resources"
+                      items={storedResourceItems}
+                      selectedIds={savedResourceIds}
+                      onToggle={toggleSavedResource}
+                      emptyMessage="No saved resources yet."
+                    />
+                    <div className="flex-1 min-h-0">
+                      <ResourceSetSelector
+                        resourceSet={resourceSet}
+                        onResourceSetChange={handleResourceSetChange}
+                        connectionResources={connectionResources}
+                      />
+                    </div>
+                  </div>
                 ) : activeTabId === "prompts" ? (
-                  <PromptSetSelector
-                    promptSet={promptSet}
-                    onPromptSetChange={handlePromptSetChange}
-                    connectionPrompts={connectionPrompts}
-                  />
+                  <div className="flex h-full flex-col">
+                    <SavedItemsSection
+                      title="Saved prompts"
+                      items={storedPromptItems}
+                      selectedIds={savedPromptIds}
+                      onToggle={toggleSavedPrompt}
+                      emptyMessage="No saved prompts yet."
+                    />
+                    <div className="flex-1 min-h-0">
+                      <PromptSetSelector
+                        promptSet={promptSet}
+                        onPromptSetChange={handlePromptSetChange}
+                        connectionPrompts={connectionPrompts}
+                      />
+                    </div>
+                  </div>
                 ) : null}
               </Suspense>
             </ErrorBoundary>

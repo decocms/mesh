@@ -22,6 +22,8 @@
     "./mcp": "./src/well-known/mcp.ts",
     "./assistant": "./src/well-known/assistant.ts",
     "./prompt": "./src/well-known/prompt.ts",
+    "./tool": "./src/well-known/tool.ts",
+    "./resource": "./src/well-known/resource.ts",
     "./workflow": "./src/well-known/workflow.ts",
     "./plugins": "./src/core/plugins.ts",
     "./plugin-router": "./src/core/plugin-router.tsx"

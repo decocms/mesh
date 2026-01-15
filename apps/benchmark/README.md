@@ -10,7 +10,7 @@ When you have many tools available (100+), directly exposing all tools to an LLM
 |----------|-------------|-----------|
 | `passthrough` | Exposes all tools directly to the LLM | Simple but expensive at scale |
 | `smart_tool_selection` | Exposes meta-tools for discovery (`GATEWAY_SEARCH_TOOLS`, `GATEWAY_DESCRIBE_TOOLS`, `GATEWAY_CALL_TOOL`) | Fewer tokens but requires multi-step reasoning |
-| `code_execution` | Exposes meta-tools with sandboxed code execution (`GATEWAY_RUN_CODE`) | Efficient for complex operations |
+| `code_execution` | Exposes meta-tools with sandboxed code execution (`CODE_EXECUTION_RUN_CODE`) | Efficient for complex operations |
 
 This benchmark measures **token consumption** to help you choose the right strategy for your use case.
 

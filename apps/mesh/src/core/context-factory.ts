@@ -17,6 +17,9 @@ import { ConnectionStorage } from "../storage/connection";
 import { GatewayStorage } from "../storage/gateway";
 import { SqlMonitoringStorage } from "../storage/monitoring";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
+import { PromptStorage } from "../storage/prompt";
+import { ResourceStorage } from "../storage/resource";
+import { ToolStorage } from "../storage/tool";
 import type { Database, Permission } from "../storage/types";
 import { UserStorage } from "../storage/user";
 import { AccessControl } from "./access-control";
@@ -726,6 +729,9 @@ export function createMeshContextFactory(
     organizationSettings: new OrganizationSettingsStorage(config.db),
     monitoring: new SqlMonitoringStorage(config.db, config.databaseType),
     gateways: new GatewayStorage(config.db),
+    tools: new ToolStorage(config.db),
+    resources: new ResourceStorage(config.db),
+    prompts: new PromptStorage(config.db),
     users: new UserStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
