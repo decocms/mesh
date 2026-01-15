@@ -10,9 +10,9 @@ import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   createContext,
+  type PropsWithChildren,
   useContext,
   useReducer,
-  type PropsWithChildren,
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
@@ -33,9 +33,9 @@ import type { ChatMessage } from "./index";
 import type { GatewayInfo } from "./select-gateway";
 import { useGateways } from "./select-gateway";
 import {
-  useModels,
   type ModelChangePayload,
   type SelectedModelState,
+  useModels,
 } from "./select-model";
 
 const createModelsTransport = (
@@ -53,10 +53,12 @@ const createModelsTransport = (
             parts: [{ type: "text", text: system }],
           }
         : null;
-      const lastUserMessage = messages[messages.length - 1];
+
       const messagesToSend = systemMessage
-        ? [systemMessage, lastUserMessage]
-        : [lastUserMessage];
+        ? [systemMessage, ...messages]
+        : messages;
+
+      console.log({ systemMessage, messagesToSend, messages });
 
       return {
         body: {

@@ -18,9 +18,9 @@ import {
   tool,
   ToolSet,
 } from "ai";
-import { Hono } from "hono";
+import { Context, Hono } from "hono";
 import { z } from "zod";
-import type { MeshContext } from "../../core/mesh-context";
+import type { MeshContext, OrganizationScope } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import { createLLMProvider } from "../llm-provider";
 import { fixProtocol } from "./oauth-proxy";
@@ -87,8 +87,14 @@ const UIMessageSchema = z.looseObject({
   metadata: z.unknown().optional(),
 });
 
+const ThreadMemoryConfigSchema = z.object({
+  windowSize: z.number().optional(),
+  threadId: z.string(),
+});
+
 const StreamRequestSchema = z.object({
   messages: z.array(UIMessageSchema).describe("User messages"),
+  memory: ThreadMemoryConfigSchema.optional(),
   model: z
     .object({
       id: z.string(),
@@ -116,7 +122,6 @@ const StreamRequestSchema = z.object({
   gateway: z.object({ id: z.string().nullable() }).loose(),
   stream: z.boolean().optional(),
   temperature: z.number().optional(),
-  maxWindowSize: z.number().optional(),
   thread_id: z.string().optional(),
 });
 
@@ -124,16 +129,19 @@ export type StreamRequest = z.infer<typeof StreamRequestSchema>;
 
 const app = new Hono<{ Variables: { meshContext: MeshContext } }>();
 
-function ensureOrganization(ctx: MeshContext, orgSlug: string) {
-  if (!ctx.organization) {
+function ensureOrganization(
+  c: Context<{ Variables: { meshContext: MeshContext } }>,
+) {
+  const organization = c.get("meshContext").organization;
+  if (!organization) {
     throw new Error("Organization context is required");
   }
 
-  if ((ctx.organization.slug ?? ctx.organization.id) !== orgSlug) {
+  if ((organization.slug ?? organization.id) !== c.req.param("org")) {
     throw new Error("Organization mismatch");
   }
 
-  return ctx.organization;
+  return organization;
 }
 
 function ensureUser(ctx: MeshContext) {
@@ -302,135 +310,235 @@ async function getOrCreateThread(
   );
 }
 
+function createGatewayClient() {
+  return new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
+}
+
+async function createModelProviderForConnection(
+  ctx: MeshContext,
+  organizationId: string,
+  model: { id: string; connectionId: string },
+) {
+  const connection = await getConnectionById(
+    ctx,
+    organizationId,
+    model.connectionId,
+  );
+  if (!connection) {
+    throw new Error(`Connection not found: ${model.connectionId}`);
+  }
+  const proxy = await ctx.createMCPProxy(connection);
+
+  const llmBinding = LanguageModelBinding.forClient(proxy);
+  const provider = createLLMProvider(llmBinding).languageModel(model.id);
+
+  return provider;
+}
+
+async function createAgent({
+  monitoringProperties,
+  transport,
+}: {
+  monitoringProperties: Record<string, string>;
+  transport: StreamableHTTPClientTransport;
+}) {
+  const client = createGatewayClient();
+  await client.connect(transport);
+  const tools = await toolsFromMCP(client, monitoringProperties);
+  return { client, tools };
+}
+
+async function validateRequest(
+  c: Context<{ Variables: { meshContext: MeshContext } }>,
+): Promise<{
+  organization: OrganizationScope;
+  model: {
+    id: string;
+    connectionId: string;
+    limits?: { maxOutputTokens?: number };
+  };
+  gateway: { id: string | null | undefined };
+  messages: UIMessage<Metadata>[];
+  temperature: number;
+  memory: z.infer<typeof ThreadMemoryConfigSchema>;
+  thread_id: string | null | undefined;
+  transport: StreamableHTTPClientTransport;
+}> {
+  const organization = ensureOrganization(c);
+  const rawPayload = await c.req.json();
+
+  // Validate request using Zod schema
+  const parseResult = StreamRequestSchema.safeParse(rawPayload);
+  if (!parseResult.success) {
+    throw new Error("Invalid request body");
+  }
+
+  const uniqueIds = new Set<string>();
+  parseResult.data.messages.forEach((m) => {
+    if (m.id) {
+      uniqueIds.add(m.id);
+    }
+  });
+  if (uniqueIds.size !== parseResult.data.messages.length) {
+    throw new Error("Duplicate message IDs");
+  }
+
+  if (parseResult.data.thread_id) {
+    if (!idMatchesPrefix(parseResult.data.thread_id, "thrd")) {
+      throw new Error("Invalid thread ID");
+    }
+  }
+
+  if (parseResult.data.gateway.id) {
+    if (!idMatchesPrefix(parseResult.data.gateway.id, "gw")) {
+      throw new Error("Invalid gateway ID");
+    }
+  }
+  const gateway = parseResult.data.gateway;
+
+  const transport = createGatewayTransport(
+    c.req.raw,
+    organization.id,
+    gateway.id,
+  );
+
+  return {
+    organization,
+    model: parseResult.data.model,
+    gateway,
+    transport,
+    messages: parseResult.data.messages as unknown as UIMessage<Metadata>[],
+    temperature: parseResult.data.temperature ?? 0.5,
+    memory: parseResult.data.memory ?? {
+      threadId: parseResult.data.thread_id ?? "",
+      windowSize: DEFAULT_MEMORY,
+    },
+    thread_id: parseResult.data.thread_id,
+  };
+}
+
+async function getMessagesAndThread({
+  ctx,
+  memory,
+  messages,
+  thread_id,
+  organization_id,
+}: {
+  ctx: MeshContext;
+  memory: z.infer<typeof ThreadMemoryConfigSchema>;
+  messages: UIMessage<Metadata>[];
+  thread_id: string | null | undefined;
+  organization_id: string;
+}) {
+  const { thread, messages: threadMessages } = await getOrCreateThread(ctx, {
+    threadId: thread_id,
+    organizationId: organization_id,
+  });
+  const modelMessages = await convertToModelMessages(
+    [...threadMessages, ...messages],
+    {
+      ignoreIncompleteToolCalls: true,
+    },
+  );
+  const userCreatedAt = new Date().toISOString();
+
+  // Safe cast: UIMessageSchema validated required structure (parts, role, metadata)
+  const userMessages = messages.filter(
+    (m) => m.role === "user",
+  ) as unknown as UIMessage<Metadata>[];
+  userMessages.forEach((m) => {
+    const safeUserMessage = {
+      ...m,
+      parts: m.parts as ThreadMessage["parts"],
+      id: generatePrefixedId("msg"),
+      threadId: thread.id,
+      createdAt: userCreatedAt,
+      metadata: m.metadata as ThreadMessage["metadata"],
+      updatedAt: userCreatedAt,
+    };
+    threadMessages.push(safeUserMessage as ThreadMessage);
+  });
+
+  const safeSystemMessages = messages.filter(
+    (m) => m.role === "system",
+  ) as unknown as SystemModelMessage[];
+  safeSystemMessages.forEach((m) => {
+    const safeSystemMessage = {
+      ...m,
+      id: generatePrefixedId("msg"),
+      threadId: thread.id,
+      createdAt: userCreatedAt,
+      updatedAt: userCreatedAt,
+    };
+    threadMessages.push(safeSystemMessage as unknown as ThreadMessage);
+  });
+
+  // Extract context from frontend system message and combine with base prompt
+  const systemMessages = [
+    DECOPILOT_SYSTEM_MESSAGE,
+    ...modelMessages.filter((m) => m.role === "system"),
+  ].filter(Boolean) as SystemModelMessage[];
+
+  // Filter out system messages (they go to system param, not messages array)
+  const nonSystemMessages = modelMessages.filter((m) => m.role !== "system");
+  const windowSize = memory.windowSize ?? DEFAULT_MEMORY;
+  if (windowSize <= 0) {
+    throw new Error("Window size must be greater than 0");
+  }
+  // Prune messages to reduce context size
+  const prunedMessages = pruneMessages({
+    messages: nonSystemMessages,
+    reasoning: "before-last-message",
+    emptyMessages: "remove",
+    toolCalls: "none",
+  }).slice(-windowSize);
+
+  return {
+    prunedMessages,
+    systemMessages,
+    userMessages,
+    userCreatedAt,
+    threadMessages,
+    thread,
+  };
+}
+
 app.post("/:org/decopilot/stream", async (c) => {
   const ctx = c.get("meshContext");
-  const orgSlug = c.req.param("org");
   // MCP client will be initialized after validation
   let mcpClient: Client | null = null;
 
   try {
-    const organization = ensureOrganization(ctx, orgSlug);
-    const rawPayload = await c.req.json();
-    // Validate request using Zod schema
-    const parseResult = StreamRequestSchema.safeParse(rawPayload);
-    if (!parseResult.success) {
-      return c.json(
-        {
-          error: "Invalid request body",
-          details: parseResult.error.issues,
-        },
-        400,
-      );
-    }
-    const payload = parseResult.data;
     const {
-      model: modelConfig,
-      gateway: gatewayConfig,
+      organization,
+      model,
+      gateway,
       messages,
       temperature,
-      maxWindowSize = DEFAULT_MEMORY,
+      memory,
       thread_id,
-    } = payload;
-    const { thread, messages: threadMessages } = await getOrCreateThread(ctx, {
-      threadId: thread_id,
-      organizationId: organization.id,
-    });
-    // Use limits from model config, fallback to default
-    const maxOutputTokens =
-      modelConfig.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
+      transport,
+    } = await validateRequest(c);
 
-    const transport = createGatewayTransport(
-      c.req.raw,
-      organization.id,
-      gatewayConfig.id,
-    );
-
-    const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
-    // Assign immediately so error handler can clean up on exceptions
-    mcpClient = client;
-
-    const userCreatedAt = new Date().toISOString();
-
-    // Safe cast: UIMessageSchema validated required structure (parts, role, metadata)
-    const userMessages = messages.filter(
-      (m) => m.role === "user",
-    ) as unknown as UIMessage<Metadata>[];
-    userMessages.forEach((m) => {
-      const safeUserMessage = {
-        ...m,
-        parts: m.parts as ThreadMessage["parts"],
-        id: generatePrefixedId("msg"),
-        threadId: thread.id,
-        createdAt: userCreatedAt,
-        metadata: m.metadata as ThreadMessage["metadata"],
-        updatedAt: userCreatedAt,
-      };
-      threadMessages.push(safeUserMessage as ThreadMessage);
-    });
-
-    const safeSystemMessages = messages.filter(
-      (m) => m.role === "system",
-    ) as unknown as SystemModelMessage[];
-    safeSystemMessages.forEach((m) => {
-      const safeSystemMessage = {
-        ...m,
-        id: generatePrefixedId("msg"),
-        threadId: thread.id,
-        createdAt: userCreatedAt,
-        updatedAt: userCreatedAt,
-      };
-      threadMessages.push(safeSystemMessage as unknown as ThreadMessage);
-    });
-
-    // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
-    const [modelMessages, connection] = await Promise.all([
-      convertToModelMessages([...threadMessages], {
-        ignoreIncompleteToolCalls: true,
+    // Run all three independent operations in parallel for better latency
+    const [
+      { client, tools },
+      provider,
+      { prunedMessages, systemMessages, userMessages, userCreatedAt, thread },
+    ] = await Promise.all([
+      createAgent({ monitoringProperties: {}, transport }),
+      createModelProviderForConnection(ctx, organization.id, model),
+      getMessagesAndThread({
+        ctx,
+        memory,
+        messages,
+        thread_id,
+        organization_id: organization.id,
       }),
-      getConnectionById(ctx, organization.id, modelConfig.connectionId),
-      client.connect(transport),
     ]);
 
-    if (!connection) {
-      // Clean up the already-connected client before returning
-      await client.close().catch(console.error);
-      return c.json(
-        { error: `Model connection not found: ${modelConfig.connectionId}` },
-        404,
-      );
-    }
-
-    // Extract context from frontend system message and combine with base prompt
-    const systemMessages = [
-      DECOPILOT_SYSTEM_MESSAGE,
-      ...modelMessages.filter((m) => m.role === "system"),
-    ].filter(Boolean) as SystemModelMessage[];
-
-    // Filter out system messages (they go to system param, not messages array)
-    const nonSystemMessages = modelMessages.filter((m) => m.role !== "system");
-
-    // Prune messages to reduce context size
-    const prunedMessages = pruneMessages({
-      messages: nonSystemMessages,
-      reasoning: "before-last-message",
-      emptyMessages: "remove",
-      toolCalls: "none",
-    }).slice(-maxWindowSize);
-
-    // Build properties for monitoring correlation
-    const monitoringProperties = thread_id
-      ? { thread_id: thread.id }
-      : undefined;
-
-    const [proxy, tools] = await Promise.all([
-      ctx.createMCPProxy(connection),
-      toolsFromMCP(client, monitoringProperties),
-    ]);
-
-    const llmBinding = LanguageModelBinding.forClient(proxy);
-    const provider = createLLMProvider(llmBinding).languageModel(
-      modelConfig.id,
-    );
+    mcpClient = client;
+    const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
     // Use streamText from AI SDK with pruned messages and parameters
     const result = streamText({
@@ -456,8 +564,8 @@ app.post("/:org/decopilot/stream", async (c) => {
       messageMetadata: ({ part }): Metadata => {
         if (part.type === "start") {
           return {
-            gateway: gatewayConfig,
-            model: modelConfig,
+            gateway: { id: gateway.id ?? null },
+            model: { id: model.id, connectionId: model.connectionId },
             created_at: new Date(),
             thread_id: thread!.id,
           };
@@ -529,17 +637,17 @@ app.post("/:org/decopilot/stream", async (c) => {
       },
     });
   } catch (error) {
+    await mcpClient?.close().catch(console.error);
     const err = error as Error;
 
     console.error("[models:stream] Error", err);
-    // Cleanup MCP client on error
-    await mcpClient?.close().catch(console.error);
 
     if (err.name === "AbortError") {
       console.warn(
         "[models:stream] Aborted",
         JSON.stringify({
-          org: orgSlug,
+          error: err.message,
+          stack: err.stack,
         }),
       );
       return c.json({ error: "Request aborted" }, 400);
@@ -547,7 +655,6 @@ app.post("/:org/decopilot/stream", async (c) => {
     console.error(
       "[models:stream] Failed",
       JSON.stringify({
-        org: orgSlug,
         error: err.message,
         stack: err.stack,
       }),
