@@ -114,7 +114,10 @@ export async function getThreadMessages(
     const output = result as CollectionListOutput<ThreadMessageEntity>;
     return output.items.map(toMessage);
   } catch (error) {
-    console.error(error);
+    console.error(
+      `Failed to get thread messages for thread ${threadId}:`,
+      error,
+    );
     return [];
   }
 }
@@ -170,11 +173,24 @@ export function useThreads() {
 export function useThreadMessages(threadId: string | null) {
   const { locator } = useProjectContext();
 
-  const { data } = useSuspenseQuery({
-    queryKey: KEYS.threadMessages(locator, threadId ?? "new-chat"),
-    queryFn: () => (threadId ? getThreadMessages(locator, threadId) : []),
+  const { data, error } = useSuspenseQuery({
+    queryKey: KEYS.threadMessages(locator, threadId),
+    queryFn: async () => {
+      try {
+        if (!threadId) {
+          return [];
+        }
+        return await getThreadMessages(locator, threadId);
+      } catch (error) {
+        console.error(error);
+        return [];
+      }
+    },
     staleTime: 30_000,
   });
+  if (error) {
+    console.error(error);
+  }
 
   return data ?? [];
 }

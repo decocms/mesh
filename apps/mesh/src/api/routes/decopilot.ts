@@ -80,23 +80,15 @@ Follow this state machine when handling user requests:
  * (text, reasoning, tool-call, tool-result, file, etc.) that evolve with the SDK.
  * Validates essential structure while allowing flexibility for part types.
  */
-const UIMessageSchema = z
-  .object({
-    id: z.string().optional(),
-    role: z.enum(["user", "assistant", "system"]),
-    parts: z.array(z.record(z.string(), z.unknown())),
-    metadata: z.unknown().optional(),
-  })
-  .passthrough();
+const UIMessageSchema = z.looseObject({
+  id: z.string().optional(),
+  role: z.enum(["user", "assistant", "system"]),
+  parts: z.array(z.record(z.string(), z.unknown())),
+  metadata: z.unknown().optional(),
+});
 
 const StreamRequestSchema = z.object({
-  system: z.array(
-    z.object({
-      role: z.literal("system"),
-      parts: z.array(z.object({ type: z.literal("text"), text: z.string() })),
-    }),
-  ),
-  message: UIMessageSchema.describe("User message"),
+  messages: z.array(UIMessageSchema).describe("User messages"),
   model: z
     .object({
       id: z.string(),
@@ -334,8 +326,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     const {
       model: modelConfig,
       gateway: gatewayConfig,
-      message,
-      system,
+      messages,
       temperature,
       maxWindowSize = DEFAULT_MEMORY,
       thread_id,
@@ -361,21 +352,39 @@ app.post("/:org/decopilot/stream", async (c) => {
     const userCreatedAt = new Date().toISOString();
 
     // Safe cast: UIMessageSchema validated required structure (parts, role, metadata)
-    const userMessage = message as unknown as UIMessage<Metadata>;
-    const safeUserMessage = {
-      ...userMessage,
-      parts: userMessage.parts as ThreadMessage["parts"],
-      id: generatePrefixedId("msg"),
-      threadId: thread.id,
-      createdAt: userCreatedAt,
-      metadata: userMessage.metadata as ThreadMessage["metadata"],
-      updatedAt: userCreatedAt,
-    };
-    threadMessages.push(safeUserMessage as ThreadMessage);
+    const userMessages = messages.filter(
+      (m) => m.role === "user",
+    ) as unknown as UIMessage<Metadata>[];
+    userMessages.forEach((m) => {
+      const safeUserMessage = {
+        ...m,
+        parts: m.parts as ThreadMessage["parts"],
+        id: generatePrefixedId("msg"),
+        threadId: thread.id,
+        createdAt: userCreatedAt,
+        metadata: m.metadata as ThreadMessage["metadata"],
+        updatedAt: userCreatedAt,
+      };
+      threadMessages.push(safeUserMessage as ThreadMessage);
+    });
+
+    const safeSystemMessages = messages.filter(
+      (m) => m.role === "system",
+    ) as unknown as SystemModelMessage[];
+    safeSystemMessages.forEach((m) => {
+      const safeSystemMessage = {
+        ...m,
+        id: generatePrefixedId("msg"),
+        threadId: thread.id,
+        createdAt: userCreatedAt,
+        updatedAt: userCreatedAt,
+      };
+      threadMessages.push(safeSystemMessage as unknown as ThreadMessage);
+    });
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
     const [modelMessages, connection] = await Promise.all([
-      convertToModelMessages([...system, ...threadMessages], {
+      convertToModelMessages([...threadMessages], {
         ignoreIncompleteToolCalls: true,
       }),
       getConnectionById(ctx, organization.id, modelConfig.connectionId),
@@ -485,7 +494,12 @@ app.post("/:org/decopilot/stream", async (c) => {
         const responseCreatedAt = new Date().toISOString();
         ctx.storage.threads
           .saveMessages([
-            safeUserMessage,
+            ...userMessages.map((m) => ({
+              ...m,
+              threadId: thread.id,
+              createdAt: userCreatedAt,
+              updatedAt: userCreatedAt,
+            })),
             {
               ...(responseMessage as ThreadMessage),
               id: generatePrefixedId("msg"),

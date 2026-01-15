@@ -19,7 +19,7 @@ export const KEYS = {
   threads: (locator: string) => ["threads", locator] as const,
   thread: (locator: string, threadId: string) =>
     ["thread", locator, threadId] as const,
-  threadMessages: (locator: string, threadId: string) =>
+  threadMessages: (locator: string, threadId: string | null) =>
     ["thread-messages", locator, threadId] as const,
   messages: (locator: string) => ["messages", locator] as const,
 

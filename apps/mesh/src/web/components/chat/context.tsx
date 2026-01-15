@@ -44,7 +44,7 @@ const createModelsTransport = (
   org: string,
 ): DefaultChatTransport<UIMessage<Metadata>> =>
   new DefaultChatTransport<UIMessage<Metadata>>({
-    api: `/api/${org}/models/stream`,
+    api: `/api/${org}/decopilot/stream`,
     credentials: "include",
     prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
       const { system, ...metadata } = requestMetadata as Metadata;
@@ -224,7 +224,7 @@ interface ChatContextValue {
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
-const createThreadId = () => crypto.randomUUID();
+const createThreadId = () => `thrd_${crypto.randomUUID()}`;
 
 /**
  * Provider component for chat context
@@ -256,7 +256,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
     LOCALSTORAGE_KEYS.threadManagerState(locator) + ":active-id",
     (existing) => existing || createThreadId(),
   );
-  const persistedMessages = useThreadMessages(activeThreadId);
+  const matchingId = threads.find((t) => t.id === activeThreadId)?.id ?? null;
+  const persistedMessages = useThreadMessages(matchingId);
 
   // Gateway state
   const gateways = useGateways();
@@ -394,7 +395,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Thread functions
   const createThread = (thread?: Partial<Thread>) => {
-    const id = thread?.id || crypto.randomUUID();
+    const id = createThreadId();
     const now = new Date().toISOString();
     const newThread: Thread = {
       id,
