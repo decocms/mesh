@@ -4,10 +4,12 @@
  * Lazy-loading gateway for aggregating tools from multiple connections
  */
 
-import type {
-  CallToolRequest,
-  CallToolResult,
-  ListToolsResult,
+import {
+  ErrorCode,
+  McpError,
+  type CallToolRequest,
+  type CallToolResult,
+  type ListToolsResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { lazy } from "../common";
 import type { ToolSelectionMode } from "../storage/types";
@@ -84,10 +86,15 @@ export class ToolGateway {
             tools,
           };
         } catch (error) {
-          console.error(
-            `[gateway] Failed to list tools for connection ${connectionId}:`,
-            error,
-          );
+          if (
+            !(error instanceof McpError) ||
+            error.code !== ErrorCode.MethodNotFound
+          ) {
+            console.error(
+              `[gateway] Failed to list tools ${connectionId}: (defaulting to null)`,
+              error,
+            );
+          }
           return null;
         }
       },

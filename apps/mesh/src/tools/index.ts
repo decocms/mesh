@@ -8,6 +8,7 @@
 import { mcpServer } from "@/api/utils/mcp";
 import { MeshContext } from "@/core/mesh-context";
 import * as ApiKeyTools from "./apiKeys";
+import * as CodeExecutionTools from "./code-execution";
 import * as ConnectionTools from "./connection";
 import * as DatabaseTools from "./database";
 import * as EventBusTools from "./eventbus";
@@ -69,6 +70,11 @@ export const ALL_TOOLS = [
 
   // User tools
   UserTools.USER_GET,
+
+  // Code Execution tools
+  CodeExecutionTools.CODE_EXECUTION_SEARCH_TOOLS,
+  CodeExecutionTools.CODE_EXECUTION_DESCRIBE_TOOLS,
+  CodeExecutionTools.CODE_EXECUTION_RUN_CODE,
 ] as const satisfies { name: ToolName }[];
 
 export type MCPMeshTools = typeof ALL_TOOLS;

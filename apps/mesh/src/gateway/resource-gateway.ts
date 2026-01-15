@@ -4,11 +4,13 @@
  * Lazy-loading gateway for aggregating resources from multiple connections
  */
 
-import type {
-  ListResourcesResult,
-  ReadResourceRequest,
-  ReadResourceResult,
-  Resource,
+import {
+  ErrorCode,
+  McpError,
+  type ListResourcesResult,
+  type ReadResourceRequest,
+  type ReadResourceResult,
+  type Resource,
 } from "@modelcontextprotocol/sdk/types.js";
 import { lazy } from "../common";
 import type { ProxyCollection } from "./proxy-collection";
@@ -120,10 +122,15 @@ export class ResourceGateway {
 
           return { connectionId, resources };
         } catch (error) {
-          console.error(
-            `[gateway] Failed to list resources for connection ${connectionId}:`,
-            error,
-          );
+          if (
+            !(error instanceof McpError) ||
+            error.code !== ErrorCode.MethodNotFound
+          ) {
+            console.error(
+              `[gateway] Failed to list resources for connection ${connectionId}: (defaulting to empty array)`,
+              error,
+            );
+          }
           return { connectionId, resources: [] as Resource[] };
         }
       },
