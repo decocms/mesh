@@ -43,7 +43,7 @@ ${promptsText}`);
   }
 
   // Add route context based on available params
-  const routeContextParts: string[] = [];
+  const routeContextParts: string[] | undefined = [];
 
   if (params.connectionId) {
     routeContextParts.push(`- Connection ID: ${params.connectionId}`);
@@ -57,7 +57,7 @@ ${promptsText}`);
     routeContextParts.push(`- Item ID: ${params.itemId}`);
   }
 
-  if (routeContextParts.length > 0) {
+  if (routeContextParts?.length > 0) {
     contextParts.push(`### Current Resource
 The user is viewing the following resource:
 ${routeContextParts.join("\n")}
