@@ -22,6 +22,12 @@ export {
   type PromptExecutionContext,
   type CreatedPrompt,
   type GetPromptResult,
+  createResource,
+  createPublicResource,
+  type Resource,
+  type ResourceExecutionContext,
+  type ResourceContents,
+  type CreatedResource,
 } from "./tools.ts";
 import type { Binding } from "./wrangler.ts";
 export { proxyConnectionForId, BindingOf } from "./bindings.ts";
