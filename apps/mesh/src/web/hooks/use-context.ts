@@ -9,8 +9,8 @@
  * are handled server-side in models.ts (DECOPILOT_SYSTEM_PROMPT).
  */
 
-import { useRouter } from "@tanstack/react-router";
-import { useGatewayPrompts } from "./use-gateway-prompts";
+import { useParams } from "@tanstack/react-router";
+import { useGatewaySystemPrompt } from "./use-gateway-system-prompt";
 
 /**
  * Hook that generates context for the AI assistant based on current state
@@ -19,16 +19,11 @@ import { useGatewayPrompts } from "./use-gateway-prompts";
  * @returns Context string to be sent to the backend
  */
 export function useContext(gatewayId?: string | null): string {
-  // Use router instance and extract params synchronously to avoid hook order issues
-  // when ChatProvider renders in different routing contexts
-  const router = useRouter();
-  const params = router.state.matches.reduce(
-    (acc, m) => ({ ...acc, ...m.params }),
-    {} as Record<string, string>,
-  );
-  const { data: systemPrompt } = useGatewayPrompts(gatewayId);
+  // Extract route parameters directly using useParams
+  const params = useParams({ strict: false });
 
   // Get stored system prompt for this gateway
+  const [gatewayPrompt] = useGatewaySystemPrompt(gatewayId ?? undefined);
 
   const contextParts: string[] = [];
 
@@ -38,17 +33,14 @@ export function useContext(gatewayId?: string | null): string {
 - ID: ${gatewayId}`);
 
     // Add gateway-specific custom instructions if available
-    if (systemPrompt?.length > 0) {
-      const promptsText = systemPrompt
-        .map((p) => p.description ?? p.name)
-        .join("\n\n");
+    if (gatewayPrompt?.trim()) {
       contextParts.push(`### Agent Instructions
-${promptsText}`);
+${gatewayPrompt}`);
     }
   }
 
   // Add route context based on available params
-  const routeContextParts: string[] | undefined = [];
+  const routeContextParts: string[] = [];
 
   if (params.connectionId) {
     routeContextParts.push(`- Connection ID: ${params.connectionId}`);
@@ -62,7 +54,7 @@ ${promptsText}`);
     routeContextParts.push(`- Item ID: ${params.itemId}`);
   }
 
-  if (routeContextParts?.length > 0) {
+  if (routeContextParts.length > 0) {
     contextParts.push(`### Current Resource
 The user is viewing the following resource:
 ${routeContextParts.join("\n")}
