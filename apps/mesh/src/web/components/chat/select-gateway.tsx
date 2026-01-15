@@ -197,6 +197,7 @@ export function GatewayPopoverContent({
 export interface GatewaySelectorProps {
   selectedGatewayId?: string | null;
   onGatewayChange: (gatewayId: string) => void;
+  gateways?: GatewayInfo[];
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
@@ -212,6 +213,7 @@ export interface GatewaySelectorProps {
 export function GatewaySelector({
   selectedGatewayId,
   onGatewayChange,
+  gateways: gatewaysProp,
   variant: _variant,
   className,
   placeholder = "Select Agent",
@@ -221,8 +223,9 @@ export function GatewaySelector({
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch gateways from hook
-  const gateways = useGateways();
+  // Use provided gateways or fetch from hook
+  const gatewaysFromHook = useGateways();
+  const gateways = gatewaysProp ?? gatewaysFromHook;
 
   // Focus search input when dialog opens
   // oxlint-disable-next-line ban-use-effect/ban-use-effect

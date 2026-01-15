@@ -8,6 +8,7 @@
 import { Chat, useChat } from "@/web/components/chat/index";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
@@ -89,8 +90,9 @@ function TypewriterTitle({
 
 function HomeContent() {
   const { org, locator } = useProjectContext();
-  const { createThread, activeThread, hasModelsBinding, chat, user } =
+  const { createThread, activeThread, modelsConnections, isChatEmpty } =
     useChat();
+  const { data: session } = authClient.useSession();
 
   // View mode state (chat vs graph)
   const [viewMode, setViewMode] = useLocalStorage<HomeViewMode>(
@@ -98,11 +100,11 @@ function HomeContent() {
     "chat",
   );
 
-  const userName = user?.name?.split(" ")[0] || "there";
+  const userName = session?.user?.name?.split(" ")[0] || "there";
   const greeting = getTimeBasedGreeting();
 
   // Show empty state when no LLM binding is found
-  if (!hasModelsBinding) {
+  if (modelsConnections.length === 0) {
     return (
       <div className="flex flex-col size-full bg-background items-center justify-center">
         <Chat.NoLlmBindingEmptyState org={org} />
@@ -119,7 +121,7 @@ function HomeContent() {
               <span className="text-sm font-medium text-foreground">
                 Summary
               </span>
-            ) : !chat.isEmpty && activeThread?.title ? (
+            ) : !isChatEmpty && activeThread?.title ? (
               <TypewriterTitle
                 text={activeThread.title}
                 className="text-sm font-medium text-foreground"
@@ -171,7 +173,7 @@ function HomeContent() {
               </Suspense>
             </ErrorBoundary>
           </div>
-        ) : !chat.isEmpty ? (
+        ) : !isChatEmpty ? (
           <>
             <Chat.Main>
               <Chat.Messages minHeightOffset={280} />

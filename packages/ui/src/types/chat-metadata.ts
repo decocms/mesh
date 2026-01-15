@@ -25,6 +25,8 @@ export interface Metadata {
   user?: ChatUserConfig;
   created_at?: string | Date;
   thread_id?: string;
+  /** System prompt to prepend to messages at the transport layer */
+  system?: string;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

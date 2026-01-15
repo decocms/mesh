@@ -65,13 +65,11 @@ function ChatPanelContent() {
     createThread,
     activeThread,
     selectedGateway,
-    hasModelsBinding,
-    chat,
+    modelsConnections,
+    isChatEmpty,
   } = useChat();
 
-  const { isEmpty } = chat;
-
-  if (!hasModelsBinding) {
+  if (modelsConnections.length === 0) {
     const title = "No model provider connected";
     const description =
       "Connect to a model provider to unlock AI-powered features.";
@@ -119,7 +117,7 @@ function ChatPanelContent() {
     <Chat>
       <Chat.Header>
         <Chat.Header.Left>
-          {!isEmpty && activeThread?.title ? (
+          {!isChatEmpty && activeThread?.title ? (
             <TypewriterTitle
               text={activeThread.title}
               className="text-sm font-medium text-foreground"
@@ -156,7 +154,7 @@ function ChatPanelContent() {
       </Chat.Header>
 
       <Chat.Main>
-        {isEmpty ? (
+        {isChatEmpty ? (
           <Chat.EmptyState>
             <div className="flex flex-col items-center gap-6 w-full px-4">
               <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">

@@ -28,7 +28,7 @@ import { ChatHighlight } from "./index";
 import {
   GatewayPopoverContent,
   GatewaySelector,
-  useGateways,
+  type GatewayInfo,
 } from "./select-gateway";
 import { ModelSelector } from "./select-model";
 import { UsageStats } from "./usage-stats";
@@ -39,18 +39,19 @@ import { UsageStats } from "./usage-stats";
 
 interface GatewayBadgeProps {
   gatewayId: string;
+  gateways: GatewayInfo[];
   onGatewayChange: (gatewayId: string | null) => void;
   disabled?: boolean;
 }
 
 function GatewayBadge({
   gatewayId,
+  gateways,
   onGatewayChange,
   disabled = false,
 }: GatewayBadgeProps) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const gateways = useGateways();
   const navigate = useNavigate();
   const { org } = useProjectContext();
 
@@ -178,14 +179,20 @@ export function ChatInput() {
     branchContext,
     clearBranch,
     setActiveThreadId,
+    gateways,
     selectedGateway,
-    selectedGatewayId,
-    handleGatewayChange,
+    setGatewayId,
+    modelsConnections,
     selectedModel,
-    handleModelChange,
-    chat,
+    setSelectedModel,
+    messages,
     isStreaming,
-    handleSendMessage,
+    sendMessage,
+    stopStreaming,
+    chatError,
+    clearChatError,
+    finishReason,
+    clearFinishReason,
   } = useChat();
 
   const canSubmit =
@@ -193,10 +200,10 @@ export function ChatInput() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (isStreaming && chat.stop) {
-      chat.stop();
+    if (isStreaming) {
+      stopStreaming();
     } else if (canSubmit) {
-      handleSendMessage(inputValue.trim());
+      sendMessage(inputValue.trim());
     }
   };
 
@@ -204,7 +211,7 @@ export function ChatInput() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (canSubmit) {
-        handleSendMessage(inputValue.trim());
+        sendMessage(inputValue.trim());
       }
     }
   };
@@ -217,15 +224,15 @@ export function ChatInput() {
   };
 
   const handleFixInChat = () => {
-    if (chat.error) {
-      handleSendMessage(
-        `I encountered this error: ${chat.error.message}. Can you help me fix it?`,
+    if (chatError) {
+      sendMessage(
+        `I encountered this error: ${chatError.message}. Can you help me fix it?`,
       );
     }
   };
 
   const handleContinue = () => {
-    handleSendMessage("Please continue.");
+    sendMessage("Please continue.");
   };
 
   const color = selectedGateway ? getGatewayColor(selectedGateway.id) : null;
@@ -236,13 +243,13 @@ export function ChatInput() {
   return (
     <div className="flex flex-col gap-2 w-full min-h-42 justify-end">
       {/* Banners above input */}
-      {chat.error && (
+      {chatError && (
         <ChatHighlight
           variant="danger"
           title="Error occurred"
-          description={chat.error.message}
+          description={chatError.message}
           icon={<AlertCircle size={16} />}
-          onDismiss={chat.clearError}
+          onDismiss={clearChatError}
         >
           <Button
             size="sm"
@@ -258,21 +265,21 @@ export function ChatInput() {
         </ChatHighlight>
       )}
 
-      {chat.finishReason && chat.finishReason !== "stop" && (
+      {finishReason && finishReason !== "stop" && (
         <ChatHighlight
           variant="warning"
           title="Response incomplete"
           description={
-            chat.finishReason === "length"
+            finishReason === "length"
               ? "Response reached the model's output limit. Different models have different limits. Try switching models or asking it to continue."
-              : chat.finishReason === "content-filter"
+              : finishReason === "content-filter"
                 ? "Response was filtered due to content policy."
-                : chat.finishReason === "tool-calls"
+                : finishReason === "tool-calls"
                   ? "Response paused after tool execution to prevent infinite loops and save costs. Click continue to keep working."
-                  : `Response stopped unexpectedly: ${chat.finishReason}`
+                  : `Response stopped unexpectedly: ${finishReason}`
           }
           icon={<AlertTriangle size={16} />}
-          onDismiss={chat.clearFinishReason}
+          onDismiss={clearFinishReason}
         >
           <Button
             size="sm"
@@ -311,15 +318,16 @@ export function ChatInput() {
       <div
         className={cn(
           "relative rounded-xl w-full flex flex-col",
-          selectedGatewayId && "shadow-sm",
+          selectedGateway && "shadow-sm",
           color?.bg,
         )}
       >
         {/* Gateway Badge Header */}
-        {selectedGatewayId && (
+        {selectedGateway && (
           <GatewayBadge
-            gatewayId={selectedGatewayId}
-            onGatewayChange={handleGatewayChange}
+            gatewayId={selectedGateway.id}
+            gateways={gateways}
+            onGatewayChange={setGatewayId}
             disabled={isStreaming}
           />
         )}
@@ -330,7 +338,7 @@ export function ChatInput() {
             onSubmit={handleSubmit}
             className={cn(
               "w-full relative rounded-xl min-h-[130px] flex flex-col border border-border bg-background",
-              !selectedGatewayId && "shadow-sm",
+              !selectedGateway && "shadow-sm",
             )}
           >
             <div className="relative flex flex-col gap-2 p-2.5 flex-1">
@@ -360,21 +368,23 @@ export function ChatInput() {
               {/* Left Actions (selectors) */}
               <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                 {/* GatewaySelector only shown when default is selected (no badge) */}
-                {!selectedGatewayId && (
+                {!selectedGateway && (
                   <GatewaySelector
-                    selectedGatewayId={selectedGatewayId}
-                    onGatewayChange={handleGatewayChange}
+                    selectedGatewayId={null}
+                    onGatewayChange={setGatewayId}
+                    gateways={gateways}
                     placeholder="Agent"
                     disabled={isStreaming}
                   />
                 )}
                 <ModelSelector
                   selectedModel={selectedModel ?? undefined}
-                  onModelChange={handleModelChange}
+                  onModelChange={setSelectedModel}
+                  modelsConnections={modelsConnections}
                   placeholder="Model"
                   variant="borderless"
                 />
-                <UsageStats messages={chat.messages} />
+                <UsageStats messages={messages} />
               </div>
 
               {/* Right Actions (send button) */}
@@ -385,7 +395,7 @@ export function ChatInput() {
                     if (isStreaming) {
                       e.preventDefault();
                       e.stopPropagation();
-                      chat.stop();
+                      stopStreaming();
                     }
                   }}
                   variant={canSubmit || isStreaming ? "default" : "ghost"}

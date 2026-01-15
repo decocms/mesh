@@ -13,7 +13,7 @@ import {
   OPENROUTER_MCP_URL,
 } from "@/core/well-known-mcp";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
-import { useChat } from "./context";
+import { authClient } from "@/web/lib/auth-client";
 
 interface NoLlmBindingEmptyStateProps {
   title?: string;
@@ -24,7 +24,6 @@ interface NoLlmBindingEmptyStateProps {
 /**
  * Empty state component shown when no LLM binding is available.
  * Includes OpenRouter installation logic and UI.
- * Uses chat context for user info and fetches connections internally.
  */
 export function NoLlmBindingEmptyState({
   title = "No model provider connected",
@@ -34,10 +33,10 @@ export function NoLlmBindingEmptyState({
   const [isInstalling, setIsInstalling] = useState(false);
   const connectionActions = useConnectionActions();
   const navigate = useNavigate();
-  const { user } = useChat();
+  const { data: session } = authClient.useSession();
   const allConnections = useConnections();
 
-  const userId = user?.id ?? "";
+  const userId = session?.user?.id ?? "";
 
   const handleInstallMcpServer = () => {
     navigate({

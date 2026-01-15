@@ -440,10 +440,12 @@ function ModelSelectorContent({
   selectedModel,
   onModelChange,
   onClose,
+  modelsConnections: modelsConnectionsProp,
 }: {
   selectedModel?: SelectedModelState;
   onModelChange: (model: ModelChangePayload) => void;
   onClose: () => void;
+  modelsConnections?: ReturnType<typeof useModelConnections>;
 }) {
   const [hoveredModel, setHoveredModel] = useState<LLM | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -452,7 +454,9 @@ function ModelSelectorContent({
     string | null
   >(selectedModel?.connectionId ?? null);
 
-  const modelsConnections = useModelConnections();
+  // Use provided modelsConnections or fetch from hook
+  const modelsConnectionsFromHook = useModelConnections();
+  const modelsConnections = modelsConnectionsProp ?? modelsConnectionsFromHook;
 
   // Fetch models only for the selected connection
   const models = useModels(selectedConnectionId);
@@ -594,6 +598,7 @@ function ModelSelectorContent({
 export interface ModelSelectorProps {
   selectedModel?: SelectedModelState;
   onModelChange: (model: ModelChangePayload) => void;
+  modelsConnections?: ReturnType<typeof useModelConnections>;
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
@@ -606,13 +611,16 @@ export interface ModelSelectorProps {
 export function ModelSelector({
   selectedModel,
   onModelChange,
+  modelsConnections: modelsConnectionsProp,
   variant = "borderless",
   className,
   placeholder = "Select model",
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
 
-  const modelsConnections = useModelConnections();
+  // Use provided modelsConnections or fetch from hook
+  const modelsConnectionsFromHook = useModelConnections();
+  const modelsConnections = modelsConnectionsProp ?? modelsConnectionsFromHook;
 
   // Derive connection ID from selectedModel or first available
   const selectedConnectionId = selectedModel?.connectionId ?? null;
@@ -658,6 +666,7 @@ export function ModelSelector({
             selectedModel={selectedModel}
             onModelChange={onModelChange}
             onClose={() => setOpen(false)}
+            modelsConnections={modelsConnections}
           />
         </Suspense>
       </PopoverContent>

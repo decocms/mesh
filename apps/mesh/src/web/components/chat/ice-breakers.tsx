@@ -139,7 +139,7 @@ function IceBreakersFallback() {
  * Includes ErrorBoundary, Suspense, and container internally.
  */
 export function GatewayIceBreakers({ className }: GatewayIceBreakersProps) {
-  const { selectedGatewayId } = useChat();
+  const { selectedGateway } = useChat();
 
   return (
     <div
@@ -149,10 +149,10 @@ export function GatewayIceBreakers({ className }: GatewayIceBreakersProps) {
       )}
       style={{ minHeight: "32px" }}
     >
-      {selectedGatewayId && (
-        <ErrorBoundary key={selectedGatewayId} fallback={null}>
+      {selectedGateway && (
+        <ErrorBoundary key={selectedGateway.id} fallback={null}>
           <Suspense fallback={<IceBreakersFallback />}>
-            <GatewayIceBreakersContent gatewayId={selectedGatewayId} />
+            <GatewayIceBreakersContent gatewayId={selectedGateway.id} />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -164,7 +164,7 @@ export function GatewayIceBreakers({ className }: GatewayIceBreakersProps) {
  * Inner component that fetches and displays prompts for a specific gateway
  */
 function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
-  const { handleSendMessage } = useChat();
+  const { sendMessage } = useChat();
   const { data: prompts } = useGatewayPrompts(gatewayId);
 
   if (prompts.length === 0) {
@@ -174,9 +174,7 @@ function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
   return (
     <IceBreakers
       prompts={prompts}
-      onSelect={(prompt) =>
-        handleSendMessage(prompt.description ?? prompt.name)
-      }
+      onSelect={(prompt) => sendMessage(prompt.description ?? prompt.name)}
     />
   );
 }

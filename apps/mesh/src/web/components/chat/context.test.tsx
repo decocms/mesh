@@ -1,32 +1,25 @@
 /**
- * Tests for ChatInteractionContext Reducer
+ * Tests for ChatState Reducer
  *
- * Tests the reducer logic for the chat interaction state management.
+ * Tests the reducer logic for the chat state management.
  */
 
 import { describe, expect, test } from "bun:test";
-import type {
-  BranchContext,
-  ChatInteractionState,
-  ChatInteractionAction,
-} from "./context";
+import type { BranchContext, ChatState, ChatStateAction } from "./context";
 
 // Import the reducer directly for testing
 // Since it's not exported, we'll test through the exported types
 // In a real scenario, you might want to export the reducer for testing
 
-describe("ChatInteraction Reducer Logic", () => {
-  const initialState: ChatInteractionState = {
+describe("ChatState Reducer Logic", () => {
+  const initialState: ChatState = {
     inputValue: "",
     branchContext: null,
-    pendingSubmit: false,
+    finishReason: null,
   };
 
   // Helper to simulate reducer behavior
-  function applyAction(
-    state: ChatInteractionState,
-    action: ChatInteractionAction,
-  ): ChatInteractionState {
+  function applyAction(state: ChatState, action: ChatStateAction): ChatState {
     switch (action.type) {
       case "SET_INPUT":
         return { ...state, inputValue: action.payload };
@@ -34,10 +27,12 @@ describe("ChatInteraction Reducer Logic", () => {
         return { ...state, branchContext: action.payload };
       case "CLEAR_BRANCH":
         return { ...state, branchContext: null };
-      case "SET_PENDING_SUBMIT":
-        return { ...state, pendingSubmit: action.payload };
+      case "SET_FINISH_REASON":
+        return { ...state, finishReason: action.payload };
+      case "CLEAR_FINISH_REASON":
+        return { ...state, finishReason: null };
       case "RESET":
-        return { inputValue: "", branchContext: null, pendingSubmit: false };
+        return { inputValue: "", branchContext: null, finishReason: null };
       default:
         return state;
     }
@@ -46,10 +41,11 @@ describe("ChatInteraction Reducer Logic", () => {
   test("should initialize with empty state", () => {
     expect(initialState.inputValue).toBe("");
     expect(initialState.branchContext).toBeNull();
+    expect(initialState.finishReason).toBeNull();
   });
 
   test("should update input value with SET_INPUT action", () => {
-    const action: ChatInteractionAction = {
+    const action: ChatStateAction = {
       type: "SET_INPUT",
       payload: "Hello, world!",
     };
@@ -67,7 +63,7 @@ describe("ChatInteraction Reducer Logic", () => {
       originalMessageText: "Original message",
     };
 
-    const action: ChatInteractionAction = {
+    const action: ChatStateAction = {
       type: "START_BRANCH",
       payload: branchContext,
     };
@@ -79,17 +75,17 @@ describe("ChatInteraction Reducer Logic", () => {
   });
 
   test("should clear branch context with CLEAR_BRANCH action", () => {
-    const stateWithBranch: ChatInteractionState = {
+    const stateWithBranch: ChatState = {
       inputValue: "Some input",
       branchContext: {
         originalThreadId: "thread-123",
         originalMessageId: "msg-456",
         originalMessageText: "Original message",
       },
-      pendingSubmit: false,
+      finishReason: null,
     };
 
-    const action: ChatInteractionAction = { type: "CLEAR_BRANCH" };
+    const action: ChatStateAction = { type: "CLEAR_BRANCH" };
 
     const newState = applyAction(stateWithBranch, action);
 
@@ -97,23 +93,49 @@ describe("ChatInteraction Reducer Logic", () => {
     expect(newState.inputValue).toBe("Some input"); // Input should remain
   });
 
+  test("should set finish reason with SET_FINISH_REASON action", () => {
+    const action: ChatStateAction = {
+      type: "SET_FINISH_REASON",
+      payload: "stop",
+    };
+
+    const newState = applyAction(initialState, action);
+
+    expect(newState.finishReason).toBe("stop");
+  });
+
+  test("should clear finish reason with CLEAR_FINISH_REASON action", () => {
+    const stateWithFinishReason: ChatState = {
+      inputValue: "",
+      branchContext: null,
+      finishReason: "stop",
+    };
+
+    const action: ChatStateAction = { type: "CLEAR_FINISH_REASON" };
+
+    const newState = applyAction(stateWithFinishReason, action);
+
+    expect(newState.finishReason).toBeNull();
+  });
+
   test("should reset all state with RESET action", () => {
-    const stateWithData: ChatInteractionState = {
+    const stateWithData: ChatState = {
       inputValue: "Test input",
       branchContext: {
         originalThreadId: "thread-123",
         originalMessageId: "msg-456",
         originalMessageText: "Original message",
       },
-      pendingSubmit: false,
+      finishReason: "stop",
     };
 
-    const action: ChatInteractionAction = { type: "RESET" };
+    const action: ChatStateAction = { type: "RESET" };
 
     const newState = applyAction(stateWithData, action);
 
     expect(newState.inputValue).toBe("");
     expect(newState.branchContext).toBeNull();
+    expect(newState.finishReason).toBeNull();
   });
 
   test("should handle multiple sequential actions", () => {
@@ -156,13 +178,13 @@ describe("ChatInteraction Reducer Logic", () => {
   });
 
   test("should preserve state immutability", () => {
-    const originalState: ChatInteractionState = {
+    const originalState: ChatState = {
       inputValue: "Original",
       branchContext: null,
-      pendingSubmit: false,
+      finishReason: null,
     };
 
-    const action: ChatInteractionAction = {
+    const action: ChatStateAction = {
       type: "SET_INPUT",
       payload: "Modified",
     };
@@ -182,10 +204,10 @@ describe("ChatInteraction Reducer Logic", () => {
       originalMessageText: "Original",
     };
 
-    const stateWithBranch: ChatInteractionState = {
+    const stateWithBranch: ChatState = {
       inputValue: "",
       branchContext: originalBranch,
-      pendingSubmit: false,
+      finishReason: null,
     };
 
     const newState = applyAction(stateWithBranch, { type: "CLEAR_BRANCH" });
