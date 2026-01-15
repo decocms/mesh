@@ -12,14 +12,14 @@
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
-  searchTools,
   describeTools,
-  runCodeWithTools,
   filterCodeExecutionTools,
-  jsonResult,
   jsonError,
-  type ToolWithConnection,
+  jsonResult,
+  runCodeWithTools,
+  searchTools,
   type ToolContext,
+  type ToolWithConnection,
 } from "../tools/code-execution/utils.ts";
 
 // ============================================================================
@@ -161,9 +161,10 @@ function createCallTool(ctx: StrategyContext): ToolWithHandler {
   const toolMap = new Map(filteredTools.map((t) => [t.name, t]));
 
   const inputSchema = z.object({
-    name: z
-      .enum(toolNames as [string, ...string[]])
-      .describe("The name of the tool to execute"),
+    name: (toolNames.length > 0
+      ? z.enum(toolNames as [string, ...string[]])
+      : z.string()
+    ).describe("The name of the tool to execute"),
     arguments: z
       .record(z.string(), z.unknown())
       .default({})
