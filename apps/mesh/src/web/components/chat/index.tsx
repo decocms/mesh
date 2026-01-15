@@ -21,11 +21,9 @@ import { ThreadHistoryPopover } from "./popover-threads";
 import { DecoChatSkeleton } from "./skeleton";
 
 export { useChat } from "./context";
-export { GatewaySelector, useGateways } from "./select-gateway";
 export type { GatewayInfo } from "./select-gateway";
-export { ModelSelector, useModels } from "./select-model";
+export { ModelSelector } from "./select-model";
 export type { ModelChangePayload, SelectedModelState } from "./select-model";
-export { UsageStats } from "./usage-stats";
 
 export type ChatMessage = UIMessage<Metadata>;
 
