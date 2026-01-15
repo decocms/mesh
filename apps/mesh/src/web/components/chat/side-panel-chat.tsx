@@ -69,7 +69,7 @@ function ChatPanelContent() {
     isChatEmpty,
   } = useChat();
 
-  if (modelsConnections.length === 0) {
+  if (modelsConnections.length === 0) { 
     const title = "No model provider connected";
     const description =
       "Connect to a model provider to unlock AI-powered features.";
@@ -130,7 +130,7 @@ function ChatPanelContent() {
           <button
             type="button"
             onClick={() =>
-              createThread({ gatewayId: selectedGatewayId ?? undefined })
+              createThread()
             }
             className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
             title="New chat"
@@ -171,8 +171,7 @@ function ChatPanelContent() {
                   {selectedGateway?.title || "Chat"}
                 </h3>
                 <div className="text-muted-foreground text-center text-sm max-w-md">
-                  {gateways.find((g) => g.id === selectedGatewayId)
-                    ?.description ??
+                  {selectedGateway?.description ??
                     "Ask anything about configuring model providers or using MCP Mesh."}
                 </div>
               </div>
@@ -192,7 +191,6 @@ function ChatPanelContent() {
 }
 
 export function ChatPanel() {
-  const selectedGatewayId = useSelectedGatewayId();
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense fallback={<Chat.Skeleton />}>

@@ -164,8 +164,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     hideThread,
   };
 
+  const key = selectedThreadId ?? "new-chat";
   return (
-    <ThreadMessagesStoreProvider threadId={selectedThreadId ?? "new-chat"}>
+    <ThreadMessagesStoreProvider key={key} threadId={key}>
       <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
     </ThreadMessagesStoreProvider>
   );

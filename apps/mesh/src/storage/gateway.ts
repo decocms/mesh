@@ -19,7 +19,6 @@ import type { Database } from "./types";
 /** Raw database row type for gateways */
 type RawGatewayRow = {
   id: string;
-  system_prompt: string | null;
   organization_id: string;
   title: string;
   description: string | null;
@@ -59,7 +58,6 @@ export class GatewayStorage implements GatewayStoragePort {
       .insertInto("gateways")
       .values({
         id,
-        system_prompt: data.system_prompt ?? null,
         organization_id: organizationId,
         title: data.title,
         description: data.description ?? null,
@@ -254,9 +252,7 @@ export class GatewayStorage implements GatewayStoragePort {
     if (data.status !== undefined) {
       updateData.status = data.status;
     }
-    if (data.system_prompt !== undefined) {
-      updateData.system_prompt = data.system_prompt;
-    }
+
     // Non-default update - simple update
     await this.db
       .updateTable("gateways")
@@ -327,7 +323,6 @@ export class GatewayStorage implements GatewayStoragePort {
 
     return {
       id: row.id,
-      system_prompt: row.system_prompt,
       organization_id: row.organization_id,
       title: row.title,
       description: row.description,
