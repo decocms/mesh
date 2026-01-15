@@ -74,7 +74,10 @@ export const COLLECTION_THREADS_CREATE = defineTool({
     });
 
     return {
-      item: result,
+      item: {
+        ...result,
+        hidden: result.hidden ?? false,
+      },
     };
   },
 });
