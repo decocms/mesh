@@ -160,10 +160,10 @@ export function useThreads() {
  * @param gatewayId - Optional gateway ID for query key scoping
  * @returns Suspense query result with messages array
  */
-export function useThreadMessages(threadId: string | null) {
+export function useThreadMessages(threadId: string) {
   const { locator } = useProjectContext();
 
-  const { data, error } = useSuspenseQuery({
+  const { data, error, refetch } = useSuspenseQuery({
     queryKey: KEYS.threadMessages(locator, threadId),
     queryFn: async () => {
       try {
@@ -182,7 +182,7 @@ export function useThreadMessages(threadId: string | null) {
     console.error(error);
   }
 
-  return data ?? [];
+  return { messages: data ?? [], refetch };
 }
 
 /**

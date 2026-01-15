@@ -53,10 +53,16 @@ const createModelsTransport = (
             parts: [{ type: "text", text: system }],
           }
         : null;
+      const lastUserMessage = messages[messages.length - 1];
+      console.log({ messages, lastUserMessage });
+      const messagesToSend = systemMessage
+        ? [systemMessage, lastUserMessage]
+        : [lastUserMessage];
 
+      console.log("messagesToSend", { messagesToSend });
       return {
         body: {
-          messages: systemMessage ? [systemMessage, ...messages] : messages,
+          messages: messagesToSend,
           stream: true,
           ...metadata,
         },
@@ -253,8 +259,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
     LOCALSTORAGE_KEYS.threadManagerState(locator) + ":active-id",
     (existing) => existing || createThreadId(),
   );
-  const matchingId = threads.find((t) => t.id === activeThreadId)?.id ?? null;
-  const persistedMessages = useThreadMessages(matchingId);
+  const { messages: persistedMessages, refetch: refetchPersistedMessages } =
+    useThreadMessages(activeThreadId);
 
   // Gateway state
   const gateways = useGateways();
@@ -310,10 +316,15 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
     const newMessages = messages.slice(-2).filter(Boolean) as Message[];
 
-    if (newMessages.length !== 2) {
+    if (newMessages?.length !== 2) {
       console.warn("[chat] Expected 2 messages, got", newMessages.length);
       return;
     }
+
+    console.log("newMessages", newMessages);
+    console.log("finishReason", finishReason);
+    const refreshedMessages = await refetchPersistedMessages();
+    console.log("refreshedMessages", refreshedMessages);
   };
 
   const onError = (error: Error) => {
@@ -340,7 +351,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const isStreaming =
     chat.status === "submitted" || chat.status === "streaming";
 
-  const isChatEmpty = chat.messages.length === 0;
+  const isChatEmpty = chat.messages?.length === 0;
 
   // ===========================================================================
   // 6. RETURNED FUNCTIONS - Functions exposed via context

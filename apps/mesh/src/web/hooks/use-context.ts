@@ -9,7 +9,7 @@
  * are handled server-side in models.ts (DECOPILOT_SYSTEM_PROMPT).
  */
 
-import { useParams } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { useGatewayPrompts } from "./use-gateway-prompts";
 
 /**
@@ -19,8 +19,13 @@ import { useGatewayPrompts } from "./use-gateway-prompts";
  * @returns Context string to be sent to the backend
  */
 export function useContext(gatewayId?: string | null): string {
-  // Extract route parameters directly using useParams
-  const params = useParams({ strict: false });
+  // Use router instance and extract params synchronously to avoid hook order issues
+  // when ChatProvider renders in different routing contexts
+  const router = useRouter();
+  const params = router.state.matches.reduce(
+    (acc, m) => ({ ...acc, ...m.params }),
+    {} as Record<string, string>,
+  );
   const { data: systemPrompt } = useGatewayPrompts(gatewayId);
 
   // Get stored system prompt for this gateway

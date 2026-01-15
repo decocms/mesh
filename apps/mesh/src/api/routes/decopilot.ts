@@ -432,6 +432,9 @@ app.post("/:org/decopilot/stream", async (c) => {
       modelConfig.id,
     );
 
+    console.log("systemMessages", systemMessages);
+    console.log("prunedMessages", prunedMessages);
+
     // Use streamText from AI SDK with pruned messages and parameters
     const result = streamText({
       model: provider,
@@ -492,15 +495,19 @@ app.post("/:org/decopilot/stream", async (c) => {
         // - responseMessage gets current time after streaming completes
         // This ensures proper ordering since response always finishes after request.
         const responseCreatedAt = new Date().toISOString();
-        ctx.storage.threads
+        console.log(userCreatedAt, responseCreatedAt);
+        const lastUserMessage = userMessages[userMessages.length - 1];
+        await ctx.storage.threads
           .saveMessages([
-            ...userMessages.map((m) => ({
-              ...m,
-              threadId: thread.id,
+            {
+              ...lastUserMessage,
+              role: "user",
+              parts: lastUserMessage?.parts as ThreadMessage["parts"],
               id: generatePrefixedId("msg"),
+              threadId: thread.id,
               createdAt: userCreatedAt,
               updatedAt: userCreatedAt,
-            })),
+            },
             {
               ...(responseMessage as ThreadMessage),
               threadId: thread.id,
@@ -521,6 +528,7 @@ app.post("/:org/decopilot/stream", async (c) => {
   } catch (error) {
     const err = error as Error;
 
+    console.error("[models:stream] Error", err);
     // Cleanup MCP client on error
     await mcpClient?.close().catch(console.error);
 

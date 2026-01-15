@@ -197,8 +197,6 @@ export function ChatInput() {
     clearFinishReason,
   } = useChat();
 
-  console.log({ setGatewayId, selectedGateway });
-
   const canSubmit =
     !isStreaming && selectedModel && inputValue.trim().length > 0;
 

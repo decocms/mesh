@@ -152,7 +152,9 @@ export class SqlThreadStorage implements ThreadStoragePort {
 
   async saveMessages(data: ThreadMessage[]): Promise<void> {
     const now = new Date().toISOString();
+    console.log("now", now);
     const threadId = data[0]?.threadId;
+    console.log("threadId", threadId);
     if (!threadId) {
       throw new Error("threadId is required when creating multiple messages");
     }
@@ -176,6 +178,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       updated_at: now,
     }));
     await this.db.transaction().execute(async (trx) => {
+      console.log("rows", rows);
       await trx.insertInto("thread_messages").values(rows).execute();
       await trx
         .updateTable("threads")

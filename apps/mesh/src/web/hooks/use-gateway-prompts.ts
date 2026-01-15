@@ -1,4 +1,4 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
 
 export interface GatewayPrompt {
@@ -99,18 +99,19 @@ async function fetchGatewayPrompts(
 }
 
 /**
- * Suspense hook to fetch prompts from a gateway via MCP protocol.
- * Must be used within a Suspense boundary.
- * @param gatewayId - The gateway ID (required)
+ * Hook to fetch prompts from a gateway via MCP protocol.
+ * Uses `enabled` option to conditionally fetch only when gatewayId is provided,
+ * ensuring consistent hook order regardless of gatewayId value.
+ * @param gatewayId - The gateway ID (optional)
  */
 export function useGatewayPrompts(gatewayId: string | null | undefined) {
-  if (!gatewayId) {
-    return { data: [] };
-  }
-  return useSuspenseQuery({
-    queryKey: KEYS.gatewayPrompts(gatewayId),
-    queryFn: () => fetchGatewayPrompts(gatewayId),
+  const query = useQuery({
+    queryKey: KEYS.gatewayPrompts(gatewayId ?? ""),
+    queryFn: () => fetchGatewayPrompts(gatewayId!),
     staleTime: 60000, // 1 minute
     retry: false,
+    enabled: !!gatewayId,
   });
+
+  return { data: query.data ?? [] };
 }
