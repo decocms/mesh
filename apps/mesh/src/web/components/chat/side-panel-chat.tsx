@@ -113,7 +113,6 @@ function ChatPanelContent() {
     );
   }
 
-  console.log({ thread, selectedGatewayId });
   const gatewayIdFromThread = thread?.gatewayId;
   const isDifferentGateway =
     gatewayIdFromThread && gatewayIdFromThread !== selectedGatewayId;
@@ -197,6 +196,7 @@ function ChatPanelContent() {
 }
 
 export function ChatPanel() {
+  const selectedGatewayId = useSelectedGatewayId();
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense fallback={<Chat.Skeleton />}>

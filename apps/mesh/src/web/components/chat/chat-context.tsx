@@ -13,13 +13,12 @@ import {
   type Dispatch,
 } from "react";
 import { useThreadActions } from "../../hooks/use-chat-store";
-import { useLocalStorage } from "../../hooks/use-local-storage";
-import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { useProjectContext } from "../../providers/project-context-provider";
 import type { Thread } from "../../types/chat-threads";
 import { useQueryClient } from "@tanstack/react-query";
 import { KEYS } from "../../lib/query-keys";
 import { useSelectedGatewayId } from "./side-panel-chat";
+import { useSelectedThreadId, useThreadsStoreActions } from "./threads-store";
 
 /**
  * Branch context for tracking message editing flow
@@ -96,15 +95,13 @@ interface ChatContextValue {
   interactionDispatch: Dispatch<ChatInteractionAction>;
 
   // Thread management
-  activeThreadId: string;
+  activeThreadId: string | null;
   createThread: (thread?: Partial<Thread>) => Promise<Thread>;
   setActiveThreadId: (threadId: string) => void;
   hideThread: (threadId: string) => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
-
-const createThreadId = () => crypto.randomUUID();
 
 /**
  * Provider component for chat context
@@ -113,6 +110,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
   const selectedGatewayId = useSelectedGatewayId();
+  const selectedThreadId = useSelectedThreadId();
+  const { setSelectedThreadId, deleteThread, addThread } =
+    useThreadsStoreActions();
   // Interaction state (reducer-based)
   const [interactionState, interactionDispatch] = useReducer(
     chatInteractionReducer,
@@ -121,11 +121,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Thread management (hooks-based)
   const threadActions = useThreadActions();
-
-  const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
-    LOCALSTORAGE_KEYS.threadManagerState(locator) + ":active-id",
-    (existing) => existing || createThreadId(),
-  );
 
   const createThread = async (thread?: Partial<Thread>) => {
     const id = thread?.id || crypto.randomUUID();
@@ -141,7 +136,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
     const result = await threadActions.insert.mutateAsync(newThread);
 
     queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
-    setActiveThreadId(result.id);
+    addThread(result);
+    setSelectedThreadId(result.id);
     return result;
   };
 
@@ -149,17 +145,18 @@ export function ChatProvider({ children }: PropsWithChildren) {
     threadActions.delete.mutate(threadId);
 
     // If hiding active thread, clear selection
-    if (activeThreadId === threadId) {
-      setActiveThreadId(createThreadId());
+    deleteThread(threadId);
+    if (selectedThreadId === threadId) {
+      setSelectedThreadId(null);
     }
   };
 
   const value: ChatContextValue = {
     interactionState,
     interactionDispatch,
-    activeThreadId,
+    activeThreadId: selectedThreadId,
     createThread,
-    setActiveThreadId,
+    setActiveThreadId: setSelectedThreadId,
     hideThread,
   };
 
