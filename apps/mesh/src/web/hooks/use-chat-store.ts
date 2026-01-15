@@ -160,11 +160,11 @@ export function useThreads(options?: { gatewayId?: string }) {
  * @param gatewayId - Optional gateway ID for query key scoping
  * @returns Suspense query result with messages array
  */
-export function useThreadMessages(threadId: string, gatewayId?: string) {
+export function useThreadMessages(threadId: string) {
   const { locator } = useProjectContext();
 
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.threadMessages(locator, threadId, gatewayId),
+    queryKey: KEYS.threadMessages(locator, threadId),
     queryFn: () => getThreadMessagesFromIndexedDB(locator, threadId),
     staleTime: 30_000,
   });
@@ -276,7 +276,7 @@ export function useThreadActions() {
  * @param gatewayId - Optional gateway ID for query key scoping
  * @returns Object with insert, insertMany, update, and delete mutation hooks
  */
-export function useMessageActions(gatewayId?: string) {
+export function useMessageActions() {
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
@@ -295,7 +295,7 @@ export function useMessageActions(gatewayId?: string) {
         (message as unknown as { threadId?: string }).threadId;
       if (threadId) {
         queryClient.invalidateQueries({
-          queryKey: KEYS.threadMessages(locator, threadId, gatewayId),
+          queryKey: KEYS.threadMessages(locator, threadId),
         });
       }
       queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
@@ -320,7 +320,7 @@ export function useMessageActions(gatewayId?: string) {
       }
       for (const threadId of threadIds) {
         queryClient.invalidateQueries({
-          queryKey: KEYS.threadMessages(locator, threadId, gatewayId),
+          queryKey: KEYS.threadMessages(locator, threadId),
         });
       }
       queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
@@ -344,7 +344,7 @@ export function useMessageActions(gatewayId?: string) {
         (updated as unknown as { threadId?: string }).threadId;
       if (threadId) {
         queryClient.invalidateQueries({
-          queryKey: KEYS.threadMessages(locator, threadId, gatewayId),
+          queryKey: KEYS.threadMessages(locator, threadId),
         });
       }
       queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });

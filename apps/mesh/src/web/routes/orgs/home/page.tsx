@@ -25,6 +25,7 @@ import {
   useGatewayThreads,
   useSelectedGatewayId,
 } from "@/web/components/chat/side-panel-chat.tsx";
+import { ThreadsStoreProvider } from "@/web/components/chat/threads-store.tsx";
 
 /**
  * Get time-based greeting

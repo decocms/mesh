@@ -8,13 +8,12 @@
 import { useChat } from "@ai-sdk/react";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { ChatMessage } from "../components/chat";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message } from "../types/chat-threads";
 import { useThreadMessages, useThreads } from "./use-chat-store";
-import { useQueryClient } from "@tanstack/react-query";
-import { KEYS } from "../lib/query-keys";
+import { useSelectedThreadId } from "../components/chat/threads-store";
 
 const createModelsTransport = (
   org: string,
@@ -36,8 +35,6 @@ const createModelsTransport = (
  * Options for the usePersistedChat hook
  */
 export interface UsePersistedChatOptions {
-  /** The active thread ID for the chat session */
-  threadId: string;
   /** Optional system prompt to prepend. Not persisted. */
   systemPrompt?: string;
   /** Optional gateway ID to associate with the thread */
@@ -51,8 +48,6 @@ export interface UsePersistedChatOptions {
   onError?: (error: Error) => void;
   /** Called when a tool is invoked during chat */
   onToolCall?: (event: { toolCall: { toolName: string } }) => void;
-  /** Set the active thread ID */
-  setActiveThreadId: (threadId: string) => void;
 }
 
 /**
@@ -99,24 +94,24 @@ export interface PersistedChatResult {
 export function usePersistedChat(
   options: UsePersistedChatOptions,
 ): PersistedChatResult {
-  const { threadId, onError, onToolCall, systemPrompt, gatewayId } = options;
-  const client = useQueryClient();
-  const { locator } = useProjectContext();
+  const { onError, onToolCall, systemPrompt } = options;
   const {
     org: { slug: orgSlug },
   } = useProjectContext();
-  const threads = useThreads({ gatewayId });
 
   // State for finish reason
   const [finishReason, setFinishReason] = useState<string | null>(null);
+  const gatewayId = options.gatewayId;
+  const selectedThreadId = useSelectedThreadId();
+  const { threads } = useThreads({ gatewayId });
 
   // Load persisted messages for this thread
-  const persistedMessages = useThreadMessages(
-    threadId,
-    gatewayId,
+  const currentThread =
+    threads.find((thread) => thread.id === selectedThreadId) ?? null;
+  const threadMessages = useThreadMessages(
+    selectedThreadId ?? "",
   ) as unknown as Message[];
-
-  console.log({ persistedMessages });
+  const persistedMessages = currentThread ? threadMessages : [];
 
   // Combine system message with persisted messages
   const allMessages = [
@@ -135,16 +130,12 @@ export function usePersistedChat(
   // Create transport for this org
   const transport = createModelsTransport(orgSlug);
 
-  const processedThreadSwitchRef = useRef<string | null>(null);
-
   // Handle chat completion - persist messages and update thread
   const onFinish = async ({
     finishReason,
     isAbort,
     isDisconnect,
     isError,
-    message,
-    messages,
   }: {
     message: ChatMessage;
     messages: ChatMessage[];
@@ -156,43 +147,6 @@ export function usePersistedChat(
     // Store the finish reason in state (convert undefined to null)
     setFinishReason(finishReason ?? null);
 
-    const newThreadId = message.metadata?.thread_id;
-    client.setQueryData(
-      KEYS.threadMessages(locator, newThreadId ?? threadId, gatewayId),
-      messages.map((msg) => ({
-        id: msg.id,
-        role: msg.role,
-        parts: msg.parts,
-        metadata: {
-          ...msg.metadata,
-          thread_id: newThreadId,
-        },
-      })),
-    );
-    if (
-      newThreadId &&
-      newThreadId !== threadId &&
-      processedThreadSwitchRef.current !== newThreadId
-    ) {
-      // Mark as processed to prevent double handling
-      processedThreadSwitchRef.current = newThreadId;
-
-      // Pre-populate the query cache with current messages before switching
-      // This prevents suspense from triggering when the thread ID changes
-      client.setQueryData(
-        KEYS.threads(locator),
-        threads.threads?.map((thread) => {
-          if (thread.id === threadId) {
-            return { ...thread, id: newThreadId };
-          }
-          return thread;
-        }),
-      );
-
-      // Now switch the thread - data is already in cache, no suspend
-      options.setActiveThreadId(newThreadId);
-    }
-
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
       return;
     }
@@ -200,7 +154,7 @@ export function usePersistedChat(
 
   // Initialize AI chat
   const chat = useChat<UIMessage<Metadata>>({
-    id: threadId,
+    id: selectedThreadId ?? undefined,
     messages: allMessages,
     transport,
     onFinish,
@@ -240,6 +194,8 @@ export function usePersistedChat(
     chat.messages[0]?.role === "system"
       ? chat.messages.length === 1
       : chat.messages.length === 0;
+
+  console.log({ messages: chat.messages });
 
   return {
     messages: chat.messages,
