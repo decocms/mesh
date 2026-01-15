@@ -247,8 +247,8 @@ export function MessageAssistant<T extends Metadata>({
     ? new Date(message.metadata.reasoning_end_at)
     : null;
   const duration =
-    reasoningStartAt && reasoningEndAt
-      ? reasoningEndAt.getTime() - reasoningStartAt.getTime()
+    reasoningStartAt !== null
+      ? (reasoningEndAt ?? new Date()).getTime() - reasoningStartAt.getTime()
       : null;
   const showThought =
     hasContent && (hasReasoning || isReasoningStreaming) && duration !== null;
