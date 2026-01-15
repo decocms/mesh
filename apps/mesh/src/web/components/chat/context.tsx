@@ -50,10 +50,10 @@ const createModelsTransport = (
       const { system, ...metadata } = requestMetadata as Metadata;
       const systemMessage: UIMessage<Metadata> | null = system
         ? {
-          id: crypto.randomUUID(),
-          role: "system",
-          parts: [{ type: "text", text: system }],
-        }
+            id: crypto.randomUUID(),
+            role: "system",
+            parts: [{ type: "text", text: system }],
+          }
         : null;
 
       return {
@@ -99,11 +99,11 @@ const useModelState = (
   const selectedModelState =
     selectedModel && modelsConnection?.id
       ? {
-        id: selectedModel.id,
-        provider: selectedModel.provider,
-        limits: selectedModel.limits,
-        connectionId: modelsConnection.id,
-      }
+          id: selectedModel.id,
+          provider: selectedModel.provider,
+          limits: selectedModel.limits,
+          connectionId: modelsConnection.id,
+        }
       : null;
 
   return [selectedModelState, setModelState] as const;
