@@ -8,11 +8,13 @@
 import { useChat } from "@ai-sdk/react";
 import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ChatMessage } from "../components/chat";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message } from "../types/chat-threads";
-import { useThreadMessages } from "./use-chat-store";
+import { useThreadMessages, useThreads } from "./use-chat-store";
+import { useQueryClient } from "@tanstack/react-query";
+import { KEYS } from "../lib/query-keys";
 
 const createModelsTransport = (
   org: string,
@@ -50,6 +52,8 @@ export interface UsePersistedChatOptions {
   onError?: (error: Error) => void;
   /** Called when a tool is invoked during chat */
   onToolCall?: (event: { toolCall: { toolName: string } }) => void;
+  /** Set the active thread ID */
+  setActiveThreadId: (threadId: string) => void;
 }
 
 /**
@@ -97,10 +101,12 @@ export function usePersistedChat(
   options: UsePersistedChatOptions,
 ): PersistedChatResult {
   const { threadId, onError, onToolCall } = options;
-
+  const client = useQueryClient();
+  const { locator } = useProjectContext();
   const {
     org: { slug: orgSlug },
   } = useProjectContext();
+  const { threads } = useThreads();
 
   // State for finish reason
   const [finishReason, setFinishReason] = useState<string | null>(null);
@@ -114,12 +120,16 @@ export function usePersistedChat(
   // Create transport for this org
   const transport = createModelsTransport(orgSlug);
 
+  const processedThreadSwitchRef = useRef<string | null>(null);
+
   // Handle chat completion - persist messages and update thread
   const onFinish = async ({
     finishReason,
     isAbort,
     isDisconnect,
     isError,
+    message,
+    messages,
   }: {
     message: ChatMessage;
     messages: ChatMessage[];
@@ -130,6 +140,43 @@ export function usePersistedChat(
   }) => {
     // Store the finish reason in state (convert undefined to null)
     setFinishReason(finishReason ?? null);
+
+    const newThreadId = message.metadata?.thread_id;
+    client.setQueryData(
+      KEYS.threadMessages(locator, newThreadId ?? threadId),
+      messages.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        parts: msg.parts,
+        metadata: {
+          ...msg.metadata,
+          thread_id: newThreadId,
+        },
+      })),
+    );
+    if (
+      newThreadId &&
+      newThreadId !== threadId &&
+      processedThreadSwitchRef.current !== newThreadId
+    ) {
+      // Mark as processed to prevent double handling
+      processedThreadSwitchRef.current = newThreadId;
+
+      // Pre-populate the query cache with current messages before switching
+      // This prevents suspense from triggering when the thread ID changes
+      client.setQueryData(
+        KEYS.threads(locator),
+        threads.map((thread) => {
+          if (thread.id === threadId) {
+            return { ...thread, id: newThreadId };
+          }
+          return thread;
+        }),
+      );
+
+      // Now switch the thread - data is already in cache, no suspend
+      options.setActiveThreadId(newThreadId);
+    }
 
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
       return;

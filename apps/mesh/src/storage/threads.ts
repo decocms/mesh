@@ -154,13 +154,6 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (!threadId) {
       throw new Error("threadId is required when creating multiple messages");
     }
-    console.log({
-      data: data.map((message) => ({
-        parts: message.parts,
-        role: message.role,
-        id: message.id,
-      })),
-    });
     const rows = data.map((message) => ({
       id: message.id,
       thread_id: threadId,
@@ -170,7 +163,6 @@ export class SqlThreadStorage implements ThreadStoragePort {
       created_at: now,
       updated_at: now,
     }));
-    console.log({ parts: rows.map((row) => row.parts) });
     await this.db.transaction().execute(async (trx) => {
       await trx.insertInto("thread_messages").values(rows).execute();
       await trx

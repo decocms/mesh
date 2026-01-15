@@ -94,7 +94,6 @@ function HomeContent() {
     useChat();
   const { data: session } = authClient.useSession();
 
-  const additionalContext = useClientContext();
 
   // View mode state (chat vs graph)
   const [viewMode, setViewMode] = useLocalStorage<HomeViewMode>(
@@ -104,6 +103,7 @@ function HomeContent() {
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
 
+ 
   const greeting = getTimeBasedGreeting();
 
   // Show empty state when no LLM binding is found
