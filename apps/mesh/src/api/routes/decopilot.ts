@@ -258,10 +258,8 @@ async function getOrCreateThread(
   {
     threadId,
     organizationId,
-    gatewayId,
   }: {
     threadId: string | null | undefined;
-    gatewayId: string | null | undefined;
     organizationId: string;
   },
 ): Promise<{ thread: Thread; messages: ThreadMessage[] }> {
@@ -273,7 +271,6 @@ async function getOrCreateThread(
       id: generatePrefixedId("thrd"),
       organizationId,
       createdBy: userId,
-      gatewayId,
     });
     return { thread, messages: [] };
   } else if (threadId) {
@@ -283,7 +280,6 @@ async function getOrCreateThread(
         id: threadId,
         organizationId,
         createdBy: userId,
-        gatewayId,
       });
       return { thread, messages: [] };
     }
@@ -329,7 +325,6 @@ app.post("/:org/decopilot/stream", async (c) => {
     const { thread, messages: threadMessages } = await getOrCreateThread(ctx, {
       threadId: thread_id,
       organizationId: organization.id,
-      gatewayId: gatewayConfig.id,
     });
     // Use limits from model config, fallback to default
     const maxOutputTokens =
