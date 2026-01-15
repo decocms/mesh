@@ -614,7 +614,7 @@ export interface ThreadTable {
   description: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
-  created_by: string // User ID;
+  created_by: string; // User ID;
   updated_by: string | null;
 }
 
@@ -655,8 +655,8 @@ export interface ThreadMessage {
     {}
   >[];
   role: "user" | "assistant" | "system";
-  createdAt: Date | string;
-  updatedAt: Date | string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**

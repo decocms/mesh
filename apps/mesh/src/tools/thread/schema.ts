@@ -34,11 +34,9 @@ export const ThreadMessageEntitySchema = z.object({
   parts: z
     .array(z.record(z.string(), z.unknown()))
     .describe("Message content parts"),
-  role: z.enum(["user", "assistant"]).describe("Message role"),
-  createdAt: z.union([z.string(), z.date()]).describe("Timestamp of creation"),
-  updatedAt: z
-    .union([z.string(), z.date()])
-    .describe("Timestamp of last update"),
+  role: z.enum(["user", "assistant", "system"]).describe("Message role"),
+  createdAt: z.string().datetime().describe("Timestamp of creation"),
+  updatedAt: z.string().datetime().describe("Timestamp of last update"),
 });
 
 export type ThreadMessageEntity = z.infer<typeof ThreadMessageEntitySchema>;
@@ -52,10 +50,8 @@ export const ThreadEntitySchema = z.object({
   organizationId: z.string().describe("Organization this thread belongs to"),
   title: z.string().describe("Thread title"),
   description: z.string().nullable().describe("Thread description"),
-  createdAt: z.union([z.string(), z.date()]).describe("Timestamp of creation"),
-  updatedAt: z
-    .union([z.string(), z.date()])
-    .describe("Timestamp of last update"),
+  createdAt: z.string().datetime().describe("Timestamp of creation"),
+  updatedAt: z.string().datetime().describe("Timestamp of last update"),
   createdBy: z.string().describe("User ID who created the thread"),
   updatedBy: z
     .string()
