@@ -9,6 +9,8 @@ import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { ThreadStoragePort } from "./ports";
 import type { Database, Thread, ThreadMessage } from "./types";
+import { UIMessage } from "ai";
+import { Metadata } from "@deco/ui/types/chat-metadata.js";
 
 // ============================================================================
 // Thread Storage Implementation
@@ -153,6 +155,72 @@ export class SqlThreadStorage implements ThreadStoragePort {
   // Message Operations
   // ==========================================================================
 
+  async initializeThread({
+    threadId,
+    organizationId,
+    userId,
+    systemMessage,
+    userMessage,
+  }: {
+    threadId: string;
+    organizationId: string;
+    userId: string;
+    systemMessage: string;
+    userMessage: UIMessage<Metadata>;
+  }): Promise<{ thread: Thread; messages: ThreadMessage[] }> {
+    const now = new Date().toISOString();
+    const { thread, messages } = await this.db
+      .transaction()
+      .execute(async (tx) => {
+        const threadRow = await tx
+          .insertInto("threads")
+          .values({
+            id: threadId,
+            organization_id: organizationId,
+            created_by: userId,
+            title: "New Thread",
+            description: "New Thread",
+            created_at: now,
+            updated_at: now,
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        const messagesRows = await tx
+          .insertInto("thread_messages")
+          .values([
+            {
+              id: generatePrefixedId("msg"),
+              thread_id: threadId,
+              role: "system",
+              parts: JSON.stringify([{ type: "text", text: systemMessage }]),
+              created_at: now,
+              updated_at: now,
+            },
+            {
+              id: generatePrefixedId("msg"),
+              thread_id: threadId,
+              role: "user",
+              parts: JSON.stringify(userMessage.parts),
+              metadata: userMessage.metadata
+                ? JSON.stringify(userMessage.metadata)
+                : undefined,
+              created_at: now,
+              updated_at: now,
+            },
+          ])
+          .returningAll()
+          .execute();
+        return {
+          thread: this.threadFromDbRow(threadRow),
+          messages: messagesRows.map((message) =>
+            this.messageFromDbRow(message),
+          ),
+        };
+      });
+
+    return { thread, messages };
+  }
+
   async createMessage(data: Partial<ThreadMessage>): Promise<ThreadMessage> {
     const id = data.id ?? generatePrefixedId("msg");
     const now = new Date().toISOString();
@@ -255,6 +323,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
   private threadFromDbRow(row: {
     id: string;
     organization_id: string;
+    agent_id: string | null;
     title: string;
     description: string | null;
     created_at: Date | string;
@@ -265,6 +334,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     return {
       id: row.id,
       organizationId: row.organization_id,
+      agentId: row.agent_id,
       title: row.title,
       description: row.description,
       createdAt:
@@ -285,7 +355,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     thread_id: string;
     metadata?: string;
     parts: string | Record<string, unknown>[];
-    role: "user" | "assistant";
+    role: "user" | "assistant" | "system";
     created_at: Date | string;
     updated_at: Date | string;
   }): ThreadMessage {
