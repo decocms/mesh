@@ -606,12 +606,10 @@ export interface GatewayConnectionTable {
 /**
  * Thread table definition
  * Threads are scopes users in organizations and store messages with Agents.
- * If gateway_id is not provided, we assume the user is using the Decopilot (Mesh main agent).
  */
 export interface ThreadTable {
   id: string;
   organization_id: string;
-  gateway_id: string | null;
   title: string;
   description: string | null;
   created_at: ColumnType<Date, Date | string, never>;
@@ -623,7 +621,6 @@ export interface ThreadTable {
 export interface Thread {
   id: string;
   organizationId: string;
-  gatewayId: string | null;
   title: string;
   description: string | null;
   createdAt: string;
