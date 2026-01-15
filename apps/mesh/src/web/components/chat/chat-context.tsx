@@ -19,6 +19,7 @@ import { useProjectContext } from "../../providers/project-context-provider";
 import type { Thread } from "../../types/chat-threads";
 import { useQueryClient } from "@tanstack/react-query";
 import { KEYS } from "../../lib/query-keys";
+import { useSelectedGatewayId } from "./side-panel-chat";
 
 /**
  * Branch context for tracking message editing flow
@@ -111,7 +112,7 @@ const createThreadId = () => crypto.randomUUID();
 export function ChatProvider({ children }: PropsWithChildren) {
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
-
+  const selectedGatewayId = useSelectedGatewayId();
   // Interaction state (reducer-based)
   const [interactionState, interactionDispatch] = useReducer(
     chatInteractionReducer,
@@ -135,7 +136,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       created_at: thread?.created_at || now,
       updated_at: thread?.updated_at || now,
       hidden: thread?.hidden ?? false,
-      gatewayId: thread?.gatewayId,
+      gatewayId: selectedGatewayId ?? undefined,
     };
     const result = await threadActions.insert.mutateAsync(newThread);
 

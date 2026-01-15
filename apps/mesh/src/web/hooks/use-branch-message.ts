@@ -17,13 +17,15 @@ import type { Message, Thread } from "../types/chat-threads";
  * Hook to handle branching from a message
  *
  * @param onThreadChange - Callback to switch to the new thread
+ * @param gatewayId - Optional gateway ID for query key scoping
  * @returns Function to branch from a message
  */
 export function useBranchMessage(
   onThreadChange: (newThreadId: string) => void,
+  gatewayId?: string,
 ) {
   const { locator } = useProjectContext();
-  const messageActions = useMessageActions();
+  const messageActions = useMessageActions(gatewayId);
   const threadActions = useThreadActions();
 
   /**

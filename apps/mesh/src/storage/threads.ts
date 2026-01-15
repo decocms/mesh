@@ -38,6 +38,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     const row = {
       id,
       organization_id: data.organizationId,
+      gateway_id: data.gatewayId,
       title: data.title,
       description: data.description ?? null,
       created_at: now,
@@ -102,6 +103,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
 
   async list(
     organizationId: string,
+    gatewayId?: string | null,
     options?: { limit?: number; offset?: number },
   ): Promise<{ threads: Thread[]; total: number }> {
     let query = this.db
@@ -109,6 +111,12 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .selectAll()
       .where("organization_id", "=", organizationId)
       .orderBy("updated_at", "desc");
+
+    if (gatewayId) {
+      query = query.where("gateway_id", "=", gatewayId);
+    } else {
+      query = query.where("gateway_id", "is", null);
+    }
 
     const countQuery = this.db
       .selectFrom("threads")
@@ -193,7 +201,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
   private threadFromDbRow(row: {
     id: string;
     organization_id: string;
-    agent_id: string | null;
+    gateway_id: string | null;
     title: string;
     description: string | null;
     created_at: Date | string;
@@ -204,7 +212,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     return {
       id: row.id,
       organizationId: row.organization_id,
-      agentId: row.agent_id,
+      gatewayId: row.gateway_id,
       title: row.title,
       description: row.description,
       createdAt:

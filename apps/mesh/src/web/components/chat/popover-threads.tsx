@@ -121,18 +121,10 @@ export function ThreadHistoryPopover({
 
   const sections = groupThreadsByDate(filteredThreads);
 
-  const handleOpenChange = (open: boolean) => {
-    if (open) {
-      refetch();
-    } else {
-      setSearchQuery("");
-    }
-  };
-
   return (
     <TooltipProvider>
       <Tooltip>
-        <Popover onOpenChange={handleOpenChange}>
+        <Popover>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               {variant === "outline" ? (

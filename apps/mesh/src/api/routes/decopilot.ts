@@ -258,10 +258,10 @@ async function getOrCreateThread(
   {
     threadId,
     organizationId,
-    agentId,
+    gatewayId,
   }: {
     threadId: string | null | undefined;
-    agentId: string | null | undefined;
+    gatewayId: string | null | undefined;
     organizationId: string;
   },
 ): Promise<{ thread: Thread; messages: ThreadMessage[] }> {
@@ -273,7 +273,7 @@ async function getOrCreateThread(
       id: generatePrefixedId("thrd"),
       organizationId,
       createdBy: userId,
-      agentId,
+      gatewayId,
     });
     return { thread, messages: [] };
   } else if (threadId) {
@@ -283,7 +283,7 @@ async function getOrCreateThread(
         id: threadId,
         organizationId,
         createdBy: userId,
-        agentId,
+        gatewayId,
       });
       return { thread, messages: [] };
     }
@@ -329,7 +329,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     const { thread, messages: threadMessages } = await getOrCreateThread(ctx, {
       threadId: thread_id,
       organizationId: organization.id,
-      agentId: gatewayConfig.id,
+      gatewayId: gatewayConfig.id,
     });
     // Use limits from model config, fallback to default
     const maxOutputTokens =
@@ -479,14 +479,16 @@ app.post("/:org/decopilot/stream", async (c) => {
         // Create messages sequentially to ensure correct timestamp ordering.
         // Using Promise.all would create messages in parallel with the same
         // timestamp, causing ORDER BY created_at to return them in undefined order.
-        await ctx.storage.threads.saveMessages([
-          safeUserMessage,
-          {
-            ...(responseMessage as ThreadMessage),
-            id: generatePrefixedId("msg"),
-            threadId: thread.id,
-          },
-        ]);
+        ctx.storage.threads
+          .saveMessages([
+            safeUserMessage,
+            {
+              ...(responseMessage as ThreadMessage),
+              id: generatePrefixedId("msg"),
+              threadId: thread.id,
+            },
+          ])
+          .catch(console.error);
       },
     });
   } catch (error) {

@@ -21,8 +21,11 @@ export const KEYS = {
     ["threads", locator, "gateway", gatewayId] as const,
   thread: (locator: string, threadId: string) =>
     ["thread", locator, threadId] as const,
-  threadMessages: (locator: string, threadId: string) =>
-    ["thread-messages", locator, threadId] as const,
+  threadMessages: (
+    locator: string,
+    threadId: string,
+    gatewayId: string | null | undefined,
+  ) => ["thread-messages", locator, threadId, gatewayId] as const,
   messages: (locator: string) => ["messages", locator] as const,
 
   // Organizations list

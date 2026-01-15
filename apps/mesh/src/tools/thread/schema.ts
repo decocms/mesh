@@ -66,6 +66,7 @@ export const ThreadCreateDataSchema = z.object({
   id: z.string().optional().describe("Optional custom ID for the thread"),
   title: z.string().describe("Thread title"),
   description: z.string().nullish().describe("Thread description"),
+  gatewayId: z.string().optional().describe("Gateway ID (agent)"),
 });
 
 export type ThreadCreateData = z.infer<typeof ThreadCreateDataSchema>;

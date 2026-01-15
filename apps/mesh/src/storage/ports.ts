@@ -25,6 +25,7 @@ export interface ThreadStoragePort {
   delete(id: string): Promise<void>;
   list(
     organizationId: string,
+    gatewayId?: string | null,
     options?: { limit?: number; offset?: number },
   ): Promise<{ threads: Thread[]; total: number }>;
   listByUserId(userId: string): Promise<{ threads: Thread[]; total: number }>;
