@@ -21,9 +21,6 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("organization_id", "text", (col) =>
       col.notNull().references("organization.id").onDelete("cascade"),
     )
-    .addColumn("gateway_id", "text", (col) =>
-      col.references("gateways.id").onDelete("no action"),
-    ) // we are calling gateways as "agents" in the moment this is being developed
     .addColumn("title", "text", (col) => col.notNull())
     .addColumn("description", "text")
     // Audit fields
