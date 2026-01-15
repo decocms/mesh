@@ -107,11 +107,16 @@ export async function getThreadMessages(
   _locator: string,
   threadId: string,
 ): Promise<Message[]> {
-  const result = await meshToolCaller("COLLECTION_THREAD_MESSAGES_LIST", {
-    threadId,
-  });
-  const output = result as CollectionListOutput<ThreadMessageEntity>;
-  return output.items.map(toMessage);
+  try {
+    const result = await meshToolCaller("COLLECTION_THREAD_MESSAGES_LIST", {
+      threadId,
+    });
+    const output = result as CollectionListOutput<ThreadMessageEntity>;
+    return output.items.map(toMessage);
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 
 export async function getThread(

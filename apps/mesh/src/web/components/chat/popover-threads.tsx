@@ -14,7 +14,6 @@ import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
 import { useState } from "react";
 import { useChat } from "./context";
 import type { Thread } from "@/web/types/chat-threads";
-import { useSelectedThreadId, useThreadsStoreThreads } from "./threads-store";
 
 type ThreadSection = {
   label: string;
@@ -107,10 +106,8 @@ export function ThreadHistoryPopover({
 }: {
   variant?: "outline" | "icon";
 }) {
-  const { setActiveThreadId, hideThread } = useChat();
+  const { setActiveThreadId, hideThread, activeThreadId, threads } = useChat();
   const [searchQuery, setSearchQuery] = useState("");
-  const selectedThreadId = useSelectedThreadId();
-  const threads = useThreadsStoreThreads();
   const filteredThreads = searchQuery.trim()
     ? threads.filter((thread) =>
         (thread.title || "New chat")
@@ -192,7 +189,7 @@ export function ThreadHistoryPopover({
                       </span>
                     </div>
                     {section.threads.map((thread) => {
-                      const isActive = thread.id === selectedThreadId;
+                      const isActive = thread.id === activeThreadId;
                       return (
                         <div
                           key={thread.id}
