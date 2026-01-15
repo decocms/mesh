@@ -34,8 +34,11 @@ export function useContext(gatewayId?: string | null): string {
 
     // Add gateway-specific custom instructions if available
     if (systemPrompt?.length > 0) {
+      const promptsText = systemPrompt
+        .map((p) => p.description ?? p.name)
+        .join("\n\n");
       contextParts.push(`### Agent Instructions
-${systemPrompt}`);
+${promptsText}`);
     }
   }
 
