@@ -99,7 +99,7 @@ interface ChatContextValue {
   interactionDispatch: Dispatch<ChatInteractionAction>;
 
   // Thread management
-  activeThreadId: string | null;
+  activeThreadId: string;
   createThread: (thread?: Partial<Thread>) => Promise<Thread>;
   setActiveThreadId: (threadId: string) => void;
   hideThread: (threadId: string) => void;
@@ -158,7 +158,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const value: ChatContextValue = {
     interactionState,
     interactionDispatch,
-    activeThreadId: selectedThreadId,
+    activeThreadId: selectedThreadId ?? "new-chat",
     createThread,
     setActiveThreadId: setSelectedThreadId,
     hideThread,
