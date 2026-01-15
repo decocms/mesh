@@ -421,20 +421,10 @@ app.post("/:org/decopilot/stream", async (c) => {
       stopWhen: stepCountIs(30), // Stop after 30 steps with tool calls
       onError: async (error) => {
         console.error("[models:stream] Error", error);
-        client
-          .close()
-          .catch(console.error)
-          .finally(() => {
-            console.log("onError, client closed");
-          });
+        client.close().catch(console.error);
       },
       onFinish: async () => {
-        client
-          .close()
-          .catch(console.error)
-          .finally(() => {
-            console.log("onFinish, client closed");
-          });
+        client.close().catch(console.error);
       },
     });
 
@@ -451,14 +441,12 @@ app.post("/:org/decopilot/stream", async (c) => {
         }
 
         if (part.type === "reasoning-start") {
-          console.log("reasoning-start", part);
           return {
             reasoning_start_at: new Date(),
           };
         }
 
         if (part.type === "reasoning-end") {
-          console.log("reasoning-end", part);
           return {
             reasoning_end_at: new Date(),
           };
