@@ -13,7 +13,6 @@ import {
 import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
 import { useState } from "react";
 import { useChat } from "./context";
-import { useThreads } from "../../hooks/use-chat-store";
 import type { Thread } from "@/web/types/chat-threads";
 import { useSelectedThreadId, useThreadsStoreThreads } from "./threads-store";
 
@@ -108,8 +107,7 @@ export function ThreadHistoryPopover({
 }: {
   variant?: "outline" | "icon";
 }) {
-  const { threads, refetch } = useThreads();
-  const { activeThreadId, setActiveThreadId, hideThread } = useChat();
+  const { setActiveThreadId, hideThread } = useChat();
   const [searchQuery, setSearchQuery] = useState("");
   const selectedThreadId = useSelectedThreadId();
   const threads = useThreadsStoreThreads();

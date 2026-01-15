@@ -22,7 +22,6 @@ import {
   MetricsModeSelector,
 } from "./mesh-graph.tsx";
 
-
 /**
  * Get time-based greeting
  */
@@ -103,7 +102,6 @@ function HomeContent() {
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
 
- 
   const greeting = getTimeBasedGreeting();
 
   // Show empty state when no LLM binding is found
@@ -141,9 +139,7 @@ function HomeContent() {
                   variant="outline"
                   size="icon"
                   className="size-7 border border-input"
-                  onClick={() =>
-                    createThread()
-                  }
+                  onClick={() => createThread()}
                   aria-label="New chat"
                 >
                   <Plus size={16} />
