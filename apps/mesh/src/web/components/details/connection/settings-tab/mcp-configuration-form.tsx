@@ -377,8 +377,6 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
             )}
           </div>
           <GatewaySelector
-            selectedGatewayId={currentValue || undefined}
-            onGatewayChange={handleBindingChange}
             variant="bordered"
             placeholder="Select Agent"
             className="w-[200px] shrink-0"
