@@ -25,6 +25,8 @@ import type { ConnectionEntity } from "../../tools/connection/schema";
 import { createLLMProvider } from "../llm-provider";
 import { fixProtocol } from "./oauth-proxy";
 import { Thread, ThreadMessage } from "@/storage/types";
+import type { UIMessage } from "ai";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 // Default values
 const DEFAULT_MAX_TOKENS = 32768;
@@ -71,7 +73,7 @@ Follow this state machine when handling user requests:
 
 const StreamRequestSchema = z.object({
   additionalContext: z.record(z.string(), z.unknown()).optional(),
-  message: z.any(), // Complex type from frontend, keeping as any
+  message: z.unknown().describe("User message"),
   model: z
     .object({
       id: z.string(),
@@ -117,6 +119,13 @@ function ensureOrganization(ctx: MeshContext, orgSlug: string) {
   }
 
   return ctx.organization;
+}
+
+function ensureUser(ctx: MeshContext) {
+  if (!ctx.auth?.user?.id) {
+    throw new Error("User ID is required");
+  }
+  return ctx.auth.user.id;
 }
 
 async function getConnectionById(
@@ -236,15 +245,59 @@ function createGatewayTransport(
   });
 }
 
+async function getOrCreateThread(
+  ctx: MeshContext,
+  threadId: string | null | undefined,
+  {
+    message,
+  }: {
+    message: unknown;
+  },
+): Promise<{ thread: Thread; messages: ThreadMessage[] }> {
+  // message is an array of UIMessages - extract the last user message
+  const messageArray = message as UIMessage<Metadata>[];
+  const userMessage = messageArray.findLast((m) => m.role === "user");
+  if (!userMessage) {
+    throw new Error("No user message found in request");
+  }
+
+  let thread: Thread | null = null;
+  if (!threadId) {
+    const { thread, messages } = await ctx.storage.threads.initializeThread({
+      threadId: generatePrefixedId("thrd"),
+      organizationId: ctx.organization?.id ?? "",
+      userId: ctx.auth?.user?.id ?? "",
+      systemMessage: DECOPILOT_SYSTEM_MESSAGE.content.toString(),
+      userMessage,
+    });
+    return { thread, messages };
+  }
+  thread = await ctx.storage.threads.get(threadId);
+  if (thread) {
+    // Create the new user message first, then list all messages including it
+    await ctx.storage.threads.createMessage({
+      threadId: thread.id,
+      role: "user",
+      parts: userMessage.parts as ThreadMessage["parts"],
+      metadata: userMessage.metadata as ThreadMessage["metadata"],
+    });
+    const messages = await ctx.storage.threads.listMessages(threadId);
+    return { thread, messages };
+  }
+  throw new Error(
+    "Thread not found. If you are trying to create a new thread, do not send a threadId.",
+  );
+}
+
 app.post("/:org/decopilot/stream", async (c) => {
   const ctx = c.get("meshContext");
   const orgSlug = c.req.param("org");
-
   // MCP client will be initialized after validation
   let mcpClient: Client | null = null;
 
   try {
     const organization = ensureOrganization(ctx, orgSlug);
+    const userId = ensureUser(ctx);
     const rawPayload = await c.req.json();
     // Validate request using Zod schema
     const parseResult = StreamRequestSchema.safeParse(rawPayload);
@@ -257,9 +310,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         400,
       );
     }
-
     const payload = parseResult.data;
-
     const {
       model: modelConfig,
       gateway: gatewayConfig,
@@ -269,18 +320,14 @@ app.post("/:org/decopilot/stream", async (c) => {
       maxWindowSize = DEFAULT_MEMORY,
       thread_id: threadId,
     } = payload;
-    const userId = ctx.auth.user?.id;
-    if (!userId) {
-      throw new Error("User ID is required");
-    }
-    let thread: Thread | null = null;
-    let threadMessages: ThreadMessage[] = [];
-    if (threadId) {
-      thread = await ctx.storage.threads.get(threadId);
-      if (thread) {
-        threadMessages = await ctx.storage.threads.listMessages(threadId);
-      }
-    }
+    const { thread, messages: threadMessages } = await getOrCreateThread(
+      ctx,
+      threadId,
+      {
+        message,
+      },
+    );
+    console.log("threadMessages", JSON.stringify(threadMessages, null, 2));
     // Use limits from model config, fallback to default
     const maxOutputTokens =
       modelConfig.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
@@ -295,7 +342,7 @@ app.post("/:org/decopilot/stream", async (c) => {
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
     const [modelMessages, connection] = await Promise.all([
-      convertToModelMessages([...threadMessages, ...message], {
+      convertToModelMessages(threadMessages, {
         ignoreIncompleteToolCalls: true,
       }),
       getConnectionById(ctx, organization.id, modelConfig.connectionId),
@@ -376,7 +423,7 @@ app.post("/:org/decopilot/stream", async (c) => {
             gateway: gatewayConfig,
             model: modelConfig,
             created_at: new Date(),
-            thread_id: threadId,
+            thread_id: thread!.id,
           };
         }
 
@@ -403,34 +450,20 @@ app.post("/:org/decopilot/stream", async (c) => {
         }
         return {};
       },
-      onFinish: async ({ messages }) => {
-        console.log("finished messages", messages);
-        console.log("initial message", message);
-        if (!thread) {
-          const newThread = await ctx.storage.threads.create({
-            id: threadId, // Use the ID from the frontend payload
-            organizationId: organization.id,
-            createdBy: userId,
-            title: "New Thread",
-            description: "New Thread",
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          thread = newThread;
-
-          if (!thread) throw new Error("Failed to create thread");
-        }
+      onFinish: async ({ messages, responseMessage }) => {
         // Create messages sequentially to ensure correct timestamp ordering.
         // Using Promise.all would create messages in parallel with the same
         // timestamp, causing ORDER BY created_at to return them in undefined order.
-        const allMessages = [...message, ...messages];
-        for (const m of allMessages) {
-          await ctx.storage.threads.createMessage({
-            threadId: thread!.id,
-            role: m.role,
-            parts: m.parts as ThreadMessage["parts"],
-          });
-        }
+        console.log("messages", JSON.stringify(messages, null, 2));
+        console.log(
+          "responseMessage",
+          JSON.stringify(responseMessage, null, 2),
+        );
+        await ctx.storage.threads.createMessage({
+          threadId: thread!.id,
+          role: responseMessage.role,
+          parts: responseMessage.parts as ThreadMessage["parts"],
+        });
       },
     });
   } catch (error) {

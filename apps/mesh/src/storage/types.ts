@@ -603,22 +603,25 @@ export interface GatewayConnectionTable {
 
 /**
  * Thread table definition
- * Threads are organization-scoped and store messages
+ * Threads are scopes users in organizations and store messages with Agents.
+ * If agent_id is not provided, we assume the user is using the Decopilot.
  */
 export interface ThreadTable {
   id: string;
   organization_id: string;
+  agent_id: string | null;
   title: string;
   description: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
-  created_by: string;
+  created_by: string // User ID;
   updated_by: string | null;
 }
 
 export interface Thread {
   id: string;
   organizationId: string;
+  agentId: string | null;
   title: string;
   description: string | null;
   createdAt: Date | string;
@@ -632,7 +635,7 @@ export interface ThreadMessageTable {
   thread_id: string;
   metadata?: string;
   parts: JsonArray<Record<string, unknown>>;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -651,7 +654,7 @@ export interface ThreadMessage {
     },
     {}
   >[];
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   createdAt: Date | string;
   updatedAt: Date | string;
 }
