@@ -32,8 +32,9 @@ export const COLLECTION_THREADS_DELETE = defineTool({
     }
 
     // Verify it belongs to the current organization
+    // Use same error message as "not found" to prevent ID enumeration
     if (thread.organizationId !== organization.id) {
-      throw new Error("Thread not found in organization");
+      throw new Error(`Thread not found: ${input.id}`);
     }
 
     // Delete thread

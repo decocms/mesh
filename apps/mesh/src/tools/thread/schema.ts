@@ -7,30 +7,23 @@
 import { z } from "zod";
 
 // ============================================================================
-// Message Part Schema
-// ============================================================================
-const MessagePartSchema = z.object({
-  type: z.enum(["text", "reasoning", "tool-call", "tool-result"]),
-  text: z.string().optional(),
-  reasoning: z.string().optional(),
-  toolName: z.string().optional(),
-  toolCallId: z.string().optional(),
-  providerExecuted: z.boolean().optional(),
-});
-
-export type MessagePart = z.infer<typeof MessagePartSchema>;
-
-// ============================================================================
 // Thread Message Schema
 // ============================================================================
 
+/**
+ * Note: The `parts` field uses a permissive schema because ThreadMessage.parts
+ * comes from AI SDK's UIMessage type, which includes many part types
+ * (text, reasoning, tool-call, tool-result, dynamic-tool, file, etc.)
+ * that evolve with the SDK. We rely on TypeScript types from storage/types.ts
+ * for compile-time safety.
+ */
 export const ThreadMessageEntitySchema = z.object({
   id: z.string().describe("Unique message ID"),
   threadId: z.string().describe("ID of the parent thread"),
   metadata: z.unknown().optional().describe("Optional message metadata"),
   parts: z
     .array(z.record(z.string(), z.unknown()))
-    .describe("Message content parts"),
+    .describe("Message content parts (AI SDK UIMessagePart format)"),
   role: z.enum(["user", "assistant", "system"]).describe("Message role"),
   createdAt: z.string().datetime().describe("Timestamp of creation"),
   updatedAt: z.string().datetime().describe("Timestamp of last update"),

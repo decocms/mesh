@@ -9,7 +9,7 @@ import {
   createCollectionGetOutputSchema,
 } from "@decocms/bindings/collections";
 import { defineTool } from "../../core/define-tool";
-import { requireOrganization } from "../../core/mesh-context";
+import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { ThreadEntitySchema } from "./schema";
 
 /**
@@ -26,6 +26,7 @@ export const COLLECTION_THREADS_GET = defineTool({
   outputSchema: ThreadGetOutputSchema,
 
   handler: async (input, ctx) => {
+    requireAuth(ctx);
     const organization = requireOrganization(ctx);
 
     await ctx.access.check();

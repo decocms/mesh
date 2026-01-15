@@ -74,6 +74,21 @@ Follow this state machine when handling user requests:
 - When users mention "agents", they are typically referring to gateways`,
 };
 
+/**
+ * UIMessage schema for incoming user messages.
+ * Uses a permissive parts schema because AI SDK UIMessagePart has many types
+ * (text, reasoning, tool-call, tool-result, file, etc.) that evolve with the SDK.
+ * Validates essential structure while allowing flexibility for part types.
+ */
+const UIMessageSchema = z
+  .object({
+    id: z.string().optional(),
+    role: z.enum(["user", "assistant", "system"]),
+    parts: z.array(z.record(z.string(), z.unknown())),
+    metadata: z.unknown().optional(),
+  })
+  .passthrough();
+
 const StreamRequestSchema = z.object({
   system: z.array(
     z.object({
@@ -81,7 +96,7 @@ const StreamRequestSchema = z.object({
       parts: z.array(z.object({ type: z.literal("text"), text: z.string() })),
     }),
   ),
-  message: z.unknown().describe("User message"),
+  message: UIMessageSchema.describe("User message"),
   model: z
     .object({
       id: z.string(),
@@ -275,15 +290,18 @@ async function getOrCreateThread(
     return { thread, messages: [] };
   } else if (threadId) {
     const thread = await ctx.storage.threads.get(threadId);
-    if (!thread) {
-      const thread = await ctx.storage.threads.create({
-        id: threadId,
+    // Verify thread exists AND belongs to the current organization
+    // If thread belongs to a different org, treat as "not found" (don't leak info)
+    // and create a new thread with a fresh ID to avoid conflicts
+    if (!thread || thread.organizationId !== organizationId) {
+      const newThread = await ctx.storage.threads.create({
+        id: thread ? generatePrefixedId("thrd") : threadId,
         organizationId,
         createdBy: userId,
       });
-      return { thread, messages: [] };
+      return { thread: newThread, messages: [] };
     }
-    const messages = await ctx.storage.threads.listMessages(thread.id);
+    const { messages } = await ctx.storage.threads.listMessages(thread.id);
     return { thread, messages };
   }
 
@@ -338,11 +356,10 @@ app.post("/:org/decopilot/stream", async (c) => {
 
     const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
 
-    const now = new Date().getTime();
-    const afterNow = now + 1000;
-    const userCreatedAt = new Date(afterNow).toISOString();
+    const userCreatedAt = new Date().toISOString();
 
-    const userMessage = message as UIMessage<Metadata>;
+    // Safe cast: UIMessageSchema validated required structure (parts, role, metadata)
+    const userMessage = message as unknown as UIMessage<Metadata>;
     const safeUserMessage = {
       ...userMessage,
       parts: userMessage.parts as ThreadMessage["parts"],
@@ -459,9 +476,11 @@ app.post("/:org/decopilot/stream", async (c) => {
         return {};
       },
       onFinish: async ({ responseMessage }) => {
-        // Create messages sequentially to ensure correct timestamp ordering.
-        // Using Promise.all would create messages in parallel with the same
-        // timestamp, causing ORDER BY created_at to return them in undefined order.
+        // Both messages get explicit timestamps:
+        // - userMessage already has createdAt set before streaming
+        // - responseMessage gets current time after streaming completes
+        // This ensures proper ordering since response always finishes after request.
+        const responseCreatedAt = new Date().toISOString();
         ctx.storage.threads
           .saveMessages([
             safeUserMessage,
@@ -469,6 +488,8 @@ app.post("/:org/decopilot/stream", async (c) => {
               ...(responseMessage as ThreadMessage),
               id: generatePrefixedId("msg"),
               threadId: thread.id,
+              createdAt: responseCreatedAt,
+              updatedAt: responseCreatedAt,
             },
           ])
           .catch(console.error);

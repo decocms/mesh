@@ -154,13 +154,15 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (!threadId) {
       throw new Error("threadId is required when creating multiple messages");
     }
+    // Preserve original createdAt if provided to maintain message ordering.
+    // Messages in a batch may have been created at different times on the client.
     const rows = data.map((message) => ({
       id: message.id,
       thread_id: threadId,
-      metadata: message.metadata ? JSON.stringify(message.metadata) : undefined,
+      metadata: message.metadata ? JSON.stringify(message.metadata) : null,
       parts: JSON.stringify(message.parts),
       role: message.role,
-      created_at: now,
+      created_at: message.createdAt ?? now,
       updated_at: now,
     }));
     await this.db.transaction().execute(async (trx) => {
@@ -175,15 +177,40 @@ export class SqlThreadStorage implements ThreadStoragePort {
     });
   }
 
-  async listMessages(threadId: string): Promise<ThreadMessage[]> {
-    const rows = await this.db
+  async listMessages(
+    threadId: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<{ messages: ThreadMessage[]; total: number }> {
+    // Order by created_at first, then by id as a tiebreaker for stable ordering
+    // when messages have identical timestamps (e.g., batched inserts).
+    let query = this.db
       .selectFrom("thread_messages")
       .selectAll()
       .where("thread_id", "=", threadId)
       .orderBy("created_at", "asc")
-      .execute();
+      .orderBy("id", "asc");
 
-    return rows.map((row) => this.messageFromDbRow(row));
+    const countQuery = this.db
+      .selectFrom("thread_messages")
+      .select((eb) => eb.fn.count("id").as("count"))
+      .where("thread_id", "=", threadId);
+
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+
+    const [rows, countResult] = await Promise.all([
+      query.execute(),
+      countQuery.executeTakeFirst(),
+    ]);
+
+    return {
+      messages: rows.map((row) => this.messageFromDbRow(row)),
+      total: Number(countResult?.count || 0),
+    };
   }
 
   // ==========================================================================
@@ -221,7 +248,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
   private messageFromDbRow(row: {
     id: string;
     thread_id: string;
-    metadata?: string;
+    metadata: string | null;
     parts: string | Record<string, unknown>[];
     role: "user" | "assistant" | "system";
     created_at: Date | string;

@@ -631,7 +631,7 @@ export interface Thread {
 export interface ThreadMessageTable {
   id: string;
   thread_id: string;
-  metadata?: string;
+  metadata: string | null;
   parts: JsonArray<Record<string, unknown>>;
   role: "user" | "assistant" | "system";
   created_at: ColumnType<Date, Date | string, never>;
