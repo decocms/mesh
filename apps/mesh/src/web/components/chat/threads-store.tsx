@@ -23,10 +23,7 @@ interface ThreadsStore extends ThreadsState {
 }
 
 const ThreadsStoreContext = createContext<StoreApi<ThreadsStore> | null>(null);
-const createThreadsStore = (
-  initialState: Omit<ThreadsStore, "actions">,
-  gatewayId: string | null,
-) => {
+const createThreadsStore = (initialState: Omit<ThreadsStore, "actions">) => {
   return createStore<ThreadsStore>()(
     persist(
       (set) => ({
@@ -60,7 +57,7 @@ const createThreadsStore = (
         },
       }),
       {
-        name: `threads-store-${encodeURIComponent(gatewayId ?? "decopilot")}`,
+        name: `threads-store`,
         storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
           threads: state.threads,
@@ -84,13 +81,10 @@ function useThreadsStore<T>(
   return useStoreWithEqualityFn(store, selector, equalityFn ?? shallow);
 }
 
-export function ThreadsStoreProvider({
-  children,
-  gatewayId,
-}: PropsWithChildren<{ gatewayId: string | null }>) {
-  const { threads } = useThreads({ gatewayId: gatewayId ?? undefined });
+export function ThreadsStoreProvider({ children }: PropsWithChildren) {
+  const { threads } = useThreads();
   const [store] = useState(() =>
-    createThreadsStore({ threads, selectedThreadId: null }, gatewayId),
+    createThreadsStore({ threads, selectedThreadId: null }),
   );
   return (
     <ThreadsStoreContext.Provider value={store}>

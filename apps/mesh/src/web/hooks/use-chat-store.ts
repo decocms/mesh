@@ -133,9 +133,7 @@ export function useThreads(options?: { gatewayId?: string }) {
   const gatewayId = options?.gatewayId;
 
   const { data, refetch } = useSuspenseQuery({
-    queryKey: gatewayId
-      ? KEYS.gatewayThreads(locator, gatewayId)
-      : KEYS.threads(locator),
+    queryKey: KEYS.threads(locator),
     queryFn: async () => {
       const result = (await meshToolCaller("COLLECTION_THREADS_LIST", {
         gatewayId,
@@ -188,20 +186,14 @@ export function useThreadActions() {
         data: {
           id: thread.id,
           title: thread.title,
-          gatewayId: thread.gatewayId,
           description: null,
         },
       })) as CollectionInsertOutput<ThreadEntity>;
 
       return toThread(result.item);
     },
-    onSuccess: (thread: Thread) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
-      if (thread.gatewayId) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.gatewayThreads(locator, thread.gatewayId),
-        });
-      }
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -232,11 +224,6 @@ export function useThreadActions() {
       queryClient.invalidateQueries({
         queryKey: KEYS.thread(locator, updated.id),
       });
-      if (updated.gatewayId) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.gatewayThreads(locator, updated.gatewayId),
-        });
-      }
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);

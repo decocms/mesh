@@ -21,13 +21,7 @@ import {
   MetricsModeProvider,
   MetricsModeSelector,
 } from "./mesh-graph.tsx";
-import { useSelectedGatewayId } from "@/web/components/chat/side-panel-chat.tsx";
-import {
-  ThreadMessagesStoreProvider,
-  ThreadsStoreProvider,
-  useSelectedThreadId,
-  useThreadsStoreThreads,
-} from "@/web/components/chat/threads-store.tsx";
+
 
 /**
  * Get time-based greeting
@@ -148,7 +142,7 @@ function HomeContent() {
                   size="icon"
                   className="size-7 border border-input"
                   onClick={() =>
-                    createThread({ gatewayId: selectedGatewayId ?? undefined })
+                    createThread()
                   }
                   aria-label="New chat"
                 >
