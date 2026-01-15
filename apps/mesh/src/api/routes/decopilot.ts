@@ -26,7 +26,10 @@ import { createLLMProvider } from "../llm-provider";
 import { fixProtocol } from "./oauth-proxy";
 import { Thread, ThreadMessage } from "@/storage/types";
 import type { UIMessage } from "ai";
-import { generatePrefixedId } from "@/shared/utils/generate-id";
+import {
+  generatePrefixedId,
+  idMatchesPrefix,
+} from "@/shared/utils/generate-id";
 
 // Default values
 const DEFAULT_MAX_TOKENS = 32768;
@@ -250,46 +253,39 @@ async function getOrCreateThread(
   {
     threadId,
     organizationId,
-    message,
+    agentId,
   }: {
     threadId: string | null | undefined;
+    agentId: string | null | undefined;
     organizationId: string;
-    message: unknown;
   },
 ): Promise<{ thread: Thread; messages: ThreadMessage[] }> {
-  // message is an array of UIMessages - extract the last user message
-  const messageArray = message as UIMessage<Metadata>[];
-  const userMessage = messageArray.findLast((m) => m.role === "user");
-  if (!userMessage) {
-    throw new Error("No user message found in request");
-  }
   const userId = ensureUser(ctx);
+  const isValidId = threadId ? idMatchesPrefix(threadId, "thrd") : false;
 
-  let thread: Thread | null = null;
-  if (!threadId) {
-    const { thread, messages } = await ctx.storage.threads.initializeThread({
-      threadId: generatePrefixedId("thrd"),
+  if (!threadId || !isValidId) {
+    const thread = await ctx.storage.threads.create({
+      id: generatePrefixedId("thrd"),
       organizationId,
-      userId,
-      systemMessage: DECOPILOT_SYSTEM_MESSAGE.content.toString(),
-      userMessage,
+      createdBy: userId,
+      agentId,
     });
+    return { thread, messages: [] };
+  } else if (threadId) {
+    const thread = await ctx.storage.threads.get(threadId);
+    if (!thread) {
+      const thread = await ctx.storage.threads.create({
+        id: threadId,
+        organizationId,
+        createdBy: userId,
+        agentId,
+      });
+      return { thread, messages: [] };
+    }
+    const messages = await ctx.storage.threads.listMessages(thread.id);
     return { thread, messages };
   }
-  thread = await ctx.storage.threads.get(threadId);
-  if (thread) {
-    // Create the new user message first, then list all messages including it
-    const [messages] = await Promise.all([
-      ctx.storage.threads.listMessages(thread.id),
-      ctx.storage.threads.createMessage({
-        threadId: thread.id,
-        role: "user",
-        parts: userMessage.parts as ThreadMessage["parts"],
-        metadata: userMessage.metadata as ThreadMessage["metadata"],
-      }),
-    ]);
-    return { thread, messages };
-  }
+
   throw new Error(
     "Thread not found. If you are trying to create a new thread, do not send a threadId.",
   );
@@ -323,14 +319,13 @@ app.post("/:org/decopilot/stream", async (c) => {
       message,
       temperature,
       maxWindowSize = DEFAULT_MEMORY,
-      thread_id: threadId,
+      thread_id,
     } = payload;
     const { thread, messages: threadMessages } = await getOrCreateThread(ctx, {
-      threadId,
+      threadId: thread_id,
       organizationId: organization.id,
-      message,
+      agentId: gatewayConfig.id,
     });
-    console.log("threadMessages", JSON.stringify(threadMessages, null, 2));
     // Use limits from model config, fallback to default
     const maxOutputTokens =
       modelConfig.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
@@ -342,6 +337,22 @@ app.post("/:org/decopilot/stream", async (c) => {
     );
 
     const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
+
+    const now = new Date().getTime();
+    const afterNow = now + 1000;
+    const userCreatedAt = new Date(afterNow).toISOString();
+
+    const userMessage = message as UIMessage<Metadata>;
+    const safeUserMessage = {
+      ...userMessage,
+      parts: userMessage.parts as ThreadMessage["parts"],
+      id: generatePrefixedId("msg"),
+      threadId: thread.id,
+      createdAt: userCreatedAt,
+      metadata: userMessage.metadata as ThreadMessage["metadata"],
+      updatedAt: userCreatedAt,
+    };
+    threadMessages.push(safeUserMessage as ThreadMessage);
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
     const [modelMessages, connection] = await Promise.all([
@@ -365,13 +376,15 @@ app.post("/:org/decopilot/stream", async (c) => {
     const systemMessages = [
       DECOPILOT_SYSTEM_MESSAGE,
       ...modelMessages.filter((m) => m.role === "system"),
-      {
-        role: "system",
-        content: `
-        Additional context: ${JSON.stringify(additionalContext)}
-        `,
-      } as SystemModelMessage,
-    ];
+      additionalContext
+        ? ({
+            role: "system",
+            content: `
+            Additional context: ${JSON.stringify(additionalContext)}
+            `,
+          } as SystemModelMessage)
+        : undefined,
+    ].filter(Boolean) as SystemModelMessage[];
 
     // Filter out system messages (they go to system param, not messages array)
     const nonSystemMessages = modelMessages.filter((m) => m.role !== "system");
@@ -384,10 +397,10 @@ app.post("/:org/decopilot/stream", async (c) => {
       toolCalls: "none",
     }).slice(-maxWindowSize);
 
-    console.log("prunedMessages", prunedMessages);
-
     // Build properties for monitoring correlation
-    const monitoringProperties = threadId ? { thread_id: threadId } : undefined;
+    const monitoringProperties = thread_id
+      ? { thread_id: thread.id }
+      : undefined;
 
     const [proxy, tools] = await Promise.all([
       ctx.createMCPProxy(connection),
@@ -411,10 +424,20 @@ app.post("/:org/decopilot/stream", async (c) => {
       stopWhen: stepCountIs(30), // Stop after 30 steps with tool calls
       onError: async (error) => {
         console.error("[models:stream] Error", error);
-        await client.close().catch(console.error);
+        client
+          .close()
+          .catch(console.error)
+          .finally(() => {
+            console.log("onError, client closed");
+          });
       },
       onFinish: async () => {
-        await client.close().catch(console.error);
+        client
+          .close()
+          .catch(console.error)
+          .finally(() => {
+            console.log("onFinish, client closed");
+          });
       },
     });
 
@@ -453,20 +476,19 @@ app.post("/:org/decopilot/stream", async (c) => {
         }
         return {};
       },
-      onFinish: async ({ messages, responseMessage }) => {
+      onFinish: async ({ responseMessage }) => {
         // Create messages sequentially to ensure correct timestamp ordering.
         // Using Promise.all would create messages in parallel with the same
         // timestamp, causing ORDER BY created_at to return them in undefined order.
-        console.log("messages", JSON.stringify(messages, null, 2));
-        console.log(
-          "responseMessage",
-          JSON.stringify(responseMessage, null, 2),
-        );
-        await ctx.storage.threads.createMessage({
-          threadId: thread!.id,
-          role: responseMessage.role,
-          parts: responseMessage.parts as ThreadMessage["parts"],
-        });
+        console.log({ responseMessage });
+        await ctx.storage.threads.saveMessages([
+          safeUserMessage,
+          {
+            ...(responseMessage as ThreadMessage),
+            id: generatePrefixedId("msg"),
+            threadId: thread.id,
+          },
+        ]);
       },
     });
   } catch (error) {

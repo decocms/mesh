@@ -53,11 +53,6 @@ interface CollectionListOutput<T> {
   hasMore: boolean;
 }
 
-/** Collection get output */
-interface CollectionGetOutput<T> {
-  item: T | null;
-}
-
 /** Collection insert output */
 interface CollectionInsertOutput<T> {
   item: T;
@@ -101,27 +96,6 @@ function toMessage(entity: ThreadMessageEntity): Message {
 // ============================================================================
 // Thread Queries
 // ============================================================================
-
-/**
- * Get a single thread by ID from backend
- *
- * @param _locator - Unused, kept for backward compatibility
- * @param threadId - The ID of the thread to fetch
- */
-export async function getThreadFromIndexedDB(
-  _locator: string,
-  threadId: string,
-): Promise<Thread | null> {
-  try {
-    const result = (await meshToolCaller("COLLECTION_THREADS_GET", {
-      id: threadId,
-    })) as CollectionGetOutput<ThreadEntity>;
-
-    return result.item ? toThread(result.item) : null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Get messages for a thread from backend

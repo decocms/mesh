@@ -11,13 +11,8 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { useState } from "react";
 import type { ChatMessage } from "../components/chat";
 import { useProjectContext } from "../providers/project-context-provider";
-import type { Message, Thread } from "../types/chat-threads";
-import {
-  getThreadFromIndexedDB,
-  useMessageActions,
-  useThreadActions,
-  useThreadMessages,
-} from "./use-chat-store";
+import type { Message } from "../types/chat-threads";
+import { useThreadMessages } from "./use-chat-store";
 
 const createModelsTransport = (
   org: string,
@@ -28,7 +23,7 @@ const createModelsTransport = (
     credentials: "include",
     prepareSendMessagesRequest: ({ messages, requestMetadata }) => ({
       body: {
-        message: messages.slice(-1),
+        message: messages.slice(-1)[0],
         stream: true,
         additionalContext,
         ...(requestMetadata as Metadata | undefined),
@@ -101,16 +96,11 @@ export interface PersistedChatResult {
 export function usePersistedChat(
   options: UsePersistedChatOptions,
 ): PersistedChatResult {
-  const { threadId, gatewayId, onError, onToolCall } = options;
+  const { threadId, onError, onToolCall } = options;
 
   const {
     org: { slug: orgSlug },
-    locator,
   } = useProjectContext();
-
-  // Thread and message actions for persistence
-  const threadActions = useThreadActions();
-  const messageActions = useMessageActions();
 
   // State for finish reason
   const [finishReason, setFinishReason] = useState<string | null>(null);
@@ -127,7 +117,6 @@ export function usePersistedChat(
   // Handle chat completion - persist messages and update thread
   const onFinish = async ({
     finishReason,
-    messages,
     isAbort,
     isDisconnect,
     isError,
@@ -145,50 +134,6 @@ export function usePersistedChat(
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
       return;
     }
-
-    const newMessages = messages.slice(-2).filter(Boolean) as Message[];
-
-    if (newMessages.length !== 2) {
-      console.warn("[chat] Expected 2 messages, got", newMessages.length);
-      return;
-    }
-
-    // Persist the new messages
-    messageActions.insertMany.mutate(newMessages);
-
-    // Extract title from first text part
-    const msgTitle =
-      newMessages
-        .find((m) => m.parts?.find((part) => part.type === "text"))
-        ?.parts?.find((part) => part.type === "text")
-        ?.text.slice(0, 100) || "";
-
-    // Check if thread exists
-    const existingThread = await getThreadFromIndexedDB(locator, threadId);
-
-    if (!existingThread) {
-      // Create new thread
-      const now = new Date().toISOString();
-      const newThread: Thread = {
-        id: threadId,
-        title: msgTitle,
-        created_at: now,
-        updated_at: now,
-        hidden: false,
-        gatewayId,
-      };
-      threadActions.insert.mutate(newThread);
-      return;
-    }
-
-    threadActions.update.mutate({
-      id: threadId,
-      updates: {
-        title: existingThread.title || msgTitle,
-        gatewayId: existingThread.gatewayId || gatewayId,
-        updated_at: new Date().toISOString(),
-      },
-    });
   };
 
   // Initialize AI chat

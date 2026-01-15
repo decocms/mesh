@@ -27,10 +27,7 @@ export type MessagePart = z.infer<typeof MessagePartSchema>;
 export const ThreadMessageEntitySchema = z.object({
   id: z.string().describe("Unique message ID"),
   threadId: z.string().describe("ID of the parent thread"),
-  metadata: z
-    .record(z.string(), z.unknown())
-    .optional()
-    .describe("Optional message metadata"),
+  metadata: z.unknown().optional().describe("Optional message metadata"),
   parts: z
     .array(z.record(z.string(), z.unknown()))
     .describe("Message content parts"),

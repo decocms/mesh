@@ -29,13 +29,7 @@ export interface ThreadStoragePort {
   ): Promise<{ threads: Thread[]; total: number }>;
   listByUserId(userId: string): Promise<{ threads: Thread[]; total: number }>;
   // Message operations
-  createMessage(data: Partial<ThreadMessage>): Promise<ThreadMessage>;
-  getMessage(id: string): Promise<ThreadMessage | null>;
-  updateMessage(
-    id: string,
-    data: Partial<ThreadMessage>,
-  ): Promise<ThreadMessage>;
-  deleteMessage(id: string): Promise<void>;
+  saveMessages(data: ThreadMessage[]): Promise<void>;
   listMessages(threadId: string): Promise<ThreadMessage[]>;
 }
 
