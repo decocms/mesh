@@ -1,7 +1,7 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import type { ToolUIPart } from "ai";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Target04,
   Stars01,
@@ -227,39 +227,9 @@ export function MessageAssistant<T extends Metadata>({
   className,
 }: MessageProps<T>) {
   const { id, parts } = message;
-
   const isStreaming = status === "streaming";
   const isSubmitted = status === "submitted";
   const isLoading = isStreaming || isSubmitted;
-
-  const startTimeRef = useRef<number | null>(null);
-  const [duration, setDuration] = useState<number | null>(() => {
-    const stored = localStorage.getItem(`msg-duration-${id}`);
-    return stored ? Number(stored) : null;
-  });
-
-  // Capture startTime when loading begins (first time isLoading becomes true)
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (isLoading && startTimeRef.current === null) {
-      startTimeRef.current = Date.now();
-    }
-  }, [isLoading]);
-
-  // Calculate duration when first part arrives (thinking time, not writing time)
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (
-      parts.length > 0 &&
-      duration === null &&
-      startTimeRef.current !== null
-    ) {
-      const calculatedDuration = Date.now() - startTimeRef.current;
-      setDuration(calculatedDuration);
-      // Save to localStorage for persistence
-      localStorage.setItem(`msg-duration-${id}`, calculatedDuration.toString());
-    }
-  }, [parts.length, duration, id]);
 
   const hasContent = parts.length > 0;
   // Check if we have reasoning parts or if reasoning is currently streaming
@@ -269,11 +239,19 @@ export function MessageAssistant<T extends Metadata>({
     parts.some(
       (part) => part.type === "reasoning" && part.state === "streaming",
     );
-
   // Show thought if we have reasoning parts OR if reasoning is currently streaming
+  const reasoningStartAt = message.metadata?.reasoning_start_at
+    ? new Date(message.metadata.reasoning_start_at)
+    : null;
+  const reasoningEndAt = message.metadata?.reasoning_end_at
+    ? new Date(message.metadata.reasoning_end_at)
+    : null;
+  const duration =
+    reasoningStartAt !== null
+      ? (reasoningEndAt ?? new Date()).getTime() - reasoningStartAt.getTime()
+      : null;
   const showThought =
     hasContent && (hasReasoning || isReasoningStreaming) && duration !== null;
-
   // Create usage stats component to pass to the last text part
   const usageStats = <UsageStats messages={[message]} />;
 

@@ -18,6 +18,8 @@ export interface ChatUserConfig {
 }
 
 export interface Metadata {
+  reasoning_start_at?: string | Date;
+  reasoning_end_at?: string | Date;
   model?: ChatModelConfig;
   gateway?: ChatGatewayConfig;
   user?: ChatUserConfig;

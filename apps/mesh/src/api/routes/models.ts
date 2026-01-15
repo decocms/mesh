@@ -356,6 +356,18 @@ app.post("/:org/models/stream", async (c) => {
           };
         }
 
+        if (part.type === "reasoning-start") {
+          return {
+            reasoning_start_at: new Date(),
+          };
+        }
+
+        if (part.type === "reasoning-end") {
+          return {
+            reasoning_end_at: new Date(),
+          };
+        }
+
         if (part.type === "finish-step") {
           const usage = part.usage;
           return {
