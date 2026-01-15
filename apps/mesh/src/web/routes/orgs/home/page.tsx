@@ -21,11 +21,13 @@ import {
   MetricsModeProvider,
   MetricsModeSelector,
 } from "./mesh-graph.tsx";
+import { useSelectedGatewayId } from "@/web/components/chat/side-panel-chat.tsx";
 import {
-  useGatewayThreads,
-  useSelectedGatewayId,
-} from "@/web/components/chat/side-panel-chat.tsx";
-import { ThreadsStoreProvider } from "@/web/components/chat/threads-store.tsx";
+  ThreadMessagesStoreProvider,
+  ThreadsStoreProvider,
+  useSelectedThreadId,
+  useThreadsStoreThreads,
+} from "@/web/components/chat/threads-store.tsx";
 
 /**
  * Get time-based greeting
@@ -119,6 +121,7 @@ function HomeContent() {
     );
   }
 
+  console.log({ selectedGatewayId, threads });
   return (
     <MetricsModeProvider>
       <Chat>

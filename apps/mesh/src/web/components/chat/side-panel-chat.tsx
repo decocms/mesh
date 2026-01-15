@@ -113,10 +113,6 @@ function ChatPanelContent() {
     );
   }
 
-  const gatewayIdFromThread = thread?.gatewayId;
-  const isDifferentGateway =
-    gatewayIdFromThread && gatewayIdFromThread !== selectedGatewayId;
-
   return (
     <Chat>
       <Chat.Header>

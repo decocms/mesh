@@ -15,13 +15,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Check, CpuChip02, SearchMd } from "@untitledui/icons";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 import { useGateways as useGatewaysCollection } from "../../hooks/collections/use-gateway";
 import { useCreateGateway } from "../../hooks/use-create-gateway";
 import { useChat } from "./chat-context";
@@ -269,10 +263,7 @@ export function GatewaySelector({
   );
 
   return (
-    <Popover
-      open={disabled ? false : open}
-      onOpenChange={disabled ? undefined : handleOpenChange}
-    >
+    <Popover open={open} onOpenChange={disabled ? undefined : handleOpenChange}>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>

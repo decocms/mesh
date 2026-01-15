@@ -1,5 +1,5 @@
-import { useThreads } from "@/web/hooks/use-chat-store";
-import { Thread } from "@/web/types/chat-threads";
+import { useThreadMessages, useThreads } from "@/web/hooks/use-chat-store";
+import { Message, Thread } from "@/web/types/chat-threads";
 import { createContext, PropsWithChildren, useContext, useState } from "react";
 import { createStore, StoreApi } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -25,7 +25,7 @@ interface ThreadsStore extends ThreadsState {
 const ThreadsStoreContext = createContext<StoreApi<ThreadsStore> | null>(null);
 const createThreadsStore = (
   initialState: Omit<ThreadsStore, "actions">,
-  gatewayId: string,
+  gatewayId: string | null,
 ) => {
   return createStore<ThreadsStore>()(
     persist(
@@ -60,7 +60,7 @@ const createThreadsStore = (
         },
       }),
       {
-        name: `threads-store-${encodeURIComponent(gatewayId)}`,
+        name: `threads-store-${encodeURIComponent(gatewayId ?? "decopilot")}`,
         storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
           threads: state.threads,
@@ -90,7 +90,7 @@ export function ThreadsStoreProvider({
 }: PropsWithChildren<{ gatewayId: string | null }>) {
   const { threads } = useThreads({ gatewayId: gatewayId ?? undefined });
   const [store] = useState(() =>
-    createThreadsStore({ threads, selectedThreadId: null }, gatewayId ?? ""),
+    createThreadsStore({ threads, selectedThreadId: null }, gatewayId),
   );
   return (
     <ThreadsStoreContext.Provider value={store}>
@@ -99,10 +99,92 @@ export function ThreadsStoreProvider({
   );
 }
 
+export function useThreadsStoreThreads() {
+  return useThreadsStore((state) => state.threads);
+}
+
 export function useSelectedThreadId() {
   return useThreadsStore((state) => state.selectedThreadId);
 }
 
 export function useThreadsStoreActions() {
   return useThreadsStore((state) => state.actions);
+}
+
+interface ThreadMessagesState {
+  messages: Message[];
+}
+
+interface ThreadMessagesActions {
+  addMessage: (message: Message) => void;
+}
+
+interface ThreadMessagesStore extends ThreadMessagesState {
+  actions: ThreadMessagesActions;
+}
+
+const ThreadMessagesStoreContext =
+  createContext<StoreApi<ThreadMessagesStore> | null>(null);
+const createThreadMessagesStore = (
+  initialState: Omit<ThreadMessagesStore, "actions">,
+  threadId: string,
+) => {
+  return createStore<ThreadMessagesStore>()(
+    persist(
+      (set) => ({
+        ...initialState,
+        actions: {
+          addMessage: (message) =>
+            set((state) => {
+              return {
+                ...state,
+                messages: [...state.messages, message],
+              };
+            }),
+        },
+      }),
+      {
+        name: `thread-messages-store-${encodeURIComponent(threadId)}`,
+        storage: createJSONStorage(() => localStorage),
+        partialize: (state) => ({
+          messages: state.messages,
+        }),
+      },
+    ),
+  );
+};
+
+function useThreadMessagesStore<T>(
+  selector: (state: ThreadMessagesStore) => T,
+  equalityFn?: (a: T, b: T) => boolean,
+): T {
+  const store = useContext(ThreadMessagesStoreContext);
+  if (!store) {
+    throw new Error(
+      "Missing ThreadMessagesStoreProvider - refresh the page. If the error persists, please contact support.",
+    );
+  }
+  return useStoreWithEqualityFn(store, selector, equalityFn ?? shallow);
+}
+
+export function ThreadMessagesStoreProvider({
+  children,
+  threadId,
+}: PropsWithChildren<{ threadId: string }>) {
+  const messages = useThreadMessages(threadId) as Message[];
+  const [store] = useState(() =>
+    createThreadMessagesStore({ messages }, threadId),
+  );
+  return (
+    <ThreadMessagesStoreContext.Provider value={store}>
+      {children}
+    </ThreadMessagesStoreContext.Provider>
+  );
+}
+
+export function useThreadMessagesStoreMessages() {
+  return useThreadMessagesStore((state) => state.messages);
+}
+export function useThreadMessagesStoreActions() {
+  return useThreadMessagesStore((state) => state.actions);
 }

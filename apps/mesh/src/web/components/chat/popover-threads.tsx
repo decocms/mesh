@@ -15,7 +15,7 @@ import { useState } from "react";
 import { useChat } from "./context";
 import { useThreads } from "../../hooks/use-chat-store";
 import type { Thread } from "@/web/types/chat-threads";
-import { useSelectedThreadId } from "./threads-store";
+import { useSelectedThreadId, useThreadsStoreThreads } from "./threads-store";
 
 type ThreadSection = {
   label: string;
@@ -112,6 +112,7 @@ export function ThreadHistoryPopover({
   const { activeThreadId, setActiveThreadId, hideThread } = useChat();
   const [searchQuery, setSearchQuery] = useState("");
   const selectedThreadId = useSelectedThreadId();
+  const threads = useThreadsStoreThreads();
   const filteredThreads = searchQuery.trim()
     ? threads.filter((thread) =>
         (thread.title || "New chat")

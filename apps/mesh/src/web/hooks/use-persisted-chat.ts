@@ -12,8 +12,12 @@ import { useState } from "react";
 import type { ChatMessage } from "../components/chat";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message } from "../types/chat-threads";
-import { useThreadMessages, useThreads } from "./use-chat-store";
-import { useSelectedThreadId } from "../components/chat/threads-store";
+import {
+  useSelectedThreadId,
+  useThreadMessagesStoreActions,
+  useThreadMessagesStoreMessages,
+  useThreadsStoreActions,
+} from "../components/chat/threads-store";
 
 const createModelsTransport = (
   org: string,
@@ -37,8 +41,6 @@ const createModelsTransport = (
 export interface UsePersistedChatOptions {
   /** Optional system prompt to prepend. Not persisted. */
   systemPrompt?: string;
-  /** Optional gateway ID to associate with the thread */
-  gatewayId?: string;
   /**
    * Called when a thread needs to be created (first message completion).
    * If not provided, uses internal thread actions.
@@ -101,17 +103,11 @@ export function usePersistedChat(
 
   // State for finish reason
   const [finishReason, setFinishReason] = useState<string | null>(null);
-  const gatewayId = options.gatewayId;
   const selectedThreadId = useSelectedThreadId();
-  const { threads } = useThreads({ gatewayId });
+  const { setSelectedThreadId } = useThreadsStoreActions();
 
-  // Load persisted messages for this thread
-  const currentThread =
-    threads.find((thread) => thread.id === selectedThreadId) ?? null;
-  const threadMessages = useThreadMessages(
-    selectedThreadId ?? "",
-  ) as unknown as Message[];
-  const persistedMessages = currentThread ? threadMessages : [];
+  const threadMessages = useThreadMessagesStoreMessages();
+  const { addMessage } = useThreadMessagesStoreActions();
 
   // Combine system message with persisted messages
   const allMessages = [
@@ -124,7 +120,7 @@ export function usePersistedChat(
           } as UIMessage<Metadata>,
         ]
       : []),
-    ...persistedMessages,
+    ...threadMessages,
   ];
 
   // Create transport for this org
@@ -136,6 +132,7 @@ export function usePersistedChat(
     isAbort,
     isDisconnect,
     isError,
+    messages,
   }: {
     message: ChatMessage;
     messages: ChatMessage[];
@@ -146,15 +143,23 @@ export function usePersistedChat(
   }) => {
     // Store the finish reason in state (convert undefined to null)
     setFinishReason(finishReason ?? null);
+    const selectedThreadIdFromMessage =
+      messages[messages.length - 1]?.metadata?.thread_id;
+    const hasSelectedThreadId =
+      selectedThreadId && selectedThreadId !== selectedThreadIdFromMessage;
+    if (hasSelectedThreadId || !selectedThreadId) {
+      setSelectedThreadId(selectedThreadIdFromMessage ?? null);
+    }
 
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
       return;
     }
+    addMessage(messages[messages.length - 1] as Message);
   };
 
   // Initialize AI chat
   const chat = useChat<UIMessage<Metadata>>({
-    id: selectedThreadId ?? undefined,
+    id: selectedThreadId || `thrd-${crypto.randomUUID()}`,
     messages: allMessages,
     transport,
     onFinish,
@@ -177,7 +182,12 @@ export function usePersistedChat(
 
     // Clear finish reason when sending new message
     setFinishReason(null);
-
+    addMessage({
+      id: crypto.randomUUID(),
+      role: "user",
+      parts: [{ type: "text", text }],
+      metadata,
+    } as Message);
     await chat.sendMessage(
       {
         id: crypto.randomUUID(),
@@ -194,8 +204,6 @@ export function usePersistedChat(
     chat.messages[0]?.role === "system"
       ? chat.messages.length === 1
       : chat.messages.length === 0;
-
-  console.log({ messages: chat.messages });
 
   return {
     messages: chat.messages,
