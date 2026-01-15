@@ -30,7 +30,10 @@ export interface ThreadStoragePort {
   listByUserId(userId: string): Promise<{ threads: Thread[]; total: number }>;
   // Message operations
   saveMessages(data: ThreadMessage[]): Promise<void>;
-  listMessages(threadId: string): Promise<ThreadMessage[]>;
+  listMessages(
+    threadId: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<{ messages: ThreadMessage[]; total: number }>;
 }
 
 // ============================================================================

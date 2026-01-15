@@ -45,18 +45,19 @@ export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
       throw new Error("Thread not found in organization");
     }
 
-    const messages = await ctx.storage.threads.listMessages(input.threadId);
-
-    // Apply pagination
-    const totalCount = messages.length;
     const offset = input.offset ?? 0;
     const limit = input.limit ?? 100;
-    const paginatedMessages = messages.slice(offset, offset + limit);
-    const hasMore = offset + limit < totalCount;
+
+    const { messages, total } = await ctx.storage.threads.listMessages(
+      input.threadId,
+      { limit, offset },
+    );
+
+    const hasMore = offset + limit < total;
 
     return {
-      items: paginatedMessages,
-      totalCount,
+      items: messages,
+      totalCount: total,
       hasMore,
     };
   },

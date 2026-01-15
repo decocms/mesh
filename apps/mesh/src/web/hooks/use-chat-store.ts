@@ -103,18 +103,15 @@ function toMessage(entity: ThreadMessageEntity): Message {
  * @param _locator - Unused, kept for backward compatibility
  * @param threadId - The ID of the thread
  */
-export function getThreadMessagesFromIndexedDB(
+export async function getThreadMessagesFromIndexedDB(
   _locator: string,
   threadId: string,
 ): Promise<Message[]> {
-  return meshToolCaller("COLLECTION_THREAD_MESSAGES_LIST", {
+  const result = await meshToolCaller("COLLECTION_THREAD_MESSAGES_LIST", {
     threadId,
-  })
-    .then((result) => {
-      const output = result as CollectionListOutput<ThreadMessageEntity>;
-      return output.items.map(toMessage);
-    })
-    .catch(() => []);
+  });
+  const output = result as CollectionListOutput<ThreadMessageEntity>;
+  return output.items.map(toMessage);
 }
 
 // ============================================================================

@@ -41,11 +41,6 @@ const createModelsTransport = (
 export interface UsePersistedChatOptions {
   /** Optional system prompt to prepend. Not persisted. */
   systemPrompt?: string;
-  /**
-   * Called when a thread needs to be created (first message completion).
-   * If not provided, uses internal thread actions.
-   */
-  onCreateThread?: (thread: { id: string; title: string }) => void;
   /** Called when an error occurs */
   onError?: (error: Error) => void;
   /** Called when a tool is invoked during chat */
@@ -103,6 +98,8 @@ export function usePersistedChat(
 
   // State for finish reason
   const [finishReason, setFinishReason] = useState<string | null>(null);
+  // Generate a stable fallback ID for new chats (when no thread is selected)
+  const [fallbackThreadId] = useState(() => `thrd-${crypto.randomUUID()}`);
   const selectedThreadId = useSelectedThreadId();
   const { setSelectedThreadId } = useThreadsStoreActions();
 
@@ -159,7 +156,7 @@ export function usePersistedChat(
 
   // Initialize AI chat
   const chat = useChat<UIMessage<Metadata>>({
-    id: selectedThreadId || `thrd-${crypto.randomUUID()}`,
+    id: selectedThreadId || fallbackThreadId,
     messages: allMessages,
     transport,
     onFinish,
@@ -182,21 +179,14 @@ export function usePersistedChat(
 
     // Clear finish reason when sending new message
     setFinishReason(null);
-    addMessage({
+    const message = {
       id: crypto.randomUUID(),
       role: "user",
       parts: [{ type: "text", text }],
       metadata,
-    } as Message);
-    await chat.sendMessage(
-      {
-        id: crypto.randomUUID(),
-        role: "user",
-        parts: [{ type: "text", text }],
-        metadata,
-      },
-      { metadata },
-    );
+    } as Message;
+    addMessage(message);
+    await chat.sendMessage(message, { metadata });
   };
 
   // Check if chat is empty (no user/assistant messages)

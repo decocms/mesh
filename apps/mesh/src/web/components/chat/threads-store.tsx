@@ -1,6 +1,13 @@
 import { useThreadMessages, useThreads } from "@/web/hooks/use-chat-store";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Message, Thread } from "@/web/types/chat-threads";
-import { createContext, PropsWithChildren, useContext, useState } from "react";
+import {
+  createContext,
+  PropsWithChildren,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 import { createStore, StoreApi } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
@@ -13,6 +20,7 @@ interface ThreadsState {
 
 interface ThreadsActions {
   setSelectedThreadId: (threadId: string | null) => void;
+  setThreads: (threads: Thread[]) => void;
   addThread: (thread: Thread) => void;
   updateThread: (thread: Thread) => void;
   deleteThread: (threadId: string) => void;
@@ -23,7 +31,10 @@ interface ThreadsStore extends ThreadsState {
 }
 
 const ThreadsStoreContext = createContext<StoreApi<ThreadsStore> | null>(null);
-const createThreadsStore = (initialState: Omit<ThreadsStore, "actions">) => {
+const createThreadsStore = (
+  initialState: Omit<ThreadsStore, "actions">,
+  locator: string,
+) => {
   return createStore<ThreadsStore>()(
     persist(
       (set) => ({
@@ -31,6 +42,7 @@ const createThreadsStore = (initialState: Omit<ThreadsStore, "actions">) => {
         actions: {
           setSelectedThreadId: (threadId) =>
             set({ selectedThreadId: threadId }),
+          setThreads: (threads) => set({ threads }),
           addThread: (thread) =>
             set((state) => {
               return {
@@ -57,7 +69,7 @@ const createThreadsStore = (initialState: Omit<ThreadsStore, "actions">) => {
         },
       }),
       {
-        name: `threads-store`,
+        name: `threads-store:${locator}`,
         storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
           threads: state.threads,
@@ -82,10 +94,19 @@ function useThreadsStore<T>(
 }
 
 export function ThreadsStoreProvider({ children }: PropsWithChildren) {
+  const { locator } = useProjectContext();
   const { threads } = useThreads();
   const [store] = useState(() =>
-    createThreadsStore({ threads, selectedThreadId: null }),
+    createThreadsStore({ threads, selectedThreadId: null }, locator),
   );
+
+  // Sync store with query data when it changes (React render-time sync pattern)
+  const prevThreadsRef = useRef(threads);
+  if (prevThreadsRef.current !== threads) {
+    prevThreadsRef.current = threads;
+    store.getState().actions.setThreads(threads);
+  }
+
   return (
     <ThreadsStoreContext.Provider value={store}>
       {children}
@@ -110,6 +131,7 @@ interface ThreadMessagesState {
 }
 
 interface ThreadMessagesActions {
+  setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
 }
 
@@ -122,12 +144,14 @@ const ThreadMessagesStoreContext =
 const createThreadMessagesStore = (
   initialState: Omit<ThreadMessagesStore, "actions">,
   threadId: string,
+  locator: string,
 ) => {
   return createStore<ThreadMessagesStore>()(
     persist(
       (set) => ({
         ...initialState,
         actions: {
+          setMessages: (messages) => set({ messages }),
           addMessage: (message) =>
             set((state) => {
               return {
@@ -138,7 +162,7 @@ const createThreadMessagesStore = (
         },
       }),
       {
-        name: `thread-messages-store-${encodeURIComponent(threadId)}`,
+        name: `thread-messages-store:${locator}:${encodeURIComponent(threadId)}`,
         storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
           messages: state.messages,
@@ -165,10 +189,19 @@ export function ThreadMessagesStoreProvider({
   children,
   threadId,
 }: PropsWithChildren<{ threadId: string }>) {
+  const { locator } = useProjectContext();
   const messages = useThreadMessages(threadId) as Message[];
   const [store] = useState(() =>
-    createThreadMessagesStore({ messages }, threadId),
+    createThreadMessagesStore({ messages }, threadId, locator),
   );
+
+  // Sync store with query data when it changes (React render-time sync pattern)
+  const prevMessagesRef = useRef(messages);
+  if (prevMessagesRef.current !== messages) {
+    prevMessagesRef.current = messages;
+    store.getState().actions.setMessages(messages);
+  }
+
   return (
     <ThreadMessagesStoreContext.Provider value={store}>
       {children}

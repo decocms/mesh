@@ -53,8 +53,13 @@ export const COLLECTION_THREADS_CREATE = defineTool({
       throw new Error("User ID required to create thread");
     }
 
-    let threadId = null;
-    if (input.data.id && idMatchesPrefix(input.data.id, "thrd")) {
+    let threadId: string;
+    if (input.data.id) {
+      if (!idMatchesPrefix(input.data.id, "thrd")) {
+        throw new Error(
+          `Invalid thread ID format: "${input.data.id}". IDs must start with "thrd_" prefix.`,
+        );
+      }
       threadId = input.data.id;
     } else {
       threadId = generatePrefixedId("thrd");

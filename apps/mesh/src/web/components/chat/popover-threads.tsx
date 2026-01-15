@@ -126,7 +126,13 @@ export function ThreadHistoryPopover({
   return (
     <TooltipProvider>
       <Tooltip>
-        <Popover>
+        <Popover
+          onOpenChange={(open) => {
+            if (!open) {
+              setSearchQuery("");
+            }
+          }}
+        >
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               {variant === "outline" ? (
