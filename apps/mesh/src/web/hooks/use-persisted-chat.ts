@@ -99,19 +99,24 @@ export interface PersistedChatResult {
 export function usePersistedChat(
   options: UsePersistedChatOptions,
 ): PersistedChatResult {
-  const { threadId, onError, onToolCall, systemPrompt } = options;
+  const { threadId, onError, onToolCall, systemPrompt, gatewayId } = options;
   const client = useQueryClient();
   const { locator } = useProjectContext();
   const {
     org: { slug: orgSlug },
   } = useProjectContext();
-  const { threads } = useThreads();
+  const threads = useThreads({ gatewayId });
 
   // State for finish reason
   const [finishReason, setFinishReason] = useState<string | null>(null);
 
   // Load persisted messages for this thread
-  const persistedMessages = useThreadMessages(threadId) as unknown as Message[];
+  const persistedMessages = useThreadMessages(
+    threadId,
+    gatewayId,
+  ) as unknown as Message[];
+
+  console.log({ persistedMessages });
 
   // Combine system message with persisted messages
   const allMessages = [
@@ -153,7 +158,7 @@ export function usePersistedChat(
 
     const newThreadId = message.metadata?.thread_id;
     client.setQueryData(
-      KEYS.threadMessages(locator, newThreadId ?? threadId),
+      KEYS.threadMessages(locator, newThreadId ?? threadId, gatewayId),
       messages.map((msg) => ({
         id: msg.id,
         role: msg.role,
@@ -176,7 +181,7 @@ export function usePersistedChat(
       // This prevents suspense from triggering when the thread ID changes
       client.setQueryData(
         KEYS.threads(locator),
-        threads.map((thread) => {
+        threads.threads?.map((thread) => {
           if (thread.id === threadId) {
             return { ...thread, id: newThreadId };
           }

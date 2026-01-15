@@ -831,7 +831,6 @@ function GatewayInspectorViewWithGateway({
 
   const handleSave = async () => {
     const formData = form.getValues();
-    console.log("formData", formData);
 
     // Merge all selections into gateway connections format
     const newConnections = mergeSelectionsToGatewayConnections(

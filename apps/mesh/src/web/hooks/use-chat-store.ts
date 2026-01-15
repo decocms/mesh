@@ -138,17 +138,12 @@ export function useThreads(options?: { gatewayId?: string }) {
       : KEYS.threads(locator),
     queryFn: async () => {
       const result = (await meshToolCaller("COLLECTION_THREADS_LIST", {
+        gatewayId,
         orderBy: [{ field: ["updatedAt"], direction: "desc" }],
         limit: 100,
       })) as CollectionListOutput<ThreadEntity>;
 
       const threads = result.items.map(toThread);
-
-      // Apply gateway filter if provided (client-side for now)
-      // TODO: Add gatewayId to backend thread entity if needed
-      if (gatewayId) {
-        return threads.filter((thread) => thread.gatewayId === gatewayId);
-      }
 
       return threads;
     },
@@ -162,13 +157,14 @@ export function useThreads(options?: { gatewayId?: string }) {
  * Hook to get messages for a specific thread
  *
  * @param threadId - The ID of the thread
+ * @param gatewayId - Optional gateway ID for query key scoping
  * @returns Suspense query result with messages array
  */
-export function useThreadMessages(threadId: string) {
+export function useThreadMessages(threadId: string, gatewayId?: string) {
   const { locator } = useProjectContext();
 
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.threadMessages(locator, threadId),
+    queryKey: KEYS.threadMessages(locator, threadId, gatewayId),
     queryFn: () => getThreadMessagesFromIndexedDB(locator, threadId),
     staleTime: 30_000,
   });
@@ -191,6 +187,7 @@ export function useThreadActions() {
         data: {
           id: thread.id,
           title: thread.title,
+          gatewayId: thread.gatewayId,
           description: null,
         },
       })) as CollectionInsertOutput<ThreadEntity>;
@@ -276,9 +273,10 @@ export function useThreadActions() {
  * Note: Messages are created by the backend during chat streaming.
  * These mutations are primarily for local cache management.
  *
+ * @param gatewayId - Optional gateway ID for query key scoping
  * @returns Object with insert, insertMany, update, and delete mutation hooks
  */
-export function useMessageActions() {
+export function useMessageActions(gatewayId?: string) {
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
@@ -297,7 +295,7 @@ export function useMessageActions() {
         (message as unknown as { threadId?: string }).threadId;
       if (threadId) {
         queryClient.invalidateQueries({
-          queryKey: KEYS.threadMessages(locator, threadId),
+          queryKey: KEYS.threadMessages(locator, threadId, gatewayId),
         });
       }
       queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
@@ -322,7 +320,7 @@ export function useMessageActions() {
       }
       for (const threadId of threadIds) {
         queryClient.invalidateQueries({
-          queryKey: KEYS.threadMessages(locator, threadId),
+          queryKey: KEYS.threadMessages(locator, threadId, gatewayId),
         });
       }
       queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
@@ -346,7 +344,7 @@ export function useMessageActions() {
         (updated as unknown as { threadId?: string }).threadId;
       if (threadId) {
         queryClient.invalidateQueries({
-          queryKey: KEYS.threadMessages(locator, threadId),
+          queryKey: KEYS.threadMessages(locator, threadId, gatewayId),
         });
       }
       queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });

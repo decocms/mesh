@@ -63,6 +63,7 @@ export const COLLECTION_THREADS_CREATE = defineTool({
     const result = await ctx.storage.threads.create({
       id: threadId,
       organizationId: organization.id,
+      gatewayId: input.data.gatewayId,
       title: input.data.title,
       description: input.data.description,
       createdBy: userId,

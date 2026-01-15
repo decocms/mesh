@@ -113,6 +113,11 @@ function ChatPanelContent() {
     );
   }
 
+  console.log({ thread, selectedGatewayId });
+  const gatewayIdFromThread = thread?.gatewayId;
+  const isDifferentGateway =
+    gatewayIdFromThread && gatewayIdFromThread !== selectedGatewayId;
+
   return (
     <Chat>
       <Chat.Header>
@@ -129,7 +134,9 @@ function ChatPanelContent() {
         <Chat.Header.Right>
           <button
             type="button"
-            onClick={() => createThread()}
+            onClick={() =>
+              createThread({ gatewayId: selectedGatewayId ?? undefined })
+            }
             className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
             title="New chat"
           >
@@ -169,7 +176,8 @@ function ChatPanelContent() {
                   {selectedGateway?.title || "Chat"}
                 </h3>
                 <div className="text-muted-foreground text-center text-sm max-w-md">
-                  {selectedGateway?.description ??
+                  {gateways.find((g) => g.id === selectedGatewayId)
+                    ?.description ??
                     "Ask anything about configuring model providers or using MCP Mesh."}
                 </div>
               </div>

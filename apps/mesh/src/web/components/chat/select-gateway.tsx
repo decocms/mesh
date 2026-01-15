@@ -24,6 +24,7 @@ import {
 } from "react";
 import { useGateways as useGatewaysCollection } from "../../hooks/collections/use-gateway";
 import { useCreateGateway } from "../../hooks/use-create-gateway";
+import { useChat } from "./chat-context";
 
 export interface GatewayInfo
   extends Pick<GatewayEntity, "id" | "title" | "description" | "icon"> {
@@ -88,7 +89,6 @@ function GatewayItemContent({
 export interface GatewayPopoverContentProps {
   gateways: GatewayInfo[];
   selectedGatewayId?: string | null;
-  onGatewayChange: (gatewayId: string) => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
@@ -100,7 +100,6 @@ export interface GatewayPopoverContentProps {
 export function GatewayPopoverContent({
   gateways,
   selectedGatewayId,
-  onGatewayChange,
   searchInputRef,
 }: GatewayPopoverContentProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -109,7 +108,6 @@ export function GatewayPopoverContent({
   const { createGateway, isCreating } = useCreateGateway({
     navigateOnCreate: true,
   });
-
   // Filter gateways based on search term
   const filteredGateways = (() => {
     if (!searchTerm.trim()) return gateways;
@@ -123,10 +121,6 @@ export function GatewayPopoverContent({
     });
   })();
 
-  const handleSelect = (gatewayId: string) => {
-    onGatewayChange(gatewayId);
-    setSearchTerm("");
-  };
 
   return (
     <div className="flex flex-col max-h-[400px]">
@@ -166,11 +160,10 @@ export function GatewayPopoverContent({
                 key={gateway.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => handleSelect(gateway.id)}
+                onClick={() => {}}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    handleSelect(gateway.id);
                   }
                 }}
                 className="outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-xl"
@@ -196,7 +189,6 @@ export function GatewayPopoverContent({
 
 export interface GatewaySelectorProps {
   selectedGatewayId?: string | null;
-  onGatewayChange: (gatewayId: string) => void;
   gateways?: GatewayInfo[];
   variant?: "borderless" | "bordered";
   className?: string;
@@ -212,7 +204,6 @@ export interface GatewaySelectorProps {
  */
 export function GatewaySelector({
   selectedGatewayId,
-  onGatewayChange,
   gateways: gatewaysProp,
   variant: _variant,
   className,
@@ -241,11 +232,6 @@ export function GatewaySelector({
   const selectedGateway = selectedGatewayId
     ? gateways.find((g) => g.id === selectedGatewayId)
     : null;
-
-  const handleGatewayChange = (gatewayId: string) => {
-    onGatewayChange(gatewayId);
-    setOpen(false);
-  };
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -308,7 +294,6 @@ export function GatewaySelector({
         <GatewayPopoverContent
           gateways={gateways}
           selectedGatewayId={selectedGatewayId}
-          onGatewayChange={handleGatewayChange}
           searchInputRef={searchInputRef}
         />
       </PopoverContent>

@@ -126,9 +126,7 @@ function ChatEmptyState({ children }: PropsWithChildren) {
 function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
   const { messages, chatStatus: status } = useChat();
   const sentinelRef = useRef<HTMLDivElement>(null);
-
   useChatAutoScroll({ messageCount: messages.length, sentinelRef });
-
   return (
     <MessageList minHeightOffset={minHeightOffset}>
       {messages.map((message, index) =>

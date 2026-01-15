@@ -32,7 +32,10 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition, useRef } from "react";
 import { KEYS } from "../lib/query-keys";
-import { ChatPanel } from "@/web/components/chat/side-panel-chat";
+import {
+  ChatPanel,
+  GatewayStoreProvider,
+} from "@/web/components/chat/side-panel-chat";
 
 function Topbar({
   showSidebarToggle = false,
@@ -207,30 +210,32 @@ function ShellLayoutContent() {
 
   return (
     <ProjectContextProvider {...projectContext}>
-      <PersistentSidebarProvider>
-        <div className="flex flex-col h-screen">
-          <Topbar
-            showSidebarToggle
-            showOrgSwitcher
-            showDecoChat
-            disableDecoChat={isHomeRoute}
-          />
-          <SidebarLayout
-            className="flex-1 bg-sidebar"
-            style={
-              {
-                "--sidebar-width": "13rem",
-                "--sidebar-width-mobile": "11rem",
-              } as Record<string, string>
-            }
-          >
-            <MeshSidebar />
-            <SidebarInset className="pt-12">
-              <ChatPanels disableChat={isHomeRoute} />
-            </SidebarInset>
-          </SidebarLayout>
-        </div>
-      </PersistentSidebarProvider>
+      <GatewayStoreProvider>
+        <PersistentSidebarProvider>
+          <div className="flex flex-col h-screen">
+            <Topbar
+              showSidebarToggle
+              showOrgSwitcher
+              showDecoChat
+              disableDecoChat={isHomeRoute}
+            />
+            <SidebarLayout
+              className="flex-1 bg-sidebar"
+              style={
+                {
+                  "--sidebar-width": "13rem",
+                  "--sidebar-width-mobile": "11rem",
+                } as Record<string, string>
+              }
+            >
+              <MeshSidebar />
+              <SidebarInset className="pt-12">
+                <ChatPanels disableChat={isHomeRoute} />
+              </SidebarInset>
+            </SidebarLayout>
+          </div>
+        </PersistentSidebarProvider>
+      </GatewayStoreProvider>
     </ProjectContextProvider>
   );
 }

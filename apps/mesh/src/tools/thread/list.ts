@@ -15,6 +15,7 @@ import type { Thread } from "@/storage/types";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
 import { ThreadEntitySchema } from "./schema";
+import { z } from "zod";
 
 function isStringOrValue(value: unknown): value is string | number {
   return typeof value === "string" || typeof value === "number";
@@ -144,15 +145,21 @@ export const COLLECTION_THREADS_LIST = defineTool({
   description:
     "List all threads in the organization with filtering, sorting, and pagination",
 
-  inputSchema: CollectionListInputSchema,
+  inputSchema: CollectionListInputSchema.extend({
+    gatewayId: z.string().optional(),
+  }),
   outputSchema: ThreadListOutputSchema,
 
   handler: async (input, ctx) => {
     await ctx.access.check();
+    console.log({ input });
 
     const organization = requireOrganization(ctx);
 
-    const { threads } = await ctx.storage.threads.list(organization.id);
+    const { threads } = await ctx.storage.threads.list(
+      organization.id,
+      input.gatewayId,
+    );
 
     let filteredThreads = threads;
 
