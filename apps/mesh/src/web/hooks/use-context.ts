@@ -10,7 +10,7 @@
  */
 
 import { useParams } from "@tanstack/react-router";
-import { useGatewaySystemPrompt } from "./use-gateway-system-prompt";
+import { useGateway } from "./collections/use-gateway";
 
 /**
  * Hook that generates context for the AI assistant based on current state
@@ -21,9 +21,9 @@ import { useGatewaySystemPrompt } from "./use-gateway-system-prompt";
 export function useContext(gatewayId?: string | null): string {
   // Extract route parameters directly using useParams
   const params = useParams({ strict: false });
+  const gateway = useGateway(gatewayId);
 
   // Get stored system prompt for this gateway
-  const [gatewayPrompt] = useGatewaySystemPrompt(gatewayId ?? undefined);
 
   const contextParts: string[] = [];
 
@@ -33,9 +33,9 @@ export function useContext(gatewayId?: string | null): string {
 - ID: ${gatewayId}`);
 
     // Add gateway-specific custom instructions if available
-    if (gatewayPrompt?.trim()) {
+    if (gateway?.system_prompt?.trim()) {
       contextParts.push(`### Agent Instructions
-${gatewayPrompt}`);
+${gateway?.system_prompt}`);
     }
   }
 
