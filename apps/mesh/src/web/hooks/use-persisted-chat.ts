@@ -18,7 +18,6 @@ import { KEYS } from "../lib/query-keys";
 
 const createModelsTransport = (
   org: string,
-  additionalContext?: Record<string, unknown>,
 ): DefaultChatTransport<UIMessage<Metadata>> =>
   new DefaultChatTransport<UIMessage<Metadata>>({
     api: `/api/${org}/decopilot/stream`,
@@ -27,7 +26,6 @@ const createModelsTransport = (
       body: {
         message: messages.slice(-1)[0],
         stream: true,
-        additionalContext,
         ...(requestMetadata as Metadata | undefined),
       },
     }),
