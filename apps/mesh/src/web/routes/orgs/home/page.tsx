@@ -120,8 +120,6 @@ function HomeContent() {
       </div>
     );
   }
-
-  console.log({ selectedGatewayId, threads });
   return (
     <MetricsModeProvider>
       <Chat>

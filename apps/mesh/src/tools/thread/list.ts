@@ -152,7 +152,6 @@ export const COLLECTION_THREADS_LIST = defineTool({
 
   handler: async (input, ctx) => {
     await ctx.access.check();
-    console.log({ input });
 
     const organization = requireOrganization(ctx);
 
