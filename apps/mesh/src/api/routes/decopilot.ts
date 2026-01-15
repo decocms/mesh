@@ -355,6 +355,8 @@ app.post("/:org/decopilot/stream", async (c) => {
     );
 
     const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
+    // Assign immediately so error handler can clean up on exceptions
+    mcpClient = client;
 
     const userCreatedAt = new Date().toISOString();
 
@@ -381,13 +383,13 @@ app.post("/:org/decopilot/stream", async (c) => {
     ]);
 
     if (!connection) {
+      // Clean up the already-connected client before returning
+      await client.close().catch(console.error);
       return c.json(
         { error: `Model connection not found: ${modelConfig.connectionId}` },
         404,
       );
     }
-
-    mcpClient = client;
 
     // Extract context from frontend system message and combine with base prompt
     const systemMessages = [
