@@ -125,18 +125,15 @@ export function getThreadMessagesFromIndexedDB(
  * Hook to get all threads, optionally filtered by gateway
  *
  * @param options - Optional filter options
- * @param options.gatewayId - Filter threads by gateway ID (not yet implemented in backend)
  * @returns Object with threads array and refetch function
  */
-export function useThreads(options?: { gatewayId?: string }) {
+export function useThreads() {
   const { locator } = useProjectContext();
-  const gatewayId = options?.gatewayId;
 
   const { data, refetch } = useSuspenseQuery({
     queryKey: KEYS.threads(locator),
     queryFn: async () => {
       const result = (await meshToolCaller("COLLECTION_THREADS_LIST", {
-        gatewayId,
         orderBy: [{ field: ["updatedAt"], direction: "desc" }],
         limit: 100,
       })) as CollectionListOutput<ThreadEntity>;
