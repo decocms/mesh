@@ -75,7 +75,12 @@ Follow this state machine when handling user requests:
 };
 
 const StreamRequestSchema = z.object({
-  additionalContext: z.record(z.string(), z.unknown()).optional(),
+  system: z.array(
+    z.object({
+      role: z.literal("system"),
+      parts: z.array(z.object({ type: z.literal("text"), text: z.string() })),
+    }),
+  ),
   message: z.unknown().describe("User message"),
   model: z
     .object({
@@ -315,8 +320,8 @@ app.post("/:org/decopilot/stream", async (c) => {
     const {
       model: modelConfig,
       gateway: gatewayConfig,
-      additionalContext,
       message,
+      system,
       temperature,
       maxWindowSize = DEFAULT_MEMORY,
       thread_id,
@@ -356,7 +361,7 @@ app.post("/:org/decopilot/stream", async (c) => {
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
     const [modelMessages, connection] = await Promise.all([
-      convertToModelMessages(threadMessages, {
+      convertToModelMessages([...system, ...threadMessages], {
         ignoreIncompleteToolCalls: true,
       }),
       getConnectionById(ctx, organization.id, modelConfig.connectionId),
@@ -376,14 +381,6 @@ app.post("/:org/decopilot/stream", async (c) => {
     const systemMessages = [
       DECOPILOT_SYSTEM_MESSAGE,
       ...modelMessages.filter((m) => m.role === "system"),
-      additionalContext
-        ? ({
-            role: "system",
-            content: `
-            Additional context: ${JSON.stringify(additionalContext)}
-            `,
-          } as SystemModelMessage)
-        : undefined,
     ].filter(Boolean) as SystemModelMessage[];
 
     // Filter out system messages (they go to system param, not messages array)
@@ -454,12 +451,14 @@ app.post("/:org/decopilot/stream", async (c) => {
         }
 
         if (part.type === "reasoning-start") {
+          console.log("reasoning-start", part);
           return {
             reasoning_start_at: new Date(),
           };
         }
 
         if (part.type === "reasoning-end") {
+          console.log("reasoning-end", part);
           return {
             reasoning_end_at: new Date(),
           };

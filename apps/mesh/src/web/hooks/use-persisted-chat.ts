@@ -25,6 +25,7 @@ const createModelsTransport = (
     prepareSendMessagesRequest: ({ messages, requestMetadata }) => ({
       body: {
         message: messages.slice(-1)[0],
+        system: messages.filter((m) => m.role === "system"),
         stream: true,
         ...(requestMetadata as Metadata | undefined),
       },
@@ -98,7 +99,7 @@ export interface PersistedChatResult {
 export function usePersistedChat(
   options: UsePersistedChatOptions,
 ): PersistedChatResult {
-  const { threadId, onError, onToolCall } = options;
+  const { threadId, onError, onToolCall, systemPrompt } = options;
   const client = useQueryClient();
   const { locator } = useProjectContext();
   const {
@@ -113,7 +114,18 @@ export function usePersistedChat(
   const persistedMessages = useThreadMessages(threadId) as unknown as Message[];
 
   // Combine system message with persisted messages
-  const allMessages = [...persistedMessages];
+  const allMessages = [
+    ...(systemPrompt
+      ? [
+          {
+            id: crypto.randomUUID(),
+            parts: [{ type: "text", text: systemPrompt }],
+            role: "system",
+          } as UIMessage<Metadata>,
+        ]
+      : []),
+    ...persistedMessages,
+  ];
 
   // Create transport for this org
   const transport = createModelsTransport(orgSlug);

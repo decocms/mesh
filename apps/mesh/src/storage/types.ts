@@ -578,6 +578,7 @@ export interface GatewayTable {
   id: string;
   organization_id: string;
   title: string;
+  system_prompt: string | null;
   description: string | null;
   tool_selection_mode: ToolSelectionMode;
   icon: string | null;

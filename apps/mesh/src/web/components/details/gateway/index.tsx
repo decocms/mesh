@@ -79,6 +79,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
+import { Textarea } from "@deco/ui/components/textarea.js";
 
 type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
 
@@ -100,8 +101,10 @@ const gatewayFormSchema = GatewayEntitySchema.pick({
   description: true,
   status: true,
   tool_selection_mode: true,
+  system_prompt: true,
 }).extend({
   title: z.string().min(1, "Name is required").max(255),
+  system_prompt: z.string().nullable(),
 });
 
 type GatewayFormData = z.infer<typeof gatewayFormSchema>;
@@ -558,7 +561,6 @@ function GatewaySettingsTab({
 }: {
   form: ReturnType<typeof useForm<GatewayFormData>>;
   icon?: string | null;
-  gatewayId: string;
 }) {
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -704,6 +706,32 @@ function GatewaySettingsTab({
               )}
             />
           </div>
+          {/* System Prompt section */}
+          <div className="flex flex-col gap-3 p-5">
+            <div>
+              <h4 className="text-sm font-medium text-foreground mb-1">
+                System Prompt
+              </h4>
+            </div>
+            <FormField
+              control={form.control}
+              name="system_prompt"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      value={field.value || ""}
+                      onChange={(e) => field.onChange(e.target.value)}
+                      placeholder="Enter system prompt instructions..."
+                      className="min-h-[240px] resize-none text-sm leading-relaxed"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
       </Form>
     </div>
@@ -792,6 +820,7 @@ function GatewayInspectorViewWithGateway({
     defaultValues: {
       title: gateway.title,
       description: gateway.description,
+      system_prompt: gateway.system_prompt,
       status: gateway.status,
       tool_selection_mode: gateway.tool_selection_mode ?? "inclusion",
     },
@@ -802,6 +831,7 @@ function GatewayInspectorViewWithGateway({
 
   const handleSave = async () => {
     const formData = form.getValues();
+    console.log("formData", formData);
 
     // Merge all selections into gateway connections format
     const newConnections = mergeSelectionsToGatewayConnections(
@@ -818,6 +848,7 @@ function GatewayInspectorViewWithGateway({
         description: formData.description,
         status: formData.status,
         tool_selection_mode: formData.tool_selection_mode,
+        system_prompt: formData.system_prompt,
         connections: newConnections,
       },
     });
@@ -971,11 +1002,7 @@ function GatewayInspectorViewWithGateway({
                 }
               >
                 {activeTabId === "settings" ? (
-                  <GatewaySettingsTab
-                    form={form}
-                    icon={gateway.icon}
-                    gatewayId={gatewayId}
-                  />
+                  <GatewaySettingsTab form={form} icon={gateway.icon} />
                 ) : activeTabId === "tools" ? (
                   <ToolSetSelector
                     toolSet={toolSet}
