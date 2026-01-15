@@ -9,8 +9,6 @@ import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { ThreadStoragePort } from "./ports";
 import type { Database, Thread, ThreadMessage } from "./types";
-import { UIMessage } from "ai";
-import { Metadata } from "@deco/ui/types/chat-metadata.js";
 
 // ============================================================================
 // Thread Storage Implementation
@@ -48,14 +46,13 @@ export class SqlThreadStorage implements ThreadStoragePort {
       updated_by: data.updatedBy ?? null,
     };
 
-    await this.db.insertInto("threads").values(row).execute();
+    const result = await this.db
+      .insertInto("threads")
+      .values(row)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-    const thread = await this.get(id);
-    if (!thread) {
-      throw new Error(`Failed to create thread with id: ${id}`);
-    }
-
-    return thread;
+    return this.threadFromDbRow(result);
   }
 
   async get(id: string): Promise<Thread | null> {
@@ -151,158 +148,39 @@ export class SqlThreadStorage implements ThreadStoragePort {
     };
   }
 
-  // ==========================================================================
-  // Message Operations
-  // ==========================================================================
-
-  async initializeThread({
-    threadId,
-    organizationId,
-    userId,
-    systemMessage,
-    userMessage,
-  }: {
-    threadId: string;
-    organizationId: string;
-    userId: string;
-    systemMessage: string;
-    userMessage: UIMessage<Metadata>;
-  }): Promise<{ thread: Thread; messages: ThreadMessage[] }> {
+  async saveMessages(data: ThreadMessage[]): Promise<void> {
     const now = new Date().toISOString();
-    const { thread, messages } = await this.db
-      .transaction()
-      .execute(async (tx) => {
-        const threadRow = await tx
-          .insertInto("threads")
-          .values({
-            id: threadId,
-            organization_id: organizationId,
-            created_by: userId,
-            title: "New Thread",
-            description: "New Thread",
-            created_at: now,
-            updated_at: now,
-          })
-          .returningAll()
-          .executeTakeFirstOrThrow();
-        const messagesRows = await tx
-          .insertInto("thread_messages")
-          .values([
-            {
-              id: generatePrefixedId("msg"),
-              thread_id: threadId,
-              role: "system",
-              parts: JSON.stringify([{ type: "text", text: systemMessage }]),
-              created_at: now,
-              updated_at: now,
-            },
-            {
-              id: generatePrefixedId("msg"),
-              thread_id: threadId,
-              role: "user",
-              parts: JSON.stringify(userMessage.parts),
-              metadata: userMessage.metadata
-                ? JSON.stringify(userMessage.metadata)
-                : undefined,
-              created_at: now,
-              updated_at: now,
-            },
-          ])
-          .returningAll()
-          .execute();
-        return {
-          thread: this.threadFromDbRow(threadRow),
-          messages: messagesRows.map((message) =>
-            this.messageFromDbRow(message),
-          ),
-        };
-      });
-
-    return { thread, messages };
-  }
-
-  async createMessage(data: Partial<ThreadMessage>): Promise<ThreadMessage> {
-    const id = data.id ?? generatePrefixedId("msg");
-    const now = new Date().toISOString();
-
-    if (!data.threadId) {
-      throw new Error("threadId is required");
+    const threadId = data[0]?.threadId;
+    if (!threadId) {
+      throw new Error("threadId is required when creating multiple messages");
     }
-    if (!data.role) {
-      throw new Error("role is required");
-    }
-    if (!data.parts) {
-      throw new Error("parts is required");
-    }
-
-    const row = {
-      id,
-      thread_id: data.threadId,
-      metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
-      parts: JSON.stringify(data.parts),
-      role: data.role,
+    console.log({
+      data: data.map((message) => ({
+        parts: message.parts,
+        role: message.role,
+        id: message.id,
+      })),
+    });
+    const rows = data.map((message) => ({
+      id: message.id,
+      thread_id: threadId,
+      metadata: message.metadata ? JSON.stringify(message.metadata) : undefined,
+      parts: JSON.stringify(message.parts),
+      role: message.role,
       created_at: now,
       updated_at: now,
-    };
-
-    await this.db.insertInto("thread_messages").values(row).execute();
-
-    const message = await this.getMessage(id);
-    if (!message) {
-      throw new Error(`Failed to create thread message with id: ${id}`);
-    }
-
-    return message;
-  }
-
-  async getMessage(id: string): Promise<ThreadMessage | null> {
-    const row = await this.db
-      .selectFrom("thread_messages")
-      .selectAll()
-      .where("id", "=", id)
-      .executeTakeFirst();
-
-    return row ? this.messageFromDbRow(row) : null;
-  }
-
-  async updateMessage(
-    id: string,
-    data: Partial<ThreadMessage>,
-  ): Promise<ThreadMessage> {
-    const now = new Date().toISOString();
-
-    const updateData: Record<string, unknown> = {
-      updated_at: now,
-    };
-
-    if (data.metadata !== undefined) {
-      updateData.metadata = data.metadata
-        ? JSON.stringify(data.metadata)
-        : null;
-    }
-    if (data.parts !== undefined) {
-      updateData.parts = JSON.stringify(data.parts);
-    }
-    if (data.role !== undefined) {
-      updateData.role = data.role;
-    }
-
-    await this.db
-      .updateTable("thread_messages")
-      .set(updateData)
-      .where("id", "=", id)
-      .execute();
-
-    const message = await this.getMessage(id);
-    if (!message) {
-      throw new Error("Thread message not found after update");
-    }
-
-    return message;
-  }
-
-  async deleteMessage(id: string): Promise<void> {
-    await this.db.deleteFrom("thread_messages").where("id", "=", id).execute();
+    }));
+    console.log({ parts: rows.map((row) => row.parts) });
+    await this.db.transaction().execute(async (trx) => {
+      await trx.insertInto("thread_messages").values(rows).execute();
+      await trx
+        .updateTable("threads")
+        .set({
+          updated_at: now,
+        })
+        .where("id", "=", threadId)
+        .execute();
+    });
   }
 
   async listMessages(threadId: string): Promise<ThreadMessage[]> {

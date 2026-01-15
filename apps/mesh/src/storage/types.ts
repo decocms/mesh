@@ -13,7 +13,8 @@
 
 import type { ColumnType } from "kysely";
 import type { OAuthConfig, ToolDefinition } from "../tools/connection/schema";
-import type { UIMessagePart } from "ai";
+import type { UIMessage } from "ai";
+import { Metadata } from "@deco/ui/types/chat-metadata.js";
 
 // ============================================================================
 // Type Utilities
@@ -604,7 +605,7 @@ export interface GatewayConnectionTable {
 /**
  * Thread table definition
  * Threads are scopes users in organizations and store messages with Agents.
- * If agent_id is not provided, we assume the user is using the Decopilot.
+ * If agent_id is not provided, we assume the user is using the Decopilot (Mesh main agent).
  */
 export interface ThreadTable {
   id: string;
@@ -624,8 +625,8 @@ export interface Thread {
   agentId: string | null;
   title: string;
   description: string | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
+  createdAt: string;
+  updatedAt: string;
   createdBy: string;
   updatedBy: string | null;
 }
@@ -639,22 +640,8 @@ export interface ThreadMessageTable {
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
-export interface ThreadMessage {
-  id: string;
+export interface ThreadMessage extends UIMessage<Metadata> {
   threadId: string;
-  metadata?: Record<string, unknown>;
-  parts: UIMessagePart<
-    {
-      type: "text" | "reasoning" | "tool-call" | "tool-result";
-      text?: string;
-      reasoning?: string;
-      toolName?: string;
-      toolCallId?: string;
-      providerExecuted?: boolean;
-    },
-    {}
-  >[];
-  role: "user" | "assistant" | "system";
   createdAt: string;
   updatedAt: string;
 }

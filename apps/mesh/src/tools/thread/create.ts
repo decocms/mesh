@@ -12,6 +12,10 @@ import {
   requireOrganization,
 } from "../../core/mesh-context";
 import { ThreadCreateDataSchema, ThreadEntitySchema } from "./schema";
+import {
+  generatePrefixedId,
+  idMatchesPrefix,
+} from "@/shared/utils/generate-id";
 
 /**
  * Input schema for creating threads (wrapped in data field for collection compliance)
@@ -49,8 +53,15 @@ export const COLLECTION_THREADS_CREATE = defineTool({
       throw new Error("User ID required to create thread");
     }
 
-    const thread = await ctx.storage.threads.create({
-      id: input.data.id,
+    let threadId = null;
+    if (input.data.id && idMatchesPrefix(input.data.id, "thrd")) {
+      threadId = input.data.id;
+    } else {
+      threadId = generatePrefixedId("thrd");
+    }
+
+    const result = await ctx.storage.threads.create({
+      id: threadId,
       organizationId: organization.id,
       title: input.data.title,
       description: input.data.description,
@@ -58,7 +69,7 @@ export const COLLECTION_THREADS_CREATE = defineTool({
     });
 
     return {
-      item: thread,
+      item: result,
     };
   },
 });
