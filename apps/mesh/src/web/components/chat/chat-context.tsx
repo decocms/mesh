@@ -17,6 +17,8 @@ import { useLocalStorage } from "../../hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { useProjectContext } from "../../providers/project-context-provider";
 import type { Thread } from "../../types/chat-threads";
+import { useQueryClient } from "@tanstack/react-query";
+import { KEYS } from "../../lib/query-keys";
 
 /**
  * Branch context for tracking message editing flow
@@ -108,6 +110,7 @@ const createThreadId = () => crypto.randomUUID();
  */
 export function ChatProvider({ children }: PropsWithChildren) {
   const { locator } = useProjectContext();
+  const queryClient = useQueryClient();
 
   // Interaction state (reducer-based)
   const [interactionState, interactionDispatch] = useReducer(
@@ -136,6 +139,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     };
     const result = await threadActions.insert.mutateAsync(newThread);
 
+    queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
     setActiveThreadId(result.id);
     return result;
   };

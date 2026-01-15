@@ -480,7 +480,6 @@ app.post("/:org/decopilot/stream", async (c) => {
         // Create messages sequentially to ensure correct timestamp ordering.
         // Using Promise.all would create messages in parallel with the same
         // timestamp, causing ORDER BY created_at to return them in undefined order.
-        console.log({ responseMessage });
         await ctx.storage.threads.saveMessages([
           safeUserMessage,
           {

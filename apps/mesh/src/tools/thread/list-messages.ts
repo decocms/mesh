@@ -41,6 +41,7 @@ export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
 
     // First verify the thread exists and belongs to the organization
     const thread = await ctx.storage.threads.get(input.threadId);
+    console.log({ thread, threadId: input.threadId });
     if (!thread || thread.organizationId !== organization.id) {
       throw new Error("Thread not found in organization");
     }
