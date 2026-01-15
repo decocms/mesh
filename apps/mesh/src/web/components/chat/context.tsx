@@ -54,12 +54,10 @@ const createModelsTransport = (
           }
         : null;
       const lastUserMessage = messages[messages.length - 1];
-      console.log({ messages, lastUserMessage });
       const messagesToSend = systemMessage
         ? [systemMessage, lastUserMessage]
         : [lastUserMessage];
 
-      console.log("messagesToSend", { messagesToSend });
       return {
         body: {
           messages: messagesToSend,
@@ -321,10 +319,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    console.log("newMessages", newMessages);
-    console.log("finishReason", finishReason);
-    const refreshedMessages = await refetchPersistedMessages();
-    console.log("refreshedMessages", refreshedMessages);
+    await refetchPersistedMessages();
   };
 
   const onError = (error: Error) => {
