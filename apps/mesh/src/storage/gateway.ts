@@ -229,7 +229,6 @@ export class GatewayStorage implements GatewayStoragePort {
     data: GatewayUpdateData,
   ): Promise<GatewayEntity> {
     const now = new Date().toISOString();
-    console.log("data", data);
 
     // Build update object for gateway table
     const updateData: Record<string, unknown> = {
