@@ -59,11 +59,15 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
     const thread = await ctx.storage.threads.update(id, {
       title: data.title,
       description: data.description,
+      hidden: data.hidden,
       updatedBy: userId,
     });
 
     return {
-      item: thread,
+      item: {
+        ...thread,
+        hidden: thread.hidden ?? false,
+      },
     };
   },
 });

@@ -611,6 +611,7 @@ export interface ThreadTable {
   organization_id: string;
   title: string;
   description: string | null;
+  hidden: boolean | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string; // User ID;
@@ -626,6 +627,7 @@ export interface Thread {
   updatedAt: string;
   createdBy: string;
   updatedBy: string | null;
+  hidden: boolean | null;
 }
 
 export interface ThreadMessageTable {

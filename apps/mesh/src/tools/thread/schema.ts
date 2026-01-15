@@ -42,6 +42,7 @@ export const ThreadEntitySchema = z.object({
   description: z.string().nullable().describe("Thread description"),
   createdAt: z.string().datetime().describe("Timestamp of creation"),
   updatedAt: z.string().datetime().describe("Timestamp of last update"),
+  hidden: z.boolean().optional().describe("Whether the thread is hidden"),
   createdBy: z.string().describe("User ID who created the thread"),
   updatedBy: z
     .string()
@@ -66,6 +67,7 @@ export type ThreadCreateData = z.infer<typeof ThreadCreateDataSchema>;
 export const ThreadUpdateDataSchema = z.object({
   title: z.string().optional().describe("New thread title"),
   description: z.string().nullish().describe("New thread description"),
+  hidden: z.boolean().optional().describe("Whether the thread is hidden"),
 });
 
 export type ThreadUpdateData = z.infer<typeof ThreadUpdateDataSchema>;

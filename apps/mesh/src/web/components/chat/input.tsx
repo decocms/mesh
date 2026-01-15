@@ -55,6 +55,8 @@ function GatewayBadge({
   const navigate = useNavigate();
   const { org } = useProjectContext();
 
+  console.log({ onGatewayChange, gatewayId, gateways });
+
   const gateway = gateways.find((g) => g.id === gatewayId);
   if (!gateway) return null;
 
@@ -81,6 +83,11 @@ function GatewayBadge({
       to: "/$org/gateways/$gatewayId",
       params: { org: org.slug, gatewayId },
     });
+  };
+
+  const handleGatewayChange = (newGatewayId: string | null) => {
+    onGatewayChange(newGatewayId);
+    setOpen(false);
   };
 
   return (
@@ -123,6 +130,7 @@ function GatewayBadge({
             gateways={gateways}
             selectedGatewayId={gatewayId}
             searchInputRef={searchInputRef}
+            onGatewayChange={handleGatewayChange}
           />
         </PopoverContent>
       </Popover>
@@ -188,6 +196,8 @@ export function ChatInput() {
     finishReason,
     clearFinishReason,
   } = useChat();
+
+  console.log({ setGatewayId, selectedGateway });
 
   const canSubmit =
     !isStreaming && selectedModel && inputValue.trim().length > 0;
@@ -365,6 +375,7 @@ export function ChatInput() {
                 {!selectedGateway && (
                   <GatewaySelector
                     selectedGatewayId={null}
+                    onGatewayChange={setGatewayId}
                     gateways={gateways}
                     placeholder="Agent"
                     disabled={isStreaming}

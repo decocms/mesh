@@ -238,6 +238,7 @@ export function useThreadActions() {
         data: {
           title: updates.title,
           description: null,
+          hidden: updates.hidden,
         },
       })) as CollectionInsertOutput<ThreadEntity>;
 

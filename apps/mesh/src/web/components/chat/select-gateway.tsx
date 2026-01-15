@@ -88,6 +88,7 @@ function GatewayItemContent({
 export interface GatewayPopoverContentProps {
   gateways: GatewayInfo[];
   selectedGatewayId?: string | null;
+  onGatewayChange?: (gatewayId: string | null) => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
@@ -99,6 +100,7 @@ export interface GatewayPopoverContentProps {
 export function GatewayPopoverContent({
   gateways,
   selectedGatewayId,
+  onGatewayChange,
   searchInputRef,
 }: GatewayPopoverContentProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -119,6 +121,13 @@ export function GatewayPopoverContent({
       );
     });
   })();
+
+  const handleSelect = (gatewayId: string) => {
+    console.log("handleSelect", gatewayId);
+    console.log("onGatewayChange", onGatewayChange);
+    onGatewayChange?.(gatewayId);
+    setSearchTerm("");
+  };
 
   return (
     <div className="flex flex-col max-h-[400px]">
@@ -158,7 +167,7 @@ export function GatewayPopoverContent({
                 key={gateway.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => {}}
+                onClick={() => handleSelect(gateway.id)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
@@ -191,6 +200,7 @@ export interface GatewaySelectorProps {
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
+  onGatewayChange?: (gatewayId: string | null) => void;
   showTooltip?: boolean;
   disabled?: boolean;
 }
@@ -202,6 +212,7 @@ export interface GatewaySelectorProps {
  */
 export function GatewaySelector({
   selectedGatewayId,
+  onGatewayChange,
   gateways: gatewaysProp,
   variant: _variant,
   className,
@@ -289,6 +300,7 @@ export function GatewaySelector({
         <GatewayPopoverContent
           gateways={gateways}
           selectedGatewayId={selectedGatewayId}
+          onGatewayChange={onGatewayChange}
           searchInputRef={searchInputRef}
         />
       </PopoverContent>
