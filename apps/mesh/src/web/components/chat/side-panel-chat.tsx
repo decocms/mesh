@@ -69,7 +69,7 @@ function ChatPanelContent() {
     isChatEmpty,
   } = useChat();
 
-  if (modelsConnections.length === 0) { 
+  if (modelsConnections.length === 0) {
     const title = "No model provider connected";
     const description =
       "Connect to a model provider to unlock AI-powered features.";
@@ -129,9 +129,7 @@ function ChatPanelContent() {
         <Chat.Header.Right>
           <button
             type="button"
-            onClick={() =>
-              createThread()
-            }
+            onClick={() => createThread()}
             className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
             title="New chat"
           >

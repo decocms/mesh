@@ -103,7 +103,7 @@ function toMessage(entity: ThreadMessageEntity): Message {
  * @param _locator - Unused, kept for backward compatibility
  * @param threadId - The ID of the thread
  */
-export async function getThreadMessagesFromIndexedDB(
+export async function getThreadMessages(
   _locator: string,
   threadId: string,
 ): Promise<Message[]> {
@@ -112,6 +112,16 @@ export async function getThreadMessagesFromIndexedDB(
   });
   const output = result as CollectionListOutput<ThreadMessageEntity>;
   return output.items.map(toMessage);
+}
+
+export async function getThread(
+  _locator: string,
+  threadId: string,
+): Promise<Thread> {
+  const result = await meshToolCaller("COLLECTION_THREADS_GET", {
+    id: threadId,
+  });
+  return toThread(result as ThreadEntity);
 }
 
 // ============================================================================
@@ -157,8 +167,7 @@ export function useThreadMessages(threadId: string | null) {
 
   const { data } = useSuspenseQuery({
     queryKey: KEYS.threadMessages(locator, threadId ?? "new-chat"),
-    queryFn: () =>
-      threadId ? getThreadMessagesFromIndexedDB(locator, threadId) : [],
+    queryFn: () => (threadId ? getThreadMessages(locator, threadId) : []),
     staleTime: 30_000,
   });
 

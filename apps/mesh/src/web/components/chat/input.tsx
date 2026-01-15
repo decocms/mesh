@@ -83,11 +83,6 @@ function GatewayBadge({
     });
   };
 
-  const handleGatewayChange = (newGatewayId: string) => {
-    onGatewayChange(newGatewayId);
-    setOpen(false);
-  };
-
   return (
     <div
       className={cn(
@@ -127,7 +122,6 @@ function GatewayBadge({
           <GatewayPopoverContent
             gateways={gateways}
             selectedGatewayId={gatewayId}
-            onGatewayChange={handleGatewayChange}
             searchInputRef={searchInputRef}
           />
         </PopoverContent>
@@ -371,7 +365,6 @@ export function ChatInput() {
                 {!selectedGateway && (
                   <GatewaySelector
                     selectedGatewayId={null}
-                    onGatewayChange={setGatewayId}
                     gateways={gateways}
                     placeholder="Agent"
                     disabled={isStreaming}

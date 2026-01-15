@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import {
-  getThreadFromIndexedDB,
+  getThread,
   useMessageActions,
   useThreadActions,
   useThreadMessages,
@@ -325,10 +325,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
         ?.parts?.find((part) => part.type === "text")
         ?.text.slice(0, 100) || "";
 
-    const existingThread = await getThreadFromIndexedDB(
-      locator,
-      activeThreadId,
-    );
+    const existingThread = await getThread(locator, activeThreadId);
 
     if (!existingThread) {
       const now = new Date().toISOString();

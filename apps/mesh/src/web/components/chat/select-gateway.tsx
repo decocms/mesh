@@ -15,10 +15,15 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Check, CpuChip02, SearchMd } from "@untitledui/icons";
-import { useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { useGateways as useGatewaysCollection } from "../../hooks/collections/use-gateway";
 import { useCreateGateway } from "../../hooks/use-create-gateway";
-import { useChat } from "./chat-context";
 
 export interface GatewayInfo
   extends Pick<GatewayEntity, "id" | "title" | "description" | "icon"> {
@@ -114,7 +119,6 @@ export function GatewayPopoverContent({
       );
     });
   })();
-
 
   return (
     <div className="flex flex-col max-h-[400px]">
