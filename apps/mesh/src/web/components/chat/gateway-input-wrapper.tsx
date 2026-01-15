@@ -18,6 +18,7 @@ import {
 } from "react";
 import { GatewayPopoverContent, useGateways } from "./gateway-selector";
 import { useGatewayActions, useSelectedGatewayId } from "./side-panel-chat";
+import { useThreadsStoreActions } from "./threads-store";
 
 // ============================================================================
 // GatewayBadge - Internal component for displaying selected gateway
@@ -42,6 +43,7 @@ function GatewayBadge({ className, disabled = false }: GatewayBadgeProps) {
   const { org } = useProjectContext();
   const selectedGatewayId = useSelectedGatewayId();
   const { setSelectedGatewayId } = useGatewayActions();
+  const { setSelectedThreadId } = useThreadsStoreActions();
   const gateway = selectedGatewayId
     ? gateways.find((g) => g.id === selectedGatewayId)
     : null;
@@ -65,6 +67,7 @@ function GatewayBadge({ className, disabled = false }: GatewayBadgeProps) {
   const handleReset = (e: MouseEvent) => {
     e.stopPropagation();
     setSelectedGatewayId(null);
+    setSelectedThreadId(null);
   };
 
   const handleEdit = (e: MouseEvent) => {

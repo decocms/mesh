@@ -18,7 +18,11 @@ import type { Thread } from "../../types/chat-threads";
 import { useQueryClient } from "@tanstack/react-query";
 import { KEYS } from "../../lib/query-keys";
 import { useSelectedGatewayId } from "./side-panel-chat";
-import { useSelectedThreadId, useThreadsStoreActions } from "./threads-store";
+import {
+  ThreadMessagesStoreProvider,
+  useSelectedThreadId,
+  useThreadsStoreActions,
+} from "./threads-store";
 
 /**
  * Branch context for tracking message editing flow
@@ -160,7 +164,11 @@ export function ChatProvider({ children }: PropsWithChildren) {
     hideThread,
   };
 
-  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+  return (
+    <ThreadMessagesStoreProvider threadId={selectedThreadId ?? "new-chat"}>
+      <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
+    </ThreadMessagesStoreProvider>
+  );
 }
 
 /**

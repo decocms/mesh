@@ -160,12 +160,13 @@ export function useThreads(options?: { gatewayId?: string }) {
  * @param gatewayId - Optional gateway ID for query key scoping
  * @returns Suspense query result with messages array
  */
-export function useThreadMessages(threadId: string) {
+export function useThreadMessages(threadId: string | null) {
   const { locator } = useProjectContext();
 
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.threadMessages(locator, threadId),
-    queryFn: () => getThreadMessagesFromIndexedDB(locator, threadId),
+    queryKey: KEYS.threadMessages(locator, threadId ?? "new-chat"),
+    queryFn: () =>
+      threadId ? getThreadMessagesFromIndexedDB(locator, threadId) : [],
     staleTime: 30_000,
   });
 
