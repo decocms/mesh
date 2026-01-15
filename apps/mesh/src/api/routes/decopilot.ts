@@ -247,10 +247,13 @@ function createGatewayTransport(
 
 async function getOrCreateThread(
   ctx: MeshContext,
-  threadId: string | null | undefined,
   {
+    threadId,
+    organizationId,
     message,
   }: {
+    threadId: string | null | undefined;
+    organizationId: string;
     message: unknown;
   },
 ): Promise<{ thread: Thread; messages: ThreadMessage[] }> {
@@ -260,13 +263,14 @@ async function getOrCreateThread(
   if (!userMessage) {
     throw new Error("No user message found in request");
   }
+  const userId = ensureUser(ctx);
 
   let thread: Thread | null = null;
   if (!threadId) {
     const { thread, messages } = await ctx.storage.threads.initializeThread({
       threadId: generatePrefixedId("thrd"),
-      organizationId: ctx.organization?.id ?? "",
-      userId: ctx.auth?.user?.id ?? "",
+      organizationId,
+      userId,
       systemMessage: DECOPILOT_SYSTEM_MESSAGE.content.toString(),
       userMessage,
     });
@@ -275,13 +279,15 @@ async function getOrCreateThread(
   thread = await ctx.storage.threads.get(threadId);
   if (thread) {
     // Create the new user message first, then list all messages including it
-    await ctx.storage.threads.createMessage({
-      threadId: thread.id,
-      role: "user",
-      parts: userMessage.parts as ThreadMessage["parts"],
-      metadata: userMessage.metadata as ThreadMessage["metadata"],
-    });
-    const messages = await ctx.storage.threads.listMessages(threadId);
+    const [messages] = await Promise.all([
+      ctx.storage.threads.listMessages(thread.id),
+      ctx.storage.threads.createMessage({
+        threadId: thread.id,
+        role: "user",
+        parts: userMessage.parts as ThreadMessage["parts"],
+        metadata: userMessage.metadata as ThreadMessage["metadata"],
+      }),
+    ]);
     return { thread, messages };
   }
   throw new Error(
@@ -297,7 +303,6 @@ app.post("/:org/decopilot/stream", async (c) => {
 
   try {
     const organization = ensureOrganization(ctx, orgSlug);
-    const userId = ensureUser(ctx);
     const rawPayload = await c.req.json();
     // Validate request using Zod schema
     const parseResult = StreamRequestSchema.safeParse(rawPayload);
@@ -320,13 +325,11 @@ app.post("/:org/decopilot/stream", async (c) => {
       maxWindowSize = DEFAULT_MEMORY,
       thread_id: threadId,
     } = payload;
-    const { thread, messages: threadMessages } = await getOrCreateThread(
-      ctx,
+    const { thread, messages: threadMessages } = await getOrCreateThread(ctx, {
       threadId,
-      {
-        message,
-      },
-    );
+      organizationId: organization.id,
+      message,
+    });
     console.log("threadMessages", JSON.stringify(threadMessages, null, 2));
     // Use limits from model config, fallback to default
     const maxOutputTokens =
