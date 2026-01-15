@@ -39,7 +39,10 @@ export const COLLECTION_THREADS_GET = defineTool({
     }
 
     return {
-      item: thread,
+      item: {
+        ...thread,
+        hidden: thread.hidden ?? false,
+      },
     };
   },
 });

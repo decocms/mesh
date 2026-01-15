@@ -41,7 +41,10 @@ export const COLLECTION_THREADS_DELETE = defineTool({
     await ctx.storage.threads.delete(input.id);
 
     return {
-      item: thread,
+      item: {
+        ...thread,
+        hidden: thread.hidden ?? false,
+      },
     };
   },
 });

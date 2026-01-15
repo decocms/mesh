@@ -108,6 +108,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .selectFrom("threads")
       .selectAll()
       .where("organization_id", "=", organizationId)
+      .where("hidden", "=", false)
       .orderBy("updated_at", "desc");
 
     const countQuery = this.db

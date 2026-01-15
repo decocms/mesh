@@ -152,7 +152,10 @@ export const COLLECTION_THREADS_LIST = defineTool({
 
     const organization = requireOrganization(ctx);
 
-    const { threads } = await ctx.storage.threads.list(organization.id);
+    const { threads } = await ctx.storage.threads.list(organization.id, {
+      limit: input.limit,
+      offset: input.offset,
+    });
 
     let filteredThreads = threads;
 
@@ -176,7 +179,10 @@ export const COLLECTION_THREADS_LIST = defineTool({
     const hasMore = offset + limit < totalCount;
 
     return {
-      items: paginatedThreads,
+      items: paginatedThreads.map((thread) => ({
+        ...thread,
+        hidden: thread.hidden ?? false,
+      })),
       totalCount,
       hasMore,
     };
