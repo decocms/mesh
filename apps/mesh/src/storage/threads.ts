@@ -32,7 +32,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       throw new Error("createdBy is required");
     }
     if (!data.title) {
-      data.title = "New Thread";
+      data.title = "New Thread - " + now;
     }
 
     const row = {
