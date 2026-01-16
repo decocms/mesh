@@ -61,8 +61,10 @@ async function withGatewayClient<T>(
   try {
     await client.connect(transport);
     return await callback(client);
-  } catch {
-    throw new Error("Failed to fetch gateway prompts.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[gateway-prompts] Error for gateway ${gatewayId}:`, error);
+    throw new Error(`Failed to communicate with gateway: ${message}`);
   } finally {
     await client.close().catch(console.error);
   }
@@ -80,7 +82,8 @@ async function fetchGatewayPrompts(
       (client) => client.listPrompts(),
     );
     return result.prompts ?? [];
-  } catch {
+  } catch (error) {
+    console.error("[gateway-prompts] Failed to list prompts:", error);
     return [];
   }
 }
