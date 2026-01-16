@@ -16,6 +16,7 @@ import {
 } from "@/web/hooks/collections/use-gateway";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
+import { useDeveloperMode } from "@/web/hooks/use-developer-mode";
 import { useGatewaySystemPrompt } from "@/web/hooks/use-gateway-system-prompt";
 import { slugify } from "@/web/utils/slugify";
 import { Badge } from "@deco/ui/components/badge.tsx";
@@ -558,6 +559,7 @@ function GatewaySettingsTab({
   icon?: string | null;
   gatewayId: string;
 }) {
+  const [developerMode] = useDeveloperMode();
   const [systemPrompt, setSystemPrompt] = useGatewaySystemPrompt(gatewayId);
 
   return (
@@ -639,71 +641,73 @@ function GatewaySettingsTab({
           </div>
 
           {/* Configuration section */}
-          <div className="flex flex-col gap-4 p-5 border-b border-border">
-            {/* Selection Mode */}
-            <FormField
-              control={form.control}
-              name="tool_selection_mode"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between gap-3">
-                    <FormLabel className="mb-0">Selection Mode</FormLabel>
-                    <div className="flex items-center gap-1.5">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-7"
-                              aria-label="Selection mode help"
-                            >
-                              <InfoCircle
-                                size={14}
-                                className="text-muted-foreground"
-                              />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="left" className="max-w-sm">
-                            <div className="text-xs space-y-1">
-                              <div>
-                                <strong>Include:</strong> Only selected items
-                                are exposed.
+          {developerMode && (
+            <div className="flex flex-col gap-4 p-5 border-b border-border">
+              {/* Selection Mode */}
+              <FormField
+                control={form.control}
+                name="tool_selection_mode"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center justify-between gap-3">
+                      <FormLabel className="mb-0">Selection Mode</FormLabel>
+                      <div className="flex items-center gap-1.5">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                aria-label="Selection mode help"
+                              >
+                                <InfoCircle
+                                  size={14}
+                                  className="text-muted-foreground"
+                                />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-sm">
+                              <div className="text-xs space-y-1">
+                                <div>
+                                  <strong>Include:</strong> Only selected items
+                                  are exposed.
+                                </div>
+                                <div>
+                                  <strong>Exclude:</strong> All items except
+                                  selected ones are exposed.
+                                </div>
                               </div>
-                              <div>
-                                <strong>Exclude:</strong> All items except
-                                selected ones are exposed.
-                              </div>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="inclusion">
-                            Include Selected
-                          </SelectItem>
-                          <SelectItem value="exclusion">
-                            Exclude Selected
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="inclusion">
+                              Include Selected
+                            </SelectItem>
+                            <SelectItem value="exclusion">
+                              Exclude Selected
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
 
           {/* System Prompt section */}
           <div className="flex flex-col gap-3 p-5">
