@@ -6,4 +6,4 @@
  */
 
 export { default } from "./decopilot/routes";
-export type { StreamRequest } from "./decopilot/routes";
+export type { StreamRequest } from "./decopilot/schemas";
