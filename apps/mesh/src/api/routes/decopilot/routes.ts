@@ -46,23 +46,10 @@ async function createConnectedAgent(config: {
   transport: StreamableHTTPClientTransport;
   monitoringProperties?: Record<string, string>;
 }): Promise<Agent> {
-  console.log("[decopilot:agent] 🚀 Creating agent...", {
-    organizationId: config.organizationId,
-    threadId: config.threadId,
-  });
-
   const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
   await client.connect(config.transport);
-  console.log("[decopilot:agent] ✅ Connected to gateway");
 
   const tools = await toolsFromMCP(client, config.monitoringProperties);
-  const toolNames = Object.keys(tools);
-  console.log("[decopilot:agent] 🔧 Tools loaded:", {
-    count: toolNames.length,
-    tools: toolNames.slice(0, 10), // Show first 10
-    hasMore: toolNames.length > 10,
-  });
-
   const agent = createAgentImpl({
     organizationId: config.organizationId,
     client,
@@ -226,21 +213,6 @@ app.post("/:org/decopilot/stream", async (c) => {
       });
     }
 
-    console.log("[decopilot:stream] 🎯 Starting LLM stream", {
-      model: modelProvider.modelId,
-      connection: modelProvider.connectionId,
-      temperature,
-      maxOutputTokens,
-      toolCount: Object.keys(agent.tools).length,
-      systemPromptCount: systemMessages.length,
-      messageCount: prunedMessages.length,
-      generatingTitle: shouldGenerateTitle,
-    });
-
-    console.log({
-      systemMessages: systemMessages.map((m) => m.content).join("\n"),
-    });
-
     // 5. Main agent stream
     const result = streamText({
       model: modelProvider.model,
@@ -268,6 +240,8 @@ app.post("/:org/decopilot/stream", async (c) => {
         }
       },
     });
+
+    result.consumeStream();
 
     // 6. Return the stream response with metadata
     return result.toUIMessageStreamResponse({

@@ -10,6 +10,7 @@ import {
   pruneMessages,
   SystemModelMessage,
   UIMessage,
+  validateUIMessages,
 } from "ai";
 
 import type { MeshContext } from "@/core/mesh-context";
@@ -38,12 +39,6 @@ export async function processConversation(
     messages: UIMessage<Metadata>[];
   },
 ): Promise<ProcessedConversation> {
-  console.log("[decopilot:conversation] 📝 Processing conversation...", {
-    threadId: config.threadId,
-    windowSize: config.windowSize,
-    incomingMessages: config.messages.length,
-  });
-
   const userId = ensureUser(ctx);
 
   // Create or load memory
@@ -57,16 +52,18 @@ export async function processConversation(
   // Load thread history
   const threadMessages = await memory.loadHistory();
 
+  const allMessages = [...threadMessages, ...config.messages];
+  const validatedMessages = await validateUIMessages({ messages: allMessages });
+
   // Convert to model messages
-  const modelMessages = await convertToModelMessages(
-    [...threadMessages, ...config.messages],
-    { ignoreIncompleteToolCalls: true },
-  );
+  const modelMessages = await convertToModelMessages(validatedMessages, {
+    ignoreIncompleteToolCalls: true,
+  });
 
   const userCreatedAt = new Date().toISOString();
 
   // Extract user messages
-  const userMessages = config.messages.filter(
+  const userMessages = modelMessages.filter(
     (m) => m.role === "user",
   ) as unknown as UIMessage<Metadata>[];
 
@@ -89,14 +86,6 @@ export async function processConversation(
     emptyMessages: "remove",
     toolCalls: "none",
   }).slice(-config.windowSize);
-
-  console.log("[decopilot:conversation] ✅ Conversation processed", {
-    threadId: memory.thread.id,
-    historyLoaded: threadMessages.length,
-    systemPrompts: systemMessages.length,
-    prunedMessages: prunedMessages.length,
-    userMessages: userMessages.length,
-  });
 
   return {
     memory,
