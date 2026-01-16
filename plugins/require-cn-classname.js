@@ -15,10 +15,23 @@
 
 const requireCnClassNameRule = {
   create(context) {
+    // Get filename - try getFilename() method (ESLint API) first, then fallback to filename property
+    let filename;
+    if (typeof context.getFilename === "function") {
+      filename = context.getFilename();
+    } else {
+      filename = context.filename;
+    }
+    
     // Check if file is in packages/ui (should be excluded)
-    const filename = context.filename || "";
-    const normalizedPath = filename.replace(/\\/g, "/");
-    const isInPackagesUi = normalizedPath.includes("/packages/ui/");
+    // Early return with empty visitor if we're in packages/ui
+    if (filename && typeof filename === "string") {
+      const normalizedPath = filename.replace(/\\/g, "/");
+      if (normalizedPath.includes("/packages/ui/")) {
+        // Return empty visitor to skip all checks for files in packages/ui
+        return {};
+      }
+    }
 
     return {
       JSXAttribute(node) {
@@ -27,11 +40,6 @@ const requireCnClassNameRule = {
           node.name.type !== "JSXIdentifier" ||
           node.name.name !== "className"
         ) {
-          return;
-        }
-
-        // Skip if in packages/ui
-        if (isInPackagesUi) {
           return;
         }
 
