@@ -840,7 +840,7 @@ function OrgMcpsContent() {
               }}
             >
               <Eye size={16} />
-              Inspect
+              Open
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"
@@ -1361,7 +1361,7 @@ function OrgMcpsContent() {
                           }}
                         >
                           <Eye size={16} />
-                          Inspect
+                          Open
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"

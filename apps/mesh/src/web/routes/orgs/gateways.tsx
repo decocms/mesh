@@ -187,7 +187,7 @@ function OrgGatewaysContent() {
               }}
             >
               <Eye size={16} />
-              Inspect
+              Open
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"
@@ -351,7 +351,7 @@ function OrgGatewaysContent() {
                           }}
                         >
                           <Eye size={16} />
-                          Inspect
+                          Open
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"
