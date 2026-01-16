@@ -62,7 +62,7 @@ export function LogRow({
         className={cn(
           "flex items-center h-14 md:h-16 transition-colors cursor-pointer",
           !isFirst && "border-t border-border/60",
-          isExpanded ? "bg-muted/30 hover:bg-accent/80" : "hover:bg-muted/40"
+          isExpanded ? "bg-muted/30 hover:bg-accent/80" : "hover:bg-muted/40",
         )}
         onClick={onToggle}
       >

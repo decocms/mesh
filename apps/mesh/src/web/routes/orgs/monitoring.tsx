@@ -878,7 +878,10 @@ function MonitoringDashboardContent({
               <Button
                 variant={isStreaming ? "secondary" : "outline"}
                 size="sm"
-                className={cn("h-7 px-2 sm:px-3 gap-1.5", isStreaming && "bg-muted hover:bg-muted/80")}
+                className={cn(
+                  "h-7 px-2 sm:px-3 gap-1.5",
+                  isStreaming && "bg-muted hover:bg-muted/80",
+                )}
                 onClick={onStreamingToggle}
               >
                 {isStreaming ? (

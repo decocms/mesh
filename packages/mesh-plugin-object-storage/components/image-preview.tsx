@@ -90,7 +90,10 @@ export function ImagePreview({
   return (
     <div
       ref={setContainerRef}
-      className={cn("relative w-full h-full flex items-center justify-center overflow-hidden", className)}
+      className={cn(
+        "relative w-full h-full flex items-center justify-center overflow-hidden",
+        className,
+      )}
     >
       {!isVisible || isLoading ? (
         // Placeholder while not visible or loading

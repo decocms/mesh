@@ -328,7 +328,11 @@ export function MonitoringStatsRow({
           }
         >
           <div
-            className={cn("flex flex-col gap-2 w-full", isClickable && "cursor-pointer hover:opacity-80 transition-opacity")}
+            className={cn(
+              "flex flex-col gap-2 w-full",
+              isClickable &&
+                "cursor-pointer hover:opacity-80 transition-opacity",
+            )}
             onClick={onKPIClick ? () => onKPIClick(dataKey) : undefined}
           >
             <KPIChart

@@ -77,7 +77,10 @@ function FileRow({
       <button
         type="button"
         onClick={() => (item.isFolder ? onNavigate(item.key) : undefined)}
-        className={cn("flex items-center gap-2 flex-1 min-w-0 text-left", item.isFolder && "cursor-pointer hover:text-primary")}
+        className={cn(
+          "flex items-center gap-2 flex-1 min-w-0 text-left",
+          item.isFolder && "cursor-pointer hover:text-primary",
+        )}
       >
         {item.isFolder ? (
           <Folder size={18} className="text-amber-500 shrink-0" />
@@ -145,7 +148,9 @@ function Breadcrumb({ prefix, onNavigate }: BreadcrumbProps) {
             onClick={() => onNavigate(segment.path)}
             className={cn(
               "hover:text-primary",
-              i === segments.length - 1 ? "font-medium text-foreground" : "text-muted-foreground"
+              i === segments.length - 1
+                ? "font-medium text-foreground"
+                : "text-muted-foreground",
             )}
           >
             {segment.name}

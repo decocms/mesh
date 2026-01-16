@@ -44,7 +44,8 @@ function VersionDropdown({
           size={showLabel ? "sm" : "default"}
           className={cn(
             "shrink-0 cursor-pointer",
-            variant === "brand" && "rounded-l-none px-2 border-l-2 border-l-white/50"
+            variant === "brand" &&
+              "rounded-l-none px-2 border-l-2 border-l-white/50",
           )}
         >
           {showLabel && (

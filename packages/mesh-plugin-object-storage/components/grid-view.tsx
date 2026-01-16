@@ -84,7 +84,7 @@ function GridItem({ item, onNavigate, onDownload, onDelete }: GridItemProps) {
         className={cn(
           "flex flex-col items-center justify-center w-full h-full",
           !isImage && "p-4",
-          item.isFolder ? "cursor-pointer" : "cursor-default"
+          item.isFolder ? "cursor-pointer" : "cursor-default",
         )}
       >
         {/* Image preview or icon */}
@@ -95,7 +95,9 @@ function GridItem({ item, onNavigate, onDownload, onDelete }: GridItemProps) {
         ) : (
           <IconComponent
             size={48}
-            className={cn(item.isFolder ? "text-amber-500" : "text-muted-foreground")}
+            className={cn(
+              item.isFolder ? "text-amber-500" : "text-muted-foreground",
+            )}
           />
         )}
 

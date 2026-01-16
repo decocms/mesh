@@ -5,7 +5,7 @@
  * - Identifier/member expressions: className={styles.foo}
  * - cn() calls: className={cn(...)}
  * - null/undefined/false: className={null}
- * 
+ *
  * Disallows:
  * - Ternary expressions: className={cond ? "a" : "b"}
  * - Template literals: className={`a ${b}`}
@@ -55,7 +55,10 @@ const requireCnClassNameRule = {
           }
 
           // Allow string literals: className={"..."}
-          if (expression.type === "Literal" && typeof expression.value === "string") {
+          if (
+            expression.type === "Literal" &&
+            typeof expression.value === "string"
+          ) {
             return;
           }
 
@@ -72,10 +75,7 @@ const requireCnClassNameRule = {
           // Allow cn() call expressions: className={cn(...)}
           if (expression.type === "CallExpression") {
             const callee = expression.callee;
-            if (
-              callee.type === "Identifier" &&
-              callee.name === "cn"
-            ) {
+            if (callee.type === "Identifier" && callee.name === "cn") {
               return;
             }
             // Also allow member expressions like utils.cn
