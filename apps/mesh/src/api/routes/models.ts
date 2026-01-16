@@ -370,9 +370,6 @@ app.post("/:org/models/stream", async (c) => {
 
         if (part.type === "finish-step") {
           const usage = part.usage;
-          transport.close().catch((error) => {
-            console.error("[models:stream] Error closing transport", error);
-          });
           return {
             usage: {
               ...usage,
