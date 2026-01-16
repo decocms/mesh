@@ -38,37 +38,7 @@ import {
   useModels,
 } from "./select-model";
 
-const createModelsTransport = (
-  org: string,
-): DefaultChatTransport<UIMessage<Metadata>> =>
-  new DefaultChatTransport<UIMessage<Metadata>>({
-    api: `/api/${org}/decopilot/stream`,
-    credentials: "include",
-    prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
-      const { system, ...metadata } = requestMetadata as Metadata;
-      const systemMessage: UIMessage<Metadata> | null = system
-        ? {
-            id: crypto.randomUUID(),
-            role: "system",
-            parts: [{ type: "text", text: system }],
-          }
-        : null;
-
-      const messagesToSend = systemMessage
-        ? [systemMessage, ...messages]
-        : messages;
-
-      console.log({ systemMessage, messagesToSend, messages });
-
-      return {
-        body: {
-          messages: messagesToSend,
-          stream: true,
-          ...metadata,
-        },
-      };
-    },
-  });
+// Removed - now using DecopilotTransport
 
 /**
  * Find an item by id in an array, or return the first item, or null
@@ -135,6 +105,8 @@ export interface ChatState {
   branchContext: BranchContext | null;
   /** Finish reason from the last chat completion */
   finishReason: string | null;
+  /** Generated title from parallel LLM stream */
+  generatedTitle: string | null;
 }
 
 /**
@@ -146,6 +118,8 @@ export type ChatStateAction =
   | { type: "CLEAR_BRANCH" }
   | { type: "SET_FINISH_REASON"; payload: string | null }
   | { type: "CLEAR_FINISH_REASON" }
+  | { type: "SET_GENERATED_TITLE"; payload: string }
+  | { type: "CLEAR_GENERATED_TITLE" }
   | { type: "RESET" };
 
 /**
@@ -155,6 +129,7 @@ const initialChatState: ChatState = {
   inputValue: "",
   branchContext: null,
   finishReason: null,
+  generatedTitle: null,
 };
 
 /**
@@ -175,6 +150,10 @@ function chatStateReducer(
       return { ...state, finishReason: action.payload };
     case "CLEAR_FINISH_REASON":
       return { ...state, finishReason: null };
+    case "SET_GENERATED_TITLE":
+      return { ...state, generatedTitle: action.payload };
+    case "CLEAR_GENERATED_TITLE":
+      return { ...state, generatedTitle: null };
     case "RESET":
       return initialChatState;
     default:
@@ -224,6 +203,7 @@ interface ChatContextValue {
   clearChatError: () => void;
   finishReason: string | null;
   clearFinishReason: () => void;
+  generatedTitle: string | null;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -288,7 +268,33 @@ export function ChatProvider({ children }: PropsWithChildren) {
     ? (gateways.find((g) => g.id === storedSelectedGatewayId) ?? null)
     : null;
 
-  const transport = createModelsTransport(org.slug);
+  // Create standard transport
+  const transport = new DefaultChatTransport<UIMessage<Metadata>>({
+    api: `/api/${org.slug}/decopilot/stream`,
+    credentials: "include",
+    prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
+      const { system, ...metadata } = requestMetadata as Metadata;
+      const systemMessage: UIMessage<Metadata> | null = system
+        ? {
+            id: crypto.randomUUID(),
+            role: "system",
+            parts: [{ type: "text", text: system }],
+          }
+        : null;
+
+      const messagesToSend = systemMessage
+        ? [systemMessage, ...messages]
+        : messages;
+
+      return {
+        body: {
+          messages: messagesToSend,
+          stream: true,
+          ...metadata,
+        },
+      };
+    },
+  });
 
   // ===========================================================================
   // 3. HOOK CALLBACKS - Functions passed to hooks
@@ -420,6 +426,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     setInputValue("");
     clearBranch();
     chatDispatch({ type: "CLEAR_FINISH_REASON" });
+    chatDispatch({ type: "CLEAR_GENERATED_TITLE" });
 
     const metadata: Metadata = {
       created_at: new Date().toISOString(),
@@ -496,6 +503,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     clearChatError: chat.clearError,
     finishReason: chatState.finishReason,
     clearFinishReason,
+    generatedTitle: chatState.generatedTitle,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

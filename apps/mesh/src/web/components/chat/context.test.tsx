@@ -16,6 +16,7 @@ describe("ChatState Reducer Logic", () => {
     inputValue: "",
     branchContext: null,
     finishReason: null,
+    generatedTitle: null,
   };
 
   // Helper to simulate reducer behavior
@@ -32,7 +33,12 @@ describe("ChatState Reducer Logic", () => {
       case "CLEAR_FINISH_REASON":
         return { ...state, finishReason: null };
       case "RESET":
-        return { inputValue: "", branchContext: null, finishReason: null };
+        return {
+          inputValue: "",
+          branchContext: null,
+          finishReason: null,
+          generatedTitle: null,
+        };
       default:
         return state;
     }
@@ -83,6 +89,7 @@ describe("ChatState Reducer Logic", () => {
         originalMessageText: "Original message",
       },
       finishReason: null,
+      generatedTitle: null,
     };
 
     const action: ChatStateAction = { type: "CLEAR_BRANCH" };
@@ -109,6 +116,7 @@ describe("ChatState Reducer Logic", () => {
       inputValue: "",
       branchContext: null,
       finishReason: "stop",
+      generatedTitle: null,
     };
 
     const action: ChatStateAction = { type: "CLEAR_FINISH_REASON" };
@@ -127,6 +135,7 @@ describe("ChatState Reducer Logic", () => {
         originalMessageText: "Original message",
       },
       finishReason: "stop",
+      generatedTitle: null,
     };
 
     const action: ChatStateAction = { type: "RESET" };
@@ -182,6 +191,7 @@ describe("ChatState Reducer Logic", () => {
       inputValue: "Original",
       branchContext: null,
       finishReason: null,
+      generatedTitle: null,
     };
 
     const action: ChatStateAction = {
@@ -208,6 +218,7 @@ describe("ChatState Reducer Logic", () => {
       inputValue: "",
       branchContext: originalBranch,
       finishReason: null,
+      generatedTitle: null,
     };
 
     const newState = applyAction(stateWithBranch, { type: "CLEAR_BRANCH" });
