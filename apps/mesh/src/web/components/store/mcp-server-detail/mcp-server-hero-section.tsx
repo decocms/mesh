@@ -1,6 +1,7 @@
 import type { RegistryItem } from "@/web/components/store/types";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Plus, ChevronDown, CheckCircle } from "@untitledui/icons";
 import {
   DropdownMenu,
@@ -41,11 +42,10 @@ function VersionDropdown({
           variant={variant}
           disabled={isInstalling}
           size={showLabel ? "sm" : "default"}
-          className={
-            variant === "brand"
-              ? "shrink-0 rounded-l-none px-2 border-l-2 border-l-white/50 cursor-pointer"
-              : "shrink-0 cursor-pointer"
-          }
+          className={cn(
+            "shrink-0 cursor-pointer",
+            variant === "brand" && "rounded-l-none px-2 border-l-2 border-l-white/50"
+          )}
         >
           {showLabel && (
             <span className="mr-1">

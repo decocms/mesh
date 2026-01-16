@@ -10,6 +10,7 @@ import { usePluginContext } from "@decocms/bindings";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
 import { useQuery } from "@tanstack/react-query";
 import { Image01, Loading01, AlertCircle } from "@untitledui/icons";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { KEYS } from "../lib/query-keys";
 
 interface ImagePreviewProps {
@@ -89,7 +90,7 @@ export function ImagePreview({
   return (
     <div
       ref={setContainerRef}
-      className={`relative w-full h-full flex items-center justify-center overflow-hidden ${className}`}
+      className={cn("relative w-full h-full flex items-center justify-center overflow-hidden", className)}
     >
       {!isVisible || isLoading ? (
         // Placeholder while not visible or loading

@@ -11,6 +11,7 @@ import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
 import { useObjects, type ObjectItem } from "../hooks/use-objects";
 import { getFileName, getFileIcon, formatFileSize } from "../lib/utils";
 import { Button } from "@deco/ui/components/button.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   Folder,
   File02,
@@ -80,9 +81,11 @@ function GridItem({ item, onNavigate, onDownload, onDelete }: GridItemProps) {
       <button
         type="button"
         onClick={() => (item.isFolder ? onNavigate(item.key) : undefined)}
-        className={`flex flex-col items-center justify-center w-full h-full ${
-          isImage ? "" : "p-4"
-        } ${item.isFolder ? "cursor-pointer" : "cursor-default"}`}
+        className={cn(
+          "flex flex-col items-center justify-center w-full h-full",
+          !isImage && "p-4",
+          item.isFolder ? "cursor-pointer" : "cursor-default"
+        )}
       >
         {/* Image preview or icon */}
         {isImage ? (
@@ -92,9 +95,7 @@ function GridItem({ item, onNavigate, onDownload, onDelete }: GridItemProps) {
         ) : (
           <IconComponent
             size={48}
-            className={
-              item.isFolder ? "text-amber-500" : "text-muted-foreground"
-            }
+            className={cn(item.isFolder ? "text-amber-500" : "text-muted-foreground")}
           />
         )}
 

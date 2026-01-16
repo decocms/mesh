@@ -6,6 +6,7 @@
  */
 
 import { Avatar, type AvatarProps } from "@deco/ui/components/avatar.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { useUserById } from "../../hooks/use-user-by-id";
 
 export interface UserProps {
@@ -43,7 +44,7 @@ export function User({
   // Loading state
   if (isLoading) {
     return (
-      <div className={`flex items-center gap-2 ${className || ""}`}>
+      <div className={cn("flex items-center gap-2", className)}>
         <Avatar.Skeleton shape="circle" size={size} />
         <div className="flex flex-col gap-1">
           <div className="h-3 w-24 bg-muted animate-pulse rounded" />
@@ -58,7 +59,7 @@ export function User({
   // Error or not found state
   if (isError || !user) {
     return (
-      <div className={`flex items-center gap-2 ${className || ""}`}>
+      <div className={cn("flex items-center gap-2", className)}>
         <Avatar shape="circle" size={size} fallback="?" muted />
         <div className="flex flex-col">
           <div className="text-sm text-muted-foreground">Unknown User</div>
@@ -69,7 +70,7 @@ export function User({
 
   // Success state
   return (
-    <div className={`flex items-center gap-2 ${className || ""}`}>
+    <div className={cn("flex items-center gap-2", className)}>
       <Avatar
         shape="circle"
         size={size}

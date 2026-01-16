@@ -10,6 +10,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@deco/ui/components/chart.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Bar, BarChart, Cell } from "recharts";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
 
@@ -207,7 +208,7 @@ function KPIChart({ data, dataKey, colorNum, chartHeight }: KPIChartProps) {
 
   return (
     <ChartContainer
-      className={`${chartHeight} w-full`}
+      className={cn(chartHeight, "w-full")}
       config={{ [dataKey]: { label: dataKey, color: colorVar } }}
     >
       <BarChart data={data} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
@@ -327,7 +328,7 @@ export function MonitoringStatsRow({
           }
         >
           <div
-            className={`flex flex-col gap-2 w-full ${isClickable ? "cursor-pointer hover:opacity-80 transition-opacity" : ""}`}
+            className={cn("flex flex-col gap-2 w-full", isClickable && "cursor-pointer hover:opacity-80 transition-opacity")}
             onClick={onKPIClick ? () => onKPIClick(dataKey) : undefined}
           >
             <KPIChart

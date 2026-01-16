@@ -18,6 +18,7 @@ import {
 } from "../lib/utils";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Checkbox } from "@deco/ui/components/checkbox.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   Folder,
   File02,
@@ -76,9 +77,7 @@ function FileRow({
       <button
         type="button"
         onClick={() => (item.isFolder ? onNavigate(item.key) : undefined)}
-        className={`flex items-center gap-2 flex-1 min-w-0 text-left ${
-          item.isFolder ? "cursor-pointer hover:text-primary" : ""
-        }`}
+        className={cn("flex items-center gap-2 flex-1 min-w-0 text-left", item.isFolder && "cursor-pointer hover:text-primary")}
       >
         {item.isFolder ? (
           <Folder size={18} className="text-amber-500 shrink-0" />
@@ -144,11 +143,10 @@ function Breadcrumb({ prefix, onNavigate }: BreadcrumbProps) {
           <button
             type="button"
             onClick={() => onNavigate(segment.path)}
-            className={`hover:text-primary ${
-              i === segments.length - 1
-                ? "font-medium text-foreground"
-                : "text-muted-foreground"
-            }`}
+            className={cn(
+              "hover:text-primary",
+              i === segments.length - 1 ? "font-medium text-foreground" : "text-muted-foreground"
+            )}
           >
             {segment.name}
           </button>

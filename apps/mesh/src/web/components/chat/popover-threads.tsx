@@ -10,6 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
 import { useState } from "react";
 import { useChat } from "./context";
@@ -198,9 +199,7 @@ export function ThreadHistoryPopover({
                       return (
                         <div
                           key={thread.id}
-                          className={`flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer group ${
-                            isActive ? "bg-accent/50" : ""
-                          }`}
+                          className={cn("flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer group", isActive && "bg-accent/50")}
                           onClick={() => setActiveThreadId(thread.id)}
                         >
                           <div className="flex-1 min-w-0 flex items-center gap-2">
