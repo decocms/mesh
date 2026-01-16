@@ -54,7 +54,7 @@
     "@decocms/runtime": "workspace:*",
     "@decocms/vite-plugin": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
-    "@modelcontextprotocol/sdk": "1.25.1",
+    "@modelcontextprotocol/sdk": "1.25.2",
     "@monaco-editor/react": "^4.7.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-prometheus": "^0.208.0",

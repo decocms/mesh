@@ -37,7 +37,7 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
-    "@modelcontextprotocol/sdk": "1.25.1",
+    "@modelcontextprotocol/sdk": "1.25.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.0.4"
   },
