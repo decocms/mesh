@@ -746,7 +746,6 @@ function GatewayInspectorViewWithGateway({
   const router = useRouter();
   const navigate = useNavigate({ from: "/$org/gateways/$gatewayId" });
   const actions = useGatewayActions();
-  const [developerMode] = useDeveloperMode();
 
   // Fetch all connections to get tool names for "all tools" expansion
   const connections = useConnections({});
@@ -840,9 +839,7 @@ function GatewayInspectorViewWithGateway({
         title: formData.title,
         description: formData.description,
         status: formData.status,
-        tool_selection_mode: developerMode
-          ? formData.tool_selection_mode
-          : "inclusion",
+        tool_selection_mode: formData.tool_selection_mode,
         connections: newConnections,
       },
     });
