@@ -97,11 +97,6 @@ function InvitationItem({
 
   // Use what data we have from the invitation
   const orgName = invitation.organizationName || invitation.organizationId;
-  const inviterDisplay =
-    invitation.inviter?.name ||
-    invitation.inviter?.email ||
-    invitation.email ||
-    "Someone";
 
   const isPending = invitation.status === "pending";
   const isAccepted = invitation.status === "accepted";
@@ -115,10 +110,7 @@ function InvitationItem({
         <Mail01 size={16} className="text-muted-foreground" />
       </div>
       <p className="flex-1 text-sm text-foreground min-w-0 whitespace-nowrap overflow-hidden">
-        <span className="font-semibold inline-block max-w-[120px] truncate align-bottom">
-          {inviterDisplay}
-        </span>
-        {" invited you to join "}
+        {"You have been invited to "}
         <span className="font-semibold inline-block max-w-[200px] truncate align-bottom">
           {orgName}
         </span>
