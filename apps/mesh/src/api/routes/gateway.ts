@@ -306,15 +306,6 @@ app.all("/gateway/:gatewayId?", async (c) => {
       },
     );
 
-    // Create transport
-    const transport = new WebStandardStreamableHTTPServerTransport({
-      enableJsonResponse:
-        c.req.header("Accept")?.includes("application/json") ?? false,
-    });
-
-    // Connect server to transport
-    await server.connect(transport);
-
     // Handle list_tools
     server.server.setRequestHandler(
       ListToolsRequestSchema,
@@ -373,8 +364,17 @@ app.all("/gateway/:gatewayId?", async (c) => {
       },
     );
 
+    // Create transport
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      enableJsonResponse:
+        c.req.header("Accept")?.includes("application/json") ?? false,
+    });
+    // Connect server to transport
+    await server.connect(transport);
     // Handle the incoming MCP message
-    return await transport.handleRequest(c.req.raw);
+    return await transport
+      .handleRequest(c.req.raw)
+      .finally(() => transport.close());
   } catch (error) {
     const err = error as Error;
     console.error("[gateway] Error handling gateway request:", err);

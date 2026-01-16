@@ -786,15 +786,6 @@ async function createMCPProxyDoNotUseDirectly(
       },
     );
 
-    // Create transport (web-standard Streamable HTTP for fetch Request/Response)
-    const transport = new WebStandardStreamableHTTPServerTransport({
-      enableJsonResponse:
-        req.headers.get("Accept")?.includes("application/json") ?? false,
-    });
-
-    // Connect server to transport
-    await server.connect(transport);
-
     // Tools handlers
     server.server.setRequestHandler(ListToolsRequestSchema, () =>
       client.listTools(),
@@ -829,8 +820,16 @@ async function createMCPProxyDoNotUseDirectly(
       );
     }
 
+    // Create transport (web-standard Streamable HTTP for fetch Request/Response)
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      enableJsonResponse:
+        req.headers.get("Accept")?.includes("application/json") ?? false,
+    });
+
+    // Connect server to transport
+    await server.connect(transport);
     // Handle the incoming message
-    return await transport.handleRequest(req);
+    return await transport.handleRequest(req).finally(() => transport.close());
   };
 
   return {
