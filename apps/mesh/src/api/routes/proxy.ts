@@ -572,6 +572,10 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
+      const capabilities = client.getServerCapabilities();
+      if (!capabilities?.resources) {
+        return { resources: [] };
+      }
       return await client.listResources();
     } finally {
       client?.close().catch(console.error);
@@ -597,6 +601,10 @@ async function createMCPProxyDoNotUseDirectly(
       let client: Awaited<ReturnType<typeof createClient>> | undefined;
       try {
         client = await createClient();
+        const capabilities = client.getServerCapabilities();
+        if (!capabilities?.resources) {
+          return { resourceTemplates: [] };
+        }
         return await client.listResourceTemplates();
       } finally {
         client?.close().catch(console.error);
@@ -608,10 +616,11 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
+      const capabilities = client.getServerCapabilities();
+      if (!capabilities?.prompts) {
+        return { prompts: [] };
+      }
       return await client.listPrompts();
-    } catch (error) {
-      console.error("[proxy:listPrompts] Error listing prompts:", error);
-      throw error;
     } finally {
       client?.close().catch(console.error);
     }
@@ -624,6 +633,10 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
+      const capabilities = client.getServerCapabilities();
+      if (!capabilities?.prompts) {
+        throw new Error("Prompts capability not supported");
+      }
       return await client.getPrompt(params);
     } finally {
       client?.close().catch(console.error);
@@ -756,6 +769,12 @@ async function createMCPProxyDoNotUseDirectly(
       throw error;
     }
 
+    const clientCapabilities = client.getServerCapabilities();
+    const proxyCapabilities = clientCapabilities ?? {
+      tools: {},
+      resources: {},
+      prompts: {},
+    };
     // Create MCP server for this proxy
     const server = new McpServer(
       {
@@ -763,7 +782,7 @@ async function createMCPProxyDoNotUseDirectly(
         version: "1.0.0",
       },
       {
-        capabilities: { tools: {}, resources: {}, prompts: {} },
+        capabilities: proxyCapabilities,
       },
     );
 
@@ -785,26 +804,30 @@ async function createMCPProxyDoNotUseDirectly(
     server.server.setRequestHandler(CallToolRequestSchema, executeToolCall);
 
     // Resources handlers
-    server.server.setRequestHandler(ListResourcesRequestSchema, () =>
-      client.listResources(),
-    );
+    if (proxyCapabilities.resources) {
+      server.server.setRequestHandler(ListResourcesRequestSchema, () =>
+        client.listResources(),
+      );
 
-    server.server.setRequestHandler(ReadResourceRequestSchema, (request) =>
-      client.readResource(request.params),
-    );
+      server.server.setRequestHandler(ReadResourceRequestSchema, (request) =>
+        client.readResource(request.params),
+      );
 
-    server.server.setRequestHandler(ListResourceTemplatesRequestSchema, () =>
-      client.listResourceTemplates(),
-    );
+      server.server.setRequestHandler(ListResourceTemplatesRequestSchema, () =>
+        client.listResourceTemplates(),
+      );
+    }
 
-    // Prompts handlers
-    server.server.setRequestHandler(ListPromptsRequestSchema, () =>
-      client.listPrompts(),
-    );
+    if (proxyCapabilities.prompts) {
+      // Prompts handlers
+      server.server.setRequestHandler(ListPromptsRequestSchema, () =>
+        client.listPrompts(),
+      );
 
-    server.server.setRequestHandler(GetPromptRequestSchema, (request) =>
-      client.getPrompt(request.params),
-    );
+      server.server.setRequestHandler(GetPromptRequestSchema, (request) =>
+        client.getPrompt(request.params),
+      );
+    }
 
     // Handle the incoming message
     return await transport.handleRequest(req);

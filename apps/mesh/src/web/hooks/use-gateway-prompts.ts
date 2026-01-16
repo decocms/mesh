@@ -42,7 +42,9 @@ async function fetchGatewayPrompts(
         method: "initialize",
         params: {
           protocolVersion: "2025-06-18",
-          capabilities: {},
+          capabilities: {
+            prompts: {},
+          },
           clientInfo: {
             name: "mesh-chat",
             version: "1.0.0",
@@ -57,6 +59,13 @@ async function fetchGatewayPrompts(
 
     const initData: JsonRpcResponse = await initResponse.json();
     if (initData.error) {
+      return [];
+    }
+
+    const { capabilities } = initData.result as {
+      capabilities?: { prompts?: unknown };
+    };
+    if (!capabilities?.prompts) {
       return [];
     }
 
