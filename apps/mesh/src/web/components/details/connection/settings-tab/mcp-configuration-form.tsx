@@ -258,7 +258,7 @@ function BindingSelector({
 
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger size="sm" className={cn(className ?? "w-[200px]")}>
+      <SelectTrigger size="sm" className={cn("w-[200px]", className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
