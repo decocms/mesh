@@ -42,6 +42,7 @@ const migrations = {
     migration018dropgatewaytoolselectionstrategy,
   "019-remove-gateway-is-default": migration019removegatewayisdefault,
   "020-enabled-plugins": migration020enabledplugins,
+  "021-connection-capabilities": migration021connectioncapabilities,
 } satisfies Record<string, Migration>;
 
 export default migrations;

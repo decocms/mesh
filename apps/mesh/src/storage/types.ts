@@ -172,6 +172,14 @@ export interface MCPConnectionTable {
   tools: JsonArray<ToolDefinition[]> | null; // Discovered tools from MCP
   bindings: JsonArray<string[]> | null; // Detected bindings (CHAT, EMAIL, etc.)
 
+  // Cached MCP server capabilities
+  capabilities: JsonObject<ServerCapabilities> | null;
+  capabilities_updated_at: ColumnType<
+    Date,
+    Date | string,
+    Date | string
+  > | null;
+
   status: "active" | "inactive" | "error";
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;

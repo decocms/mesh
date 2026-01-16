@@ -574,7 +574,7 @@ async function createMCPProxyDoNotUseDirectly(
       client = await createClient();
       const capabilities = client.getServerCapabilities();
       if (!capabilities?.resources) {
-        throw new Error("Resources capability not supported");
+        return { resources: [] };
       }
       return await client.listResources();
     } finally {
@@ -601,6 +601,10 @@ async function createMCPProxyDoNotUseDirectly(
       let client: Awaited<ReturnType<typeof createClient>> | undefined;
       try {
         client = await createClient();
+        const capabilities = client.getServerCapabilities();
+        if (!capabilities?.resources) {
+          return { resourceTemplates: [] };
+        }
         return await client.listResourceTemplates();
       } finally {
         client?.close().catch(console.error);
@@ -612,10 +616,11 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
+      const capabilities = client.getServerCapabilities();
+      if (!capabilities?.prompts) {
+        return { prompts: [] };
+      }
       return await client.listPrompts();
-    } catch (error) {
-      console.error("[proxy:listPrompts] Error listing prompts:", error);
-      throw error;
     } finally {
       client?.close().catch(console.error);
     }
@@ -628,6 +633,10 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
+      const capabilities = client.getServerCapabilities();
+      if (!capabilities?.prompts) {
+        throw new Error("Prompts capability not supported");
+      }
       return await client.getPrompt(params);
     } finally {
       client?.close().catch(console.error);
@@ -760,7 +769,8 @@ async function createMCPProxyDoNotUseDirectly(
       throw error;
     }
 
-    const proxyCapabilities = client.getServerCapabilities() ?? {
+    const clientCapabilities = client.getServerCapabilities();
+    const proxyCapabilities = clientCapabilities ?? {
       tools: {},
       resources: {},
       prompts: {},
