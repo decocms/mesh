@@ -30,10 +30,16 @@ describe("isConnectionAuthenticated", () => {
     });
 
     expect(result.isAuthenticated).toBe(true);
-    expect(result.supportsOAuth).toBe(true);
+    // When authenticated, we can't determine OAuth support from a 200 response
+    // (no 401 to check WWW-Authenticate header), so it defaults to false
+    expect(result.supportsOAuth).toBe(false);
+    // hasOAuthToken is false because there's no connection ID to check OAuth token status
+    expect(result.hasOAuthToken).toBe(false);
 
     const calls = (global.fetch as unknown as ReturnType<typeof mock>).mock
       .calls;
+    // Should be exactly 1 call - OAuth token status check is skipped for external URLs
+    // (only /mcp/:connectionId paths trigger the status check)
     expect(calls.length).toBe(1);
     const [calledUrl, init] = calls[0] as [string, RequestInit];
     expect(calledUrl).toBe("https://example.com/mcp");
