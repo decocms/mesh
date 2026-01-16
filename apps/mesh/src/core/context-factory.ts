@@ -385,6 +385,7 @@ import { createMCPProxy } from "@/api/routes/proxy";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { WellKnownMCPId } from "./well-known-mcp";
+import { SqlThreadStorage } from "@/storage/threads";
 
 /**
  * Fetch role permissions from the database
@@ -727,6 +728,7 @@ export function createMeshContextFactory(
     monitoring: new SqlMonitoringStorage(config.db, config.databaseType),
     gateways: new GatewayStorage(config.db),
     users: new UserStorage(config.db),
+    threads: new SqlThreadStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin

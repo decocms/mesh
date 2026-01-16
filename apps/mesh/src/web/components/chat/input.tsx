@@ -55,6 +55,8 @@ function GatewayBadge({
   const navigate = useNavigate();
   const { org } = useProjectContext();
 
+  console.log({ onGatewayChange, gatewayId, gateways });
+
   const gateway = gateways.find((g) => g.id === gatewayId);
   if (!gateway) return null;
 
@@ -83,7 +85,7 @@ function GatewayBadge({
     });
   };
 
-  const handleGatewayChange = (newGatewayId: string) => {
+  const handleGatewayChange = (newGatewayId: string | null) => {
     onGatewayChange(newGatewayId);
     setOpen(false);
   };
@@ -127,8 +129,8 @@ function GatewayBadge({
           <GatewayPopoverContent
             gateways={gateways}
             selectedGatewayId={gatewayId}
-            onGatewayChange={handleGatewayChange}
             searchInputRef={searchInputRef}
+            onGatewayChange={handleGatewayChange}
           />
         </PopoverContent>
       </Popover>

@@ -10,15 +10,13 @@ import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   createContext,
+  type PropsWithChildren,
   useContext,
   useReducer,
-  type PropsWithChildren,
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import {
-  getThreadFromIndexedDB,
-  useMessageActions,
   useThreadActions,
   useThreadMessages,
   useThreads,
@@ -35,36 +33,12 @@ import type { ChatMessage } from "./index";
 import type { GatewayInfo } from "./select-gateway";
 import { useGateways } from "./select-gateway";
 import {
-  useModels,
   type ModelChangePayload,
   type SelectedModelState,
+  useModels,
 } from "./select-model";
 
-const createModelsTransport = (
-  org: string,
-): DefaultChatTransport<UIMessage<Metadata>> =>
-  new DefaultChatTransport<UIMessage<Metadata>>({
-    api: `/api/${org}/models/stream`,
-    credentials: "include",
-    prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
-      const { system, ...metadata } = requestMetadata as Metadata;
-      const systemMessage: UIMessage<Metadata> | null = system
-        ? {
-            id: crypto.randomUUID(),
-            role: "system",
-            parts: [{ type: "text", text: system }],
-          }
-        : null;
-
-      return {
-        body: {
-          messages: systemMessage ? [systemMessage, ...messages] : messages,
-          stream: true,
-          ...metadata,
-        },
-      };
-    },
-  });
+// Removed - now using DecopilotTransport
 
 /**
  * Find an item by id in an array, or return the first item, or null
@@ -131,6 +105,8 @@ export interface ChatState {
   branchContext: BranchContext | null;
   /** Finish reason from the last chat completion */
   finishReason: string | null;
+  /** Generated title from parallel LLM stream */
+  generatedTitle: string | null;
 }
 
 /**
@@ -142,6 +118,8 @@ export type ChatStateAction =
   | { type: "CLEAR_BRANCH" }
   | { type: "SET_FINISH_REASON"; payload: string | null }
   | { type: "CLEAR_FINISH_REASON" }
+  | { type: "SET_GENERATED_TITLE"; payload: string }
+  | { type: "CLEAR_GENERATED_TITLE" }
   | { type: "RESET" };
 
 /**
@@ -151,6 +129,7 @@ const initialChatState: ChatState = {
   inputValue: "",
   branchContext: null,
   finishReason: null,
+  generatedTitle: null,
 };
 
 /**
@@ -171,6 +150,10 @@ function chatStateReducer(
       return { ...state, finishReason: action.payload };
     case "CLEAR_FINISH_REASON":
       return { ...state, finishReason: null };
+    case "SET_GENERATED_TITLE":
+      return { ...state, generatedTitle: action.payload };
+    case "CLEAR_GENERATED_TITLE":
+      return { ...state, generatedTitle: null };
     case "RESET":
       return initialChatState;
     default:
@@ -220,11 +203,12 @@ interface ChatContextValue {
   clearChatError: () => void;
   finishReason: string | null;
   clearFinishReason: () => void;
+  generatedTitle: string | null;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
-const createThreadId = () => crypto.randomUUID();
+const createThreadId = () => `thrd_${crypto.randomUUID()}`;
 
 /**
  * Provider component for chat context
@@ -250,13 +234,13 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Thread state
   const threadActions = useThreadActions();
-  const messageActions = useMessageActions();
   const { threads } = useThreads();
   const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
     LOCALSTORAGE_KEYS.threadManagerState(locator) + ":active-id",
     (existing) => existing || createThreadId(),
   );
-  const persistedMessages = useThreadMessages(activeThreadId);
+  const { messages: persistedMessages, refetch: refetchPersistedMessages } =
+    useThreadMessages(activeThreadId);
 
   // Gateway state
   const gateways = useGateways();
@@ -284,7 +268,33 @@ export function ChatProvider({ children }: PropsWithChildren) {
     ? (gateways.find((g) => g.id === storedSelectedGatewayId) ?? null)
     : null;
 
-  const transport = createModelsTransport(org.slug);
+  // Create standard transport
+  const transport = new DefaultChatTransport<UIMessage<Metadata>>({
+    api: `/api/${org.slug}/decopilot/stream`,
+    credentials: "include",
+    prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
+      const { system, ...metadata } = requestMetadata as Metadata;
+      const systemMessage: UIMessage<Metadata> | null = system
+        ? {
+            id: crypto.randomUUID(),
+            role: "system",
+            parts: [{ type: "text", text: system }],
+          }
+        : null;
+
+      const messagesToSend = systemMessage
+        ? [systemMessage, ...messages]
+        : messages;
+
+      return {
+        body: {
+          messages: messagesToSend,
+          stream: true,
+          ...metadata,
+        },
+      };
+    },
+  });
 
   // ===========================================================================
   // 3. HOOK CALLBACKS - Functions passed to hooks
@@ -312,46 +322,12 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
     const newMessages = messages.slice(-2).filter(Boolean) as Message[];
 
-    if (newMessages.length !== 2) {
+    if (newMessages?.length !== 2) {
       console.warn("[chat] Expected 2 messages, got", newMessages.length);
       return;
     }
 
-    messageActions.insertMany.mutate(newMessages);
-
-    const msgTitle =
-      newMessages
-        .find((m) => m.parts?.find((part) => part.type === "text"))
-        ?.parts?.find((part) => part.type === "text")
-        ?.text.slice(0, 100) || "";
-
-    const existingThread = await getThreadFromIndexedDB(
-      locator,
-      activeThreadId,
-    );
-
-    if (!existingThread) {
-      const now = new Date().toISOString();
-      const newThread: Thread = {
-        id: activeThreadId,
-        title: msgTitle,
-        created_at: now,
-        updated_at: now,
-        hidden: false,
-        gatewayId: selectedGateway?.id,
-      };
-      threadActions.insert.mutate(newThread);
-      return;
-    }
-
-    threadActions.update.mutate({
-      id: activeThreadId,
-      updates: {
-        title: existingThread.title || msgTitle,
-        gatewayId: existingThread.gatewayId || selectedGateway?.id,
-        updated_at: new Date().toISOString(),
-      },
-    });
+    await refetchPersistedMessages();
   };
 
   const onError = (error: Error) => {
@@ -378,7 +354,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const isStreaming =
     chat.status === "submitted" || chat.status === "streaming";
 
-  const isChatEmpty = chat.messages.length === 0;
+  const isChatEmpty = chat.messages?.length === 0;
 
   // ===========================================================================
   // 6. RETURNED FUNCTIONS - Functions exposed via context
@@ -397,7 +373,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Thread functions
   const createThread = (thread?: Partial<Thread>) => {
-    const id = thread?.id || crypto.randomUUID();
+    const id = createThreadId();
     const now = new Date().toISOString();
     const newThread: Thread = {
       id,
@@ -450,6 +426,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     setInputValue("");
     clearBranch();
     chatDispatch({ type: "CLEAR_FINISH_REASON" });
+    chatDispatch({ type: "CLEAR_GENERATED_TITLE" });
 
     const metadata: Metadata = {
       created_at: new Date().toISOString(),
@@ -526,6 +503,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     clearChatError: chat.clearError,
     finishReason: chatState.finishReason,
     clearFinishReason,
+    generatedTitle: chatState.generatedTitle,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

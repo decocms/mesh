@@ -88,7 +88,7 @@ function GatewayItemContent({
 export interface GatewayPopoverContentProps {
   gateways: GatewayInfo[];
   selectedGatewayId?: string | null;
-  onGatewayChange: (gatewayId: string) => void;
+  onGatewayChange?: (gatewayId: string | null) => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
@@ -109,7 +109,6 @@ export function GatewayPopoverContent({
   const { createGateway, isCreating } = useCreateGateway({
     navigateOnCreate: true,
   });
-
   // Filter gateways based on search term
   const filteredGateways = (() => {
     if (!searchTerm.trim()) return gateways;
@@ -124,7 +123,9 @@ export function GatewayPopoverContent({
   })();
 
   const handleSelect = (gatewayId: string) => {
-    onGatewayChange(gatewayId);
+    console.log("handleSelect", gatewayId);
+    console.log("onGatewayChange", onGatewayChange);
+    onGatewayChange?.(gatewayId);
     setSearchTerm("");
   };
 
@@ -170,7 +171,6 @@ export function GatewayPopoverContent({
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    handleSelect(gateway.id);
                   }
                 }}
                 className="outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-xl"
@@ -196,11 +196,11 @@ export function GatewayPopoverContent({
 
 export interface GatewaySelectorProps {
   selectedGatewayId?: string | null;
-  onGatewayChange: (gatewayId: string) => void;
   gateways?: GatewayInfo[];
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
+  onGatewayChange?: (gatewayId: string | null) => void;
   showTooltip?: boolean;
   disabled?: boolean;
 }
@@ -241,11 +241,6 @@ export function GatewaySelector({
   const selectedGateway = selectedGatewayId
     ? gateways.find((g) => g.id === selectedGatewayId)
     : null;
-
-  const handleGatewayChange = (gatewayId: string) => {
-    onGatewayChange(gatewayId);
-    setOpen(false);
-  };
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -308,7 +303,7 @@ export function GatewaySelector({
         <GatewayPopoverContent
           gateways={gateways}
           selectedGatewayId={selectedGatewayId}
-          onGatewayChange={handleGatewayChange}
+          onGatewayChange={onGatewayChange}
           searchInputRef={searchInputRef}
         />
       </PopoverContent>

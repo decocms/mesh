@@ -13,6 +13,8 @@
 
 import type { ColumnType } from "kysely";
 import type { OAuthConfig, ToolDefinition } from "../tools/connection/schema";
+import type { UIMessage } from "ai";
+import { Metadata } from "@deco/ui/types/chat-metadata.js";
 
 // ============================================================================
 // Type Utilities
@@ -601,6 +603,49 @@ export interface GatewayConnectionTable {
 }
 
 /**
+ * Thread table definition
+ * Threads are scopes users in organizations and store messages with Agents.
+ */
+export interface ThreadTable {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string | null;
+  hidden: boolean | null;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+  created_by: string; // User ID;
+  updated_by: string | null;
+}
+
+export interface Thread {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  updatedBy: string | null;
+  hidden: boolean | null;
+}
+
+export interface ThreadMessageTable {
+  id: string;
+  thread_id: string;
+  metadata: string | null;
+  parts: JsonArray<Record<string, unknown>>;
+  role: "user" | "assistant" | "system";
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+export interface ThreadMessage extends UIMessage<Metadata> {
+  threadId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
  *
@@ -635,4 +680,7 @@ export interface Database {
   // Gateway tables
   gateways: GatewayTable;
   gateway_connections: GatewayConnectionTable;
+
+  threads: ThreadTable;
+  thread_messages: ThreadMessageTable;
 }

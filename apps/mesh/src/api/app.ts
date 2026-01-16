@@ -27,7 +27,7 @@ import authRoutes from "./routes/auth";
 import downstreamTokenRoutes from "./routes/downstream-token";
 import gatewayRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
-import modelsRoutes from "./routes/models";
+import decopilotRoutes from "./routes/decopilot";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,
@@ -571,7 +571,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/mcp", proxyRoutes);
 
   // Measure LLM models route latency
-  app.use("/api/:org/models/*", async (c, next) => {
+  app.use("/api/:org/decopilot/*", async (c, next) => {
     startTime(c, "llm_models");
     try {
       return await next();
@@ -581,7 +581,7 @@ export function createApp(options: CreateAppOptions = {}) {
   });
 
   // LLM API routes (OpenAI-compatible)
-  app.route("/api", modelsRoutes);
+  app.route("/api", decopilotRoutes);
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {

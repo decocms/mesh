@@ -13,7 +13,6 @@ import {
 import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
 import { useState } from "react";
 import { useChat } from "./context";
-import { useThreads } from "../../hooks/use-chat-store";
 import type { Thread } from "@/web/types/chat-threads";
 
 type ThreadSection = {
@@ -107,10 +106,8 @@ export function ThreadHistoryPopover({
 }: {
   variant?: "outline" | "icon";
 }) {
-  const { threads, refetch } = useThreads();
-  const { activeThreadId, setActiveThreadId, hideThread } = useChat();
+  const { setActiveThreadId, hideThread, activeThreadId, threads } = useChat();
   const [searchQuery, setSearchQuery] = useState("");
-
   const filteredThreads = searchQuery.trim()
     ? threads.filter((thread) =>
         (thread.title || "New chat")
@@ -121,18 +118,16 @@ export function ThreadHistoryPopover({
 
   const sections = groupThreadsByDate(filteredThreads);
 
-  const handleOpenChange = (open: boolean) => {
-    if (open) {
-      refetch();
-    } else {
-      setSearchQuery("");
-    }
-  };
-
   return (
     <TooltipProvider>
       <Tooltip>
-        <Popover onOpenChange={handleOpenChange}>
+        <Popover
+          onOpenChange={(open) => {
+            if (!open) {
+              setSearchQuery("");
+            }
+          }}
+        >
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               {variant === "outline" ? (
