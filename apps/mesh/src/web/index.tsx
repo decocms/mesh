@@ -177,10 +177,36 @@ const collectionDetailsRoute = createRoute({
   ),
 });
 
+// Virtual MCPs (Agents) routes
+const orgVirtualMcpsRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/agents",
+  component: lazyRouteComponent(() => import("./routes/orgs/virtual-mcps.tsx")),
+  validateSearch: z.lazy(() =>
+    z.object({
+      action: z.enum(["create"]).optional(),
+    }),
+  ),
+});
+
+const virtualMcpDetailRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/agents/$virtualMcpId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/virtual-mcp-detail.tsx"),
+  ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      tab: z.string().optional(),
+    }),
+  ),
+});
+
+// Legacy gateway routes (redirects for backward compatibility)
 const orgGatewaysRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/gateways",
-  component: lazyRouteComponent(() => import("./routes/orgs/gateways.tsx")),
+  component: lazyRouteComponent(() => import("./routes/orgs/virtual-mcps.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
       action: z.enum(["create"]).optional(),
@@ -192,7 +218,7 @@ const gatewayDetailRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/gateways/$gatewayId",
   component: lazyRouteComponent(
-    () => import("./routes/orgs/gateway-detail.tsx"),
+    () => import("./routes/orgs/virtual-mcp-detail.tsx"),
   ),
   validateSearch: z.lazy(() =>
     z.object({
@@ -265,6 +291,9 @@ const shellRouteTree = shellLayout.addChildren([
   orgHomeRoute,
   orgMembersRoute,
   orgConnectionsRoute,
+  orgVirtualMcpsRoute,
+  virtualMcpDetailRoute,
+  // Legacy gateway routes (backward compatibility)
   orgGatewaysRoute,
   gatewayDetailRoute,
   orgMonitoringRoute,

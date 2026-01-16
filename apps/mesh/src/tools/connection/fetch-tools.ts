@@ -22,7 +22,7 @@ import { isStdioParameters } from "./schema";
 export interface ConnectionForToolFetch {
   id: string;
   title: string;
-  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO";
+  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO" | "virtual";
   connection_url?: string | null;
   connection_token?: string | null;
   connection_headers?: ConnectionParameters | null;
@@ -46,6 +46,9 @@ export async function fetchToolsFromMCP(
       return fetchToolsFromHttpMCP(connection);
     case "SSE":
       return fetchToolsFromSSEMCP(connection);
+    case "virtual":
+      // Virtual connections don't fetch tools directly - they aggregate from other connections
+      return null;
     default:
       return null;
   }

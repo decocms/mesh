@@ -72,10 +72,10 @@ export function useProjectSidebarItems() {
       onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
     },
     {
-      key: "gateways",
+      key: "agents",
       label: "Agents",
       icon: <CpuChip02 />,
-      onClick: () => navigate({ to: "/$org/gateways", params: { org } }),
+      onClick: () => navigate({ to: "/$org/agents", params: { org } }),
     },
     {
       key: "workflow",

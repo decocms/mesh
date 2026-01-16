@@ -21,7 +21,9 @@ import {
   ConnectionEntity,
   type HttpConnectionParameters,
   isStdioParameters,
+  parseVirtualMCPId,
 } from "@/tools/connection/schema";
+import { createVirtualMCPFromId } from "@/virtual-mcp";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -888,17 +890,158 @@ export async function dangerouslyCreateSuperUserMCPProxy(
 // ============================================================================
 
 /**
+ * Handle virtual connection MCP requests
+ *
+ * Virtual connections aggregate tools from multiple underlying connections.
+ */
+async function handleVirtualConnection(
+  virtualMcpId: string,
+  ctx: MeshContext,
+  req: Request,
+  mode?: string,
+): Promise<Response> {
+  const virtualMcpClient = await createVirtualMCPFromId(
+    virtualMcpId,
+    ctx,
+    mode,
+  );
+  if (!virtualMcpClient) {
+    return new Response(JSON.stringify({ error: "Virtual MCP not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Create MCP server for the virtual connection
+  const server = new McpServer(
+    {
+      name: `virtual-mcp-${virtualMcpId}`,
+      version: "1.0.0",
+    },
+    {
+      capabilities: { tools: {}, resources: {}, prompts: {} },
+    },
+  );
+
+  // Create transport
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    enableJsonResponse:
+      req.headers.get("Accept")?.includes("application/json") ?? false,
+  });
+
+  // Connect server to transport
+  await server.connect(transport);
+
+  // Handle list_tools
+  server.server.setRequestHandler(
+    ListToolsRequestSchema,
+    async (): Promise<ListToolsResult> => {
+      return virtualMcpClient.client.listTools();
+    },
+  );
+
+  // Handle call_tool
+  server.server.setRequestHandler(
+    CallToolRequestSchema,
+    async (request: CallToolRequest): Promise<CallToolResult> => {
+      return (await virtualMcpClient.client.callTool(
+        request.params,
+      )) as CallToolResult;
+    },
+  );
+
+  // Handle list_resources
+  server.server.setRequestHandler(
+    ListResourcesRequestSchema,
+    async (): Promise<ListResourcesResult> => {
+      return virtualMcpClient.client.listResources();
+    },
+  );
+
+  // Handle read_resource
+  server.server.setRequestHandler(
+    ReadResourceRequestSchema,
+    async (request: ReadResourceRequest): Promise<ReadResourceResult> => {
+      return virtualMcpClient.client.readResource(request.params);
+    },
+  );
+
+  // Handle list_resource_templates
+  server.server.setRequestHandler(
+    ListResourceTemplatesRequestSchema,
+    async (): Promise<ListResourceTemplatesResult> => {
+      return virtualMcpClient.client.listResourceTemplates();
+    },
+  );
+
+  // Handle list_prompts
+  server.server.setRequestHandler(
+    ListPromptsRequestSchema,
+    async (): Promise<ListPromptsResult> => {
+      return virtualMcpClient.client.listPrompts();
+    },
+  );
+
+  // Handle get_prompt
+  server.server.setRequestHandler(
+    GetPromptRequestSchema,
+    async (request: GetPromptRequest): Promise<GetPromptResult> => {
+      return virtualMcpClient.client.getPrompt(request.params);
+    },
+  );
+
+  // Handle the incoming MCP message
+  return await transport.handleRequest(req);
+}
+
+/**
  * Proxy MCP request to a downstream connection
  *
  * Route: POST /mcp/:connectionId
  * Connection IDs are globally unique UUIDs (no project prefix needed)
+ *
+ * Supports:
+ * - Regular connections: HTTP, SSE, Websocket, STDIO
+ * - Virtual connections: connection_type="virtual" or connection_url="virtual://<id>"
+ * - ?mode query parameter for virtual connection strategy (passthrough, smart)
  */
 app.all("/:connectionId", async (c) => {
   const connectionId = c.req.param("connectionId");
   const ctx = c.get("meshContext");
+  const mode = c.req.query("mode");
 
   try {
-    const proxy = await ctx.createMCPProxy(connectionId);
+    // First, fetch the connection to check if it's virtual
+    const connection = await ctx.storage.connections.findById(
+      connectionId,
+      ctx.organization?.id,
+    );
+
+    if (!connection) {
+      return c.json({ error: "Connection not found" }, 404);
+    }
+
+    // Check if this is a virtual connection
+    const virtualMcpId = parseVirtualMCPId(connection.connection_url);
+    if (connection.connection_type === "virtual" || virtualMcpId) {
+      const resolvedVirtualMcpId =
+        virtualMcpId ?? connection.connection_url?.replace("virtual://", "");
+      if (!resolvedVirtualMcpId) {
+        return c.json(
+          { error: "Virtual connection missing virtual MCP reference" },
+          400,
+        );
+      }
+      return await handleVirtualConnection(
+        resolvedVirtualMcpId,
+        ctx,
+        c.req.raw,
+        mode,
+      );
+    }
+
+    // Regular connection - use the proxy
+    const proxy = await ctx.createMCPProxy(connection);
     return await proxy.fetch(c.req.raw);
   } catch (error) {
     const err = error as Error;

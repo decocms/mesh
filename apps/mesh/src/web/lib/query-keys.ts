@@ -130,9 +130,14 @@ export const KEYS = {
   monitoringLogsInfinite: (locator: string, paramsKey: string) =>
     ["monitoring", "logs-infinite", locator, paramsKey] as const,
 
-  // Gateway prompts (for ice breakers in chat)
+  // Virtual MCP prompts (for ice breakers in chat)
+  virtualMcpPrompts: (virtualMcpId: string) =>
+    ["virtual-mcp", virtualMcpId, "prompts"] as const,
+
+  // Backward compatibility alias
+  /** @deprecated Use virtualMcpPrompts instead */
   gatewayPrompts: (gatewayId: string) =>
-    ["gateway", gatewayId, "prompts"] as const,
+    ["virtual-mcp", gatewayId, "prompts"] as const,
 
   // Connection prompts (for gateway settings)
   connectionPrompts: (connectionId: string) =>

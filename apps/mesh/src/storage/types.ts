@@ -155,8 +155,9 @@ export interface MCPConnectionTable {
   app_id: string | null;
 
   // Connection details
-  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO";
-  connection_url: string | null; // Null for STDIO connections
+  // Virtual connections use connection_url = "virtual://<virtual_mcp_id>"
+  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO" | "virtual";
+  connection_url: string | null; // Null for STDIO, "virtual://<id>" for virtual connections
   connection_token: string | null; // Encrypted
   connection_headers: string | null; // JSON - encrypted envVars for STDIO
 
@@ -558,21 +559,21 @@ export interface EventDelivery {
 }
 
 // ============================================================================
-// Gateway Table Definitions
+// Virtual MCP Table Definitions
 // ============================================================================
 
 /**
- * Tool selection mode for gateways
+ * Tool selection mode for virtual MCPs
  * - "inclusion": Include selected tools/connections (default behavior)
  * - "exclusion": Exclude selected tools/connections (inverse filter)
  */
 export type ToolSelectionMode = "inclusion" | "exclusion";
 
 /**
- * Gateway table definition
- * Virtual gateway entities that aggregate tools from multiple connections
+ * Virtual MCP table definition
+ * Virtual MCP entities that aggregate tools from multiple connections
  */
-export interface GatewayTable {
+export interface VirtualMCPTable {
   id: string;
   organization_id: string;
   title: string;
@@ -587,18 +588,24 @@ export interface GatewayTable {
 }
 
 /**
- * Gateway connection table definition
- * Many-to-many relationship linking gateways to connections with selected tools/resources/prompts
+ * Virtual MCP connection table definition
+ * Many-to-many relationship linking virtual MCPs to connections with selected tools/resources/prompts
  */
-export interface GatewayConnectionTable {
+export interface VirtualMCPConnectionTable {
   id: string;
-  gateway_id: string;
+  virtual_mcp_id: string;
   connection_id: string;
   selected_tools: JsonArray<string[]> | null; // null = all tools
   selected_resources: JsonArray<string[]> | null; // null = all resources, supports URI patterns with * and **
   selected_prompts: JsonArray<string[]> | null; // null = all prompts
   created_at: ColumnType<Date, Date | string, never>;
 }
+
+// Backward compatibility aliases
+/** @deprecated Use VirtualMCPTable instead */
+export type GatewayTable = VirtualMCPTable;
+/** @deprecated Use VirtualMCPConnectionTable instead */
+export type GatewayConnectionTable = VirtualMCPConnectionTable;
 
 /**
  * Complete database schema
@@ -632,7 +639,7 @@ export interface Database {
   event_subscriptions: EventSubscriptionTable;
   event_deliveries: EventDeliveryTable;
 
-  // Gateway tables
-  gateways: GatewayTable;
-  gateway_connections: GatewayConnectionTable;
+  // Virtual MCP tables
+  virtual_mcps: VirtualMCPTable;
+  virtual_mcp_connections: VirtualMCPConnectionTable;
 }

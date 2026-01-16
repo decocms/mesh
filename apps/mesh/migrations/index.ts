@@ -19,6 +19,7 @@ import * as migration017downstreamtokenremoveuserid from "./017-downstream-token
 import * as migration018dropgatewaytoolselectionstrategy from "./018-drop-gateway-tool-selection-strategy.ts";
 import * as migration019removegatewayisdefault from "./019-remove-gateway-is-default.ts";
 import * as migration020enabledplugins from "./020-enabled-plugins.ts";
+import * as migration021virtualmcps from "./021-virtual-mcps.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -42,6 +43,7 @@ const migrations = {
     migration018dropgatewaytoolselectionstrategy,
   "019-remove-gateway-is-default": migration019removegatewayisdefault,
   "020-enabled-plugins": migration020enabledplugins,
+  "021-virtual-mcps": migration021virtualmcps,
 } satisfies Record<string, Migration>;
 
 export default migrations;

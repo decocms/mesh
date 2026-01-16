@@ -1,5 +1,9 @@
 import type { ConnectionCreateData } from "@/tools/connection/schema";
-import type { GatewayEntity } from "@/tools/gateway/schema";
+import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
+
+// Backward compatibility alias
+/** @deprecated Use VirtualMCPEntity instead */
+export type GatewayEntity = VirtualMCPEntity;
 
 /** Deco CMS API host for detecting deco-hosted MCPs */
 export const DECO_CMS_API_HOST = "api.decocms.com";
@@ -185,21 +189,21 @@ export function getWellKnownMcpStudioConnection(): ConnectionCreateData {
 }
 
 /**
- * Get well-known Decopilot Agent gateway entity.
- * This is the default agent that aggregates all org connections except Mesh MCP and Store/Registry.
+ * Get well-known Mesh Virtual MCP (default agent).
+ * This aggregates all org connections except Mesh MCP and Store/Registry.
  *
  * @param organizationId - Organization ID
- * @returns GatewayEntity representing the Decopilot agent
+ * @returns VirtualMCPEntity representing the default Mesh agent
  */
-export function getWellKnownDecopilotAgent(
+export function getWellKnownMeshVirtualMCP(
   organizationId: string,
-): GatewayEntity {
+): VirtualMCPEntity {
   return {
-    id: `decopilot-${organizationId}`,
+    id: `mesh-${organizationId}`,
     organization_id: organizationId,
-    title: "Decopilot",
+    title: "Mesh",
     description: "Default agent that aggregates all organization connections",
-    icon: "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png",
+    icon: "https://assets.decocache.com/mcp/09e44283-f47d-4046-955f-816d227c626f/app.png",
     tool_selection_mode: "exclusion",
     status: "active",
     created_at: new Date().toISOString(),
@@ -224,3 +228,6 @@ export function getWellKnownDecopilotAgent(
     ],
   };
 }
+
+/** @deprecated Use getWellKnownMeshVirtualMCP instead */
+export const getWellKnownDecopilotAgent = getWellKnownMeshVirtualMCP;

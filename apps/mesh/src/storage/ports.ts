@@ -7,10 +7,10 @@
 
 import type { ConnectionEntity } from "../tools/connection/schema";
 import type {
-  GatewayEntity,
-  GatewayCreateData,
-  GatewayUpdateData,
-} from "../tools/gateway/schema";
+  VirtualMCPEntity,
+  VirtualMCPCreateData,
+  VirtualMCPUpdateData,
+} from "../tools/virtual-mcp/schema";
 import type { MonitoringLog, OrganizationSettings } from "./types";
 
 // ============================================================================
@@ -89,33 +89,40 @@ export interface MonitoringStorage {
 }
 
 // ============================================================================
-// Gateway Storage Port
+// Virtual MCP Storage Port
 // ============================================================================
 
 // Re-export types from schema for convenience
 export type {
+  VirtualMCPEntity,
+  VirtualMCPCreateData,
+  VirtualMCPUpdateData,
+  ToolSelectionMode,
+  // Backward compatibility aliases
   GatewayEntity,
   GatewayCreateData,
   GatewayUpdateData,
-  ToolSelectionMode,
-} from "../tools/gateway/schema";
+} from "../tools/virtual-mcp/schema";
 
-export interface GatewayStoragePort {
+export interface VirtualMCPStoragePort {
   create(
     organizationId: string,
     userId: string,
-    data: GatewayCreateData,
-  ): Promise<GatewayEntity>;
-  findById(id: string): Promise<GatewayEntity | null>;
-  list(organizationId: string): Promise<GatewayEntity[]>;
+    data: VirtualMCPCreateData,
+  ): Promise<VirtualMCPEntity>;
+  findById(id: string): Promise<VirtualMCPEntity | null>;
+  list(organizationId: string): Promise<VirtualMCPEntity[]>;
   listByConnectionId(
     organizationId: string,
     connectionId: string,
-  ): Promise<GatewayEntity[]>;
+  ): Promise<VirtualMCPEntity[]>;
   update(
     id: string,
     userId: string,
-    data: GatewayUpdateData,
-  ): Promise<GatewayEntity>;
+    data: VirtualMCPUpdateData,
+  ): Promise<VirtualMCPEntity>;
   delete(id: string): Promise<void>;
 }
+
+/** @deprecated Use VirtualMCPStoragePort instead */
+export type GatewayStoragePort = VirtualMCPStoragePort;

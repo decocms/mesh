@@ -13,14 +13,20 @@ export const LOCALSTORAGE_KEYS = {
     `mesh:chat:selectedModel:${locator}`,
   assistantChatActiveThread: (locator: ProjectLocator, assistantId: string) =>
     `mesh:assistant-chat:active-thread:${locator}:${assistantId}`,
+  virtualMcpChatActiveThread: (locator: ProjectLocator, virtualMcpId: string) =>
+    `mesh:virtual-mcp-chat:active-thread:${locator}:${virtualMcpId}` as const,
+  /** @deprecated Use virtualMcpChatActiveThread instead */
   gatewayChatActiveThread: (locator: ProjectLocator, gatewayId: string) =>
-    `mesh:gateway-chat:active-thread:${locator}:${gatewayId}` as const,
+    `mesh:virtual-mcp-chat:active-thread:${locator}:${gatewayId}` as const,
   decoChatPanelWidth: () => `mesh:decochat:panel-width`,
   sidebarOpen: () => `mesh:sidebar-open`,
   selectedRegistry: (org: string) => `mesh:store:selected-registry:${org}`,
   orgHomeQuickstart: (org: string) => `mesh:org-home:quickstart:${org}`,
+  virtualMcpSystemPrompts: (locator: ProjectLocator) =>
+    `mesh:virtual-mcp:system-prompts:${locator}`,
+  /** @deprecated Use virtualMcpSystemPrompts instead */
   gatewaySystemPrompts: (locator: ProjectLocator) =>
-    `mesh:gateway:system-prompts:${locator}`,
+    `mesh:virtual-mcp:system-prompts:${locator}`,
   storeShowStdio: () => `mesh:store:show-stdio`,
   developerMode: () => `mesh:user:developer-mode`,
   pluginConnection: (org: string, pluginId: string) =>

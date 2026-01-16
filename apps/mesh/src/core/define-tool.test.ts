@@ -47,6 +47,7 @@ const createMockContext = (): MeshContext => ({
       }),
     } as never,
     gateways: null as never,
+    virtualMcps: null as never,
     users: null as never,
   },
   vault: null as never,

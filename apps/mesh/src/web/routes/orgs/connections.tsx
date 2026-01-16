@@ -11,6 +11,7 @@ import {
   useConnections,
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
+import { useGatewayActions } from "@/web/hooks/collections/use-gateway";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
@@ -58,6 +59,7 @@ import {
   Container,
   Terminal,
   Globe02,
+  LayersThree01,
 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
@@ -107,8 +109,8 @@ const connectionFormSchema = z
   .object({
     title: z.string().min(1, "Name is required"),
     description: z.string().nullable().optional(),
-    // UI type - includes "NPX" and "STDIO" which both map to STDIO internally
-    ui_type: z.enum(["HTTP", "SSE", "Websocket", "NPX", "STDIO"]),
+    // UI type - includes "NPX" and "STDIO" which both map to STDIO internally, "virtual" for Virtual MCPs
+    ui_type: z.enum(["HTTP", "SSE", "Websocket", "NPX", "STDIO", "virtual"]),
     // For HTTP/SSE/Websocket
     connection_url: z.string().optional(),
     connection_token: z.string().nullable().optional(),
@@ -387,6 +389,7 @@ function OrgMcpsContent() {
   });
 
   const actions = useConnectionActions();
+  const virtualMcpActions = useGatewayActions();
   const connections = useConnections(listState);
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
@@ -554,7 +557,7 @@ function OrgMcpsContent() {
 
   const onSubmit = async (data: ConnectionFormData) => {
     // Determine actual connection_type, connection_url, and connection_headers based on ui_type
-    let connectionType: "HTTP" | "SSE" | "Websocket" | "STDIO";
+    let connectionType: "HTTP" | "SSE" | "Websocket" | "STDIO" | "virtual";
     let connectionUrl: string | null = null;
     let connectionToken: string | null = null;
     let connectionParameters:
@@ -580,6 +583,10 @@ function OrgMcpsContent() {
         data.stdio_cwd,
         data.env_vars || [],
       );
+    } else if (data.ui_type === "virtual") {
+      // Virtual MCP - create Virtual MCP first, then create connection pointing to it
+      connectionType = "virtual";
+      // Virtual MCP ID will be set after creation
     } else {
       connectionType = data.ui_type;
       connectionUrl = data.connection_url || "";
@@ -587,7 +594,7 @@ function OrgMcpsContent() {
     }
 
     if (editingConnection) {
-      // Update existing connection
+      // Update existing connection - note: cannot edit virtual connection's underlying virtual MCP from here
       await actions.update.mutateAsync({
         id: editingConnection.id,
         data: {
@@ -604,6 +611,62 @@ function OrgMcpsContent() {
 
       dispatch({ type: "close" });
       form.reset();
+      return;
+    }
+
+    // Handle virtual MCP creation
+    if (data.ui_type === "virtual") {
+      // Create the Virtual MCP first
+      const vmcpId = generatePrefixedId("vmcp");
+      await virtualMcpActions.create.mutateAsync({
+        id: vmcpId,
+        title: data.title,
+        description: data.description || null,
+        icon: null,
+        tool_selection_mode: "inclusion",
+        status: "active",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: session?.user?.id || "system",
+        updated_by: undefined,
+        organization_id: org.id,
+        connections: [],
+      });
+
+      // Create connection pointing to the Virtual MCP
+      const connId = generatePrefixedId("conn");
+      connectionUrl = `virtual://${vmcpId}`;
+
+      await actions.create.mutateAsync({
+        id: connId,
+        title: data.title,
+        description: data.description || null,
+        connection_type: "virtual",
+        connection_url: connectionUrl,
+        connection_token: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: session?.user?.id || "system",
+        organization_id: org.id,
+        icon: null,
+        app_name: null,
+        app_id: null,
+        connection_headers: null,
+        oauth_config: null,
+        configuration_state: null,
+        metadata: null,
+        tools: null,
+        bindings: null,
+        status: "active",
+      });
+
+      closeCreateDialog();
+      form.reset();
+      // Navigate to the connection detail page which will show the Virtual MCP editor
+      navigate({
+        to: "/$org/mcps/$connectionId",
+        params: { org: org.slug, connectionId: connId },
+      });
       return;
     }
 
@@ -951,6 +1014,12 @@ function OrgMcpsContent() {
                               </SelectItem>
                             </>
                           )}
+                          <SelectItem value="virtual">
+                            <span className="flex items-center gap-2">
+                              <LayersThree01 className="w-4 h-4" />
+                              Virtual MCP
+                            </span>
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -1081,84 +1150,103 @@ function OrgMcpsContent() {
                   />
                 )}
 
-                {/* HTTP/SSE/Websocket fields */}
-                {uiType !== "NPX" && uiType !== "STDIO" && (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="connection_url"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>URL *</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="https://example.com/mcp"
-                              {...field}
-                              value={field.value ?? ""}
-                              onPaste={(e) => {
-                                const pasted = e.clipboardData.getData("text");
-                                if (!pasted) return;
-                                e.preventDefault();
-                                form.setValue("connection_url", pasted.trim(), {
-                                  shouldDirty: true,
-                                });
-                                applyInferenceFromInput(pasted);
-                              }}
-                              onBlur={(e) => {
-                                applyInferenceFromInput(e.target.value);
-                                field.onBlur();
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="connection_token"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            {providerHint?.token?.label ?? "Token (optional)"}
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="password"
-                              placeholder={
-                                providerHint?.token?.placeholder ??
-                                "Bearer token or API key"
-                              }
-                              {...field}
-                              value={field.value ?? ""}
-                            />
-                          </FormControl>
-                          {providerHint?.token?.helperText && (
-                            <p className="text-xs text-muted-foreground">
-                              {providerHint.token.helperText}
-                              {providerHint.id === "github" && (
-                                <>
-                                  {" "}
-                                  ·{" "}
-                                  <a
-                                    className="text-foreground underline underline-offset-4 hover:text-foreground/80"
-                                    href="https://github.com/settings/personal-access-tokens"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    Open GitHub PAT settings
-                                  </a>
-                                </>
-                              )}
-                            </p>
-                          )}
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
+                {/* Virtual MCP info */}
+                {uiType === "virtual" && (
+                  <div className="rounded-lg border border-border bg-muted/50 p-4">
+                    <p className="text-sm text-muted-foreground">
+                      Virtual MCPs aggregate tools, resources, and prompts from
+                      other connections. After creating, you'll be able to
+                      select which connections to include and configure tool
+                      selection.
+                    </p>
+                  </div>
                 )}
+
+                {/* HTTP/SSE/Websocket fields */}
+                {uiType !== "NPX" &&
+                  uiType !== "STDIO" &&
+                  uiType !== "virtual" && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="connection_url"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>URL *</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="https://example.com/mcp"
+                                {...field}
+                                value={field.value ?? ""}
+                                onPaste={(e) => {
+                                  const pasted =
+                                    e.clipboardData.getData("text");
+                                  if (!pasted) return;
+                                  e.preventDefault();
+                                  form.setValue(
+                                    "connection_url",
+                                    pasted.trim(),
+                                    {
+                                      shouldDirty: true,
+                                    },
+                                  );
+                                  applyInferenceFromInput(pasted);
+                                }}
+                                onBlur={(e) => {
+                                  applyInferenceFromInput(e.target.value);
+                                  field.onBlur();
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="connection_token"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {providerHint?.token?.label ?? "Token (optional)"}
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder={
+                                  providerHint?.token?.placeholder ??
+                                  "Bearer token or API key"
+                                }
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            </FormControl>
+                            {providerHint?.token?.helperText && (
+                              <p className="text-xs text-muted-foreground">
+                                {providerHint.token.helperText}
+                                {providerHint.id === "github" && (
+                                  <>
+                                    {" "}
+                                    ·{" "}
+                                    <a
+                                      className="text-foreground underline underline-offset-4 hover:text-foreground/80"
+                                      href="https://github.com/settings/personal-access-tokens"
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      Open GitHub PAT settings
+                                    </a>
+                                  </>
+                                )}
+                              </p>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
 
                 {/* Name/description come after connection mode/inputs so we can infer them */}
                 <FormField

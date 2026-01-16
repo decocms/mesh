@@ -90,7 +90,7 @@ export const ConnectionEntitySchema = z.object({
   app_id: z.string().nullable().describe("Associated app ID"),
 
   connection_type: z
-    .enum(["HTTP", "SSE", "Websocket", "STDIO"])
+    .enum(["HTTP", "SSE", "Websocket", "STDIO", "virtual"])
     .describe("Type of connection"),
   connection_url: z
     .string()
@@ -181,4 +181,42 @@ export function isStdioParameters(
   params: ConnectionParameters | null | undefined,
 ): params is StdioConnectionParameters {
   return params !== null && params !== undefined && "command" in params;
+}
+
+/**
+ * Virtual MCP URL scheme prefix
+ */
+export const VIRTUAL_MCP_SCHEME = "virtual://";
+
+/**
+ * Check if a connection is a virtual MCP connection
+ */
+export function isVirtualConnection(
+  connection: Pick<ConnectionEntity, "connection_type" | "connection_url">,
+): boolean {
+  return (
+    connection.connection_type === "virtual" ||
+    connection.connection_url?.startsWith(VIRTUAL_MCP_SCHEME) === true
+  );
+}
+
+/**
+ * Extract virtual MCP ID from connection URL
+ * @param connectionUrl - URL in format "virtual://<virtual_mcp_id>"
+ * @returns The virtual MCP ID or null if not a virtual URL
+ */
+export function parseVirtualMCPId(connectionUrl: string | null): string | null {
+  if (!connectionUrl?.startsWith(VIRTUAL_MCP_SCHEME)) {
+    return null;
+  }
+  return connectionUrl.slice(VIRTUAL_MCP_SCHEME.length);
+}
+
+/**
+ * Build a virtual MCP connection URL from an ID
+ * @param virtualMcpId - The virtual MCP ID
+ * @returns URL in format "virtual://<virtual_mcp_id>"
+ */
+export function buildVirtualMCPUrl(virtualMcpId: string): string {
+  return `${VIRTUAL_MCP_SCHEME}${virtualMcpId}`;
 }

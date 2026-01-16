@@ -1,12 +1,14 @@
 /**
  * Gateway Collection Hooks
  *
- * Provides React hooks for working with gateways using React Query.
- * These hooks offer a reactive interface for accessing and manipulating gateways.
+ * @deprecated Use use-virtual-mcp.ts instead. This file is kept for backward compatibility.
+ *
+ * Provides React hooks for working with virtual MCPs (formerly gateways) using React Query.
+ * These hooks offer a reactive interface for accessing and manipulating virtual MCPs.
  */
 
 import { createToolCaller } from "../../../tools/client";
-import type { GatewayEntity } from "../../../tools/gateway/schema";
+import type { VirtualMCPEntity } from "../../../tools/virtual-mcp/schema";
 import { useProjectContext } from "../../providers/project-context-provider";
 import {
   type CollectionFilter,
@@ -15,6 +17,9 @@ import {
   useCollectionList,
   type UseCollectionListOptions,
 } from "../use-collections";
+
+// Type alias for backward compatibility
+export type GatewayEntity = VirtualMCPEntity;
 
 /**
  * Filter definition for gateways (matches @deco/ui Filter shape)
@@ -27,17 +32,19 @@ export type GatewayFilter = CollectionFilter;
 export type UseGatewaysOptions = UseCollectionListOptions<GatewayEntity>;
 
 /**
- * Hook to get all gateways
+ * Hook to get all gateways (virtual MCPs)
  *
+ * @deprecated Use useVirtualMCPs from use-virtual-mcp.ts instead
  * @param options - Filter and configuration options
  * @returns Suspense query result with gateways as GatewayEntity[]
  */
 export function useGateways(options: UseGatewaysOptions = {}) {
   const { org } = useProjectContext();
   const toolCaller = createToolCaller();
+  // Use VIRTUAL_MCP to match the renamed tools (COLLECTION_VIRTUAL_MCP_LIST, etc.)
   return useCollectionList<GatewayEntity>(
     org.slug,
-    "GATEWAY",
+    "VIRTUAL_MCP",
     toolCaller,
     options,
   );
@@ -46,6 +53,7 @@ export function useGateways(options: UseGatewaysOptions = {}) {
 /**
  * Hook to get a single gateway by ID
  *
+ * @deprecated Use useVirtualMCP from use-virtual-mcp.ts instead
  * @param gatewayId - The ID of the gateway to fetch (null/undefined for default gateway)
  * @returns GatewayEntity | null - null means use default gateway
  */
@@ -59,7 +67,7 @@ export function useGateway(
   // Use collection item hook for database gateways
   const dbGateway = useCollectionItem<GatewayEntity>(
     org.slug,
-    "GATEWAY",
+    "VIRTUAL_MCP",
     gatewayId ?? undefined,
     toolCaller,
   );
@@ -70,15 +78,15 @@ export function useGateway(
 /**
  * Hook to get gateway mutation actions (create, update, delete)
  *
+ * @deprecated Use useVirtualMCPActions from use-virtual-mcp.ts instead
  * @returns Object with create, update, and delete mutation hooks
  */
 export function useGatewayActions() {
   const { org } = useProjectContext();
   const toolCaller = createToolCaller();
-  return useCollectionActions<GatewayEntity>(org.slug, "GATEWAY", toolCaller);
+  return useCollectionActions<GatewayEntity>(
+    org.slug,
+    "VIRTUAL_MCP",
+    toolCaller,
+  );
 }
-
-/**
- * Re-export GatewayEntity type for convenience
- */
-export type { GatewayEntity };

@@ -78,6 +78,7 @@ describe("Connection Tools", () => {
         } as never,
         monitoring: null as never,
         gateways: null as never,
+        virtualMcps: null as never,
         users: null as never,
       },
       vault,

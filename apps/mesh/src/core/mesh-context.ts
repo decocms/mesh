@@ -223,7 +223,7 @@ import type { createMCPProxy } from "@/api/routes/proxy";
 import type { BetterAuthInstance } from "@/auth";
 import type { EventBus } from "../event-bus/interface";
 import type { ConnectionStorage } from "../storage/connection";
-import type { GatewayStorage } from "../storage/gateway";
+import type { VirtualMCPStorage } from "../storage/virtual-mcp";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { UserStorage } from "../storage/user";
@@ -245,8 +245,10 @@ export interface MeshStorage {
   connections: ConnectionStorage;
   organizationSettings: OrganizationSettingsStorage;
   monitoring: SqlMonitoringStorage;
-  gateways: GatewayStorage;
+  virtualMcps: VirtualMCPStorage;
   users: UserStorage;
+  /** @deprecated Use virtualMcps instead */
+  gateways: VirtualMCPStorage;
 }
 
 // ============================================================================
