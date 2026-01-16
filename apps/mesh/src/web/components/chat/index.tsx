@@ -89,19 +89,23 @@ function ChatHeader({ children }: PropsWithChildren) {
   const right = findChild(children, ChatHeaderRight);
 
   return (
-    <div className="flex h-12 items-center justify-between border-b border-border px-4 flex-none">
-      <div className="flex items-center gap-2">{left?.props.children}</div>
-      <div className="flex items-center gap-1">{right?.props.children}</div>
+    <div className="flex h-12 items-center justify-between gap-4 border-b border-border px-4 flex-none">
+      {left}
+      {right}
     </div>
   );
 }
 
 function ChatHeaderLeft({ children }: PropsWithChildren) {
-  return <>{children}</>;
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+      {children}
+    </div>
+  );
 }
 
 function ChatHeaderRight({ children }: PropsWithChildren) {
-  return <>{children}</>;
+  return <div className="flex flex-none items-center gap-1">{children}</div>;
 }
 
 function ChatMain({

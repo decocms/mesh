@@ -21,6 +21,7 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+import { Spinner } from "@deco/ui/components/spinner.tsx";
 import {
   Tooltip,
   TooltipContent,
@@ -29,8 +30,9 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Suspense, useState } from "react";
+import { Suspense, useReducer } from "react";
 import { type Resolver, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./context";
@@ -38,6 +40,7 @@ import { useChat } from "./context";
 interface IceBreakersProps {
   prompts: GatewayPrompt[];
   onSelect: (prompt: GatewayPrompt) => void;
+  loadingPrompt?: GatewayPrompt | null;
   className?: string;
 }
 
@@ -48,11 +51,13 @@ function PromptPill({
   onSelect,
   isSelected,
   isDisabled,
+  isLoading,
 }: {
   prompt: GatewayPrompt;
   onSelect: (prompt: GatewayPrompt) => void;
   isSelected?: boolean;
   isDisabled?: boolean;
+  isLoading?: boolean;
 }) {
   const promptText = prompt.description ?? prompt.name;
   return (
@@ -61,14 +66,17 @@ function PromptPill({
         <button
           type="button"
           onClick={() => onSelect(prompt)}
-          disabled={isDisabled}
+          disabled={isDisabled || isLoading}
           className={cn(
-            "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer",
+            "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer flex items-center gap-1.5",
             isSelected && "bg-accent/50 text-foreground",
-            isDisabled && "opacity-60 cursor-not-allowed hover:bg-transparent",
+            isLoading && "bg-accent/50 text-foreground",
+            (isDisabled || isLoading) &&
+            "cursor-not-allowed hover:bg-accent/50",
           )}
         >
           {(prompt.title ?? prompt.name).replace(/_/g, " ")}
+          {isLoading && <Spinner size="xs" />}
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-xs">
@@ -83,12 +91,18 @@ function PromptPill({
  *
  * Shows prompts as compact pills that, when clicked, submit the prompt as the first message
  */
-function IceBreakers({ prompts, onSelect, className }: IceBreakersProps) {
+function IceBreakers({
+  prompts,
+  onSelect,
+  loadingPrompt,
+  className,
+}: IceBreakersProps) {
   if (prompts.length === 0) return null;
 
   const visiblePrompts = prompts.slice(0, MAX_VISIBLE);
   const hiddenPrompts = prompts.slice(MAX_VISIBLE);
   const hasMore = hiddenPrompts.length > 0;
+  const isAnyLoading = !!loadingPrompt;
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -99,14 +113,24 @@ function IceBreakers({ prompts, onSelect, className }: IceBreakersProps) {
         )}
       >
         {visiblePrompts.map((prompt) => (
-          <PromptPill key={prompt.name} prompt={prompt} onSelect={onSelect} />
+          <PromptPill
+            key={prompt.name}
+            prompt={prompt}
+            onSelect={onSelect}
+            isLoading={loadingPrompt?.name === prompt.name}
+            isDisabled={isAnyLoading && loadingPrompt?.name !== prompt.name}
+          />
         ))}
         {hasMore && (
           <Popover>
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="size-7 flex items-center justify-center text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer"
+                disabled={isAnyLoading}
+                className={cn(
+                  "size-7 flex items-center justify-center text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer",
+                  isAnyLoading && "opacity-60 cursor-not-allowed",
+                )}
               >
                 +{hiddenPrompts.length}
               </button>
@@ -115,15 +139,24 @@ function IceBreakers({ prompts, onSelect, className }: IceBreakersProps) {
               <div className="flex flex-col gap-1">
                 {hiddenPrompts.map((prompt) => {
                   const promptText = prompt.description ?? prompt.name;
+                  const isLoading = loadingPrompt?.name === prompt.name;
                   return (
                     <Tooltip key={prompt.name}>
                       <TooltipTrigger asChild>
                         <button
                           type="button"
                           onClick={() => onSelect(prompt)}
-                          className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-md transition-colors cursor-pointer text-left"
+                          disabled={isAnyLoading && !isLoading}
+                          className={cn(
+                            "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-md transition-colors cursor-pointer text-left flex items-center gap-1.5",
+                            isLoading && "bg-accent/50 text-foreground",
+                            isAnyLoading &&
+                            !isLoading &&
+                            "opacity-60 cursor-not-allowed",
+                          )}
                         >
                           {(prompt.title ?? prompt.name).replace(/_/g, " ")}
+                          {isLoading && <Spinner size="xs" />}
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="right" className="max-w-xs">
@@ -147,9 +180,7 @@ function buildArgumentSchema(prompt: GatewayPrompt) {
   const shape: Record<string, z.ZodTypeAny> = {};
 
   for (const arg of prompt.arguments ?? []) {
-    shape[arg.name] = arg.required
-      ? z.string().min(1, "Required")
-      : z.string();
+    shape[arg.name] = arg.required ? z.string().min(1, "Required") : z.string();
   }
 
   return z.object(shape);
@@ -177,14 +208,10 @@ function ExpandedIceBreaker({
   prompt,
   onCancel,
   onSubmit,
-  isSubmitting,
-  errorMessage,
 }: {
   prompt: GatewayPrompt;
   onCancel: () => void;
   onSubmit: (values: PromptArgumentValues) => Promise<void>;
-  isSubmitting: boolean;
-  errorMessage: string | null;
 }) {
   const schema = buildArgumentSchema(prompt) as z.ZodTypeAny;
   const resolver = zodResolver(schema as any);
@@ -198,24 +225,11 @@ function ExpandedIceBreaker({
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">
-      <div className="flex items-center gap-2">
-        <PromptPill
-          prompt={prompt}
-          onSelect={onCancel}
-          isSelected
-          isDisabled={isSubmitting}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Change
-        </Button>
-      </div>
+      <PromptPill
+        prompt={prompt}
+        onSelect={onCancel}
+        isSelected
+      />
       {prompt.description ? (
         <p className="text-xs text-muted-foreground max-w-xl text-center">
           {prompt.description}
@@ -242,7 +256,6 @@ function ExpandedIceBreaker({
                     <Input
                       {...field}
                       value={field.value ?? ""}
-                      disabled={isSubmitting}
                       required={arg.required}
                       placeholder={arg.description ?? ""}
                       className="h-9"
@@ -258,9 +271,6 @@ function ExpandedIceBreaker({
               )}
             />
           ))}
-          {errorMessage ? (
-            <p className="text-xs text-destructive">{errorMessage}</p>
-          ) : null}
           <div className="flex justify-end gap-2">
             <Button
               type="button"
@@ -268,7 +278,6 @@ function ExpandedIceBreaker({
               size="sm"
               className="h-8 px-3 text-xs"
               onClick={onCancel}
-              disabled={isSubmitting}
             >
               Cancel
             </Button>
@@ -276,7 +285,7 @@ function ExpandedIceBreaker({
               type="submit"
               size="sm"
               className="h-8 px-3 text-xs"
-              disabled={!form.formState.isValid || isSubmitting}
+              disabled={!form.formState.isValid}
             >
               Use prompt
             </Button>
@@ -304,6 +313,129 @@ function IceBreakersFallback() {
   );
 }
 
+
+/**
+ * State machine for ice breakers
+ */
+type IceBreakerState =
+  | { stage: "idle" }
+  | { stage: "collectingArguments"; prompt: GatewayPrompt }
+  | { stage: "loading"; prompt: GatewayPrompt; arguments?: PromptArgumentValues };
+
+type IceBreakerAction =
+  | { type: "SELECT_PROMPT"; prompt: GatewayPrompt }
+  | { type: "CANCEL" }
+  | { type: "START_LOADING"; prompt: GatewayPrompt; arguments?: PromptArgumentValues }
+  | { type: "RESET" };
+
+function iceBreakerReducer(
+  state: IceBreakerState,
+  action: IceBreakerAction,
+): IceBreakerState {
+  switch (action.type) {
+    case "SELECT_PROMPT":
+      // If prompt has no arguments, go directly to loading
+      if (!action.prompt.arguments || action.prompt.arguments.length === 0) {
+        return { stage: "loading", prompt: action.prompt };
+      }
+      // Otherwise, collect arguments first
+      return { stage: "collectingArguments", prompt: action.prompt };
+    
+    case "CANCEL":
+      return { stage: "idle" };
+    
+    case "START_LOADING":
+      return {
+        stage: "loading",
+        prompt: action.prompt,
+        arguments: action.arguments,
+      };
+    
+    case "RESET":
+      return { stage: "idle" };
+    
+    default:
+      return state;
+  }
+}
+
+/**
+ * Inner component that fetches and displays prompts for a specific gateway
+ */
+function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
+  const { setInputValue } = useChat();
+  const { data: prompts } = useGatewayPrompts(gatewayId);
+  const [state, dispatch] = useReducer(iceBreakerReducer, { stage: "idle" });
+
+  if (prompts.length === 0) {
+    return null;
+  }
+
+  const loadPrompt = async (
+    prompt: GatewayPrompt,
+    args?: PromptArgumentValues,
+  ) => {
+    try {
+      const result = await fetchGatewayPrompt(gatewayId, prompt.name, args);
+      const userText =
+        getPromptUserText(result) ?? prompt.description ?? prompt.name;
+      setInputValue(userText);
+      dispatch({ type: "RESET" });
+    } catch (error) {
+      console.error("[ice-breakers] Failed to fetch prompt:", error);
+      toast.error("Failed to load prompt. Please try again.");
+      dispatch({ type: "RESET" });
+    }
+  };
+
+  const handlePromptSelection = async (prompt: GatewayPrompt) => {
+    // If prompt has arguments, show the form
+    if (prompt.arguments && prompt.arguments.length > 0) {
+      dispatch({ type: "SELECT_PROMPT", prompt });
+      return;
+    }
+
+    // No arguments - fetch directly
+    dispatch({ type: "START_LOADING", prompt });
+    await loadPrompt(prompt);
+  };
+
+  const handleCancel = () => {
+    dispatch({ type: "CANCEL" });
+  };
+
+  const handlePromptSubmit = async (values: PromptArgumentValues) => {
+    if (state.stage !== "collectingArguments") return;
+    
+    const { prompt } = state;
+    dispatch({ type: "START_LOADING", prompt, arguments: values });
+    await loadPrompt(prompt, values);
+  };
+
+  // Render based on current state with animation
+  return (
+    <div className="relative w-full">
+      {state.stage === "collectingArguments" ? (
+        <div key="expanded" className="animate-in fade-in-0 zoom-in-95 duration-300">
+          <ExpandedIceBreaker
+            prompt={state.prompt}
+            onCancel={handleCancel}
+            onSubmit={handlePromptSubmit}
+          />
+        </div>
+      ) : (
+        <div key="list" className="animate-in fade-in-0 zoom-in-95 duration-300">
+          <IceBreakers
+            prompts={prompts}
+            onSelect={handlePromptSelection}
+            loadingPrompt={state.stage === "loading" ? state.prompt : null}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Ice breakers component that uses suspense to fetch gateway prompts
  * Uses the chat context for gateway selection and message sending.
@@ -328,91 +460,5 @@ export function GatewayIceBreakers({ className }: GatewayIceBreakersProps) {
         </ErrorBoundary>
       )}
     </div>
-  );
-}
-
-/**
- * Inner component that fetches and displays prompts for a specific gateway
- */
-function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
-  const { sendMessage } = useChat();
-  const { data: prompts } = useGatewayPrompts(gatewayId);
-  const [selectedPrompt, setSelectedPrompt] = useState<GatewayPrompt | null>(
-    null,
-  );
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  if (prompts.length === 0) {
-    return null;
-  }
-
-  const handlePromptSelection = async (prompt: GatewayPrompt) => {
-    if (isSubmitting) return;
-    setErrorMessage(null);
-
-    if (!prompt.arguments || prompt.arguments.length === 0) {
-      setIsSubmitting(true);
-      try {
-        const result = await fetchGatewayPrompt(gatewayId, prompt.name);
-        const userText =
-          getPromptUserText(result) ?? prompt.description ?? prompt.name;
-        await sendMessage(userText);
-      } catch (error) {
-        console.error("[ice-breakers] Failed to fetch prompt:", error);
-        setErrorMessage("Failed to load prompt. Try again.");
-      } finally {
-        setIsSubmitting(false);
-        setSelectedPrompt(null);
-      }
-      return;
-    }
-
-    setSelectedPrompt(prompt);
-  };
-
-  const handlePromptSubmit = async (values: PromptArgumentValues) => {
-    if (!selectedPrompt) return;
-    setErrorMessage(null);
-    setIsSubmitting(true);
-    try {
-      const result = await fetchGatewayPrompt(
-        gatewayId,
-        selectedPrompt.name,
-        values,
-      );
-      const userText =
-        getPromptUserText(result) ??
-        selectedPrompt.description ??
-        selectedPrompt.name;
-      await sendMessage(userText);
-      setSelectedPrompt(null);
-    } catch (error) {
-      console.error("[ice-breakers] Failed to fetch prompt:", error);
-      setErrorMessage("Failed to load prompt. Try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (selectedPrompt) {
-    return (
-      <ExpandedIceBreaker
-        key={selectedPrompt.name}
-        prompt={selectedPrompt}
-        onCancel={() => setSelectedPrompt(null)}
-        onSubmit={handlePromptSubmit}
-        isSubmitting={isSubmitting}
-        errorMessage={errorMessage}
-      />
-    );
-  }
-
-  return (
-    <IceBreakers
-      prompts={prompts}
-      onSelect={handlePromptSelection}
-      className={isSubmitting ? "opacity-70 pointer-events-none" : undefined}
-    />
   );
 }

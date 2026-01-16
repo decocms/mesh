@@ -5,58 +5,11 @@ import { CpuChip02, Plus, X } from "@untitledui/icons";
 import { Suspense } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
+import { TypewriterTitle } from "./typewriter-title";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
   "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
-
-/**
- * Typewriter title component for animated thread titles
- */
-function TypewriterTitle({
-  text,
-  className = "",
-  speed = 30,
-}: {
-  text: string;
-  className?: string;
-  speed?: number;
-}) {
-  const animationDuration = (text.length / speed) * 1000;
-  const steps = text.length;
-  const maxWidth = `${text.length}ch`;
-
-  return (
-    <span
-      className={className}
-      key={text}
-      style={
-        {
-          "--typewriter-duration": `${animationDuration}ms`,
-          "--typewriter-steps": steps,
-          "--typewriter-max-width": maxWidth,
-        } as React.CSSProperties
-      }
-    >
-      <span className="typewriter-text">{text}</span>
-      <style>{`
-        .typewriter-text {
-          display: inline-block;
-          width: 0;
-          overflow: hidden;
-          white-space: nowrap;
-          animation: typewriter var(--typewriter-duration) steps(var(--typewriter-steps)) forwards;
-        }
-
-        @keyframes typewriter {
-          to {
-            width: var(--typewriter-max-width);
-          }
-        }
-      `}</style>
-    </span>
-  );
-}
 
 function ChatPanelContent() {
   const { org } = useProjectContext();

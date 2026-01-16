@@ -6,6 +6,7 @@
  */
 
 import { Chat, useChat } from "@/web/components/chat/index";
+import { TypewriterTitle } from "@/web/components/chat/typewriter-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { authClient } from "@/web/lib/auth-client";
@@ -36,55 +37,6 @@ function getTimeBasedGreeting(): string {
 // ---------- View Mode Types ----------
 
 type HomeViewMode = "chat" | "graph";
-
-// ---------- Typewriter Title Component ----------
-
-function TypewriterTitle({
-  text,
-  className = "",
-  speed = 30,
-}: {
-  text: string;
-  className?: string;
-  speed?: number;
-}) {
-  // Calculate animation duration based on text length and speed
-  const animationDuration = (text.length / speed) * 1000;
-  const steps = text.length;
-  // Use ch units (character width) for accurate character-based width
-  const maxWidth = `${text.length}ch`;
-
-  return (
-    <span
-      className={className}
-      key={text}
-      style={
-        {
-          "--typewriter-duration": `${animationDuration}ms`,
-          "--typewriter-steps": steps,
-          "--typewriter-max-width": maxWidth,
-        } as React.CSSProperties
-      }
-    >
-      <span className="typewriter-text">{text}</span>
-      <style>{`
-        .typewriter-text {
-          display: inline-block;
-          width: 0;
-          overflow: hidden;
-          white-space: nowrap;
-          animation: typewriter var(--typewriter-duration) steps(var(--typewriter-steps)) forwards;
-        }
-
-        @keyframes typewriter {
-          to {
-            width: var(--typewriter-max-width);
-          }
-        }
-      `}</style>
-    </span>
-  );
-}
 
 // ---------- Main Content ----------
 
