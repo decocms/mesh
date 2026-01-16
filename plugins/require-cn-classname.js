@@ -22,7 +22,7 @@ const requireCnClassNameRule = {
     } else {
       filename = context.filename;
     }
-    
+
     // Check if file is in packages/ui (should be excluded)
     // Early return with empty visitor if we're in packages/ui
     if (filename && typeof filename === "string") {
