@@ -1,3 +1,10 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type {
+  GetPromptRequest,
+  GetPromptResult,
+  ListPromptsResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
 
@@ -12,11 +19,53 @@ export interface GatewayPrompt {
   }>;
 }
 
-interface JsonRpcResponse<T = unknown> {
-  jsonrpc: "2.0";
-  id: number;
-  result?: T;
-  error?: { code: number; message: string };
+export type GatewayPromptResult = GetPromptResult;
+
+const DEFAULT_CLIENT_INFO = {
+  name: "mesh-chat",
+  version: "1.0.0",
+};
+
+function createGatewayTransport(gatewayId: string) {
+  if (typeof window === "undefined") {
+    throw new Error("Gateway prompts require a browser environment.");
+  }
+
+  const gatewayUrl = new URL(
+    `/mcp/gateway/${gatewayId}`,
+    window.location.origin,
+  );
+
+  const webStandardStreamableHttpTransport = new StreamableHTTPClientTransport(
+    gatewayUrl,
+    {
+      requestInit: {
+        headers: {
+          Accept: "application/json, text/event-stream",
+          "Content-Type": "application/json",
+        },
+      },
+    },
+  );
+
+  return webStandardStreamableHttpTransport;
+}
+
+async function withGatewayClient<T>(
+  gatewayId: string,
+  callback: (client: Client) => Promise<T>,
+): Promise<T> {
+  const client = new Client(DEFAULT_CLIENT_INFO);
+  const transport = createGatewayTransport(gatewayId);
+
+  try {
+    await client.connect(transport);
+    return await callback(client);
+  } catch {
+    throw new Error("Failed to fetch gateway prompts.");
+  } finally {
+    await client.close().catch(console.error);
+  }
 }
 
 /**
@@ -25,77 +74,26 @@ interface JsonRpcResponse<T = unknown> {
 async function fetchGatewayPrompts(
   gatewayId: string,
 ): Promise<GatewayPrompt[]> {
-  const gatewayUrl = `/mcp/gateway/${gatewayId}`;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "application/json, text/event-stream",
-  };
-
   try {
-    // Initialize MCP connection
-    const initResponse = await fetch(gatewayUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: {
-          protocolVersion: "2025-06-18",
-          capabilities: {
-            prompts: {},
-          },
-          clientInfo: {
-            name: "mesh-chat",
-            version: "1.0.0",
-          },
-        },
-      }),
-    });
-
-    if (!initResponse.ok) {
-      return [];
-    }
-
-    const initData: JsonRpcResponse = await initResponse.json();
-    if (initData.error) {
-      return [];
-    }
-
-    const { capabilities } = initData.result as {
-      capabilities?: { prompts?: unknown };
-    };
-    if (!capabilities?.prompts) {
-      return [];
-    }
-
-    // List prompts
-    const promptsResponse = await fetch(gatewayUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 2,
-        method: "prompts/list",
-        params: {},
-      }),
-    });
-
-    if (!promptsResponse.ok) {
-      return [];
-    }
-
-    const promptsData: JsonRpcResponse<{ prompts?: GatewayPrompt[] }> =
-      await promptsResponse.json();
-
-    if (promptsData.error) {
-      return [];
-    }
-
-    return promptsData.result?.prompts || [];
+    const result = await withGatewayClient<ListPromptsResult>(
+      gatewayId,
+      (client) => client.listPrompts(),
+    );
+    return result.prompts ?? [];
   } catch {
     return [];
   }
+}
+
+export async function fetchGatewayPrompt(
+  gatewayId: string,
+  name: string,
+  args?: GetPromptRequest["params"]["arguments"],
+): Promise<GatewayPromptResult> {
+  const argumentsValue = args ?? {};
+  return await withGatewayClient<GatewayPromptResult>(gatewayId, (client) =>
+    client.getPrompt({ name, arguments: argumentsValue }),
+  );
 }
 
 /**
