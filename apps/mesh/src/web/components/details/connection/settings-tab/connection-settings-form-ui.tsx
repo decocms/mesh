@@ -33,13 +33,11 @@ import type { ConnectionFormData } from "./schema";
 function ConnectionFields({
   form,
   connection,
-  isMCPAuthenticated,
-  supportsOAuth,
+  hasOAuthToken,
 }: {
   form: ReturnType<typeof useForm<ConnectionFormData>>;
   connection: ConnectionEntity;
-  isMCPAuthenticated?: boolean;
-  supportsOAuth?: boolean;
+  hasOAuthToken?: boolean;
 }) {
   const uiType = useWatch({ control: form.control, name: "ui_type" });
   const connectionUrl = useWatch({
@@ -267,15 +265,22 @@ function ConnectionFields({
             )}
           />
 
-          {/* OAuth authentication badge */}
-          {isMCPAuthenticated && supportsOAuth && (
+          {/* Authentication status badge */}
+          {hasOAuthToken ? (
             <div className="flex items-center">
               <Badge variant="success" className="gap-1.5">
                 <CheckCircle size={12} />
                 Authenticated via OAuth
               </Badge>
             </div>
-          )}
+          ) : connection.connection_token ? (
+            <div className="flex items-center">
+              <Badge variant="secondary" className="gap-1.5">
+                <CheckCircle size={12} />
+                Token saved
+              </Badge>
+            </div>
+          ) : null}
 
           <FormField
             control={form.control}
@@ -292,7 +297,7 @@ function ConnectionFields({
                     type="password"
                     placeholder={
                       connection.connection_token
-                        ? "••••••••"
+                        ? "Enter new token to replace..."
                         : isGitHubCopilotMcp
                           ? "Paste your GitHub PAT (no 'Bearer' prefix)"
                           : "Enter access token..."
@@ -300,13 +305,17 @@ function ConnectionFields({
                     {...field}
                     value={field.value || ""}
                     className="h-10 rounded-lg"
-                    disabled={isMCPAuthenticated && supportsOAuth}
+                    disabled={hasOAuthToken}
                   />
                 </FormControl>
-                {isMCPAuthenticated && supportsOAuth ? (
+                {hasOAuthToken ? (
                   <FormDescription>
                     This connection uses OAuth for authentication. Manage access
                     in the MCP Configuration panel.
+                  </FormDescription>
+                ) : connection.connection_token ? (
+                  <FormDescription>
+                    A token is already saved. Enter a new token to replace it.
                   </FormDescription>
                 ) : isGitHubCopilotMcp ? (
                   <FormDescription>
@@ -338,13 +347,11 @@ function ConnectionFields({
 export function ConnectionSettingsFormUI({
   form,
   connection,
-  isMCPAuthenticated,
-  supportsOAuth,
+  hasOAuthToken,
 }: {
   form: ReturnType<typeof useForm<ConnectionFormData>>;
   connection: ConnectionEntity;
-  isMCPAuthenticated?: boolean;
-  supportsOAuth?: boolean;
+  hasOAuthToken?: boolean;
 }) {
   const { org } = useProjectContext();
 
@@ -402,8 +409,7 @@ export function ConnectionSettingsFormUI({
         <ConnectionFields
           form={form}
           connection={connection}
-          isMCPAuthenticated={isMCPAuthenticated}
-          supportsOAuth={supportsOAuth}
+          hasOAuthToken={hasOAuthToken}
         />
 
         {/* Last Updated section */}

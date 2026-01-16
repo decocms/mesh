@@ -150,6 +150,7 @@ function ConnectionInspectorViewWithConnection({
                   isUpdating={isUpdating}
                   isMCPAuthenticated={isMCPAuthenticated}
                   supportsOAuth={authStatus.supportsOAuth}
+                  hasOAuthToken={authStatus.hasOAuthToken}
                   isServerError={authStatus.isServerError}
                   onViewReadme={
                     hasRepository ? () => handleTabChange("readme") : undefined

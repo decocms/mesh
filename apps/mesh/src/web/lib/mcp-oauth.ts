@@ -548,10 +548,48 @@ export interface McpAuthStatus {
   isAuthenticated: boolean;
   /** Whether the server supports OAuth (has WWW-Authenticate header on 401) */
   supportsOAuth: boolean;
+  /** Whether the current authentication is via OAuth (has stored OAuth token) */
+  hasOAuthToken: boolean;
   /** Error message if authentication failed */
   error?: string;
   /** Whether this was a server error (5xx) - OAuth support is unknown in this case */
   isServerError?: boolean;
+}
+
+/**
+ * Extract connection ID from MCP proxy URL
+ */
+function extractConnectionIdFromUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    const match = urlObj.pathname.match(/^\/mcp\/([^/]+)/);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if connection has a stored OAuth token
+ */
+async function checkOAuthTokenStatus(
+  connectionId: string,
+): Promise<{ hasToken: boolean }> {
+  try {
+    const response = await fetch(
+      `/api/connections/${connectionId}/oauth-token/status`,
+      {
+        credentials: "include",
+      },
+    );
+    if (!response.ok) {
+      return { hasToken: false };
+    }
+    const data = await response.json();
+    return { hasToken: data.hasToken === true };
+  } catch {
+    return { hasToken: false };
+  }
 }
 
 /**
@@ -590,8 +628,22 @@ export async function isConnectionAuthenticated({
       }),
     });
 
+    // Extract connection ID for OAuth token status check
+    const connectionId = extractConnectionIdFromUrl(url);
+
     if (response.ok) {
-      return { isAuthenticated: true, supportsOAuth: true };
+      // Check if we have an OAuth token stored for this connection
+      const oauthStatus = connectionId
+        ? await checkOAuthTokenStatus(connectionId)
+        : { hasToken: false };
+
+      return {
+        isAuthenticated: true,
+        // When authenticated, we can't determine OAuth support from the response
+        // (no 401 to check WWW-Authenticate header). Default to false.
+        supportsOAuth: false,
+        hasOAuthToken: oauthStatus.hasToken,
+      };
     }
 
     // Try to get error message from response body
@@ -608,6 +660,7 @@ export async function isConnectionAuthenticated({
       return {
         isAuthenticated: false,
         supportsOAuth: false,
+        hasOAuthToken: false,
         error: error || `HTTP ${response.status}`,
         isServerError: true,
       };
@@ -620,6 +673,7 @@ export async function isConnectionAuthenticated({
     return {
       isAuthenticated: false,
       supportsOAuth,
+      hasOAuthToken: false,
       error: error || `HTTP ${response.status}`,
     };
   } catch (error) {
@@ -627,6 +681,7 @@ export async function isConnectionAuthenticated({
     return {
       isAuthenticated: false,
       supportsOAuth: false,
+      hasOAuthToken: false,
       error: (error as Error).message,
     };
   }

@@ -230,6 +230,7 @@ interface SettingsTabProps {
   isUpdating: boolean;
   isMCPAuthenticated: boolean;
   supportsOAuth: boolean;
+  hasOAuthToken: boolean;
   isServerError?: boolean;
   onViewReadme?: () => void;
 }
@@ -610,8 +611,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
           <ConnectionSettingsFormUI
             form={form}
             connection={connection}
-            isMCPAuthenticated={props.isMCPAuthenticated}
-            supportsOAuth={props.supportsOAuth}
+            hasOAuthToken={props.hasOAuthToken}
           />
         </div>
 
