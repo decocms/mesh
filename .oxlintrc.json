@@ -3,7 +3,8 @@
     "./plugins/enforce-kebab-case-file-names.js",
     "./plugins/enforce-query-key-constants.js",
     "./plugins/ban-use-effect.js",
-    "./plugins/ban-memoization.js"
+    "./plugins/ban-memoization.js",
+    "./plugins/require-cn-classname.js"
   ],
   "ignorePatterns": ["apps/docs/*"],
   "rules": {
@@ -14,7 +15,8 @@
     "ban-types": "warn",
     "enforce-query-key-constants/enforce-query-key-constants": "warn",
     "ban-use-effect/ban-use-effect": "error",
-    "ban-memoization/ban-memoization": "error"
+    "ban-memoization/ban-memoization": "error",
+    "require-cn-classname/require-cn-classname": "error"
   },
   "plugins": ["react"]
 }

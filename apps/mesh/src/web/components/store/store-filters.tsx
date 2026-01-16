@@ -1,5 +1,6 @@
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   Popover,
   PopoverContent,
@@ -102,11 +103,12 @@ function FilterDropdown({
                 <button
                   key={item.value}
                   onClick={() => onToggle(item.value)}
-                  className={`w-full flex items-center justify-between px-2 py-1.5 text-sm rounded cursor-pointer transition-colors ${
+                  className={cn(
+                    "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded cursor-pointer transition-colors",
                     isSelected
                       ? "bg-accent/50 text-foreground"
-                      : "hover:bg-muted text-foreground"
-                  }`}
+                      : "hover:bg-muted text-foreground",
+                  )}
                 >
                   <span className="truncate flex items-center gap-2">
                     {isSelected && (
@@ -237,11 +239,12 @@ export function StoreFilters({
             <div
               key={category.value}
               onClick={() => toggleCategory(category.value)}
-              className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full transition-colors cursor-pointer ${
+              className={cn(
+                "inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full transition-colors cursor-pointer",
                 isSelected
                   ? "bg-primary text-primary-foreground hover:bg-primary/80"
-                  : "bg-muted hover:bg-accent text-muted-foreground"
-              }`}
+                  : "bg-muted hover:bg-accent text-muted-foreground",
+              )}
             >
               <span>{category.value}</span>
               {isSelected && (

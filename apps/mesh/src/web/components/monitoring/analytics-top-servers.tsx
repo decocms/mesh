@@ -6,6 +6,7 @@
 
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Container } from "@untitledui/icons";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useToolCall } from "@/web/hooks/use-tool-call";
@@ -261,7 +262,10 @@ function TopServersContent({
                 </span>
                 <div className="relative h-2 bg-muted/50 overflow-hidden flex-1">
                   <div
-                    className={`h-full transition-all duration-500 ease-out group-hover:opacity-80 ${barColor}`}
+                    className={cn(
+                      "h-full transition-all duration-500 ease-out group-hover:opacity-80",
+                      barColor,
+                    )}
                     style={{ width: `${percentage}%` }}
                   />
                 </div>

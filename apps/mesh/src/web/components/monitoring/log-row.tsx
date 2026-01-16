@@ -6,6 +6,7 @@
 
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { ChevronDown, ChevronRight } from "@untitledui/icons";
 import { Fragment } from "react";
 import { ExpandedLogContent, type EnrichedMonitoringLog } from "./types.tsx";
@@ -58,9 +59,11 @@ export function LogRow({
     <Fragment>
       <div
         ref={lastLogRef}
-        className={`flex items-center h-14 md:h-16 ${isFirst ? "" : "border-t border-border/60"} transition-colors cursor-pointer ${
-          isExpanded ? "bg-muted/30 hover:bg-accent/80" : "hover:bg-muted/40"
-        }`}
+        className={cn(
+          "flex items-center h-14 md:h-16 transition-colors cursor-pointer",
+          !isFirst && "border-t border-border/60",
+          isExpanded ? "bg-muted/30 hover:bg-accent/80" : "hover:bg-muted/40",
+        )}
         onClick={onToggle}
       >
         {/* Expand Icon */}

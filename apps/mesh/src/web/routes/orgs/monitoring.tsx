@@ -26,6 +26,7 @@ import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { FilterLines, PauseCircle, PlayCircle } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import { MultiSelect } from "@deco/ui/components/multi-select.tsx";
@@ -877,7 +878,10 @@ function MonitoringDashboardContent({
               <Button
                 variant={isStreaming ? "secondary" : "outline"}
                 size="sm"
-                className={`h-7 px-2 sm:px-3 gap-1.5 ${isStreaming ? "bg-muted hover:bg-muted/80" : ""}`}
+                className={cn(
+                  "h-7 px-2 sm:px-3 gap-1.5",
+                  isStreaming && "bg-muted hover:bg-muted/80",
+                )}
                 onClick={onStreamingToggle}
               >
                 {isStreaming ? (

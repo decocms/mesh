@@ -4,6 +4,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Inbox01, Check, XClose, Mail01 } from "@untitledui/icons";
 import { AuthUIContext } from "@daveyplate/better-auth-ui";
@@ -109,7 +110,10 @@ function InvitationItem({
 
   return (
     <div
-      className={`flex items-center gap-3 px-3 py-2 h-12 border-b border-border/50 last:border-b-0 ${!isPending ? "opacity-50" : ""}`}
+      className={cn(
+        "flex items-center gap-3 px-3 py-2 h-12 border-b border-border/50 last:border-b-0",
+        !isPending && "opacity-50",
+      )}
     >
       <div className="shrink-0 size-5 flex items-center justify-center">
         <Mail01 size={16} className="text-muted-foreground" />

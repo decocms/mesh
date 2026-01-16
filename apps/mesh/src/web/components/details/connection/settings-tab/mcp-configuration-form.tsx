@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import RjsfForm from "@rjsf/shadcn";
 import type { FieldTemplateProps, ObjectFieldTemplateProps } from "@rjsf/utils";
 import validator from "@rjsf/validator-ajv8";
@@ -257,7 +258,7 @@ function BindingSelector({
 
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger size="sm" className={className ?? "w-[200px]"}>
+      <SelectTrigger size="sm" className={cn("w-[200px]", className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
