@@ -38,8 +38,9 @@ describe("isConnectionAuthenticated", () => {
 
     const calls = (global.fetch as unknown as ReturnType<typeof mock>).mock
       .calls;
-    // First call is initialize, second might be OAuth token status check (but not for external URLs)
-    expect(calls.length).toBeGreaterThanOrEqual(1);
+    // Should be exactly 1 call - OAuth token status check is skipped for external URLs
+    // (only /mcp/:connectionId paths trigger the status check)
+    expect(calls.length).toBe(1);
     const [calledUrl, init] = calls[0] as [string, RequestInit];
     expect(calledUrl).toBe("https://example.com/mcp");
     expect(init.method).toBe("POST");
