@@ -72,7 +72,7 @@ function PromptPill({
             isSelected && "bg-accent/50 text-foreground",
             isLoading && "bg-accent/50 text-foreground",
             (isDisabled || isLoading) &&
-            "cursor-not-allowed hover:bg-accent/50",
+              "cursor-not-allowed hover:bg-accent/50",
           )}
         >
           {(prompt.title ?? prompt.name).replace(/_/g, " ")}
@@ -151,8 +151,8 @@ function IceBreakers({
                             "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-md transition-colors cursor-pointer text-left flex items-center gap-1.5",
                             isLoading && "bg-accent/50 text-foreground",
                             isAnyLoading &&
-                            !isLoading &&
-                            "opacity-60 cursor-not-allowed",
+                              !isLoading &&
+                              "opacity-60 cursor-not-allowed",
                           )}
                         >
                           {(prompt.title ?? prompt.name).replace(/_/g, " ")}
@@ -225,11 +225,7 @@ function ExpandedIceBreaker({
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">
-      <PromptPill
-        prompt={prompt}
-        onSelect={onCancel}
-        isSelected
-      />
+      <PromptPill prompt={prompt} onSelect={onCancel} isSelected />
       {prompt.description ? (
         <p className="text-xs text-muted-foreground max-w-xl text-center">
           {prompt.description}
@@ -313,19 +309,26 @@ function IceBreakersFallback() {
   );
 }
 
-
 /**
  * State machine for ice breakers
  */
 type IceBreakerState =
   | { stage: "idle" }
   | { stage: "collectingArguments"; prompt: GatewayPrompt }
-  | { stage: "loading"; prompt: GatewayPrompt; arguments?: PromptArgumentValues };
+  | {
+      stage: "loading";
+      prompt: GatewayPrompt;
+      arguments?: PromptArgumentValues;
+    };
 
 type IceBreakerAction =
   | { type: "SELECT_PROMPT"; prompt: GatewayPrompt }
   | { type: "CANCEL" }
-  | { type: "START_LOADING"; prompt: GatewayPrompt; arguments?: PromptArgumentValues }
+  | {
+      type: "START_LOADING";
+      prompt: GatewayPrompt;
+      arguments?: PromptArgumentValues;
+    }
   | { type: "RESET" };
 
 function iceBreakerReducer(
@@ -340,20 +343,20 @@ function iceBreakerReducer(
       }
       // Otherwise, collect arguments first
       return { stage: "collectingArguments", prompt: action.prompt };
-    
+
     case "CANCEL":
       return { stage: "idle" };
-    
+
     case "START_LOADING":
       return {
         stage: "loading",
         prompt: action.prompt,
         arguments: action.arguments,
       };
-    
+
     case "RESET":
       return { stage: "idle" };
-    
+
     default:
       return state;
   }
@@ -406,7 +409,7 @@ function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
 
   const handlePromptSubmit = async (values: PromptArgumentValues) => {
     if (state.stage !== "collectingArguments") return;
-    
+
     const { prompt } = state;
     dispatch({ type: "START_LOADING", prompt, arguments: values });
     await loadPrompt(prompt, values);
@@ -416,7 +419,10 @@ function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
   return (
     <div className="relative w-full">
       {state.stage === "collectingArguments" ? (
-        <div key="expanded" className="animate-in fade-in-0 zoom-in-95 duration-300">
+        <div
+          key="expanded"
+          className="animate-in fade-in-0 zoom-in-95 duration-300"
+        >
           <ExpandedIceBreaker
             prompt={state.prompt}
             onCancel={handleCancel}
@@ -424,7 +430,10 @@ function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
           />
         </div>
       ) : (
-        <div key="list" className="animate-in fade-in-0 zoom-in-95 duration-300">
+        <div
+          key="list"
+          className="animate-in fade-in-0 zoom-in-95 duration-300"
+        >
           <IceBreakers
             prompts={prompts}
             onSelect={handlePromptSelection}
