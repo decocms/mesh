@@ -202,6 +202,7 @@ export function ChatInput() {
     clearChatError,
     finishReason,
     clearFinishReason,
+    hasTranscriptionBinding,
   } = useChat();
 
   const { org } = useProjectContext();
@@ -231,9 +232,6 @@ export function ChatInput() {
 
   const canSubmit =
     !isStreaming && selectedModel && inputValue.trim().length > 0;
-
-  const isRecordingOrTranscribing =
-    isRecording || isTranscribing || isRecordingPending;
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -335,9 +333,11 @@ export function ChatInput() {
   };
 
   const color = selectedGateway ? getGatewayColor(selectedGateway.id) : null;
-  const placeholder = !selectedModel
-    ? "Select a model to start chatting"
-    : "Ask anything or @ for context";
+  const placeholder = isTranscribing
+    ? "Transcrevendo áudio..."
+    : !selectedModel
+      ? "Select a model to start chatting"
+      : "Ask anything or @ for context";
 
   return (
     <div className="flex flex-col gap-2 w-full min-h-42 justify-end">
@@ -452,7 +452,7 @@ export function ChatInput() {
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={placeholder}
-                  disabled={!selectedModel || isStreaming}
+                  disabled={!selectedModel || isStreaming || isTranscribing}
                   className={cn(
                     "placeholder:text-muted-foreground resize-none focus-visible:ring-0 border-0 p-2 text-[15px]! min-h-[20px] w-full",
                     "rounded-none shadow-none",
@@ -488,69 +488,73 @@ export function ChatInput() {
 
               {/* Right Actions (record + send buttons) */}
               <div className="flex items-center gap-1">
-                {/* Audio Recording Button */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={!selectedModel || isStreaming || isTranscribing}
-                      onClick={handleRecordingToggle}
-                      className={cn(
-                        "size-8 rounded-full transition-all relative",
-                        isRecording &&
-                          "text-destructive hover:text-destructive",
-                        (!selectedModel || isStreaming || isTranscribing) &&
-                          "opacity-50 cursor-not-allowed",
-                      )}
-                      aria-label={
-                        isTranscribing
-                          ? "Transcrevendo..."
-                          : isRecording
-                            ? "Parar gravação"
-                            : "Gravar áudio"
-                      }
-                    >
-                      {isTranscribing ? (
-                        <svg
-                          className="animate-spin size-5"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                      ) : isRecording ? (
-                        <>
-                          <StopCircle size={20} />
-                          <span className="absolute inset-0 rounded-full animate-ping bg-destructive/20" />
-                        </>
-                      ) : (
-                        <Microphone01 size={20} />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={8}>
-                    {isTranscribing
-                      ? "Transcrevendo..."
-                      : isRecording
-                        ? "Clique para parar e transcrever"
-                        : "Gravar áudio"}
-                  </TooltipContent>
-                </Tooltip>
+                {/* Audio Recording Button - only shown if transcription binding is available */}
+                {hasTranscriptionBinding && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={
+                          !selectedModel || isStreaming || isTranscribing
+                        }
+                        onClick={handleRecordingToggle}
+                        className={cn(
+                          "size-8 rounded-full transition-all relative",
+                          isRecording &&
+                            "text-destructive hover:text-destructive",
+                          (!selectedModel || isStreaming || isTranscribing) &&
+                            "opacity-50 cursor-not-allowed",
+                        )}
+                        aria-label={
+                          isTranscribing
+                            ? "Transcrevendo..."
+                            : isRecording
+                              ? "Parar gravação"
+                              : "Gravar áudio"
+                        }
+                      >
+                        {isTranscribing ? (
+                          <svg
+                            className="animate-spin size-5"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
+                          </svg>
+                        ) : isRecording ? (
+                          <>
+                            <StopCircle size={20} />
+                            <span className="absolute inset-0 rounded-full animate-ping bg-destructive/20" />
+                          </>
+                        ) : (
+                          <Microphone01 size={20} />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" sideOffset={8}>
+                      {isTranscribing
+                        ? "Transcrevendo..."
+                        : isRecording
+                          ? "Clique para parar e transcrever"
+                          : "Gravar áudio"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
 
                 {/* Send Button */}
                 <Button

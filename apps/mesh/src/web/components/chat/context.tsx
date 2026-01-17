@@ -15,7 +15,9 @@ import {
   type PropsWithChildren,
 } from "react";
 import { toast } from "sonner";
+import { useConnections } from "../../hooks/collections/use-connection";
 import { useModelConnections } from "../../hooks/collections/use-llm";
+import { useBindingConnections } from "../../hooks/use-binding";
 import {
   getThreadFromIndexedDB,
   useMessageActions,
@@ -220,6 +222,9 @@ interface ChatContextValue {
   clearChatError: () => void;
   finishReason: string | null;
   clearFinishReason: () => void;
+
+  // Feature availability
+  hasTranscriptionBinding: boolean;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -273,6 +278,14 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Tool call handler
   const onToolCall = useInvalidateCollectionsOnToolCall();
+
+  // Transcription binding availability
+  const allConnections = useConnections();
+  const transcriptionConnections = useBindingConnections({
+    connections: allConnections,
+    binding: "TRANSCRIPTION",
+  });
+  const hasTranscriptionBinding = transcriptionConnections.length > 0;
 
   // ===========================================================================
   // 2. DERIVED VALUES - Compute values from hook state
@@ -526,6 +539,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     clearChatError: chat.clearError,
     finishReason: chatState.finishReason,
     clearFinishReason,
+
+    // Feature availability
+    hasTranscriptionBinding,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

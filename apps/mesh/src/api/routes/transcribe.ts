@@ -2,10 +2,15 @@
  * Audio Transcription Route
  *
  * Receives audio files and transcribes them to text using the TRANSCRIPTION binding.
- * Uses the user's configured transcription connection via MCP proxy.
+ * Uses Supabase Storage for temporary audio file hosting.
  *
- * This follows the same pattern as the LLM binding - any MCP server that implements
- * the TRANSCRIPTION_TRANSCRIBE tool can be used for transcription.
+ * Flow:
+ * 1. Receive audio from frontend
+ * 2. Upload to Supabase Storage (temporary)
+ * 3. Get public URL
+ * 4. Call TRANSCRIBE_AUDIO with the URL
+ * 5. Delete temporary file
+ * 6. Return transcription
  */
 
 import {
@@ -14,6 +19,7 @@ import {
   SUPPORTED_AUDIO_FORMATS,
 } from "@decocms/bindings";
 import { connectionImplementsBinding } from "@decocms/bindings";
+import { createClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
@@ -27,15 +33,25 @@ const app = new Hono<{ Variables: Variables }>();
 // Max file size: 25MB (common limit for transcription APIs)
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
+// Supabase Storage bucket for temporary audio files
+const AUDIO_BUCKET = "audio-transcriptions";
+
+/**
+ * Get Supabase client for storage operations
+ */
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
+
 /**
  * Find a connection that implements the TRANSCRIPTION binding.
- *
- * Priority:
- * 1. Preferred connection ID (if provided and implements binding)
- * 2. Any connection with TRANSCRIPTION binding
- *
- * Falls back to legacy behavior (looking for OpenAI connections) if no
- * transcription binding is found.
  */
 async function findTranscriptionConnection(
   ctx: MeshContext,
@@ -50,46 +66,87 @@ async function findTranscriptionConnection(
     const preferred = activeConnections.find(
       (c) => c.id === preferredConnectionId,
     );
-    if (
-      preferred &&
-      connectionImplementsBinding(preferred, TRANSCRIPTION_BINDING)
-    ) {
-      console.log(
-        "[transcribe] Using preferred connection with TRANSCRIPTION binding:",
-        preferred.title,
+    if (preferred) {
+      const hasBinding = connectionImplementsBinding(
+        preferred,
+        TRANSCRIPTION_BINDING,
       );
-      return preferred;
+      if (hasBinding) {
+        return preferred;
+      }
     }
   }
 
-  // Priority 1: Look for connections that implement TRANSCRIPTION binding
-  const transcriptionConnection = activeConnections.find((c) =>
-    connectionImplementsBinding(c, TRANSCRIPTION_BINDING),
-  );
-
-  if (transcriptionConnection) {
-    console.log(
-      "[transcribe] Found connection with TRANSCRIPTION binding:",
-      transcriptionConnection.title,
-    );
-    return transcriptionConnection;
+  // Look for connections that implement TRANSCRIPTION binding
+  for (const c of activeConnections) {
+    const hasBinding = connectionImplementsBinding(c, TRANSCRIPTION_BINDING);
+    if (hasBinding) {
+      return c;
+    }
   }
 
-  console.log("[transcribe] No connection with TRANSCRIPTION binding found");
   return null;
 }
 
+// Supabase client type (simplified for internal use)
+type SupabaseStorageClient = NonNullable<ReturnType<typeof getSupabaseClient>>;
+
 /**
- * Convert a Blob to base64 string
+ * Upload audio to Supabase Storage and get public URL
  */
-async function blobToBase64(blob: Blob): Promise<string> {
-  const buffer = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i] as number);
+async function uploadAudioToStorage(
+  supabase: SupabaseStorageClient,
+  audioBlob: Blob,
+  mimeType: string,
+): Promise<{ path: string; publicUrl: string }> {
+  // Generate unique filename
+  const timestamp = Date.now();
+  const randomId = Math.random().toString(36).substring(2, 10);
+  const extension = mimeType.includes("webm")
+    ? "webm"
+    : mimeType.includes("mp3") || mimeType.includes("mpeg")
+      ? "mp3"
+      : mimeType.includes("wav")
+        ? "wav"
+        : mimeType.includes("mp4") || mimeType.includes("m4a")
+          ? "m4a"
+          : "audio";
+  const filename = `${timestamp}_${randomId}.${extension}`;
+  const path = `temp/${filename}`;
+
+  // Convert Blob to ArrayBuffer for upload
+  const arrayBuffer = await audioBlob.arrayBuffer();
+
+  // Upload to Supabase Storage
+  const { error: uploadError } = await supabase.storage
+    .from(AUDIO_BUCKET)
+    .upload(path, arrayBuffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(`Failed to upload audio: ${uploadError.message}`);
   }
-  return btoa(binary);
+
+  // Get public URL
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(AUDIO_BUCKET).getPublicUrl(path);
+
+  return { path, publicUrl };
+}
+
+/**
+ * Delete audio from Supabase Storage
+ */
+async function deleteAudioFromStorage(
+  supabase: SupabaseStorageClient,
+  path: string,
+): Promise<void> {
+  const { error } = await supabase.storage.from(AUDIO_BUCKET).remove([path]);
+
+  // Silently ignore delete errors (file will expire anyway)
 }
 
 /**
@@ -99,6 +156,7 @@ async function blobToBase64(blob: Blob): Promise<string> {
  *
  * Request: multipart/form-data
  * - audio: Audio file (webm, mp3, wav, etc.)
+ * - audioUrl: (optional) URL to audio file (skips upload)
  * - connectionId: (optional) Specific transcription connection to use
  * - language: (optional) Language hint (ISO 639-1 code)
  *
@@ -123,19 +181,28 @@ app.post("/:org/transcribe", async (c) => {
     return c.json({ error: "Organization mismatch" }, 403);
   }
 
+  // Track uploaded file path for cleanup
+  let uploadedPath: string | null = null;
+  let supabase: ReturnType<typeof getSupabaseClient> = null;
+
   try {
     // Parse multipart form data
     const formData = await c.req.formData();
     const audioFile = formData.get("audio");
+    const audioUrl = formData.get("audioUrl")?.toString();
     const connectionId = formData.get("connectionId")?.toString();
     const language = formData.get("language")?.toString();
 
-    if (!audioFile || !(audioFile instanceof Blob)) {
-      return c.json({ error: "No audio file provided" }, 400);
+    // Either audioUrl or audio file is required
+    if (!audioUrl && (!audioFile || !(audioFile instanceof Blob))) {
+      return c.json(
+        { error: "Either audioUrl or audio file is required" },
+        400,
+      );
     }
 
-    // Validate file size
-    if (audioFile.size > MAX_FILE_SIZE) {
+    // Validate file size if file is provided
+    if (audioFile instanceof Blob && audioFile.size > MAX_FILE_SIZE) {
       return c.json(
         {
           error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`,
@@ -144,8 +211,9 @@ app.post("/:org/transcribe", async (c) => {
       );
     }
 
-    // Validate file type (lenient check - browser might report different types)
-    const contentType = audioFile.type;
+    // Validate file type if file is provided
+    const contentType =
+      audioFile instanceof Blob ? audioFile.type || "audio/webm" : undefined;
     if (
       contentType &&
       !SUPPORTED_AUDIO_FORMATS.some((f) => {
@@ -167,31 +235,53 @@ app.post("/:org/transcribe", async (c) => {
       return c.json(
         {
           error:
-            "No transcription connection found. Please connect a provider that supports the TRANSCRIPTION binding (e.g., OpenAI Whisper MCP).",
+            "No transcription connection found. Please connect a provider that supports the TRANSCRIPTION binding.",
         },
         404,
       );
     }
 
-    console.log(
-      "[transcribe] Using connection:",
-      connection.id,
-      connection.title,
-    );
+    // Determine the audio URL to use
+    let finalAudioUrl = audioUrl;
+
+    // If no URL provided, upload to Supabase Storage
+    if (!finalAudioUrl && audioFile instanceof Blob) {
+      supabase = getSupabaseClient();
+
+      if (!supabase) {
+        return c.json(
+          {
+            error:
+              "Audio storage not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.",
+          },
+          500,
+        );
+      }
+
+      const { path, publicUrl } = await uploadAudioToStorage(
+        supabase,
+        audioFile,
+        contentType || "audio/webm",
+      );
+
+      uploadedPath = path;
+      finalAudioUrl = publicUrl;
+    }
 
     // Create MCP proxy for the connection
     const proxy = await ctx.createMCPProxy(connection);
     const transcriptionBinding = TranscriptionBinding.forClient(proxy);
 
-    // Convert audio to base64 for the binding
-    const audioBase64 = await blobToBase64(audioFile);
-
-    // Call the transcription tool via the binding
+    // Call the transcription tool with the audio URL
     const result = await transcriptionBinding.TRANSCRIBE_AUDIO({
-      audio: audioBase64,
-      mimeType: contentType || "audio/webm",
+      audioUrl: finalAudioUrl,
       language: language || undefined,
     });
+
+    // Clean up temporary file
+    if (uploadedPath && supabase) {
+      await deleteAudioFromStorage(supabase, uploadedPath);
+    }
 
     // Return the transcription result
     return c.json({
@@ -201,10 +291,13 @@ app.post("/:org/transcribe", async (c) => {
       confidence: result.confidence,
     });
   } catch (error) {
-    const err = error as Error;
-    console.error("[transcribe] Error:", err.message);
+    // Clean up on error
+    if (uploadedPath && supabase) {
+      await deleteAudioFromStorage(supabase, uploadedPath);
+    }
 
-    // Check for specific error types
+    const err = error as Error;
+
     if (
       err.message.includes("not found") ||
       err.message.includes("No handler")
@@ -212,7 +305,7 @@ app.post("/:org/transcribe", async (c) => {
       return c.json(
         {
           error:
-            "Transcription tool not available. Make sure your connection implements the TRANSCRIPTION_TRANSCRIBE tool.",
+            "Transcription tool not available. Make sure your connection implements the TRANSCRIBE_AUDIO tool.",
         },
         400,
       );

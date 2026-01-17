@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@jitl/quickjs-wasmfile-release-sync": "^0.31.0",
+    "@supabase/supabase-js": "^2.90.1",
     "@untitledui/icons": "^0.0.19",
     "@xyflow/react": "^12.10.0",
     "kysely": "^0.28.8",
