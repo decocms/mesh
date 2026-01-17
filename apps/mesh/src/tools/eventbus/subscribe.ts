@@ -22,11 +22,12 @@ export const EVENT_SUBSCRIBE = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
 
-    // Get the subscriber connection ID from the caller's token
-    const connectionId = ctx.connectionId;
+    // Get the subscriber connection ID
+    // Use explicit subscriberId if provided (for calls via gateway), otherwise use caller's connection
+    const connectionId = input.subscriberId || ctx.connectionId;
     if (!connectionId) {
       throw new Error(
-        "Connection ID required to subscribe. Use a connection-scoped token.",
+        "Connection ID required to subscribe. Use a connection-scoped token or provide subscriberId.",
       );
     }
     // Create the subscription

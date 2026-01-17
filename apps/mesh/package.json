@@ -21,7 +21,7 @@
     "dist/**/*"
   ],
   "scripts": {
-    "dev": "bun run migrate && concurrently \"bun run dev:client\" \"bun run dev:server\"",
+    "dev": "bun run migrate && concurrently --kill-others --kill-signal SIGTERM \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "bun --bun vite dev",
     "dev:server": "NODE_ENV=development bun --hot run src/index.ts",
     "build:client": "bun --bun vite build",
@@ -76,8 +76,8 @@
     "@rjsf/validator-ajv8": "^6.1.2",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-query": "^5.90.11",
-    "@tanstack/react-router": "^1.139.7",
-    "@tanstack/react-router-devtools": "^1.139.7",
+    "@tanstack/react-router": "^1.150.0",
+    "@tanstack/react-router-devtools": "^1.150.0",
     "@tiptap/extension-mention": "^3.13.0",
     "@tiptap/pm": "^3.13.0",
     "@tiptap/react": "^3.13.0",
