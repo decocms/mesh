@@ -18,11 +18,20 @@ import {
   CornerUpLeft,
   CpuChip02,
   Edit01,
+  Microphone01,
   Stop,
+  StopCircle,
   XCircle,
 } from "@untitledui/icons";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useAudioRecorder } from "@/web/hooks/use-audio-recorder";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip";
+import { toast } from "sonner";
 import { useChat } from "./context";
 import { ChatHighlight } from "./index";
 import {
@@ -195,8 +204,36 @@ export function ChatInput() {
     clearFinishReason,
   } = useChat();
 
+  const { org } = useProjectContext();
+
+  // Audio recording state
+  const {
+    isRecording,
+    isPending: isRecordingPending,
+    startRecording,
+    stopRecording,
+    error: recordingError,
+    clearError: clearRecordingError,
+  } = useAudioRecorder({ maxDuration: 3 * 60 * 1000 }); // 3 min max
+
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  // Show recording errors via ref to avoid render-time side effects
+  const lastErrorRef = useRef<Error | null>(null);
+  if (recordingError && recordingError !== lastErrorRef.current) {
+    lastErrorRef.current = recordingError;
+    // Schedule toast for after render
+    setTimeout(() => {
+      toast.error(recordingError.message);
+      clearRecordingError();
+    }, 0);
+  }
+
   const canSubmit =
     !isStreaming && selectedModel && inputValue.trim().length > 0;
+
+  const isRecordingOrTranscribing =
+    isRecording || isTranscribing || isRecordingPending;
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -233,6 +270,68 @@ export function ChatInput() {
 
   const handleContinue = () => {
     sendMessage("Please continue.");
+  };
+
+  // Handle audio recording toggle
+  const handleRecordingToggle = async () => {
+    console.log("[ChatInput] handleRecordingToggle called", {
+      isRecording,
+      isTranscribing,
+      isRecordingPending,
+    });
+
+    if (isTranscribing) return;
+
+    if (isRecording) {
+      // Stop and transcribe
+      const audioBlob = await stopRecording();
+      if (!audioBlob) {
+        toast.error("Falha ao gravar áudio");
+        return;
+      }
+
+      setIsTranscribing(true);
+      try {
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "recording.webm");
+
+        // Use the selected model's connection if available
+        if (selectedModel?.connectionId) {
+          formData.append("connectionId", selectedModel.connectionId);
+        }
+
+        const response = await fetch(`/api/${org.slug}/transcribe`, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            (errorData as { error?: string }).error || "Falha na transcrição",
+          );
+        }
+
+        const data = (await response.json()) as { text?: string };
+        if (data.text) {
+          // Append to existing input value
+          setInputValue(inputValue ? `${inputValue} ${data.text}` : data.text);
+        } else {
+          toast.error("Nenhum texto foi transcrito");
+        }
+      } catch (err) {
+        console.error("[ChatInput] Transcription error:", err);
+        toast.error(
+          err instanceof Error ? err.message : "Erro ao transcrever áudio",
+        );
+      } finally {
+        setIsTranscribing(false);
+      }
+    } else {
+      // Start recording
+      await startRecording();
+    }
   };
 
   const color = selectedGateway ? getGatewayColor(selectedGateway.id) : null;
@@ -387,8 +486,73 @@ export function ChatInput() {
                 <UsageStats messages={messages} />
               </div>
 
-              {/* Right Actions (send button) */}
+              {/* Right Actions (record + send buttons) */}
               <div className="flex items-center gap-1">
+                {/* Audio Recording Button */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={!selectedModel || isStreaming || isTranscribing}
+                      onClick={handleRecordingToggle}
+                      className={cn(
+                        "size-8 rounded-full transition-all relative",
+                        isRecording &&
+                          "text-destructive hover:text-destructive",
+                        (!selectedModel || isStreaming || isTranscribing) &&
+                          "opacity-50 cursor-not-allowed",
+                      )}
+                      aria-label={
+                        isTranscribing
+                          ? "Transcrevendo..."
+                          : isRecording
+                            ? "Parar gravação"
+                            : "Gravar áudio"
+                      }
+                    >
+                      {isTranscribing ? (
+                        <svg
+                          className="animate-spin size-5"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                      ) : isRecording ? (
+                        <>
+                          <StopCircle size={20} />
+                          <span className="absolute inset-0 rounded-full animate-ping bg-destructive/20" />
+                        </>
+                      ) : (
+                        <Microphone01 size={20} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={8}>
+                    {isTranscribing
+                      ? "Transcrevendo..."
+                      : isRecording
+                        ? "Clique para parar e transcrever"
+                        : "Gravar áudio"}
+                  </TooltipContent>
+                </Tooltip>
+
+                {/* Send Button */}
                 <Button
                   type={isStreaming ? "button" : "submit"}
                   onClick={(e) => {

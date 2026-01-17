@@ -28,6 +28,7 @@ import downstreamTokenRoutes from "./routes/downstream-token";
 import gatewayRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
+import transcribeRoutes from "./routes/transcribe";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,
@@ -582,6 +583,9 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // LLM API routes (OpenAI-compatible)
   app.route("/api", modelsRoutes);
+
+  // Audio transcription routes
+  app.route("/api", transcribeRoutes);
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {

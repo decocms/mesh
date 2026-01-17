@@ -108,3 +108,18 @@ export {
   type DeleteObjectsInput,
   type DeleteObjectsOutput,
 } from "./well-known/object-storage";
+
+// Re-export transcription binding types
+export {
+  TRANSCRIPTION_BINDING,
+  TranscriptionBinding,
+  TranscriptionInputSchema,
+  type TranscriptionInput,
+  TranscriptionOutputSchema,
+  type TranscriptionOutput,
+  TranscriptionWordSchema,
+  type TranscriptionWord,
+  TranscriptionSegmentSchema,
+  type TranscriptionSegment,
+  SUPPORTED_AUDIO_FORMATS,
+} from "./well-known/transcription";
