@@ -418,6 +418,10 @@ async function createMCPProxyDoNotUseDirectly(
       env.MESH_URL = meshUrl;
     }
 
+    // Pass the connection ID so STDIO servers can identify themselves
+    // (needed for event bus subscriptions via gateway)
+    env.MESH_CONNECTION_ID = connectionId;
+
     // Pass state as JSON for bindings
     const state = connection.configuration_state;
     if (state && Object.keys(state).length > 0) {
@@ -792,6 +796,13 @@ async function createMCPProxyDoNotUseDirectly(
         error.code === ErrorCode.MethodNotFound
       ) {
         return { prompts: [] };
+      }
+
+      // Also don't log spawn failures - those are already logged by StableStdio
+      const isSpawnFailure =
+        error instanceof Error && error.message.includes("Spawn failed");
+      if (!isSpawnFailure) {
+        console.error("[proxy:listPrompts] Error listing prompts:", error);
       }
 
       throw error;

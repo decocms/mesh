@@ -21,7 +21,7 @@
     "dist/**/*"
   ],
   "scripts": {
-    "dev": "bun run migrate && concurrently \"bun run dev:client\" \"bun run dev:server\"",
+    "dev": "bun run migrate && concurrently --kill-others --kill-signal SIGTERM \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "bun --bun vite dev",
     "dev:server": "NODE_ENV=development bun --hot run src/index.ts",
     "build:client": "bun --bun vite build",

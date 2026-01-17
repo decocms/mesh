@@ -109,6 +109,7 @@ export class EventBusWorker {
   private notifySubscriber: NotifySubscriberFn;
   private running = false;
   private processing = false;
+  private pendingProcessRequest = false;
   private config: Required<EventBusConfig>;
 
   constructor(
@@ -160,10 +161,15 @@ export class EventBusWorker {
    * Called by the NotifyStrategy when events are available
    */
   async processNow(): Promise<void> {
-    if (!this.running) return;
+    if (!this.running) {
+      return;
+    }
 
-    // Prevent concurrent processing
-    if (this.processing) return;
+    // If already processing, mark that we need another run after current finishes
+    if (this.processing) {
+      this.pendingProcessRequest = true;
+      return;
+    }
 
     this.processing = true;
     try {
@@ -172,6 +178,13 @@ export class EventBusWorker {
       console.error("[EventBus] Error processing events:", error);
     } finally {
       this.processing = false;
+
+      // If processNow was called while we were processing, run again
+      if (this.pendingProcessRequest) {
+        this.pendingProcessRequest = false;
+        // Use setImmediate to avoid stack overflow on rapid fire events
+        setImmediate(() => this.processNow());
+      }
     }
   }
 
