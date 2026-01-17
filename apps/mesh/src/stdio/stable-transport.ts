@@ -38,10 +38,17 @@ interface StableConnection {
   client: Client;
   stableClient: StableClient;
   config: StableStdioConfig;
-  status: "connecting" | "connected" | "reconnecting" | "failed";
+  status:
+    | "connecting"
+    | "connected"
+    | "reconnecting"
+    | "failed"
+    | "spawn_failed";
   connectPromise: Promise<StableClient> | null;
   /** Process ID for killing the process tree on cleanup */
   pid?: number;
+  /** Timestamp of last spawn failure (for cooldown) */
+  lastSpawnFailure?: number;
 }
 
 /**
@@ -81,13 +88,17 @@ declare global {
 const connectionPool: Map<string, StableConnection> =
   globalThis[GLOBAL_KEY] ?? (globalThis[GLOBAL_KEY] = new Map());
 
+// Cooldown period before retrying a spawn failure (5 minutes)
+const SPAWN_FAILURE_COOLDOWN_MS = 5 * 60 * 1000;
+
 /**
  * Get or create a stable stdio connection
  *
  * - If connection exists and is connected, returns existing client
  * - If connection is reconnecting, waits for reconnection
  * - If connection doesn't exist, creates new one
- * - If connection died, respawns it
+ * - If connection died unexpectedly (was running), respawns it
+ * - If spawn failed (never connected), blocks retries for 5 minutes
  *
  * The returned client has close() disabled - call forceCloseStdioConnection() for explicit shutdown.
  */
@@ -110,6 +121,23 @@ export async function getStableStdioClient(
     }
   }
 
+  // If spawn failed recently, don't retry yet - throw immediately
+  if (existing?.status === "spawn_failed" && existing.lastSpawnFailure) {
+    const elapsed = Date.now() - existing.lastSpawnFailure;
+    if (elapsed < SPAWN_FAILURE_COOLDOWN_MS) {
+      const remainingMinutes = Math.ceil(
+        (SPAWN_FAILURE_COOLDOWN_MS - elapsed) / 60000,
+      );
+      throw new Error(
+        `[StableStdio] Spawn failed for ${config.id}. Retry in ${remainingMinutes} minute(s). Check that the command exists: ${config.command} ${config.args?.join(" ") ?? ""}`,
+      );
+    }
+    // Cooldown expired, allow retry
+    console.log(
+      `[StableStdio] Cooldown expired for ${config.id}, retrying spawn`,
+    );
+  }
+
   // If we're already connecting/reconnecting, wait for that
   if (
     existing?.connectPromise &&
@@ -119,7 +147,8 @@ export async function getStableStdioClient(
   }
 
   // Create new connection or respawn
-  const isRespawn = existing?.status === "failed";
+  const isRespawn =
+    existing?.status === "failed" || existing?.status === "spawn_failed";
   const connection: StableConnection = existing ?? {
     transport: null as unknown as StdioClientTransport,
     client: null as unknown as Client,
@@ -168,9 +197,12 @@ export async function getStableStdioClient(
       // Handle unexpected close - mark for respawn
       // We want stable local MCP connection - respawn on close
       client.onclose = () => {
-        console.log(
-          `[StableStdio] Connection closed unexpectedly: ${config.id}`,
-        );
+        // Only log if we were previously connected (not during initial spawn)
+        if (connection.status === "connected") {
+          console.log(
+            `[StableStdio] Connection closed unexpectedly: ${config.name || config.id}`,
+          );
+        }
         connection.status = "failed";
         connection.connectPromise = null;
         // Don't remove from pool - next request will respawn
@@ -221,9 +253,17 @@ export async function getStableStdioClient(
       // Return the stable wrapper (close() is disabled)
       return connection.stableClient;
     } catch (error) {
-      console.error(`[StableStdio] Failed to connect ${config.id}:`, error);
-      connection.status = "failed";
+      // Mark as spawn_failed to prevent immediate retry loops
+      // This happens when the command doesn't exist or fails to start
+      connection.status = "spawn_failed";
+      connection.lastSpawnFailure = Date.now();
       connection.connectPromise = null;
+
+      // Clean, minimal error log - no stack traces for spawn failures
+      const cmd = `${config.command} ${config.args?.join(" ") ?? ""}`.trim();
+      console.warn(
+        `[StableStdio] ✗ Spawn failed: ${config.name || config.id} (${cmd}). Will not retry for 5 minutes.`,
+      );
 
       // Clean up the spawned transport process to avoid orphaned processes
       try {
@@ -232,7 +272,12 @@ export async function getStableStdioClient(
         // Ignore close errors during cleanup
       }
 
-      throw error;
+      // Wrap the error with a clearer message for upstream detection
+      const spawnError = new Error(
+        `Spawn failed for ${config.name || config.id}: ${cmd}`,
+      );
+      spawnError.cause = error;
+      throw spawnError;
     }
   })();
 
