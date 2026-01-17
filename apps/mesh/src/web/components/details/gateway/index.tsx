@@ -322,8 +322,8 @@ function InstallClaudeButton({
         "x-mesh-client": "Claude Code",
       },
     };
-    const configJson = JSON.stringify(connectionConfig, null, 2);
-    const command = `claude mcp add "${slugifiedServerName}" --config '${configJson.replace(/'/g, "'\\''")}'`;
+    const configJson = JSON.stringify(connectionConfig);
+    const command = `claude mcp add-json ${slugifiedServerName} '${configJson.replace(/'/g, "'\\''")}'`;
 
     await navigator.clipboard.writeText(command);
     setCopied(true);
