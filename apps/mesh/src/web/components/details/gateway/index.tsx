@@ -998,6 +998,7 @@ function GatewayInspectorViewWithGateway({
                   <ToolSetSelector
                     toolSet={toolSet}
                     onToolSetChange={handleToolSetChange}
+                    excludeVirtualMcpId={gatewayId}
                   />
                 ) : activeTabId === "resources" ? (
                   <ResourceSetSelector

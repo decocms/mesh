@@ -54,8 +54,8 @@ export function useCreateGateway(
 
     if (navigateOnCreate) {
       navigate({
-        to: "/$org/gateways/$gatewayId",
-        params: { org: org.slug, gatewayId: gateway.id },
+        to: "/$org/agents/$virtualMcpId",
+        params: { org: org.slug, virtualMcpId: gateway.id },
       });
     }
 

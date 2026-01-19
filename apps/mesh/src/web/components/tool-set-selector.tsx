@@ -1,7 +1,8 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Checkbox } from "@deco/ui/components/checkbox.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { ArrowLeft } from "@untitledui/icons";
+import { Badge } from "@deco/ui/components/badge.tsx";
+import { ArrowLeft, CpuChip02 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { memo, useDeferredValue, useRef, useState } from "react";
 import { useConnections } from "@/web/hooks/collections/use-connection";
@@ -10,6 +11,8 @@ import { CollectionSearch } from "@/web/components/collections/collection-search
 export interface ToolSetSelectorProps {
   toolSet: Record<string, string[]>;
   onToolSetChange: (toolSet: Record<string, string[]>) => void;
+  /** ID of the current virtual MCP to exclude from selection (prevents loops) */
+  excludeVirtualMcpId?: string;
 }
 
 interface ConnectionItemProps {
@@ -26,6 +29,8 @@ interface ConnectionItemProps {
   totalToolsCount: number;
   onSelect: () => void;
   onToggle: () => void;
+  /** Whether this item is a virtual MCP (agent) */
+  isAgent?: boolean;
 }
 
 const ConnectionItem = memo(function ConnectionItem({
@@ -36,6 +41,7 @@ const ConnectionItem = memo(function ConnectionItem({
   totalToolsCount,
   onSelect,
   onToggle,
+  isAgent = false,
 }: ConnectionItemProps) {
   return (
     <div
@@ -48,15 +54,28 @@ const ConnectionItem = memo(function ConnectionItem({
         className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
         onClick={onSelect}
       >
-        <IntegrationIcon
-          icon={connection.icon}
-          name={connection.title}
-          size="xs"
-        />
+        {isAgent ? (
+          <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+            <CpuChip02 size={14} className="text-primary" />
+          </div>
+        ) : (
+          <IntegrationIcon
+            icon={connection.icon}
+            name={connection.title}
+            size="xs"
+          />
+        )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">
-            {connection.title}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-foreground truncate">
+              {connection.title}
+            </p>
+            {isAgent && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                Agent
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
       {connection.tools && connection.tools.length > 0 && (
@@ -127,6 +146,7 @@ type FilterMode = "all" | "selected" | "unselected";
 export function ToolSetSelector({
   toolSet,
   onToolSetChange,
+  excludeVirtualMcpId,
 }: ToolSetSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -134,19 +154,39 @@ export function ToolSetSelector({
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const initialOrder = useRef<Set<string>>(new Set(Object.keys(toolSet)));
 
-  const connections = useConnections({
+  const allConnections = useConnections({
     searchTerm: deferredSearchQuery.trim() || undefined,
   });
+
+  // Filter out the current virtual MCP to prevent loops
+  // Virtual connections have connection_url like "virtual://<vmcp_id>"
+  const connections = excludeVirtualMcpId
+    ? allConnections.filter((c) => {
+        if (c.connection_type !== "virtual") return true;
+        // Check if this virtual connection points to the current virtual MCP
+        const pointsToCurrentVmcp =
+          c.connection_url === `virtual://${excludeVirtualMcpId}`;
+        return !pointsToCurrentVmcp;
+      })
+    : allConnections;
+
+  // Mark virtual connections for display distinction
+  const connectionsWithMeta = connections.map((c) => ({
+    ...c,
+    _isAgent: c.connection_type === "virtual",
+  }));
 
   const initialOrderSet = initialOrder.current;
 
   // selected first
   const selected = [...initialOrderSet.values()]
-    .map((id) => connections.find((c) => c.id === id))
+    .map((id) => connectionsWithMeta.find((c) => c.id === id))
     .filter((c) => c !== undefined);
 
   // then not selected
-  const notSelected = connections.filter((c) => !initialOrderSet.has(c.id));
+  const notSelected = connectionsWithMeta.filter(
+    (c) => !initialOrderSet.has(c.id),
+  );
 
   const sortedConnections = [...selected, ...notSelected];
 
@@ -324,6 +364,7 @@ export function ToolSetSelector({
                     totalToolsCount={totalTools}
                     onSelect={() => handleConnectionSelect(connection.id)}
                     onToggle={() => toggleConnection(connection.id)}
+                    isAgent={connection._isAgent}
                   />
                 );
               })}

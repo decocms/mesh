@@ -24,8 +24,8 @@ function GatewayListItem({
 }) {
   return (
     <Link
-      to="/$org/gateways/$gatewayId"
-      params={{ org, gatewayId: gateway.id }}
+      to="/$org/agents/$virtualMcpId"
+      params={{ org, virtualMcpId: gateway.id }}
       className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors group"
     >
       {gateway.icon ? (
@@ -86,8 +86,8 @@ function CreateGatewayButton({
     });
 
     navigate({
-      to: "/$org/gateways/$gatewayId",
-      params: { org, gatewayId: result.id },
+      to: "/$org/agents/$virtualMcpId",
+      params: { org, virtualMcpId: result.id },
     });
   };
 

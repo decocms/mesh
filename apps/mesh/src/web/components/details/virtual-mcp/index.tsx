@@ -996,6 +996,7 @@ function VirtualMCPInspectorViewWithData({
                   <ToolSetSelector
                     toolSet={toolSet}
                     onToolSetChange={handleToolSetChange}
+                    excludeVirtualMcpId={virtualMcpId}
                   />
                 ) : activeTabId === "resources" ? (
                   <ResourceSetSelector
