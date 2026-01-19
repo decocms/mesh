@@ -10,6 +10,7 @@
  * - GET /heap-snapshot - Download heap snapshot
  * - GET /gc           - Trigger garbage collection
  */
+import v8 from "node:v8";
 
 export interface DebugServerConfig {
   port: number;
@@ -41,11 +42,10 @@ export function startDebugServer(config: DebugServerConfig) {
       // GET /heap-snapshot - generate and download heap snapshot
       if (url.pathname === "/heap-snapshot") {
         const timestamp = Date.now();
-        const filename = `/tmp/heap-${timestamp}.heapsnapshot`;
 
         try {
-          Bun.generateHeapSnapshot(filename);
-          const file = Bun.file(filename);
+          const snapshotPath = v8.writeHeapSnapshot();
+          const file = Bun.file(snapshotPath);
 
           return new Response(file, {
             headers: {
