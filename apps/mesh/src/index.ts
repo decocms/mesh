@@ -15,8 +15,11 @@ import {
 } from "@decocms/runtime/asset-server";
 import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
+import { startDebugServer } from "./debug";
 
 const port = parseInt(process.env.PORT || "3000", 10);
+const debugPort = parseInt(process.env.DEBUG_PORT || "9090", 10);
+const enableDebugServer = process.env.ENABLE_DEBUG_SERVER === "true";
 
 // ANSI color codes
 const reset = "\x1b[0m";
@@ -56,3 +59,13 @@ Bun.serve({
   },
   development: process.env.NODE_ENV !== "production",
 });
+
+// Internal debug server (only enabled via ENABLE_DEBUG_SERVER=true)
+if (enableDebugServer) {
+  startDebugServer({ port: debugPort });
+
+  console.log(
+    `  ${dim}Debug server:${reset}     ${cyan}${underline}http://localhost:${debugPort}${reset}`,
+  );
+  console.log("");
+}
