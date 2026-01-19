@@ -1,7 +1,7 @@
 /**
- * PromptGateway
+ * PromptAggregator
  *
- * Lazy-loading gateway for aggregating prompts from multiple connections
+ * Lazy-loading aggregator for aggregating prompts from multiple connections
  */
 
 import type {
@@ -20,24 +20,24 @@ interface PromptCache {
   mappings: Map<string, string>; // name -> connectionId
 }
 
-/** Options for PromptGateway */
-export interface PromptGatewayOptions {
+/** Options for PromptAggregator */
+export interface PromptAggregatorOptions {
   selectionMode: ToolSelectionMode;
 }
 
 /**
- * Gateway for aggregating and routing prompts from multiple connections
+ * Aggregator for aggregating and routing prompts from multiple connections
  *
  * Prompts are loaded lazily on first access and cached for subsequent calls.
  * Uses first-wins deduplication for prompt names (same as tools).
  * Uses lazy() to ensure concurrent calls share the same loading promise.
  */
-export class PromptGateway {
+export class PromptAggregator {
   private cache: Promise<PromptCache>;
 
   constructor(
     private proxies: ProxyCollection,
-    private options: PromptGatewayOptions,
+    private options: PromptAggregatorOptions,
   ) {
     // Create lazy cache - only loads when first awaited
     this.cache = lazy(() => this.loadPrompts());
@@ -77,7 +77,7 @@ export class PromptGateway {
           return { connectionId, prompts };
         } catch (error) {
           console.error(
-            `[PromptGateway] Failed to list prompts for connection ${connectionId}:`,
+            `[PromptAggregator] Failed to list prompts for connection ${connectionId}:`,
             error,
           );
           return { connectionId, prompts: [] as Prompt[] };

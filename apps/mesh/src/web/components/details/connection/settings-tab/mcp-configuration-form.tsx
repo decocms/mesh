@@ -19,7 +19,7 @@ import validator from "@rjsf/validator-ajv8";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { GatewaySelector } from "@/web/components/chat/select-gateway";
+import { VirtualMCPSelector } from "@/web/components/chat/select-virtual-mcp";
 import {
   ModelChangePayload,
   ModelSelector,
@@ -377,9 +377,9 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
               </p>
             )}
           </div>
-          <GatewaySelector
-            selectedGatewayId={currentValue || undefined}
-            onGatewayChange={handleBindingChange}
+          <VirtualMCPSelector
+            selectedVirtualMcpId={currentValue || undefined}
+            onVirtualMcpChange={handleBindingChange}
             variant="bordered"
             placeholder="Select Agent"
             className="w-[200px] shrink-0"

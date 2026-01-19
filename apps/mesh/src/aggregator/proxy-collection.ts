@@ -9,7 +9,7 @@ import type { ConnectionEntity } from "../tools/connection/schema";
 import type { ProxyEntry } from "./types";
 
 /**
- * Collection of MCP proxies for gateway connections
+ * Collection of MCP proxies for aggregator connections
  *
  * Manages the creation and lookup of proxies for downstream connections
  */
@@ -53,7 +53,7 @@ export class ProxyCollection {
             };
           } catch (error) {
             console.error(
-              `[gateway] Failed to create proxy for connection ${connection.id}:`,
+              `[aggregator] Failed to create proxy for connection ${connection.id}:`,
               error,
             );
             return null;

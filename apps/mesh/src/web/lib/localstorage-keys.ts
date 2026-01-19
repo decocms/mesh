@@ -13,14 +13,14 @@ export const LOCALSTORAGE_KEYS = {
     `mesh:chat:selectedModel:${locator}`,
   assistantChatActiveThread: (locator: ProjectLocator, assistantId: string) =>
     `mesh:assistant-chat:active-thread:${locator}:${assistantId}`,
-  gatewayChatActiveThread: (locator: ProjectLocator, gatewayId: string) =>
-    `mesh:gateway-chat:active-thread:${locator}:${gatewayId}` as const,
+  virtualMcpChatActiveThread: (locator: ProjectLocator, virtualMcpId: string) =>
+    `mesh:virtual-mcp-chat:active-thread:${locator}:${virtualMcpId}` as const,
   decoChatPanelWidth: () => `mesh:decochat:panel-width`,
   sidebarOpen: () => `mesh:sidebar-open`,
   selectedRegistry: (org: string) => `mesh:store:selected-registry:${org}`,
   orgHomeQuickstart: (org: string) => `mesh:org-home:quickstart:${org}`,
-  gatewaySystemPrompts: (locator: ProjectLocator) =>
-    `mesh:gateway:system-prompts:${locator}`,
+  virtualMcpSystemPrompts: (locator: ProjectLocator) =>
+    `mesh:virtual-mcp:system-prompts:${locator}`,
   storeShowStdio: () => `mesh:store:show-stdio`,
   developerMode: () => `mesh:user:developer-mode`,
   pluginConnection: (org: string, pluginId: string) =>

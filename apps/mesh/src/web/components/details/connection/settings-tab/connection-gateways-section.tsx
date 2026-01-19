@@ -1,13 +1,13 @@
 import {
-  useGatewayActions,
-  useGateways,
-  type GatewayEntity,
-} from "@/web/hooks/collections/use-gateway";
+  useVirtualMCPActions,
+  useVirtualMCPs,
+  type VirtualMCPEntity,
+} from "@/web/hooks/collections/use-virtual-mcp";
 import { Button } from "@deco/ui/components/button.tsx";
 import { CpuChip02, ChevronRight, Plus, Loading01 } from "@untitledui/icons";
 import { Link, useNavigate } from "@tanstack/react-router";
 
-interface ConnectionGatewaysSectionProps {
+interface ConnectionVirtualMCPsSectionProps {
   connectionId: string;
   connectionTitle: string;
   connectionDescription?: string | null;
@@ -15,23 +15,23 @@ interface ConnectionGatewaysSectionProps {
   org: string;
 }
 
-function GatewayListItem({
-  gateway,
+function VirtualMCPListItem({
+  virtualMcp,
   org,
 }: {
-  gateway: GatewayEntity;
+  virtualMcp: VirtualMCPEntity;
   org: string;
 }) {
   return (
     <Link
-      to="/$org/gateways/$gatewayId"
-      params={{ org, gatewayId: gateway.id }}
+      to="/$org/agents/$agentId"
+      params={{ org, agentId: virtualMcp.id }}
       className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors group"
     >
-      {gateway.icon ? (
+      {virtualMcp.icon ? (
         <img
-          src={gateway.icon}
-          alt={gateway.title}
+          src={virtualMcp.icon}
+          alt={virtualMcp.title}
           className="w-8 h-8 rounded-md object-cover shrink-0"
         />
       ) : (
@@ -40,7 +40,7 @@ function GatewayListItem({
         </div>
       )}
       <span className="flex-1 text-sm font-medium text-foreground truncate">
-        {gateway.title}
+        {virtualMcp.title}
       </span>
       <ChevronRight
         size={16}
@@ -50,25 +50,25 @@ function GatewayListItem({
   );
 }
 
-function CreateGatewayButton({
+function CreateVirtualMCPButton({
   connectionId,
   connectionTitle,
   connectionDescription,
   connectionIcon,
   org,
-  hasExistingGateways,
+  hasExistingVirtualMcps,
 }: {
   connectionId: string;
   connectionTitle: string;
   connectionDescription?: string | null;
   connectionIcon?: string | null;
   org: string;
-  hasExistingGateways: boolean;
+  hasExistingVirtualMcps: boolean;
 }) {
   const navigate = useNavigate();
-  const actions = useGatewayActions();
+  const actions = useVirtualMCPActions();
 
-  const handleCreateGateway = async () => {
+  const handleCreateVirtualMCP = async () => {
     const result = await actions.create.mutateAsync({
       title: `${connectionTitle} Agent`,
       description: connectionDescription ?? null,
@@ -86,18 +86,18 @@ function CreateGatewayButton({
     });
 
     navigate({
-      to: "/$org/gateways/$gatewayId",
-      params: { org, gatewayId: result.id },
+      to: "/$org/agents/$agentId",
+      params: { org, agentId: result.id },
     });
   };
 
-  if (hasExistingGateways) {
+  if (hasExistingVirtualMcps) {
     return (
       <Button
         variant="outline"
         size="sm"
         className="gap-1.5"
-        onClick={handleCreateGateway}
+        onClick={handleCreateVirtualMCP}
         disabled={actions.create.isPending}
       >
         {actions.create.isPending ? (
@@ -114,7 +114,7 @@ function CreateGatewayButton({
     <Button
       size="lg"
       className="gap-2 w-full"
-      onClick={handleCreateGateway}
+      onClick={handleCreateVirtualMCP}
       disabled={actions.create.isPending}
     >
       {actions.create.isPending ? (
@@ -127,22 +127,22 @@ function CreateGatewayButton({
   );
 }
 
-export function ConnectionGatewaysSection({
+export function ConnectionVirtualMCPsSection({
   connectionId,
   connectionTitle,
   connectionDescription,
   connectionIcon,
   org,
-}: ConnectionGatewaysSectionProps) {
-  // Fetch gateways filtered by this connection
-  const gateways = useGateways({
+}: ConnectionVirtualMCPsSectionProps) {
+  // Fetch virtual MCPs filtered by this connection
+  const virtualMcps = useVirtualMCPs({
     filters: [{ column: "connection_id", value: connectionId }],
   });
 
-  const hasGateways = gateways.length > 0;
+  const hasVirtualMcps = virtualMcps.length > 0;
 
-  if (!hasGateways) {
-    // No gateways - show the "Use in your IDE" section
+  if (!hasVirtualMcps) {
+    // No virtual MCPs - show the "Use in your IDE" section
     return (
       <div className="p-5 flex flex-col gap-3">
         <div className="flex flex-col gap-1">
@@ -154,19 +154,19 @@ export function ConnectionGatewaysSection({
             Claude Desktop, and other MCP-compatible tools.
           </p>
         </div>
-        <CreateGatewayButton
+        <CreateVirtualMCPButton
           connectionId={connectionId}
           connectionTitle={connectionTitle}
           connectionDescription={connectionDescription}
           connectionIcon={connectionIcon}
           org={org}
-          hasExistingGateways={false}
+          hasExistingVirtualMcps={false}
         />
       </div>
     );
   }
 
-  // Has gateways - show the list
+  // Has virtual MCPs - show the list
   return (
     <div className="p-5 flex flex-col gap-3">
       <div className="flex flex-col gap-1">
@@ -176,17 +176,21 @@ export function ConnectionGatewaysSection({
         </p>
       </div>
       <div className="flex flex-col gap-2">
-        {gateways.map((gateway) => (
-          <GatewayListItem key={gateway.id} gateway={gateway} org={org} />
+        {virtualMcps.map((virtualMcp) => (
+          <VirtualMCPListItem
+            key={virtualMcp.id}
+            virtualMcp={virtualMcp}
+            org={org}
+          />
         ))}
       </div>
-      <CreateGatewayButton
+      <CreateVirtualMCPButton
         connectionId={connectionId}
         connectionTitle={connectionTitle}
         connectionDescription={connectionDescription}
         connectionIcon={connectionIcon}
         org={org}
-        hasExistingGateways={true}
+        hasExistingVirtualMcps={true}
       />
     </div>
   );

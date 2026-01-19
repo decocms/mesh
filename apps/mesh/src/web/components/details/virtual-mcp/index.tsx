@@ -1,23 +1,22 @@
 import {
-  GatewayEntitySchema,
-  type GatewayEntity,
-} from "@/tools/gateway/schema";
+  VirtualMCPEntitySchema,
+  type VirtualMCPEntity,
+} from "@/tools/virtual-mcp/schema";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { PromptSetSelector } from "@/web/components/gateway/prompt-selector.tsx";
-import { ResourceSetSelector } from "@/web/components/gateway/resource-selector.tsx";
+import { PromptSetSelector } from "@/web/components/virtual-mcp/prompt-selector.tsx";
+import { ResourceSetSelector } from "@/web/components/virtual-mcp/resource-selector.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import {
-  useGateway,
-  useGatewayActions,
-} from "@/web/hooks/collections/use-gateway";
+  useVirtualMCP,
+  useVirtualMCPActions,
+} from "@/web/hooks/collections/use-virtual-mcp";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
-import { useDeveloperMode } from "@/web/hooks/use-developer-mode";
-import { useGatewaySystemPrompt } from "@/web/hooks/use-gateway-system-prompt";
+import { useVirtualMCPSystemPrompt } from "@/web/hooks/use-virtual-mcp-system-prompt";
 import { slugify } from "@/web/utils/slugify";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -83,7 +82,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
 
-type GatewayTabId = "settings" | "tools" | "resources" | "prompts";
+type VirtualMCPTabId = "settings" | "tools" | "resources" | "prompts";
 
 /**
  * Unicode-safe base64 encoding for browser environments
@@ -98,7 +97,7 @@ function utf8ToBase64(str: string): string {
 }
 
 // Form validation schema
-const gatewayFormSchema = GatewayEntitySchema.pick({
+const virtualMcpFormSchema = VirtualMCPEntitySchema.pick({
   title: true,
   description: true,
   status: true,
@@ -107,20 +106,20 @@ const gatewayFormSchema = GatewayEntitySchema.pick({
   title: z.string().min(1, "Name is required").max(255),
 });
 
-type GatewayFormData = z.infer<typeof gatewayFormSchema>;
+type VirtualMCPFormData = z.infer<typeof virtualMcpFormSchema>;
 
 /**
- * Convert gateway connections to ToolSetSelector format.
+ * Convert virtual MCP connections to ToolSetSelector format.
  * When selected_tools is null, it means "all tools" - we need to expand this
  * using the actual connection's tools.
  */
-function gatewayToToolSet(
-  gateway: GatewayEntity,
+function virtualMcpToToolSet(
+  virtualMcp: VirtualMCPEntity,
   connectionToolsMap: Map<string, string[]>,
 ): Record<string, string[]> {
   const toolSet: Record<string, string[]> = {};
 
-  for (const conn of gateway.connections) {
+  for (const conn of virtualMcp.connections) {
     if (conn.selected_tools === null) {
       // null means all tools - get from connection
       const allTools = connectionToolsMap.get(conn.connection_id) ?? [];
@@ -136,14 +135,14 @@ function gatewayToToolSet(
 }
 
 /**
- * Convert gateway connections to ResourceSetSelector format.
+ * Convert virtual MCP connections to ResourceSetSelector format.
  */
-function gatewayToResourceSet(
-  gateway: GatewayEntity,
+function virtualMcpToResourceSet(
+  virtualMcp: VirtualMCPEntity,
 ): Record<string, string[]> {
   const resourceSet: Record<string, string[]> = {};
 
-  for (const conn of gateway.connections) {
+  for (const conn of virtualMcp.connections) {
     if (
       conn.selected_resources !== null &&
       conn.selected_resources !== undefined &&
@@ -157,12 +156,14 @@ function gatewayToResourceSet(
 }
 
 /**
- * Convert gateway connections to PromptSetSelector format.
+ * Convert virtual MCP connections to PromptSetSelector format.
  */
-function gatewayToPromptSet(gateway: GatewayEntity): Record<string, string[]> {
+function virtualMcpToPromptSet(
+  virtualMcp: VirtualMCPEntity,
+): Record<string, string[]> {
   const promptSet: Record<string, string[]> = {};
 
-  for (const conn of gateway.connections) {
+  for (const conn of virtualMcp.connections) {
     if (
       conn.selected_prompts !== null &&
       conn.selected_prompts !== undefined &&
@@ -176,9 +177,9 @@ function gatewayToPromptSet(gateway: GatewayEntity): Record<string, string[]> {
 }
 
 /**
- * Merge tool, resource, and prompt sets into gateway connections format.
+ * Merge tool, resource, and prompt sets into virtual MCP connections format.
  */
-function mergeSelectionsToGatewayConnections(
+function mergeSelectionsToVirtualMCPConnections(
   toolSet: Record<string, string[]>,
   resourceSet: Record<string, string[]>,
   promptSet: Record<string, string[]>,
@@ -218,22 +219,22 @@ function mergeSelectionsToGatewayConnections(
 /**
  * Shared button props interfaces
  */
-interface GatewayShareButtonProps {
-  gatewayUrl: string;
+interface ShareButtonProps {
+  url: string;
 }
 
-interface GatewayShareWithNameProps extends GatewayShareButtonProps {
+interface ShareWithNameProps extends ShareButtonProps {
   serverName: string;
 }
 
 /**
  * Copy URL Button Component
  */
-function CopyUrlButton({ gatewayUrl }: GatewayShareButtonProps) {
+function CopyUrlButton({ url }: ShareButtonProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(gatewayUrl);
+    await navigator.clipboard.writeText(url);
     setCopied(true);
     toast.success("Agent URL copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
@@ -261,15 +262,12 @@ function CopyUrlButton({ gatewayUrl }: GatewayShareButtonProps) {
 /**
  * Install on Cursor Button Component
  */
-function InstallCursorButton({
-  gatewayUrl,
-  serverName,
-}: GatewayShareWithNameProps) {
+function InstallCursorButton({ url, serverName }: ShareWithNameProps) {
   const handleInstall = () => {
     const slugifiedServerName = slugify(serverName);
     const connectionConfig = {
       type: "http",
-      url: gatewayUrl,
+      url: url,
       headers: {
         "x-mesh-client": "Cursor",
       },
@@ -307,23 +305,20 @@ function InstallCursorButton({
 /**
  * Install on Claude Code Button Component
  */
-function InstallClaudeButton({
-  gatewayUrl,
-  serverName,
-}: GatewayShareWithNameProps) {
+function InstallClaudeButton({ url, serverName }: ShareWithNameProps) {
   const [copied, setCopied] = useState(false);
 
   const handleInstall = async () => {
     const slugifiedServerName = slugify(serverName);
     const connectionConfig = {
       type: "http",
-      url: gatewayUrl,
+      url: url,
       headers: {
         "x-mesh-client": "Claude Code",
       },
     };
-    const configJson = JSON.stringify(connectionConfig);
-    const command = `claude mcp add-json ${slugifiedServerName} '${configJson.replace(/'/g, "'\\''")}'`;
+    const configJson = JSON.stringify(connectionConfig, null, 2);
+    const command = `claude mcp add "${slugifiedServerName}" --config '${configJson.replace(/'/g, "'\\''")}'`;
 
     await navigator.clipboard.writeText(command);
     setCopied(true);
@@ -359,16 +354,16 @@ function InstallClaudeButton({
 }
 
 /**
- * Share Modal - Gateway sharing and IDE integration
+ * Share Modal - Virtual MCP sharing and IDE integration
  */
-function GatewayShareModal({
+function VirtualMCPShareModal({
   open,
   onOpenChange,
-  gateway,
+  virtualMcp,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  gateway: GatewayEntity;
+  virtualMcp: VirtualMCPEntity;
 }) {
   const [mode, setMode] = useState<
     "passthrough" | "smart_tool_selection" | "code_execution"
@@ -385,14 +380,15 @@ function GatewayShareModal({
   };
 
   // Build URL with mode query parameter
-  const gatewayUrl = new URL(
-    `/mcp/gateway/${gateway.id}`,
+  // Virtual MCPs are accessed via the gateway endpoint
+  const virtualMcpUrl = new URL(
+    `/mcp/gateway/${virtualMcp.id}`,
     window.location.origin,
   );
-  gatewayUrl.searchParams.set("mode", mode);
+  virtualMcpUrl.searchParams.set("mode", mode);
 
   // Server name for IDE integrations
-  const serverName = gateway.title || `agent-${gateway.id.slice(0, 8)}`;
+  const serverName = virtualMcp.title || `agent-${virtualMcp.id.slice(0, 8)}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -530,13 +526,13 @@ function GatewayShareModal({
           {/* Action Buttons */}
           <div className="flex flex-col gap-3 pt-2">
             <div className="grid grid-cols-3 gap-2">
-              <CopyUrlButton gatewayUrl={gatewayUrl.href} />
+              <CopyUrlButton url={virtualMcpUrl.href} />
               <InstallCursorButton
-                gatewayUrl={gatewayUrl.href}
+                url={virtualMcpUrl.href}
                 serverName={serverName}
               />
               <InstallClaudeButton
-                gatewayUrl={gatewayUrl.href}
+                url={virtualMcpUrl.href}
                 serverName={serverName}
               />
             </div>
@@ -550,17 +546,17 @@ function GatewayShareModal({
 /**
  * Settings Tab - Agent configuration (title, description, icon, system prompt)
  */
-function GatewaySettingsTab({
+function VirtualMCPSettingsTab({
   form,
   icon,
-  gatewayId,
+  virtualMcpId,
 }: {
-  form: ReturnType<typeof useForm<GatewayFormData>>;
+  form: ReturnType<typeof useForm<VirtualMCPFormData>>;
   icon?: string | null;
-  gatewayId: string;
+  virtualMcpId: string;
 }) {
-  const [developerMode] = useDeveloperMode();
-  const [systemPrompt, setSystemPrompt] = useGatewaySystemPrompt(gatewayId);
+  const [systemPrompt, setSystemPrompt] =
+    useVirtualMCPSystemPrompt(virtualMcpId);
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -641,73 +637,71 @@ function GatewaySettingsTab({
           </div>
 
           {/* Configuration section */}
-          {developerMode && (
-            <div className="flex flex-col gap-4 p-5 border-b border-border">
-              {/* Selection Mode */}
-              <FormField
-                control={form.control}
-                name="tool_selection_mode"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between gap-3">
-                      <FormLabel className="mb-0">Selection Mode</FormLabel>
-                      <div className="flex items-center gap-1.5">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="size-7"
-                                aria-label="Selection mode help"
-                              >
-                                <InfoCircle
-                                  size={14}
-                                  className="text-muted-foreground"
-                                />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" className="max-w-sm">
-                              <div className="text-xs space-y-1">
-                                <div>
-                                  <strong>Include:</strong> Only selected items
-                                  are exposed.
-                                </div>
-                                <div>
-                                  <strong>Exclude:</strong> All items except
-                                  selected ones are exposed.
-                                </div>
+          <div className="flex flex-col gap-4 p-5 border-b border-border">
+            {/* Selection Mode */}
+            <FormField
+              control={form.control}
+              name="tool_selection_mode"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between gap-3">
+                    <FormLabel className="mb-0">Selection Mode</FormLabel>
+                    <div className="flex items-center gap-1.5">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              aria-label="Selection mode help"
+                            >
+                              <InfoCircle
+                                size={14}
+                                className="text-muted-foreground"
+                              />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-sm">
+                            <div className="text-xs space-y-1">
+                              <div>
+                                <strong>Include:</strong> Only selected items
+                                are exposed.
                               </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-[180px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="inclusion">
-                              Include Selected
-                            </SelectItem>
-                            <SelectItem value="exclusion">
-                              Exclude Selected
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                              <div>
+                                <strong>Exclude:</strong> All items except
+                                selected ones are exposed.
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="inclusion">
+                            Include Selected
+                          </SelectItem>
+                          <SelectItem value="exclusion">
+                            Exclude Selected
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          )}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           {/* System Prompt section */}
           <div className="flex flex-col gap-3 p-5">
@@ -732,20 +726,20 @@ function GatewaySettingsTab({
   );
 }
 
-function GatewayInspectorViewWithGateway({
-  gateway,
-  gatewayId,
+function VirtualMCPInspectorViewWithData({
+  virtualMcp,
+  virtualMcpId,
   requestedTabId,
 }: {
-  gateway: GatewayEntity;
-  gatewayId: string;
-  requestedTabId: GatewayTabId;
+  virtualMcp: VirtualMCPEntity;
+  virtualMcpId: string;
+  requestedTabId: VirtualMCPTabId;
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
   const router = useRouter();
-  const navigate = useNavigate({ from: "/$org/gateways/$gatewayId" });
-  const actions = useGatewayActions();
+  const navigate = useNavigate({ from: "/$org/agents/$agentId" });
+  const actions = useVirtualMCPActions();
 
   // Fetch all connections to get tool names for "all tools" expansion
   const connections = useConnections({});
@@ -770,19 +764,19 @@ function GatewayInspectorViewWithGateway({
     }
   }
 
-  // Initialize toolSet from gateway connections
+  // Initialize toolSet from virtual MCP connections
   const [toolSet, setToolSet] = useState<Record<string, string[]>>(() =>
-    gatewayToToolSet(gateway, connectionToolsMap),
+    virtualMcpToToolSet(virtualMcp, connectionToolsMap),
   );
 
-  // Initialize resourceSet from gateway connections
+  // Initialize resourceSet from virtual MCP connections
   const [resourceSet, setResourceSet] = useState<Record<string, string[]>>(() =>
-    gatewayToResourceSet(gateway),
+    virtualMcpToResourceSet(virtualMcp),
   );
 
-  // Initialize promptSet from gateway connections
+  // Initialize promptSet from virtual MCP connections
   const [promptSet, setPromptSet] = useState<Record<string, string[]>>(() =>
-    gatewayToPromptSet(gateway),
+    virtualMcpToPromptSet(virtualMcp),
   );
 
   // Track if any selection has changed
@@ -809,13 +803,13 @@ function GatewayInspectorViewWithGateway({
   };
 
   // Form setup
-  const form = useForm<GatewayFormData>({
-    resolver: zodResolver(gatewayFormSchema),
+  const form = useForm<VirtualMCPFormData>({
+    resolver: zodResolver(virtualMcpFormSchema),
     defaultValues: {
-      title: gateway.title,
-      description: gateway.description,
-      status: gateway.status,
-      tool_selection_mode: gateway.tool_selection_mode ?? "inclusion",
+      title: virtualMcp.title,
+      description: virtualMcp.description,
+      status: virtualMcp.status,
+      tool_selection_mode: virtualMcp.tool_selection_mode ?? "inclusion",
     },
   });
 
@@ -825,8 +819,8 @@ function GatewayInspectorViewWithGateway({
   const handleSave = async () => {
     const formData = form.getValues();
 
-    // Merge all selections into gateway connections format
-    const newConnections = mergeSelectionsToGatewayConnections(
+    // Merge all selections into virtual MCP connections format
+    const newConnections = mergeSelectionsToVirtualMCPConnections(
       toolSet,
       resourceSet,
       promptSet,
@@ -834,7 +828,7 @@ function GatewayInspectorViewWithGateway({
     );
 
     await actions.update.mutateAsync({
-      id: gatewayId,
+      id: virtualMcpId,
       data: {
         title: formData.title,
         description: formData.description,
@@ -852,16 +846,16 @@ function GatewayInspectorViewWithGateway({
   const handleCancel = () => {
     // Reset react-hook-form to original values
     form.reset({
-      title: gateway.title,
-      description: gateway.description,
-      status: gateway.status,
-      tool_selection_mode: gateway.tool_selection_mode ?? "inclusion",
+      title: virtualMcp.title,
+      description: virtualMcp.description,
+      status: virtualMcp.status,
+      tool_selection_mode: virtualMcp.tool_selection_mode ?? "inclusion",
     });
 
-    // Reset selections to original gateway values
-    setToolSet(gatewayToToolSet(gateway, connectionToolsMap));
-    setResourceSet(gatewayToResourceSet(gateway));
-    setPromptSet(gatewayToPromptSet(gateway));
+    // Reset selections to original virtual MCP values
+    setToolSet(virtualMcpToToolSet(virtualMcp, connectionToolsMap));
+    setResourceSet(virtualMcpToResourceSet(virtualMcp));
+    setPromptSet(virtualMcpToPromptSet(virtualMcp));
 
     // Clear dirty flag
     setSelectionDirty(false);
@@ -971,9 +965,9 @@ function GatewayInspectorViewWithGateway({
         </TooltipProvider>
 
         <PinToSidebarButton
-          title={gateway.title}
+          title={virtualMcp.title}
           url={url}
-          icon={gateway.icon ?? "cpu_chip"}
+          icon={virtualMcp.icon ?? "cpu_chip"}
         />
       </ViewActions>
 
@@ -993,10 +987,10 @@ function GatewayInspectorViewWithGateway({
                 }
               >
                 {activeTabId === "settings" ? (
-                  <GatewaySettingsTab
+                  <VirtualMCPSettingsTab
                     form={form}
-                    icon={gateway.icon}
-                    gatewayId={gatewayId}
+                    icon={virtualMcp.icon}
+                    virtualMcpId={virtualMcpId}
                   />
                 ) : activeTabId === "tools" ? (
                   <ToolSetSelector
@@ -1023,28 +1017,33 @@ function GatewayInspectorViewWithGateway({
       </div>
 
       {/* Share Modal */}
-      <GatewayShareModal
+      <VirtualMCPShareModal
         open={shareModalOpen}
         onOpenChange={setShareModalOpen}
-        gateway={gateway}
+        virtualMcp={virtualMcp}
       />
     </ViewLayout>
   );
 }
 
-function GatewayInspectorViewContent() {
-  const navigate = useNavigate({ from: "/$org/gateways/$gatewayId" });
-  const { gatewayId, org } = useParams({
-    from: "/shell/$org/gateways/$gatewayId",
-  });
+function VirtualMCPInspectorViewContent() {
+  const navigate = useNavigate({ from: "/$org/agents/$agentId" });
+  const params = useParams({ strict: false });
+  const { org } = params as { org: string };
+  const virtualMcpId =
+    (params as { agentId?: string }).agentId ??
+    (params as { virtualMcpId?: string }).virtualMcpId ??
+    (params as { gatewayId?: string }).gatewayId ??
+    "";
 
   // Get tab from search params
-  const search = useSearch({ from: "/shell/$org/gateways/$gatewayId" });
-  const requestedTabId = (search.tab as GatewayTabId) || "settings";
+  const search = useSearch({ strict: false });
+  const requestedTabId =
+    ((search as { tab?: string }).tab as VirtualMCPTabId) || "settings";
 
-  const gateway = useGateway(gatewayId);
+  const virtualMcp = useVirtualMCP(virtualMcpId);
 
-  if (!gateway) {
+  if (!virtualMcp) {
     return (
       <div className="flex h-full w-full bg-background">
         <EmptyState
@@ -1055,7 +1054,7 @@ function GatewayInspectorViewContent() {
               variant="outline"
               onClick={() =>
                 navigate({
-                  to: "/$org/gateways",
+                  to: "/$org/agents",
                   params: { org: org as string },
                 })
               }
@@ -1069,15 +1068,15 @@ function GatewayInspectorViewContent() {
   }
 
   return (
-    <GatewayInspectorViewWithGateway
-      gateway={gateway}
-      gatewayId={gatewayId}
+    <VirtualMCPInspectorViewWithData
+      virtualMcp={virtualMcp}
+      virtualMcpId={virtualMcpId}
       requestedTabId={requestedTabId}
     />
   );
 }
 
-export default function GatewayInspectorView() {
+export default function VirtualMCPInspectorView() {
   return (
     <ErrorBoundary>
       <Suspense
@@ -1090,7 +1089,7 @@ export default function GatewayInspectorView() {
           </div>
         }
       >
-        <GatewayInspectorViewContent />
+        <VirtualMCPInspectorViewContent />
       </Suspense>
     </ErrorBoundary>
   );

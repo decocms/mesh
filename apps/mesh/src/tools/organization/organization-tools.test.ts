@@ -188,7 +188,7 @@ const createMockContext = (
         upsert: vi.fn(),
       } as never,
       monitoring: null as never,
-      gateways: null as never,
+      virtualMcps: null as never,
       users: null as never,
       threads: null as never,
     },

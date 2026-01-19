@@ -13,8 +13,8 @@ export const KEYS = {
 
   // Chat store (IndexedDB) queries
   threads: (locator: string) => ["threads", locator] as const,
-  gatewayThreads: (locator: string, gatewayId: string) =>
-    ["threads", locator, "gateway", gatewayId] as const,
+  virtualMcpThreads: (locator: string, virtualMcpId: string) =>
+    ["threads", locator, "virtual-mcp", virtualMcpId] as const,
   thread: (locator: string, threadId: string) =>
     ["thread", locator, threadId] as const,
   threadMessages: (locator: string, threadId: string) =>
@@ -73,7 +73,7 @@ export const KEYS = {
 
   // Collection CRUD queries (scoped by org, scopeKey and collection name)
   // org: organization slug
-  // scopeKey: connectionId for connection-scoped tools, gatewayId for gateway-scoped, etc.
+  // scopeKey: connectionId for connection-scoped tools, virtualMcpId for virtual-mcp-scoped, etc.
   // Base prefix for invalidating all collection variants
   collection: (org: string, scopeKey: string, collectionName: string) =>
     [org, scopeKey, "collection", collectionName] as const,
@@ -126,15 +126,15 @@ export const KEYS = {
   monitoringLogsInfinite: (locator: string, paramsKey: string) =>
     ["monitoring", "logs-infinite", locator, paramsKey] as const,
 
-  // Gateway prompts (for ice breakers in chat)
-  gatewayPrompts: (gatewayId: string) =>
-    ["gateway", gatewayId, "prompts"] as const,
+  // Virtual MCP prompts (for ice breakers in chat)
+  virtualMcpPrompts: (virtualMcpId: string) =>
+    ["virtual-mcp", virtualMcpId, "prompts"] as const,
 
-  // Connection prompts (for gateway settings)
+  // Connection prompts (for virtual MCP settings)
   connectionPrompts: (connectionId: string) =>
     ["connection", connectionId, "prompts"] as const,
 
-  // Connection resources (for gateway settings)
+  // Connection resources (for virtual MCP settings)
   connectionResources: (connectionId: string) =>
     ["connection", connectionId, "resources"] as const,
 

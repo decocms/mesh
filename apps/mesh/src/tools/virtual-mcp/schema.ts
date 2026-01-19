@@ -1,7 +1,7 @@
 /**
- * Gateway Entity Schema
+ * Virtual MCP Entity Schema
  *
- * Single source of truth for gateway types.
+ * Single source of truth for virtual MCP types.
  * Uses snake_case field names matching the database schema directly.
  */
 
@@ -21,9 +21,9 @@ const ToolSelectionModeSchema = z
 export type ToolSelectionMode = z.infer<typeof ToolSelectionModeSchema>;
 
 /**
- * Gateway connection schema - defines which connection and tools/resources/prompts are included/excluded
+ * Virtual MCP connection schema - defines which connection and tools/resources/prompts are included/excluded
  */
-const GatewayConnectionSchema = z.object({
+const VirtualMCPConnectionSchema = z.object({
   connection_id: z.string().describe("Connection ID"),
   selected_tools: z
     .array(z.string())
@@ -45,52 +45,56 @@ const GatewayConnectionSchema = z.object({
     ),
 });
 
-export type GatewayConnection = z.infer<typeof GatewayConnectionSchema>;
+export type VirtualMCPConnection = z.infer<typeof VirtualMCPConnectionSchema>;
 
 /**
- * Gateway entity schema - single source of truth
+ * Virtual MCP entity schema - single source of truth
  * Compliant with collections binding pattern
  */
-export const GatewayEntitySchema = z.object({
+export const VirtualMCPEntitySchema = z.object({
   // Base collection entity fields
-  id: z.string().describe("Unique identifier for the gateway"),
-  title: z.string().describe("Human-readable name for the gateway"),
-  description: z.string().nullable().describe("Description of the gateway"),
-  icon: z.string().nullable().optional().describe("Icon URL for the gateway"),
-  created_at: z.string().describe("When the gateway was created"),
-  updated_at: z.string().describe("When the gateway was last updated"),
-  created_by: z.string().describe("User ID who created the gateway"),
+  id: z.string().describe("Unique identifier for the virtual MCP"),
+  title: z.string().describe("Human-readable name for the virtual MCP"),
+  description: z.string().nullable().describe("Description of the virtual MCP"),
+  icon: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Icon URL for the virtual MCP"),
+  created_at: z.string().describe("When the virtual MCP was created"),
+  updated_at: z.string().describe("When the virtual MCP was last updated"),
+  created_by: z.string().describe("User ID who created the virtual MCP"),
   updated_by: z
     .string()
     .optional()
-    .describe("User ID who last updated the gateway"),
+    .describe("User ID who last updated the virtual MCP"),
 
-  // Gateway-specific fields
+  // Virtual MCP-specific fields
   organization_id: z
     .string()
-    .describe("Organization ID this gateway belongs to"),
+    .describe("Organization ID this virtual MCP belongs to"),
   tool_selection_mode: ToolSelectionModeSchema.describe(
     "Tool selection mode: 'inclusion' = include selected, 'exclusion' = exclude selected",
   ),
   status: z.enum(["active", "inactive"]).describe("Current status"),
   // Nested connections
   connections: z
-    .array(GatewayConnectionSchema)
+    .array(VirtualMCPConnectionSchema)
     .describe(
       "Connections with their selected tools (behavior depends on tool_selection_mode)",
     ),
 });
 
 /**
- * The gateway entity type
+ * The virtual MCP entity type
  */
-export type GatewayEntity = z.infer<typeof GatewayEntitySchema>;
+export type VirtualMCPEntity = z.infer<typeof VirtualMCPEntitySchema>;
 
 /**
- * Input schema for creating gateways
+ * Input schema for creating virtual MCPs
  */
-export const GatewayCreateDataSchema = z.object({
-  title: z.string().min(1).max(255).describe("Name for the gateway"),
+export const VirtualMCPCreateDataSchema = z.object({
+  title: z.string().min(1).max(255).describe("Name for the virtual MCP"),
   description: z
     .string()
     .nullable()
@@ -137,12 +141,12 @@ export const GatewayCreateDataSchema = z.object({
     ),
 });
 
-export type GatewayCreateData = z.infer<typeof GatewayCreateDataSchema>;
+export type VirtualMCPCreateData = z.infer<typeof VirtualMCPCreateDataSchema>;
 
 /**
- * Input schema for updating gateways
+ * Input schema for updating virtual MCPs
  */
-export const GatewayUpdateDataSchema = z.object({
+export const VirtualMCPUpdateDataSchema = z.object({
   title: z.string().min(1).max(255).optional().describe("New name"),
   description: z
     .string()
@@ -189,4 +193,4 @@ export const GatewayUpdateDataSchema = z.object({
     .describe("New connections (replaces existing)"),
 });
 
-export type GatewayUpdateData = z.infer<typeof GatewayUpdateDataSchema>;
+export type VirtualMCPUpdateData = z.infer<typeof VirtualMCPUpdateDataSchema>;

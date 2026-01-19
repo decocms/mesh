@@ -3,7 +3,7 @@ import { IntegrationIcon } from "@/web/components/integration-icon";
 import { usePrioritizedList } from "../hooks";
 import {
   useCurrentStep,
-  useSelectedGatewayId,
+  useSelectedVirtualMcpId,
   useWorkflowActions,
 } from "../stores/workflow";
 import { useMcp, type McpTool } from "@/web/hooks/use-mcp";
@@ -14,25 +14,25 @@ interface ToolSidebarProps {
 }
 
 /**
- * Hook to get tools from the selected gateway
+ * Hook to get tools from the selected virtual MCP (agent)
  */
-function useGatewayTools() {
-  const gatewayId = useSelectedGatewayId();
-  const mcpProxyUrl = gatewayId
-    ? new URL(`/mcp/gateway/${gatewayId}`, window.location.origin).href
+function useVirtualMCPTools() {
+  const virtualMcpId = useSelectedVirtualMcpId();
+  const mcpProxyUrl = virtualMcpId
+    ? new URL(`/mcp/gateway/${virtualMcpId}`, window.location.origin).href
     : "";
 
-  return useMcp({ url: mcpProxyUrl, enabled: !!gatewayId });
+  return useMcp({ url: mcpProxyUrl, enabled: !!virtualMcpId });
 }
 
 export function ToolSidebar({ className }: ToolSidebarProps) {
-  const gatewayId = useSelectedGatewayId();
+  const virtualMcpId = useSelectedVirtualMcpId();
 
-  if (!gatewayId) {
+  if (!virtualMcpId) {
     return (
       <div className={cn("flex flex-col h-full bg-sidebar", className)}>
         <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-4 text-center">
-          Select a gateway to see available tools
+          Select an agent to see available tools
         </div>
       </div>
     );
@@ -46,7 +46,7 @@ export function ToolSidebar({ className }: ToolSidebarProps) {
 // ============================================================================
 
 function ToolSelector({ className }: { className?: string }) {
-  const { tools, isLoading, error } = useGatewayTools();
+  const { tools, isLoading, error } = useVirtualMCPTools();
   const currentStep = useCurrentStep();
   const { updateStep } = useWorkflowActions();
 

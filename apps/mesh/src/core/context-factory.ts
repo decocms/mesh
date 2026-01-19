@@ -14,7 +14,7 @@ import type { Kysely } from "kysely";
 import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
 import { ConnectionStorage } from "../storage/connection";
-import { GatewayStorage } from "../storage/gateway";
+import { VirtualMCPStorage } from "../storage/virtual-mcp";
 import { SqlMonitoringStorage } from "../storage/monitoring";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { Database, Permission } from "../storage/types";
@@ -726,7 +726,7 @@ export function createMeshContextFactory(
     connections: new ConnectionStorage(config.db, vault),
     organizationSettings: new OrganizationSettingsStorage(config.db),
     monitoring: new SqlMonitoringStorage(config.db, config.databaseType),
-    gateways: new GatewayStorage(config.db),
+    virtualMcps: new VirtualMCPStorage(config.db),
     users: new UserStorage(config.db),
     threads: new SqlThreadStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin

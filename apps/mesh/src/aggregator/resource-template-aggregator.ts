@@ -1,7 +1,7 @@
 /**
- * ResourceTemplateGateway
+ * ResourceTemplateAggregator
  *
- * Lazy-loading gateway for aggregating resource templates from multiple connections
+ * Lazy-loading aggregator for aggregating resource templates from multiple connections
  */
 
 import {
@@ -19,12 +19,12 @@ interface ResourceTemplateCache {
 }
 
 /**
- * Gateway for aggregating resource templates from multiple connections
+ * Aggregator for aggregating resource templates from multiple connections
  *
  * Resource templates are loaded lazily on first access and cached for subsequent calls.
  * Uses lazy() to ensure concurrent calls share the same loading promise.
  */
-export class ResourceTemplateGateway {
+export class ResourceTemplateAggregator {
   private cache: Promise<ResourceTemplateCache>;
 
   constructor(private proxies: ProxyCollection) {
@@ -48,7 +48,7 @@ export class ResourceTemplateGateway {
             error.code !== ErrorCode.MethodNotFound
           ) {
             console.error(
-              `[gateway] Failed to list resource templates for connection ${connectionId}: (defaulting to empty array)`,
+              `[aggregator] Failed to list resource templates for connection ${connectionId}: (defaulting to empty array)`,
               error,
             );
           }

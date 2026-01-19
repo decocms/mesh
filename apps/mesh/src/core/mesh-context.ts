@@ -223,7 +223,7 @@ import type { createMCPProxy } from "@/api/routes/proxy";
 import type { BetterAuthInstance } from "@/auth";
 import type { EventBus } from "../event-bus/interface";
 import type { ConnectionStorage } from "../storage/connection";
-import type { GatewayStorage } from "../storage/gateway";
+import type { VirtualMCPStorage } from "../storage/virtual-mcp";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { UserStorage } from "../storage/user";
@@ -246,7 +246,7 @@ export interface MeshStorage {
   connections: ConnectionStorage;
   organizationSettings: OrganizationSettingsStorage;
   monitoring: SqlMonitoringStorage;
-  gateways: GatewayStorage;
+  virtualMcps: VirtualMCPStorage;
   users: UserStorage;
   threads: SqlThreadStorage;
 }
@@ -268,8 +268,8 @@ export interface Timings {
 export interface MeshContext {
   // Connection ID (from url)
   connectionId?: string;
-  // Current gateway ID (from url) - if applicable
-  gatewayId?: string;
+  // Current virtual MCP ID (from url) - if applicable
+  virtualMcpId?: string;
 
   // Timings for measuring performance
   timings: Timings;

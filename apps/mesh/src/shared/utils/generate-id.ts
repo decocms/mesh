@@ -4,8 +4,8 @@ type IdPrefixes =
   | "conn"
   | "audit"
   | "log"
-  | "gw"
-  | "gwc"
+  | "vir"
+  | "virc"
   | "dtok"
   | "thrd"
   | "msg";

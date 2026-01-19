@@ -21,7 +21,7 @@ import { ThreadHistoryPopover } from "./popover-threads";
 import { DecoChatSkeleton } from "./skeleton";
 
 export { useChat } from "./context";
-export type { GatewayInfo } from "./select-gateway";
+export type { VirtualMCPInfo } from "./select-virtual-mcp";
 export { ModelSelector } from "./select-model";
 export type { ModelChangePayload, SelectedModelState } from "./select-model";
 

@@ -17,7 +17,7 @@ import {
 } from "@deco/ui/components/toggle-group.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
-import type { MonitoringLogsWithGatewayResponse } from "./index";
+import type { MonitoringLogsWithVirtualMCPResponse } from "./index";
 
 export type MetricsMode = "requests" | "errors" | "latency";
 
@@ -138,7 +138,7 @@ function TopServersContent({
 
   const { data: logsData } = useToolCall<
     { startDate: string; endDate: string; limit: number; offset: number },
-    MonitoringLogsWithGatewayResponse
+    MonitoringLogsWithVirtualMCPResponse
   >({
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",

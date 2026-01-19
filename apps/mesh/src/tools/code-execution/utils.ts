@@ -10,11 +10,11 @@
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireOrganization } from "../../core/mesh-context";
-import { ProxyCollection } from "../../gateway/proxy-collection";
+import { ProxyCollection } from "../../aggregator/proxy-collection";
 import type { ToolSelectionMode } from "../../storage/types";
 import { runCode, type RunCodeResult } from "../../sandbox/index";
 import type { ConnectionEntity } from "../connection/schema";
-import type { GatewayEntity } from "../gateway/schema";
+import type { VirtualMCPEntity } from "../virtual-mcp/schema";
 
 // ============================================================================
 // Types
@@ -63,21 +63,21 @@ export interface ToolDescription {
 // ============================================================================
 
 /**
- * Resolve gateway connections with exclusion/inclusion logic
+ * Resolve virtual MCP connections with exclusion/inclusion logic
  */
-async function resolveGatewayConnections(
-  gateway: GatewayEntity,
+async function resolveVirtualMCPConnections(
+  virtualMcp: VirtualMCPEntity,
   ctx: MeshContext,
 ): Promise<ConnectionWithSelection[]> {
   let connections: ConnectionWithSelection[];
 
-  if (gateway.tool_selection_mode === "exclusion") {
+  if (virtualMcp.tool_selection_mode === "exclusion") {
     // Exclusion mode: list ALL org connections, then apply exclusion filter
     const allConnections = await ctx.storage.connections.list(
-      gateway.organization_id,
+      virtualMcp.organization_id,
     );
     const activeConnections = allConnections.filter(
-      (c) => c.status === "active",
+      (c: ConnectionEntity) => c.status === "active",
     );
 
     // Build a map of connection exclusions
@@ -89,11 +89,11 @@ async function resolveGatewayConnections(
         selectedPrompts: string[] | null;
       }
     >();
-    for (const gwConn of gateway.connections) {
-      exclusionMap.set(gwConn.connection_id, {
-        selectedTools: gwConn.selected_tools,
-        selectedResources: gwConn.selected_resources,
-        selectedPrompts: gwConn.selected_prompts,
+    for (const vmcpConn of virtualMcp.connections) {
+      exclusionMap.set(vmcpConn.connection_id, {
+        selectedTools: vmcpConn.selected_tools,
+        selectedResources: vmcpConn.selected_resources,
+        selectedPrompts: vmcpConn.selected_prompts,
       });
     }
 
@@ -102,7 +102,7 @@ async function resolveGatewayConnections(
       const exclusionEntry = exclusionMap.get(conn.id);
 
       if (exclusionEntry === undefined) {
-        // Connection NOT in gateway.connections -> include all
+        // Connection NOT in virtualMcp.connections -> include all
         connections.push({
           connection: conn,
           selectedTools: null,
@@ -117,10 +117,10 @@ async function resolveGatewayConnections(
         (exclusionEntry.selectedPrompts === null ||
           exclusionEntry.selectedPrompts.length === 0)
       ) {
-        // Connection in gateway.connections with all null/empty -> exclude entire connection
+        // Connection in virtualMcp.connections with all null/empty -> exclude entire connection
         // Skip this connection
       } else {
-        // Connection in gateway.connections with specific exclusions
+        // Connection in virtualMcp.connections with specific exclusions
         connections.push({
           connection: conn,
           selectedTools: exclusionEntry.selectedTools,
@@ -130,8 +130,8 @@ async function resolveGatewayConnections(
       }
     }
   } else {
-    // Inclusion mode (default): use only the connections specified in gateway
-    const connectionIds = gateway.connections.map((c) => c.connection_id);
+    // Inclusion mode (default): use only the connections specified in virtual MCP
+    const connectionIds = virtualMcp.connections.map((c) => c.connection_id);
     const loadedConnections: ConnectionEntity[] = [];
 
     for (const connId of connectionIds) {
@@ -141,15 +141,15 @@ async function resolveGatewayConnections(
       }
     }
 
-    connections = loadedConnections.map((conn) => {
-      const gwConn = gateway.connections.find(
+    connections = loadedConnections.map((conn: ConnectionEntity) => {
+      const vmcpConn = virtualMcp.connections.find(
         (c) => c.connection_id === conn.id,
       );
       return {
         connection: conn,
-        selectedTools: gwConn?.selected_tools ?? null,
-        selectedResources: gwConn?.selected_resources ?? null,
-        selectedPrompts: gwConn?.selected_prompts ?? null,
+        selectedTools: vmcpConn?.selected_tools ?? null,
+        selectedResources: vmcpConn?.selected_resources ?? null,
+        selectedPrompts: vmcpConn?.selected_prompts ?? null,
       };
     });
   }
@@ -294,7 +294,7 @@ async function loadToolsFromConnections(
 /**
  * Get tools with connections from context
  *
- * If ctx.gatewayId is set, loads gateway-specific connections
+ * If ctx.virtualMcpId is set, loads virtual MCP-specific connections
  * Otherwise, loads ALL active connections for the organization
  */
 export async function getToolsWithConnections(
@@ -305,14 +305,14 @@ export async function getToolsWithConnections(
   let connections: ConnectionWithSelection[];
   let selectionMode: ToolSelectionMode = "inclusion";
 
-  if (ctx.gatewayId) {
-    // Use gateway-specific connections
-    const gateway = await ctx.storage.gateways.findById(ctx.gatewayId);
-    if (!gateway) {
-      throw new Error(`Gateway not found: ${ctx.gatewayId}`);
+  if (ctx.virtualMcpId) {
+    // Use virtual MCP-specific connections
+    const virtualMcp = await ctx.storage.virtualMcps.findById(ctx.virtualMcpId);
+    if (!virtualMcp) {
+      throw new Error(`Virtual MCP not found: ${ctx.virtualMcpId}`);
     }
-    connections = await resolveGatewayConnections(gateway, ctx);
-    selectionMode = gateway.tool_selection_mode;
+    connections = await resolveVirtualMCPConnections(virtualMcp, ctx);
+    selectionMode = virtualMcp.tool_selection_mode;
   } else {
     // Use ALL active org connections
     connections = await getAllOrgConnections(organization.id, ctx);

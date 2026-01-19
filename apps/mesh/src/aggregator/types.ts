@@ -1,7 +1,7 @@
 /**
- * Gateway Types
+ * Aggregator Types
  *
- * Shared types for gateway abstractions
+ * Shared types for aggregator abstractions
  */
 
 import { ServerClient } from "@decocms/bindings/mcp";
@@ -20,7 +20,7 @@ import type {
 import type { createMCPProxy } from "../api/routes/proxy";
 import type { ToolSelectionMode } from "../storage/types";
 import type { ConnectionEntity } from "../tools/connection/schema";
-import type { GatewayToolSelectionStrategy } from "./strategy";
+import type { AggregatorToolSelectionStrategy } from "./strategy";
 
 /** Proxy type returned by createMCPProxy */
 export type MCPProxy = Awaited<ReturnType<typeof createMCPProxy>>;
@@ -34,8 +34,8 @@ export interface ProxyEntry {
   selectedPrompts: string[] | null;
 }
 
-/** Options for creating a gateway */
-export interface GatewayOptions {
+/** Options for creating an aggregator */
+export interface AggregatorOptions {
   connections: Array<{
     connection: ConnectionEntity;
     selectedTools: string[] | null;
@@ -43,11 +43,11 @@ export interface GatewayOptions {
     selectedPrompts: string[] | null;
   }>;
   toolSelectionMode: ToolSelectionMode;
-  toolSelectionStrategy: GatewayToolSelectionStrategy;
+  toolSelectionStrategy: AggregatorToolSelectionStrategy;
 }
 
-/** Extended gateway client interface with resources and prompts */
-export interface GatewayClient extends ServerClient {
+/** Extended aggregator client interface with resources and prompts */
+export interface AggregatorClient extends ServerClient {
   client: {
     listTools: () => Promise<ListToolsResult>;
     callTool: (params: CallToolRequest["params"]) => Promise<CallToolResult>;

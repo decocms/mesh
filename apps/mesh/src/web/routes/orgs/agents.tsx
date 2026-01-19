@@ -1,4 +1,4 @@
-import type { GatewayEntity } from "@/tools/gateway/schema";
+import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
@@ -8,11 +8,11 @@ import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
-  useGateways,
-  useGatewayActions,
-} from "@/web/hooks/collections/use-gateway";
+  useVirtualMCPs,
+  useVirtualMCPActions,
+} from "@/web/hooks/collections/use-virtual-mcp";
 import { useListState } from "@/web/hooks/use-list-state";
-import { useCreateGateway } from "@/web/hooks/use-create-gateway";
+import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   AlertDialog,
@@ -45,43 +45,43 @@ import { Suspense, useReducer } from "react";
 
 type DialogState =
   | { mode: "idle" }
-  | { mode: "deleting"; gateway: GatewayEntity };
+  | { mode: "deleting"; virtualMcp: VirtualMCPEntity };
 
 type DialogAction =
-  | { type: "delete"; gateway: GatewayEntity }
+  | { type: "delete"; virtualMcp: VirtualMCPEntity }
   | { type: "close" };
 
 function dialogReducer(_state: DialogState, action: DialogAction): DialogState {
   switch (action.type) {
     case "delete":
-      return { mode: "deleting", gateway: action.gateway };
+      return { mode: "deleting", virtualMcp: action.virtualMcp };
     case "close":
       return { mode: "idle" };
   }
 }
 
-function OrgGatewaysContent() {
+function OrgAgentsContent() {
   const { org } = useProjectContext();
   const navigate = useNavigate();
 
   // Consolidated list UI state (search, filters, sorting, view mode)
-  const listState = useListState<GatewayEntity>({
+  const listState = useListState<VirtualMCPEntity>({
     namespace: org.slug,
-    resource: "gateways",
+    resource: "agents",
   });
 
-  const gateways = useGateways(listState);
-  const { createGateway, isCreating } = useCreateGateway({
+  const virtualMcps = useVirtualMCPs(listState);
+  const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
     navigateOnCreate: true,
   });
-  const actions = useGatewayActions();
+  const actions = useVirtualMCPActions();
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 
   const confirmDelete = async () => {
     if (dialogState.mode !== "deleting") return;
 
-    const id = dialogState.gateway.id;
+    const id = dialogState.virtualMcp.id;
     dispatch({ type: "close" });
 
     try {
@@ -91,14 +91,14 @@ function OrgGatewaysContent() {
     }
   };
 
-  const columns: TableColumn<GatewayEntity>[] = [
+  const columns: TableColumn<VirtualMCPEntity>[] = [
     {
       id: "icon",
       header: "",
-      render: (gateway) => (
+      render: (virtualMcp) => (
         <IntegrationIcon
-          icon={gateway.icon}
-          name={gateway.title}
+          icon={virtualMcp.icon}
+          name={virtualMcp.title}
           size="sm"
           className="shrink-0 shadow-sm"
           fallbackIcon={<CpuChip02 size={16} />}
@@ -110,9 +110,9 @@ function OrgGatewaysContent() {
     {
       id: "title",
       header: "Name",
-      render: (gateway) => (
+      render: (virtualMcp) => (
         <span className="text-sm font-medium text-foreground truncate">
-          {gateway.title}
+          {virtualMcp.title}
         </span>
       ),
       cellClassName: "w-48 min-w-0 shrink-0",
@@ -121,9 +121,9 @@ function OrgGatewaysContent() {
     {
       id: "description",
       header: "Description",
-      render: (gateway) => (
+      render: (virtualMcp) => (
         <span className="text-sm text-foreground line-clamp-2">
-          {gateway.description || "—"}
+          {virtualMcp.description || "—"}
         </span>
       ),
       cellClassName: "flex-1 min-w-0",
@@ -133,9 +133,11 @@ function OrgGatewaysContent() {
     {
       id: "mode",
       header: "Mode",
-      accessor: (gateway) => (
+      accessor: (virtualMcp) => (
         <Badge variant="outline" className="text-xs">
-          {gateway.tool_selection_mode === "exclusion" ? "Exclude" : "Include"}
+          {virtualMcp.tool_selection_mode === "exclusion"
+            ? "Exclude"
+            : "Include"}
         </Badge>
       ),
       cellClassName: "w-[100px]",
@@ -143,9 +145,9 @@ function OrgGatewaysContent() {
     {
       id: "connections",
       header: "Connections",
-      render: (gateway) => (
+      render: (virtualMcp) => (
         <span className="text-sm text-muted-foreground">
-          {gateway.connections.length}
+          {virtualMcp.connections.length}
         </span>
       ),
       cellClassName: "w-24 shrink-0",
@@ -153,9 +155,9 @@ function OrgGatewaysContent() {
     {
       id: "status",
       header: "Status",
-      render: (gateway) => (
-        <Badge variant={gateway.status === "active" ? "default" : "outline"}>
-          {gateway.status}
+      render: (virtualMcp) => (
+        <Badge variant={virtualMcp.status === "active" ? "default" : "outline"}>
+          {virtualMcp.status}
         </Badge>
       ),
       cellClassName: "w-24 shrink-0",
@@ -164,7 +166,7 @@ function OrgGatewaysContent() {
     {
       id: "actions",
       header: "",
-      render: (gateway) => (
+      render: (virtualMcp) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -181,8 +183,8 @@ function OrgGatewaysContent() {
               onClick={(e) => {
                 e.stopPropagation();
                 navigate({
-                  to: "/$org/gateways/$gatewayId",
-                  params: { org: org.slug, gatewayId: gateway.id },
+                  to: "/$org/agents/$agentId",
+                  params: { org: org.slug, agentId: virtualMcp.id },
                 });
               }}
             >
@@ -193,7 +195,7 @@ function OrgGatewaysContent() {
               variant="destructive"
               onClick={(e) => {
                 e.stopPropagation();
-                dispatch({ type: "delete", gateway });
+                dispatch({ type: "delete", virtualMcp });
               }}
             >
               <Trash01 size={16} />
@@ -208,7 +210,7 @@ function OrgGatewaysContent() {
 
   const ctaButton = (
     <Button
-      onClick={createGateway}
+      onClick={createVirtualMCP}
       size="sm"
       className="h-7 px-3 rounded-lg text-sm font-medium"
       disabled={isCreating}
@@ -230,7 +232,8 @@ function OrgGatewaysContent() {
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete{" "}
               <span className="font-medium text-foreground">
-                {dialogState.mode === "deleting" && dialogState.gateway.title}
+                {dialogState.mode === "deleting" &&
+                  dialogState.virtualMcp.title}
               </span>
               .
             </AlertDialogDescription>
@@ -279,7 +282,7 @@ function OrgGatewaysContent() {
       {/* Content: Cards or Table */}
       {listState.viewMode === "cards" ? (
         <div className="flex-1 overflow-auto p-5">
-          {gateways.length === 0 ? (
+          {virtualMcps.length === 0 ? (
             <EmptyState
               image={<CpuChip02 size={36} className="text-muted-foreground" />}
               title={listState.search ? "No agents found" : "No agents yet"}
@@ -291,32 +294,32 @@ function OrgGatewaysContent() {
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {gateways.map((gateway) => (
+              {virtualMcps.map((virtualMcp) => (
                 <ConnectionCard
-                  key={gateway.id}
+                  key={virtualMcp.id}
                   connection={{
-                    id: gateway.id,
-                    title: gateway.title,
-                    description: gateway.description,
-                    icon: gateway.icon,
-                    status: gateway.status,
+                    id: virtualMcp.id,
+                    title: virtualMcp.title,
+                    description: virtualMcp.description,
+                    icon: virtualMcp.icon,
+                    status: virtualMcp.status,
                   }}
                   fallbackIcon={<CpuChip02 />}
                   onClick={() =>
                     navigate({
-                      to: "/$org/gateways/$gatewayId",
-                      params: { org: org.slug, gatewayId: gateway.id },
+                      to: "/$org/agents/$agentId",
+                      params: { org: org.slug, agentId: virtualMcp.id },
                     })
                   }
                   footer={
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>
-                        {gateway.connections.length} connection
-                        {gateway.connections.length !== 1 ? "s" : ""}
+                        {virtualMcp.connections.length} connection
+                        {virtualMcp.connections.length !== 1 ? "s" : ""}
                       </span>
                       <span>•</span>
                       <span>
-                        {gateway.tool_selection_mode === "exclusion"
+                        {virtualMcp.tool_selection_mode === "exclusion"
                           ? "Exclude"
                           : "Include"}
                       </span>
@@ -342,10 +345,10 @@ function OrgGatewaysContent() {
                           onClick={(e) => {
                             e.stopPropagation();
                             navigate({
-                              to: "/$org/gateways/$gatewayId",
+                              to: "/$org/agents/$agentId",
                               params: {
                                 org: org.slug,
-                                gatewayId: gateway.id,
+                                agentId: virtualMcp.id,
                               },
                             });
                           }}
@@ -357,7 +360,7 @@ function OrgGatewaysContent() {
                           variant="destructive"
                           onClick={(e) => {
                             e.stopPropagation();
-                            dispatch({ type: "delete", gateway });
+                            dispatch({ type: "delete", virtualMcp });
                           }}
                         >
                           <Trash01 size={16} />
@@ -374,15 +377,15 @@ function OrgGatewaysContent() {
       ) : (
         <CollectionTableWrapper
           columns={columns}
-          data={gateways}
+          data={virtualMcps}
           isLoading={false}
           sortKey={listState.sortKey}
           sortDirection={listState.sortDirection}
           onSort={listState.handleSort}
-          onRowClick={(gateway) =>
+          onRowClick={(virtualMcp) =>
             navigate({
-              to: "/$org/gateways/$gatewayId",
-              params: { org: org.slug, gatewayId: gateway.id },
+              to: "/$org/agents/$agentId",
+              params: { org: org.slug, agentId: virtualMcp.id },
             })
           }
           emptyState={
@@ -410,7 +413,7 @@ function OrgGatewaysContent() {
   );
 }
 
-export default function OrgGateways() {
+export default function OrgAgents() {
   return (
     <ErrorBoundary>
       <Suspense
@@ -423,7 +426,7 @@ export default function OrgGateways() {
           </div>
         }
       >
-        <OrgGatewaysContent />
+        <OrgAgentsContent />
       </Suspense>
     </ErrorBoundary>
   );

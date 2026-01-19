@@ -1,24 +1,24 @@
 /**
- * Top Gateways Analytics Component
+ * Top Agents Analytics Component
  *
- * Displays a horizontal bar chart of MCP gateways sorted by tool calls, errors, or latency.
+ * Displays a horizontal bar chart of virtual MCPs (agents) sorted by tool calls, errors, or latency.
  */
 
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { CpuChip02 } from "@untitledui/icons";
-import { useGateways } from "@/web/hooks/collections/use-gateway";
+import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
-import type { MonitoringLogsWithGatewayResponse } from "./index";
+import type { MonitoringLogsWithVirtualMCPResponse } from "./index";
 
 type MetricsMode = "requests" | "errors" | "latency";
 
-interface GatewayMetric {
-  gatewayId: string;
+interface VirtualMCPMetric {
+  virtualMcpId: string;
   requests: number;
   errors: number;
   errorRate: number;
@@ -39,38 +39,38 @@ function getLast24HoursDateRange() {
   };
 }
 
-function aggregateGatewayMetrics(
+function aggregateVirtualMCPMetrics(
   logs: Array<{
-    gatewayId?: string | null;
+    virtualMcpId?: string | null;
     isError: boolean;
     durationMs: number;
   }>,
-): Map<string, GatewayMetric> {
+): Map<string, VirtualMCPMetric> {
   const metrics = new Map<
     string,
     { requests: number; errors: number; totalLatency: number }
   >();
 
   for (const log of logs) {
-    if (!log.gatewayId) continue;
+    if (!log.virtualMcpId) continue;
 
-    const existing = metrics.get(log.gatewayId) ?? {
+    const existing = metrics.get(log.virtualMcpId) ?? {
       requests: 0,
       errors: 0,
       totalLatency: 0,
     };
 
-    metrics.set(log.gatewayId, {
+    metrics.set(log.virtualMcpId, {
       requests: existing.requests + 1,
       errors: existing.errors + (log.isError ? 1 : 0),
       totalLatency: existing.totalLatency + log.durationMs,
     });
   }
 
-  const result = new Map<string, GatewayMetric>();
-  for (const [gatewayId, data] of metrics) {
-    result.set(gatewayId, {
-      gatewayId,
+  const result = new Map<string, VirtualMCPMetric>();
+  for (const [virtualMcpId, data] of metrics) {
+    result.set(virtualMcpId, {
+      virtualMcpId,
       requests: data.requests,
       errors: data.errors,
       errorRate: data.requests > 0 ? (data.errors / data.requests) * 100 : 0,
@@ -81,7 +81,10 @@ function aggregateGatewayMetrics(
   return result;
 }
 
-function formatMetricValue(metric: GatewayMetric, mode: MetricsMode): string {
+function formatMetricValue(
+  metric: VirtualMCPMetric,
+  mode: MetricsMode,
+): string {
   switch (mode) {
     case "requests":
       return metric.requests.toLocaleString();
@@ -93,7 +96,7 @@ function formatMetricValue(metric: GatewayMetric, mode: MetricsMode): string {
 }
 
 function getMetricNumericValue(
-  metric: GatewayMetric,
+  metric: VirtualMCPMetric,
   mode: MetricsMode,
 ): number {
   switch (mode) {
@@ -107,7 +110,7 @@ function getMetricNumericValue(
 }
 
 function getMetricPercentage(
-  metric: GatewayMetric,
+  metric: VirtualMCPMetric,
   maxValue: number,
   mode: MetricsMode,
 ): number {
@@ -116,21 +119,21 @@ function getMetricPercentage(
   return Math.min((value / maxValue) * 100, 100);
 }
 
-interface TopGatewaysContentProps {
+interface TopAgentsContentProps {
   metricsMode: MetricsMode;
 }
 
-function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
+function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
   const { org, locator } = useProjectContext();
   const navigate = useNavigate();
   const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
 
-  const gateways = useGateways({ pageSize: 100 }) ?? [];
+  const virtualMcps = useVirtualMCPs({ pageSize: 100 }) ?? [];
 
   const { data: logsData } = useToolCall<
     { startDate: string; endDate: string; limit: number; offset: number },
-    MonitoringLogsWithGatewayResponse
+    MonitoringLogsWithVirtualMCPResponse
   >({
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
@@ -141,35 +144,42 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
 
   const logs = logsData?.logs ?? [];
 
-  const metricsMap = aggregateGatewayMetrics(logs);
+  const metricsMap = aggregateVirtualMCPMetrics(logs);
 
-  // Filter gateways that have metrics and sort them
-  const gatewaysWithMetrics = gateways
-    .map((gateway) => ({
-      gateway,
-      metric: metricsMap.get(gateway.id),
+  // Filter virtual MCPs that have metrics and sort them
+  const virtualMcpsWithMetrics = virtualMcps
+    .map((virtualMcp) => ({
+      virtualMcp,
+      metric: metricsMap.get(virtualMcp.id),
     }))
-    .filter((item) => item.metric)
+    .filter(
+      (
+        item,
+      ): item is {
+        virtualMcp: typeof item.virtualMcp;
+        metric: VirtualMCPMetric;
+      } => item.metric !== undefined,
+    )
     .sort(
       (a, b) =>
-        getMetricNumericValue(b.metric!, metricsMode) -
-        getMetricNumericValue(a.metric!, metricsMode),
+        getMetricNumericValue(b.metric, metricsMode) -
+        getMetricNumericValue(a.metric, metricsMode),
     )
     .slice(0, 15);
 
-  const firstMetric = gatewaysWithMetrics[0]?.metric;
+  const firstMetric = virtualMcpsWithMetrics[0]?.metric;
   const maxValue = firstMetric
     ? getMetricNumericValue(firstMetric, metricsMode)
     : 1;
 
-  const handleGatewayClick = (gatewayId: string) => {
+  const handleVirtualMcpClick = (virtualMcpId: string) => {
     navigate({
       to: "/$org/monitoring",
       params: { org: org.slug },
       search: {
         from: "now-24h",
         to: "now",
-        gatewayId: [gatewayId],
+        virtualMcpId: [virtualMcpId],
         ...(metricsMode === "errors" && { status: "errors" as const }),
       },
     });
@@ -177,7 +187,7 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
 
   const handleTitleClick = () => {
     navigate({
-      to: "/$org/gateways",
+      to: "/$org/agents",
       params: { org: org.slug },
     });
   };
@@ -194,33 +204,33 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
       title={<p className="text-sm text-muted-foreground">Agents</p>}
       onTitleClick={handleTitleClick}
     >
-      {gatewaysWithMetrics.length === 0 ? (
+      {virtualMcpsWithMetrics.length === 0 ? (
         <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
           No agent activity in the last 24 hours
         </div>
       ) : (
         <div className="space-y-3 w-full">
-          {gatewaysWithMetrics.map(({ gateway, metric }) => {
+          {virtualMcpsWithMetrics.map(({ virtualMcp, metric }) => {
             const percentage = getMetricPercentage(
-              metric!,
+              metric,
               maxValue,
               metricsMode,
             );
             return (
               <div
-                key={gateway.id}
+                key={virtualMcp.id}
                 className="group cursor-pointer flex items-center gap-2"
-                onClick={() => handleGatewayClick(gateway.id)}
+                onClick={() => handleVirtualMcpClick(virtualMcp.id)}
               >
                 <IntegrationIcon
-                  icon={gateway.icon}
-                  name={gateway.title}
+                  icon={virtualMcp.icon}
+                  name={virtualMcp.title}
                   size="xs"
                   fallbackIcon={<CpuChip02 />}
                   className="shrink-0"
                 />
                 <span className="text-xs font-medium text-foreground truncate min-w-0 w-32">
-                  {gateway.title}
+                  {virtualMcp.title}
                 </span>
                 <div className="relative h-2 bg-muted/50 overflow-hidden flex-1">
                   <div
@@ -232,7 +242,7 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
                   />
                 </div>
                 <span className="text-xs tabular-nums shrink-0 text-foreground font-normal">
-                  {formatMetricValue(metric!, metricsMode)}
+                  {formatMetricValue(metric, metricsMode)}
                 </span>
               </div>
             );
@@ -243,7 +253,7 @@ function TopGatewaysContent({ metricsMode }: TopGatewaysContentProps) {
   );
 }
 
-function TopGatewaysSkeleton() {
+function TopAgentsSkeleton() {
   return (
     <HomeGridCell
       title={<p className="text-sm text-muted-foreground">Agents</p>}
@@ -262,7 +272,7 @@ function TopGatewaysSkeleton() {
   );
 }
 
-export const TopGateways = {
-  Content: TopGatewaysContent,
-  Skeleton: TopGatewaysSkeleton,
+export const TopAgents = {
+  Content: TopAgentsContent,
+  Skeleton: TopAgentsSkeleton,
 };

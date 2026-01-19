@@ -1,7 +1,7 @@
 /**
- * ResourceGateway
+ * ResourceAggregator
  *
- * Lazy-loading gateway for aggregating resources from multiple connections
+ * Lazy-loading aggregator for aggregating resources from multiple connections
  */
 
 import {
@@ -22,8 +22,8 @@ interface ResourceCache {
   mappings: Map<string, string>; // uri -> connectionId
 }
 
-/** Options for ResourceGateway */
-export interface ResourceGatewayOptions {
+/** Options for ResourceAggregator */
+export interface ResourceAggregatorOptions {
   selectionMode: ToolSelectionMode;
 }
 
@@ -67,18 +67,18 @@ function matchesAnyPattern(uri: string, patterns: string[]): boolean {
 }
 
 /**
- * Gateway for aggregating and routing resources from multiple connections
+ * Aggregator for aggregating and routing resources from multiple connections
  *
  * Resources are loaded lazily on first access and cached for subsequent calls.
  * Resource URIs are globally unique and used for routing to the correct connection.
  * Uses lazy() to ensure concurrent calls share the same loading promise.
  */
-export class ResourceGateway {
+export class ResourceAggregator {
   private cache: Promise<ResourceCache>;
 
   constructor(
     private proxies: ProxyCollection,
-    private options: ResourceGatewayOptions,
+    private options: ResourceAggregatorOptions,
   ) {
     // Create lazy cache - only loads when first awaited
     this.cache = lazy(() => this.loadResources());
@@ -127,7 +127,7 @@ export class ResourceGateway {
             error.code !== ErrorCode.MethodNotFound
           ) {
             console.error(
-              `[gateway] Failed to list resources for connection ${connectionId}: (defaulting to empty array)`,
+              `[aggregator] Failed to list resources for connection ${connectionId}: (defaulting to empty array)`,
               error,
             );
           }

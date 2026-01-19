@@ -1,7 +1,7 @@
 /**
- * COLLECTION_GATEWAY_LIST Tool
+ * COLLECTION_VIRTUAL_MCP_LIST Tool
  *
- * List all gateways for the organization with collection binding compliance.
+ * List all virtual MCPs for the organization with collection binding compliance.
  */
 
 import {
@@ -13,7 +13,7 @@ import {
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
-import { type GatewayEntity, GatewayEntitySchema } from "./schema";
+import { type VirtualMCPEntity, VirtualMCPEntitySchema } from "./schema";
 
 /**
  * Convert SQL LIKE pattern to regex pattern by tokenizing.
@@ -46,11 +46,14 @@ function isStringOrValue(value: unknown): value is string | number {
 }
 
 /**
- * Get a field value from a gateway, handling nested paths.
+ * Get a field value from a virtual MCP, handling nested paths.
  */
-function getFieldValue(gateway: GatewayEntity, fieldPath: string): unknown {
+function getFieldValue(
+  virtualMcp: VirtualMCPEntity,
+  fieldPath: string,
+): unknown {
   const parts = fieldPath.split(".");
-  let value: unknown = gateway;
+  let value: unknown = virtualMcp;
   for (const part of parts) {
     if (value == null || typeof value !== "object") return undefined;
     value = (value as Record<string, unknown>)[part];
@@ -58,29 +61,32 @@ function getFieldValue(gateway: GatewayEntity, fieldPath: string): unknown {
   return value;
 }
 
-function gatewayHasConnectionId(gateway: GatewayEntity, connectionId: string) {
-  return gateway.connections.some((c) => c.connection_id === connectionId);
+function virtualMcpHasConnectionId(
+  virtualMcp: VirtualMCPEntity,
+  connectionId: string,
+) {
+  return virtualMcp.connections.some((c) => c.connection_id === connectionId);
 }
 
 /**
- * Evaluate a where expression against a gateway entity.
+ * Evaluate a where expression against a virtual MCP entity.
  *
- * Note: we support a special field `connection_id` that matches gateways that
- * include a connection with that id (via gateway.connections[*].connection_id).
+ * Note: we support a special field `connection_id` that matches virtual MCPs that
+ * include a connection with that id (via virtualMcp.connections[*].connection_id).
  */
 function evaluateWhereExpression(
-  gateway: GatewayEntity,
+  virtualMcp: VirtualMCPEntity,
   where: WhereExpression,
 ): boolean {
   if ("conditions" in where) {
     const { operator, conditions } = where;
     switch (operator) {
       case "and":
-        return conditions.every((c) => evaluateWhereExpression(gateway, c));
+        return conditions.every((c) => evaluateWhereExpression(virtualMcp, c));
       case "or":
-        return conditions.some((c) => evaluateWhereExpression(gateway, c));
+        return conditions.some((c) => evaluateWhereExpression(virtualMcp, c));
       case "not":
-        return !conditions.every((c) => evaluateWhereExpression(gateway, c));
+        return !conditions.every((c) => evaluateWhereExpression(virtualMcp, c));
       default:
         return true;
     }
@@ -91,10 +97,10 @@ function evaluateWhereExpression(
 
   if (fieldPath === "connection_id") {
     if (operator !== "eq" || typeof value !== "string") return false;
-    return gatewayHasConnectionId(gateway, value);
+    return virtualMcpHasConnectionId(virtualMcp, value);
   }
 
-  const fieldValue = getFieldValue(gateway, fieldPath);
+  const fieldValue = getFieldValue(virtualMcp, fieldPath);
 
   switch (operator) {
     case "eq":
@@ -144,9 +150,9 @@ function evaluateWhereExpression(
 }
 
 function applyOrderBy(
-  items: GatewayEntity[],
+  items: VirtualMCPEntity[],
   orderBy: OrderByExpression[],
-): GatewayEntity[] {
+): VirtualMCPEntity[] {
   return [...items].sort((a, b) => {
     for (const order of orderBy) {
       const fieldPath = order.field.join(".");
@@ -178,20 +184,22 @@ function applyOrderBy(
 }
 
 /**
- * Input schema for listing gateways (collection-binding-compliant)
+ * Input schema for listing virtual MCPs (collection-binding-compliant)
  */
 const ListInputSchema = CollectionListInputSchema;
 
-export type ListGatewaysInput = z.infer<typeof ListInputSchema>;
+export type ListVirtualMCPsInput = z.infer<typeof ListInputSchema>;
 
 /**
- * Output schema for gateway list
+ * Output schema for virtual MCP list
  */
-const ListOutputSchema = createCollectionListOutputSchema(GatewayEntitySchema);
+const ListOutputSchema = createCollectionListOutputSchema(
+  VirtualMCPEntitySchema,
+);
 
-export const COLLECTION_GATEWAY_LIST = defineTool({
-  name: "COLLECTION_GATEWAY_LIST",
-  description: "List all MCP gateways in the organization",
+export const COLLECTION_VIRTUAL_MCP_LIST = defineTool({
+  name: "COLLECTION_VIRTUAL_MCP_LIST",
+  description: "List all MCP virtual MCPs in the organization",
 
   inputSchema: ListInputSchema,
   outputSchema: ListOutputSchema,
@@ -211,20 +219,20 @@ export const COLLECTION_GATEWAY_LIST = defineTool({
         ? input.where.value
         : undefined;
 
-    const gateways = connectionIdEq
-      ? await ctx.storage.gateways.listByConnectionId(
+    const virtualMcps = connectionIdEq
+      ? await ctx.storage.virtualMcps.listByConnectionId(
           organization.id,
           connectionIdEq,
         )
-      : await ctx.storage.gateways.list(organization.id);
+      : await ctx.storage.virtualMcps.list(organization.id);
 
-    // Gateways are already in GatewayEntity format (snake_case)
-    let filtered: GatewayEntity[] = gateways;
+    // Virtual MCPs are already in VirtualMCPEntity format (snake_case)
+    let filtered: VirtualMCPEntity[] = virtualMcps;
 
     // Apply where filter if specified
     if (input.where) {
-      filtered = filtered.filter((gw) =>
-        evaluateWhereExpression(gw, input.where!),
+      filtered = filtered.filter((vm) =>
+        evaluateWhereExpression(vm, input.where!),
       );
     }
 

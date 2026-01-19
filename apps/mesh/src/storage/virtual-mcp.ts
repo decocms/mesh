@@ -1,23 +1,23 @@
 /**
- * Gateway Storage Implementation
+ * Virtual MCP Storage Implementation
  *
- * Handles CRUD operations for MCP virtual gateways using Kysely (database-agnostic).
- * Gateways aggregate tools from multiple connections with selective tool exposure.
+ * Handles CRUD operations for MCP virtual MCPs using Kysely (database-agnostic).
+ * Virtual MCPs aggregate tools from multiple connections with selective tool exposure.
  */
 
 import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type {
-  GatewayCreateData,
-  GatewayEntity,
-  GatewayStoragePort,
-  GatewayUpdateData,
+  VirtualMCPCreateData,
+  VirtualMCPEntity,
+  VirtualMCPStoragePort,
+  VirtualMCPUpdateData,
 } from "./ports";
-import type { ToolSelectionMode } from "../tools/gateway/schema";
+import type { ToolSelectionMode } from "../tools/virtual-mcp/schema";
 import type { Database } from "./types";
 
-/** Raw database row type for gateways */
-type RawGatewayRow = {
+/** Raw database row type for virtual_mcps */
+type RawVirtualMCPRow = {
   id: string;
   organization_id: string;
   title: string;
@@ -31,10 +31,10 @@ type RawGatewayRow = {
   updated_by: string | null;
 };
 
-/** Raw database row type for gateway_connections */
-type RawGatewayConnectionRow = {
+/** Raw database row type for virtual_mcp_connections */
+type RawVirtualMCPConnectionRow = {
   id: string;
-  gateway_id: string;
+  virtual_mcp_id: string;
   connection_id: string;
   selected_tools: string | string[] | null;
   selected_resources: string | string[] | null;
@@ -42,20 +42,20 @@ type RawGatewayConnectionRow = {
   created_at: Date | string;
 };
 
-export class GatewayStorage implements GatewayStoragePort {
+export class VirtualMCPStorage implements VirtualMCPStoragePort {
   constructor(private db: Kysely<Database>) {}
 
   async create(
     organizationId: string,
     userId: string,
-    data: GatewayCreateData,
-  ): Promise<GatewayEntity> {
-    const id = generatePrefixedId("gw");
+    data: VirtualMCPCreateData,
+  ): Promise<VirtualMCPEntity> {
+    const id = generatePrefixedId("vir");
     const now = new Date().toISOString();
 
-    // Insert gateway
+    // Insert virtual MCP
     await this.db
-      .insertInto("gateways")
+      .insertInto("virtual_mcps")
       .values({
         id,
         organization_id: organizationId,
@@ -71,14 +71,14 @@ export class GatewayStorage implements GatewayStoragePort {
       })
       .execute();
 
-    // Insert gateway connections
+    // Insert virtual MCP connections
     if (data.connections.length > 0) {
       await this.db
-        .insertInto("gateway_connections")
+        .insertInto("virtual_mcp_connections")
         .values(
           data.connections.map((conn) => ({
-            id: generatePrefixedId("gwc"),
-            gateway_id: id,
+            id: generatePrefixedId("virc"),
+            virtual_mcp_id: id,
             connection_id: conn.connection_id,
             selected_tools: conn.selected_tools
               ? JSON.stringify(conn.selected_tools)
@@ -95,24 +95,24 @@ export class GatewayStorage implements GatewayStoragePort {
         .execute();
     }
 
-    const gateway = await this.findById(id);
-    if (!gateway) {
-      throw new Error(`Failed to create gateway with id: ${id}`);
+    const virtualMcp = await this.findById(id);
+    if (!virtualMcp) {
+      throw new Error(`Failed to create virtual MCP with id: ${id}`);
     }
 
-    return gateway;
+    return virtualMcp;
   }
 
-  async findById(id: string): Promise<GatewayEntity | null> {
+  async findById(id: string): Promise<VirtualMCPEntity | null> {
     return this.findByIdInternal(this.db, id);
   }
 
   private async findByIdInternal(
     db: Kysely<Database>,
     id: string,
-  ): Promise<GatewayEntity | null> {
+  ): Promise<VirtualMCPEntity | null> {
     const row = await db
-      .selectFrom("gateways")
+      .selectFrom("virtual_mcps")
       .selectAll()
       .where("id", "=", id)
       .executeTakeFirst();
@@ -122,49 +122,52 @@ export class GatewayStorage implements GatewayStoragePort {
     }
 
     const connectionRows = await db
-      .selectFrom("gateway_connections")
+      .selectFrom("virtual_mcp_connections")
       .selectAll()
-      .where("gateway_id", "=", id)
+      .where("virtual_mcp_id", "=", id)
       .execute();
 
-    return this.deserializeGatewayEntity(
-      row as unknown as RawGatewayRow,
-      connectionRows as RawGatewayConnectionRow[],
+    return this.deserializeVirtualMCPEntity(
+      row as unknown as RawVirtualMCPRow,
+      connectionRows as RawVirtualMCPConnectionRow[],
     );
   }
 
-  async list(organizationId: string): Promise<GatewayEntity[]> {
+  async list(organizationId: string): Promise<VirtualMCPEntity[]> {
     const rows = await this.db
-      .selectFrom("gateways")
+      .selectFrom("virtual_mcps")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .execute();
 
-    const gatewayIds = rows.map((r) => r.id);
+    const virtualMcpIds = rows.map((r) => r.id);
 
-    if (gatewayIds.length === 0) {
+    if (virtualMcpIds.length === 0) {
       return [];
     }
 
-    // Fetch all connections for all gateways in one query
+    // Fetch all connections for all virtual MCPs in one query
     const connectionRows = await this.db
-      .selectFrom("gateway_connections")
+      .selectFrom("virtual_mcp_connections")
       .selectAll()
-      .where("gateway_id", "in", gatewayIds)
+      .where("virtual_mcp_id", "in", virtualMcpIds)
       .execute();
 
-    // Group connections by gateway_id
-    const connectionsByGateway = new Map<string, RawGatewayConnectionRow[]>();
-    for (const conn of connectionRows as RawGatewayConnectionRow[]) {
-      const existing = connectionsByGateway.get(conn.gateway_id) ?? [];
+    // Group connections by virtual_mcp_id
+    const connectionsByVirtualMCP = new Map<
+      string,
+      RawVirtualMCPConnectionRow[]
+    >();
+    for (const conn of connectionRows as RawVirtualMCPConnectionRow[]) {
+      const existing = connectionsByVirtualMCP.get(conn.virtual_mcp_id) ?? [];
       existing.push(conn);
-      connectionsByGateway.set(conn.gateway_id, existing);
+      connectionsByVirtualMCP.set(conn.virtual_mcp_id, existing);
     }
 
     return rows.map((row) =>
-      this.deserializeGatewayEntity(
-        row as unknown as RawGatewayRow,
-        connectionsByGateway.get(row.id) ?? [],
+      this.deserializeVirtualMCPEntity(
+        row as unknown as RawVirtualMCPRow,
+        connectionsByVirtualMCP.get(row.id) ?? [],
       ),
     );
   }
@@ -172,25 +175,25 @@ export class GatewayStorage implements GatewayStoragePort {
   async listByConnectionId(
     organizationId: string,
     connectionId: string,
-  ): Promise<GatewayEntity[]> {
-    // Find gateway IDs that include this connection
-    const gatewayConnectionRows = await this.db
-      .selectFrom("gateway_connections")
-      .select("gateway_id")
+  ): Promise<VirtualMCPEntity[]> {
+    // Find virtual MCP IDs that include this connection
+    const virtualMcpConnectionRows = await this.db
+      .selectFrom("virtual_mcp_connections")
+      .select("virtual_mcp_id")
       .where("connection_id", "=", connectionId)
       .execute();
 
-    const gatewayIds = gatewayConnectionRows.map((r) => r.gateway_id);
+    const virtualMcpIds = virtualMcpConnectionRows.map((r) => r.virtual_mcp_id);
 
-    if (gatewayIds.length === 0) {
+    if (virtualMcpIds.length === 0) {
       return [];
     }
 
-    // Fetch the gateways (filtered by organization)
+    // Fetch the virtual MCPs (filtered by organization)
     const rows = await this.db
-      .selectFrom("gateways")
+      .selectFrom("virtual_mcps")
       .selectAll()
-      .where("id", "in", gatewayIds)
+      .where("id", "in", virtualMcpIds)
       .where("organization_id", "=", organizationId)
       .execute();
 
@@ -198,27 +201,30 @@ export class GatewayStorage implements GatewayStoragePort {
       return [];
     }
 
-    const resultGatewayIds = rows.map((r) => r.id);
+    const resultVirtualMcpIds = rows.map((r) => r.id);
 
-    // Fetch all connections for these gateways
+    // Fetch all connections for these virtual MCPs
     const connectionRows = await this.db
-      .selectFrom("gateway_connections")
+      .selectFrom("virtual_mcp_connections")
       .selectAll()
-      .where("gateway_id", "in", resultGatewayIds)
+      .where("virtual_mcp_id", "in", resultVirtualMcpIds)
       .execute();
 
-    // Group connections by gateway_id
-    const connectionsByGateway = new Map<string, RawGatewayConnectionRow[]>();
-    for (const conn of connectionRows as RawGatewayConnectionRow[]) {
-      const existing = connectionsByGateway.get(conn.gateway_id) ?? [];
+    // Group connections by virtual_mcp_id
+    const connectionsByVirtualMCP = new Map<
+      string,
+      RawVirtualMCPConnectionRow[]
+    >();
+    for (const conn of connectionRows as RawVirtualMCPConnectionRow[]) {
+      const existing = connectionsByVirtualMCP.get(conn.virtual_mcp_id) ?? [];
       existing.push(conn);
-      connectionsByGateway.set(conn.gateway_id, existing);
+      connectionsByVirtualMCP.set(conn.virtual_mcp_id, existing);
     }
 
     return rows.map((row) =>
-      this.deserializeGatewayEntity(
-        row as RawGatewayRow,
-        connectionsByGateway.get(row.id) ?? [],
+      this.deserializeVirtualMCPEntity(
+        row as RawVirtualMCPRow,
+        connectionsByVirtualMCP.get(row.id) ?? [],
       ),
     );
   }
@@ -226,11 +232,11 @@ export class GatewayStorage implements GatewayStoragePort {
   async update(
     id: string,
     userId: string,
-    data: GatewayUpdateData,
-  ): Promise<GatewayEntity> {
+    data: VirtualMCPUpdateData,
+  ): Promise<VirtualMCPEntity> {
     const now = new Date().toISOString();
 
-    // Build update object for gateway table
+    // Build update object for virtual MCP table
     const updateData: Record<string, unknown> = {
       updated_at: now,
       updated_by: userId,
@@ -254,7 +260,7 @@ export class GatewayStorage implements GatewayStoragePort {
 
     // Non-default update - simple update
     await this.db
-      .updateTable("gateways")
+      .updateTable("virtual_mcps")
       .set(updateData)
       .where("id", "=", id)
       .execute();
@@ -262,17 +268,17 @@ export class GatewayStorage implements GatewayStoragePort {
     // Update connections if provided
     if (data.connections !== undefined) {
       await this.db
-        .deleteFrom("gateway_connections")
-        .where("gateway_id", "=", id)
+        .deleteFrom("virtual_mcp_connections")
+        .where("virtual_mcp_id", "=", id)
         .execute();
 
       if (data.connections.length > 0) {
         await this.db
-          .insertInto("gateway_connections")
+          .insertInto("virtual_mcp_connections")
           .values(
             data.connections.map((conn) => ({
-              id: generatePrefixedId("gwc"),
-              gateway_id: id,
+              id: generatePrefixedId("virc"),
+              virtual_mcp_id: id,
               connection_id: conn.connection_id,
               selected_tools: conn.selected_tools
                 ? JSON.stringify(conn.selected_tools)
@@ -290,26 +296,26 @@ export class GatewayStorage implements GatewayStoragePort {
       }
     }
 
-    const gateway = await this.findById(id);
-    if (!gateway) {
-      throw new Error("Gateway not found after update");
+    const virtualMcp = await this.findById(id);
+    if (!virtualMcp) {
+      throw new Error("Virtual MCP not found after update");
     }
 
-    return gateway;
+    return virtualMcp;
   }
 
   async delete(id: string): Promise<void> {
     // Connections are deleted automatically due to CASCADE DELETE
-    await this.db.deleteFrom("gateways").where("id", "=", id).execute();
+    await this.db.deleteFrom("virtual_mcps").where("id", "=", id).execute();
   }
 
   /**
-   * Deserialize gateway row with connections to GatewayEntity (snake_case)
+   * Deserialize virtual MCP row with connections to VirtualMCPEntity (snake_case)
    */
-  private deserializeGatewayEntity(
-    row: RawGatewayRow,
-    connectionRows: RawGatewayConnectionRow[],
-  ): GatewayEntity {
+  private deserializeVirtualMCPEntity(
+    row: RawVirtualMCPRow,
+    connectionRows: RawVirtualMCPConnectionRow[],
+  ): VirtualMCPEntity {
     // Convert Date to ISO string if needed
     const createdAt =
       row.created_at instanceof Date

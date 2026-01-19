@@ -22,7 +22,7 @@ import {
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import {
   useCurrentStep,
-  useSelectedGatewayId,
+  useSelectedVirtualMcpId,
   useTrackingExecutionId,
   useWorkflowActions,
 } from "../stores/workflow";
@@ -52,7 +52,7 @@ function useSyncOutputSchema(step: Step | undefined) {
   const toolName =
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
 
-  const { tool } = useGatewayTool(toolName ?? "");
+  const { tool } = useVirtualMCPTool(toolName ?? "");
 
   // Check if step has a tool but outputSchema is empty or missing
   const hasToolWithNoOutputSchema =
@@ -185,13 +185,13 @@ function ReplaceToolButton() {
   );
 }
 
-function useGatewayTool(toolName: string) {
-  const gatewayId = useSelectedGatewayId();
-  const mcpProxyUrl = gatewayId
-    ? new URL(`/mcp/gateway/${gatewayId}`, window.location.origin).href
+function useVirtualMCPTool(toolName: string) {
+  const virtualMcpId = useSelectedVirtualMcpId();
+  const mcpProxyUrl = virtualMcpId
+    ? new URL(`/mcp/gateway/${virtualMcpId}`, window.location.origin).href
     : "";
 
-  const mcp = useMcp({ url: mcpProxyUrl, enabled: !!gatewayId });
+  const mcp = useMcp({ url: mcpProxyUrl, enabled: !!virtualMcpId });
 
   const tool = mcp.tools?.find((t) => t.name === toolName);
 
@@ -213,7 +213,7 @@ function InputSection({ step }: { step: Step }) {
   const toolName =
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
   const trackingExecutionId = useTrackingExecutionId();
-  const { tool } = useGatewayTool(toolName ?? "");
+  const { tool } = useVirtualMCPTool(toolName ?? "");
 
   if (!tool || !tool.inputSchema) {
     return null;
@@ -388,7 +388,7 @@ function TransformCodeSection({ step }: { step: Step }) {
   const toolName =
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
 
-  const { tool } = useGatewayTool(toolName ?? "");
+  const { tool } = useVirtualMCPTool(toolName ?? "");
 
   const transformCode =
     isToolStep && "transformCode" in step.action

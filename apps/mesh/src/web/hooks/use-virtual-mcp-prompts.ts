@@ -8,7 +8,7 @@ import type {
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
 
-export interface GatewayPrompt {
+export interface VirtualMCPPrompt {
   name: string;
   title?: string;
   description?: string;
@@ -19,25 +19,25 @@ export interface GatewayPrompt {
   }>;
 }
 
-export type GatewayPromptResult = GetPromptResult;
+export type VirtualMCPPromptResult = GetPromptResult;
 
 const DEFAULT_CLIENT_INFO = {
   name: "mesh-chat",
   version: "1.0.0",
 };
 
-function createGatewayTransport(gatewayId: string) {
+function createVirtualMCPTransport(virtualMcpId: string) {
   if (typeof window === "undefined") {
-    throw new Error("Gateway prompts require a browser environment.");
+    throw new Error("Virtual MCP prompts require a browser environment.");
   }
 
-  const gatewayUrl = new URL(
-    `/mcp/gateway/${gatewayId}`,
+  const virtualMcpUrl = new URL(
+    `/mcp/virtual-mcp/${virtualMcpId}`,
     window.location.origin,
   );
 
   const webStandardStreamableHttpTransport = new StreamableHTTPClientTransport(
-    gatewayUrl,
+    virtualMcpUrl,
     {
       requestInit: {
         headers: {
@@ -51,63 +51,67 @@ function createGatewayTransport(gatewayId: string) {
   return webStandardStreamableHttpTransport;
 }
 
-async function withGatewayClient<T>(
-  gatewayId: string,
+async function withVirtualMCPClient<T>(
+  virtualMcpId: string,
   callback: (client: Client) => Promise<T>,
 ): Promise<T> {
   const client = new Client(DEFAULT_CLIENT_INFO);
-  const transport = createGatewayTransport(gatewayId);
+  const transport = createVirtualMCPTransport(virtualMcpId);
 
   try {
     await client.connect(transport);
     return await callback(client);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[gateway-prompts] Error for gateway ${gatewayId}:`, error);
-    throw new Error(`Failed to communicate with gateway: ${message}`);
+    console.error(
+      `[virtual-mcp-prompts] Error for virtual MCP ${virtualMcpId}:`,
+      error,
+    );
+    throw new Error(`Failed to communicate with virtual MCP: ${message}`);
   } finally {
     await client.close().catch(console.error);
   }
 }
 
 /**
- * Fetch prompts from a gateway via MCP protocol
+ * Fetch prompts from a virtual MCP via MCP protocol
  */
-async function fetchGatewayPrompts(
-  gatewayId: string,
-): Promise<GatewayPrompt[]> {
+async function fetchVirtualMCPPrompts(
+  virtualMcpId: string,
+): Promise<VirtualMCPPrompt[]> {
   try {
-    const result = await withGatewayClient<ListPromptsResult>(
-      gatewayId,
+    const result = await withVirtualMCPClient<ListPromptsResult>(
+      virtualMcpId,
       (client) => client.listPrompts(),
     );
     return result.prompts ?? [];
   } catch (error) {
-    console.error("[gateway-prompts] Failed to list prompts:", error);
+    console.error("[virtual-mcp-prompts] Failed to list prompts:", error);
     return [];
   }
 }
 
-export async function fetchGatewayPrompt(
-  gatewayId: string,
+export async function fetchVirtualMCPPrompt(
+  virtualMcpId: string,
   name: string,
   args?: GetPromptRequest["params"]["arguments"],
-): Promise<GatewayPromptResult> {
+): Promise<VirtualMCPPromptResult> {
   const argumentsValue = args ?? {};
-  return await withGatewayClient<GatewayPromptResult>(gatewayId, (client) =>
-    client.getPrompt({ name, arguments: argumentsValue }),
+  return await withVirtualMCPClient<VirtualMCPPromptResult>(
+    virtualMcpId,
+    (client) => client.getPrompt({ name, arguments: argumentsValue }),
   );
 }
 
 /**
- * Suspense hook to fetch prompts from a gateway via MCP protocol.
+ * Suspense hook to fetch prompts from a virtual MCP via MCP protocol.
  * Must be used within a Suspense boundary.
- * @param gatewayId - The gateway ID (required)
+ * @param virtualMcpId - The virtual MCP ID (required)
  */
-export function useGatewayPrompts(gatewayId: string) {
+export function useVirtualMCPPrompts(virtualMcpId: string) {
   return useSuspenseQuery({
-    queryKey: KEYS.gatewayPrompts(gatewayId),
-    queryFn: () => fetchGatewayPrompts(gatewayId),
+    queryKey: KEYS.virtualMcpPrompts(virtualMcpId),
+    queryFn: () => fetchVirtualMCPPrompts(virtualMcpId),
     staleTime: 60000, // 1 minute
     retry: false,
   });

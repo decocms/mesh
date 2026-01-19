@@ -17,7 +17,7 @@ function ChatPanelContent() {
   const {
     createThread,
     activeThread,
-    selectedGateway,
+    selectedVirtualMcp,
     modelsConnections,
     isChatEmpty,
   } = useChat();
@@ -112,17 +112,17 @@ function ChatPanelContent() {
             <div className="flex flex-col items-center gap-6 w-full px-4">
               <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
                 <IntegrationIcon
-                  icon={selectedGateway?.icon ?? "/favicon.svg"}
-                  name={selectedGateway?.title || "Chat"}
+                  icon={selectedVirtualMcp?.icon ?? "/favicon.svg"}
+                  name={selectedVirtualMcp?.title || "Chat"}
                   size="lg"
                   fallbackIcon={<CpuChip02 size={32} />}
                   className="size-[60px]! rounded-[18px]!"
                 />
                 <h3 className="text-xl font-medium text-foreground">
-                  {selectedGateway?.title || "Chat"}
+                  {selectedVirtualMcp?.title || "Chat"}
                 </h3>
                 <div className="text-muted-foreground text-center text-sm max-w-md">
-                  {selectedGateway?.description ??
+                  {selectedVirtualMcp?.description ??
                     "Ask anything about configuring model providers or using MCP Mesh."}
                 </div>
               </div>

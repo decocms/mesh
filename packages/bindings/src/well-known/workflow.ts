@@ -164,9 +164,11 @@ export type WorkflowExecutionStatus = z.infer<
  * Includes lock columns and retry tracking.
  */
 export const WorkflowExecutionSchema = BaseCollectionEntitySchema.extend({
-  gateway_id: z
+  virtual_mcp_id: z
     .string()
-    .describe("ID of the gateway that will be used to execute the workflow"),
+    .describe(
+      "ID of the virtual MCP (agent) that will be used to execute the workflow",
+    ),
   status: WorkflowExecutionStatusEnum.describe(
     "Current status of the workflow execution",
   ),

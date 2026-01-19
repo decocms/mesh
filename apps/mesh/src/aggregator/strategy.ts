@@ -1,5 +1,5 @@
 /**
- * Gateway Tool Selection Strategies
+ * Aggregator Tool Selection Strategies
  *
  * Each strategy is a function that transforms tools:
  * - passthrough: (tools) => tools
@@ -27,12 +27,12 @@ import {
 // ============================================================================
 
 /**
- * Gateway tool selection strategy
+ * Aggregator tool selection strategy
  * - "passthrough": Pass tools through as-is (default)
  * - "smart_tool_selection": Smart tool selection behavior
  * - "code_execution": Code execution behavior
  */
-export type GatewayToolSelectionStrategy =
+export type AggregatorToolSelectionStrategy =
   | "passthrough"
   | "smart_tool_selection"
   | "code_execution";
@@ -65,7 +65,7 @@ export interface StrategyResult {
 export type ToolSelectionStrategyFn = (ctx: StrategyContext) => StrategyResult;
 
 // ============================================================================
-// Tool Factories (Gateway-specific)
+// Tool Factories (Aggregator-specific)
 // ============================================================================
 
 function createSearchTool(ctx: StrategyContext): ToolWithHandler {
@@ -338,7 +338,7 @@ const smartToolSelectionStrategy: ToolSelectionStrategyFn = (ctx) =>
 
 /** Get the strategy function for a given strategy name */
 export function getStrategy(
-  strategy: GatewayToolSelectionStrategy,
+  strategy: AggregatorToolSelectionStrategy,
 ): ToolSelectionStrategyFn {
   switch (strategy) {
     case "smart_tool_selection":
@@ -353,7 +353,7 @@ export function getStrategy(
 
 export function parseStrategyFromMode(
   mode: string | undefined,
-): GatewayToolSelectionStrategy {
+): AggregatorToolSelectionStrategy {
   switch (mode) {
     case "smart_tool_selection":
       return "smart_tool_selection";

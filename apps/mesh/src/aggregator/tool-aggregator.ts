@@ -1,7 +1,7 @@
 /**
- * ToolGateway
+ * ToolAggregator
  *
- * Lazy-loading gateway for aggregating tools from multiple connections
+ * Lazy-loading aggregator for aggregating tools from multiple connections
  */
 
 import {
@@ -16,7 +16,7 @@ import type { ToolSelectionMode } from "../storage/types";
 import type { ProxyCollection } from "./proxy-collection";
 import {
   getStrategy,
-  type GatewayToolSelectionStrategy,
+  type AggregatorToolSelectionStrategy,
   type ToolWithConnection,
 } from "./strategy";
 
@@ -26,10 +26,10 @@ interface ToolMapping {
   originalName: string;
 }
 
-/** Options for ToolGateway */
-export interface ToolGatewayOptions {
+/** Options for ToolAggregator */
+export interface ToolAggregatorOptions {
   selectionMode: ToolSelectionMode;
-  strategy: GatewayToolSelectionStrategy;
+  strategy: AggregatorToolSelectionStrategy;
 }
 
 /** Cached data structure */
@@ -40,17 +40,17 @@ interface ToolCache {
 }
 
 /**
- * Gateway for aggregating and routing tools from multiple connections
+ * Aggregator for aggregating and routing tools from multiple connections
  *
  * Tools are loaded lazily on first access and cached for subsequent calls.
  * Uses lazy() to ensure concurrent calls share the same loading promise.
  */
-export class ToolGateway {
+export class ToolAggregator {
   private cache: Promise<ToolCache>;
 
   constructor(
     private proxies: ProxyCollection,
-    private options: ToolGatewayOptions,
+    private options: ToolAggregatorOptions,
   ) {
     // Create lazy cache - only loads when first awaited
     this.cache = lazy(() => this.loadTools());
@@ -91,7 +91,7 @@ export class ToolGateway {
             error.code !== ErrorCode.MethodNotFound
           ) {
             console.error(
-              `[gateway] Failed to list tools ${connectionId}: (defaulting to null)`,
+              `[aggregator] Failed to list tools ${connectionId}: (defaulting to null)`,
               error,
             );
           }

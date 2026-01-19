@@ -24,7 +24,7 @@ import {
 import { CheckCircle, Container, Globe02, Terminal } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useForm, useWatch } from "react-hook-form";
-import { ConnectionGatewaysSection } from "./connection-gateways-section";
+import { ConnectionVirtualMCPsSection } from "./connection-gateways-section";
 import type { ConnectionFormData } from "./schema";
 
 /**
@@ -425,7 +425,7 @@ export function ConnectionSettingsFormUI({
         </div>
 
         {/* Gateways section */}
-        <ConnectionGatewaysSection
+        <ConnectionVirtualMCPsSection
           connectionId={connection.id}
           connectionTitle={connection.title}
           connectionDescription={connection.description}

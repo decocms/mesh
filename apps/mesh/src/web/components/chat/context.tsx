@@ -32,8 +32,8 @@ import type { ProjectLocator } from "../../lib/locator";
 import { useProjectContext } from "../../providers/project-context-provider";
 import type { Message, Thread } from "../../types/chat-threads";
 import type { ChatMessage } from "./index";
-import type { GatewayInfo } from "./select-gateway";
-import { useGateways } from "./select-gateway";
+import type { VirtualMCPInfo } from "./select-virtual-mcp";
+import { useVirtualMCPs } from "./select-virtual-mcp";
 import {
   useModels,
   type ModelChangePayload,
@@ -198,10 +198,10 @@ interface ChatContextValue {
   setActiveThreadId: (threadId: string) => void;
   hideThread: (threadId: string) => void;
 
-  // Gateway state
-  gateways: GatewayInfo[];
-  selectedGateway: GatewayInfo | null;
-  setGatewayId: (gatewayId: string | null) => void;
+  // Virtual MCP (agent) state
+  virtualMcps: VirtualMCPInfo[];
+  selectedVirtualMcp: VirtualMCPInfo | null;
+  setVirtualMcpId: (virtualMcpId: string | null) => void;
 
   // Model state
   modelsConnections: ReturnType<typeof useModelConnections>;
@@ -258,18 +258,18 @@ export function ChatProvider({ children }: PropsWithChildren) {
   );
   const persistedMessages = useThreadMessages(activeThreadId);
 
-  // Gateway state
-  const gateways = useGateways();
-  const [storedSelectedGatewayId, setSelectedGatewayId] = useLocalStorage<
+  // Virtual MCP (agent) state
+  const virtualMcps = useVirtualMCPs();
+  const [storedSelectedVirtualMcpId, setSelectedVirtualMcpId] = useLocalStorage<
     string | null
-  >(`${locator}:selected-gateway-id`, null);
+  >(`${locator}:selected-virtual-mcp-id`, null);
 
   // Model state
   const modelsConnections = useModelConnections();
   const [selectedModel, setModel] = useModelState(locator, modelsConnections);
 
   // Context prompt
-  const contextPrompt = useContextHook(storedSelectedGatewayId);
+  const contextPrompt = useContextHook(storedSelectedVirtualMcpId);
 
   // Tool call handler
   const onToolCall = useInvalidateCollectionsOnToolCall();
@@ -280,8 +280,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
 
-  const selectedGateway = storedSelectedGatewayId
-    ? (gateways.find((g) => g.id === storedSelectedGatewayId) ?? null)
+  const selectedVirtualMcp = storedSelectedVirtualMcpId
+    ? (virtualMcps.find((g) => g.id === storedSelectedVirtualMcpId) ?? null)
     : null;
 
   const transport = createModelsTransport(org.slug);
@@ -338,7 +338,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
         created_at: now,
         updated_at: now,
         hidden: false,
-        gatewayId: selectedGateway?.id,
+        virtualMcpId: selectedVirtualMcp?.id,
       };
       threadActions.insert.mutate(newThread);
       return;
@@ -348,7 +348,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       id: activeThreadId,
       updates: {
         title: existingThread.title || msgTitle,
-        gatewayId: existingThread.gatewayId || selectedGateway?.id,
+        virtualMcpId: existingThread.virtualMcpId || selectedVirtualMcp?.id,
         updated_at: new Date().toISOString(),
       },
     });
@@ -405,7 +405,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       created_at: thread?.created_at || now,
       updated_at: thread?.updated_at || now,
       hidden: thread?.hidden ?? false,
-      gatewayId: thread?.gatewayId,
+      virtualMcpId: thread?.virtualMcpId,
     };
     threadActions.insert.mutate(newThread);
     setActiveThreadId(id);
@@ -426,9 +426,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     }
   };
 
-  // Gateway functions
-  const setGatewayId = (gatewayId: string | null) => {
-    setSelectedGatewayId(gatewayId);
+  // Virtual MCP functions
+  const setVirtualMcpId = (virtualMcpId: string | null) => {
+    setSelectedVirtualMcpId(virtualMcpId);
   };
 
   // Model functions
@@ -461,7 +461,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
         provider: selectedModel.provider ?? undefined,
         limits: selectedModel.limits ?? undefined,
       },
-      gateway: { id: selectedGateway?.id ?? null },
+      gateway: { id: selectedVirtualMcp?.id ?? null },
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
@@ -504,10 +504,10 @@ export function ChatProvider({ children }: PropsWithChildren) {
     setActiveThreadId,
     hideThread,
 
-    // Gateway state
-    gateways,
-    selectedGateway,
-    setGatewayId,
+    // Virtual MCP (agent) state
+    virtualMcps,
+    selectedVirtualMcp,
+    setVirtualMcpId,
 
     // Model state
     modelsConnections,

@@ -55,12 +55,12 @@ export interface MonitoringStats {
   errorRatePercent: string;
 }
 
-export interface MonitoringLogWithGateway extends BaseMonitoringLog {
-  gatewayId?: string | null;
+export interface MonitoringLogWithVirtualMCP extends BaseMonitoringLog {
+  virtualMcpId?: string | null;
 }
 
-export interface MonitoringLogsWithGatewayResponse {
-  logs: MonitoringLogWithGateway[];
+export interface MonitoringLogsWithVirtualMCPResponse {
+  logs: MonitoringLogWithVirtualMCP[];
   total: number;
 }
 
@@ -75,14 +75,14 @@ export interface MonitoringLog extends BaseMonitoringLog {
   input: Record<string, unknown> | null;
   output: Record<string, unknown> | null;
   userAgent: string | null;
-  gatewayId: string | null;
+  virtualMcpId: string | null;
   properties: Record<string, string> | null;
 }
 
 export interface EnrichedMonitoringLog extends MonitoringLog {
   userName: string;
   userImage: string | undefined;
-  gatewayName: string | null;
+  virtualMcpName: string | null;
 }
 
 export interface MonitoringLogsResponse
@@ -97,7 +97,7 @@ export interface MonitoringSearchParams {
   from?: string; // e.g., "now-24h", "now-7d", or ISO string
   to?: string; // e.g., "now" or ISO string
   connectionId?: string[]; // Array of connection IDs
-  gatewayId?: string[]; // Array of gateway IDs
+  virtualMcpId?: string[]; // Array of virtual MCP IDs
   tool?: string;
   status?: "all" | "success" | "errors";
   search?: string;
@@ -370,8 +370,8 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
 
   return (
     <div className="space-y-3 text-sm px-3 md:px-5 py-4 bg-muted/30">
-      {/* Metadata Row: User Agent and Gateway */}
-      {(log.userAgent || log.gatewayName) && (
+      {/* Metadata Row: User Agent and Virtual MCP */}
+      {(log.userAgent || log.virtualMcpName) && (
         <div className="flex flex-wrap gap-4 text-xs">
           {log.userAgent && (
             <div>
@@ -381,12 +381,10 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
               <span className="font-mono text-foreground">{log.userAgent}</span>
             </div>
           )}
-          {log.gatewayName && (
+          {log.virtualMcpName && (
             <div>
-              <span className="font-medium text-muted-foreground">
-                Gateway:{" "}
-              </span>
-              <span className="text-foreground">{log.gatewayName}</span>
+              <span className="font-medium text-muted-foreground">Agent: </span>
+              <span className="text-foreground">{log.virtualMcpName}</span>
             </div>
           )}
         </div>
