@@ -207,23 +207,19 @@ export function ChatInput() {
 
   const { org } = useProjectContext();
 
-  // Audio recording state
   const {
     isRecording,
-    isPending: isRecordingPending,
     startRecording,
     stopRecording,
     error: recordingError,
     clearError: clearRecordingError,
-  } = useAudioRecorder({ maxDuration: 3 * 60 * 1000 }); // 3 min max
+  } = useAudioRecorder({ maxDuration: 3 * 60 * 1000 });
 
   const [isTranscribing, setIsTranscribing] = useState(false);
 
-  // Show recording errors via ref to avoid render-time side effects
   const lastErrorRef = useRef<Error | null>(null);
   if (recordingError && recordingError !== lastErrorRef.current) {
     lastErrorRef.current = recordingError;
-    // Schedule toast for after render
     setTimeout(() => {
       toast.error(recordingError.message);
       clearRecordingError();
@@ -270,18 +266,10 @@ export function ChatInput() {
     sendMessage("Please continue.");
   };
 
-  // Handle audio recording toggle
   const handleRecordingToggle = async () => {
-    console.log("[ChatInput] handleRecordingToggle called", {
-      isRecording,
-      isTranscribing,
-      isRecordingPending,
-    });
-
     if (isTranscribing) return;
 
     if (isRecording) {
-      // Stop and transcribe
       const audioBlob = await stopRecording();
       if (!audioBlob) {
         toast.error("Falha ao gravar áudio");
@@ -293,7 +281,6 @@ export function ChatInput() {
         const formData = new FormData();
         formData.append("audio", audioBlob, "recording.webm");
 
-        // Use the selected model's connection if available
         if (selectedModel?.connectionId) {
           formData.append("connectionId", selectedModel.connectionId);
         }
@@ -313,13 +300,11 @@ export function ChatInput() {
 
         const data = (await response.json()) as { text?: string };
         if (data.text) {
-          // Append to existing input value
           setInputValue(inputValue ? `${inputValue} ${data.text}` : data.text);
         } else {
           toast.error("Nenhum texto foi transcrito");
         }
       } catch (err) {
-        console.error("[ChatInput] Transcription error:", err);
         toast.error(
           err instanceof Error ? err.message : "Erro ao transcrever áudio",
         );
@@ -327,7 +312,6 @@ export function ChatInput() {
         setIsTranscribing(false);
       }
     } else {
-      // Start recording
       await startRecording();
     }
   };
