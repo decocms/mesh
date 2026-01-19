@@ -115,7 +115,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.version-check.outputs.current-version }}
             type=raw,value=latest
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (Alpine)
         if: steps.version-check.outputs.version-changed == 'true'
         uses: docker/build-push-action@v5
         with:
@@ -124,6 +124,33 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            MESH_VERSION=${{ steps.version-check.outputs.current-version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      # ==================== DOCKER BUILD (DEBIAN) ====================
+      - name: Extract metadata for Debian image
+        if: steps.version-check.outputs.version-changed == 'true'
+        id: meta-debian
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}-debian,value=${{ steps.version-check.outputs.current-version }}
+            type=semver,pattern={{major}}.{{minor}}-debian,value=${{ steps.version-check.outputs.current-version }}
+            type=raw,value=debian
+
+      - name: Build and push Docker image (Debian)
+        if: steps.version-check.outputs.version-changed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/mesh
+          file: ./apps/mesh/Dockerfile.debian
+          push: true
+          tags: ${{ steps.meta-debian.outputs.tags }}
+          labels: ${{ steps.meta-debian.outputs.labels }}
           build-args: |
             MESH_VERSION=${{ steps.version-check.outputs.current-version }}
           cache-from: type=gha
@@ -147,7 +174,7 @@ jobs:
             bunx @decocms/mesh@${{ steps.version-check.outputs.current-version }}
             ```
 
-            ### Install via Docker
+            ### Install via Docker (Alpine - default, smaller)
             ```bash
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}
 
@@ -156,6 +183,17 @@ jobs:
               -v mesh-data:/app/data \
               --name mesh \
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}
+            ```
+
+            ### Install via Docker (Debian - better debugger support)
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}-debian
+
+            docker run -d \
+              -p 3000:3000 \
+              -v mesh-data:/app/data \
+              --name mesh \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}-debian
             ```
 
             ### Documentation
@@ -175,9 +213,14 @@ jobs:
           echo "bunx @decocms/mesh@${{ steps.version-check.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Docker" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker (Alpine)" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker (Debian)" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-check.outputs.current-version }}-debian" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       # ==================== ARGOCD DEPLOYMENT ====================
