@@ -11,7 +11,30 @@ import type {
   GatewayCreateData,
   GatewayUpdateData,
 } from "../tools/gateway/schema";
-import type { MonitoringLog, OrganizationSettings } from "./types";
+import type {
+  MonitoringLog,
+  OrganizationSettings,
+  Thread,
+  ThreadMessage,
+} from "./types";
+
+export interface ThreadStoragePort {
+  create(data: Partial<Thread>): Promise<Thread>;
+  get(id: string): Promise<Thread | null>;
+  update(id: string, data: Partial<Thread>): Promise<Thread>;
+  delete(id: string): Promise<void>;
+  list(
+    organizationId: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<{ threads: Thread[]; total: number }>;
+  listByUserId(userId: string): Promise<{ threads: Thread[]; total: number }>;
+  // Message operations
+  saveMessages(data: ThreadMessage[]): Promise<void>;
+  listMessages(
+    threadId: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<{ messages: ThreadMessage[]; total: number }>;
+}
 
 // ============================================================================
 // Connection Storage Port
