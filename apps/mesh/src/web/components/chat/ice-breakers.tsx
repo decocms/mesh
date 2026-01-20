@@ -259,14 +259,20 @@ function VirtualMCPIceBreakersContent({
       dispatch({ type: "RESET" });
 
       // Append prompt to current tiptapDoc and send
+      // Wrap mention in a paragraph since it's an inline node
       const newTiptapDoc = appendToTiptapDoc(
         tiptapDoc,
-        createMentionDoc({
-          id: prompt.name,
-          name: prompt.name,
-          metadata: result.messages,
-          char: "/",
-        }),
+        {
+          type: "paragraph",
+          content: [
+            createMentionDoc({
+              id: prompt.name,
+              name: prompt.name,
+              metadata: result.messages,
+              char: "/",
+            }),
+          ],
+        },
       );
 
       await sendMessage(newTiptapDoc);
