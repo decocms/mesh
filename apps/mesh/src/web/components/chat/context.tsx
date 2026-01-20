@@ -1,13 +1,23 @@
 /**
  * Chat Context
  *
- * Manages chat interaction, thread management, gateway/model selection, and chat session state.
+ * Manages chat interaction, thread management, virtual MCP/model selection, and chat session state.
  * Provides optimized state management to minimize re-renders across the component tree.
  */
 
 import { useChat as useAIChat } from "@ai-sdk/react";
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import type {
+  EmbeddedResource,
+  PromptMessage,
+  ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
+import {
+  DefaultChatTransport,
+  type UIDataTypes,
+  type UIMessage,
+  type UIMessagePart,
+  type UITools,
+} from "ai";
 import {
   createContext,
   useContext,
@@ -30,15 +40,93 @@ import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import type { ProjectLocator } from "../../lib/locator";
 import { useProjectContext } from "../../providers/project-context-provider";
-import type { Message, Thread } from "../../types/chat-threads";
 import type { ChatMessage } from "./index";
-import type { VirtualMCPInfo } from "./select-virtual-mcp";
-import { useVirtualMCPs } from "./select-virtual-mcp";
 import {
   useModels,
   type ModelChangePayload,
   type SelectedModelState,
 } from "./select-model";
+import type { VirtualMCPInfo } from "./select-virtual-mcp";
+import { useVirtualMCPs } from "./select-virtual-mcp";
+import type { FileAttrs } from "./tiptap/file/node.tsx";
+import type { Message, Metadata, ParentThread, Thread } from "./types.ts";
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+/**
+ * State shape for chat state (reducer-managed)
+ */
+export interface ChatState {
+  /** Tiptap document representing the current input (source of truth) */
+  tiptapDoc: Metadata["tiptapDoc"];
+  /** Active parent thread if branching is in progress */
+  parentThread: ParentThread | null;
+  /** Finish reason from the last chat completion */
+  finishReason: string | null;
+}
+
+/**
+ * Actions for the chat state reducer
+ */
+export type ChatStateAction =
+  | { type: "SET_TIPTAP_DOC"; payload: Metadata["tiptapDoc"] }
+  | { type: "CLEAR_TIPTAP_DOC" }
+  | { type: "START_BRANCH"; payload: ParentThread }
+  | { type: "CLEAR_BRANCH" }
+  | { type: "SET_FINISH_REASON"; payload: string | null }
+  | { type: "CLEAR_FINISH_REASON" }
+  | { type: "RESET" };
+
+/**
+ * Combined context value including interaction state, thread management, and session state
+ */
+interface ChatContextValue {
+  // Interaction state
+  tiptapDoc: Metadata["tiptapDoc"];
+  setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
+  clearTiptapDoc: () => void;
+  parentThread: ParentThread | null;
+  startBranch: (parentThread: ParentThread) => void;
+  clearBranch: () => void;
+  resetInteraction: () => void;
+
+  // Thread management
+  activeThreadId: string;
+  activeThread: Thread | null;
+  threads: Thread[];
+  createThread: (thread?: Partial<Thread>) => Thread;
+  setActiveThreadId: (threadId: string) => void;
+  hideThread: (threadId: string) => void;
+
+  // Virtual MCP state
+  virtualMcps: VirtualMCPInfo[];
+  selectedVirtualMcp: VirtualMCPInfo | null;
+  setVirtualMcpId: (virtualMcpId: string | null) => void;
+
+  // Model state
+  modelsConnections: ReturnType<typeof useModelConnections>;
+  selectedModel: SelectedModelState | null;
+  setSelectedModel: (model: ModelChangePayload) => void;
+
+  // Chat state
+  messages: ChatMessage[];
+  chatStatus: "submitted" | "streaming" | "ready" | "error";
+  isStreaming: boolean;
+  isChatEmpty: boolean;
+  sendMessage: (tiptapDoc: Metadata["tiptapDoc"]) => Promise<void>;
+  stopStreaming: () => void;
+  setMessages: (messages: ChatMessage[]) => void;
+  chatError: Error | undefined;
+  clearChatError: () => void;
+  finishReason: string | null;
+  clearFinishReason: () => void;
+}
+
+// ============================================================================
+// Implementation
+// ============================================================================
 
 const createModelsTransport = (
   org: string,
@@ -47,7 +135,11 @@ const createModelsTransport = (
     api: `/api/${org}/models/stream`,
     credentials: "include",
     prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
-      const { system, ...metadata } = requestMetadata as Metadata;
+      const {
+        system,
+        tiptapDoc: _tiptapDoc,
+        ...metadata
+      } = requestMetadata as Metadata;
       const systemMessage: UIMessage<Metadata> | null = system
         ? {
             id: crypto.randomUUID(),
@@ -59,7 +151,6 @@ const createModelsTransport = (
       return {
         body: {
           messages: systemMessage ? [systemMessage, ...messages] : messages,
-          stream: true,
           ...metadata,
         },
       };
@@ -102,6 +193,7 @@ const useModelState = (
           id: selectedModel.id,
           provider: selectedModel.provider,
           limits: selectedModel.limits,
+          capabilities: selectedModel.capabilities,
           connectionId: modelsConnection.id,
         }
       : null;
@@ -110,46 +202,11 @@ const useModelState = (
 };
 
 /**
- * Branch context for tracking message editing flow
- */
-export interface BranchContext {
-  /** The original thread ID before branching */
-  originalThreadId: string;
-  /** The original message ID that was branched from */
-  originalMessageId: string;
-  /** The original message text for editing */
-  originalMessageText: string;
-}
-
-/**
- * State shape for chat state (reducer-managed)
- */
-export interface ChatState {
-  /** Current value in the chat input field */
-  inputValue: string;
-  /** Active branch context if branching is in progress */
-  branchContext: BranchContext | null;
-  /** Finish reason from the last chat completion */
-  finishReason: string | null;
-}
-
-/**
- * Actions for the chat state reducer
- */
-export type ChatStateAction =
-  | { type: "SET_INPUT"; payload: string }
-  | { type: "START_BRANCH"; payload: BranchContext }
-  | { type: "CLEAR_BRANCH" }
-  | { type: "SET_FINISH_REASON"; payload: string | null }
-  | { type: "CLEAR_FINISH_REASON" }
-  | { type: "RESET" };
-
-/**
  * Initial chat state
  */
 const initialChatState: ChatState = {
-  inputValue: "",
-  branchContext: null,
+  tiptapDoc: undefined,
+  parentThread: null,
   finishReason: null,
 };
 
@@ -161,12 +218,14 @@ function chatStateReducer(
   action: ChatStateAction,
 ): ChatState {
   switch (action.type) {
-    case "SET_INPUT":
-      return { ...state, inputValue: action.payload };
+    case "SET_TIPTAP_DOC":
+      return { ...state, tiptapDoc: action.payload };
+    case "CLEAR_TIPTAP_DOC":
+      return { ...state, tiptapDoc: undefined };
     case "START_BRANCH":
-      return { ...state, branchContext: action.payload };
+      return { ...state, parentThread: action.payload };
     case "CLEAR_BRANCH":
-      return { ...state, branchContext: null };
+      return { ...state, parentThread: null };
     case "SET_FINISH_REASON":
       return { ...state, finishReason: action.payload };
     case "CLEAR_FINISH_REASON":
@@ -179,47 +238,228 @@ function chatStateReducer(
 }
 
 /**
- * Combined context value including interaction state, thread management, and session state
+ * Converts resource contents to UI message parts
  */
-interface ChatContextValue {
-  // Interaction state
-  inputValue: string;
-  branchContext: BranchContext | null;
-  setInputValue: (value: string) => void;
-  startBranch: (branchContext: BranchContext) => void;
-  clearBranch: () => void;
-  resetInteraction: () => void;
+function resourcesToParts(
+  contents: ReadResourceResult["contents"],
+  mentionName: string, // uri for the resource
+): UIMessagePart<UIDataTypes, UITools>[] {
+  const parts: UIMessagePart<UIDataTypes, UITools>[] = [];
 
-  // Thread management
-  activeThreadId: string;
-  activeThread: Thread | null;
-  threads: Thread[];
-  createThread: (thread?: Partial<Thread>) => Thread;
-  setActiveThreadId: (threadId: string) => void;
-  hideThread: (threadId: string) => void;
+  for (const content of contents) {
+    if ("text" in content && content.text) {
+      parts.push({
+        type: "text",
+        text: `[${mentionName}]\n${content.text}`,
+      });
+    } else if ("blob" in content && content.blob && content.mimeType) {
+      parts.push({
+        type: "file",
+        url: `data:${content.mimeType};base64,${content.blob}`,
+        filename: String(content.uri),
+        mediaType: String(content.mimeType),
+      });
+    }
+  }
 
-  // Virtual MCP (agent) state
-  virtualMcps: VirtualMCPInfo[];
-  selectedVirtualMcp: VirtualMCPInfo | null;
-  setVirtualMcpId: (virtualMcpId: string | null) => void;
+  return parts;
+}
 
-  // Model state
-  modelsConnections: ReturnType<typeof useModelConnections>;
-  selectedModel: SelectedModelState | null;
-  setSelectedModel: (model: ModelChangePayload) => void;
+/**
+ * Converts prompt messages to UI message parts
+ */
+function promptMessagesToParts(
+  messages: PromptMessage[],
+  mentionName: string,
+): UIMessagePart<UIDataTypes, UITools>[] {
+  const parts: UIMessagePart<UIDataTypes, UITools>[] = [];
 
-  // Chat state
-  messages: ChatMessage[];
-  chatStatus: "submitted" | "streaming" | "ready" | "error";
-  isStreaming: boolean;
-  isChatEmpty: boolean;
-  sendMessage: (text: string) => Promise<void>;
-  stopStreaming: () => void;
-  setMessages: (messages: ChatMessage[]) => void;
-  chatError: Error | undefined;
-  clearChatError: () => void;
-  finishReason: string | null;
-  clearFinishReason: () => void;
+  // Process MCP prompt messages and extract content
+  for (const message of messages) {
+    if (message.role !== "user" || !message.content) continue;
+
+    const messageContents = Array.isArray(message.content)
+      ? message.content
+      : [message.content];
+
+    for (const content of messageContents) {
+      switch (content.type) {
+        case "text": {
+          const text = content.text?.trim();
+          if (!text) {
+            continue;
+          }
+
+          parts.push({
+            type: "text",
+            text: `[${mentionName}]\n${text}`,
+          });
+          break;
+        }
+        case "image":
+        case "audio": {
+          if (!content.data || !content.mimeType) {
+            continue;
+          }
+
+          parts.push({
+            type: "file",
+            url: `data:${content.mimeType};base64,${content.data}`,
+            mediaType: content.mimeType,
+          });
+
+          break;
+        }
+        case "resource": {
+          const resource = content.resource as
+            | EmbeddedResource["resource"]
+            | undefined;
+
+          if (!resource || !resource.mimeType) {
+            continue;
+          }
+
+          if (resource) {
+            if ("text" in resource && resource.text) {
+              parts.push({
+                type: "text",
+                text: `[${mentionName}]\n${resource.text}`,
+              });
+            } else if (
+              "blob" in resource &&
+              resource.blob &&
+              resource.mimeType
+            ) {
+              parts.push({
+                type: "file",
+                url: `data:${resource.mimeType};base64,${resource.blob}`,
+                filename: String(resource.uri),
+                mediaType: String(resource.mimeType),
+              });
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  return parts;
+}
+
+/**
+ * Converts file attributes to UI message parts
+ * Text files are decoded and returned as text parts, others as file parts
+ */
+function fileAttrsToParts(
+  fileAttrs: FileAttrs,
+  mentionName: string,
+): UIMessagePart<UIDataTypes, UITools>[] {
+  const { mimeType, data } = fileAttrs;
+
+  // Text files: decode base64 and return as text part
+  if (mimeType.startsWith("text/")) {
+    try {
+      const decodedText = atob(data);
+      return [
+        {
+          type: "text",
+          text: `${mentionName}\n${decodedText}`,
+        },
+      ];
+    } catch (error) {
+      console.error("Failed to decode text file:", error);
+      // Fall through to file part if decoding fails
+    }
+  }
+
+  // Non-text files: return as file part
+  return [
+    {
+      type: "file",
+      url: `data:${mimeType};base64,${data}`,
+      filename: mentionName,
+      mediaType: mimeType,
+    },
+  ];
+}
+
+/**
+ * Helper to derive UI parts from TiptapDoc
+ * Walks the tiptap document to extract inline text and collect resources from prompt tags
+ */
+function derivePartsFromTiptapDoc(
+  doc: Metadata["tiptapDoc"],
+): UIMessagePart<UIDataTypes, UITools>[] {
+  if (!doc) return [];
+
+  const parts: UIMessagePart<UIDataTypes, UITools>[] = [];
+  let inlineText = "";
+
+  // Walk the tiptap document to build inline text and collect resources
+  const walkNode = (
+    node:
+      | Metadata["tiptapDoc"]
+      | {
+          type: string;
+          attrs?: Record<string, unknown>;
+          content?: unknown[];
+          text?: string;
+        },
+  ) => {
+    if (!node) return;
+
+    if (
+      node.type === "text" &&
+      "text" in node &&
+      typeof node.text === "string"
+    ) {
+      inlineText += node.text;
+    } else if (node.type === "mention" && node.attrs) {
+      const char = (node.attrs.char as string | undefined) ?? "/";
+      const mentionName = `${char}${node.attrs.name}`;
+
+      // Add label to inline text
+      inlineText += mentionName;
+
+      // Handle resource mentions (@) vs prompt mentions (/)
+      if (char === "@") {
+        // Resource mentions: metadata contains ReadResourceResult.contents directly
+        const contents = (node.attrs.metadata ||
+          []) as ReadResourceResult["contents"];
+        parts.push(...resourcesToParts(contents, mentionName));
+      } else {
+        // Prompt mentions: metadata contains PromptMessage[]
+        const prompts = (node.attrs.metadata ||
+          node.attrs.prompts ||
+          []) as PromptMessage[];
+        parts.push(...promptMessagesToParts(prompts, mentionName));
+      }
+    } else if (node.type === "file" && node.attrs) {
+      const fileAttrs = node.attrs as unknown as FileAttrs;
+      const mentionName = `[file:://${encodeURIComponent(fileAttrs.name)}]`;
+
+      inlineText += mentionName;
+
+      parts.push(...fileAttrsToParts(fileAttrs, mentionName));
+    }
+
+    // Recursively walk content
+    if ("content" in node && Array.isArray(node.content)) {
+      for (const child of node.content) {
+        walkNode(child as typeof node);
+      }
+    }
+  };
+
+  walkNode(doc);
+
+  // Add inline text as first part if there is any
+  if (inlineText.trim()) {
+    parts.unshift({ type: "text", text: inlineText.trim() });
+  }
+
+  return parts;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -228,7 +468,7 @@ const createThreadId = () => crypto.randomUUID();
 
 /**
  * Provider component for chat context
- * Consolidates all chat-related state: interaction, threads, gateway, model, and chat session
+ * Consolidates all chat-related state: interaction, threads, virtual MCP, model, and chat session
  */
 export function ChatProvider({ children }: PropsWithChildren) {
   // ===========================================================================
@@ -258,7 +498,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   );
   const persistedMessages = useThreadMessages(activeThreadId);
 
-  // Virtual MCP (agent) state
+  // Virtual MCP state
   const virtualMcps = useVirtualMCPs();
   const [storedSelectedVirtualMcpId, setSelectedVirtualMcpId] = useLocalStorage<
     string | null
@@ -385,11 +625,13 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // ===========================================================================
 
   // Chat state functions
-  const setInputValue = (value: string) =>
-    chatDispatch({ type: "SET_INPUT", payload: value });
+  const setTiptapDoc = (doc: Metadata["tiptapDoc"]) =>
+    chatDispatch({ type: "SET_TIPTAP_DOC", payload: doc });
 
-  const startBranch = (branchCtx: BranchContext) =>
-    chatDispatch({ type: "START_BRANCH", payload: branchCtx });
+  const clearTiptapDoc = () => chatDispatch({ type: "CLEAR_TIPTAP_DOC" });
+
+  const startBranch = (parentCtx: ParentThread) =>
+    chatDispatch({ type: "START_BRANCH", payload: parentCtx });
 
   const clearBranch = () => chatDispatch({ type: "CLEAR_BRANCH" });
 
@@ -409,6 +651,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     };
     threadActions.insert.mutate(newThread);
     setActiveThreadId(id);
+    clearBranch();
     return newThread;
   };
 
@@ -437,23 +680,36 @@ export function ChatProvider({ children }: PropsWithChildren) {
   };
 
   // Chat functions
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (tiptapDoc: Metadata["tiptapDoc"]) => {
     if (!selectedModel) {
       toast.error("No model configured");
       return;
     }
 
-    if (!text?.trim() || isStreaming) {
+    const parts = derivePartsFromTiptapDoc(tiptapDoc);
+
+    if (parts.length === 0) {
       return;
     }
 
-    setInputValue("");
-    clearBranch();
-    chatDispatch({ type: "CLEAR_FINISH_REASON" });
+    // Reset interaction state (clears tiptapDoc, parentThread, finishReason)
+    resetInteraction();
 
-    const metadata: Metadata = {
+    const messageMetadata: Metadata = {
+      tiptapDoc,
       created_at: new Date().toISOString(),
       thread_id: activeThreadId,
+      gateway: {
+        id: selectedVirtualMcp?.id ?? null,
+      },
+      user: {
+        avatar: user?.image ?? undefined,
+        name: user?.name ?? "you",
+      },
+    };
+
+    const metadata: Metadata = {
+      ...messageMetadata,
       system: contextPrompt,
       model: {
         id: selectedModel.id,
@@ -461,19 +717,14 @@ export function ChatProvider({ children }: PropsWithChildren) {
         provider: selectedModel.provider ?? undefined,
         limits: selectedModel.limits ?? undefined,
       },
-      gateway: { id: selectedVirtualMcp?.id ?? null },
-      user: {
-        avatar: user?.image ?? undefined,
-        name: user?.name ?? "you",
-      },
     };
 
     await chat.sendMessage(
       {
         id: crypto.randomUUID(),
         role: "user",
-        parts: [{ type: "text", text }],
-        metadata,
+        parts,
+        metadata: messageMetadata,
       },
       { metadata },
     );
@@ -489,9 +740,10 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   const value: ChatContextValue = {
     // Chat state
-    inputValue: chatState.inputValue,
-    branchContext: chatState.branchContext,
-    setInputValue,
+    tiptapDoc: chatState.tiptapDoc,
+    setTiptapDoc,
+    clearTiptapDoc,
+    parentThread: chatState.parentThread,
     startBranch,
     clearBranch,
     resetInteraction,
@@ -504,7 +756,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     setActiveThreadId,
     hideThread,
 
-    // Virtual MCP (agent) state
+    // Virtual MCP state
     virtualMcps,
     selectedVirtualMcp,
     setVirtualMcpId,
@@ -533,7 +785,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
 /**
  * Hook to access the full chat context
- * Returns interaction state, thread management, gateway, model, and chat session state
+ * Returns interaction state, thread management, virtual MCP, model, and chat session state
  */
 export function useChat() {
   const context = useContext(ChatContext);

@@ -1,6 +1,5 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { cn } from "@deco/ui/lib/utils.ts";
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { X } from "@untitledui/icons";
 import type { UIMessage } from "ai";
 import type {
@@ -10,16 +9,16 @@ import type {
   RefObject,
 } from "react";
 import { Children, isValidElement, useRef } from "react";
-import { ChatInput } from "./input";
 import { ChatProvider, useChat } from "./context";
 import { GatewayIceBreakers } from "./ice-breakers";
+import { ChatInput } from "./input";
 import { MessageAssistant } from "./message/assistant.tsx";
 import { MessageFooter, MessageList } from "./message/list.tsx";
 import { MessageUser } from "./message/user.tsx";
 import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
 import { ThreadHistoryPopover } from "./popover-threads";
 import { DecoChatSkeleton } from "./skeleton";
-
+import type { Metadata } from "./types.ts";
 export { useChat } from "./context";
 export type { VirtualMCPInfo } from "./select-virtual-mcp";
 export { ModelSelector } from "./select-model";

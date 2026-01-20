@@ -1,0 +1,158 @@
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import type { Editor } from "@tiptap/react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+import {
+  modelSupportsFiles,
+  type SelectedModelState,
+} from "../../select-model";
+import { insertFile, type FileAttrs } from "./node.tsx";
+
+interface FileUploaderProps {
+  editor: Editor;
+  selectedModel: SelectedModelState | null;
+}
+
+/**
+ * Processes a file by converting it to base64 and inserting it into the editor.
+ * Exported for use in file input handlers.
+ */
+export async function processFile(
+  editor: Editor,
+  selectedModel: SelectedModelState | null,
+  file: File,
+  position: number,
+): Promise<void> {
+  // Check if model supports files
+  if (!modelSupportsFiles(selectedModel)) {
+    toast.error("Selected model does not support file uploads");
+    return;
+  }
+
+  const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
+  if (file.size > MAX_SIZE) {
+    toast.error(`File "${file.name}" exceeds 10MB limit`);
+    return;
+  }
+
+  try {
+    const reader = new FileReader();
+    const base64Promise = new Promise<string>((resolve, reject) => {
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result !== "string") {
+          reject(new Error("Failed to read file as data URL"));
+          return;
+        }
+        // Remove data URL prefix (e.g., "data:image/png;base64,")
+        const base64 = result.includes(",")
+          ? (result.split(",")[1] ?? result)
+          : result;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+    });
+
+    reader.readAsDataURL(file);
+
+    const base64Data = await base64Promise;
+
+    const fileAttrs: FileAttrs = {
+      id: crypto.randomUUID(),
+      name: file.name,
+      mimeType: file.type || "application/octet-stream",
+      size: file.size,
+      data: base64Data,
+    };
+
+    insertFile(editor, { from: position, to: position }, fileAttrs);
+  } catch (error) {
+    console.error("Failed to process file:", error);
+    toast.error(`Failed to load file "${file.name}"`);
+  }
+}
+
+/**
+ * FileUploader component that registers a ProseMirror plugin to handle file drops.
+ * Uses a ref to keep the latest selectedModel in sync for file processing.
+ */
+export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
+  // Use a ref to store the latest processFile handler
+  // This ensures we always use the latest selectedModel when processing files
+  const processFileRef = useRef<
+    (file: File, position: number) => Promise<void>
+  >(() => Promise.resolve());
+
+  // Keep the processFile handler in sync with selectedModel
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    processFileRef.current = async (file: File, position: number) => {
+      await processFile(editor, selectedModel, file, position);
+    };
+  }, [editor, selectedModel]);
+
+  // Register the file drop plugin once per editor instance
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (editor.isDestroyed) {
+      return;
+    }
+
+    const pluginKey = new PluginKey("fileDropHandler");
+
+    // Remove existing plugin if present
+    const existingPlugin = editor.state.plugins.find(
+      (plugin) => plugin.spec.key === pluginKey,
+    );
+    if (existingPlugin) {
+      editor.unregisterPlugin(pluginKey);
+    }
+
+    const fileDropPlugin = new Plugin({
+      key: pluginKey,
+      props: {
+        handleDrop: (view, event, _slice, moved) => {
+          // Don't handle if it's a move within the editor
+          if (moved) return false;
+
+          const files = event.dataTransfer?.files;
+          if (!files || files.length === 0) return false;
+
+          event.preventDefault();
+
+          // Get drop position
+          const coordinates = view.posAtCoords({
+            left: event.clientX,
+            top: event.clientY,
+          });
+
+          if (!coordinates) return false;
+
+          // Process all dropped files sequentially at the drop position
+          const fileArray = Array.from(files);
+          const currentPos = coordinates.pos;
+
+          for (const file of fileArray) {
+            // Call the ref to use the latest selectedModel
+            void processFileRef.current?.(file, currentPos);
+            // In practice, they'll be inserted at the same position which is fine
+          }
+
+          return true;
+        },
+      },
+    });
+
+    editor.registerPlugin(fileDropPlugin);
+
+    return () => {
+      if (!editor.isDestroyed) {
+        editor.unregisterPlugin(pluginKey);
+      }
+    };
+  }, [editor]);
+
+  // This component doesn't render anything
+  return null;
+}

@@ -15,7 +15,7 @@ import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
 import { useState } from "react";
 import { useChat } from "./context";
 import { useThreads } from "../../hooks/use-chat-store";
-import type { Thread } from "@/web/types/chat-threads";
+import type { Thread } from "./types.ts";
 
 type ThreadSection = {
   label: string;

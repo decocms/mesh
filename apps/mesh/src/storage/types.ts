@@ -14,7 +14,7 @@
 import type { ColumnType } from "kysely";
 import type { OAuthConfig, ToolDefinition } from "../tools/connection/schema";
 import type { UIMessage } from "ai";
-import { Metadata } from "@deco/ui/types/chat-metadata.js";
+import type { Metadata } from "../web/components/chat/types";
 
 // ============================================================================
 // Type Utilities

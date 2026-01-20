@@ -127,7 +127,7 @@ class McpServerBuilder {
   // which accumulate in Zod 4's __zod_globalRegistry and cause memory leaks
   private jsonSchemaCache: Map<
     z.ZodTypeAny,
-    ReturnType<typeof z.toJSONSchema>
+    ListToolsResult["tools"][number]["inputSchema"]
   > = new Map();
 
   constructor(config: McpServerConfig) {
@@ -143,10 +143,12 @@ class McpServerBuilder {
    */
   private getCachedJsonSchema(
     schema: z.ZodTypeAny,
-  ): ReturnType<typeof z.toJSONSchema> {
+  ): ListToolsResult["tools"][number]["inputSchema"] {
     let cached = this.jsonSchemaCache.get(schema);
     if (!cached) {
-      cached = z.toJSONSchema(schema);
+      cached = z.toJSONSchema(
+        schema,
+      ) as unknown as ListToolsResult["tools"][number]["inputSchema"];
       this.jsonSchemaCache.set(schema, cached);
     }
     return cached;

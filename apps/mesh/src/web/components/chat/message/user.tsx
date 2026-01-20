@@ -8,21 +8,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Metadata } from "@deco/ui/types/chat-metadata.ts";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import { Edit02 } from "@untitledui/icons";
 import { type UIMessage } from "ai";
 import { useContext, useState } from "react";
+import { useBranchMessage } from "../../../hooks/use-branch-message";
+import { useChat } from "../context";
+import { createTiptapDoc } from "../tiptap/utils.ts";
+import type { Metadata } from "../types.ts";
 import { MessageListContext } from "./list.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
-import { useChat } from "../context";
-import { useBranchMessage } from "../../../hooks/use-branch-message";
+import { FileNode } from "../tiptap/file/node.tsx";
+import { MentionNode } from "../tiptap/mention/node.tsx";
 
 export interface MessageProps<T extends Metadata> {
   message: UIMessage<T>;
@@ -38,15 +43,25 @@ export interface MessageProps<T extends Metadata> {
 interface EditMessageButtonProps {
   messageId: string;
   parts: UIMessage["parts"];
+  metadata?: Metadata;
 }
 
-function EditMessageButton({ messageId, parts }: EditMessageButtonProps) {
+function EditMessageButton({
+  messageId,
+  parts,
+  metadata,
+}: EditMessageButtonProps) {
   const [showDialog, setShowDialog] = useState(false);
-  const { setInputValue, startBranch, setActiveThreadId, activeThreadId } =
-    useChat();
+  const {
+    setTiptapDoc,
+    startBranch,
+    setActiveThreadId,
+    activeThreadId,
+    isStreaming,
+  } = useChat();
   const branchMessage = useBranchMessage(setActiveThreadId);
 
-  // Extract the full text from all text parts
+  // Extract the full text from all text parts (for fallback)
   const messageText = parts
     .filter((part) => part.type === "text")
     .map((part) => (part as { type: "text"; text: string }).text)
@@ -61,14 +76,14 @@ function EditMessageButton({ messageId, parts }: EditMessageButtonProps) {
     // Branch creates new thread and copies messages
     await branchMessage(messageId, messageText, activeThreadId);
 
-    // Set the input value for editing
-    setInputValue(messageText);
+    // Set the input tiptapDoc for editing - use rich content if available, fallback to plain text
+    const editDoc = metadata?.tiptapDoc ?? createTiptapDoc(messageText);
+    setTiptapDoc(editDoc);
 
-    // Track the original context for the preview
+    // Track the parent thread
     startBranch({
-      originalThreadId: activeThreadId,
-      originalMessageId: messageId,
-      originalMessageText: messageText,
+      threadId: activeThreadId,
+      messageId: messageId,
     });
 
     setShowDialog(false);
@@ -83,6 +98,7 @@ function EditMessageButton({ messageId, parts }: EditMessageButtonProps) {
               onClick={handleButtonClick}
               variant="ghost"
               size="xs"
+              disabled={isStreaming}
               className="opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground aspect-square w-6 h-6 p-0"
             >
               <Edit02 size={16} className="p-0.5" />
@@ -113,12 +129,52 @@ function EditMessageButton({ messageId, parts }: EditMessageButtonProps) {
   );
 }
 
+const EXTENSIONS = [
+  StarterKit.configure({
+    heading: false,
+    blockquote: false,
+    codeBlock: false,
+    horizontalRule: false,
+  }),
+  MentionNode,
+  FileNode,
+];
+
+/**
+ * Read-only Tiptap renderer for rich message content
+ */
+function RichMessageContent({
+  tiptapDoc,
+}: {
+  tiptapDoc: Metadata["tiptapDoc"];
+}) {
+  const editor = useEditor({
+    extensions: EXTENSIONS,
+    content: tiptapDoc,
+    editable: false,
+    editorProps: {
+      attributes: {
+        class: "prose prose-sm max-w-none focus:outline-none",
+      },
+    },
+  });
+
+  if (!editor) return null;
+
+  return (
+    <EditorContent
+      editor={editor}
+      className="[&_.ProseMirror]:outline-none [&_.ProseMirror]:cursor-text"
+    />
+  );
+}
+
 export function MessageUser<T extends Metadata>({
   message,
   className,
   pairIndex,
 }: MessageProps<T>) {
-  const { id, parts } = message;
+  const { id, parts, metadata } = message;
   const messageListContext = useContext(MessageListContext);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -133,6 +189,9 @@ export function MessageUser<T extends Metadata>({
       messageListContext?.scrollToPair(pairIndex);
     }
   };
+
+  // Check if we have rich content to render
+  const hasTiptapDoc = metadata?.tiptapDoc;
 
   return (
     <>
@@ -158,21 +217,25 @@ export function MessageUser<T extends Metadata>({
             )}
           >
             <div>
-              {parts.map((part, index) => {
-                if (part.type === "text") {
-                  return (
-                    <MessageTextPart
-                      key={`${id}-${index}`}
-                      id={id}
-                      part={part}
-                    />
-                  );
-                }
-                return null;
-              })}
+              {hasTiptapDoc ? (
+                <RichMessageContent tiptapDoc={metadata.tiptapDoc} />
+              ) : (
+                parts.map((part, index) => {
+                  if (part.type === "text") {
+                    return (
+                      <MessageTextPart
+                        key={`${id}-${index}`}
+                        id={id}
+                        part={part}
+                      />
+                    );
+                  }
+                  return null;
+                })
+              )}
             </div>
           </div>
-          <EditMessageButton messageId={id} parts={parts} />
+          <EditMessageButton messageId={id} parts={parts} metadata={metadata} />
         </div>
       </div>
     </>

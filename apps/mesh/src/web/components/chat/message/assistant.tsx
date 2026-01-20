@@ -1,5 +1,5 @@
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Metadata } from "@deco/ui/types/chat-metadata.ts";
+import type { Metadata } from "../types.ts";
 import type { ToolUIPart } from "ai";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -12,7 +12,7 @@ import { MessageProps } from "./user.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
 import { UsageStats } from "../usage-stats.tsx";
-import { MemoizedMarkdown } from "@deco/ui/components/chat/chat-markdown.tsx";
+import { MemoizedMarkdown } from "../markdown.tsx";
 
 type ThinkingStage = "planning" | "thinking";
 

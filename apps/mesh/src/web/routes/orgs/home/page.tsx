@@ -42,9 +42,9 @@ type HomeViewMode = "chat" | "graph";
 
 function HomeContent() {
   const { org, locator } = useProjectContext();
+  const { data: session } = authClient.useSession();
   const { createThread, activeThread, modelsConnections, isChatEmpty } =
     useChat();
-  const { data: session } = authClient.useSession();
 
   // View mode state (chat vs graph)
   const [viewMode, setViewMode] = useLocalStorage<HomeViewMode>(

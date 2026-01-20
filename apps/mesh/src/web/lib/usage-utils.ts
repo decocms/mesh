@@ -1,4 +1,4 @@
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
+import type { Metadata } from "../components/chat/types.ts";
 
 interface UsageStats {
   inputTokens: number;
