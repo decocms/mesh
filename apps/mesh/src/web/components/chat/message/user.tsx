@@ -26,6 +26,7 @@ import { createTiptapDoc } from "../tiptap/utils.ts";
 import type { Metadata } from "../types.ts";
 import { MessageListContext } from "./list.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
+import { FileNode } from "../tiptap/file/node.tsx";
 import { MentionNode } from "../tiptap/mention/node.tsx";
 
 export interface MessageProps<T extends Metadata> {
@@ -130,6 +131,7 @@ const EXTENSIONS = [
     horizontalRule: false,
   }),
   MentionNode,
+  FileNode,
 ];
 
 /**

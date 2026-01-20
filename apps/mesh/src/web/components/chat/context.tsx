@@ -41,13 +41,14 @@ import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import type { ProjectLocator } from "../../lib/locator";
 import { useProjectContext } from "../../providers/project-context-provider";
 import type { ChatMessage } from "./index";
-import type { VirtualMCPInfo } from "./select-virtual-mcp";
-import { useVirtualMCPs } from "./select-virtual-mcp";
 import {
   useModels,
   type ModelChangePayload,
   type SelectedModelState,
 } from "./select-model";
+import type { VirtualMCPInfo } from "./select-virtual-mcp";
+import { useVirtualMCPs } from "./select-virtual-mcp";
+import type { FileAttrs } from "./tiptap/file/node.tsx";
 import type { Message, Metadata, ParentThread, Thread } from "./types.ts";
 
 // ============================================================================
@@ -192,6 +193,7 @@ const useModelState = (
           id: selectedModel.id,
           provider: selectedModel.provider,
           limits: selectedModel.limits,
+          capabilities: selectedModel.capabilities,
           connectionId: modelsConnection.id,
         }
       : null;
@@ -346,6 +348,42 @@ function promptMessagesToParts(
 }
 
 /**
+ * Converts file attributes to UI message parts
+ * Text files are decoded and returned as text parts, others as file parts
+ */
+function fileAttrsToParts(
+  fileAttrs: FileAttrs,
+): UIMessagePart<UIDataTypes, UITools>[] {
+  const { name, mimeType, data } = fileAttrs;
+
+  // Text files: decode base64 and return as text part
+  if (mimeType.startsWith("text/")) {
+    try {
+      const decodedText = atob(data);
+      return [
+        {
+          type: "text",
+          text: `[${name}]\n${decodedText}`,
+        },
+      ];
+    } catch (error) {
+      console.error("Failed to decode text file:", error);
+      // Fall through to file part if decoding fails
+    }
+  }
+
+  // Non-text files: return as file part
+  return [
+    {
+      type: "file",
+      url: `data:${mimeType};base64,${data}`,
+      filename: name,
+      mediaType: mimeType,
+    },
+  ];
+}
+
+/**
  * Helper to derive UI parts from TiptapDoc
  * Walks the tiptap document to extract inline text and collect resources from prompt tags
  */
@@ -396,6 +434,9 @@ function derivePartsFromTiptapDoc(
           []) as PromptMessage[];
         parts.push(...promptMessagesToParts(prompts, mentionName));
       }
+    } else if (node.type === "file" && node.attrs) {
+      const fileAttrs = node.attrs as unknown as FileAttrs;
+      parts.push(...fileAttrsToParts(fileAttrs));
     }
 
     // Recursively walk content
@@ -649,17 +690,10 @@ export function ChatProvider({ children }: PropsWithChildren) {
     // Reset interaction state (clears tiptapDoc, parentThread, finishReason)
     resetInteraction();
 
-    const metadata: Metadata = {
+    const messageMetadata: Metadata = {
+      tiptapDoc,
       created_at: new Date().toISOString(),
       thread_id: activeThreadId,
-      system: contextPrompt,
-      tiptapDoc,
-      model: {
-        id: selectedModel.id,
-        connectionId: selectedModel.connectionId,
-        provider: selectedModel.provider ?? undefined,
-        limits: selectedModel.limits ?? undefined,
-      },
       gateway: {
         id: selectedVirtualMcp?.id ?? null,
       },
@@ -669,12 +703,23 @@ export function ChatProvider({ children }: PropsWithChildren) {
       },
     };
 
+    const metadata: Metadata = {
+      ...messageMetadata,
+      system: contextPrompt,
+      model: {
+        id: selectedModel.id,
+        connectionId: selectedModel.connectionId,
+        provider: selectedModel.provider ?? undefined,
+        limits: selectedModel.limits ?? undefined,
+      },
+    };
+
     await chat.sendMessage(
       {
         id: crypto.randomUUID(),
         role: "user",
         parts,
-        metadata,
+        metadata: messageMetadata,
       },
       { metadata },
     );

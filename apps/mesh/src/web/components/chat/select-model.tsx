@@ -361,6 +361,16 @@ function SelectedModelDisplay({
 export interface SelectedModelState {
   id: string;
   connectionId: string;
+  capabilities?: string[];
+}
+
+/**
+ * Check if a model supports file uploads (vision capability)
+ */
+export function modelSupportsFiles(
+  selectedModel: SelectedModelState | null | undefined,
+): boolean {
+  return selectedModel?.capabilities?.includes("vision") === true;
 }
 
 /**

@@ -7,6 +7,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -18,6 +23,7 @@ import {
   CpuChip02,
   Edit01,
   Stop,
+  Upload01,
   XCircle,
 } from "@untitledui/icons";
 import type { FormEvent } from "react";
@@ -30,7 +36,7 @@ import {
   VirtualMCPSelector,
   type VirtualMCPInfo,
 } from "./select-virtual-mcp";
-import { ModelSelector } from "./select-model";
+import { modelSupportsFiles, ModelSelector } from "./select-model";
 import { ChatTiptapInput, type ChatTiptapInputHandle } from "./tiptap/input";
 import { UsageStats } from "./usage-stats";
 
@@ -198,9 +204,25 @@ export function ChatInput() {
   } = useChat();
 
   const tiptapRef = useRef<ChatTiptapInputHandle | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const canSubmit =
     !isStreaming && !!selectedModel && !isTiptapDocEmpty(tiptapDoc);
+
+  const modelSupportsFilesValue = modelSupportsFiles(selectedModel);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    await tiptapRef.current?.insertFiles(fileArray);
+
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleSubmit = (e?: FormEvent) => {
     e?.preventDefault();
@@ -374,6 +396,33 @@ export function ChatInput() {
                     disabled={isStreaming}
                   />
                 )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileSelect}
+                  disabled={isStreaming || !modelSupportsFilesValue}
+                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full"
+                      disabled={isStreaming || !modelSupportsFilesValue}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload01 size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    {!modelSupportsFilesValue
+                      ? "Selected model does not support files"
+                      : "Add file"}
+                  </TooltipContent>
+                </Tooltip>
                 <ModelSelector
                   selectedModel={selectedModel ?? undefined}
                   onModelChange={setSelectedModel}

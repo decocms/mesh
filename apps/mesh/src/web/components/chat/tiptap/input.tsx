@@ -7,6 +7,7 @@ import { useEffect, useImperativeHandle, useRef } from "react";
 import type { VirtualMCPInfo } from "../select-virtual-mcp";
 import type { SelectedModelState } from "../select-model";
 import type { Metadata } from "../types.ts";
+import { FileNode, FileUploader, processFile } from "./file";
 import { MentionNode } from "./mention";
 import { PromptsMention } from "./mention-prompts.tsx";
 import { ResourcesMention } from "./mention-resources.tsx";
@@ -23,11 +24,13 @@ const GLOBAL_EXTENSIONS = [
     showOnlyWhenEditable: false,
   }),
   MentionNode,
+  FileNode,
 ];
 
 export interface ChatTiptapInputHandle {
   focus: () => void;
   clear: () => void;
+  insertFiles: (files: File[]) => Promise<void>;
 }
 
 interface ChatTiptapInputProps {
@@ -95,8 +98,20 @@ export function ChatTiptapInput({
       clear: () => {
         editor?.commands.clearContent(true);
       },
+      insertFiles: async (files: File[]) => {
+        if (!editor) return;
+
+        // Get current cursor position
+        const { from } = editor.state.selection;
+        const currentPos = from;
+
+        // Process files sequentially using the shared processFile function
+        for (const file of files) {
+          await processFile(editor, selectedModel, file, currentPos);
+        }
+      },
     }),
-    [editor],
+    [editor, selectedModel],
   );
 
   // Keep the ref up to date
@@ -148,6 +163,9 @@ export function ChatTiptapInput({
 
       {/* Render resources dropdown menu */}
       <ResourcesMention editor={editor} virtualMcpId={virtualMcpId} />
+
+      {/* Render file upload handler */}
+      <FileUploader editor={editor} selectedModel={selectedModel} />
     </>
   );
 }
