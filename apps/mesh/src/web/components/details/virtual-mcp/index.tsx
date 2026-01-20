@@ -48,7 +48,6 @@ import {
   SelectValue,
 } from "@deco/ui/components/select.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
-import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   Tooltip,
   TooltipContent,
@@ -81,6 +80,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
+import { Textarea } from "@deco/ui/components/textarea.js";
 
 type VirtualMCPTabId = "settings" | "tools" | "resources" | "prompts";
 
@@ -275,7 +275,9 @@ function InstallCursorButton({ url, serverName }: ShareWithNameProps) {
     const base64Config = utf8ToBase64(
       JSON.stringify(connectionConfig, null, 2),
     );
-    const deeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(slugifiedServerName)}&config=${encodeURIComponent(base64Config)}`;
+    const deeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(
+      slugifiedServerName,
+    )}&config=${encodeURIComponent(base64Config)}`;
 
     window.open(deeplink, "_blank");
     toast.success("Opening Cursor...");
@@ -718,6 +720,21 @@ function VirtualMCPSettingsTab({
               onChange={(e) => setSystemPrompt(e.target.value)}
               placeholder="Enter system prompt instructions..."
               className="min-h-[240px] resize-none text-sm leading-relaxed"
+            />
+          </div>
+          {/* System Prompt section */}
+          <div className="flex flex-col gap-3 p-5">
+            <div>
+              <h4 className="text-sm font-medium text-foreground mb-1">
+                System Prompt
+              </h4>
+            </div>
+
+            <Textarea
+              placeholder="Enter system prompt instructions..."
+              className="min-h-[240px] resize-none text-sm leading-relaxed"
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
             />
           </div>
         </div>

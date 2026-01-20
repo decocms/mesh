@@ -20,15 +20,13 @@ import {
 } from "ai";
 import {
   createContext,
+  type PropsWithChildren,
   useContext,
   useReducer,
-  type PropsWithChildren,
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import {
-  getThreadFromIndexedDB,
-  useMessageActions,
   useThreadActions,
   useThreadMessages,
   useThreads,
@@ -42,9 +40,9 @@ import type { ProjectLocator } from "../../lib/locator";
 import { useProjectContext } from "../../providers/project-context-provider";
 import type { ChatMessage } from "./index";
 import {
-  useModels,
   type ModelChangePayload,
   type SelectedModelState,
+  useModels,
 } from "./select-model";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import { useVirtualMCPs } from "./select-virtual-mcp";
@@ -208,6 +206,7 @@ const initialChatState: ChatState = {
   tiptapDoc: undefined,
   parentThread: null,
   finishReason: null,
+  generatedTitle: null,
 };
 
 /**
@@ -230,6 +229,10 @@ function chatStateReducer(
       return { ...state, finishReason: action.payload };
     case "CLEAR_FINISH_REASON":
       return { ...state, finishReason: null };
+    case "SET_GENERATED_TITLE":
+      return { ...state, generatedTitle: action.payload };
+    case "CLEAR_GENERATED_TITLE":
+      return { ...state, generatedTitle: null };
     case "RESET":
       return initialChatState;
     default:
@@ -464,7 +467,7 @@ function derivePartsFromTiptapDoc(
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
-const createThreadId = () => crypto.randomUUID();
+const createThreadId = () => `thrd_${crypto.randomUUID()}`;
 
 /**
  * Provider component for chat context
@@ -490,13 +493,13 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Thread state
   const threadActions = useThreadActions();
-  const messageActions = useMessageActions();
   const { threads } = useThreads();
   const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
     LOCALSTORAGE_KEYS.threadManagerState(locator) + ":active-id",
     (existing) => existing || createThreadId(),
   );
-  const persistedMessages = useThreadMessages(activeThreadId);
+  const { messages: persistedMessages, refetch: refetchPersistedMessages } =
+    useThreadMessages(activeThreadId);
 
   // Virtual MCP state
   const virtualMcps = useVirtualMCPs();
@@ -524,7 +527,33 @@ export function ChatProvider({ children }: PropsWithChildren) {
     ? (virtualMcps.find((g) => g.id === storedSelectedVirtualMcpId) ?? null)
     : null;
 
-  const transport = createModelsTransport(org.slug);
+  // Create standard transport
+  const transport = new DefaultChatTransport<UIMessage<Metadata>>({
+    api: `/api/${org.slug}/decopilot/stream`,
+    credentials: "include",
+    prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
+      const { system, ...metadata } = requestMetadata as Metadata;
+      const systemMessage: UIMessage<Metadata> | null = system
+        ? {
+            id: crypto.randomUUID(),
+            role: "system",
+            parts: [{ type: "text", text: system }],
+          }
+        : null;
+
+      const messagesToSend = systemMessage
+        ? [systemMessage, ...messages]
+        : messages;
+
+      return {
+        body: {
+          messages: messagesToSend,
+          stream: true,
+          ...metadata,
+        },
+      };
+    },
+  });
 
   // ===========================================================================
   // 3. HOOK CALLBACKS - Functions passed to hooks
@@ -552,7 +581,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
     const newMessages = messages.slice(-2).filter(Boolean) as Message[];
 
-    if (newMessages.length !== 2) {
+    if (newMessages?.length !== 2) {
       console.warn("[chat] Expected 2 messages, got", newMessages.length);
       return;
     }
@@ -618,7 +647,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const isStreaming =
     chat.status === "submitted" || chat.status === "streaming";
 
-  const isChatEmpty = chat.messages.length === 0;
+  const isChatEmpty = chat.messages?.length === 0;
 
   // ===========================================================================
   // 6. RETURNED FUNCTIONS - Functions exposed via context
@@ -639,7 +668,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Thread functions
   const createThread = (thread?: Partial<Thread>) => {
-    const id = thread?.id || crypto.randomUUID();
+    const id = createThreadId();
     const now = new Date().toISOString();
     const newThread: Thread = {
       id,
@@ -778,6 +807,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     clearChatError: chat.clearError,
     finishReason: chatState.finishReason,
     clearFinishReason,
+    generatedTitle: chatState.generatedTitle,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

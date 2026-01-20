@@ -53,6 +53,7 @@ function HomeContent() {
   );
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
+
   const greeting = getTimeBasedGreeting();
 
   // Show empty state when no LLM binding is found
@@ -63,7 +64,6 @@ function HomeContent() {
       </div>
     );
   }
-
   return (
     <MetricsModeProvider>
       <Chat>

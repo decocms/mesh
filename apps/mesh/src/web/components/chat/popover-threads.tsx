@@ -108,10 +108,8 @@ export function ThreadHistoryPopover({
 }: {
   variant?: "outline" | "icon";
 }) {
-  const { threads, refetch } = useThreads();
-  const { activeThreadId, setActiveThreadId, hideThread } = useChat();
+  const { setActiveThreadId, hideThread, activeThreadId, threads } = useChat();
   const [searchQuery, setSearchQuery] = useState("");
-
   const filteredThreads = searchQuery.trim()
     ? threads.filter((thread) =>
         (thread.title || "New chat")
@@ -122,18 +120,16 @@ export function ThreadHistoryPopover({
 
   const sections = groupThreadsByDate(filteredThreads);
 
-  const handleOpenChange = (open: boolean) => {
-    if (open) {
-      refetch();
-    } else {
-      setSearchQuery("");
-    }
-  };
-
   return (
     <TooltipProvider>
       <Tooltip>
-        <Popover onOpenChange={handleOpenChange}>
+        <Popover
+          onOpenChange={(open) => {
+            if (!open) {
+              setSearchQuery("");
+            }
+          }}
+        >
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               {variant === "outline" ? (

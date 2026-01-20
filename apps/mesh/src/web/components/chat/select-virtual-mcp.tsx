@@ -201,6 +201,7 @@ export interface VirtualMCPSelectorProps {
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
+  onGatewayChange?: (gatewayId: string | null) => void;
   showTooltip?: boolean;
   disabled?: boolean;
 }
