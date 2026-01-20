@@ -1,10 +1,10 @@
 import {
   TranscriptionBinding,
   TRANSCRIPTION_BINDING,
+  OBJECT_STORAGE_BINDING,
   SUPPORTED_AUDIO_FORMATS,
 } from "@decocms/bindings";
 import { connectionImplementsBinding } from "@decocms/bindings";
-import { createClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
@@ -16,18 +16,6 @@ type Variables = {
 const app = new Hono<{ Variables: Variables }>();
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
-const AUDIO_BUCKET = "audio-transcriptions";
-
-function getSupabaseClient() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    return null;
-  }
-
-  return createClient(supabaseUrl, supabaseKey);
-}
 
 async function findTranscriptionConnection(
   ctx: MeshContext,
@@ -64,13 +52,31 @@ async function findTranscriptionConnection(
   return null;
 }
 
-type SupabaseStorageClient = NonNullable<ReturnType<typeof getSupabaseClient>>;
+async function findObjectStorageConnection(
+  ctx: MeshContext,
+  organizationId: string,
+): Promise<ConnectionEntity | null> {
+  const connections = await ctx.storage.connections.list(organizationId);
+  const activeConnections = connections.filter((c) => c.status === "active");
 
-async function uploadAudioToStorage(
-  supabase: SupabaseStorageClient,
+  // Look for connections that implement OBJECT_STORAGE binding
+  for (const c of activeConnections) {
+    const hasBinding = connectionImplementsBinding(c, OBJECT_STORAGE_BINDING);
+    if (hasBinding) {
+      return c;
+    }
+  }
+
+  return null;
+}
+
+type MCPProxy = Awaited<ReturnType<MeshContext["createMCPProxy"]>>;
+
+async function uploadAudioToObjectStorage(
+  proxy: MCPProxy,
   audioBlob: Blob,
   mimeType: string,
-): Promise<{ path: string; publicUrl: string }> {
+): Promise<{ key: string; publicUrl: string }> {
   // Generate unique filename
   const timestamp = Date.now();
   const randomId = Math.random().toString(36).substring(2, 10);
@@ -83,37 +89,72 @@ async function uploadAudioToStorage(
         : mimeType.includes("mp4") || mimeType.includes("m4a")
           ? "m4a"
           : "audio";
-  const filename = `${timestamp}_${randomId}.${extension}`;
-  const path = `temp/${filename}`;
+  const key = `temp/audio-transcriptions/${timestamp}_${randomId}.${extension}`;
 
-  // Convert Blob to ArrayBuffer for upload
-  const arrayBuffer = await audioBlob.arrayBuffer();
-
-  // Upload to Supabase Storage
-  const { error: uploadError } = await supabase.storage
-    .from(AUDIO_BUCKET)
-    .upload(path, arrayBuffer, {
+  // Get presigned URL for upload
+  const putResult = await proxy.client.callTool({
+    name: "PUT_PRESIGNED_URL",
+    arguments: {
+      key,
       contentType: mimeType,
-      upsert: false,
-    });
+    },
+  });
 
-  if (uploadError) {
-    throw new Error(`Failed to upload audio: ${uploadError.message}`);
+  const putContent = putResult.content[0];
+  if (!putContent || putContent.type !== "text" || !putContent.text) {
+    throw new Error("Failed to get upload URL from Object Storage");
   }
 
-  // Get public URL
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(AUDIO_BUCKET).getPublicUrl(path);
+  const putData = JSON.parse(putContent.text) as { url: string };
+  const uploadUrl = putData.url;
 
-  return { path, publicUrl };
+  // Upload the audio file
+  const arrayBuffer = await audioBlob.arrayBuffer();
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "PUT",
+    body: arrayBuffer,
+    headers: {
+      "Content-Type": mimeType,
+    },
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(
+      `Failed to upload audio to Object Storage: ${uploadResponse.statusText}`,
+    );
+  }
+
+  // Get presigned URL for download (to pass to transcription service)
+  const getResult = await proxy.client.callTool({
+    name: "GET_PRESIGNED_URL",
+    arguments: {
+      key,
+    },
+  });
+
+  const getContent = getResult.content[0];
+  if (!getContent || getContent.type !== "text" || !getContent.text) {
+    throw new Error("Failed to get download URL from Object Storage");
+  }
+
+  const getData = JSON.parse(getContent.text) as { url: string };
+
+  return { key, publicUrl: getData.url };
 }
 
-async function deleteAudioFromStorage(
-  supabase: SupabaseStorageClient,
-  path: string,
+async function deleteAudioFromObjectStorage(
+  proxy: MCPProxy,
+  key: string,
 ): Promise<void> {
-  await supabase.storage.from(AUDIO_BUCKET).remove([path]);
+  try {
+    await proxy.client.callTool({
+      name: "DELETE_OBJECT",
+      arguments: { key },
+    });
+  } catch (error) {
+    // Log but don't throw - cleanup failure shouldn't break the response
+    console.warn(`Failed to delete temporary audio file ${key}:`, error);
+  }
 }
 
 app.post("/:org/transcribe", async (c) => {
@@ -133,8 +174,8 @@ app.post("/:org/transcribe", async (c) => {
     return c.json({ error: "Organization mismatch" }, 403);
   }
 
-  let uploadedPath: string | null = null;
-  let supabase: ReturnType<typeof getSupabaseClient> = null;
+  let uploadedKey: string | null = null;
+  let objectStorageProxy: MCPProxy | null = null;
 
   try {
     const formData = await c.req.formData();
@@ -171,13 +212,13 @@ app.post("/:org/transcribe", async (c) => {
       return c.json({ error: `Unsupported audio format: ${contentType}` }, 400);
     }
 
-    const connection = await findTranscriptionConnection(
+    const transcriptionConnection = await findTranscriptionConnection(
       ctx,
       ctx.organization.id,
       connectionId,
     );
 
-    if (!connection) {
+    if (!transcriptionConnection) {
       return c.json(
         {
           error:
@@ -190,38 +231,48 @@ app.post("/:org/transcribe", async (c) => {
     let finalAudioUrl = audioUrl;
 
     if (!finalAudioUrl && audioFile instanceof Blob) {
-      supabase = getSupabaseClient();
+      // Find an Object Storage connection for uploading
+      const objectStorageConnection = await findObjectStorageConnection(
+        ctx,
+        ctx.organization.id,
+      );
 
-      if (!supabase) {
+      if (!objectStorageConnection) {
         return c.json(
           {
             error:
-              "Audio storage not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.",
+              "No object storage connection found. Please connect a provider that supports the OBJECT_STORAGE binding (e.g., S3, R2, GCS).",
           },
-          500,
+          404,
         );
       }
 
-      const { path, publicUrl } = await uploadAudioToStorage(
-        supabase,
+      objectStorageProxy = await ctx.createMCPProxy(objectStorageConnection);
+
+      const { key, publicUrl } = await uploadAudioToObjectStorage(
+        objectStorageProxy,
         audioFile,
         contentType || "audio/webm",
       );
 
-      uploadedPath = path;
+      uploadedKey = key;
       finalAudioUrl = publicUrl;
     }
 
-    const proxy = await ctx.createMCPProxy(connection);
-    const transcriptionBinding = TranscriptionBinding.forClient(proxy);
+    const transcriptionProxy = await ctx.createMCPProxy(
+      transcriptionConnection,
+    );
+    const transcriptionBinding =
+      TranscriptionBinding.forClient(transcriptionProxy);
 
     const result = await transcriptionBinding.TRANSCRIBE_AUDIO({
       audioUrl: finalAudioUrl,
       language: language || undefined,
     });
 
-    if (uploadedPath && supabase) {
-      await deleteAudioFromStorage(supabase, uploadedPath);
+    // Cleanup: delete the temporary audio file
+    if (uploadedKey && objectStorageProxy) {
+      await deleteAudioFromObjectStorage(objectStorageProxy, uploadedKey);
     }
 
     return c.json({
@@ -231,8 +282,9 @@ app.post("/:org/transcribe", async (c) => {
       confidence: result.confidence,
     });
   } catch (error) {
-    if (uploadedPath && supabase) {
-      await deleteAudioFromStorage(supabase, uploadedPath);
+    // Cleanup on error
+    if (uploadedKey && objectStorageProxy) {
+      await deleteAudioFromObjectStorage(objectStorageProxy, uploadedKey);
     }
 
     const err = error as Error;

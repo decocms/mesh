@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   type Binder,
   createBindingChecker,
+  OBJECT_STORAGE_BINDING,
   TRANSCRIPTION_BINDING,
 } from "@decocms/bindings";
 import {
@@ -28,6 +29,7 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
   ASSISTANTS: ASSISTANTS_BINDING,
   MCP: MCP_BINDING,
   TRANSCRIPTION: TRANSCRIPTION_BINDING,
+  OBJECT_STORAGE: OBJECT_STORAGE_BINDING,
 };
 
 /**

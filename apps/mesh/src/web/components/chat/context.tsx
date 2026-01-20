@@ -225,6 +225,7 @@ interface ChatContextValue {
 
   // Feature availability
   hasTranscriptionBinding: boolean;
+  hasObjectStorageBinding: boolean;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -279,13 +280,19 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Tool call handler
   const onToolCall = useInvalidateCollectionsOnToolCall();
 
-  // Transcription binding availability
+  // Transcription and Object Storage binding availability
   const allConnections = useConnections();
   const transcriptionConnections = useBindingConnections({
     connections: allConnections,
     binding: "TRANSCRIPTION",
   });
   const hasTranscriptionBinding = transcriptionConnections.length > 0;
+
+  const objectStorageConnections = useBindingConnections({
+    connections: allConnections,
+    binding: "OBJECT_STORAGE",
+  });
+  const hasObjectStorageBinding = objectStorageConnections.length > 0;
 
   // ===========================================================================
   // 2. DERIVED VALUES - Compute values from hook state
@@ -542,6 +549,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
     // Feature availability
     hasTranscriptionBinding,
+    hasObjectStorageBinding,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

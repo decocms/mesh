@@ -203,6 +203,7 @@ export function ChatInput() {
     finishReason,
     clearFinishReason,
     hasTranscriptionBinding,
+    hasObjectStorageBinding,
   } = useChat();
 
   const { org } = useProjectContext();
@@ -472,8 +473,8 @@ export function ChatInput() {
 
               {/* Right Actions (record + send buttons) */}
               <div className="flex items-center gap-1">
-                {/* Audio Recording Button - only shown if transcription binding is available */}
-                {hasTranscriptionBinding && (
+                {/* Audio Recording Button - only shown if both transcription and object storage bindings are available */}
+                {hasTranscriptionBinding && hasObjectStorageBinding && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
