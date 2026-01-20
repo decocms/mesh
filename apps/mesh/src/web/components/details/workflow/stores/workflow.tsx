@@ -11,7 +11,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/vanilla/shallow";
 import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
-import { useGateways } from "@/web/hooks/collections/use-gateway";
+import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 
 type CurrentStepTab = "input" | "output" | "action" | "executions";
 export type StepType = "tool" | "code";
@@ -29,8 +29,8 @@ interface State {
   trackingExecutionId: string | undefined;
   currentStepTab: CurrentStepTab;
   currentStepName?: string | null;
-  /** Selected gateway ID for tool fetching and execution */
-  selectedGatewayId?: string | null;
+  /** Selected virtual MCP (agent) ID for tool fetching and execution */
+  selectedVirtualMcpId?: string | null;
 }
 
 interface Actions {
@@ -60,8 +60,8 @@ interface Actions {
   startReplacingTool: (toolName: string) => void;
   /** Cancel replacing tool (clear stored values) */
   cancelReplacingTool: () => void;
-  /** Set the selected gateway ID */
-  setSelectedGatewayId: (gatewayId: string | undefined) => void;
+  /** Set the selected virtual MCP (agent) ID */
+  setSelectedVirtualMcpId: (virtualMcpId: string | undefined) => void;
 }
 
 interface Store extends State {
@@ -391,10 +391,10 @@ const createWorkflowStore = (initialState: State) => {
               ...state,
               replacingToolInfo: null,
             })),
-          setSelectedGatewayId: (gatewayId) =>
+          setSelectedVirtualMcpId: (virtualMcpId) =>
             set((state) => ({
               ...state,
-              selectedGatewayId: gatewayId,
+              selectedVirtualMcpId: virtualMcpId,
             })),
         },
       }),
@@ -411,7 +411,7 @@ const createWorkflowStore = (initialState: State) => {
           addingStepType: state.addingStepType,
           selectedParentSteps: state.selectedParentSteps,
           replacingToolInfo: state.replacingToolInfo,
-          selectedGatewayId: state.selectedGatewayId,
+          selectedVirtualMcpId: state.selectedVirtualMcpId,
         }),
       },
     ),
@@ -429,12 +429,12 @@ export function WorkflowStoreProvider({
   children,
   initialState: initialStateProps,
 }: PropsWithChildren<WorkflowExecutionStoreProps>) {
-  const gateways = useGateways();
+  const virtualMcps = useVirtualMCPs();
   const [store] = useState(() =>
     createWorkflowStore({
       workflow: initialStateProps.workflow,
       localWorkflow: initialStateProps.workflow,
-      selectedGatewayId: gateways?.[0]?.id,
+      selectedVirtualMcpId: virtualMcps?.[0]?.id,
       isAddingStep: false,
       selectedParentSteps: [],
       trackingExecutionId: initialStateProps.trackingExecutionId,
@@ -517,6 +517,6 @@ export function useTrackingExecutionId() {
   return useWorkflowStore((state) => state.trackingExecutionId);
 }
 
-export function useSelectedGatewayId() {
-  return useWorkflowStore((state) => state.selectedGatewayId);
+export function useSelectedVirtualMcpId() {
+  return useWorkflowStore((state) => state.selectedVirtualMcpId);
 }

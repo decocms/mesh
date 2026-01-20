@@ -1,5 +1,5 @@
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import { GatewaySelect } from "./gateway-select";
+import { VirtualMCPSelect } from "./virtual-mcp-select";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import {
@@ -31,7 +31,7 @@ import {
 import { useViewModeStore } from "../stores/view-mode";
 import {
   useIsDirty,
-  useSelectedGatewayId,
+  useSelectedVirtualMcpId,
   useTrackingExecutionId,
   useWorkflowActions,
   useWorkflowSteps,
@@ -53,10 +53,10 @@ export function WorkflowEditorHeader({
   const url = routerState.location.href;
   const { viewMode, setViewMode, showExecutionsList, toggleExecutionsList } =
     useViewModeStore();
-  const { resetToOriginalWorkflow, setSelectedGatewayId } =
+  const { resetToOriginalWorkflow, setSelectedVirtualMcpId } =
     useWorkflowActions();
   const isDirty = useIsDirty();
-  const selectedGatewayId = useSelectedGatewayId();
+  const selectedVirtualMcpId = useSelectedVirtualMcpId();
   const trackingExecutionId = useTrackingExecutionId();
 
   return (
@@ -85,9 +85,9 @@ export function WorkflowEditorHeader({
             <PinToSidebarButton title={title} url={url} icon="workflow" />
 
             <Suspense fallback={<Spinner size="xs" />}>
-              <GatewaySelect
-                selectedGatewayId={selectedGatewayId}
-                onGatewayChange={setSelectedGatewayId}
+              <VirtualMCPSelect
+                selectedVirtualMcpId={selectedVirtualMcpId}
+                onVirtualMcpChange={setSelectedVirtualMcpId}
                 placeholder="Select Agent"
               />
             </Suspense>
@@ -190,7 +190,7 @@ function RunWorkflowButton() {
   const isExecutionCompleted = useIsExecutionCompleted();
   const isExecutionCancelled = useIsExecutionCancelled();
   const trackingExecutionId = useTrackingExecutionId();
-  const selectedGatewayId = useSelectedGatewayId();
+  const selectedVirtualMcpId = useSelectedVirtualMcpId();
   const { handleRunWorkflow, isPending, requiresInput, inputSchema } =
     useWorkflowStart();
   const steps = useWorkflowSteps();
@@ -206,17 +206,17 @@ function RunWorkflowButton() {
       (!step.action.toolName || step.action.toolName === ""),
   );
 
-  const hasNoGateway = !selectedGatewayId;
+  const hasNoVirtualMcp = !selectedVirtualMcpId;
 
   const isDisabled =
-    isDirty || hasEmptySteps || hasNoGateway || isPending || isCancelling;
+    isDirty || hasEmptySteps || hasNoVirtualMcp || isPending || isCancelling;
 
   const isRunning = trackingExecutionIsRunning || isPending;
   const getTooltipMessage = () => {
     if (isExecutionCancelled) return "Workflow is currently cancelled";
     if (isRunning) return "Workflow is currently running";
     if (isDirty) return "Save your changes before running";
-    if (hasNoGateway) return "Select an Agent first";
+    if (hasNoVirtualMcp) return "Select an Agent first";
     if (hasEmptySteps) return "Add at least one step to the workflow";
     return null;
   };

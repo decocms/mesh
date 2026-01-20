@@ -7,11 +7,34 @@
 
 import type { ConnectionEntity } from "../tools/connection/schema";
 import type {
-  GatewayEntity,
-  GatewayCreateData,
-  GatewayUpdateData,
-} from "../tools/gateway/schema";
-import type { MonitoringLog, OrganizationSettings } from "./types";
+  VirtualMCPEntity,
+  VirtualMCPCreateData,
+  VirtualMCPUpdateData,
+} from "../tools/virtual-mcp/schema";
+import type {
+  MonitoringLog,
+  OrganizationSettings,
+  Thread,
+  ThreadMessage,
+} from "./types";
+
+export interface ThreadStoragePort {
+  create(data: Partial<Thread>): Promise<Thread>;
+  get(id: string): Promise<Thread | null>;
+  update(id: string, data: Partial<Thread>): Promise<Thread>;
+  delete(id: string): Promise<void>;
+  list(
+    organizationId: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<{ threads: Thread[]; total: number }>;
+  listByUserId(userId: string): Promise<{ threads: Thread[]; total: number }>;
+  // Message operations
+  saveMessages(data: ThreadMessage[]): Promise<void>;
+  listMessages(
+    threadId: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<{ messages: ThreadMessage[]; total: number }>;
+}
 
 // ============================================================================
 // Connection Storage Port
@@ -68,7 +91,7 @@ export interface MonitoringStorage {
   query(filters: {
     organizationId?: string;
     connectionId?: string;
-    gatewayId?: string;
+    virtualMcpId?: string;
     toolName?: string;
     isError?: boolean;
     startDate?: Date;
@@ -89,33 +112,33 @@ export interface MonitoringStorage {
 }
 
 // ============================================================================
-// Gateway Storage Port
+// Virtual MCP Storage Port
 // ============================================================================
 
 // Re-export types from schema for convenience
 export type {
-  GatewayEntity,
-  GatewayCreateData,
-  GatewayUpdateData,
+  VirtualMCPEntity,
+  VirtualMCPCreateData,
+  VirtualMCPUpdateData,
   ToolSelectionMode,
-} from "../tools/gateway/schema";
+} from "../tools/virtual-mcp/schema";
 
-export interface GatewayStoragePort {
+export interface VirtualMCPStoragePort {
   create(
     organizationId: string,
     userId: string,
-    data: GatewayCreateData,
-  ): Promise<GatewayEntity>;
-  findById(id: string): Promise<GatewayEntity | null>;
-  list(organizationId: string): Promise<GatewayEntity[]>;
+    data: VirtualMCPCreateData,
+  ): Promise<VirtualMCPEntity>;
+  findById(id: string): Promise<VirtualMCPEntity | null>;
+  list(organizationId: string): Promise<VirtualMCPEntity[]>;
   listByConnectionId(
     organizationId: string,
     connectionId: string,
-  ): Promise<GatewayEntity[]>;
+  ): Promise<VirtualMCPEntity[]>;
   update(
     id: string,
     userId: string,
-    data: GatewayUpdateData,
-  ): Promise<GatewayEntity>;
+    data: VirtualMCPUpdateData,
+  ): Promise<VirtualMCPEntity>;
   delete(id: string): Promise<void>;
 }

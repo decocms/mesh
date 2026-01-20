@@ -2,13 +2,13 @@
  * MCP Gateway Routes
  *
  * Provides two types of gateway endpoints:
- * 1. Virtual Gateway - Uses gateway entity from database at /mcp/gateway/:gatewayId
- * 2. Mesh Gateway (deprecated) - Aggregates all org connections at /mcp/mesh/:organizationSlug
+ * 1. Virtual MCP - Uses virtual MCP entity from database at /mcp/gateway/:virtualMcpId
+ * 2. Virtual MCP alias - Same as above at /mcp/virtual-mcp/:virtualMcpId
  *
  * Architecture:
- * - Lists connections for the gateway (from database or organization)
+ * - Lists connections for the virtual MCP (from database or organization)
  * - Creates a ProxyCollection for all connections
- * - Uses lazy-loading gateways (ToolGateway, ResourceGateway, etc.) to aggregate resources
+ * - Uses lazy-loading aggregators (ToolAggregator, ResourceAggregator, etc.) to aggregate resources
  * - Deduplicates tools and prompts by name (first occurrence wins)
  * - Routes resources by URI (globally unique)
  * - Supports exclusion strategy for inverse tool selection
@@ -39,20 +39,20 @@ import {
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import {
-  PromptGateway,
+  PromptAggregator,
   ProxyCollection,
-  ResourceGateway,
-  ResourceTemplateGateway,
-  ToolGateway,
-  type GatewayClient,
-  type GatewayOptions,
-} from "../../gateway";
+  ResourceAggregator,
+  ResourceTemplateAggregator,
+  ToolAggregator,
+  type AggregatorClient,
+  type AggregatorOptions,
+} from "../../aggregator";
 import {
   parseStrategyFromMode,
-  type GatewayToolSelectionStrategy,
-} from "../../gateway/strategy";
+  type AggregatorToolSelectionStrategy,
+} from "../../aggregator/strategy";
 import { getWellKnownDecopilotAgent } from "../../core/well-known-mcp";
-import type { GatewayEntity } from "../../tools/gateway/schema";
+import type { VirtualMCPEntity } from "../../tools/virtual-mcp/schema";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { Env } from "../env";
 
@@ -60,35 +60,35 @@ import type { Env } from "../env";
 const app = new Hono<Env>();
 
 // ============================================================================
-// MCP Gateway Factory
+// MCP Aggregator Factory
 // ============================================================================
 
 /**
- * Create an MCP gateway that aggregates tools, resources, and prompts from multiple connections
+ * Create an MCP aggregator that aggregates tools, resources, and prompts from multiple connections
  *
- * Uses lazy-loading gateways - data is only fetched from connections when first accessed.
+ * Uses lazy-loading aggregators - data is only fetched from connections when first accessed.
  *
- * @param options - Gateway configuration (connections with selected tools and strategy)
+ * @param options - Aggregator configuration (connections with selected tools and strategy)
  * @param ctx - Mesh context for creating proxies
- * @returns GatewayClient interface with aggregated tools, resources, and prompts
+ * @returns AggregatorClient interface with aggregated tools, resources, and prompts
  */
-async function createMCPGateway(
-  options: GatewayOptions,
+async function createMCPAggregator(
+  options: AggregatorOptions,
   ctx: MeshContext,
-): Promise<GatewayClient> {
+): Promise<AggregatorClient> {
   // Create proxy collection for all connections
   const proxies = await ProxyCollection.create(options.connections, ctx);
 
-  // Create lazy gateway abstractions
-  const tools = new ToolGateway(proxies, {
+  // Create lazy aggregator abstractions
+  const tools = new ToolAggregator(proxies, {
     selectionMode: options.toolSelectionMode,
     strategy: options.toolSelectionStrategy,
   });
-  const resources = new ResourceGateway(proxies, {
+  const resources = new ResourceAggregator(proxies, {
     selectionMode: options.toolSelectionMode,
   });
-  const resourceTemplates = new ResourceTemplateGateway(proxies);
-  const prompts = new PromptGateway(proxies, {
+  const resourceTemplates = new ResourceTemplateAggregator(proxies);
+  const prompts = new PromptAggregator(proxies, {
     selectionMode: options.toolSelectionMode,
   });
 
@@ -107,18 +107,18 @@ async function createMCPGateway(
 }
 
 // ============================================================================
-// Helper to create MCP gateway from database entity
+// Helper to create MCP aggregator from database entity
 // ============================================================================
 
 /**
- * Load gateway entity and create MCP gateway
+ * Load virtual MCP entity and create MCP aggregator
  * Handles inclusion/exclusion modes and smart_tool_selection strategy
  */
-async function createMCPGatewayFromEntity(
-  gateway: GatewayEntity,
+async function createMCPAggregatorFromEntity(
+  virtualMcp: VirtualMCPEntity,
   ctx: MeshContext,
-  strategy: GatewayToolSelectionStrategy,
-): Promise<GatewayClient> {
+  strategy: AggregatorToolSelectionStrategy,
+): Promise<AggregatorClient> {
   let connections: Array<{
     connection: ConnectionEntity;
     selectedTools: string[] | null;
@@ -126,10 +126,10 @@ async function createMCPGatewayFromEntity(
     selectedPrompts: string[] | null;
   }>;
 
-  if (gateway.tool_selection_mode === "exclusion") {
+  if (virtualMcp.tool_selection_mode === "exclusion") {
     // Exclusion mode: list ALL org connections, then apply exclusion filter
     const allConnections = await ctx.storage.connections.list(
-      gateway.organization_id,
+      virtualMcp.organization_id,
     );
     const activeConnections = allConnections.filter(
       (c) => c.status === "active",
@@ -144,11 +144,11 @@ async function createMCPGatewayFromEntity(
         selectedPrompts: string[] | null;
       }
     >();
-    for (const gwConn of gateway.connections) {
-      exclusionMap.set(gwConn.connection_id, {
-        selectedTools: gwConn.selected_tools,
-        selectedResources: gwConn.selected_resources,
-        selectedPrompts: gwConn.selected_prompts,
+    for (const vmConn of virtualMcp.connections) {
+      exclusionMap.set(vmConn.connection_id, {
+        selectedTools: vmConn.selected_tools,
+        selectedResources: vmConn.selected_resources,
+        selectedPrompts: vmConn.selected_prompts,
       });
     }
 
@@ -157,7 +157,7 @@ async function createMCPGatewayFromEntity(
       const exclusionEntry = exclusionMap.get(conn.id);
 
       if (exclusionEntry === undefined) {
-        // Connection NOT in gateway.connections -> include all
+        // Connection NOT in virtualMcp.connections -> include all
         connections.push({
           connection: conn,
           selectedTools: null,
@@ -172,10 +172,10 @@ async function createMCPGatewayFromEntity(
         (exclusionEntry.selectedPrompts === null ||
           exclusionEntry.selectedPrompts.length === 0)
       ) {
-        // Connection in gateway.connections with all null/empty -> exclude entire connection
+        // Connection in virtualMcp.connections with all null/empty -> exclude entire connection
         // Skip this connection
       } else {
-        // Connection in gateway.connections with specific exclusions
+        // Connection in virtualMcp.connections with specific exclusions
         connections.push({
           connection: conn,
           selectedTools: exclusionEntry.selectedTools,
@@ -185,8 +185,8 @@ async function createMCPGatewayFromEntity(
       }
     }
   } else {
-    // Inclusion mode (default): use only the connections specified in gateway
-    const connectionIds = gateway.connections.map((c) => c.connection_id);
+    // Inclusion mode (default): use only the connections specified in virtual MCP
+    const connectionIds = virtualMcp.connections.map((c) => c.connection_id);
     const loadedConnections: ConnectionEntity[] = [];
 
     for (const connId of connectionIds) {
@@ -197,41 +197,45 @@ async function createMCPGatewayFromEntity(
     }
 
     connections = loadedConnections.map((conn) => {
-      const gwConn = gateway.connections.find(
+      const vmConn = virtualMcp.connections.find(
         (c) => c.connection_id === conn.id,
       );
       return {
         connection: conn,
-        selectedTools: gwConn?.selected_tools ?? null,
-        selectedResources: gwConn?.selected_resources ?? null,
-        selectedPrompts: gwConn?.selected_prompts ?? null,
+        selectedTools: vmConn?.selected_tools ?? null,
+        selectedResources: vmConn?.selected_resources ?? null,
+        selectedPrompts: vmConn?.selected_prompts ?? null,
       };
     });
   }
 
-  // Build gateway options with strategy
-  const options: GatewayOptions = {
+  // Build aggregator options with strategy
+  const options: AggregatorOptions = {
     connections,
-    toolSelectionMode: gateway.tool_selection_mode,
+    toolSelectionMode: virtualMcp.tool_selection_mode,
     toolSelectionStrategy: strategy,
   };
 
-  return createMCPGateway(options, ctx);
+  return createMCPAggregator(options, ctx);
 }
 
 // ============================================================================
-// Route Handlers
+// Route Handler (shared between /gateway and /virtual-mcp endpoints)
 // ============================================================================
 
-/**
- * Virtual Gateway endpoint - uses gateway entity from database
- *
- * Route: POST /mcp/gateway/:gatewayId?
- * - If gatewayId is provided: use that specific gateway
- * - If gatewayId is omitted: use Decopilot agent (default agent)
- */
-app.all("/gateway/:gatewayId?", async (c) => {
-  const gatewayId = c.req.param("gatewayId");
+async function handleVirtualMcpRequest(
+  c: {
+    get: (key: "meshContext") => MeshContext;
+    req: {
+      header: (name: string) => string | undefined;
+      param: (name: string) => string | undefined;
+      query: (name: string) => string | undefined;
+      raw: Request;
+    };
+    json: (data: unknown, status?: number) => Response;
+  },
+  virtualMcpId: string | undefined,
+) {
   const ctx = c.get("meshContext");
 
   try {
@@ -249,31 +253,31 @@ app.all("/gateway/:gatewayId?", async (c) => {
             .then((org) => org?.id)
         : null;
 
-    const gateway = gatewayId
-      ? await ctx.storage.gateways.findById(gatewayId)
+    const virtualMcp = virtualMcpId
+      ? await ctx.storage.virtualMcps.findById(virtualMcpId)
       : organizationId
         ? getWellKnownDecopilotAgent(organizationId)
         : null;
 
-    if (!gateway) {
+    if (!virtualMcp) {
       return c.json({ error: "Agent not found" }, 404);
     }
 
-    if (organizationId && gateway.organization_id !== organizationId) {
+    if (organizationId && virtualMcp.organization_id !== organizationId) {
       return c.json({ error: "Agent not found" }, 404);
     }
 
-    ctx.gatewayId = gateway.id;
+    ctx.virtualMcpId = virtualMcp.id;
 
-    if (gateway.status !== "active") {
-      return c.json({ error: `Agent is inactive: ${gateway.id}` }, 503);
+    if (virtualMcp.status !== "active") {
+      return c.json({ error: `Agent is inactive: ${virtualMcp.id}` }, 503);
     }
 
     // Set organization context
     const organization = await ctx.db
       .selectFrom("organization")
       .select(["id", "slug", "name"])
-      .where("id", "=", gateway.organization_id)
+      .where("id", "=", virtualMcp.organization_id)
       .executeTakeFirst();
 
     if (organization) {
@@ -288,9 +292,9 @@ app.all("/gateway/:gatewayId?", async (c) => {
     const mode = c.req.query("mode");
     const strategy = parseStrategyFromMode(mode);
 
-    // Create gateway from entity
-    const gatewayClient = await createMCPGatewayFromEntity(
-      gateway,
+    // Create aggregator from entity
+    const aggregatorClient = await createMCPAggregatorFromEntity(
+      virtualMcp,
       ctx,
       strategy,
     );
@@ -298,7 +302,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     // Create MCP server
     const server = new McpServer(
       {
-        name: `mcp-gateway-${gateway.title}`,
+        name: `mcp-virtual-mcp-${virtualMcp.title}`,
         version: "1.0.0",
       },
       {
@@ -319,7 +323,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     server.server.setRequestHandler(
       ListToolsRequestSchema,
       async (_request: ListToolsRequest): Promise<ListToolsResult> => {
-        return gatewayClient.client.listTools();
+        return aggregatorClient.client.listTools();
       },
     );
 
@@ -327,7 +331,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     server.server.setRequestHandler(
       CallToolRequestSchema,
       async (request: CallToolRequest): Promise<CallToolResult> => {
-        return (await gatewayClient.client.callTool(
+        return (await aggregatorClient.client.callTool(
           request.params,
         )) as CallToolResult;
       },
@@ -337,7 +341,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     server.server.setRequestHandler(
       ListResourcesRequestSchema,
       async (): Promise<ListResourcesResult> => {
-        return gatewayClient.client.listResources();
+        return aggregatorClient.client.listResources();
       },
     );
 
@@ -345,7 +349,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     server.server.setRequestHandler(
       ReadResourceRequestSchema,
       async (request: ReadResourceRequest): Promise<ReadResourceResult> => {
-        return gatewayClient.client.readResource(request.params);
+        return aggregatorClient.client.readResource(request.params);
       },
     );
 
@@ -353,7 +357,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     server.server.setRequestHandler(
       ListResourceTemplatesRequestSchema,
       async (): Promise<ListResourceTemplatesResult> => {
-        return gatewayClient.client.listResourceTemplates();
+        return aggregatorClient.client.listResourceTemplates();
       },
     );
 
@@ -361,7 +365,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     server.server.setRequestHandler(
       ListPromptsRequestSchema,
       async (): Promise<ListPromptsResult> => {
-        return gatewayClient.client.listPrompts();
+        return aggregatorClient.client.listPrompts();
       },
     );
 
@@ -369,7 +373,7 @@ app.all("/gateway/:gatewayId?", async (c) => {
     server.server.setRequestHandler(
       GetPromptRequestSchema,
       async (request: GetPromptRequest): Promise<GetPromptResult> => {
-        return gatewayClient.client.getPrompt(request.params);
+        return aggregatorClient.client.getPrompt(request.params);
       },
     );
 
@@ -377,12 +381,40 @@ app.all("/gateway/:gatewayId?", async (c) => {
     return await transport.handleRequest(c.req.raw);
   } catch (error) {
     const err = error as Error;
-    console.error("[gateway] Error handling gateway request:", err);
+    console.error("[virtual-mcp] Error handling virtual MCP request:", err);
     return c.json(
       { error: "Internal server error", message: err.message },
       500,
     );
   }
+}
+
+// ============================================================================
+// Route Handlers
+// ============================================================================
+
+/**
+ * Virtual MCP endpoint (backward compatible /mcp/gateway/:gatewayId)
+ *
+ * Route: POST /mcp/gateway/:gatewayId?
+ * - If gatewayId is provided: use that specific virtual MCP
+ * - If gatewayId is omitted: use Decopilot agent (default agent)
+ */
+app.all("/gateway/:virtualMcpId?", async (c) => {
+  const virtualMcpId = c.req.param("virtualMcpId");
+  return handleVirtualMcpRequest(c, virtualMcpId);
+});
+
+/**
+ * Virtual MCP endpoint (new canonical /mcp/virtual-mcp/:virtualMcpId)
+ *
+ * Route: POST /mcp/virtual-mcp/:virtualMcpId?
+ * - If virtualMcpId is provided: use that specific virtual MCP
+ * - If virtualMcpId is omitted: use Decopilot agent (default agent)
+ */
+app.all("/virtual-mcp/:virtualMcpId?", async (c) => {
+  const virtualMcpId = c.req.param("virtualMcpId");
+  return handleVirtualMcpRequest(c, virtualMcpId);
 });
 
 export default app;

@@ -19,7 +19,7 @@ import {
   type DateRange,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
 import { useConnections } from "@/web/hooks/collections/use-connection";
-import { useGateways } from "@/web/hooks/collections/use-gateway";
+import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
 import { KEYS } from "@/web/lib/query-keys";
@@ -118,12 +118,12 @@ const MonitoringStats = Object.assign(MonitoringStatsContent, {
 
 interface FiltersPopoverProps {
   connectionIds: string[];
-  gatewayIds: string[];
+  virtualMcpIds: string[];
   tool: string;
   status: string;
   propertyFilters: PropertyFilter[];
   connectionOptions: Array<{ value: string; label: string }>;
-  gatewayOptions: Array<{ value: string; label: string }>;
+  virtualMcpOptions: Array<{ value: string; label: string }>;
   activeFiltersCount: number;
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
 }
@@ -139,12 +139,12 @@ const OPERATOR_OPTIONS: Array<{
 
 function FiltersPopover({
   connectionIds,
-  gatewayIds,
+  virtualMcpIds,
   tool,
   status,
   propertyFilters,
   connectionOptions,
-  gatewayOptions,
+  virtualMcpOptions,
   activeFiltersCount,
   onUpdateFilters,
 }: FiltersPopoverProps) {
@@ -284,10 +284,10 @@ function FiltersPopover({
                 Agents
               </label>
               <MultiSelect
-                options={gatewayOptions}
-                defaultValue={gatewayIds}
+                options={virtualMcpOptions}
+                defaultValue={virtualMcpIds}
                 onValueChange={(values) =>
-                  onUpdateFilters({ gatewayId: values })
+                  onUpdateFilters({ virtualMcpId: values })
                 }
                 placeholder="All Agents"
                 variant="secondary"
@@ -509,7 +509,7 @@ function FiltersPopover({
                 setLocalRawFilters("");
                 onUpdateFilters({
                   connectionId: [],
-                  gatewayId: [],
+                  virtualMcpId: [],
                   tool: "",
                   status: "all",
                   propertyFilters: "",
@@ -532,7 +532,7 @@ function FiltersPopover({
 
 interface MonitoringLogsTableProps {
   connectionIds: string[];
-  gatewayIds: string[];
+  virtualMcpIds: string[];
   tool: string;
   status: string;
   search: string;
@@ -541,13 +541,13 @@ interface MonitoringLogsTableProps {
   onLoadMore: () => void;
   isLoadingMore: boolean;
   connections: ReturnType<typeof useConnections>;
-  gateways: ReturnType<typeof useGateways>;
+  virtualMcps: ReturnType<typeof useVirtualMCPs>;
   membersData: ReturnType<typeof useMembers>["data"];
 }
 
 function MonitoringLogsTableContent({
   connectionIds,
-  gatewayIds,
+  virtualMcpIds,
   tool,
   status,
   search: searchQuery,
@@ -556,11 +556,11 @@ function MonitoringLogsTableContent({
   onLoadMore,
   isLoadingMore,
   connections: connectionsData,
-  gateways: gatewaysData,
+  virtualMcps: virtualMcpsData,
   membersData,
 }: MonitoringLogsTableProps) {
   const connections = connectionsData ?? [];
-  const gateways = gatewaysData ?? [];
+  const virtualMcps = virtualMcpsData ?? [];
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Use the infinite scroll hook with loading guard
@@ -569,21 +569,23 @@ function MonitoringLogsTableContent({
   const members = membersData?.data?.members ?? [];
   const userMap = new Map(members.map((m) => [m.userId, m.user]));
 
-  // Create gateway lookup map
-  const gatewayMap = new Map(gateways.map((g) => [g.id, g]));
+  // Create virtual MCP lookup map
+  const virtualMcpMap = new Map(virtualMcps.map((vm) => [vm.id, vm]));
 
   const enrichedLogs: EnrichedMonitoringLog[] = logs.map((log) => {
     const user = userMap.get(log.userId ?? "");
-    const gateway = log.gatewayId ? gatewayMap.get(log.gatewayId) : null;
+    const virtualMcp = log.virtualMcpId
+      ? virtualMcpMap.get(log.virtualMcpId)
+      : null;
     return {
       ...log,
       userName: user?.name ?? log.userId ?? "Unknown",
       userImage: user?.image,
-      gatewayName: gateway?.title ?? null,
+      virtualMcpName: virtualMcp?.title ?? null,
     };
   });
 
-  // Filter logs by search query and multiple connections/gateways (client-side)
+  // Filter logs by search query and multiple connections/virtual MCPs (client-side)
   let filteredLogs = enrichedLogs;
 
   // Filter by multiple connection IDs (if more than one selected)
@@ -593,10 +595,10 @@ function MonitoringLogsTableContent({
     );
   }
 
-  // Filter by multiple gateway IDs (if more than one selected)
-  if (gatewayIds.length > 1) {
+  // Filter by multiple virtual MCP IDs (if more than one selected)
+  if (virtualMcpIds.length > 1) {
     filteredLogs = filteredLogs.filter(
-      (log) => log.gatewayId && gatewayIds.includes(log.gatewayId),
+      (log) => log.virtualMcpId && virtualMcpIds.includes(log.virtualMcpId),
     );
   }
 
@@ -643,7 +645,7 @@ function MonitoringLogsTableContent({
           description={
             searchQuery ||
             connectionIds.length > 0 ||
-            gatewayIds.length > 0 ||
+            virtualMcpIds.length > 0 ||
             tool ||
             status !== "all"
               ? "No logs match your filters"
@@ -710,7 +712,7 @@ function MonitoringLogsTableContent({
               isFirst={index === 0}
               isExpanded={expandedRows.has(log.id)}
               connection={connectionMap.get(log.connectionId)}
-              gatewayName={log.gatewayName ?? ""}
+              virtualMcpName={log.virtualMcpName ?? ""}
               onToggle={() => toggleRow(log)}
               lastLogRef={
                 index === filteredLogs.length - 1 ? lastLogRef : undefined
@@ -744,7 +746,7 @@ interface MonitoringDashboardContentProps {
   dateRange: DateRange;
   displayDateRange: DateRange;
   connectionIds: string[];
-  gatewayIds: string[];
+  virtualMcpIds: string[];
   tool: string;
   status: string;
   search: string;
@@ -764,7 +766,7 @@ function MonitoringDashboardContent({
   dateRange,
   displayDateRange,
   connectionIds,
-  gatewayIds,
+  virtualMcpIds,
   tool,
   status,
   search: searchQuery,
@@ -778,17 +780,17 @@ function MonitoringDashboardContent({
   onStreamingToggle,
   onTabChange,
 }: MonitoringDashboardContentProps) {
-  // Get all connections, gateways, and members - moved here because these hooks suspend
+  // Get all connections, virtual MCPs, and members - moved here because these hooks suspend
   const allConnections = useConnections();
-  const allGateways = useGateways();
+  const allVirtualMcps = useVirtualMCPs();
   const { data: membersData } = useMembers();
   const connectionOptions = (allConnections ?? []).map((conn) => ({
     value: conn.id,
     label: conn.title || conn.id,
   }));
-  const gatewayOptions = allGateways.map((gw) => ({
-    value: gw.id,
-    label: gw.title || gw.id,
+  const virtualMcpOptions = allVirtualMcps.map((vm) => ({
+    value: vm.id,
+    label: vm.title || vm.id,
   }));
 
   const { pageSize, streamingRefetchInterval } = MONITORING_CONFIG;
@@ -803,7 +805,7 @@ function MonitoringDashboardContent({
     startDate: dateRange.startDate.toISOString(),
     endDate: dateRange.endDate.toISOString(),
     connectionId: connectionIds.length === 1 ? connectionIds[0] : undefined,
-    gatewayId: gatewayIds.length === 1 ? gatewayIds[0] : undefined,
+    virtualMcpId: virtualMcpIds.length === 1 ? virtualMcpIds[0] : undefined,
     toolName: tool || undefined,
     isError:
       status === "errors" ? true : status === "success" ? false : undefined,
@@ -864,12 +866,12 @@ function MonitoringDashboardContent({
               {/* Filters Button */}
               <FiltersPopover
                 connectionIds={connectionIds}
-                gatewayIds={gatewayIds}
+                virtualMcpIds={virtualMcpIds}
                 tool={tool}
                 status={status}
                 propertyFilters={propertyFilters}
                 connectionOptions={connectionOptions}
-                gatewayOptions={gatewayOptions}
+                virtualMcpOptions={virtualMcpOptions}
                 activeFiltersCount={activeFiltersCount}
                 onUpdateFilters={onUpdateFilters}
               />
@@ -941,7 +943,7 @@ function MonitoringDashboardContent({
           <div className="flex-1 flex flex-col overflow-hidden">
             <MonitoringLogsTable
               connectionIds={connectionIds}
-              gatewayIds={gatewayIds}
+              virtualMcpIds={virtualMcpIds}
               tool={tool}
               status={status}
               search={searchQuery}
@@ -950,7 +952,7 @@ function MonitoringDashboardContent({
               onLoadMore={handleLoadMore}
               isLoadingMore={isFetchingNextPage}
               connections={allConnections}
-              gateways={allGateways}
+              virtualMcps={allVirtualMcps}
               membersData={membersData}
             />
           </div>
@@ -974,7 +976,7 @@ export default function MonitoringDashboard() {
     from,
     to,
     connectionId: connectionIds = [],
-    gatewayId: gatewayIds = [],
+    virtualMcpId: virtualMcpIds = [],
     tool,
     search: searchQuery,
     status,
@@ -1023,7 +1025,7 @@ export default function MonitoringDashboard() {
 
   let activeFiltersCount = 0;
   if (connectionIds.length > 0) activeFiltersCount++;
-  if (gatewayIds.length > 0) activeFiltersCount++;
+  if (virtualMcpIds.length > 0) activeFiltersCount++;
   if (tool) activeFiltersCount++;
   if (status !== "all") activeFiltersCount++;
   // Count property filters with non-empty keys
@@ -1069,7 +1071,7 @@ export default function MonitoringDashboard() {
             dateRange={dateRange}
             displayDateRange={displayDateRange}
             connectionIds={connectionIds}
-            gatewayIds={gatewayIds}
+            virtualMcpIds={virtualMcpIds}
             tool={tool}
             status={status}
             search={searchQuery}

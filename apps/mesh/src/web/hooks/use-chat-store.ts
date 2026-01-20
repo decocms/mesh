@@ -83,26 +83,28 @@ export function getThreadMessagesFromIndexedDB(
 }
 
 /**
- * Hook to get all threads, optionally filtered by gateway
+ * Hook to get all threads, optionally filtered by virtual MCP (agent)
  *
  * @param options - Optional filter options
- * @param options.gatewayId - Filter threads by gateway ID
+ * @param options.virtualMcpId - Filter threads by virtual MCP ID
  * @returns Object with threads array and refetch function
  */
-export function useThreads(options?: { gatewayId?: string }) {
+export function useThreads(options?: { virtualMcpId?: string }) {
   const { locator } = useProjectContext();
-  const gatewayId = options?.gatewayId;
+  const virtualMcpId = options?.virtualMcpId;
 
   const { data, refetch } = useSuspenseQuery({
-    queryKey: gatewayId
-      ? KEYS.gatewayThreads(locator, gatewayId)
+    queryKey: virtualMcpId
+      ? KEYS.virtualMcpThreads(locator, virtualMcpId)
       : KEYS.threads(locator),
     queryFn: async () => {
       const allThreads = await getAllThreadsFromIndexedDB(locator);
 
-      // Apply gateway filter if provided
-      if (gatewayId) {
-        return allThreads.filter((thread) => thread.gatewayId === gatewayId);
+      // Apply virtual MCP filter if provided
+      if (virtualMcpId) {
+        return allThreads.filter(
+          (thread) => thread.virtualMcpId === virtualMcpId,
+        );
       }
 
       return allThreads;
@@ -147,11 +149,11 @@ export function useThreadActions() {
       return thread;
     },
     onSuccess: (thread: Thread) => {
-      // Invalidate all threads queries (including gateway-filtered)
+      // Invalidate all threads queries (including virtual MCP-filtered)
       queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
-      if (thread.gatewayId) {
+      if (thread.virtualMcpId) {
         queryClient.invalidateQueries({
-          queryKey: KEYS.gatewayThreads(locator, thread.gatewayId),
+          queryKey: KEYS.virtualMcpThreads(locator, thread.virtualMcpId),
         });
       }
     },
@@ -175,14 +177,14 @@ export function useThreadActions() {
       return updated;
     },
     onSuccess: (updated: Thread) => {
-      // Invalidate all threads queries (including gateway-filtered)
+      // Invalidate all threads queries (including virtual MCP-filtered)
       queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
       queryClient.invalidateQueries({
         queryKey: KEYS.thread(locator, updated.id),
       });
-      if (updated.gatewayId) {
+      if (updated.virtualMcpId) {
         queryClient.invalidateQueries({
-          queryKey: KEYS.gatewayThreads(locator, updated.gatewayId),
+          queryKey: KEYS.virtualMcpThreads(locator, updated.virtualMcpId),
         });
       }
     },

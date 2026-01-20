@@ -119,7 +119,7 @@ const orgMonitoringRoute = createRoute({
       from: z.string().default("now-24h"),
       to: z.string().default("now"),
       connectionId: z.array(z.string()).optional().default([]),
-      gatewayId: z.array(z.string()).optional().default([]),
+      virtualMcpId: z.array(z.string()).optional().default([]),
       tool: z.string().default(""),
       status: z.enum(["all", "success", "errors"]).default("all"),
       search: z.string().default(""),
@@ -177,10 +177,10 @@ const collectionDetailsRoute = createRoute({
   ),
 });
 
-const orgGatewaysRoute = createRoute({
+const orgAgentsRoute = createRoute({
   getParentRoute: () => shellLayout,
-  path: "/$org/gateways",
-  component: lazyRouteComponent(() => import("./routes/orgs/gateways.tsx")),
+  path: "/$org/agents",
+  component: lazyRouteComponent(() => import("./routes/orgs/agents.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
       action: z.enum(["create"]).optional(),
@@ -188,12 +188,10 @@ const orgGatewaysRoute = createRoute({
   ),
 });
 
-const gatewayDetailRoute = createRoute({
+const agentDetailRoute = createRoute({
   getParentRoute: () => shellLayout,
-  path: "/$org/gateways/$gatewayId",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/gateway-detail.tsx"),
-  ),
+  path: "/$org/agents/$agentId",
+  component: lazyRouteComponent(() => import("./routes/orgs/agent-detail.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
       tab: z.string().optional(),
@@ -265,8 +263,8 @@ const shellRouteTree = shellLayout.addChildren([
   orgHomeRoute,
   orgMembersRoute,
   orgConnectionsRoute,
-  orgGatewaysRoute,
-  gatewayDetailRoute,
+  orgAgentsRoute,
+  agentDetailRoute,
   orgMonitoringRoute,
   orgStoreRouteWithChildren,
   orgSettingsRoute,

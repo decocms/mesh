@@ -52,7 +52,7 @@ export interface Thread {
   created_at: string; // ISO string
   updated_at: string; // ISO string
   hidden?: boolean;
-  gatewayId?: string; // Associate thread with specific gateway
+  virtualMcpId?: string; // Associate thread with specific virtual MCP (agent)
 }
 
 export type Message = UIMessage<Metadata>;

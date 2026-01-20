@@ -1,7 +1,7 @@
 import { useToolCallMutation } from "@/web/hooks/use-tool-call";
 import { createToolCaller } from "@/tools/client";
 import {
-  useSelectedGatewayId,
+  useSelectedVirtualMcpId,
   useWorkflow,
   useWorkflowActions,
 } from "@/web/components/details/workflow/stores/workflow";
@@ -13,7 +13,7 @@ export function useWorkflowStart() {
   const { setTrackingExecutionId } = useWorkflowActions();
   const toolCaller = createToolCaller(connectionId);
   const workflow = useWorkflow();
-  const selectedGatewayId = useSelectedGatewayId();
+  const selectedVirtualMcpId = useSelectedVirtualMcpId();
   const inputSchema = useWorkflowInputSchema();
   const { mutateAsync: startWorkflow, isPending } = useToolCallMutation({
     toolCaller,
@@ -21,13 +21,13 @@ export function useWorkflowStart() {
   });
 
   const handleRunWorkflow = async (input: Record<string, unknown> = {}) => {
-    if (!selectedGatewayId) {
+    if (!selectedVirtualMcpId) {
       throw new Error("Please select an Agent before running the workflow");
     }
     const startAtEpochMs = Date.now();
     const result = await startWorkflow({
       input,
-      gateway_id: selectedGatewayId,
+      virtual_mcp_id: selectedVirtualMcpId,
       start_at_epoch_ms: startAtEpochMs,
       workflow_collection_id: workflow.id,
     });

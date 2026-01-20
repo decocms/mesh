@@ -1,9 +1,9 @@
 import {
-  fetchGatewayPrompt,
-  useGatewayPrompts,
-  type GatewayPrompt,
-  type GatewayPromptResult,
-} from "@/web/hooks/use-gateway-prompts";
+  fetchVirtualMCPPrompt,
+  useVirtualMCPPrompts,
+  type VirtualMCPPrompt,
+  type VirtualMCPPromptResult,
+} from "@/web/hooks/use-virtual-mcp-prompts";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Form,
@@ -38,9 +38,9 @@ import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./context";
 
 interface IceBreakersProps {
-  prompts: GatewayPrompt[];
-  onSelect: (prompt: GatewayPrompt) => void;
-  loadingPrompt?: GatewayPrompt | null;
+  prompts: VirtualMCPPrompt[];
+  onSelect: (prompt: VirtualMCPPrompt) => void;
+  loadingPrompt?: VirtualMCPPrompt | null;
   className?: string;
 }
 
@@ -53,8 +53,8 @@ function PromptPill({
   isDisabled,
   isLoading,
 }: {
-  prompt: GatewayPrompt;
-  onSelect: (prompt: GatewayPrompt) => void;
+  prompt: VirtualMCPPrompt;
+  onSelect: (prompt: VirtualMCPPrompt) => void;
   isSelected?: boolean;
   isDisabled?: boolean;
   isLoading?: boolean;
@@ -176,7 +176,7 @@ function IceBreakers({
 
 type PromptArgumentValues = Record<string, string>;
 
-function buildArgumentSchema(prompt: GatewayPrompt) {
+function buildArgumentSchema(prompt: VirtualMCPPrompt) {
   const shape: Record<string, z.ZodTypeAny> = {};
 
   for (const arg of prompt.arguments ?? []) {
@@ -186,7 +186,7 @@ function buildArgumentSchema(prompt: GatewayPrompt) {
   return z.object(shape);
 }
 
-function buildDefaultValues(prompt: GatewayPrompt): PromptArgumentValues {
+function buildDefaultValues(prompt: VirtualMCPPrompt): PromptArgumentValues {
   const defaults: PromptArgumentValues = {};
   for (const arg of prompt.arguments ?? []) {
     defaults[arg.name] = "";
@@ -194,7 +194,7 @@ function buildDefaultValues(prompt: GatewayPrompt): PromptArgumentValues {
   return defaults;
 }
 
-function getPromptUserText(result: GatewayPromptResult): string | null {
+function getPromptUserText(result: VirtualMCPPromptResult): string | null {
   for (const message of result.messages ?? []) {
     if (message.role !== "user") continue;
     if (message.content?.type !== "text") continue;
@@ -209,7 +209,7 @@ function ExpandedIceBreaker({
   onCancel,
   onSubmit,
 }: {
-  prompt: GatewayPrompt;
+  prompt: VirtualMCPPrompt;
   onCancel: () => void;
   onSubmit: (values: PromptArgumentValues) => Promise<void>;
 }) {
@@ -314,19 +314,19 @@ function IceBreakersFallback() {
  */
 type IceBreakerState =
   | { stage: "idle" }
-  | { stage: "collectingArguments"; prompt: GatewayPrompt }
+  | { stage: "collectingArguments"; prompt: VirtualMCPPrompt }
   | {
       stage: "loading";
-      prompt: GatewayPrompt;
+      prompt: VirtualMCPPrompt;
       arguments?: PromptArgumentValues;
     };
 
 type IceBreakerAction =
-  | { type: "SELECT_PROMPT"; prompt: GatewayPrompt }
+  | { type: "SELECT_PROMPT"; prompt: VirtualMCPPrompt }
   | { type: "CANCEL" }
   | {
       type: "START_LOADING";
-      prompt: GatewayPrompt;
+      prompt: VirtualMCPPrompt;
       arguments?: PromptArgumentValues;
     }
   | { type: "RESET" };
@@ -363,11 +363,15 @@ function iceBreakerReducer(
 }
 
 /**
- * Inner component that fetches and displays prompts for a specific gateway
+ * Inner component that fetches and displays prompts for a specific virtual MCP (agent)
  */
-function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
+function VirtualMCPIceBreakersContent({
+  virtualMcpId,
+}: {
+  virtualMcpId: string;
+}) {
   const { setInputValue } = useChat();
-  const { data: prompts } = useGatewayPrompts(gatewayId);
+  const { data: prompts } = useVirtualMCPPrompts(virtualMcpId);
   const [state, dispatch] = useReducer(iceBreakerReducer, { stage: "idle" });
 
   if (prompts.length === 0) {
@@ -375,11 +379,15 @@ function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
   }
 
   const loadPrompt = async (
-    prompt: GatewayPrompt,
+    prompt: VirtualMCPPrompt,
     args?: PromptArgumentValues,
   ) => {
     try {
-      const result = await fetchGatewayPrompt(gatewayId, prompt.name, args);
+      const result = await fetchVirtualMCPPrompt(
+        virtualMcpId,
+        prompt.name,
+        args,
+      );
       const userText =
         getPromptUserText(result) ?? prompt.description ?? prompt.name;
       setInputValue(userText);
@@ -391,7 +399,7 @@ function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
     }
   };
 
-  const handlePromptSelection = async (prompt: GatewayPrompt) => {
+  const handlePromptSelection = async (prompt: VirtualMCPPrompt) => {
     // If prompt has arguments, show the form
     if (prompt.arguments && prompt.arguments.length > 0) {
       dispatch({ type: "SELECT_PROMPT", prompt });
@@ -446,12 +454,12 @@ function GatewayIceBreakersContent({ gatewayId }: { gatewayId: string }) {
 }
 
 /**
- * Ice breakers component that uses suspense to fetch gateway prompts
- * Uses the chat context for gateway selection and message sending.
+ * Ice breakers component that uses suspense to fetch virtual MCP prompts
+ * Uses the chat context for virtual MCP selection and message sending.
  * Includes ErrorBoundary, Suspense, and container internally.
  */
 export function GatewayIceBreakers({ className }: GatewayIceBreakersProps) {
-  const { selectedGateway } = useChat();
+  const { selectedVirtualMcp } = useChat();
 
   return (
     <div
@@ -461,10 +469,12 @@ export function GatewayIceBreakers({ className }: GatewayIceBreakersProps) {
       )}
       style={{ minHeight: "32px" }}
     >
-      {selectedGateway && (
-        <ErrorBoundary key={selectedGateway.id} fallback={null}>
+      {selectedVirtualMcp && (
+        <ErrorBoundary key={selectedVirtualMcp.id} fallback={null}>
           <Suspense fallback={<IceBreakersFallback />}>
-            <GatewayIceBreakersContent gatewayId={selectedGateway.id} />
+            <VirtualMCPIceBreakersContent
+              virtualMcpId={selectedVirtualMcp.id}
+            />
           </Suspense>
         </ErrorBoundary>
       )}

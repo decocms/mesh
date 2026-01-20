@@ -1,17 +1,17 @@
 /**
  * Mesh Visualization Components
  *
- * React Flow-based visualization of the MCP Mesh showing gateways,
+ * React Flow-based visualization of the MCP Mesh showing agents (virtual MCPs),
  * connections, and their metrics.
  */
 
 import type { ConnectionEntity } from "@/tools/connection/schema";
-import type { GatewayEntity } from "@/tools/gateway/schema";
+import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
 import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { CpuChip02, Container } from "@untitledui/icons";
 import { useConnections } from "@/web/hooks/collections/use-connection";
-import { useGateways } from "@/web/hooks/collections/use-gateway";
+import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 import { useToolCall } from "@/web/hooks/use-tool-call";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
@@ -31,8 +31,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import { createContext, useContext, useState } from "react";
 import type {
-  MonitoringLogWithGateway,
-  MonitoringLogsWithGatewayResponse,
+  MonitoringLogWithVirtualMCP,
+  MonitoringLogsWithVirtualMCPResponse,
 } from "@/web/components/monitoring";
 
 // ============================================================================
@@ -84,7 +84,7 @@ interface NodeMetric {
 }
 
 interface NodeMetricsMap {
-  gateways: Map<string, NodeMetric>;
+  virtualMcps: Map<string, NodeMetric>;
   connections: Map<string, NodeMetric>;
 }
 
@@ -98,7 +98,7 @@ interface ColorScheme {
 // ============================================================================
 
 const MAX_ITEMS = 10;
-// Size of the edge nodes (gateways + servers). React Flow measures DOM nodes,
+// Size of the edge nodes (agents + servers). React Flow measures DOM nodes,
 // so keep these in sync with the rendered card sizes.
 const EDGE_NODE_HEIGHT = 56;
 const EDGE_NODE_WIDTH = 220;
@@ -138,8 +138,8 @@ function getLast24HoursDateRange() {
   };
 }
 
-function aggregateMetrics(logs: MonitoringLogWithGateway[]): NodeMetricsMap {
-  const gatewayMetrics = new Map<
+function aggregateMetrics(logs: MonitoringLogWithVirtualMCP[]): NodeMetricsMap {
+  const virtualMcpMetrics = new Map<
     string,
     { requests: number; errors: number; totalLatency: number }
   >();
@@ -163,14 +163,14 @@ function aggregateMetrics(logs: MonitoringLogWithGateway[]): NodeMetricsMap {
       });
     }
 
-    const gatewayId = log.gatewayId;
-    if (gatewayId) {
-      const existing = gatewayMetrics.get(gatewayId) ?? {
+    const virtualMcpId = log.virtualMcpId;
+    if (virtualMcpId) {
+      const existing = virtualMcpMetrics.get(virtualMcpId) ?? {
         requests: 0,
         errors: 0,
         totalLatency: 0,
       };
-      gatewayMetrics.set(gatewayId, {
+      virtualMcpMetrics.set(virtualMcpId, {
         requests: existing.requests + 1,
         errors: existing.errors + (log.isError ? 1 : 0),
         totalLatency: existing.totalLatency + log.durationMs,
@@ -178,9 +178,9 @@ function aggregateMetrics(logs: MonitoringLogWithGateway[]): NodeMetricsMap {
     }
   }
 
-  const gateways = new Map<string, NodeMetric>();
-  for (const [id, data] of gatewayMetrics) {
-    gateways.set(id, {
+  const virtualMcps = new Map<string, NodeMetric>();
+  for (const [id, data] of virtualMcpMetrics) {
+    virtualMcps.set(id, {
       requests: data.requests,
       errors: data.errors,
       errorRate: data.requests > 0 ? (data.errors / data.requests) * 100 : 0,
@@ -198,7 +198,7 @@ function aggregateMetrics(logs: MonitoringLogWithGateway[]): NodeMetricsMap {
     });
   }
 
-  return { gateways, connections };
+  return { virtualMcps, connections };
 }
 
 function formatMetricValue(
@@ -246,7 +246,7 @@ function useNodeMetrics(): NodeMetricsMap {
 
   const { data: logsData } = useToolCall<
     { startDate: string; endDate: string; limit: number; offset: number },
-    MonitoringLogsWithGatewayResponse
+    MonitoringLogsWithVirtualMCPResponse
   >({
     toolCaller,
     toolName: "MONITORING_LOGS_LIST",
@@ -263,22 +263,22 @@ function useNodeMetrics(): NodeMetricsMap {
 // React Flow Node Components
 // ============================================================================
 
-interface GatewayNodeData extends Record<string, unknown> {
-  gateway: GatewayEntity;
+interface AgentNodeData extends Record<string, unknown> {
+  virtualMcp: VirtualMCPEntity;
   metricsMode: MetricsMode;
   metric: NodeMetric | undefined;
   colorScheme: ColorScheme;
   org: string;
 }
 
-function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
+function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
   const navigate = useNavigate();
   const metricValue = formatMetricValue(data.metric, data.metricsMode);
 
   const handleClick = () => {
     navigate({
-      to: "/$org/gateways/$gatewayId",
-      params: { org: data.org, gatewayId: data.gateway.id },
+      to: "/$org/agents/$agentId",
+      params: { org: data.org, agentId: data.virtualMcp.id },
     });
   };
 
@@ -289,15 +289,15 @@ function GatewayNode({ data }: NodeProps<Node<GatewayNodeData>>) {
       onClick={handleClick}
     >
       <IntegrationIcon
-        icon={data.gateway.icon}
-        name={data.gateway.title}
+        icon={data.virtualMcp.icon}
+        name={data.virtualMcp.title}
         size="md"
         fallbackIcon={<CpuChip02 />}
         className="relative z-10"
       />
       <div className="relative z-10 flex flex-col min-w-0 flex-1">
         <span className="text-sm text-muted-foreground truncate">
-          {data.gateway.title}
+          {data.virtualMcp.title}
         </span>
         <span
           className={cn(
@@ -426,7 +426,7 @@ function MeshNode({ data }: NodeProps<Node<MeshNodeData>>) {
 }
 
 const nodeTypes = {
-  gateway: GatewayNode,
+  agent: AgentNode,
   server: ServerNode,
   mesh: MeshNode,
 };
@@ -464,17 +464,19 @@ export function MeshVisualization() {
   const { metricsMode } = useMetricsMode();
   const { org } = useProjectContext();
 
-  const rawGateways: GatewayEntity[] = useGateways({ pageSize: MAX_ITEMS });
+  const rawVirtualMcps: VirtualMCPEntity[] = useVirtualMCPs({
+    pageSize: MAX_ITEMS,
+  });
   const rawConnections: ConnectionEntity[] = useConnections({
     pageSize: MAX_ITEMS,
   });
   const nodeMetrics = useNodeMetrics();
 
   // Sort by metric value (descending)
-  const sortedGateways = [...rawGateways].sort(
+  const sortedVirtualMcps = [...rawVirtualMcps].sort(
     (a, b) =>
-      getMetricNumericValue(nodeMetrics.gateways.get(b.id), metricsMode) -
-      getMetricNumericValue(nodeMetrics.gateways.get(a.id), metricsMode),
+      getMetricNumericValue(nodeMetrics.virtualMcps.get(b.id), metricsMode) -
+      getMetricNumericValue(nodeMetrics.virtualMcps.get(a.id), metricsMode),
   );
 
   const sortedConnections = [...rawConnections].sort(
@@ -486,8 +488,8 @@ export function MeshVisualization() {
   const colorScheme = COLOR_SCHEMES[metricsMode];
 
   // Build position maps from sorted arrays (maps node ID to sorted index)
-  const gatewayPositionMap = new Map<string, number>();
-  sortedGateways.forEach((g, i) => gatewayPositionMap.set(g.id, i));
+  const virtualMcpPositionMap = new Map<string, number>();
+  sortedVirtualMcps.forEach((g, i) => virtualMcpPositionMap.set(g.id, i));
 
   const connectionPositionMap = new Map<string, number>();
   sortedConnections.forEach((c, i) => connectionPositionMap.set(c.id, i));
@@ -504,7 +506,7 @@ export function MeshVisualization() {
   const rightX = meshRight + gapX;
   const nodeSpacing = 70;
 
-  const leftCount = sortedGateways.length;
+  const leftCount = sortedVirtualMcps.length;
   const rightCount = sortedConnections.length;
 
   const edgeStyle = {
@@ -527,25 +529,25 @@ export function MeshVisualization() {
     selectable: false,
   });
 
-  // Gateway nodes - iterate over rawGateways in stable order (by ID) for React Flow tracking
+  // Agent nodes - iterate over rawVirtualMcps in stable order (by ID) for React Flow tracking
   // but use sorted position for visual layout, centered relative to mesh node
-  const stableGateways = [...rawGateways].sort((a, b) =>
+  const stableVirtualMcps = [...rawVirtualMcps].sort((a, b) =>
     a.id.localeCompare(b.id),
   );
-  stableGateways.forEach((gateway) => {
-    const sortedIdx = gatewayPositionMap.get(gateway.id) ?? 0;
+  stableVirtualMcps.forEach((virtualMcp) => {
+    const sortedIdx = virtualMcpPositionMap.get(virtualMcp.id) ?? 0;
     // Calculate center Y relative to mesh center (y=0)
     const nodeCenterY = (sortedIdx - (leftCount - 1) / 2) * nodeSpacing;
     const y = nodeCenterY - EDGE_NODE_HEIGHT / 2;
 
     nodes.push({
-      id: `gateway-${gateway.id}`,
-      type: "gateway",
+      id: `agent-${virtualMcp.id}`,
+      type: "agent",
       position: { x: leftX, y },
       data: {
-        gateway,
+        virtualMcp,
         metricsMode,
-        metric: nodeMetrics.gateways.get(gateway.id),
+        metric: nodeMetrics.virtualMcps.get(virtualMcp.id),
         colorScheme,
         org: org.slug,
       },
@@ -554,8 +556,8 @@ export function MeshVisualization() {
     });
 
     edges.push({
-      id: `e-gw-${gateway.id}`,
-      source: `gateway-${gateway.id}`,
+      id: `e-agent-${virtualMcp.id}`,
+      source: `agent-${virtualMcp.id}`,
       target: "mesh",
       type: "smoothstep",
       animated: true,

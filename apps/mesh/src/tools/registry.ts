@@ -21,7 +21,8 @@
 export type ToolCategory =
   | "Organizations"
   | "Connections"
-  | "Gateways"
+  | "Virtual MCPs"
+  | "Threads"
   | "Monitoring"
   | "Users"
   | "API Keys"
@@ -51,12 +52,12 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_CONNECTIONS_UPDATE",
   "COLLECTION_CONNECTIONS_DELETE",
   "CONNECTION_TEST",
-  // Gateway tools
-  "COLLECTION_GATEWAY_CREATE",
-  "COLLECTION_GATEWAY_LIST",
-  "COLLECTION_GATEWAY_GET",
-  "COLLECTION_GATEWAY_UPDATE",
-  "COLLECTION_GATEWAY_DELETE",
+  // Virtual MCP tools
+  "COLLECTION_VIRTUAL_MCP_CREATE",
+  "COLLECTION_VIRTUAL_MCP_LIST",
+  "COLLECTION_VIRTUAL_MCP_GET",
+  "COLLECTION_VIRTUAL_MCP_UPDATE",
+  "COLLECTION_VIRTUAL_MCP_DELETE",
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
@@ -81,6 +82,13 @@ const ALL_TOOL_NAMES = [
   "CODE_EXECUTION_SEARCH_TOOLS",
   "CODE_EXECUTION_DESCRIBE_TOOLS",
   "CODE_EXECUTION_RUN_CODE",
+  // Thread tools
+  "COLLECTION_THREADS_CREATE",
+  "COLLECTION_THREADS_LIST",
+  "COLLECTION_THREADS_GET",
+  "COLLECTION_THREADS_UPDATE",
+  "COLLECTION_THREADS_DELETE",
+  "COLLECTION_THREAD_MESSAGES_LIST",
 ] as const;
 
 /**
@@ -218,31 +226,31 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Connections",
     dangerous: true,
   },
-  // Gateway tools
+  // Virtual MCP tools
   {
-    name: "COLLECTION_GATEWAY_CREATE",
-    description: "Create gateways",
-    category: "Gateways",
+    name: "COLLECTION_VIRTUAL_MCP_CREATE",
+    description: "Create virtual MCPs",
+    category: "Virtual MCPs",
   },
   {
-    name: "COLLECTION_GATEWAY_LIST",
-    description: "List gateways",
-    category: "Gateways",
+    name: "COLLECTION_VIRTUAL_MCP_LIST",
+    description: "List virtual MCPs",
+    category: "Virtual MCPs",
   },
   {
-    name: "COLLECTION_GATEWAY_GET",
-    description: "View gateway details",
-    category: "Gateways",
+    name: "COLLECTION_VIRTUAL_MCP_GET",
+    description: "View virtual MCP details",
+    category: "Virtual MCPs",
   },
   {
-    name: "COLLECTION_GATEWAY_UPDATE",
-    description: "Update gateways",
-    category: "Gateways",
+    name: "COLLECTION_VIRTUAL_MCP_UPDATE",
+    description: "Update virtual MCPs",
+    category: "Virtual MCPs",
   },
   {
-    name: "COLLECTION_GATEWAY_DELETE",
-    description: "Delete gateways",
-    category: "Gateways",
+    name: "COLLECTION_VIRTUAL_MCP_DELETE",
+    description: "Delete virtual MCPs",
+    category: "Virtual MCPs",
     dangerous: true,
   },
   // Monitoring tools
@@ -336,6 +344,38 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Code Execution",
     dangerous: true,
   },
+  // Thread tools
+  {
+    name: "COLLECTION_THREADS_CREATE",
+    description: "Create threads",
+    category: "Threads",
+  },
+  {
+    name: "COLLECTION_THREADS_LIST",
+    description: "List threads",
+    category: "Threads",
+  },
+  {
+    name: "COLLECTION_THREADS_GET",
+    description: "View thread details",
+    category: "Threads",
+  },
+  {
+    name: "COLLECTION_THREADS_UPDATE",
+    description: "Update threads",
+    category: "Threads",
+  },
+  {
+    name: "COLLECTION_THREADS_DELETE",
+    description: "Delete threads",
+    category: "Threads",
+    dangerous: true,
+  },
+  {
+    name: "COLLECTION_THREAD_MESSAGES_LIST",
+    description: "List thread messages",
+    category: "Threads",
+  },
 ];
 
 /**
@@ -360,11 +400,11 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_CONNECTIONS_DELETE: "Delete connections",
   CONNECTION_TEST: "Test connections",
   DATABASES_RUN_SQL: "Run SQL queries",
-  COLLECTION_GATEWAY_CREATE: "Create gateways",
-  COLLECTION_GATEWAY_LIST: "List gateways",
-  COLLECTION_GATEWAY_GET: "View gateway details",
-  COLLECTION_GATEWAY_UPDATE: "Update gateways",
-  COLLECTION_GATEWAY_DELETE: "Delete gateways",
+  COLLECTION_VIRTUAL_MCP_CREATE: "Create virtual MCPs",
+  COLLECTION_VIRTUAL_MCP_LIST: "List virtual MCPs",
+  COLLECTION_VIRTUAL_MCP_GET: "View virtual MCP details",
+  COLLECTION_VIRTUAL_MCP_UPDATE: "Update virtual MCPs",
+  COLLECTION_VIRTUAL_MCP_DELETE: "Delete virtual MCPs",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
   API_KEY_CREATE: "Create API key",
@@ -383,6 +423,12 @@ const TOOL_LABELS: Record<ToolName, string> = {
   CODE_EXECUTION_SEARCH_TOOLS: "Search tools",
   CODE_EXECUTION_DESCRIBE_TOOLS: "Describe tools",
   CODE_EXECUTION_RUN_CODE: "Run code",
+  COLLECTION_THREADS_CREATE: "Create threads",
+  COLLECTION_THREADS_LIST: "List threads",
+  COLLECTION_THREADS_GET: "View thread details",
+  COLLECTION_THREADS_UPDATE: "Update threads",
+  COLLECTION_THREADS_DELETE: "Delete threads",
+  COLLECTION_THREAD_MESSAGES_LIST: "List thread messages",
 };
 
 // ============================================================================
@@ -396,7 +442,8 @@ export function getToolsByCategory() {
   const grouped: Record<string, ToolMetadata[]> = {
     Organizations: [],
     Connections: [],
-    Gateways: [],
+    "Virtual MCPs": [],
+    Threads: [],
     Monitoring: [],
     Users: [],
     "API Keys": [],

@@ -8,7 +8,7 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { Suspense, useState } from "react";
 import { TopTools } from "./analytics-top-tools";
 import { TopServers, type MetricsMode } from "./analytics-top-servers";
-import { TopGateways } from "./analytics-top-gateways";
+import { TopAgents } from "./analytics-top-gateways";
 
 export function AnalyticsTab() {
   const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
@@ -59,8 +59,8 @@ export function AnalyticsTab() {
               </div>
             }
           >
-            <Suspense fallback={<TopGateways.Skeleton />}>
-              <TopGateways.Content metricsMode={metricsMode} />
+            <Suspense fallback={<TopAgents.Skeleton />}>
+              <TopAgents.Content metricsMode={metricsMode} />
             </Suspense>
           </ErrorBoundary>
         </div>

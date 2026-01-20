@@ -1,5 +1,5 @@
 import type { ConnectionCreateData } from "@/tools/connection/schema";
-import type { GatewayEntity } from "@/tools/gateway/schema";
+import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
 
 /** Deco CMS API host for detecting deco-hosted MCPs */
 export const DECO_CMS_API_HOST = "api.decocms.com";
@@ -185,15 +185,15 @@ export function getWellKnownMcpStudioConnection(): ConnectionCreateData {
 }
 
 /**
- * Get well-known Decopilot Agent gateway entity.
+ * Get well-known Decopilot Agent virtual MCP entity.
  * This is the default agent that aggregates all org connections except Mesh MCP and Store/Registry.
  *
  * @param organizationId - Organization ID
- * @returns GatewayEntity representing the Decopilot agent
+ * @returns VirtualMCPEntity representing the Decopilot agent
  */
 export function getWellKnownDecopilotAgent(
   organizationId: string,
-): GatewayEntity {
+): VirtualMCPEntity {
   return {
     id: `decopilot-${organizationId}`,
     organization_id: organizationId,

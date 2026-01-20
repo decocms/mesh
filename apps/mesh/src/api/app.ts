@@ -25,7 +25,7 @@ import { createEventBus, type EventBus } from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
 import authRoutes from "./routes/auth";
 import downstreamTokenRoutes from "./routes/downstream-token";
-import gatewayRoutes from "./routes/gateway";
+import virtualMcpRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
 import transcribeRoutes from "./routes/transcribe";
@@ -559,12 +559,12 @@ export function createApp(options: CreateAppOptions = {}) {
     return await next();
   };
   app.use("/mcp/:connectionId?", mcpAuth);
-  app.use("/mcp/gateway/:gatewayId?", mcpAuth);
+  app.use("/mcp/gateway/:virtualMcpId?", mcpAuth);
+  app.use("/mcp/virtual-mcp/:virtualMcpId?", mcpAuth);
 
-  // MCP Gateway routes (must be before proxy to match /mcp/gateway and /mcp/mesh before /mcp/:connectionId)
-  // Virtual gateway: /mcp/gateway/:gatewayId
-  // Legacy mesh: /mcp/mesh/:organizationSlug (deprecated)
-  app.route("/mcp", gatewayRoutes);
+  // MCP Virtual MCP routes (must be before proxy to match /mcp/gateway and /mcp/virtual-mcp before /mcp/:connectionId)
+  // Virtual MCP: /mcp/gateway/:virtualMcpId (backward compat) or /mcp/virtual-mcp/:virtualMcpId
+  app.route("/mcp", virtualMcpRoutes);
   // Management MCP routes
   app.route("/mcp", managementRoutes);
 

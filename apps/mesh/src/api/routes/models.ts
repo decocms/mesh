@@ -206,12 +206,12 @@ const toolsFromMCP = async (
   return Object.fromEntries(toolEntries);
 };
 
-function createGatewayTransport(
+function createVirtualMcpTransport(
   req: Request,
   organizationId: string,
-  gatewayId: string | null | undefined,
+  virtualMcpId: string | null | undefined,
 ): StreamableHTTPClientTransport {
-  // Build base URL for gateway
+  // Build base URL for virtual MCP
   const url = fixProtocol(new URL(req.url));
   const baseUrl = `${url.protocol}//${url.host}`;
 
@@ -224,12 +224,14 @@ function createGatewayTransport(
     }
   }
 
-  // Use /mcp/gateway/ for default, /mcp/gateway/:id for specific gateway
-  const gatewayPath = gatewayId ? `/mcp/gateway/${gatewayId}` : "/mcp/gateway";
-  const gatewayUrl = new URL(gatewayPath, baseUrl);
-  gatewayUrl.searchParams.set("mode", "code_execution");
+  // Use /mcp/virtual-mcp/ for default, /mcp/virtual-mcp/:id for specific virtual MCP
+  const virtualMcpPath = virtualMcpId
+    ? `/mcp/virtual-mcp/${virtualMcpId}`
+    : "/mcp/virtual-mcp";
+  const virtualMcpUrl = new URL(virtualMcpPath, baseUrl);
+  virtualMcpUrl.searchParams.set("mode", "code_execution");
 
-  return new StreamableHTTPClientTransport(gatewayUrl, {
+  return new StreamableHTTPClientTransport(virtualMcpUrl, {
     requestInit: { headers },
   });
 }
@@ -271,7 +273,7 @@ app.post("/:org/models/stream", async (c) => {
     const maxOutputTokens =
       modelConfig.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
-    const transport = createGatewayTransport(
+    const transport = createVirtualMcpTransport(
       c.req.raw,
       organization.id,
       gatewayConfig.id,

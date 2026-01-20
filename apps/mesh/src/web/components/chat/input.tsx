@@ -30,42 +30,42 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip";
+} from "@deco/ui/components/tooltip.tsx";
 import { toast } from "sonner";
 import { useChat } from "./context";
 import { ChatHighlight } from "./index";
 import {
-  GatewayPopoverContent,
-  GatewaySelector,
-  type GatewayInfo,
-} from "./select-gateway";
+  VirtualMCPPopoverContent,
+  VirtualMCPSelector,
+  type VirtualMCPInfo,
+} from "./select-virtual-mcp";
 import { ModelSelector } from "./select-model";
 import { UsageStats } from "./usage-stats";
 
 // ============================================================================
-// GatewayBadge - Internal component for displaying selected gateway
+// VirtualMCPBadge - Internal component for displaying selected virtual MCP (agent)
 // ============================================================================
 
-interface GatewayBadgeProps {
-  gatewayId: string;
-  gateways: GatewayInfo[];
-  onGatewayChange: (gatewayId: string | null) => void;
+interface VirtualMCPBadgeProps {
+  virtualMcpId: string;
+  virtualMcps: VirtualMCPInfo[];
+  onVirtualMcpChange: (virtualMcpId: string | null) => void;
   disabled?: boolean;
 }
 
-function GatewayBadge({
-  gatewayId,
-  gateways,
-  onGatewayChange,
+function VirtualMCPBadge({
+  virtualMcpId,
+  virtualMcps,
+  onVirtualMcpChange,
   disabled = false,
-}: GatewayBadgeProps) {
+}: VirtualMCPBadgeProps) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { org } = useProjectContext();
 
-  const gateway = gateways.find((g) => g.id === gatewayId);
-  if (!gateway) return null;
+  const virtualMcp = virtualMcps.find((g) => g.id === virtualMcpId);
+  if (!virtualMcp) return null;
 
   // Focus search input when popover opens
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -77,23 +77,23 @@ function GatewayBadge({
     }
   }, [open]);
 
-  const color = getGatewayColor(gatewayId);
+  const color = getGatewayColor(virtualMcpId);
 
   const handleReset = (e: MouseEvent) => {
     e.stopPropagation();
-    onGatewayChange(null);
+    onVirtualMcpChange(null);
   };
 
   const handleEdit = (e: MouseEvent) => {
     e.stopPropagation();
     navigate({
-      to: "/$org/gateways/$gatewayId",
-      params: { org: org.slug, gatewayId },
+      to: "/$org/agents/$agentId",
+      params: { org: org.slug, agentId: virtualMcpId },
     });
   };
 
-  const handleGatewayChange = (newGatewayId: string) => {
-    onGatewayChange(newGatewayId);
+  const handleVirtualMcpChange = (newVirtualMcpId: string) => {
+    onVirtualMcpChange(newVirtualMcpId);
     setOpen(false);
   };
 
@@ -104,7 +104,7 @@ function GatewayBadge({
         color?.bg,
       )}
     >
-      {/* Left side: Gateway selector trigger with popover */}
+      {/* Left side: Virtual MCP selector trigger with popover */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
@@ -116,13 +116,13 @@ function GatewayBadge({
             )}
           >
             <IntegrationIcon
-              icon={gateway.icon}
-              name={gateway.title}
+              icon={virtualMcp.icon}
+              name={virtualMcp.title}
               size="2xs"
-              fallbackIcon={gateway.fallbackIcon ?? <CpuChip02 size={10} />}
+              fallbackIcon={virtualMcp.fallbackIcon ?? <CpuChip02 size={10} />}
             />
             <span className="text-xs text-white font-normal">
-              {gateway.title}
+              {virtualMcp.title}
             </span>
             <ChevronDown size={14} className="text-white/50" />
           </button>
@@ -133,10 +133,10 @@ function GatewayBadge({
           side="top"
           sideOffset={8}
         >
-          <GatewayPopoverContent
-            gateways={gateways}
-            selectedGatewayId={gatewayId}
-            onGatewayChange={handleGatewayChange}
+          <VirtualMCPPopoverContent
+            virtualMcps={virtualMcps}
+            selectedVirtualMcpId={virtualMcpId}
+            onVirtualMcpChange={handleVirtualMcpChange}
             searchInputRef={searchInputRef}
           />
         </PopoverContent>
@@ -154,7 +154,7 @@ function GatewayBadge({
               ? "cursor-not-allowed opacity-50"
               : "cursor-pointer hover:bg-white/10",
           )}
-          aria-label="Edit gateway"
+          aria-label="Edit agent"
         >
           <Edit01 size={14} className="text-white" />
         </button>
@@ -188,9 +188,9 @@ export function ChatInput() {
     branchContext,
     clearBranch,
     setActiveThreadId,
-    gateways,
-    selectedGateway,
-    setGatewayId,
+    virtualMcps,
+    selectedVirtualMcp,
+    setVirtualMcpId,
     modelsConnections,
     selectedModel,
     setSelectedModel,
@@ -317,7 +317,9 @@ export function ChatInput() {
     }
   };
 
-  const color = selectedGateway ? getGatewayColor(selectedGateway.id) : null;
+  const color = selectedVirtualMcp
+    ? getGatewayColor(selectedVirtualMcp.id)
+    : null;
   const placeholder = isTranscribing
     ? "Transcrevendo áudio..."
     : !selectedModel
@@ -398,20 +400,20 @@ export function ChatInput() {
         </ChatHighlight>
       )}
 
-      {/* Gateway wrapper with badge */}
+      {/* Virtual MCP wrapper with badge */}
       <div
         className={cn(
           "relative rounded-xl w-full flex flex-col",
-          selectedGateway && "shadow-sm",
+          selectedVirtualMcp && "shadow-sm",
           color?.bg,
         )}
       >
-        {/* Gateway Badge Header */}
-        {selectedGateway && (
-          <GatewayBadge
-            gatewayId={selectedGateway.id}
-            gateways={gateways}
-            onGatewayChange={setGatewayId}
+        {/* Virtual MCP Badge Header */}
+        {selectedVirtualMcp && (
+          <VirtualMCPBadge
+            virtualMcpId={selectedVirtualMcp.id}
+            virtualMcps={virtualMcps}
+            onVirtualMcpChange={setVirtualMcpId}
             disabled={isStreaming}
           />
         )}
@@ -422,7 +424,7 @@ export function ChatInput() {
             onSubmit={handleSubmit}
             className={cn(
               "w-full relative rounded-xl min-h-[130px] flex flex-col border border-border bg-background",
-              !selectedGateway && "shadow-sm",
+              !selectedVirtualMcp && "shadow-sm",
             )}
           >
             <div className="relative flex flex-col gap-2 p-2.5 flex-1">
@@ -451,12 +453,12 @@ export function ChatInput() {
             <div className="flex items-center justify-between p-2.5">
               {/* Left Actions (selectors) */}
               <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                {/* GatewaySelector only shown when default is selected (no badge) */}
-                {!selectedGateway && (
-                  <GatewaySelector
-                    selectedGatewayId={null}
-                    onGatewayChange={setGatewayId}
-                    gateways={gateways}
+                {/* VirtualMCPSelector only shown when default is selected (no badge) */}
+                {!selectedVirtualMcp && (
+                  <VirtualMCPSelector
+                    selectedVirtualMcpId={null}
+                    onVirtualMcpChange={setVirtualMcpId}
+                    virtualMcps={virtualMcps}
                     placeholder="Agent"
                     disabled={isStreaming}
                   />

@@ -3,7 +3,7 @@
  *
  * Defines the interface for AI assistant providers.
  * Any MCP that implements this binding can provide configurable AI assistants
- * with a system prompt and runtime configuration (gateway + model).
+ * with a system prompt and runtime configuration (virtual MCP + model).
  *
  * This binding uses collection bindings for full CRUD operations.
  */
@@ -37,10 +37,12 @@ export const AssistantSchema = BaseCollectionEntitySchema.extend({
     .describe("System prompt that defines the assistant's behavior"),
 
   /**
-   * Selected gateway for this assistant (single gateway).
-   * This gateway determines which MCP tools are exposed to chat.
+   * Selected virtual MCP (agent) for this assistant.
+   * This virtual MCP determines which MCP tools are exposed to chat.
    */
-  gateway_id: z.string().describe("Gateway ID to use for this assistant"),
+  virtual_mcp_id: z
+    .string()
+    .describe("Virtual MCP ID to use for this assistant"),
 
   /**
    * Selected model for this assistant (model id + the connection where it lives).
@@ -75,7 +77,7 @@ export const ASSISTANTS_COLLECTION_BINDING = createCollectionBindings(
  *
  * Required tools:
  * - COLLECTION_ASSISTANT_LIST: List available AI assistants with their configurations
- * - COLLECTION_ASSISTANT_GET: Get a single assistant by ID (includes system_prompt, gateway_id, model)
+ * - COLLECTION_ASSISTANT_GET: Get a single assistant by ID (includes system_prompt, virtual_mcp_id, model)
  *
  * Optional tools:
  * - COLLECTION_ASSISTANT_CREATE: Create a new assistant

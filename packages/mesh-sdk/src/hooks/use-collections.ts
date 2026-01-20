@@ -142,7 +142,7 @@ function buildOrderByExpression<T extends CollectionEntity>(
 /**
  * Get a single item by ID from a collection
  *
- * @param scopeKey - The scope key (connectionId for connection-scoped, gatewayId for gateway-scoped, etc.)
+ * @param scopeKey - The scope key (connectionId for connection-scoped, virtualMcpId for virtual-mcp-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
  * @param itemId - The ID of the item to fetch
  * @param toolCaller - The tool caller function for making API calls
@@ -185,7 +185,7 @@ export function useCollectionItem<T extends CollectionEntity>(
 /**
  * Get a paginated list of items from a collection
  *
- * @param scopeKey - The scope key (connectionId for connection-scoped, gatewayId for gateway-scoped, etc.)
+ * @param scopeKey - The scope key (connectionId for connection-scoped, virtualMcpId for virtual-mcp-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
  * @param toolCaller - The tool caller function for making API calls
  * @param options - Filter and configuration options
@@ -250,7 +250,7 @@ export function useCollectionList<T extends CollectionEntity>(
 /**
  * Get mutation actions for create, update, and delete operations
  *
- * @param scopeKey - The scope key (connectionId for connection-scoped, gatewayId for gateway-scoped, etc.)
+ * @param scopeKey - The scope key (connectionId for connection-scoped, virtualMcpId for virtual-mcp-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
  * @param toolCaller - The tool caller function for making API calls
  * @returns Object with create, update, and delete mutation hooks

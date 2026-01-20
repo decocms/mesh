@@ -12,9 +12,10 @@ import * as CodeExecutionTools from "./code-execution";
 import * as ConnectionTools from "./connection";
 import * as DatabaseTools from "./database";
 import * as EventBusTools from "./eventbus";
-import * as GatewayTools from "./gateway";
+import * as VirtualMCPTools from "./virtual-mcp";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
+import * as ThreadTools from "./thread";
 import * as UserTools from "./user";
 import { ToolName } from "./registry";
 
@@ -40,12 +41,12 @@ export const ALL_TOOLS = [
   ConnectionTools.COLLECTION_CONNECTIONS_DELETE,
   ConnectionTools.CONNECTION_TEST,
 
-  // Gateway collection tools
-  GatewayTools.COLLECTION_GATEWAY_CREATE,
-  GatewayTools.COLLECTION_GATEWAY_LIST,
-  GatewayTools.COLLECTION_GATEWAY_GET,
-  GatewayTools.COLLECTION_GATEWAY_UPDATE,
-  GatewayTools.COLLECTION_GATEWAY_DELETE,
+  // Virtual MCP collection tools
+  VirtualMCPTools.COLLECTION_VIRTUAL_MCP_CREATE,
+  VirtualMCPTools.COLLECTION_VIRTUAL_MCP_LIST,
+  VirtualMCPTools.COLLECTION_VIRTUAL_MCP_GET,
+  VirtualMCPTools.COLLECTION_VIRTUAL_MCP_UPDATE,
+  VirtualMCPTools.COLLECTION_VIRTUAL_MCP_DELETE,
 
   // Database tools
   DatabaseTools.DATABASES_RUN_SQL,
@@ -75,6 +76,13 @@ export const ALL_TOOLS = [
   CodeExecutionTools.CODE_EXECUTION_SEARCH_TOOLS,
   CodeExecutionTools.CODE_EXECUTION_DESCRIBE_TOOLS,
   CodeExecutionTools.CODE_EXECUTION_RUN_CODE,
+  // Thread collection tools
+  ThreadTools.COLLECTION_THREADS_CREATE,
+  ThreadTools.COLLECTION_THREADS_LIST,
+  ThreadTools.COLLECTION_THREADS_GET,
+  ThreadTools.COLLECTION_THREADS_UPDATE,
+  ThreadTools.COLLECTION_THREADS_DELETE,
+  ThreadTools.COLLECTION_THREAD_MESSAGES_LIST,
 ] as const satisfies { name: ToolName }[];
 
 export type MCPMeshTools = typeof ALL_TOOLS;
