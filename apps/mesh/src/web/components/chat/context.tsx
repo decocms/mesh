@@ -364,7 +364,7 @@ function fileAttrsToParts(
       return [
         {
           type: "text",
-          text: `[${mentionName}]\n${decodedText}`,
+          text: `${mentionName}\n${decodedText}`,
         },
       ];
     } catch (error) {
@@ -437,7 +437,7 @@ function derivePartsFromTiptapDoc(
       }
     } else if (node.type === "file" && node.attrs) {
       const fileAttrs = node.attrs as unknown as FileAttrs;
-      const mentionName = `[${fileAttrs.name}]`;
+      const mentionName = `[file:://${fileAttrs.name}]`;  
 
       inlineText += mentionName;
 

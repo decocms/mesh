@@ -52,7 +52,7 @@ export function insertFile(
     .run();
 }
 
-export function createFileDoc(attrs: FileAttrs): JSONContent {
+function createFileDoc(attrs: FileAttrs): JSONContent {
   return {
     type: "file",
     attrs: attrs satisfies FileAttrs,
