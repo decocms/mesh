@@ -437,7 +437,7 @@ function derivePartsFromTiptapDoc(
       }
     } else if (node.type === "file" && node.attrs) {
       const fileAttrs = node.attrs as unknown as FileAttrs;
-      const mentionName = `[file:://${fileAttrs.name}]`;  
+      const mentionName = `[file:://${fileAttrs.name}]`;
 
       inlineText += mentionName;
 
