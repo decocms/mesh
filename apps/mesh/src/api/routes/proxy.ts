@@ -830,7 +830,17 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     // Handle the incoming message
-    return await transport.handleRequest(req);
+    // CRITICAL: Use try/finally to ensure transport is closed after request
+    // Without this, ReadableStream/WritableStream controllers accumulate in memory
+    try {
+      return await transport.handleRequest(req);
+    } finally {
+      try {
+        await transport.close?.();
+      } catch {
+        // Ignore close errors - transport may already be closed
+      }
+    }
   };
 
   return {
