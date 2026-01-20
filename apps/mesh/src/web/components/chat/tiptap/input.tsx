@@ -82,7 +82,7 @@ export function ChatTiptapInput({
         editor?.commands.clearContent(true);
       },
     }),
-    [editor, ref],
+    [editor],
   );
 
   // Sync editor content when tiptapDoc changes externally

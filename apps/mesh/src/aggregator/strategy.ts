@@ -106,20 +106,25 @@ const RUN_CODE_INPUT_JSON_SCHEMA = z.toJSONSchema(
   RUN_CODE_INPUT_SCHEMA,
 ) as Tool["inputSchema"];
 
+type CallToolInput = {
+  name: string;
+  arguments: Record<string, unknown>;
+};
+
 // Cache for dynamic CALL_TOOL schemas (keyed by sorted tool names)
 const callToolSchemaCache = new Map<
   string,
-  { schema: z.ZodTypeAny; jsonSchema: Tool["inputSchema"] }
+  { schema: z.ZodType<CallToolInput>; jsonSchema: Tool["inputSchema"] }
 >();
 
 function getCallToolSchema(toolNames: string[]): {
-  schema: z.ZodTypeAny;
+  schema: z.ZodType<CallToolInput>;
   jsonSchema: Tool["inputSchema"];
 } {
   const cacheKey = toolNames.slice().sort().join(",");
   let cached = callToolSchemaCache.get(cacheKey);
   if (!cached) {
-    const schema = z.object({
+    const schema: z.ZodType<CallToolInput> = z.object({
       name: (toolNames.length > 0
         ? z.enum(toolNames as [string, ...string[]])
         : z.string()

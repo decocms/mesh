@@ -1,3 +1,4 @@
+import { KEYS } from "@/web/lib/query-keys";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { PluginKey } from "@tiptap/pm/state";
 import type { Editor, Range } from "@tiptap/react";
@@ -457,7 +458,7 @@ export function useSuggestion<T extends BaseItem = BaseItem>({
   // Fetch items using React Query with Suspense
   // Include `open` in queryKey to separate cache for open/closed states
   const { data: items } = useSuspenseQuery({
-    queryKey: [...queryKey, menuState.open, deferredQuery],
+    queryKey: KEYS.suggestionItems(queryKey, menuState.open, deferredQuery),
     queryFn: () => {
       // Return empty array immediately when menu is closed (avoids fetching)
       if (!menuState.open) {

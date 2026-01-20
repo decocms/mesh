@@ -35,7 +35,11 @@ async function fetchAndInsertPrompt(
   values?: PromptArgumentValues,
 ) {
   try {
-    const result = await fetchVirtualMCPPrompt(virtualMcpId, promptName, values);
+    const result = await fetchVirtualMCPPrompt(
+      virtualMcpId,
+      promptName,
+      values,
+    );
 
     if (result.messages && result.messages.length > 0) {
       insertMention(editor, range, {
@@ -84,7 +88,13 @@ export const PromptsMention = ({
 
     const { range, item: prompt } = activePrompt;
 
-    await fetchAndInsertPrompt(editor, range, virtualMcpId, prompt.name, values);
+    await fetchAndInsertPrompt(
+      editor,
+      range,
+      virtualMcpId,
+      prompt.name,
+      values,
+    );
     setActivePrompt(null);
   };
 

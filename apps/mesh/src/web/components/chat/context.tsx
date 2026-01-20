@@ -555,6 +555,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     };
     threadActions.insert.mutate(newThread);
     setActiveThreadId(id);
+    clearBranch();
     return newThread;
   };
 

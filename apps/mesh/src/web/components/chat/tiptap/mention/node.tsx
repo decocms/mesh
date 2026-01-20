@@ -7,7 +7,6 @@ import {
   type NodeViewProps,
   type Range,
 } from "@tiptap/react";
-import { TiptapDoc } from "../../types";
 
 // ============================================================================
 // Mention Attributes (shared between MentionNode and mention insertion)
@@ -61,8 +60,10 @@ export function createMentionDoc<T>(attrs: MentionAttrs<T>): JSONContent {
 // ============================================================================
 
 function MentionNodeView(props: NodeViewProps) {
-  const { node, selected } = props;
+  const { node, selected, view } = props;
   const { name, char } = node.attrs as MentionAttrs;
+
+  const isSelected = selected && view.editable;
 
   return (
     <NodeViewWrapper
@@ -72,7 +73,7 @@ function MentionNodeView(props: NodeViewProps) {
         "cursor-default select-none",
         "text-xs font-light",
         "bg-amber-100 text-amber-700",
-        selected && "outline-2 outline-blue-300 outline-offset-0",
+        isSelected && "outline-2 outline-blue-300 outline-offset-0",
       )}
     >
       {char}

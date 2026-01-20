@@ -241,8 +241,9 @@ function VirtualMCPIceBreakersContent({
   const { tiptapDoc, sendMessage } = useChat();
   const { data: prompts } = useVirtualMCPPrompts(virtualMcpId);
   const [state, dispatch] = useReducer(iceBreakerReducer, { stage: "idle" });
-  const [dialogPrompt, setDialogPrompt] =
-    useState<VirtualMCPPrompt | null>(null);
+  const [dialogPrompt, setDialogPrompt] = useState<VirtualMCPPrompt | null>(
+    null,
+  );
 
   const loadPrompt = async (
     prompt: VirtualMCPPrompt,

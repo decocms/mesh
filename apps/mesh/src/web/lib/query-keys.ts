@@ -136,8 +136,11 @@ export const KEYS = {
 
   // Suggestion menu items (for filtering prompts/resources in chat input)
   // Note: The hook appends `show` and `query` to this base key
-  suggestionItems: (virtualMcpId: string) =>
-    ["suggestion-items", virtualMcpId] as const,
+  suggestionItems: (
+    baseKey: readonly unknown[],
+    isOpen: boolean,
+    query: string,
+  ) => [...baseKey, isOpen, query] as const,
 
   // Connection prompts (for gateway settings)
   connectionPrompts: (connectionId: string) =>
