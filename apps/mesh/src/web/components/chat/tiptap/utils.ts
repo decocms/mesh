@@ -33,7 +33,9 @@ export function isTiptapDocEmpty(doc: TiptapDoc | null | undefined): boolean {
     if (node.type === "paragraph") {
       if (!node.content || node.content.length === 0) return true;
       return node.content.every(
-        (child) => child.type === "text" && (!child.text || child.text === ""),
+        (child) =>
+          child.type === "hardBreak" ||
+          (child.type === "text" && (!child.text || child.text.trim() === "")),
       );
     }
     return false;
