@@ -2,7 +2,7 @@ import {
   fetchVirtualMCPPrompt,
   fetchVirtualMCPPrompts,
   type VirtualMCPPrompt,
-} from "@/web/hooks/use-virtual-mcp-prompts";
+} from "@/web/hooks/use-virtual-mcp-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
@@ -41,14 +41,12 @@ async function fetchAndInsertPrompt(
       values,
     );
 
-    if (result.messages && result.messages.length > 0) {
-      insertMention(editor, range, {
-        id: promptName,
-        name: promptName,
-        metadata: result.messages,
-        char: "/",
-      });
-    }
+    insertMention(editor, range, {
+      id: promptName,
+      name: promptName,
+      metadata: result.messages,
+      char: "/",
+    });
   } catch (error) {
     console.error("[prompt] Failed to fetch prompt:", error);
     toast.error("Failed to load prompt. Please try again.");

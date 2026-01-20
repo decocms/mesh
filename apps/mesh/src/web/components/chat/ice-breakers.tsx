@@ -2,7 +2,7 @@ import {
   fetchVirtualMCPPrompt,
   useVirtualMCPPrompts,
   type VirtualMCPPrompt,
-} from "@/web/hooks/use-virtual-mcp-prompts";
+} from "@/web/hooks/use-virtual-mcp-client";
 import {
   Popover,
   PopoverContent,

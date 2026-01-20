@@ -1,4 +1,4 @@
-import type { VirtualMCPPrompt } from "@/web/hooks/use-virtual-mcp-prompts";
+import type { VirtualMCPPrompt } from "@/web/hooks/use-virtual-mcp-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Dialog,

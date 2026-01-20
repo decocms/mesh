@@ -134,6 +134,10 @@ export const KEYS = {
   virtualMcpPrompts: (virtualMcpId: string) =>
     ["virtual-mcp", virtualMcpId, "prompts"] as const,
 
+  // Virtual MCP resources (for resource mentions in chat)
+  virtualMcpResources: (virtualMcpId: string) =>
+    ["virtual-mcp", virtualMcpId, "resources"] as const,
+
   // Suggestion menu items (for filtering prompts/resources in chat input)
   // Note: The hook appends `show` and `query` to this base key
   suggestionItems: (

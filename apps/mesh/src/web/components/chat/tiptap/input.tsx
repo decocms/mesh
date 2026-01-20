@@ -147,7 +147,7 @@ export function ChatTiptapInput({
       <PromptsMention editor={editor} virtualMcpId={virtualMcpId} />
 
       {/* Render resources dropdown menu */}
-      <ResourcesMention editor={editor} />
+      <ResourcesMention editor={editor} virtualMcpId={virtualMcpId} />
     </>
   );
 }

@@ -9,6 +9,7 @@ import { useChat as useAIChat } from "@ai-sdk/react";
 import type {
   EmbeddedResource,
   PromptMessage,
+  ReadResourceResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   DefaultChatTransport,
@@ -235,6 +236,116 @@ function chatStateReducer(
 }
 
 /**
+ * Converts resource contents to UI message parts
+ */
+function resourcesToParts(
+  contents: ReadResourceResult['contents'],
+  mentionName: string, // uri for the resource
+): UIMessagePart<UIDataTypes, UITools>[] {
+  const parts: UIMessagePart<UIDataTypes, UITools>[] = [];
+
+  for (const content of contents) {
+    if ("text" in content && content.text) {
+      parts.push({
+        type: "text",
+        text: `[${mentionName}]\n${content.text}`,
+      });
+    } else if ("blob" in content && content.blob && content.mimeType) {
+      parts.push({
+        type: "file",
+        url: `data:${content.mimeType};base64,${content.blob}`,
+        filename: String(content.uri),
+        mediaType: String(content.mimeType),
+      });
+    }
+  }
+
+  return parts;
+}
+
+/**
+ * Converts prompt messages to UI message parts
+ */
+function promptMessagesToParts(
+  messages: PromptMessage[],
+  mentionName: string,
+): UIMessagePart<UIDataTypes, UITools>[] {
+  const parts: UIMessagePart<UIDataTypes, UITools>[] = [];
+
+  // Process MCP prompt messages and extract content
+  for (const message of messages) {
+    if (message.role !== "user" || !message.content) continue;
+
+    const messageContents = Array.isArray(message.content)
+      ? message.content
+      : [message.content];
+
+    for (const content of messageContents) {
+      switch (content.type) {
+        case "text": {
+          const text = content.text?.trim();
+          if (!text) {
+            continue;
+          }
+
+          parts.push({
+            type: "text",
+            text: `[${mentionName}]\n${text}`,
+          });
+          break;
+        }
+        case "image":
+        case "audio": {
+          if (!content.data || !content.mimeType) {
+            continue;
+          }
+
+          parts.push({
+            type: "file",
+            url: `data:${content.mimeType};base64,${content.data}`,
+            mediaType: content.mimeType,
+          });
+
+          break;
+        }
+        case "resource": {
+          const resource = content.resource as
+            | EmbeddedResource["resource"]
+            | undefined;
+
+          if (!resource || !resource.mimeType) {
+            continue;
+          }
+
+          if (resource) {
+            if ("text" in resource && resource.text) {
+              parts.push({
+                type: "text",
+                text: `[${mentionName}]\n${resource.text}`,
+              });
+            } else if (
+              "blob" in resource &&
+              resource.blob &&
+              resource.mimeType
+            ) {
+              parts.push({
+                type: "file",
+                url: `data:${resource.mimeType};base64,${resource.blob}`,
+                filename: String(resource.uri),
+                mediaType: String(resource.mimeType),
+              });
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  return parts;
+}
+
+/**
  * Helper to derive UI parts from TiptapDoc
  * Walks the tiptap document to extract inline text and collect resources from prompt tags
  */
@@ -265,86 +376,24 @@ function derivePartsFromTiptapDoc(
       typeof node.text === "string"
     ) {
       inlineText += node.text;
-    } else if (
-      (node.type === "mention" || node.type === "promptTag") &&
-      node.attrs
-    ) {
-      // Read from metadata attribute (new format) or fallback to prompts (old format)
-      const prompts = (node.attrs.metadata ||
-        node.attrs.prompts ||
-        []) as PromptMessage[];
-      const promptName = `/${node.attrs.name}`;
+    } else if (node.type === "mention" && node.attrs) {
+      const char = (node.attrs.char as string | undefined) ?? "/";
+      const mentionName = `${char}${node.attrs.name}`;
 
       // Add label to inline text
-      inlineText += promptName;
+      inlineText += mentionName;
 
-      // Process MCP prompt messages and extract content
-      for (const message of prompts) {
-        if (message.role !== "user" || !message.content) continue;
-
-        const contents = Array.isArray(message.content)
-          ? message.content
-          : [message.content];
-
-        for (const content of contents) {
-          switch (content.type) {
-            case "text": {
-              const text = content.text?.trim();
-              if (!text) {
-                continue;
-              }
-
-              parts.push({
-                type: "text",
-                text: `[${promptName}]\n${text}`,
-              });
-              break;
-            }
-            case "image":
-            case "audio": {
-              if (!content.data || !content.mimeType) {
-                continue;
-              }
-
-              parts.push({
-                type: "file",
-                url: `data:${content.mimeType};base64,${content.data}`,
-                mediaType: content.mimeType,
-              });
-
-              break;
-            }
-            case "resource": {
-              const resource = content.resource as
-                | EmbeddedResource["resource"]
-                | undefined;
-
-              if (!resource || !resource.mimeType) {
-                continue;
-              }
-
-              if (resource) {
-                if ("text" in resource && resource.text) {
-                  parts.push({
-                    type: "text",
-                    text: `[${promptName}]\n${resource.text}`,
-                  });
-                } else if (
-                  "blob" in resource &&
-                  resource.blob &&
-                  resource.mimeType
-                ) {
-                  parts.push({
-                    type: "file",
-                    url: `data:${resource.mimeType};base64,${resource.blob}`,
-                    mediaType: resource.mimeType,
-                  });
-                }
-              }
-              break;
-            }
-          }
-        }
+      // Handle resource mentions (@) vs prompt mentions (/)
+      if (char === "@") {
+        // Resource mentions: metadata contains ReadResourceResult.contents directly
+        const contents = (node.attrs.metadata || []) as ReadResourceResult['contents'];
+        parts.push(...resourcesToParts(contents, mentionName));
+      } else {
+        // Prompt mentions: metadata contains PromptMessage[]
+        const prompts = (node.attrs.metadata ||
+          node.attrs.prompts ||
+          []) as PromptMessage[];
+        parts.push(...promptMessagesToParts(prompts, mentionName));
       }
     }
 

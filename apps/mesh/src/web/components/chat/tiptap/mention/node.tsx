@@ -64,6 +64,7 @@ function MentionNodeView(props: NodeViewProps) {
   const { name, char } = node.attrs as MentionAttrs;
 
   const isSelected = selected && view.editable;
+  const isResource = char === "@";
 
   return (
     <NodeViewWrapper
@@ -72,7 +73,9 @@ function MentionNodeView(props: NodeViewProps) {
         "inline-flex items-center gap-1",
         "cursor-default select-none",
         "text-xs font-light",
-        "bg-amber-100 text-amber-700",
+        isResource
+          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+          : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
         isSelected && "outline-2 outline-blue-300 outline-offset-0",
       )}
     >
