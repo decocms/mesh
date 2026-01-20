@@ -121,8 +121,13 @@ export const MentionNode = Node.create({
       },
       metadata: {
         default: null,
-        parseHTML: (element) =>
-          JSON.parse(element.getAttribute("data-metadata") || "null"),
+        parseHTML: (element) => {
+          try {
+            return JSON.parse(element.getAttribute("data-metadata") || "null");
+          } catch {
+            return null;
+          }
+        },
         renderHTML: (attributes) => {
           if (!attributes.metadata) return {};
           return { "data-metadata": JSON.stringify(attributes.metadata) };

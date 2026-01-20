@@ -1,14 +1,6 @@
 /* eslint-disable ban-memoization/ban-memoization */
 import { marked } from "marked";
-import React, {
-  lazy,
-  memo,
-  Suspense,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
@@ -65,10 +57,6 @@ function LazyHighlighter({
   );
 }
 
-const LazyHighlighterComponent = lazy(() =>
-  Promise.resolve({ default: LazyHighlighter }),
-);
-
 // Custom hook for copy functionality - simplified version
 function useCopy() {
   const [copied, setCopied] = useState(false);
@@ -80,78 +68,6 @@ function useCopy() {
   }, []);
 
   return { handleCopy, copied };
-}
-
-function LazyHighlighterFallback() {
-  const lines = [85, 70];
-
-  return (
-    <div
-      className="p-4 font-mono text-sm"
-      style={{
-        background: "#2d2d2d",
-        borderRadius: "0 0 0.5rem 0.5rem",
-        overflow: "auto",
-        minHeight: "4rem",
-      }}
-    >
-      {lines.map((width, i) => (
-        <div key={i} className="flex gap-2 items-center my-1">
-          {i > 2 && i < 7 && (
-            <div
-              className="w-4 h-4 rounded-sm opacity-40 animate-pulse"
-              style={{
-                background: "rgba(128, 128, 128, 0.3)",
-                animationDelay: `${i * 0.1}s`,
-              }}
-            />
-          )}
-
-          {i % 4 === 0 && (
-            <div
-              className="h-4 rounded animate-pulse"
-              style={{
-                width: "3rem",
-                background: "rgba(128, 128, 128, 0.3)",
-                animationDelay: `${i * 0.12}s`,
-              }}
-            />
-          )}
-
-          {i % 3 === 1 && (
-            <div
-              className="h-4 rounded animate-pulse"
-              style={{
-                width: "2.5rem",
-                background: "rgba(128, 128, 128, 0.3)",
-                animationDelay: `${i * 0.14}s`,
-              }}
-            />
-          )}
-
-          <div
-            className="h-4 rounded animate-pulse"
-            style={{
-              width: `${width}%`,
-              background: "rgba(255, 255, 255, 0.1)",
-              animationDelay: `${i * 0.1}s`,
-            }}
-          />
-
-          {i % 5 === 2 && (
-            <div
-              className="h-4 rounded animate-pulse"
-              style={{
-                width: "4rem",
-                background: "rgba(128, 128, 128, 0.3)",
-                animationDelay: `${i * 0.16}s`,
-              }}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function Table(props: React.HTMLAttributes<HTMLTableElement>) {
@@ -323,9 +239,7 @@ function CodeBlock({
         </Button>
       </div>
 
-      <Suspense fallback={<LazyHighlighterFallback />}>
-        <LazyHighlighterComponent language={language} content={content} />
-      </Suspense>
+      <LazyHighlighter language={language} content={content} />
     </div>
   );
 }

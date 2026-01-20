@@ -78,53 +78,56 @@ function useMenuNavigation<T>({
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
 
-  // Reset selection when query changes
-  const deferredQuery = useDeferredValue(query);
-  const lastQueryRef = useRef(deferredQuery);
-  if (lastQueryRef.current !== deferredQuery) {
-    lastQueryRef.current = deferredQuery;
-    if (selectedIndex !== 0) {
-      setSelectedIndex(0);
-    }
-  }
+  // Store current values in refs for keyboard handler closure
+  const itemsRef = useRef(items);
+  const selectedIndexRef = useRef(selectedIndex);
+  const onSelectRef = useRef(onSelect);
+  const onCloseRef = useRef(onClose);
 
-  // Reset selection when items change
-  const itemsLengthRef = useRef(items.length);
-  if (itemsLengthRef.current !== items.length) {
-    itemsLengthRef.current = items.length;
+  const deferredQuery = useDeferredValue(query);
+
+  // Reset selection when query changes
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [deferredQuery]);
+
+  // Reset selection when items shrink and current index is out of bounds
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
     if (selectedIndex >= items.length && items.length > 0) {
       setSelectedIndex(0);
     }
-  }
+  }, [items.length, selectedIndex]);
 
-  // Store refs for use in keyboard handler
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
-  const selectedIndexRef = useRef(selectedIndex);
-  selectedIndexRef.current = selectedIndex;
-  const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  // Keep refs in sync with props/state
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    selectedIndexRef.current = selectedIndex;
+  }, [selectedIndex]);
+
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Attach keyboard listener to editor
   // eslint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
+    const dom = editor.view.dom;
+
     // Guard against editor being destroyed
-    if (editor.isDestroyed) {
-      return undefined;
-    }
-
-    // Safely check if view is available
-    let targetElement: HTMLElement | undefined;
-    try {
-      targetElement = editor.view?.dom;
-    } catch {
-      // Editor view not ready yet
-      return undefined;
-    }
-
-    if (!targetElement) {
+    if (editor.isDestroyed || !dom) {
       return undefined;
     }
 
@@ -206,9 +209,9 @@ function useMenuNavigation<T>({
     const handler = (e: Event) => {
       handleKeyDown(e as KeyboardEvent);
     };
-    targetElement.addEventListener("keydown", handler, true);
+    dom.addEventListener("keydown", handler, true);
     return () => {
-      targetElement?.removeEventListener("keydown", handler, true);
+      dom?.removeEventListener("keydown", handler, true);
     };
   }, [editor]);
 

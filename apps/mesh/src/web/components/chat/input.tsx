@@ -202,8 +202,8 @@ export function ChatInput() {
   const canSubmit =
     !isStreaming && !!selectedModel && !isTiptapDocEmpty(tiptapDoc);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: FormEvent) => {
+    e?.preventDefault();
     if (isStreaming) {
       stopStreaming();
     } else if (canSubmit && tiptapDoc) {
@@ -356,6 +356,7 @@ export function ChatInput() {
                 selectedModel={selectedModel}
                 isStreaming={isStreaming}
                 selectedVirtualMcp={selectedVirtualMcp}
+                onSubmit={handleSubmit}
               />
             </div>
 

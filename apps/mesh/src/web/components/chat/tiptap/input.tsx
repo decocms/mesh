@@ -3,7 +3,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { Ref } from "react";
-import { useEffect, useImperativeHandle } from "react";
+import { useEffect, useImperativeHandle, useRef } from "react";
 import type { VirtualMCPInfo } from "../select-virtual-mcp";
 import type { SelectedModelState } from "../select-model";
 import type { Metadata } from "../types.ts";
@@ -36,6 +36,7 @@ interface ChatTiptapInputProps {
   selectedModel: SelectedModelState | null;
   isStreaming: boolean;
   selectedVirtualMcp: VirtualMCPInfo | null;
+  onSubmit?: () => void;
 }
 
 export function ChatTiptapInput({
@@ -48,9 +49,13 @@ export function ChatTiptapInput({
     selectedModel,
     isStreaming,
     selectedVirtualMcp,
+    onSubmit,
   } = props;
   const virtualMcpId = selectedVirtualMcp?.id ?? null;
   const isDisabled = isStreaming || !selectedModel;
+
+  // Store onSubmit in a ref to avoid recreating the editor on every render
+  const onSubmitRef = useRef(onSubmit);
 
   // Initialize Tiptap editor
   const editor = useEditor(
@@ -63,13 +68,22 @@ export function ChatTiptapInput({
           class:
             "prose prose-sm max-w-none focus:outline-none w-full min-h-[20px] text-[15px]",
         },
+        handleKeyDown: (_view, event) => {
+          // Handle Enter key: submit on Enter, new line on Shift+Enter
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            onSubmitRef.current?.();
+            return true;
+          }
+          return false;
+        },
       },
       onUpdate: ({ editor }) => {
         // Update tiptapDoc in context whenever editor changes
         setTiptapDoc(editor.getJSON());
       },
     },
-    [selectedModel, isStreaming],
+    [isDisabled, setTiptapDoc],
   );
 
   useImperativeHandle(
@@ -84,6 +98,12 @@ export function ChatTiptapInput({
     }),
     [editor],
   );
+
+  // Keep the ref up to date
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    onSubmitRef.current = onSubmit;
+  }, [onSubmit]);
 
   // Sync editor content when tiptapDoc changes externally
   // eslint-disable-next-line ban-use-effect/ban-use-effect
