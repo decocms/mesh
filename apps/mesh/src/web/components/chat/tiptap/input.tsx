@@ -20,7 +20,7 @@ const GLOBAL_EXTENSIONS = [
     horizontalRule: false,
   }),
   Placeholder.configure({
-    placeholder: "Ask anything, / for prompts, @ for resources",
+    placeholder: "Ask anything, use / for prompts, @ for resources, or drop files here...",
     showOnlyWhenEditable: false,
   }),
   MentionNode,
