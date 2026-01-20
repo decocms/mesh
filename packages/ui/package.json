@@ -9,8 +9,7 @@
     "./lib/*": "./src/lib/*",
     "./styles/*": "./src/styles/*",
     "./assets/*": "./src/assets/*",
-    "./providers/*": "./src/providers/*",
-    "./types/*": "./src/types/*"
+    "./providers/*": "./src/providers/*"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.3",

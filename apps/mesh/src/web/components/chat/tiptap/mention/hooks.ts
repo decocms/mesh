@@ -250,7 +250,7 @@ export type SuggestionAction =
     }
   | { type: "ON_EXIT" };
 
-export function reducer(
+function reducer(
   state: SuggestionState,
   action: SuggestionAction,
 ): SuggestionState {
