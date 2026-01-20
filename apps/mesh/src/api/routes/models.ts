@@ -280,6 +280,9 @@ app.post("/:org/models/stream", async (c) => {
     );
 
     const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
+    // CRITICAL: Assign mcpClient immediately so catch block can clean up
+    // if an error occurs or early return happens after client.connect()
+    mcpClient = client;
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
     const [modelMessages, connection] = await Promise.all([
@@ -289,13 +292,13 @@ app.post("/:org/models/stream", async (c) => {
     ]);
 
     if (!connection) {
+      // Close client before early return to prevent memory leak
+      await client.close().catch(console.error);
       return c.json(
         { error: `Model connection not found: ${modelConfig.connectionId}` },
         404,
       );
     }
-
-    mcpClient = client;
 
     // Extract context from frontend system message and combine with base prompt
     const systemMessages = [
