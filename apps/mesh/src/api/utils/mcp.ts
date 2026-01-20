@@ -324,7 +324,16 @@ class McpServerBuilder {
             req.headers.get("Accept")?.includes("application/json") ?? false,
         });
         await createServer().connect(transport);
-        return await transport.handleRequest(req);
+        // CRITICAL: Use try/finally to ensure transport is closed
+        try {
+          return await transport.handleRequest(req);
+        } finally {
+          try {
+            await transport.close?.();
+          } catch {
+            // Ignore close errors
+          }
+        }
       },
     };
   }

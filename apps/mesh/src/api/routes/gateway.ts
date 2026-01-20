@@ -378,7 +378,16 @@ async function handleVirtualMcpRequest(
     );
 
     // Handle the incoming MCP message
-    return await transport.handleRequest(c.req.raw);
+    // CRITICAL: Use try/finally to ensure transport is closed
+    try {
+      return await transport.handleRequest(c.req.raw);
+    } finally {
+      try {
+        await transport.close?.();
+      } catch {
+        // Ignore close errors
+      }
+    }
   } catch (error) {
     const err = error as Error;
     console.error("[virtual-mcp] Error handling virtual MCP request:", err);
