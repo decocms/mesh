@@ -2,19 +2,7 @@ import {
   fetchVirtualMCPPrompt,
   useVirtualMCPPrompts,
   type VirtualMCPPrompt,
-  type VirtualMCPPromptResult,
 } from "@/web/hooks/use-virtual-mcp-prompts";
-import { Button } from "@deco/ui/components/button.tsx";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@deco/ui/components/form.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
 import {
   Popover,
   PopoverContent,
@@ -29,13 +17,16 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Suspense, useReducer } from "react";
-import { type Resolver, useForm } from "react-hook-form";
+import { Suspense, useReducer, useState } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./context";
+import {
+  PromptArgsDialog,
+  type PromptArgumentValues,
+} from "./dialog-prompt-arguments";
+import { appendToTiptapDoc } from "./tiptap/utils";
+import { createMentionDoc } from "./tiptap/mention/node";
 
 interface IceBreakersProps {
   prompts: VirtualMCPPrompt[];
@@ -87,7 +78,7 @@ function PromptPill({
 }
 
 /**
- * IceBreakers - Displays gateway prompts as clickable conversation starters
+ * IceBreakers - Displays virtual MCP prompts as clickable conversation starters
  *
  * Shows prompts as compact pills that, when clicked, submit the prompt as the first message
  */
@@ -174,124 +165,6 @@ function IceBreakers({
   );
 }
 
-type PromptArgumentValues = Record<string, string>;
-
-function buildArgumentSchema(prompt: VirtualMCPPrompt) {
-  const shape: Record<string, z.ZodTypeAny> = {};
-
-  for (const arg of prompt.arguments ?? []) {
-    shape[arg.name] = arg.required ? z.string().min(1, "Required") : z.string();
-  }
-
-  return z.object(shape);
-}
-
-function buildDefaultValues(prompt: VirtualMCPPrompt): PromptArgumentValues {
-  const defaults: PromptArgumentValues = {};
-  for (const arg of prompt.arguments ?? []) {
-    defaults[arg.name] = "";
-  }
-  return defaults;
-}
-
-function getPromptUserText(result: VirtualMCPPromptResult): string | null {
-  for (const message of result.messages ?? []) {
-    if (message.role !== "user") continue;
-    if (message.content?.type !== "text") continue;
-    const text = message.content.text?.trim();
-    if (text) return text;
-  }
-  return null;
-}
-
-function ExpandedIceBreaker({
-  prompt,
-  onCancel,
-  onSubmit,
-}: {
-  prompt: VirtualMCPPrompt;
-  onCancel: () => void;
-  onSubmit: (values: PromptArgumentValues) => Promise<void>;
-}) {
-  const schema = buildArgumentSchema(prompt) as z.ZodTypeAny;
-  const resolver = zodResolver(schema as any);
-  const form = useForm<PromptArgumentValues>({
-    resolver: resolver as unknown as Resolver<PromptArgumentValues>,
-    defaultValues: buildDefaultValues(prompt),
-    mode: "onChange",
-  });
-
-  const argumentsList = prompt.arguments ?? [];
-
-  return (
-    <div className="flex flex-col items-center gap-3 w-full">
-      <PromptPill prompt={prompt} onSelect={onCancel} isSelected />
-      {prompt.description ? (
-        <p className="text-xs text-muted-foreground max-w-xl text-center">
-          {prompt.description}
-        </p>
-      ) : null}
-      <Form {...form}>
-        <form
-          className="w-full max-w-xl flex flex-col gap-3"
-          onSubmit={form.handleSubmit(onSubmit)}
-          autoComplete="off"
-        >
-          {argumentsList.map((arg) => (
-            <FormField
-              key={arg.name}
-              control={form.control}
-              name={arg.name}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs">
-                    {arg.name}
-                    {arg.required ? " *" : ""}
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      value={field.value ?? ""}
-                      required={arg.required}
-                      placeholder={arg.description ?? ""}
-                      className="h-9"
-                    />
-                  </FormControl>
-                  {arg.description ? (
-                    <FormDescription className="text-xs">
-                      {arg.description}
-                    </FormDescription>
-                  ) : null}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 px-3 text-xs"
-              onClick={onCancel}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              className="h-8 px-3 text-xs"
-              disabled={!form.formState.isValid}
-            >
-              Use prompt
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </div>
-  );
-}
-
 interface GatewayIceBreakersProps {
   className?: string;
 }
@@ -314,7 +187,6 @@ function IceBreakersFallback() {
  */
 type IceBreakerState =
   | { stage: "idle" }
-  | { stage: "collectingArguments"; prompt: VirtualMCPPrompt }
   | {
       stage: "loading";
       prompt: VirtualMCPPrompt;
@@ -323,7 +195,6 @@ type IceBreakerState =
 
 type IceBreakerAction =
   | { type: "SELECT_PROMPT"; prompt: VirtualMCPPrompt }
-  | { type: "CANCEL" }
   | {
       type: "START_LOADING";
       prompt: VirtualMCPPrompt;
@@ -341,10 +212,7 @@ function iceBreakerReducer(
       if (!action.prompt.arguments || action.prompt.arguments.length === 0) {
         return { stage: "loading", prompt: action.prompt };
       }
-      // Otherwise, collect arguments first
-      return { stage: "collectingArguments", prompt: action.prompt };
-
-    case "CANCEL":
+      // Otherwise, will open dialog - stay idle until dialog submits
       return { stage: "idle" };
 
     case "START_LOADING":
@@ -363,20 +231,18 @@ function iceBreakerReducer(
 }
 
 /**
- * Inner component that fetches and displays prompts for a specific virtual MCP (agent)
+ * Inner component that fetches and displays prompts for a specific virtual MCP
  */
 function VirtualMCPIceBreakersContent({
   virtualMcpId,
 }: {
   virtualMcpId: string;
 }) {
-  const { setInputValue } = useChat();
+  const { tiptapDoc, sendMessage } = useChat();
   const { data: prompts } = useVirtualMCPPrompts(virtualMcpId);
   const [state, dispatch] = useReducer(iceBreakerReducer, { stage: "idle" });
-
-  if (prompts.length === 0) {
-    return null;
-  }
+  const [dialogPrompt, setDialogPrompt] =
+    useState<VirtualMCPPrompt | null>(null);
 
   const loadPrompt = async (
     prompt: VirtualMCPPrompt,
@@ -388,10 +254,21 @@ function VirtualMCPIceBreakersContent({
         prompt.name,
         args,
       );
-      const userText =
-        getPromptUserText(result) ?? prompt.description ?? prompt.name;
-      setInputValue(userText);
+
       dispatch({ type: "RESET" });
+
+      // Append prompt to current tiptapDoc and send
+      const newTiptapDoc = appendToTiptapDoc(
+        tiptapDoc,
+        createMentionDoc({
+          id: prompt.name,
+          name: prompt.name,
+          metadata: result.messages,
+          char: "/",
+        }),
+      );
+
+      await sendMessage(newTiptapDoc);
     } catch (error) {
       console.error("[ice-breakers] Failed to fetch prompt:", error);
       toast.error("Failed to load prompt. Please try again.");
@@ -400,9 +277,10 @@ function VirtualMCPIceBreakersContent({
   };
 
   const handlePromptSelection = async (prompt: VirtualMCPPrompt) => {
-    // If prompt has arguments, show the form
+    // If prompt has arguments, open dialog
     if (prompt.arguments && prompt.arguments.length > 0) {
       dispatch({ type: "SELECT_PROMPT", prompt });
+      setDialogPrompt(prompt);
       return;
     }
 
@@ -411,44 +289,37 @@ function VirtualMCPIceBreakersContent({
     await loadPrompt(prompt);
   };
 
-  const handleCancel = () => {
-    dispatch({ type: "CANCEL" });
+  const handleDialogSubmit = async (values: PromptArgumentValues) => {
+    if (!dialogPrompt) return;
+
+    dispatch({
+      type: "START_LOADING",
+      prompt: dialogPrompt,
+      arguments: values,
+    });
+    setDialogPrompt(null);
+    await loadPrompt(dialogPrompt, values);
   };
 
-  const handlePromptSubmit = async (values: PromptArgumentValues) => {
-    if (state.stage !== "collectingArguments") return;
+  if (prompts.length === 0) {
+    return null;
+  }
 
-    const { prompt } = state;
-    dispatch({ type: "START_LOADING", prompt, arguments: values });
-    await loadPrompt(prompt, values);
-  };
-
-  // Render based on current state with animation
   return (
     <div className="relative w-full">
-      {state.stage === "collectingArguments" ? (
-        <div
-          key="expanded"
-          className="animate-in fade-in-0 zoom-in-95 duration-300"
-        >
-          <ExpandedIceBreaker
-            prompt={state.prompt}
-            onCancel={handleCancel}
-            onSubmit={handlePromptSubmit}
-          />
-        </div>
-      ) : (
-        <div
-          key="list"
-          className="animate-in fade-in-0 zoom-in-95 duration-300"
-        >
-          <IceBreakers
-            prompts={prompts}
-            onSelect={handlePromptSelection}
-            loadingPrompt={state.stage === "loading" ? state.prompt : null}
-          />
-        </div>
-      )}
+      <IceBreakers
+        prompts={prompts}
+        onSelect={handlePromptSelection}
+        loadingPrompt={state.stage === "loading" ? state.prompt : null}
+      />
+      <PromptArgsDialog
+        prompt={dialogPrompt}
+        setPrompt={() => {
+          setDialogPrompt(null);
+          dispatch({ type: "RESET" });
+        }}
+        onSubmit={handleDialogSubmit}
+      />
     </div>
   );
 }

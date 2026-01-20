@@ -12,10 +12,62 @@ import React, {
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
-import { Button } from "../button.tsx";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { Button } from "@deco/ui/components/button.tsx";
 import { Check, Copy01 } from "@untitledui/icons";
+// @ts-ignore - correct
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
 
-const LazyHighlighter = lazy(() => import("./lazy-highlighter.tsx"));
+interface LazyHighlighterProps {
+  language: string;
+  content: string;
+  fillHeight?: boolean;
+}
+
+function LazyHighlighter({
+  language,
+  content,
+  fillHeight = false,
+}: LazyHighlighterProps) {
+  return (
+    <SyntaxHighlighter
+      language={language || "text"}
+      style={oneDark}
+      customStyle={{
+        margin: 0,
+        padding: "1rem",
+        fontSize: "0.8rem",
+        borderRadius: "0.5rem",
+        background: "#282c34",
+        position: "relative",
+        overflowX: "hidden",
+        overflowY: "visible",
+        width: "100%",
+        maxWidth: "100%",
+        display: "block",
+        wordBreak: "break-word",
+        overflowWrap: "break-word",
+        height: fillHeight ? "100%" : undefined,
+        minHeight: fillHeight ? "100%" : undefined,
+      }}
+      codeTagProps={{
+        className: "font-mono",
+        style: {
+          wordBreak: "break-word",
+          overflowWrap: "break-word",
+          whiteSpace: "pre-wrap",
+        },
+      }}
+      wrapLongLines
+    >
+      {content}
+    </SyntaxHighlighter>
+  );
+}
+
+const LazyHighlighterComponent = lazy(() =>
+  Promise.resolve({ default: LazyHighlighter }),
+);
 
 // Custom hook for copy functionality - simplified version
 function useCopy() {
@@ -272,7 +324,7 @@ function CodeBlock({
       </div>
 
       <Suspense fallback={<LazyHighlighterFallback />}>
-        <LazyHighlighter language={language} content={content} />
+        <LazyHighlighterComponent language={language} content={content} />
       </Suspense>
     </div>
   );

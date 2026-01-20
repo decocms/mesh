@@ -5,7 +5,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { BranchContext, ChatState, ChatStateAction } from "./context";
+import type { ParentThread } from "./types.ts";
+import type { ChatState, ChatStateAction } from "./context";
 
 // Import the reducer directly for testing
 // Since it's not exported, we'll test through the exported types
@@ -13,74 +14,95 @@ import type { BranchContext, ChatState, ChatStateAction } from "./context";
 
 describe("ChatState Reducer Logic", () => {
   const initialState: ChatState = {
-    inputValue: "",
-    branchContext: null,
+    tiptapDoc: undefined,
+    parentThread: null,
     finishReason: null,
   };
 
   // Helper to simulate reducer behavior
   function applyAction(state: ChatState, action: ChatStateAction): ChatState {
     switch (action.type) {
-      case "SET_INPUT":
-        return { ...state, inputValue: action.payload };
+      case "SET_TIPTAP_DOC":
+        return { ...state, tiptapDoc: action.payload };
+      case "CLEAR_TIPTAP_DOC":
+        return { ...state, tiptapDoc: undefined };
       case "START_BRANCH":
-        return { ...state, branchContext: action.payload };
+        return { ...state, parentThread: action.payload };
       case "CLEAR_BRANCH":
-        return { ...state, branchContext: null };
+        return { ...state, parentThread: null };
       case "SET_FINISH_REASON":
         return { ...state, finishReason: action.payload };
       case "CLEAR_FINISH_REASON":
         return { ...state, finishReason: null };
       case "RESET":
-        return { inputValue: "", branchContext: null, finishReason: null };
+        return {
+          tiptapDoc: undefined,
+          parentThread: null,
+          finishReason: null,
+        };
       default:
         return state;
     }
   }
 
   test("should initialize with empty state", () => {
-    expect(initialState.inputValue).toBe("");
-    expect(initialState.branchContext).toBeNull();
+    expect(initialState.tiptapDoc).toBeUndefined();
+    expect(initialState.parentThread).toBeNull();
     expect(initialState.finishReason).toBeNull();
   });
 
-  test("should update input value with SET_INPUT action", () => {
+  test("should update tiptap doc with SET_TIPTAP_DOC action", () => {
+    const doc = {
+      type: "doc" as const,
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Hello, world!" }],
+        },
+      ],
+    };
     const action: ChatStateAction = {
-      type: "SET_INPUT",
-      payload: "Hello, world!",
+      type: "SET_TIPTAP_DOC",
+      payload: doc,
     };
 
     const newState = applyAction(initialState, action);
 
-    expect(newState.inputValue).toBe("Hello, world!");
-    expect(newState.branchContext).toBeNull();
+    expect(newState.tiptapDoc).toEqual(doc);
+    expect(newState.parentThread).toBeNull();
   });
 
   test("should start branch with START_BRANCH action", () => {
-    const branchContext: BranchContext = {
-      originalThreadId: "thread-123",
-      originalMessageId: "msg-456",
-      originalMessageText: "Original message",
+    const parentThread: ParentThread = {
+      threadId: "thread-123",
+      messageId: "msg-456",
     };
 
     const action: ChatStateAction = {
       type: "START_BRANCH",
-      payload: branchContext,
+      payload: parentThread,
     };
 
     const newState = applyAction(initialState, action);
 
-    expect(newState.branchContext).toEqual(branchContext);
-    expect(newState.inputValue).toBe("");
+    expect(newState.parentThread).toEqual(parentThread);
+    expect(newState.tiptapDoc).toBeUndefined();
   });
 
   test("should clear branch context with CLEAR_BRANCH action", () => {
     const stateWithBranch: ChatState = {
-      inputValue: "Some input",
-      branchContext: {
-        originalThreadId: "thread-123",
-        originalMessageId: "msg-456",
-        originalMessageText: "Original message",
+      tiptapDoc: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Some input" }],
+          },
+        ],
+      },
+      parentThread: {
+        threadId: "thread-123",
+        messageId: "msg-456",
       },
       finishReason: null,
     };
@@ -89,8 +111,8 @@ describe("ChatState Reducer Logic", () => {
 
     const newState = applyAction(stateWithBranch, action);
 
-    expect(newState.branchContext).toBeNull();
-    expect(newState.inputValue).toBe("Some input"); // Input should remain
+    expect(newState.parentThread).toBeNull();
+    expect(newState.tiptapDoc).toEqual(stateWithBranch.tiptapDoc); // Tiptap doc should remain
   });
 
   test("should set finish reason with SET_FINISH_REASON action", () => {
@@ -102,12 +124,13 @@ describe("ChatState Reducer Logic", () => {
     const newState = applyAction(initialState, action);
 
     expect(newState.finishReason).toBe("stop");
+    expect(newState.parentThread).toBeNull();
   });
 
   test("should clear finish reason with CLEAR_FINISH_REASON action", () => {
     const stateWithFinishReason: ChatState = {
-      inputValue: "",
-      branchContext: null,
+      tiptapDoc: undefined,
+      parentThread: null,
       finishReason: "stop",
     };
 
@@ -120,11 +143,18 @@ describe("ChatState Reducer Logic", () => {
 
   test("should reset all state with RESET action", () => {
     const stateWithData: ChatState = {
-      inputValue: "Test input",
-      branchContext: {
-        originalThreadId: "thread-123",
-        originalMessageId: "msg-456",
-        originalMessageText: "Original message",
+      tiptapDoc: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Test input" }],
+          },
+        ],
+      },
+      parentThread: {
+        threadId: "thread-123",
+        messageId: "msg-456",
       },
       finishReason: "stop",
     };
@@ -133,87 +163,115 @@ describe("ChatState Reducer Logic", () => {
 
     const newState = applyAction(stateWithData, action);
 
-    expect(newState.inputValue).toBe("");
-    expect(newState.branchContext).toBeNull();
+    expect(newState.tiptapDoc).toBeUndefined();
+    expect(newState.parentThread).toBeNull();
     expect(newState.finishReason).toBeNull();
   });
 
   test("should handle multiple sequential actions", () => {
     let state = initialState;
 
-    // Set input
-    state = applyAction(state, { type: "SET_INPUT", payload: "First message" });
-    expect(state.inputValue).toBe("First message");
+    // Set tiptap doc
+    const doc1 = {
+      type: "doc" as const,
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "First message" }],
+        },
+      ],
+    };
+    state = applyAction(state, { type: "SET_TIPTAP_DOC", payload: doc1 });
+    expect(state.tiptapDoc).toEqual(doc1);
 
     // Start branch
-    const branchContext: BranchContext = {
-      originalThreadId: "thread-1",
-      originalMessageId: "msg-1",
-      originalMessageText: "Branch from here",
+    const parentThread: ParentThread = {
+      threadId: "thread-1",
+      messageId: "msg-1",
     };
     state = applyAction(state, {
       type: "START_BRANCH",
-      payload: branchContext,
+      payload: parentThread,
     });
-    expect(state.branchContext).toEqual(branchContext);
-    expect(state.inputValue).toBe("First message"); // Input persists
+    expect(state.parentThread).toEqual(parentThread);
+    expect(state.tiptapDoc).toEqual(doc1); // Doc persists
 
-    // Update input again
+    // Update tiptap doc again
+    const doc2 = {
+      type: "doc" as const,
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Updated message" }],
+        },
+      ],
+    };
     state = applyAction(state, {
-      type: "SET_INPUT",
-      payload: "Updated message",
+      type: "SET_TIPTAP_DOC",
+      payload: doc2,
     });
-    expect(state.inputValue).toBe("Updated message");
-    expect(state.branchContext).toEqual(branchContext); // Branch persists
+    expect(state.tiptapDoc).toEqual(doc2);
+    expect(state.parentThread).toEqual(parentThread); // Branch persists
 
     // Clear branch
     state = applyAction(state, { type: "CLEAR_BRANCH" });
-    expect(state.branchContext).toBeNull();
-    expect(state.inputValue).toBe("Updated message"); // Input still there
+    expect(state.parentThread).toBeNull();
+    expect(state.tiptapDoc).toEqual(doc2); // Doc still there
 
     // Reset all
     state = applyAction(state, { type: "RESET" });
-    expect(state.inputValue).toBe("");
-    expect(state.branchContext).toBeNull();
+    expect(state.tiptapDoc).toBeUndefined();
+    expect(state.parentThread).toBeNull();
   });
 
   test("should preserve state immutability", () => {
+    const originalDoc = {
+      type: "doc" as const,
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "Original" }] },
+      ],
+    };
     const originalState: ChatState = {
-      inputValue: "Original",
-      branchContext: null,
+      tiptapDoc: originalDoc,
+      parentThread: null,
       finishReason: null,
     };
 
+    const modifiedDoc = {
+      type: "doc" as const,
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "Modified" }] },
+      ],
+    };
     const action: ChatStateAction = {
-      type: "SET_INPUT",
-      payload: "Modified",
+      type: "SET_TIPTAP_DOC",
+      payload: modifiedDoc,
     };
 
     const newState = applyAction(originalState, action);
 
     // Original state should not be modified
-    expect(originalState.inputValue).toBe("Original");
-    expect(newState.inputValue).toBe("Modified");
+    expect(originalState.tiptapDoc).toEqual(originalDoc);
+    expect(newState.tiptapDoc).toEqual(modifiedDoc);
     expect(newState).not.toBe(originalState);
   });
 
   test("should handle branch context immutability", () => {
-    const originalBranch: BranchContext = {
-      originalThreadId: "thread-1",
-      originalMessageId: "msg-1",
-      originalMessageText: "Original",
+    const originalParentThread: ParentThread = {
+      threadId: "thread-1",
+      messageId: "msg-1",
     };
 
     const stateWithBranch: ChatState = {
-      inputValue: "",
-      branchContext: originalBranch,
+      tiptapDoc: undefined,
+      parentThread: originalParentThread,
       finishReason: null,
     };
 
     const newState = applyAction(stateWithBranch, { type: "CLEAR_BRANCH" });
 
     // Original branch object should not be modified
-    expect(originalBranch.originalThreadId).toBe("thread-1");
-    expect(newState.branchContext).toBeNull();
+    expect(originalParentThread.threadId).toBe("thread-1");
+    expect(newState.parentThread).toBeNull();
   });
 });

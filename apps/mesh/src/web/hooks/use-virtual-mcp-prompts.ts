@@ -76,7 +76,7 @@ async function withVirtualMCPClient<T>(
 /**
  * Fetch prompts from a virtual MCP via MCP protocol
  */
-async function fetchVirtualMCPPrompts(
+export async function fetchVirtualMCPPrompts(
   virtualMcpId: string,
 ): Promise<VirtualMCPPrompt[]> {
   try {

@@ -1,4 +1,4 @@
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
+import type { Metadata } from "../../web/components/chat/types.ts";
 import { LanguageModelBinding } from "@decocms/bindings/llm";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";

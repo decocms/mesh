@@ -7,7 +7,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -21,9 +20,10 @@ import {
   Stop,
   XCircle,
 } from "@untitledui/icons";
-import type { FormEvent, KeyboardEvent } from "react";
+import type { FormEvent } from "react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useChat } from "./context";
+import { isTiptapDocEmpty } from "./tiptap/utils";
 import { ChatHighlight } from "./index";
 import {
   VirtualMCPPopoverContent,
@@ -31,10 +31,11 @@ import {
   type VirtualMCPInfo,
 } from "./select-virtual-mcp";
 import { ModelSelector } from "./select-model";
+import { ChatTiptapInput, type ChatTiptapInputHandle } from "./tiptap/input";
 import { UsageStats } from "./usage-stats";
 
 // ============================================================================
-// VirtualMCPBadge - Internal component for displaying selected virtual MCP (agent)
+// VirtualMCPBadge - Internal component for displaying selected virtual MCP
 // ============================================================================
 
 interface VirtualMCPBadgeProps {
@@ -169,14 +170,15 @@ function VirtualMCPBadge({
 }
 
 // ============================================================================
-// ChatInput - Merged component with gateway wrapper, banners, and selectors
+// ChatInput - Merged component with virtual MCP wrapper, banners, and selectors
 // ============================================================================
 
 export function ChatInput() {
   const {
-    inputValue,
-    setInputValue,
-    branchContext,
+    tiptapDoc,
+    setTiptapDoc,
+    clearTiptapDoc,
+    parentThread,
     clearBranch,
     setActiveThreadId,
     virtualMcps,
@@ -195,52 +197,54 @@ export function ChatInput() {
     clearFinishReason,
   } = useChat();
 
+  const tiptapRef = useRef<ChatTiptapInputHandle | null>(null);
+
   const canSubmit =
-    !isStreaming && selectedModel && inputValue.trim().length > 0;
+    !isStreaming && !!selectedModel && !isTiptapDocEmpty(tiptapDoc);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (isStreaming) {
       stopStreaming();
-    } else if (canSubmit) {
-      sendMessage(inputValue.trim());
-    }
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (canSubmit) {
-        sendMessage(inputValue.trim());
-      }
+    } else if (canSubmit && tiptapDoc) {
+      void sendMessage(tiptapDoc);
     }
   };
 
   const handleGoToOriginalMessage = () => {
-    if (!branchContext) return;
-    setActiveThreadId(branchContext.originalThreadId);
+    if (!parentThread) return;
+    setActiveThreadId(parentThread.threadId);
     clearBranch();
-    setInputValue("");
+    clearTiptapDoc();
   };
 
   const handleFixInChat = () => {
     if (chatError) {
-      sendMessage(
-        `I encountered this error: ${chatError.message}. Can you help me fix it?`,
-      );
+      const text = `I encountered this error: ${chatError.message}. Can you help me fix it?`;
+      const doc = {
+        type: "doc" as const,
+        content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+      };
+      void sendMessage(doc);
     }
   };
 
   const handleContinue = () => {
-    sendMessage("Please continue.");
+    const doc = {
+      type: "doc" as const,
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Please continue." }],
+        },
+      ],
+    };
+    void sendMessage(doc);
   };
 
   const color = selectedVirtualMcp
     ? getGatewayColor(selectedVirtualMcp.id)
     : null;
-  const placeholder = !selectedModel
-    ? "Select a model to start chatting"
-    : "Ask anything or @ for context";
 
   return (
     <div className="flex flex-col gap-2 w-full min-h-42 justify-end">
@@ -294,15 +298,15 @@ export function ChatInput() {
         </ChatHighlight>
       )}
 
-      {branchContext && (
+      {parentThread && (
         <ChatHighlight
           variant="default"
           title="Editing message (click to view original)"
-          description={branchContext.originalMessageText}
+          description="You are in a new thread. You can go back to the original in any moment."
           icon={<CornerUpLeft size={14} />}
           onDismiss={() => {
             clearBranch();
-            setInputValue("");
+            clearTiptapDoc();
           }}
         >
           <Button
@@ -344,25 +348,15 @@ export function ChatInput() {
             )}
           >
             <div className="relative flex flex-col gap-2 p-2.5 flex-1">
-              {/* Input Area */}
-              <div
-                className="overflow-y-auto relative flex-1"
-                style={{ maxHeight: "164px" }}
-              >
-                <Textarea
-                  rows={1}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={placeholder}
-                  disabled={!selectedModel || isStreaming}
-                  className={cn(
-                    "placeholder:text-muted-foreground resize-none focus-visible:ring-0 border-0 p-2 text-[15px]! min-h-[20px] w-full",
-                    "rounded-none shadow-none",
-                    "min-h-[20px] h-auto overflow-hidden",
-                  )}
-                />
-              </div>
+              {/* Input Area with Tiptap */}
+              <ChatTiptapInput
+                ref={tiptapRef}
+                tiptapDoc={tiptapDoc}
+                setTiptapDoc={setTiptapDoc}
+                selectedModel={selectedModel}
+                isStreaming={isStreaming}
+                selectedVirtualMcp={selectedVirtualMcp}
+              />
             </div>
 
             {/* Bottom Actions Row */}
