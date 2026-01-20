@@ -106,37 +106,19 @@ const RUN_CODE_INPUT_JSON_SCHEMA = z.toJSONSchema(
   RUN_CODE_INPUT_SCHEMA,
 ) as Tool["inputSchema"];
 
-// Cache for dynamic CALL_TOOL schemas (keyed by sorted tool names)
-const callToolSchemaCache = new Map<
-  string,
-  { schema: z.ZodTypeAny; jsonSchema: Tool["inputSchema"] }
->();
-
-function getCallToolSchema(toolNames: string[]): {
-  schema: z.ZodTypeAny;
-  jsonSchema: Tool["inputSchema"];
-} {
-  const cacheKey = toolNames.slice().sort().join(",");
-  let cached = callToolSchemaCache.get(cacheKey);
-  if (!cached) {
-    const schema = z.object({
-      name: (toolNames.length > 0
-        ? z.enum(toolNames as [string, ...string[]])
-        : z.string()
-      ).describe("The name of the tool to execute"),
-      arguments: z
-        .record(z.string(), z.unknown())
-        .default({})
-        .describe("Arguments to pass to the tool"),
-    });
-    cached = {
-      schema,
-      jsonSchema: z.toJSONSchema(schema) as Tool["inputSchema"],
-    };
-    callToolSchemaCache.set(cacheKey, cached);
-  }
-  return cached;
-}
+// Static schema for CALL_TOOL - uses string instead of dynamic z.enum
+// to avoid creating new Zod schemas per tool combination (which bloats __zod_globalRegistry)
+// Tool name validation is done at runtime in the handler
+const CALL_TOOL_INPUT_SCHEMA = z.object({
+  name: z.string().describe("The name of the tool to execute"),
+  arguments: z
+    .record(z.string(), z.unknown())
+    .default({})
+    .describe("Arguments to pass to the tool"),
+});
+const CALL_TOOL_INPUT_JSON_SCHEMA = z.toJSONSchema(
+  CALL_TOOL_INPUT_SCHEMA,
+) as Tool["inputSchema"];
 
 // ============================================================================
 // Tool Factories (Aggregator-specific)
@@ -212,21 +194,19 @@ function createDescribeTool(ctx: StrategyContext): ToolWithHandler {
 function createCallTool(ctx: StrategyContext): ToolWithHandler {
   // Filter out CODE_EXECUTION_* tools to avoid duplication
   const filteredTools = filterCodeExecutionTools(ctx.tools);
-  const toolNames = filteredTools.map((t) => t.name);
   const toolMap = new Map(filteredTools.map((t) => [t.name, t]));
 
-  // Use cached schema to avoid repeated z.toJSONSchema calls
-  const { schema: inputSchema, jsonSchema } = getCallToolSchema(toolNames);
-
+  // Use static schema - tool name validation is done at runtime
+  // to avoid creating dynamic z.enum schemas that bloat Zod's globalRegistry
   return {
     tool: {
       name: "GATEWAY_CALL_TOOL",
       description:
         "Execute a tool by name. Use GATEWAY_DESCRIBE_TOOLS first to understand the input schema.",
-      inputSchema: jsonSchema,
+      inputSchema: CALL_TOOL_INPUT_JSON_SCHEMA,
     },
     handler: async (args) => {
-      const parsed = inputSchema.safeParse(args);
+      const parsed = CALL_TOOL_INPUT_SCHEMA.safeParse(args);
       if (!parsed.success) {
         return jsonError({ error: parsed.error.flatten() });
       }
