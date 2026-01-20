@@ -20,7 +20,8 @@ const GLOBAL_EXTENSIONS = [
     horizontalRule: false,
   }),
   Placeholder.configure({
-    placeholder: "Ask anything, use / for prompts, @ for resources, or drop files here...",
+    placeholder:
+      "Ask anything, use / for prompts, @ for resources, or drop files here...",
     showOnlyWhenEditable: false,
   }),
   MentionNode,
@@ -69,7 +70,7 @@ export function ChatTiptapInput({
       editorProps: {
         attributes: {
           class:
-            "prose prose-sm max-w-none focus:outline-none w-full min-h-[20px] text-[15px]",
+            "prose prose-sm max-w-none focus:outline-none w-full h-full text-[15px] p-[18px]",
         },
         handleKeyDown: (_view, event) => {
           // Handle Enter key: submit on Enter, new line on Shift+Enter
@@ -136,27 +137,20 @@ export function ChatTiptapInput({
 
   return (
     <>
-      <div
+      <EditorContent
+        editor={editor}
         className={cn(
-          "overflow-y-auto relative flex-1",
+          "overflow-y-auto relative flex-1 max-h-[164px] min-h-[20px] w-full flex flex-col",
+          "[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[20px] [&_.ProseMirror]:flex-1",
+          "[&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
+          "[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground",
+          "[&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left",
+          "[&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none",
+          "[&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0",
           isDisabled && "cursor-not-allowed opacity-70",
+          isDisabled && "[&_.ProseMirror]:cursor-not-allowed",
         )}
-        style={{ maxHeight: "164px" }}
-      >
-        <EditorContent
-          editor={editor}
-          className={cn(
-            "min-h-[20px] w-full px-2 py-2",
-            "[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[20px]",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0",
-            isDisabled && "[&_.ProseMirror]:cursor-not-allowed",
-          )}
-        />
-      </div>
+      />
 
       {/* Render prompts dropdown menu (includes dialog) */}
       <PromptsMention editor={editor} virtualMcpId={virtualMcpId} />

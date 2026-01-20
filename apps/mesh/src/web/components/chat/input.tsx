@@ -369,7 +369,7 @@ export function ChatInput() {
               !selectedVirtualMcp && "shadow-sm",
             )}
           >
-            <div className="relative flex flex-col gap-2 p-2.5 flex-1">
+            <div className="relative flex flex-col gap-2 flex-1">
               {/* Input Area with Tiptap */}
               <ChatTiptapInput
                 ref={tiptapRef}

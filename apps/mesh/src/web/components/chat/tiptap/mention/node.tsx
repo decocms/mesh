@@ -139,10 +139,20 @@ export const MentionNode = Node.create({
     };
   },
 
+  parseHTML() {
+    return [
+      {
+        tag: 'span[data-type="mention"]',
+      },
+    ];
+  },
+
   renderHTML({ node, HTMLAttributes }) {
     // Required by ProseMirror (maps to toDOM)
     // React component handles actual visual rendering
-    const attrs: Record<string, string> = {};
+    const attrs: Record<string, string> = {
+      "data-type": "mention",
+    };
 
     if (node.attrs.id) {
       attrs["data-id"] = node.attrs.id;
@@ -158,6 +168,12 @@ export const MentionNode = Node.create({
     }
 
     return ["span", { ...HTMLAttributes, ...attrs }];
+  },
+
+  renderText({ node }) {
+    const char = node.attrs.char ?? "@";
+    const name = node.attrs.name ?? "";
+    return `${char}${name}`;
   },
 
   addNodeView() {

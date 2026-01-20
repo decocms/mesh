@@ -163,10 +163,20 @@ export const FileNode = Node.create({
     };
   },
 
+  parseHTML() {
+    return [
+      {
+        tag: 'span[data-type="file"]',
+      },
+    ];
+  },
+
   renderHTML({ node, HTMLAttributes }) {
     // Required by ProseMirror (maps to toDOM)
     // React component handles actual visual rendering
-    const attrs: Record<string, string> = {};
+    const attrs: Record<string, string> = {
+      "data-type": "file",
+    };
 
     if (node.attrs.id) {
       attrs["data-id"] = node.attrs.id;
@@ -185,6 +195,11 @@ export const FileNode = Node.create({
     }
 
     return ["span", { ...HTMLAttributes, ...attrs }];
+  },
+
+  renderText({ node }) {
+    const name = node.attrs.name ?? "";
+    return `[${name}]`;
   },
 
   addNodeView() {

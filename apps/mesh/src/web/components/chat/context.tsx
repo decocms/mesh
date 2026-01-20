@@ -353,8 +353,9 @@ function promptMessagesToParts(
  */
 function fileAttrsToParts(
   fileAttrs: FileAttrs,
+  mentionName: string,
 ): UIMessagePart<UIDataTypes, UITools>[] {
-  const { name, mimeType, data } = fileAttrs;
+  const { mimeType, data } = fileAttrs;
 
   // Text files: decode base64 and return as text part
   if (mimeType.startsWith("text/")) {
@@ -363,7 +364,7 @@ function fileAttrsToParts(
       return [
         {
           type: "text",
-          text: `[${name}]\n${decodedText}`,
+          text: `[${mentionName}]\n${decodedText}`,
         },
       ];
     } catch (error) {
@@ -377,7 +378,7 @@ function fileAttrsToParts(
     {
       type: "file",
       url: `data:${mimeType};base64,${data}`,
-      filename: name,
+      filename: mentionName,
       mediaType: mimeType,
     },
   ];
@@ -436,7 +437,11 @@ function derivePartsFromTiptapDoc(
       }
     } else if (node.type === "file" && node.attrs) {
       const fileAttrs = node.attrs as unknown as FileAttrs;
-      parts.push(...fileAttrsToParts(fileAttrs));
+      const mentionName = `[${fileAttrs.name}]`;
+
+      inlineText += mentionName;
+
+      parts.push(...fileAttrsToParts(fileAttrs, mentionName));
     }
 
     // Recursively walk content
