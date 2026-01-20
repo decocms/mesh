@@ -52,8 +52,13 @@ function EditMessageButton({
   metadata,
 }: EditMessageButtonProps) {
   const [showDialog, setShowDialog] = useState(false);
-  const { setTiptapDoc, startBranch, setActiveThreadId, activeThreadId, isStreaming } =
-    useChat();
+  const {
+    setTiptapDoc,
+    startBranch,
+    setActiveThreadId,
+    activeThreadId,
+    isStreaming,
+  } = useChat();
   const branchMessage = useBranchMessage(setActiveThreadId);
 
   // Extract the full text from all text parts (for fallback)
@@ -94,7 +99,7 @@ function EditMessageButton({
               variant="ghost"
               size="xs"
               disabled={isStreaming}
-              className="opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground aspect-square w-6 h-6 p-0"
+              className="disabled:cursor-not-allowed"
             >
               <Edit02 size={16} className="p-0.5" />
             </Button>
