@@ -99,7 +99,7 @@ function EditMessageButton({
               variant="ghost"
               size="xs"
               disabled={isStreaming}
-              className="disabled:cursor-not-allowed"
+              className="opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground aspect-square w-6 h-6 p-0"
             >
               <Edit02 size={16} className="p-0.5" />
             </Button>
