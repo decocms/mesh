@@ -51,7 +51,10 @@ export const ResourcesMention = ({
     ? KEYS.virtualMcpResources(virtualMcpId)
     : (["virtual-mcp", "resources", "empty"] as const);
 
-  const handleItemSelect = async ({ item, range }: OnSelectProps<ResourceItem>) => {
+  const handleItemSelect = async ({
+    item,
+    range,
+  }: OnSelectProps<ResourceItem>) => {
     if (!virtualMcpId) return;
 
     await fetchAndInsertResource(editor, range, virtualMcpId, item.uri);

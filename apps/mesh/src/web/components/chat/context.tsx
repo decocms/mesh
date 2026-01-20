@@ -239,7 +239,7 @@ function chatStateReducer(
  * Converts resource contents to UI message parts
  */
 function resourcesToParts(
-  contents: ReadResourceResult['contents'],
+  contents: ReadResourceResult["contents"],
   mentionName: string, // uri for the resource
 ): UIMessagePart<UIDataTypes, UITools>[] {
   const parts: UIMessagePart<UIDataTypes, UITools>[] = [];
@@ -386,7 +386,8 @@ function derivePartsFromTiptapDoc(
       // Handle resource mentions (@) vs prompt mentions (/)
       if (char === "@") {
         // Resource mentions: metadata contains ReadResourceResult.contents directly
-        const contents = (node.attrs.metadata || []) as ReadResourceResult['contents'];
+        const contents = (node.attrs.metadata ||
+          []) as ReadResourceResult["contents"];
         parts.push(...resourcesToParts(contents, mentionName));
       } else {
         // Prompt mentions: metadata contains PromptMessage[]
