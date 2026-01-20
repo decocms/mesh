@@ -284,6 +284,16 @@ app.post("/:org/models/stream", async (c) => {
     // if an error occurs or early return happens after client.connect()
     mcpClient = client;
 
+    // CRITICAL: Register abort handler to ensure client cleanup on disconnect
+    // Without this, when client disconnects mid-stream, onFinish/onError are NOT called
+    // and the MCP client + transport streams leak (TextDecoderStream, 256KB buffers)
+    const abortSignal = c.req.raw.signal;
+    const abortHandler = () => {
+      console.log("[models:stream] Request aborted - closing MCP client");
+      client.close().catch(console.error);
+    };
+    abortSignal.addEventListener("abort", abortHandler, { once: true });
+
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
     const [modelMessages, connection] = await Promise.all([
       convertToModelMessages(messages, { ignoreIncompleteToolCalls: true }),
@@ -293,6 +303,7 @@ app.post("/:org/models/stream", async (c) => {
 
     if (!connection) {
       // Close client before early return to prevent memory leak
+      abortSignal.removeEventListener("abort", abortHandler);
       await client.close().catch(console.error);
       return c.json(
         { error: `Model connection not found: ${modelConfig.connectionId}` },
@@ -338,13 +349,17 @@ app.post("/:org/models/stream", async (c) => {
       tools,
       temperature,
       maxOutputTokens: maxOutputTokens,
-      abortSignal: c.req.raw.signal,
+      abortSignal,
       stopWhen: stepCountIs(30), // Stop after 30 steps with tool calls
       onError: async (error) => {
         console.error("[models:stream] Error", error);
+        // Remove abort handler to avoid double-close
+        abortSignal.removeEventListener("abort", abortHandler);
         await client.close().catch(console.error);
       },
       onFinish: async () => {
+        // Remove abort handler to avoid double-close
+        abortSignal.removeEventListener("abort", abortHandler);
         await client.close().catch(console.error);
       },
     });
