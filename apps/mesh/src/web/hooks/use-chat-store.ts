@@ -16,6 +16,17 @@ import { useProjectContext } from "../providers/project-context-provider";
 import type { Message, Thread } from "../types/chat-threads";
 
 /**
+ * Get a single thread by ID from IndexedDB
+ */
+export async function getThreadFromIndexedDB(
+  locator: string,
+  threadId: string,
+): Promise<Thread | null> {
+  const key = `${locator}:threads:${threadId}`;
+  return (await get<Thread>(key)) ?? null;
+}
+
+/**
  * Get all threads from IndexedDB
  */
 async function getAllThreadsFromIndexedDB(locator: string): Promise<Thread[]> {
