@@ -1,130 +1,86 @@
 /**
- * Chat Store Hooks using React Query + Collection Tools
+ * Chat Store Hooks using React Query + IndexedDB
  *
- * Provides React hooks for working with threads and messages stored in the backend.
- * Uses TanStack React Query for caching and mutations with MCP collection tools for persistence.
+ * Provides React hooks for working with threads and messages stored in IndexedDB.
+ * Uses TanStack React Query for caching and mutations with idb-keyval for persistence.
  */
 
+import { entries, get, set, del } from "idb-keyval";
 import {
   useMutation,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { createToolCaller } from "../../tools/client";
 import { KEYS } from "../lib/query-keys";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message, Thread } from "../components/chat/types.ts";
 
-// Tool caller for mesh management API (no connectionId = /mcp endpoint)
-const meshToolCaller = createToolCaller();
-
-// ============================================================================
-// Types
-// ============================================================================
-
-/** Thread entity from backend */
-interface ThreadEntity {
-  id: string;
-  organizationId: string;
-  title: string;
-  description: string | null;
-  createdAt: string;
-  updatedAt: string;
-  createdBy: string;
-  updatedBy: string | null;
+/**
+ * Get a single thread by ID from IndexedDB
+ */
+export async function getThreadFromIndexedDB(
+  locator: string,
+  threadId: string,
+): Promise<Thread | null> {
+  const key = `${locator}:threads:${threadId}`;
+  return (await get<Thread>(key)) ?? null;
 }
-
-/** Thread message entity from backend */
-interface ThreadMessageEntity {
-  id: string;
-  threadId: string;
-  metadata?: Record<string, unknown>;
-  parts: Array<Record<string, unknown>>;
-  role: "user" | "assistant";
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Collection list output */
-interface CollectionListOutput<T> {
-  items: T[];
-  totalCount: number;
-  hasMore: boolean;
-}
-
-/** Collection insert output */
-interface CollectionInsertOutput<T> {
-  item: T;
-}
-
-/** Collection delete output */
-interface CollectionDeleteOutput<T> {
-  item: T;
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/** Convert backend ThreadEntity to frontend Thread type */
-function toThread(entity: ThreadEntity): Thread {
-  return {
-    id: entity.id,
-    title: entity.title,
-    created_at: entity.createdAt,
-    updated_at: entity.updatedAt,
-    hidden: false,
-    // Note: gatewayId is not stored in backend, would need to be added if needed
-  };
-}
-
-/** Convert backend ThreadMessageEntity to frontend Message type */
-function toMessage(entity: ThreadMessageEntity): Message {
-  return {
-    id: entity.id,
-    role: entity.role,
-    parts: entity.parts as Message["parts"],
-    metadata: {
-      ...entity.metadata,
-      thread_id: entity.threadId,
-      created_at: entity.createdAt,
-    },
-  } as Message;
-}
-
-// ============================================================================
-// Thread Queries
-// ============================================================================
 
 /**
- * Get messages for a thread from backend
- *
- * @param _locator - Unused, kept for backward compatibility
- * @param threadId - The ID of the thread
+ * Get all threads from IndexedDB
  */
-export async function getThreadMessages(
-  _locator: string,
-  threadId: string,
-): Promise<Message[]> {
-  try {
-    const result = await meshToolCaller("COLLECTION_THREAD_MESSAGES_LIST", {
-      threadId,
-    });
-    const output = result as CollectionListOutput<ThreadMessageEntity>;
-    return output.items.map(toMessage);
-  } catch (error) {
-    console.error(
-      `Failed to get thread messages for thread ${threadId}:`,
-      error,
-    );
-    return [];
-  }
+async function getAllThreadsFromIndexedDB(locator: string): Promise<Thread[]> {
+  const prefix = `${locator}:threads:`;
+  const allEntries = await entries();
+  const threads = allEntries
+    .filter(
+      ([key]: [unknown, unknown]) =>
+        typeof key === "string" && key.startsWith(prefix),
+    )
+    .map(([, value]: [unknown, unknown]) => value as Thread)
+    .filter((thread: Thread) => !thread.hidden);
+
+  // Sort by updated_at descending (most recent first)
+  return threads.sort((a: Thread, b: Thread) => {
+    return String(b.updated_at).localeCompare(String(a.updated_at));
+  });
 }
 
-// ============================================================================
-// React Hooks
-// ============================================================================
+/**
+ * Get messages for a specific thread from IndexedDB
+ */
+export async function getThreadMessagesFromIndexedDB(
+  locator: string,
+  threadId: string,
+): Promise<Message[]> {
+  const prefix = `${locator}:messages:`;
+  return entries().then((allEntries: [unknown, unknown][]) => {
+    const messages = allEntries
+      .filter(
+        ([key]: [unknown, unknown]) =>
+          typeof key === "string" && key.startsWith(prefix),
+      )
+      .map(([, value]: [unknown, unknown]) => value as Message)
+      .filter(
+        (msg: Message) =>
+          msg.metadata?.thread_id === threadId ||
+          (msg as unknown as { threadId?: string }).threadId === threadId,
+      );
+
+    // Sort by created_at
+    return messages.sort((a: Message, b: Message) => {
+      const aTime =
+        a.metadata?.created_at ||
+        (a as unknown as { createdAt?: string }).createdAt ||
+        "";
+      const bTime =
+        b.metadata?.created_at ||
+        (b as unknown as { createdAt?: string }).createdAt ||
+        "";
+      return String(aTime).localeCompare(String(bTime));
+    });
+  });
+}
 
 /**
  * Hook to get all threads, optionally filtered by virtual MCP (agent)
@@ -142,19 +98,16 @@ export function useThreads(options?: { virtualMcpId?: string }) {
       ? KEYS.virtualMcpThreads(locator, virtualMcpId)
       : KEYS.threads(locator),
     queryFn: async () => {
-      const result = (await meshToolCaller("COLLECTION_THREADS_LIST", {
-        orderBy: [{ field: ["updatedAt"], direction: "desc" }],
-        limit: 100,
-      })) as CollectionListOutput<ThreadEntity>;
+      const allThreads = await getAllThreadsFromIndexedDB(locator);
 
       // Apply virtual MCP filter if provided
       if (virtualMcpId) {
-        return result.items.filter(
+        return allThreads.filter(
           (thread) => thread.virtualMcpId === virtualMcpId,
         );
       }
 
-      return result.items;
+      return allThreads;
     },
     staleTime: 30_000,
   });
@@ -166,32 +119,18 @@ export function useThreads(options?: { virtualMcpId?: string }) {
  * Hook to get messages for a specific thread
  *
  * @param threadId - The ID of the thread
- * @param gatewayId - Optional gateway ID for query key scoping
  * @returns Suspense query result with messages array
  */
 export function useThreadMessages(threadId: string) {
   const { locator } = useProjectContext();
 
-  const { data, error, refetch } = useSuspenseQuery({
+  const { data } = useSuspenseQuery({
     queryKey: KEYS.threadMessages(locator, threadId),
-    queryFn: async () => {
-      try {
-        if (!threadId) {
-          return [];
-        }
-        return await getThreadMessages(locator, threadId);
-      } catch (error) {
-        console.error(error);
-        return [];
-      }
-    },
+    queryFn: () => getThreadMessagesFromIndexedDB(locator, threadId),
     staleTime: 30_000,
   });
-  if (error) {
-    console.error(error);
-  }
 
-  return { messages: data ?? [], refetch };
+  return data ?? [];
 }
 
 /**
@@ -205,15 +144,9 @@ export function useThreadActions() {
 
   const insert = useMutation({
     mutationFn: async (thread: Thread) => {
-      const result = (await meshToolCaller("COLLECTION_THREADS_CREATE", {
-        data: {
-          id: thread.id,
-          title: thread.title,
-          description: null,
-        },
-      })) as CollectionInsertOutput<ThreadEntity>;
-
-      return toThread(result.item);
+      const key = `${locator}:threads:${thread.id}`;
+      await set(key, thread);
+      return thread;
     },
     onSuccess: (thread: Thread) => {
       // Invalidate all threads queries (including virtual MCP-filtered)
@@ -234,16 +167,14 @@ export function useThreadActions() {
       id: string;
       updates: Partial<Thread>;
     }) => {
-      const result = (await meshToolCaller("COLLECTION_THREADS_UPDATE", {
-        id,
-        data: {
-          title: updates.title,
-          description: null,
-          hidden: updates.hidden,
-        },
-      })) as CollectionInsertOutput<ThreadEntity>;
-
-      return toThread(result.item);
+      const key = `${locator}:threads:${id}`;
+      const existing = await get<Thread>(key);
+      if (!existing) {
+        throw new Error(`Thread ${id} not found`);
+      }
+      const updated: Thread = { ...existing, ...updates };
+      await set(key, updated);
+      return updated;
     },
     onSuccess: (updated: Thread) => {
       // Invalidate all threads queries (including virtual MCP-filtered)
@@ -261,18 +192,12 @@ export function useThreadActions() {
 
   const delete_ = useMutation({
     mutationFn: async (id: string) => {
-      const result = (await meshToolCaller("COLLECTION_THREADS_DELETE", {
-        id,
-      })) as CollectionDeleteOutput<ThreadEntity>;
-
-      return result.item.id;
+      const key = `${locator}:threads:${id}`;
+      await del(key);
+      return id;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to delete thread: ${message}`);
     },
   });
 
@@ -286,23 +211,16 @@ export function useThreadActions() {
 /**
  * Hook to get message mutation actions (insert, update, delete)
  *
- * Note: Messages are created by the backend during chat streaming.
- * These mutations are primarily for local cache management.
- *
- * @param gatewayId - Optional gateway ID for query key scoping
- * @returns Object with insert, insertMany, update, and delete mutation hooks
+ * @returns Object with insert, update, and delete mutation hooks
  */
 export function useMessageActions() {
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
-  // Messages are managed by the backend, so we just invalidate queries
-  // to refetch from the server
-
   const insert = useMutation({
     mutationFn: async (message: Message) => {
-      // Messages are created server-side during streaming
-      // This is just for cache invalidation
+      const key = `${locator}:messages:${message.id}`;
+      await set(key, message);
       return message;
     },
     onSuccess: (message: Message) => {
@@ -320,8 +238,12 @@ export function useMessageActions() {
 
   const insertMany = useMutation({
     mutationFn: async (messages: Message[]) => {
-      // Messages are created server-side during streaming
-      // This is just for cache invalidation
+      await Promise.all(
+        messages.map((message) => {
+          const key = `${locator}:messages:${message.id}`;
+          return set(key, message);
+        }),
+      );
       return messages;
     },
     onSuccess: (messages: Message[]) => {
@@ -351,8 +273,14 @@ export function useMessageActions() {
       id: string;
       updates: Partial<Message>;
     }) => {
-      // Return the updates for cache management
-      return { id, ...updates } as Message;
+      const key = `${locator}:messages:${id}`;
+      const existing = await get<Message>(key);
+      if (!existing) {
+        throw new Error(`Message ${id} not found`);
+      }
+      const updated: Message = { ...existing, ...updates };
+      await set(key, updated);
+      return updated;
     },
     onSuccess: (updated: Message) => {
       const threadId =
@@ -369,7 +297,8 @@ export function useMessageActions() {
 
   const delete_ = useMutation({
     mutationFn: async (id: string) => {
-      // Messages are managed server-side
+      const key = `${locator}:messages:${id}`;
+      await del(key);
       return id;
     },
     onSuccess: () => {

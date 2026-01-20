@@ -7,7 +7,7 @@
 
 import { useProjectContext } from "../providers/project-context-provider";
 import {
-  getThreadMessages,
+  getThreadMessagesFromIndexedDB,
   useMessageActions,
   useThreadActions,
 } from "./use-chat-store";
@@ -40,7 +40,10 @@ export function useBranchMessage(
     currentThreadId: string,
   ): Promise<void> => {
     // Query messages directly from IndexedDB
-    const allMessages = await getThreadMessages(locator, currentThreadId);
+    const allMessages = await getThreadMessagesFromIndexedDB(
+      locator,
+      currentThreadId,
+    );
 
     // Find the index of the message to branch from
     const messageIndex = allMessages.findIndex(
