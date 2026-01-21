@@ -11,6 +11,7 @@
  * - Supports StreamableHTTP and STDIO transports
  */
 
+import { createMCPAggregatorFromEntity } from "@/aggregator";
 import { extractConnectionPermissions } from "@/auth/configuration-scopes";
 import { once } from "@/common";
 import { getMonitoringConfig } from "@/core/config";
@@ -21,6 +22,7 @@ import {
   ConnectionEntity,
   type HttpConnectionParameters,
   isStdioParameters,
+  parseVirtualUrl,
 } from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
@@ -437,6 +439,57 @@ async function createMCPProxyDoNotUseDirectly(
         return client;
       }
 
+      case "VIRTUAL": {
+        // Parse virtual MCP ID from URL: virtual://$id
+        const virtualMcpId = parseVirtualUrl(connection.connection_url);
+        if (!virtualMcpId) {
+          throw new Error(
+            "VIRTUAL connection missing virtual MCP ID in connection_url",
+          );
+        }
+
+        // Load virtual MCP entity
+        const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
+        if (!virtualMcp) {
+          throw new Error(`Virtual MCP not found: ${virtualMcpId}`);
+        }
+
+        // Create aggregator client from virtual MCP entity
+        const aggregator = await createMCPAggregatorFromEntity(
+          virtualMcp,
+          ctx,
+          "passthrough",
+        );
+
+        // Return a client-like interface wrapping the aggregator
+        // This makes VIRTUAL connections work seamlessly with the rest of the proxy
+        return {
+          callTool: (params: {
+            name: string;
+            arguments?: Record<string, unknown>;
+          }) => aggregator.client.callTool(params),
+          listTools: () => aggregator.client.listTools(),
+          listResources: () => aggregator.client.listResources(),
+          readResource: (params: { uri: string }) =>
+            aggregator.client.readResource(params),
+          listResourceTemplates: () =>
+            aggregator.client.listResourceTemplates(),
+          listPrompts: () => aggregator.client.listPrompts(),
+          getPrompt: (params: {
+            name: string;
+            arguments?: Record<string, string>;
+          }) => aggregator.client.getPrompt(params),
+          close: async () => {
+            // Aggregator doesn't need explicit cleanup
+          },
+          getServerCapabilities: () => ({
+            tools: {},
+            resources: {},
+            prompts: {},
+          }),
+        } as unknown as Client;
+      }
+
       default:
         throw new Error(
           `Unknown connection type: ${connection.connection_type}`,
@@ -658,11 +711,22 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Call tool using fetch directly for streaming support
   // Inspired by @deco/api proxy callStreamableTool
-  // Note: Only works for HTTP connections - STDIO doesn't support streaming fetch
+  // Note: Only works for HTTP connections - STDIO and VIRTUAL don't support streaming fetch
   const callStreamableTool = async (
     name: string,
     args: Record<string, unknown>,
   ): Promise<Response> => {
+    // VIRTUAL connections don't support streamable tools - fall back to regular call
+    if (connection.connection_type === "VIRTUAL") {
+      const result = await executeToolCall({
+        method: "tools/call",
+        params: { name, arguments: args },
+      });
+      return new Response(JSON.stringify(result), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     if (!connection.connection_url) {
       throw new Error("Streamable tools require HTTP connection with URL");
     }

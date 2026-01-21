@@ -22,7 +22,7 @@ import { isStdioParameters } from "./schema";
 export interface ConnectionForToolFetch {
   id: string;
   title: string;
-  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO";
+  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO" | "VIRTUAL";
   connection_url?: string | null;
   connection_token?: string | null;
   connection_headers?: ConnectionParameters | null;
@@ -31,9 +31,10 @@ export interface ConnectionForToolFetch {
 /**
  * Fetches tools from an MCP connection server.
  * Supports HTTP, SSE, and STDIO transports based on connection_type.
+ * VIRTUAL connections return null since tools are fetched dynamically at runtime.
  *
  * @param connection - Connection details for connecting to MCP
- * @returns Array of tool definitions, or null if fetch failed
+ * @returns Array of tool definitions, or null if fetch failed or not applicable
  */
 export async function fetchToolsFromMCP(
   connection: ConnectionForToolFetch,
@@ -46,6 +47,10 @@ export async function fetchToolsFromMCP(
       return fetchToolsFromHttpMCP(connection);
     case "SSE":
       return fetchToolsFromSSEMCP(connection);
+    case "VIRTUAL":
+      // VIRTUAL connections aggregate tools from their underlying Virtual MCP
+      // Tools are fetched dynamically at runtime, not cached at creation time
+      return null;
     default:
       return null;
   }

@@ -15,6 +15,8 @@ export interface ResourceSetSelectorProps {
     string,
     Array<{ uri: string; name?: string; description?: string }>
   >;
+  /** Virtual MCP ID to exclude from selection (prevents self-reference) */
+  excludeVirtualMcpId?: string;
 }
 
 /**
@@ -113,6 +115,7 @@ export function ResourceSetSelector({
   resourceSet,
   onResourceSetChange,
   connectionResources,
+  excludeVirtualMcpId,
 }: ResourceSetSelectorProps) {
   const [selectedConnectionId, _setSelectedConnectionId] = useState<
     string | null
@@ -185,6 +188,7 @@ export function ResourceSetSelector({
         itemLabel="resources"
         emptyItemsMessage="This connection has no resources available"
         extraContent={extraContent}
+        excludeVirtualMcpId={excludeVirtualMcpId}
       />
     </div>
   );

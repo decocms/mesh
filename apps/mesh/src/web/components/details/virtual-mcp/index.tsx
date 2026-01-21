@@ -996,18 +996,21 @@ function VirtualMCPInspectorViewWithData({
                   <ToolSetSelector
                     toolSet={toolSet}
                     onToolSetChange={handleToolSetChange}
+                    excludeVirtualMcpId={virtualMcpId}
                   />
                 ) : activeTabId === "resources" ? (
                   <ResourceSetSelector
                     resourceSet={resourceSet}
                     onResourceSetChange={handleResourceSetChange}
                     connectionResources={connectionResources}
+                    excludeVirtualMcpId={virtualMcpId}
                   />
                 ) : activeTabId === "prompts" ? (
                   <PromptSetSelector
                     promptSet={promptSet}
                     onPromptSetChange={handlePromptSetChange}
                     connectionPrompts={connectionPrompts}
+                    excludeVirtualMcpId={virtualMcpId}
                   />
                 ) : null}
               </Suspense>

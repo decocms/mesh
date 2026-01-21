@@ -8,6 +8,8 @@ export interface PromptSetSelectorProps {
   onPromptSetChange: (promptSet: Record<string, string[]>) => void;
   /** Prompts per connection: connectionId -> array of prompts */
   connectionPrompts: Map<string, Array<{ name: string; description?: string }>>;
+  /** Virtual MCP ID to exclude from selection (prevents self-reference) */
+  excludeVirtualMcpId?: string;
 }
 
 /**
@@ -19,6 +21,7 @@ export function PromptSetSelector({
   promptSet,
   onPromptSetChange,
   connectionPrompts,
+  excludeVirtualMcpId,
 }: PromptSetSelectorProps) {
   const getPrompts = (
     connection: ReturnType<typeof useConnections>[number],
@@ -38,6 +41,7 @@ export function PromptSetSelector({
       getItems={getPrompts}
       itemLabel="prompts"
       emptyItemsMessage="This connection has no prompts available"
+      excludeVirtualMcpId={excludeVirtualMcpId}
     />
   );
 }

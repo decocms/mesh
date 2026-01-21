@@ -90,12 +90,14 @@ export const ConnectionEntitySchema = z.object({
   app_id: z.string().nullable().describe("Associated app ID"),
 
   connection_type: z
-    .enum(["HTTP", "SSE", "Websocket", "STDIO"])
+    .enum(["HTTP", "SSE", "Websocket", "STDIO", "VIRTUAL"])
     .describe("Type of connection"),
   connection_url: z
     .string()
     .nullable()
-    .describe("URL for HTTP/SSE/WebSocket connections. Null for STDIO."),
+    .describe(
+      "URL for HTTP/SSE/WebSocket connections. virtual://$id for VIRTUAL. Null for STDIO.",
+    ),
   connection_token: z
     .string()
     .nullable()
@@ -181,4 +183,31 @@ export function isStdioParameters(
   params: ConnectionParameters | null | undefined,
 ): params is StdioConnectionParameters {
   return params !== null && params !== undefined && "command" in params;
+}
+
+/**
+ * Parse virtual MCP ID from virtual:// URL
+ * @returns The virtual MCP ID or null if not a virtual URL
+ */
+export function parseVirtualUrl(url: string | null | undefined): string | null {
+  if (!url || !url.startsWith("virtual://")) {
+    return null;
+  }
+  return url.replace("virtual://", "");
+}
+
+/**
+ * Build virtual:// URL from virtual MCP ID
+ */
+export function buildVirtualUrl(virtualMcpId: string): string {
+  return `virtual://${virtualMcpId}`;
+}
+
+/**
+ * Check if connection is a VIRTUAL type
+ */
+export function isVirtualConnection(
+  connection: ConnectionEntity | { connection_type: string },
+): boolean {
+  return connection.connection_type === "VIRTUAL";
 }
