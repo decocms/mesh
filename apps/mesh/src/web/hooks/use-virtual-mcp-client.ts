@@ -1,5 +1,4 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type {
   GetPromptRequest,
   GetPromptResult,
@@ -10,6 +9,7 @@ import type {
   ReadResourceResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { StreamableHTTPClientTransport } from "../lib/streamable-http-client-transport";
 import { KEYS } from "../lib/query-keys";
 import { useProjectContext } from "../providers/project-context-provider";
 
@@ -38,20 +38,17 @@ function createVirtualMCPTransport(
     : `/mcp/virtual-mcp`;
   const virtualMcpUrl = new URL(path, window.location.origin);
 
-  const webStandardStreamableHttpTransport = new StreamableHTTPClientTransport(
-    virtualMcpUrl,
-    {
-      requestInit: {
-        headers: {
-          Accept: "application/json, text/event-stream",
-          "Content-Type": "application/json",
-          "x-org-slug": orgSlug,
-        },
+  const transport = new StreamableHTTPClientTransport(virtualMcpUrl, {
+    requestInit: {
+      headers: {
+        Accept: "application/json, text/event-stream",
+        "Content-Type": "application/json",
+        "x-org-slug": orgSlug,
       },
     },
-  );
+  });
 
-  return webStandardStreamableHttpTransport;
+  return transport;
 }
 
 async function withVirtualMCPClient<T>(
