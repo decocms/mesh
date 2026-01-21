@@ -131,15 +131,11 @@ app.all("/:org/:connectionId", async (c) => {
   const subject = adapter.getSubject?.(body);
 
   try {
-    await ctx.eventBus.publish(
-      connection.organization_id,
-      connectionId,
-      {
-        type: eventType,
-        data: body ?? rawBody,
-        subject,
-      },
-    );
+    await ctx.eventBus.publish(connection.organization_id, connectionId, {
+      type: eventType,
+      data: body ?? rawBody,
+      subject,
+    });
   } catch (err) {
     // Log error but still return 200 to acknowledge receipt
     console.error("[Webhooks] Event Bus publish failed:", err);
