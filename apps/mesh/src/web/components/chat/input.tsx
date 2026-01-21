@@ -7,11 +7,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -23,7 +18,6 @@ import {
   CpuChip02,
   Edit01,
   Stop,
-  Upload01,
   XCircle,
 } from "@untitledui/icons";
 import type { FormEvent } from "react";
@@ -36,8 +30,13 @@ import {
   VirtualMCPSelector,
   type VirtualMCPInfo,
 } from "./select-virtual-mcp";
-import { modelSupportsFiles, ModelSelector } from "./select-model";
-import { ChatTiptapInput, type ChatTiptapInputHandle } from "./tiptap/input";
+import { ModelSelector } from "./select-model";
+import {
+  TiptapProvider,
+  TiptapInput,
+  type TiptapInputHandle,
+} from "./tiptap/input";
+import { FileUploadButton } from "./tiptap/file";
 import { UsageStats } from "./usage-stats";
 
 // ============================================================================
@@ -203,26 +202,10 @@ export function ChatInput() {
     clearFinishReason,
   } = useChat();
 
-  const tiptapRef = useRef<ChatTiptapInputHandle | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const tiptapRef = useRef<TiptapInputHandle | null>(null);
 
   const canSubmit =
     !isStreaming && !!selectedModel && !isTiptapDocEmpty(tiptapDoc);
-
-  const modelSupportsFilesValue = modelSupportsFiles(selectedModel);
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const fileArray = Array.from(files);
-    await tiptapRef.current?.insertFiles(fileArray);
-
-    // Reset input so same file can be selected again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
 
   const handleSubmit = (e?: FormEvent) => {
     e?.preventDefault();
@@ -362,106 +345,88 @@ export function ChatInput() {
 
         {/* Inner container with the input */}
         <div className="p-0.5">
-          <form
+          <TiptapProvider
+            tiptapDoc={tiptapDoc}
+            setTiptapDoc={setTiptapDoc}
+            selectedModel={selectedModel}
+            isStreaming={isStreaming}
             onSubmit={handleSubmit}
-            className={cn(
-              "w-full relative rounded-xl min-h-[130px] flex flex-col border border-border bg-background",
-              !selectedVirtualMcp && "shadow-sm",
-            )}
           >
-            <div className="relative flex flex-col gap-2 flex-1">
-              {/* Input Area with Tiptap */}
-              <ChatTiptapInput
-                ref={tiptapRef}
-                tiptapDoc={tiptapDoc}
-                setTiptapDoc={setTiptapDoc}
-                selectedModel={selectedModel}
-                isStreaming={isStreaming}
-                selectedVirtualMcp={selectedVirtualMcp}
-                onSubmit={handleSubmit}
-              />
-            </div>
-
-            {/* Bottom Actions Row */}
-            <div className="flex items-center justify-between p-2.5">
-              {/* Left Actions (selectors) */}
-              <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                {/* VirtualMCPSelector only shown when default is selected (no badge) */}
-                {!selectedVirtualMcp && (
-                  <VirtualMCPSelector
-                    selectedVirtualMcpId={null}
-                    onVirtualMcpChange={setVirtualMcpId}
-                    virtualMcps={virtualMcps}
-                    placeholder="Agent"
-                    disabled={isStreaming}
-                  />
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileSelect}
-                  disabled={isStreaming || !modelSupportsFilesValue}
+            <form
+              onSubmit={handleSubmit}
+              className={cn(
+                "w-full relative rounded-xl min-h-[130px] flex flex-col border border-border bg-background",
+                !selectedVirtualMcp && "shadow-sm",
+              )}
+            >
+              <div className="relative flex flex-col gap-2 flex-1">
+                {/* Input Area with Tiptap */}
+                <TiptapInput
+                  ref={tiptapRef}
+                  selectedModel={selectedModel}
+                  isStreaming={isStreaming}
+                  selectedVirtualMcp={selectedVirtualMcp}
                 />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 rounded-full"
-                      disabled={isStreaming || !modelSupportsFilesValue}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload01 size={16} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    {!modelSupportsFilesValue
-                      ? "Selected model does not support files"
-                      : "Add file"}
-                  </TooltipContent>
-                </Tooltip>
-                <ModelSelector
-                  selectedModel={selectedModel ?? undefined}
-                  onModelChange={setSelectedModel}
-                  modelsConnections={modelsConnections}
-                  placeholder="Model"
-                  variant="borderless"
-                />
-                <UsageStats messages={messages} />
               </div>
 
-              {/* Right Actions (send button) */}
-              <div className="flex items-center gap-1">
-                <Button
-                  type={isStreaming ? "button" : "submit"}
-                  onClick={(e) => {
-                    if (isStreaming) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      stopStreaming();
-                    }
-                  }}
-                  variant={canSubmit || isStreaming ? "default" : "ghost"}
-                  size="icon"
-                  disabled={!canSubmit && !isStreaming}
-                  className={cn(
-                    "size-8 rounded-full transition-all",
-                    !canSubmit &&
-                      !isStreaming &&
-                      "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
+              {/* Bottom Actions Row */}
+              <div className="flex items-center justify-between p-2.5">
+                {/* Left Actions (selectors) */}
+                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                  {/* VirtualMCPSelector only shown when default is selected (no badge) */}
+                  {!selectedVirtualMcp && (
+                    <VirtualMCPSelector
+                      selectedVirtualMcpId={null}
+                      onVirtualMcpChange={setVirtualMcpId}
+                      virtualMcps={virtualMcps}
+                      placeholder="Agent"
+                      disabled={isStreaming}
+                    />
                   )}
-                  title={
-                    isStreaming ? "Stop generating" : "Send message (Enter)"
-                  }
-                >
-                  {isStreaming ? <Stop size={20} /> : <ArrowUp size={20} />}
-                </Button>
+                  <ModelSelector
+                    selectedModel={selectedModel ?? undefined}
+                    onModelChange={setSelectedModel}
+                    modelsConnections={modelsConnections}
+                    placeholder="Model"
+                    variant="borderless"
+                  />
+                  <UsageStats messages={messages} />
+                </div>
+
+                {/* Right Actions (send button) */}
+                <div className="flex items-center gap-1">
+                  <FileUploadButton
+                    selectedModel={selectedModel}
+                    isStreaming={isStreaming}
+                  />
+                  <Button
+                    type={isStreaming ? "button" : "submit"}
+                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      if (isStreaming) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        stopStreaming();
+                      }
+                    }}
+                    variant={canSubmit || isStreaming ? "default" : "ghost"}
+                    size="icon"
+                    disabled={!canSubmit && !isStreaming}
+                    className={cn(
+                      "size-8 rounded-full transition-all",
+                      !canSubmit &&
+                        !isStreaming &&
+                        "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
+                    )}
+                    title={
+                      isStreaming ? "Stop generating" : "Send message (Enter)"
+                    }
+                  >
+                    {isStreaming ? <Stop size={20} /> : <ArrowUp size={20} />}
+                  </Button>
+                </div>
               </div>
-            </div>
-          </form>
+            </form>
+          </TiptapProvider>
         </div>
       </div>
     </div>

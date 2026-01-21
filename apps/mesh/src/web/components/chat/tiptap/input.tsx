@@ -1,13 +1,19 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import Placeholder from "@tiptap/extension-placeholder";
-import { EditorContent, useEditor } from "@tiptap/react";
+import {
+  EditorContent,
+  EditorContext,
+  useCurrentEditor,
+  useEditor,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import type { EditorView } from "@tiptap/pm/view";
 import type { Ref } from "react";
 import { useEffect, useImperativeHandle, useRef } from "react";
 import type { VirtualMCPInfo } from "../select-virtual-mcp";
 import type { SelectedModelState } from "../select-model";
 import type { Metadata } from "../types.ts";
-import { FileNode, FileUploader, processFile } from "./file";
+import { FileNode, FileUploader } from "./file";
 import { MentionNode } from "./mention";
 import { PromptsMention } from "./mention-prompts.tsx";
 import { ResourcesMention } from "./mention-resources.tsx";
@@ -28,34 +34,32 @@ const GLOBAL_EXTENSIONS = [
   FileNode,
 ];
 
-export interface ChatTiptapInputHandle {
+export interface TiptapInputHandle {
   focus: () => void;
   clear: () => void;
-  insertFiles: (files: File[]) => Promise<void>;
 }
 
-interface ChatTiptapInputProps {
+interface TiptapProviderProps {
   tiptapDoc: Metadata["tiptapDoc"];
   setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
   selectedModel: SelectedModelState | null;
   isStreaming: boolean;
-  selectedVirtualMcp: VirtualMCPInfo | null;
   onSubmit?: () => void;
+  children: React.ReactNode;
 }
 
-export function ChatTiptapInput({
-  ref,
-  ...props
-}: ChatTiptapInputProps & { ref?: Ref<ChatTiptapInputHandle> }) {
-  const {
-    tiptapDoc,
-    setTiptapDoc,
-    selectedModel,
-    isStreaming,
-    selectedVirtualMcp,
-    onSubmit,
-  } = props;
-  const virtualMcpId = selectedVirtualMcp?.id ?? null;
+/**
+ * Provider component that creates the Tiptap editor and provides it via EditorContext.
+ * This allows child components to access the editor without prop drilling.
+ */
+export function TiptapProvider({
+  tiptapDoc,
+  setTiptapDoc,
+  selectedModel,
+  isStreaming,
+  onSubmit,
+  children,
+}: TiptapProviderProps) {
   const isDisabled = isStreaming || !selectedModel;
 
   // Store onSubmit in a ref to avoid recreating the editor on every render
@@ -72,7 +76,7 @@ export function ChatTiptapInput({
           class:
             "prose prose-sm max-w-none focus:outline-none w-full h-full text-[15px] p-[18px]",
         },
-        handleKeyDown: (_view, event) => {
+        handleKeyDown: (_view: EditorView, event: KeyboardEvent) => {
           // Handle Enter key: submit on Enter, new line on Shift+Enter
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
@@ -82,37 +86,12 @@ export function ChatTiptapInput({
           return false;
         },
       },
-      onUpdate: ({ editor }) => {
+      onUpdate: ({ editor }: { editor: ReturnType<typeof useEditor> }) => {
         // Update tiptapDoc in context whenever editor changes
         setTiptapDoc(editor.getJSON());
       },
     },
     [isDisabled, setTiptapDoc],
-  );
-
-  useImperativeHandle(
-    ref ?? null,
-    () => ({
-      focus: () => {
-        editor?.commands.focus();
-      },
-      clear: () => {
-        editor?.commands.clearContent(true);
-      },
-      insertFiles: async (files: File[]) => {
-        if (!editor) return;
-
-        // Get current cursor position
-        const { from } = editor.state.selection;
-        const currentPos = from;
-
-        // Process files sequentially using the shared processFile function
-        for (const file of files) {
-          await processFile(editor, selectedModel, file, currentPos);
-        }
-      },
-    }),
-    [editor, selectedModel],
   );
 
   // Keep the ref up to date
@@ -134,6 +113,51 @@ export function ChatTiptapInput({
       editor.commands.setContent(tiptapDoc || { type: "doc", content: [] });
     }
   }, [editor, tiptapDoc]);
+
+  return (
+    <EditorContext.Provider value={{ editor }}>
+      {children}
+    </EditorContext.Provider>
+  );
+}
+
+interface TiptapInputProps {
+  selectedModel: SelectedModelState | null;
+  isStreaming: boolean;
+  selectedVirtualMcp: VirtualMCPInfo | null;
+  ref?: Ref<TiptapInputHandle>;
+}
+
+/**
+ * Input component that renders the editor content and mentions.
+ * Uses the editor from EditorContext provided by TiptapProvider.
+ */
+export function TiptapInput({
+  selectedModel,
+  isStreaming,
+  selectedVirtualMcp,
+  ref,
+}: TiptapInputProps) {
+  const { editor } = useCurrentEditor();
+  const virtualMcpId = selectedVirtualMcp?.id ?? null;
+  const isDisabled = isStreaming || !selectedModel;
+
+  useImperativeHandle(
+    ref ?? null,
+    () => ({
+      focus: () => {
+        editor?.commands.focus();
+      },
+      clear: () => {
+        editor?.commands.clearContent(true);
+      },
+    }),
+    [editor],
+  );
+
+  if (!editor) {
+    return null;
+  }
 
   return (
     <>
