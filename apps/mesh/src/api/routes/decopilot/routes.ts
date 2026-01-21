@@ -172,10 +172,9 @@ app.post("/:org/decopilot/stream", async (c) => {
             onTitle: (title) => {
               newTitle = title;
             },
-          })
-            .catch((error) => {
-              console.error("[decopilot:stream] Error generating title", error);
-            })
+          }).catch((error) => {
+            console.error("[decopilot:stream] Error generating title", error);
+          });
         }
       },
       onError: async (error) => {
