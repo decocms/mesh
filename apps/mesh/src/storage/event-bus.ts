@@ -477,12 +477,18 @@ class KyselyEventBusStorage implements EventBusStorage {
   async getMatchingSubscriptions(event: Event): Promise<EventSubscription[]> {
     // Find enabled subscriptions that match the event type
     // and either have no publisher filter or match the event source
+    //
+    // Supports wildcards:
+    // - "slack.*" matches "slack.message", "slack.app_mention", etc.
+    // - "*" matches any event type
+    // - Exact match: "slack.message" matches only "slack.message"
+    
+    // Get all enabled subscriptions for this org with matching publisher
     const rows = await this.db
       .selectFrom("event_subscriptions")
       .selectAll()
       .where("organization_id", "=", event.organizationId)
       .where("enabled", "=", 1)
-      .where("event_type", "=", event.type)
       .where((eb) =>
         eb.or([
           eb("publisher", "is", null),
@@ -491,7 +497,27 @@ class KyselyEventBusStorage implements EventBusStorage {
       )
       .execute();
 
-    return rows.map((row) => ({
+    // Filter by event type pattern (supports wildcards)
+    const matchingRows = rows.filter((row) => {
+      const pattern = row.event_type;
+      const eventType = event.type;
+      
+      // Exact match
+      if (pattern === eventType) return true;
+      
+      // Global wildcard
+      if (pattern === "*") return true;
+      
+      // Prefix wildcard: "slack.*" matches "slack.message"
+      if (pattern.endsWith(".*")) {
+        const prefix = pattern.slice(0, -2); // Remove ".*"
+        return eventType.startsWith(prefix + ".");
+      }
+      
+      return false;
+    });
+
+    return matchingRows.map((row) => ({
       id: row.id,
       organizationId: row.organization_id,
       connectionId: row.connection_id,
