@@ -61,10 +61,14 @@ function WebhookUrlDisplay({
   const webhookUrl = `${meshUrl}/webhooks/${org}/${connectionId}`;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(webhookUrl);
-    setCopied(true);
-    toast.success("Webhook URL copied to clipboard");
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      setCopied(true);
+      toast.success("Webhook URL copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy. Please copy manually.");
+    }
   };
 
   return (
