@@ -24,6 +24,7 @@ import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import { createLLMProvider } from "../llm-provider";
 import { fixProtocol } from "./oauth-proxy";
+import { MCP_TOOL_CALL_TIMEOUT_MS } from "./proxy";
 
 // Default values
 const DEFAULT_MAX_TOKENS = 32768;
@@ -176,7 +177,7 @@ const toolsFromMCP = async (
               arguments: argsWithMeta as Record<string, unknown>,
             },
             CallToolResultSchema,
-            { signal: options.abortSignal },
+            { signal: options.abortSignal, timeout: MCP_TOOL_CALL_TIMEOUT_MS },
           ) as Promise<CallToolResult>;
         },
         toModelOutput: ({ output }) => {
