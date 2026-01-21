@@ -103,7 +103,7 @@ export function TiptapProvider({
   // Sync editor content when tiptapDoc changes externally
   // eslint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (editor.isDestroyed) return;
+    if (editor?.isDestroyed) return;
 
     // Only update if the content is different to avoid unnecessary updates
     const currentJson = JSON.stringify(editor.getJSON());

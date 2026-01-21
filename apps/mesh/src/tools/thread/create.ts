@@ -11,24 +11,16 @@ import {
   requireAuth,
   requireOrganization,
 } from "../../core/mesh-context";
-import {
-  ThreadCreateDataSchema,
-  ThreadEntitySchema,
-  ThreadMessageEntitySchema,
-} from "./schema";
+import { ThreadCreateDataSchema, ThreadEntitySchema } from "./schema";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
-import { ThreadMessage } from "@/storage/types";
 
 /**
  * Input schema for creating threads (wrapped in data field for collection compliance)
  */
 const CreateInputSchema = z.object({
-  data: ThreadCreateDataSchema.extend({
-    messages: z
-      .array(ThreadMessageEntitySchema)
-      .optional()
-      .describe("Messages for the new thread"),
-  }).describe("Data for the new thread (id is auto-generated if not provided)"),
+  data: ThreadCreateDataSchema.describe(
+    "Data for the new thread (id is auto-generated if not provided)",
+  ),
 });
 
 export type CreateThreadInput = z.infer<typeof CreateInputSchema>;
@@ -59,25 +51,6 @@ export const COLLECTION_THREADS_CREATE = defineTool({
     }
 
     const threadId = input.data.id ?? generatePrefixedId("thrd");
-
-    const messages = input.data.messages ?? [];
-
-    if (messages.length > 0) {
-      const result = await ctx.storage.threads.createWithMessages({
-        id: threadId,
-        organizationId: organization.id,
-        title: input.data.title,
-        description: input.data.description,
-        createdBy: userId,
-        messages: messages as unknown as ThreadMessage[],
-      });
-      return {
-        item: {
-          ...result,
-          hidden: result.hidden ?? false,
-        },
-      };
-    }
 
     const result = await ctx.storage.threads.create({
       id: threadId,

@@ -20,9 +20,6 @@ import type {
 
 export interface ThreadStoragePort {
   create(data: Partial<Thread>): Promise<Thread>;
-  createWithMessages(
-    data: Partial<Thread> & { messages: ThreadMessage[] },
-  ): Promise<Thread>;
   get(id: string): Promise<Thread | null>;
   update(id: string, data: Partial<Thread>): Promise<Thread>;
   delete(id: string): Promise<void>;
