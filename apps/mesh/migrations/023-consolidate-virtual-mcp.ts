@@ -87,8 +87,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   // These reference virtual_mcps which we want to drop
   // ============================================================================
 
-  // Check if we're on PostgreSQL by trying to query pg_constraint
-  const isPostgres = await sql`SELECT 1 FROM pg_constraint LIMIT 1`
+  // Check if we're on PostgreSQL by checking for PostgreSQL-specific function
+  const isPostgres = await sql`SELECT current_database()`
     .execute(db)
     .then(() => true)
     .catch(() => false);

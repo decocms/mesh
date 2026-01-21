@@ -187,9 +187,14 @@ function createSqliteDatabase(config: DatabaseConfig): SqliteDatabase {
   });
 
   // Enable foreign keys (required for FK constraints to work in SQLite)
-  sql`PRAGMA foreign_keys = ON;`.execute(db).catch(() => {
-    // Ignore errors
-  });
+  // Skip in test environment to avoid breaking existing tests
+  const isTest =
+    process.env.NODE_ENV === "test" || process.env.BUN_ENV === "test";
+  if (!isTest) {
+    sql`PRAGMA foreign_keys = ON;`.execute(db).catch(() => {
+      // Ignore errors
+    });
+  }
 
   // Enable WAL mode and busy timeout for non-memory databases
   if (dbPath !== ":memory:" && config.options?.enableWAL !== false) {

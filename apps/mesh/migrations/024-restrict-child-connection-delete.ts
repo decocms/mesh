@@ -76,7 +76,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   // SQLite doesn't support renaming constraints
   // ============================================================================
 
-  const isPostgres = await sql`SELECT 1 FROM pg_constraint LIMIT 1`
+  // Check if we're on PostgreSQL by checking for PostgreSQL-specific function
+  const isPostgres = await sql`SELECT current_database()`
     .execute(db)
     .then(() => true)
     .catch(() => false);
@@ -176,7 +177,8 @@ export async function down(db: Kysely<unknown>): Promise<void> {
   // Step 5: Rename FK constraints to clean names (PostgreSQL only)
   // ============================================================================
 
-  const isPostgres = await sql`SELECT 1 FROM pg_constraint LIMIT 1`
+  // Check if we're on PostgreSQL by checking for PostgreSQL-specific function
+  const isPostgres = await sql`SELECT current_database()`
     .execute(db)
     .then(() => true)
     .catch(() => false);
