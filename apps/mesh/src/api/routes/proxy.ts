@@ -67,6 +67,17 @@ type Variables = {
 const app = new Hono<{ Variables: Variables }>();
 
 // ============================================================================
+// MCP Tool Call Configuration
+// ============================================================================
+
+/**
+ * Default timeout for MCP tool calls in milliseconds.
+ * The MCP SDK default is 60 seconds (60000ms).
+ * Increase this value for tools that take longer to execute.
+ */
+export const MCP_TOOL_CALL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+// ============================================================================
 // Middleware Types
 // ============================================================================
 
@@ -488,7 +499,9 @@ async function createMCPProxyDoNotUseDirectly(
         },
         async (span) => {
           try {
-            const result = await client.callTool(forwardParams);
+            const result = await client.callTool(forwardParams, undefined, {
+              timeout: MCP_TOOL_CALL_TIMEOUT_MS,
+            });
             const duration = Date.now() - startTime;
 
             // Record duration histogram
