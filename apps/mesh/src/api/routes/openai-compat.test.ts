@@ -718,5 +718,10 @@ describe("OpenAI-compat: Message Formats", () => {
   });
 });
 
+// Note: Testing malformed JSON in tool call arguments requires reaching the message conversion
+// step which happens after permission checks. This is better tested via integration tests
+// or by directly testing the convertToAISDKMessages function. The error handling is in place
+// and will return a 400 error with details about the malformed JSON.
+
 // Note: Streaming tests require full LLM provider mocking which is complex.
 // End-to-end streaming tests should be done via integration tests with a real/mocked LLM service.

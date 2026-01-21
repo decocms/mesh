@@ -207,8 +207,36 @@ function parseModelString(
 }
 
 /**
+ * Custom error for message conversion validation failures
+ */
+class MessageConversionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MessageConversionError";
+  }
+}
+
+/**
+ * Safely parse JSON with a descriptive error message
+ */
+function safeParseToolArguments(
+  args: string,
+  toolCallId: string,
+  functionName: string,
+): unknown {
+  try {
+    return JSON.parse(args);
+  } catch {
+    throw new MessageConversionError(
+      `Invalid JSON in tool call arguments for function '${functionName}' (tool_call_id: ${toolCallId}): ${args}`,
+    );
+  }
+}
+
+/**
  * Convert OpenAI messages to AI SDK message format
  * Returns a format compatible with streamText/generateText
+ * @throws {MessageConversionError} if tool call arguments contain invalid JSON
  */
 function convertToAISDKMessages(messages: OpenAIMessage[]): ModelMessage[] {
   return messages.map((msg): ModelMessage => {
@@ -240,7 +268,11 @@ function convertToAISDKMessages(messages: OpenAIMessage[]): ModelMessage[] {
               type: "tool-call" as const,
               toolCallId: tc.id,
               toolName: tc.function.name,
-              args: JSON.parse(tc.function.arguments),
+              args: safeParseToolArguments(
+                tc.function.arguments,
+                tc.id,
+                tc.function.name,
+              ),
             })) as unknown as ModelMessage["content"],
           } as ModelMessage;
         }
@@ -716,6 +748,14 @@ app.post("/:org/v1/chat/completions", async (c) => {
     if (err.name === "AbortError") {
       return c.json(
         createErrorResponse("Request aborted", "invalid_request_error"),
+        400,
+      );
+    }
+
+    // Handle message conversion validation errors (e.g., malformed JSON in tool call arguments)
+    if (err.name === "MessageConversionError") {
+      return c.json(
+        createErrorResponse(err.message, "invalid_request_error", "messages"),
         400,
       );
     }
