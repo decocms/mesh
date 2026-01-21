@@ -8,7 +8,6 @@ import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
 import { ThreadMessageEntitySchema } from "./schema";
-import { ThreadMessage } from "@/storage/types";
 
 /**
  * Input schema for listing thread messages
@@ -60,30 +59,6 @@ export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
       items: messages,
       totalCount: total,
       hasMore,
-    };
-  },
-});
-
-export const COLLECTION_THREAD_MESSAGES_SAVE = defineTool({
-  name: "COLLECTION_THREAD_MESSAGES_SAVE",
-  description: "Save messages for a specific thread",
-
-  inputSchema: z.object({
-    data: z.array(ThreadMessageEntitySchema).describe("Messages to save"),
-  }),
-  outputSchema: z.object({
-    success: z
-      .boolean()
-      .describe("Whether the messages were saved successfully"),
-  }),
-
-  handler: async (input, ctx) => {
-    await ctx.access.check();
-    await ctx.storage.threads.saveMessages(
-      input.data as unknown as ThreadMessage[],
-    );
-    return {
-      success: true,
     };
   },
 });

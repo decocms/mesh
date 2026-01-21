@@ -83,7 +83,6 @@ export const ALL_TOOLS = [
   ThreadTools.COLLECTION_THREADS_UPDATE,
   ThreadTools.COLLECTION_THREADS_DELETE,
   ThreadTools.COLLECTION_THREAD_MESSAGES_LIST,
-  ThreadTools.COLLECTION_THREAD_MESSAGES_SAVE,
 ] as const satisfies { name: ToolName }[];
 
 export type MCPMeshTools = typeof ALL_TOOLS;
