@@ -39,3 +39,7 @@ coverage/
 # Temporary files
 /tmp/
 
+
+
+# Authentication tokens
+.npmrc

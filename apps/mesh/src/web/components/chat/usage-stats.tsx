@@ -5,7 +5,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Coins01 } from "@untitledui/icons";
-import { Metadata } from "@deco/ui/types/chat-metadata.ts";
+import type { Metadata } from "./types.ts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
 
 interface UsageStatsProps {

@@ -3,23 +3,20 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type {
   GetPromptRequest,
   GetPromptResult,
+  Prompt,
+  Resource,
   ListPromptsResult,
+  ListResourcesResult,
+  ReadResourceResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
 
-export interface VirtualMCPPrompt {
-  name: string;
-  title?: string;
-  description?: string;
-  arguments?: Array<{
-    name: string;
-    description?: string;
-    required?: boolean;
-  }>;
-}
-
+export type VirtualMCPPrompt = Prompt;
 export type VirtualMCPPromptResult = GetPromptResult;
+
+export type VirtualMCPResource = Resource;
+export type VirtualMCPResourceResult = ReadResourceResult;
 
 const DEFAULT_CLIENT_INFO = {
   name: "mesh-chat",
@@ -28,7 +25,7 @@ const DEFAULT_CLIENT_INFO = {
 
 function createVirtualMCPTransport(virtualMcpId: string) {
   if (typeof window === "undefined") {
-    throw new Error("Virtual MCP prompts require a browser environment.");
+    throw new Error("Virtual MCP client requires a browser environment.");
   }
 
   const virtualMcpUrl = new URL(
@@ -64,7 +61,7 @@ async function withVirtualMCPClient<T>(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(
-      `[virtual-mcp-prompts] Error for virtual MCP ${virtualMcpId}:`,
+      `[virtual-mcp-client] Error for virtual MCP ${virtualMcpId}:`,
       error,
     );
     throw new Error(`Failed to communicate with virtual MCP: ${message}`);
@@ -76,7 +73,7 @@ async function withVirtualMCPClient<T>(
 /**
  * Fetch prompts from a virtual MCP via MCP protocol
  */
-async function fetchVirtualMCPPrompts(
+export async function fetchVirtualMCPPrompts(
   virtualMcpId: string,
 ): Promise<VirtualMCPPrompt[]> {
   try {
@@ -86,7 +83,7 @@ async function fetchVirtualMCPPrompts(
     );
     return result.prompts ?? [];
   } catch (error) {
-    console.error("[virtual-mcp-prompts] Failed to list prompts:", error);
+    console.error("[virtual-mcp-client] Failed to list prompts:", error);
     return [];
   }
 }
@@ -100,6 +97,34 @@ export async function fetchVirtualMCPPrompt(
   return await withVirtualMCPClient<VirtualMCPPromptResult>(
     virtualMcpId,
     (client) => client.getPrompt({ name, arguments: argumentsValue }),
+  );
+}
+
+/**
+ * Fetch resources from a virtual MCP via MCP protocol
+ */
+export async function fetchVirtualMCPResources(
+  virtualMcpId: string,
+): Promise<VirtualMCPResource[]> {
+  try {
+    const result = await withVirtualMCPClient<ListResourcesResult>(
+      virtualMcpId,
+      (client) => client.listResources(),
+    );
+    return result.resources ?? [];
+  } catch (error) {
+    console.error("[virtual-mcp-client] Failed to list resources:", error);
+    return [];
+  }
+}
+
+export async function fetchVirtualMCPResource(
+  virtualMcpId: string,
+  uri: string,
+): Promise<VirtualMCPResourceResult> {
+  return await withVirtualMCPClient<VirtualMCPResourceResult>(
+    virtualMcpId,
+    (client) => client.readResource({ uri }),
   );
 }
 

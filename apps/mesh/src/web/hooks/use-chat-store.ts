@@ -13,7 +13,7 @@ import {
 } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
 import { useProjectContext } from "../providers/project-context-provider";
-import type { Message, Thread } from "../types/chat-threads";
+import type { Message, Thread } from "../components/chat/types.ts";
 
 /**
  * Get a single thread by ID from IndexedDB

@@ -830,7 +830,25 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     // Handle the incoming message
-    return await transport.handleRequest(req);
+    // CRITICAL: Use try/finally to ensure BOTH transport AND client are closed after request
+    // Without this, ReadableStream/WritableStream controllers and TextDecoderStream accumulate in memory
+    try {
+      return await transport.handleRequest(req);
+    } finally {
+      // Close the downstream client to release HTTP transport streams (TextDecoderStream, etc.)
+      // This is critical - the client created at the start of handleMcpRequest was never being closed!
+      try {
+        await client.close();
+      } catch {
+        // Ignore close errors - client may already be closed
+      }
+      // Close the server transport
+      try {
+        await transport.close?.();
+      } catch {
+        // Ignore close errors - transport may already be closed
+      }
+    }
   };
 
   return {

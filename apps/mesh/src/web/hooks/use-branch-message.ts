@@ -11,7 +11,7 @@ import {
   useMessageActions,
   useThreadActions,
 } from "./use-chat-store";
-import type { Message, Thread } from "../types/chat-threads";
+import type { Message, Thread } from "../components/chat/types.ts";
 
 /**
  * Hook to handle branching from a message

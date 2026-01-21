@@ -1,4 +1,4 @@
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
+import type { Metadata } from "../../web/components/chat/types.ts";
 import { LanguageModelBinding } from "@decocms/bindings/llm";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -280,6 +280,19 @@ app.post("/:org/models/stream", async (c) => {
     );
 
     const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
+    // CRITICAL: Assign mcpClient immediately so catch block can clean up
+    // if an error occurs or early return happens after client.connect()
+    mcpClient = client;
+
+    // CRITICAL: Register abort handler to ensure client cleanup on disconnect
+    // Without this, when client disconnects mid-stream, onFinish/onError are NOT called
+    // and the MCP client + transport streams leak (TextDecoderStream, 256KB buffers)
+    const abortSignal = c.req.raw.signal;
+    const abortHandler = () => {
+      console.log("[models:stream] Request aborted - closing MCP client");
+      client.close().catch(console.error);
+    };
+    abortSignal.addEventListener("abort", abortHandler, { once: true });
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
     const [modelMessages, connection] = await Promise.all([
@@ -289,13 +302,14 @@ app.post("/:org/models/stream", async (c) => {
     ]);
 
     if (!connection) {
+      // Close client before early return to prevent memory leak
+      abortSignal.removeEventListener("abort", abortHandler);
+      await client.close().catch(console.error);
       return c.json(
         { error: `Model connection not found: ${modelConfig.connectionId}` },
         404,
       );
     }
-
-    mcpClient = client;
 
     // Extract context from frontend system message and combine with base prompt
     const systemMessages = [
@@ -335,13 +349,17 @@ app.post("/:org/models/stream", async (c) => {
       tools,
       temperature,
       maxOutputTokens: maxOutputTokens,
-      abortSignal: c.req.raw.signal,
+      abortSignal,
       stopWhen: stepCountIs(30), // Stop after 30 steps with tool calls
       onError: async (error) => {
         console.error("[models:stream] Error", error);
+        // Remove abort handler to avoid double-close
+        abortSignal.removeEventListener("abort", abortHandler);
         await client.close().catch(console.error);
       },
       onFinish: async () => {
+        // Remove abort handler to avoid double-close
+        abortSignal.removeEventListener("abort", abortHandler);
         await client.close().catch(console.error);
       },
     });

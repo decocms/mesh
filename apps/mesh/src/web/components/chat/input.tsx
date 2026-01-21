@@ -7,7 +7,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -21,9 +20,10 @@ import {
   Microphone01,
   Stop,
   StopCircle,
+  Upload01,
   XCircle,
 } from "@untitledui/icons";
-import type { FormEvent, KeyboardEvent } from "react";
+import type { FormEvent } from "react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useAudioRecorder } from "@/web/hooks/use-audio-recorder";
 import {
@@ -33,17 +33,19 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { toast } from "sonner";
 import { useChat } from "./context";
+import { createTiptapDoc, isTiptapDocEmpty } from "./tiptap/utils";
 import { ChatHighlight } from "./index";
 import {
   VirtualMCPPopoverContent,
   VirtualMCPSelector,
   type VirtualMCPInfo,
 } from "./select-virtual-mcp";
-import { ModelSelector } from "./select-model";
+import { modelSupportsFiles, ModelSelector } from "./select-model";
+import { ChatTiptapInput, type ChatTiptapInputHandle } from "./tiptap/input";
 import { UsageStats } from "./usage-stats";
 
 // ============================================================================
-// VirtualMCPBadge - Internal component for displaying selected virtual MCP (agent)
+// VirtualMCPBadge - Internal component for displaying selected virtual MCP
 // ============================================================================
 
 interface VirtualMCPBadgeProps {
@@ -178,14 +180,15 @@ function VirtualMCPBadge({
 }
 
 // ============================================================================
-// ChatInput - Merged component with gateway wrapper, banners, and selectors
+// ChatInput - Merged component with virtual MCP wrapper, banners, and selectors
 // ============================================================================
 
 export function ChatInput() {
   const {
-    inputValue,
-    setInputValue,
-    branchContext,
+    tiptapDoc,
+    setTiptapDoc,
+    clearTiptapDoc,
+    parentThread,
     clearBranch,
     setActiveThreadId,
     virtualMcps,
@@ -227,44 +230,65 @@ export function ChatInput() {
     }, 0);
   }
 
-  const canSubmit =
-    !isStreaming && selectedModel && inputValue.trim().length > 0;
+  const tiptapRef = useRef<ChatTiptapInputHandle | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (isStreaming) {
-      stopStreaming();
-    } else if (canSubmit) {
-      sendMessage(inputValue.trim());
+  const canSubmit =
+    !isStreaming && !!selectedModel && !isTiptapDocEmpty(tiptapDoc);
+
+  const modelSupportsFilesValue = modelSupportsFiles(selectedModel);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    await tiptapRef.current?.insertFiles(fileArray);
+
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (canSubmit) {
-        sendMessage(inputValue.trim());
-      }
+  const handleSubmit = (e?: FormEvent) => {
+    e?.preventDefault();
+    if (isStreaming) {
+      stopStreaming();
+    } else if (canSubmit && tiptapDoc) {
+      void sendMessage(tiptapDoc);
     }
   };
 
   const handleGoToOriginalMessage = () => {
-    if (!branchContext) return;
-    setActiveThreadId(branchContext.originalThreadId);
+    if (!parentThread) return;
+    setActiveThreadId(parentThread.threadId);
     clearBranch();
-    setInputValue("");
+    clearTiptapDoc();
   };
 
   const handleFixInChat = () => {
     if (chatError) {
-      sendMessage(
-        `I encountered this error: ${chatError.message}. Can you help me fix it?`,
-      );
+      const text = `I encountered this error: ${chatError.message}. Can you help me fix it?`;
+      const doc = {
+        type: "doc" as const,
+        content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+      };
+      void sendMessage(doc);
     }
   };
 
   const handleContinue = () => {
-    sendMessage("Please continue.");
+    const doc = {
+      type: "doc" as const,
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Please continue." }],
+        },
+      ],
+    };
+    void sendMessage(doc);
   };
 
   const handleRecordingToggle = async () => {
@@ -301,7 +325,7 @@ export function ChatInput() {
 
         const data = (await response.json()) as { text?: string };
         if (data.text) {
-          setInputValue(inputValue ? `${inputValue} ${data.text}` : data.text);
+          setTiptapDoc(createTiptapDoc(data.text));
         } else {
           toast.error("Nenhum texto foi transcrito");
         }
@@ -320,11 +344,6 @@ export function ChatInput() {
   const color = selectedVirtualMcp
     ? getGatewayColor(selectedVirtualMcp.id)
     : null;
-  const placeholder = isTranscribing
-    ? "Transcrevendo áudio..."
-    : !selectedModel
-      ? "Select a model to start chatting"
-      : "Ask anything or @ for context";
 
   return (
     <div className="flex flex-col gap-2 w-full min-h-42 justify-end">
@@ -378,15 +397,15 @@ export function ChatInput() {
         </ChatHighlight>
       )}
 
-      {branchContext && (
+      {parentThread && (
         <ChatHighlight
           variant="default"
           title="Editing message (click to view original)"
-          description={branchContext.originalMessageText}
+          description="You are in a new thread. You can go back to the original in any moment."
           icon={<CornerUpLeft size={14} />}
           onDismiss={() => {
             clearBranch();
-            setInputValue("");
+            clearTiptapDoc();
           }}
         >
           <Button
@@ -427,26 +446,18 @@ export function ChatInput() {
               !selectedVirtualMcp && "shadow-sm",
             )}
           >
-            <div className="relative flex flex-col gap-2 p-2.5 flex-1">
-              {/* Input Area */}
-              <div
-                className="overflow-y-auto relative flex-1"
-                style={{ maxHeight: "164px" }}
-              >
-                <Textarea
-                  rows={1}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={placeholder}
-                  disabled={!selectedModel || isStreaming || isTranscribing}
-                  className={cn(
-                    "placeholder:text-muted-foreground resize-none focus-visible:ring-0 border-0 p-2 text-[15px]! min-h-[20px] w-full",
-                    "rounded-none shadow-none",
-                    "min-h-[20px] h-auto overflow-hidden",
-                  )}
-                />
-              </div>
+            <div className="relative flex flex-col gap-2 flex-1">
+              {/* Input Area with Tiptap */}
+              <ChatTiptapInput
+                ref={tiptapRef}
+                tiptapDoc={tiptapDoc}
+                setTiptapDoc={setTiptapDoc}
+                selectedModel={selectedModel}
+                isTranscribing={isTranscribing}
+                isStreaming={isStreaming}
+                selectedVirtualMcp={selectedVirtualMcp}
+                onSubmit={handleSubmit}
+              />
             </div>
 
             {/* Bottom Actions Row */}
@@ -463,6 +474,33 @@ export function ChatInput() {
                     disabled={isStreaming}
                   />
                 )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileSelect}
+                  disabled={isStreaming || !modelSupportsFilesValue}
+                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full"
+                      disabled={isStreaming || !modelSupportsFilesValue}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload01 size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    {!modelSupportsFilesValue
+                      ? "Selected model does not support files"
+                      : "Add file"}
+                  </TooltipContent>
+                </Tooltip>
                 <ModelSelector
                   selectedModel={selectedModel ?? undefined}
                   onModelChange={setSelectedModel}

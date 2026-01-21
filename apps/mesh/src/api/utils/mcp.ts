@@ -123,12 +123,35 @@ class McpServerBuilder {
   private config: McpServerConfig;
   private tools: ToolDefinition[] = [];
   private callToolMiddlewares: CallToolMiddleware[] = [];
+  // Cache JSON Schema conversions to avoid repeated z.toJSONSchema calls
+  // which accumulate in Zod 4's __zod_globalRegistry and cause memory leaks
+  private jsonSchemaCache: Map<
+    z.ZodTypeAny,
+    ListToolsResult["tools"][number]["inputSchema"]
+  > = new Map();
 
   constructor(config: McpServerConfig) {
     this.config = {
       ...config,
       capabilities: config.capabilities ?? { tools: {} },
     };
+  }
+
+  /**
+   * Get cached JSON Schema for a Zod schema.
+   * Avoids repeated z.toJSONSchema calls which accumulate in Zod 4's global registry.
+   */
+  private getCachedJsonSchema(
+    schema: z.ZodTypeAny,
+  ): ListToolsResult["tools"][number]["inputSchema"] {
+    let cached = this.jsonSchemaCache.get(schema);
+    if (!cached) {
+      cached = z.toJSONSchema(
+        schema,
+      ) as unknown as ListToolsResult["tools"][number]["inputSchema"];
+      this.jsonSchemaCache.set(schema, cached);
+    }
+    return cached;
   }
 
   /**
@@ -270,9 +293,9 @@ class McpServerBuilder {
             tools: this.tools.map((t) => ({
               name: t.name,
               description: t.description ?? "",
-              inputSchema: z.toJSONSchema(t.inputSchema),
+              inputSchema: this.getCachedJsonSchema(t.inputSchema),
               outputSchema: t.outputSchema
-                ? z.toJSONSchema(t.outputSchema)
+                ? this.getCachedJsonSchema(t.outputSchema)
                 : undefined,
             })),
           } as ListToolsResult;
@@ -324,7 +347,16 @@ class McpServerBuilder {
             req.headers.get("Accept")?.includes("application/json") ?? false,
         });
         await createServer().connect(transport);
-        return await transport.handleRequest(req);
+        // CRITICAL: Use try/finally to ensure transport is closed
+        try {
+          return await transport.handleRequest(req);
+        } finally {
+          try {
+            await transport.close?.();
+          } catch {
+            // Ignore close errors
+          }
+        }
       },
     };
   }

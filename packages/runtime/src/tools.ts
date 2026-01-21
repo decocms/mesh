@@ -681,13 +681,28 @@ export const createMCPServer = <
               : z.object({}).shape,
         },
         async (args) => {
-          let result = await tool.execute({
+          const result = await tool.execute({
             context: args,
             runtimeContext: createRuntimeContext(),
           });
 
+          // For streamable tools, the Response is handled at the transport layer
+          // Do NOT call result.bytes() - it buffers the entire response in memory
+          // causing massive memory leaks (2GB+ Uint8Array accumulation)
           if (isStreamableTool(tool) && result instanceof Response) {
-            result = { bytes: await result.bytes() };
+            return {
+              structuredContent: {
+                streamable: true,
+                status: result.status,
+                statusText: result.statusText,
+              },
+              content: [
+                {
+                  type: "text",
+                  text: `Streaming response: ${result.status} ${result.statusText}`,
+                },
+              ],
+            };
           }
           return {
             structuredContent: result as Record<string, unknown>,
@@ -830,7 +845,18 @@ export const createMCPServer = <
 
     await server.connect(transport);
 
-    return await transport.handleRequest(req);
+    try {
+      return await transport.handleRequest(req);
+    } finally {
+      // CRITICAL: Close transport to prevent memory leaks
+      // Without this, ReadableStream/WritableStream controllers accumulate
+      // causing thousands of stream objects to be retained in memory
+      try {
+        await transport.close?.();
+      } catch {
+        // Ignore close errors - transport may already be closed
+      }
+    }
   };
 
   const callTool: CallTool = async ({ toolCallId, toolCallInput }) => {

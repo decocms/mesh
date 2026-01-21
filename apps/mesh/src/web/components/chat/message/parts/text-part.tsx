@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useCopy } from "@deco/ui/hooks/use-copy.ts";
 import { Button } from "@deco/ui/components/button.tsx";
-import { MemoizedMarkdown } from "@deco/ui/components/chat/chat-markdown.tsx";
+import { MemoizedMarkdown } from "../../markdown.tsx";
 import { Check, Copy01 } from "@untitledui/icons";
 import type { TextUIPart } from "ai";
 import { cn } from "@deco/ui/lib/utils.ts";

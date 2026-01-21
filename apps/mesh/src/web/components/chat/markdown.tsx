@@ -1,21 +1,61 @@
 /* eslint-disable ban-memoization/ban-memoization */
 import { marked } from "marked";
-import React, {
-  lazy,
-  memo,
-  Suspense,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
-import { Button } from "../button.tsx";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { Button } from "@deco/ui/components/button.tsx";
 import { Check, Copy01 } from "@untitledui/icons";
+// @ts-ignore - correct
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
 
-const LazyHighlighter = lazy(() => import("./lazy-highlighter.tsx"));
+interface LazyHighlighterProps {
+  language: string;
+  content: string;
+  fillHeight?: boolean;
+}
+
+function LazyHighlighter({
+  language,
+  content,
+  fillHeight = false,
+}: LazyHighlighterProps) {
+  return (
+    <SyntaxHighlighter
+      language={language || "text"}
+      style={oneDark}
+      customStyle={{
+        margin: 0,
+        padding: "1rem",
+        fontSize: "0.8rem",
+        borderRadius: "0.5rem",
+        background: "#282c34",
+        position: "relative",
+        overflowX: "hidden",
+        overflowY: "visible",
+        width: "100%",
+        maxWidth: "100%",
+        display: "block",
+        wordBreak: "break-word",
+        overflowWrap: "break-word",
+        height: fillHeight ? "100%" : undefined,
+        minHeight: fillHeight ? "100%" : undefined,
+      }}
+      codeTagProps={{
+        className: "font-mono",
+        style: {
+          wordBreak: "break-word",
+          overflowWrap: "break-word",
+          whiteSpace: "pre-wrap",
+        },
+      }}
+      wrapLongLines
+    >
+      {content}
+    </SyntaxHighlighter>
+  );
+}
 
 // Custom hook for copy functionality - simplified version
 function useCopy() {
@@ -28,78 +68,6 @@ function useCopy() {
   }, []);
 
   return { handleCopy, copied };
-}
-
-function LazyHighlighterFallback() {
-  const lines = [85, 70];
-
-  return (
-    <div
-      className="p-4 font-mono text-sm"
-      style={{
-        background: "#2d2d2d",
-        borderRadius: "0 0 0.5rem 0.5rem",
-        overflow: "auto",
-        minHeight: "4rem",
-      }}
-    >
-      {lines.map((width, i) => (
-        <div key={i} className="flex gap-2 items-center my-1">
-          {i > 2 && i < 7 && (
-            <div
-              className="w-4 h-4 rounded-sm opacity-40 animate-pulse"
-              style={{
-                background: "rgba(128, 128, 128, 0.3)",
-                animationDelay: `${i * 0.1}s`,
-              }}
-            />
-          )}
-
-          {i % 4 === 0 && (
-            <div
-              className="h-4 rounded animate-pulse"
-              style={{
-                width: "3rem",
-                background: "rgba(128, 128, 128, 0.3)",
-                animationDelay: `${i * 0.12}s`,
-              }}
-            />
-          )}
-
-          {i % 3 === 1 && (
-            <div
-              className="h-4 rounded animate-pulse"
-              style={{
-                width: "2.5rem",
-                background: "rgba(128, 128, 128, 0.3)",
-                animationDelay: `${i * 0.14}s`,
-              }}
-            />
-          )}
-
-          <div
-            className="h-4 rounded animate-pulse"
-            style={{
-              width: `${width}%`,
-              background: "rgba(255, 255, 255, 0.1)",
-              animationDelay: `${i * 0.1}s`,
-            }}
-          />
-
-          {i % 5 === 2 && (
-            <div
-              className="h-4 rounded animate-pulse"
-              style={{
-                width: "4rem",
-                background: "rgba(128, 128, 128, 0.3)",
-                animationDelay: `${i * 0.16}s`,
-              }}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function Table(props: React.HTMLAttributes<HTMLTableElement>) {
@@ -271,9 +239,7 @@ function CodeBlock({
         </Button>
       </div>
 
-      <Suspense fallback={<LazyHighlighterFallback />}>
-        <LazyHighlighter language={language} content={content} />
-      </Suspense>
+      <LazyHighlighter language={language} content={content} />
     </div>
   );
 }
