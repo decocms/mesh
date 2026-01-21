@@ -131,12 +131,14 @@ export const KEYS = {
     ["monitoring", "logs-infinite", locator, paramsKey] as const,
 
   // Virtual MCP prompts (for ice breakers in chat)
-  virtualMcpPrompts: (virtualMcpId: string) =>
-    ["virtual-mcp", virtualMcpId, "prompts"] as const,
+  // null virtualMcpId means default virtual MCP
+  virtualMcpPrompts: (virtualMcpId: string | null, orgSlug: string) =>
+    ["virtual-mcp", orgSlug, virtualMcpId ?? "default", "prompts"] as const,
 
   // Virtual MCP resources (for resource mentions in chat)
-  virtualMcpResources: (virtualMcpId: string) =>
-    ["virtual-mcp", virtualMcpId, "resources"] as const,
+  // null virtualMcpId means default virtual MCP
+  virtualMcpResources: (virtualMcpId: string | null, orgSlug: string) =>
+    ["virtual-mcp", orgSlug, virtualMcpId ?? "default", "resources"] as const,
 
   // Suggestion menu items (for filtering prompts/resources in chat input)
   // Note: The hook appends `show` and `query` to this base key

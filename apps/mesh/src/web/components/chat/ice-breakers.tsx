@@ -20,6 +20,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Suspense, useReducer, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "../error-boundary";
+import { useProjectContext } from "../../providers/project-context-provider";
 import { useChat } from "./context";
 import {
   PromptArgsDialog,
@@ -232,13 +233,15 @@ function iceBreakerReducer(
 
 /**
  * Inner component that fetches and displays prompts for a specific virtual MCP
+ * @param virtualMcpId - The virtual MCP ID, or null for default virtual MCP
  */
 function VirtualMCPIceBreakersContent({
   virtualMcpId,
 }: {
-  virtualMcpId: string;
+  virtualMcpId: string | null;
 }) {
   const { tiptapDoc, sendMessage } = useChat();
+  const { org } = useProjectContext();
   const { data: prompts } = useVirtualMCPPrompts(virtualMcpId);
   const [state, dispatch] = useReducer(iceBreakerReducer, { stage: "idle" });
   const [dialogPrompt, setDialogPrompt] = useState<VirtualMCPPrompt | null>(
@@ -252,6 +255,7 @@ function VirtualMCPIceBreakersContent({
     try {
       const result = await fetchVirtualMCPPrompt(
         virtualMcpId,
+        org.slug,
         prompt.name,
         args,
       );
@@ -335,24 +339,24 @@ function VirtualMCPIceBreakersContent({
  */
 export function GatewayIceBreakers({ className }: GatewayIceBreakersProps) {
   const { selectedVirtualMcp } = useChat();
+  // When selectedVirtualMcp is null, it means default virtual MCP (id is null)
+  const virtualMcpId = selectedVirtualMcp?.id ?? null;
+  // Use a stable key for ErrorBoundary (null becomes "default")
+  const errorBoundaryKey = virtualMcpId ?? "default";
 
   return (
     <div
+      style={{ minHeight: "32px" }}
       className={cn(
         "flex flex-wrap items-center justify-center gap-2",
         className,
       )}
-      style={{ minHeight: "32px" }}
     >
-      {selectedVirtualMcp && (
-        <ErrorBoundary key={selectedVirtualMcp.id} fallback={null}>
-          <Suspense fallback={<IceBreakersFallback />}>
-            <VirtualMCPIceBreakersContent
-              virtualMcpId={selectedVirtualMcp.id}
-            />
-          </Suspense>
-        </ErrorBoundary>
-      )}
+      <ErrorBoundary key={errorBoundaryKey} fallback={null}>
+        <Suspense fallback={<IceBreakersFallback />}>
+          <VirtualMCPIceBreakersContent virtualMcpId={virtualMcpId} />
+        </Suspense>
+      </ErrorBoundary>
     </div>
   );
 }

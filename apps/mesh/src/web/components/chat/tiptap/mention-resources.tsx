@@ -4,6 +4,7 @@ import {
   type VirtualMCPResource,
 } from "@/web/hooks/use-virtual-mcp-client";
 import { KEYS } from "@/web/lib/query-keys";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
 import { toast } from "sonner";
@@ -20,15 +21,18 @@ interface ResourceItem extends BaseItem {
 
 /**
  * Fetches a resource and inserts it as a mention node in the editor.
+ * @param virtualMcpId - The virtual MCP ID, or null for default virtual MCP
+ * @param orgSlug - The organization slug
  */
 async function fetchAndInsertResource(
   editor: Editor,
   range: Range,
-  virtualMcpId: string,
+  virtualMcpId: string | null,
+  orgSlug: string,
   resourceUri: string,
 ) {
   try {
-    const result = await fetchVirtualMCPResource(virtualMcpId, resourceUri);
+    const result = await fetchVirtualMCPResource(virtualMcpId, orgSlug, resourceUri);
 
     insertMention(editor, range, {
       id: resourceUri,
@@ -47,22 +51,19 @@ export const ResourcesMention = ({
   virtualMcpId,
 }: ResourcesMentionProps) => {
   const queryClient = useQueryClient();
-  const queryKey = virtualMcpId
-    ? KEYS.virtualMcpResources(virtualMcpId)
-    : (["virtual-mcp", "resources", "empty"] as const);
+  const { org } = useProjectContext();
+  // Use the query key helper which handles null (default virtual MCP)
+  const queryKey = KEYS.virtualMcpResources(virtualMcpId, org.slug);
 
   const handleItemSelect = async ({
     item,
     range,
   }: OnSelectProps<ResourceItem>) => {
-    if (!virtualMcpId) return;
-
-    await fetchAndInsertResource(editor, range, virtualMcpId, item.uri);
+    // virtualMcpId can be null (default virtual MCP)
+    await fetchAndInsertResource(editor, range, virtualMcpId, org.slug, item.uri);
   };
 
   const fetchItems = async (props: { query: string }) => {
-    if (!virtualMcpId) return [];
-
     const { query } = props;
 
     // Try to get from cache first (even if stale)
@@ -74,7 +75,7 @@ export const ResourcesMention = ({
     if (!virtualMcpResources) {
       virtualMcpResources = await queryClient.fetchQuery({
         queryKey,
-        queryFn: () => fetchVirtualMCPResources(virtualMcpId),
+        queryFn: () => fetchVirtualMCPResources(virtualMcpId, org.slug),
         staleTime: 60000, // 1 minute
       });
     } else {
@@ -82,7 +83,7 @@ export const ResourcesMention = ({
       queryClient
         .fetchQuery({
           queryKey,
-          queryFn: () => fetchVirtualMCPResources(virtualMcpId),
+          queryFn: () => fetchVirtualMCPResources(virtualMcpId, org.slug),
           staleTime: 60000,
         })
         .catch(() => {

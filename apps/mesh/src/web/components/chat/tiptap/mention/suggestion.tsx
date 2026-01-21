@@ -15,6 +15,7 @@ import {
 } from "@floating-ui/react";
 import { PluginKey } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
+import type { Ref } from "react";
 import { PropsWithChildren, Suspense } from "react";
 import {
   BaseItem,
@@ -52,6 +53,7 @@ interface MentionItemProps<T extends BaseItem> {
   isSelected: boolean;
   onSelect: () => void;
   isLoading: boolean;
+  ref?: Ref<HTMLDivElement>;
 }
 
 interface MentionItemListProps<T extends BaseItem> {
@@ -126,9 +128,11 @@ const MentionItem = <T extends BaseItem>({
   isSelected,
   onSelect,
   isLoading,
+  ref,
 }: MentionItemProps<T>) => {
   return (
     <div
+      ref={ref}
       onClick={onSelect}
       className={cn(
         "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors",
@@ -183,9 +187,10 @@ const MentionItemList = <T extends BaseItem>({
 
   return (
     <div
-      className="min-w-[280px] max-w-[400px] bg-popover text-popover-foreground rounded-md"
+      className="min-w-[280px] max-w-[400px] bg-popover text-popover-foreground rounded-md overflow-y-auto"
       style={{
-        maxHeight: "min(384px, var(--radix-popover-content-available-height))",
+        maxHeight:
+          "min(217px, var(--radix-popover-content-available-height, 217px))",
       }}
     >
       <div className="p-1">
@@ -194,6 +199,14 @@ const MentionItemList = <T extends BaseItem>({
             key={item.name}
             item={item}
             isSelected={index === selectedIndex}
+            ref={
+              index === selectedIndex
+                ? (node) => {
+                    if (!node) return;
+                    node.scrollIntoView({ block: "center", behavior: "smooth" });
+                  }
+                : undefined
+            }
             onSelect={() => handleSelect(item, index)}
             isLoading={selectedItem?.name === item.name}
           />

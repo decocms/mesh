@@ -11,6 +11,7 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
+import { useProjectContext } from "../providers/project-context-provider";
 
 export type VirtualMCPPrompt = Prompt;
 export type VirtualMCPPromptResult = GetPromptResult;
@@ -23,15 +24,19 @@ const DEFAULT_CLIENT_INFO = {
   version: "1.0.0",
 };
 
-function createVirtualMCPTransport(virtualMcpId: string) {
+function createVirtualMCPTransport(
+  virtualMcpId: string | null,
+  orgSlug: string,
+) {
   if (typeof window === "undefined") {
     throw new Error("Virtual MCP client requires a browser environment.");
   }
 
-  const virtualMcpUrl = new URL(
-    `/mcp/virtual-mcp/${virtualMcpId}`,
-    window.location.origin,
-  );
+  // For null (default virtual MCP), use base URL without trailing segment
+  const path = virtualMcpId
+    ? `/mcp/virtual-mcp/${virtualMcpId}`
+    : `/mcp/virtual-mcp`;
+  const virtualMcpUrl = new URL(path, window.location.origin);
 
   const webStandardStreamableHttpTransport = new StreamableHTTPClientTransport(
     virtualMcpUrl,
@@ -40,6 +45,7 @@ function createVirtualMCPTransport(virtualMcpId: string) {
         headers: {
           Accept: "application/json, text/event-stream",
           "Content-Type": "application/json",
+          "x-org-slug": orgSlug,
         },
       },
     },
@@ -49,19 +55,21 @@ function createVirtualMCPTransport(virtualMcpId: string) {
 }
 
 async function withVirtualMCPClient<T>(
-  virtualMcpId: string,
+  virtualMcpId: string | null,
+  orgSlug: string,
   callback: (client: Client) => Promise<T>,
 ): Promise<T> {
   const client = new Client(DEFAULT_CLIENT_INFO);
-  const transport = createVirtualMCPTransport(virtualMcpId);
+  const transport = createVirtualMCPTransport(virtualMcpId, orgSlug);
 
   try {
     await client.connect(transport);
     return await callback(client);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const idLabel = virtualMcpId ?? "default";
     console.error(
-      `[virtual-mcp-client] Error for virtual MCP ${virtualMcpId}:`,
+      `[virtual-mcp-client] Error for virtual MCP ${idLabel}:`,
       error,
     );
     throw new Error(`Failed to communicate with virtual MCP: ${message}`);
@@ -72,13 +80,17 @@ async function withVirtualMCPClient<T>(
 
 /**
  * Fetch prompts from a virtual MCP via MCP protocol
+ * @param virtualMcpId - The virtual MCP ID, or null for default virtual MCP
+ * @param orgSlug - The organization slug
  */
 export async function fetchVirtualMCPPrompts(
-  virtualMcpId: string,
+  virtualMcpId: string | null,
+  orgSlug: string,
 ): Promise<VirtualMCPPrompt[]> {
   try {
     const result = await withVirtualMCPClient<ListPromptsResult>(
       virtualMcpId,
+      orgSlug,
       (client) => client.listPrompts(),
     );
     return result.prompts ?? [];
@@ -89,26 +101,32 @@ export async function fetchVirtualMCPPrompts(
 }
 
 export async function fetchVirtualMCPPrompt(
-  virtualMcpId: string,
+  virtualMcpId: string | null,
+  orgSlug: string,
   name: string,
   args?: GetPromptRequest["params"]["arguments"],
 ): Promise<VirtualMCPPromptResult> {
   const argumentsValue = args ?? {};
   return await withVirtualMCPClient<VirtualMCPPromptResult>(
     virtualMcpId,
+    orgSlug,
     (client) => client.getPrompt({ name, arguments: argumentsValue }),
   );
 }
 
 /**
  * Fetch resources from a virtual MCP via MCP protocol
+ * @param virtualMcpId - The virtual MCP ID, or null for default virtual MCP
+ * @param orgSlug - The organization slug
  */
 export async function fetchVirtualMCPResources(
-  virtualMcpId: string,
+  virtualMcpId: string | null,
+  orgSlug: string,
 ): Promise<VirtualMCPResource[]> {
   try {
     const result = await withVirtualMCPClient<ListResourcesResult>(
       virtualMcpId,
+      orgSlug,
       (client) => client.listResources(),
     );
     return result.resources ?? [];
@@ -119,11 +137,13 @@ export async function fetchVirtualMCPResources(
 }
 
 export async function fetchVirtualMCPResource(
-  virtualMcpId: string,
+  virtualMcpId: string | null,
+  orgSlug: string,
   uri: string,
 ): Promise<VirtualMCPResourceResult> {
   return await withVirtualMCPClient<VirtualMCPResourceResult>(
     virtualMcpId,
+    orgSlug,
     (client) => client.readResource({ uri }),
   );
 }
@@ -131,12 +151,13 @@ export async function fetchVirtualMCPResource(
 /**
  * Suspense hook to fetch prompts from a virtual MCP via MCP protocol.
  * Must be used within a Suspense boundary.
- * @param virtualMcpId - The virtual MCP ID (required)
+ * @param virtualMcpId - The virtual MCP ID, or null for default virtual MCP
  */
-export function useVirtualMCPPrompts(virtualMcpId: string) {
+export function useVirtualMCPPrompts(virtualMcpId: string | null) {
+  const { org } = useProjectContext();
   return useSuspenseQuery({
-    queryKey: KEYS.virtualMcpPrompts(virtualMcpId),
-    queryFn: () => fetchVirtualMCPPrompts(virtualMcpId),
+    queryKey: KEYS.virtualMcpPrompts(virtualMcpId, org.slug),
+    queryFn: () => fetchVirtualMCPPrompts(virtualMcpId, org.slug),
     staleTime: 60000, // 1 minute
     retry: false,
   });
