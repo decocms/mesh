@@ -210,7 +210,7 @@ export function createAssetHandler(config: AssetServerConfig = {}) {
     }
 
     // Try to serve the index.html file relative to the requested file
-    const indexRelativeToFilePath = join(dirname(filePath), "index.html");
+    const indexRelativeToFilePath = join(filePath, "index.html");
     // Try to serve the requested file, fall back to index.html for SPA routing
     const indexPath = resolve(clientDir, "index.html");
     for (const pathToTry of [filePath, indexRelativeToFilePath, indexPath]) {
