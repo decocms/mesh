@@ -482,23 +482,10 @@ function SettingsRightPanel({
     typeof stateSchema.properties === "object" &&
     Object.keys(stateSchema.properties).length > 0;
 
-  // Check if MCP has webhookType in metadata, or infer from connection title/URL
-  const metadataWebhookType = (
+  // Check if MCP has webhookType in metadata
+  const webhookType = (
     connection.metadata as Record<string, unknown> | undefined
   )?.webhookType as string | undefined;
-
-  // Infer webhookType from connection title if not in metadata (useful for local dev)
-  const inferredWebhookType = (() => {
-    const title = connection.title?.toLowerCase() ?? "";
-    const url = connection.connection_url?.toLowerCase() ?? "";
-    if (title.includes("slack") || url.includes("slack")) return "slack";
-    if (title.includes("whatsapp") || url.includes("whatsapp"))
-      return "whatsapp";
-    if (title.includes("github") || url.includes("github")) return "github";
-    return undefined;
-  })();
-
-  const webhookType = metadataWebhookType ?? inferredWebhookType;
 
   if (!isMCPAuthenticated) {
     // Show server error state if there was a 5xx error
