@@ -9,7 +9,7 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 /**
  * Gateway tool selection strategy options
  */
-export type GatewayToolSelectionStrategy =
+export type VirtualMCPtoolSelectionStrategy =
   | "passthrough"
   | "smart_tool_selection"
   | "code_execution";
@@ -46,7 +46,7 @@ export interface BenchmarkScenario {
   /** Task to accomplish */
   task: BenchmarkTask;
   /** Gateway strategy to use */
-  strategy: GatewayToolSelectionStrategy;
+  strategy: VirtualMCPtoolSelectionStrategy;
 }
 
 /**
@@ -79,7 +79,7 @@ export interface BenchmarkResult {
  * Aggregated results for reporting
  */
 export interface AggregatedResult {
-  strategy: GatewayToolSelectionStrategy;
+  strategy: VirtualMCPtoolSelectionStrategy;
   toolCount: number;
   model: string;
   avgInputTokens: number;
@@ -140,12 +140,12 @@ export interface MeshServerHandle {
   /** Create a gateway with the given strategy */
   createGateway: (
     connectionId: string,
-    strategy: GatewayToolSelectionStrategy,
+    strategy: VirtualMCPtoolSelectionStrategy,
   ) => Promise<string>;
   /** Get gateway URL with optional mode query parameter */
   getGatewayUrl: (
     gatewayId: string,
-    strategy?: GatewayToolSelectionStrategy,
+    strategy?: VirtualMCPtoolSelectionStrategy,
   ) => string;
   /** Cleanup resources */
   cleanup: () => Promise<void>;

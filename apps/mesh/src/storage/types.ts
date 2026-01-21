@@ -406,7 +406,6 @@ export interface MonitoringLogTable {
   user_id: string | null;
   request_id: string;
   user_agent: string | null; // x-mesh-client header
-  virtual_mcp_id: string | null; // Virtual MCP ID if routed through virtual MCP
   properties: JsonObject<Record<string, string>> | null; // Custom key-value metadata
 }
 
@@ -428,7 +427,6 @@ export interface MonitoringLog {
   userId: string | null;
   requestId: string;
   userAgent?: string | null; // x-mesh-client header
-  virtualMcpId?: string | null; // Virtual MCP ID if routed through virtual MCP
   properties?: Record<string, string> | null; // Custom key-value metadata
 }
 
@@ -571,31 +569,17 @@ export interface EventDelivery {
 export type ToolSelectionMode = "inclusion" | "exclusion";
 
 /**
- * Virtual MCP table definition
- * Virtual MCP entities that aggregate tools from multiple connections
+ * Connection aggregation table definition
+ * Many-to-many relationship linking VIRTUAL connections (agents) to their child connections
+ * with selected tools/resources/prompts
+ *
+ * Note: VirtualMCPTable has been eliminated. Virtual MCPs are now stored as
+ * regular connections with connection_type = 'VIRTUAL'
  */
-export interface VirtualMCPTable {
+export interface ConnectionAggregationTable {
   id: string;
-  organization_id: string;
-  title: string;
-  description: string | null;
-  tool_selection_mode: ToolSelectionMode;
-  icon: string | null;
-  status: "active" | "inactive";
-  created_at: ColumnType<Date, Date | string, never>;
-  updated_at: ColumnType<Date, Date | string, Date | string>;
-  created_by: string;
-  updated_by: string | null;
-}
-
-/**
- * Virtual MCP connection table definition
- * Many-to-many relationship linking virtual MCPs to connections with selected tools/resources/prompts
- */
-export interface VirtualMCPConnectionTable {
-  id: string;
-  virtual_mcp_id: string;
-  connection_id: string;
+  parent_connection_id: string; // The VIRTUAL connection (agent)
+  child_connection_id: string; // The connection being aggregated
   selected_tools: JsonArray<string[]> | null; // null = all tools
   selected_resources: JsonArray<string[]> | null; // null = all resources, supports URI patterns with * and **
   selected_prompts: JsonArray<string[]> | null; // null = all prompts
@@ -677,9 +661,8 @@ export interface Database {
   event_subscriptions: EventSubscriptionTable;
   event_deliveries: EventDeliveryTable;
 
-  // Virtual MCP tables
-  virtual_mcps: VirtualMCPTable;
-  virtual_mcp_connections: VirtualMCPConnectionTable;
+  // Connection aggregations (for VIRTUAL connections / agents)
+  connection_aggregations: ConnectionAggregationTable;
 
   threads: ThreadTable;
   thread_messages: ThreadMessageTable;

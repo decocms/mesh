@@ -189,7 +189,6 @@ async function logProxyMonitoringEvent(args: {
     userId: ctx.auth.user?.id || ctx.auth.apiKey?.userId || null,
     requestId: ctx.metadata.requestId,
     userAgent: ctx.metadata.userAgent,
-    virtualMcpId: ctx.virtualMcpId,
     properties,
   });
 }

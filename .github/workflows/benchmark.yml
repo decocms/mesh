@@ -1,4 +1,4 @@
-name: MCP Gateway Benchmark
+name: Virtual MCP Benchmark
 
 on:
   # Post comment on PR open
@@ -44,7 +44,7 @@ jobs:
           body: |
             ## 🧪 Benchmark
 
-            Should we run the MCP Gateway benchmark for this PR?
+            Should we run the Virtual MCP strategy benchmark for this PR?
 
             React with :+1: to run the benchmark.
 
@@ -174,7 +174,7 @@ jobs:
 
       - name: Output results to summary
         run: |
-          echo "# 📊 MCP Gateway Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "# 📊 Virtual MCP Benchmark Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           cat "${{ steps.find-result.outputs.result_file }}" >> $GITHUB_STEP_SUMMARY
 

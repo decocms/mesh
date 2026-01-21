@@ -1,8 +1,8 @@
 /**
- * Color palette for gateway borders and backgrounds.
+ * Color palette for agent borders and backgrounds.
  * Each color includes border, background, and text variants.
  */
-const GATEWAY_COLORS = [
+const AGENT_COLORS = [
   {
     border: "border-purple-400",
     bg: "bg-purple-400",
@@ -89,7 +89,7 @@ const GATEWAY_COLORS = [
   },
 ] as const;
 
-export type GatewayColor = (typeof GATEWAY_COLORS)[number];
+export type AgentColor = (typeof AGENT_COLORS)[number];
 
 /**
  * Generate a deterministic hash from a string.
@@ -103,20 +103,20 @@ function hashString(input: string): number {
 }
 
 /**
- * Get a deterministic color for a gateway based on its ID.
- * Returns null for default gateway (null/undefined = no special styling).
+ * Get a deterministic color for an agent based on its ID.
+ * Returns null for default agent (null/undefined = no special styling).
  *
- * @param gatewayId - The gateway ID (null/undefined means default)
- * @returns GatewayColor object or null for default
+ * @param agentId - The agent ID (null/undefined means default)
+ * @returns AgentColor object or null for default
  */
-export function getGatewayColor(
-  gatewayId: string | null | undefined,
-): GatewayColor | null {
-  if (gatewayId == null) {
+export function getAgentColor(
+  agentId: string | null | undefined,
+): AgentColor | null {
+  if (agentId == null) {
     return null;
   }
 
-  const hash = hashString(gatewayId);
-  const index = hash % GATEWAY_COLORS.length;
-  return GATEWAY_COLORS[index]!;
+  const hash = hashString(agentId);
+  const index = hash % AGENT_COLORS.length;
+  return AGENT_COLORS[index]!;
 }

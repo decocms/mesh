@@ -202,12 +202,3 @@ export function parseVirtualUrl(url: string | null | undefined): string | null {
 export function buildVirtualUrl(virtualMcpId: string): string {
   return `virtual://${virtualMcpId}`;
 }
-
-/**
- * Check if connection is a VIRTUAL type
- */
-export function isVirtualConnection(
-  connection: ConnectionEntity | { connection_type: string },
-): boolean {
-  return connection.connection_type === "VIRTUAL";
-}

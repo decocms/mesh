@@ -77,7 +77,7 @@ export const KEYS = {
 
   // Collection CRUD queries (scoped by org, scopeKey and collection name)
   // org: organization slug
-  // scopeKey: connectionId for connection-scoped tools, gatewayId for gateway-scoped, etc.
+  // scopeKey: connectionId for connection-scoped tools, virtualMcpId for agent-scoped, etc.
   // Base prefix for invalidating all collection variants
   collection: (org: string, scopeKey: string, collectionName: string) =>
     [org, scopeKey, "collection", collectionName] as const,
@@ -148,11 +148,11 @@ export const KEYS = {
     query: string,
   ) => [...baseKey, isOpen, query] as const,
 
-  // Connection prompts (for gateway settings)
+  // Connection prompts (for Virtual MCP settings)
   connectionPrompts: (connectionId: string) =>
     ["connection", connectionId, "prompts"] as const,
 
-  // Connection resources (for gateway settings)
+  // Connection resources (for Virtual MCP settings)
   connectionResources: (connectionId: string) =>
     ["connection", connectionId, "resources"] as const,
 

@@ -231,10 +231,16 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
 
     const connections = await ctx.storage.connections.list(organization.id);
 
+    // Filter out VIRTUAL connections (they are agents, not regular connections)
+    // VIRTUAL connections are managed through the Virtual MCP / Agents UI
+    const nonVirtualConnections = connections.filter(
+      (c) => c.connection_type !== "VIRTUAL",
+    );
+
     // Filter connections by binding if specified (tools are pre-populated at create/update time)
     let filteredConnections = bindingChecker
       ? await Promise.all(
-          connections.map(async (connection) => {
+          nonVirtualConnections.map(async (connection) => {
             if (!connection.tools || connection.tools.length === 0) {
               return null;
             }
@@ -254,7 +260,7 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
         ).then((results) =>
           results.filter((c): c is ConnectionEntity => c !== null),
         )
-      : connections;
+      : nonVirtualConnections;
 
     // Apply where filter if specified
     if (input.where) {

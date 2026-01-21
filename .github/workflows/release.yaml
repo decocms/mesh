@@ -140,7 +140,7 @@ jobs:
           body: |
             ## MCP Mesh v${{ steps.version-check.outputs.current-version }}
 
-            Self-hostable MCP Gateway for managing AI connections and tools.
+            Self-hostable Virtual MCP for managing AI connections and tools.
 
             ### Install via npm
             ```bash

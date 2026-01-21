@@ -1,14 +1,14 @@
 /**
  * Analytics Tab Component
  *
- * Displays Top Tools, Top Servers, and Top Gateways analytics for the monitoring page.
+ * Displays Top Tools, Top Servers, and Top Agents analytics for the monitoring page.
  */
 
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { Suspense, useState } from "react";
 import { TopTools } from "./analytics-top-tools";
 import { TopServers, type MetricsMode } from "./analytics-top-servers";
-import { TopAgents } from "./analytics-top-gateways";
+import { TopAgents } from "./analytics-top-agents";
 
 export function AnalyticsTab() {
   const [metricsMode, setMetricsMode] = useState<MetricsMode>("requests");
@@ -50,12 +50,12 @@ export function AnalyticsTab() {
           </ErrorBoundary>
         </div>
 
-        {/* Top Gateways */}
+        {/* Top Agents */}
         <div className="bg-background overflow-auto">
           <ErrorBoundary
             fallback={
               <div className="bg-background p-5 text-sm text-muted-foreground">
-                Failed to load top gateways
+                Failed to load top agents
               </div>
             }
           >

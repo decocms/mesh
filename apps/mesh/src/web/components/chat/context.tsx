@@ -738,7 +738,7 @@ export function ChatProvider({
       created_at: new Date().toISOString(),
       thread_id: stateActiveThreadId,
       cheapModelId: selectedModel.cheapModelId,
-      gateway: {
+      agent: {
         id: selectedVirtualMcp?.id ?? null,
       },
       user: {

@@ -20,7 +20,7 @@ export interface ChatModelConfig {
   };
 }
 
-export interface ChatGatewayConfig {
+export interface ChatAgentConfig {
   id: string | null;
 }
 
@@ -55,7 +55,7 @@ export interface Metadata {
   reasoning_start_at?: string | Date;
   reasoning_end_at?: string | Date;
   model?: ChatModelConfig;
-  gateway?: ChatGatewayConfig;
+  agent?: ChatAgentConfig;
   user?: ChatUserConfig;
   created_at?: string | Date;
   thread_id?: string;

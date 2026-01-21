@@ -19,7 +19,7 @@ interface ToolSidebarProps {
 function useVirtualMCPTools() {
   const virtualMcpId = useSelectedVirtualMcpId();
   const mcpProxyUrl = virtualMcpId
-    ? new URL(`/mcp/gateway/${virtualMcpId}`, window.location.origin).href
+    ? new URL(`/mcp/virtual-mcp/${virtualMcpId}`, window.location.origin).href
     : "";
 
   return useMcp({ url: mcpProxyUrl, enabled: !!virtualMcpId });

@@ -31,7 +31,7 @@ import {
 } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useForm, useWatch } from "react-hook-form";
-import { ConnectionVirtualMCPsSection } from "./connection-gateways-section";
+import { ConnectionVirtualMCPsSection } from "./connection-virtual-mcps-section";
 import type { ConnectionFormData } from "./schema";
 
 /**
@@ -467,7 +467,7 @@ export function ConnectionSettingsFormUI({
           </span>
         </div>
 
-        {/* Gateways section */}
+        {/* Agents section */}
         <ConnectionVirtualMCPsSection
           connectionId={connection.id}
           connectionTitle={connection.title}

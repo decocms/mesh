@@ -268,8 +268,6 @@ export interface Timings {
 export interface MeshContext {
   // Connection ID (from url)
   connectionId?: string;
-  // Current virtual MCP ID (from url) - if applicable
-  virtualMcpId?: string;
 
   // Timings for measuring performance
   timings: Timings;

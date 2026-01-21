@@ -69,7 +69,6 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   async query(filters: {
     organizationId?: string;
     connectionId?: string;
-    virtualMcpId?: string;
     toolName?: string;
     isError?: boolean;
     startDate?: Date;
@@ -95,14 +94,6 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     if (filters.connectionId) {
       query = query.where("connection_id", "=", filters.connectionId);
       countQuery = countQuery.where("connection_id", "=", filters.connectionId);
-    }
-    if (filters.virtualMcpId) {
-      query = query.where("virtual_mcp_id", "=", filters.virtualMcpId);
-      countQuery = countQuery.where(
-        "virtual_mcp_id",
-        "=",
-        filters.virtualMcpId,
-      );
     }
     if (filters.toolName) {
       query = query.where("tool_name", "=", filters.toolName);
@@ -276,7 +267,6 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       user_id: log.userId || null,
       request_id: log.requestId,
       user_agent: log.userAgent || null,
-      virtual_mcp_id: log.virtualMcpId || null,
       properties: log.properties ? JSON.stringify(log.properties) : null,
     };
   }
@@ -296,7 +286,6 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     user_id: string | null;
     request_id: string;
     user_agent: string | null;
-    virtual_mcp_id: string | null;
     properties: string | Record<string, string> | null;
   }): MonitoringLog {
     const input =
@@ -328,7 +317,6 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       userId: row.user_id,
       requestId: row.request_id,
       userAgent: row.user_agent,
-      virtualMcpId: row.virtual_mcp_id,
       properties,
     };
   }

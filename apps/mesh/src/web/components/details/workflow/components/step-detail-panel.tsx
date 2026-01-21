@@ -188,7 +188,7 @@ function ReplaceToolButton() {
 function useVirtualMCPTool(toolName: string) {
   const virtualMcpId = useSelectedVirtualMcpId();
   const mcpProxyUrl = virtualMcpId
-    ? new URL(`/mcp/gateway/${virtualMcpId}`, window.location.origin).href
+    ? new URL(`/mcp/virtual-mcp/${virtualMcpId}`, window.location.origin).href
     : "";
 
   const mcp = useMcp({ url: mcpProxyUrl, enabled: !!virtualMcpId });

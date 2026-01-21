@@ -1,10 +1,10 @@
 /**
  * CODE_EXECUTION Shared Utilities
  *
- * Core reusable logic for code execution tools and gateway strategies.
+ * Core reusable logic for code execution tools and agent strategies.
  * Used by both:
  * - Management MCP tools (CODE_EXECUTION_*)
- * - Gateway query string strategy (?mode=code_execution)
+ * - Agent query string strategy (?mode=code_execution)
  */
 
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
@@ -294,8 +294,9 @@ async function loadToolsFromConnections(
 /**
  * Get tools with connections from context
  *
- * If ctx.virtualMcpId is set, loads virtual MCP-specific connections
- * Otherwise, loads ALL active connections for the organization
+ * If ctx.connectionId is set and points to a VIRTUAL connection (agent),
+ * loads that agent's specific connections.
+ * Otherwise, loads ALL active connections for the organization.
  */
 export async function getToolsWithConnections(
   ctx: MeshContext,
@@ -305,16 +306,19 @@ export async function getToolsWithConnections(
   let connections: ConnectionWithSelection[];
   let selectionMode: ToolSelectionMode = "inclusion";
 
-  if (ctx.virtualMcpId) {
-    // Use virtual MCP-specific connections
-    const virtualMcp = await ctx.storage.virtualMcps.findById(ctx.virtualMcpId);
-    if (!virtualMcp) {
-      throw new Error(`Virtual MCP not found: ${ctx.virtualMcpId}`);
+  // Check if we're in a Virtual MCP (agent) context
+  if (ctx.connectionId) {
+    const virtualMcp = await ctx.storage.virtualMcps.findById(ctx.connectionId);
+    if (virtualMcp) {
+      // connectionId points to a VIRTUAL connection - use its child connections
+      connections = await resolveVirtualMCPConnections(virtualMcp, ctx);
+      selectionMode = virtualMcp.tool_selection_mode;
+    } else {
+      // Not a virtual MCP - use all org connections
+      connections = await getAllOrgConnections(organization.id, ctx);
     }
-    connections = await resolveVirtualMCPConnections(virtualMcp, ctx);
-    selectionMode = virtualMcp.tool_selection_mode;
   } else {
-    // Use ALL active org connections
+    // No connection context - use ALL active org connections
     connections = await getAllOrgConnections(organization.id, ctx);
   }
 
@@ -480,7 +484,7 @@ export function jsonError(data: unknown): CallToolResult {
 }
 
 /**
- * Tool names to exclude from search results when used in gateway strategy
+ * Tool names to exclude from search results when used in agent strategy
  * (to avoid duplication with meta-tools)
  */
 const CODE_EXECUTION_TOOL_NAMES = [
@@ -491,7 +495,7 @@ const CODE_EXECUTION_TOOL_NAMES = [
 
 /**
  * Filter out CODE_EXECUTION_* tools from search results
- * Used by gateway strategy to avoid duplication
+ * Used by agent strategy to avoid duplication
  */
 export function filterCodeExecutionTools(
   tools: ToolWithConnection[],

@@ -6,14 +6,12 @@ import {
 } from "./proxy-monitoring";
 
 function createMockCtx(overrides?: {
-  virtualMcpId?: string;
   userAgent?: string;
   properties?: Record<string, string>;
 }) {
   const log = vi.fn(async (_event: unknown) => {});
 
   // Use defaults unless explicitly overridden (including with undefined)
-  const hasVirtualMcpOverride = overrides && "virtualMcpId" in overrides;
   const hasUserAgentOverride = overrides && "userAgent" in overrides;
   const hasPropertiesOverride = overrides && "properties" in overrides;
 
@@ -26,7 +24,6 @@ function createMockCtx(overrides?: {
       userAgent: hasUserAgentOverride ? overrides.userAgent : "test-client/1.0",
       properties: hasPropertiesOverride ? overrides.properties : undefined,
     },
-    virtualMcpId: hasVirtualMcpOverride ? overrides.virtualMcpId : "vmcp_123",
   } as unknown as MeshContext;
 
   return { ctx, log };
@@ -71,7 +68,6 @@ describe("proxy monitoring middleware", () => {
     expect(event.output).toEqual({ reason: "nope" });
     // Verify new fields are logged
     expect(event.userAgent).toBe("test-client/1.0");
-    expect(event.virtualMcpId).toBe("vmcp_123");
   });
 
   it("logs auth-denied streamable Response (403) without consuming the body", async () => {
@@ -123,13 +119,11 @@ describe("proxy monitoring middleware", () => {
     expect(event.output).toEqual({ error: "nope" });
     // Verify new fields are logged
     expect(event.userAgent).toBe("test-client/1.0");
-    expect(event.virtualMcpId).toBe("vmcp_123");
   });
 
-  it("logs without userAgent and virtualMcpId when not provided", async () => {
+  it("logs without userAgent when not provided", async () => {
     const { ctx, log } = createMockCtx({
       userAgent: undefined,
-      virtualMcpId: undefined,
     });
 
     const middleware = createProxyMonitoringMiddleware({
@@ -151,7 +145,6 @@ describe("proxy monitoring middleware", () => {
     expect(log).toHaveBeenCalledTimes(1);
     const event = log.mock.calls.at(0)![0] as any;
     expect(event.userAgent).toBeUndefined();
-    expect(event.virtualMcpId).toBeUndefined();
   });
 
   it("extracts properties from _meta.properties in arguments", async () => {

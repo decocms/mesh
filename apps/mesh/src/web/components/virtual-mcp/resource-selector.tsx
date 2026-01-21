@@ -106,7 +106,7 @@ function PatternInput({
 }
 
 /**
- * ResourceSetSelector - Selector for resources in gateway configuration
+ * ResourceSetSelector - Selector for resources in Virtual MCP configuration
  *
  * Supports both individual resource selection (via checkboxes) and
  * pattern-based selection (via URI patterns with wildcards).

@@ -41,7 +41,7 @@ const { values } = parseArgs({
 
 if (values.help) {
   console.log(`
-MCP Mesh - Self-hostable MCP Gateway
+MCP Mesh - Self-hostable MCP Server
 
 Usage:
   bunx @decocms/mesh [options]
@@ -180,7 +180,7 @@ if (secretsModified) {
 
 console.log("");
 console.log(`${bold}${cyan}MCP Mesh${reset}`);
-console.log(`${dim}Self-hostable MCP Gateway${reset}`);
+console.log(`${dim}Self-hostable MCP Server${reset}`);
 
 // Only show warning for secrets that are actually from file
 if (betterAuthFromFile || encryptionKeyFromFile) {

@@ -2,7 +2,7 @@
  * Aggregator Factory
  *
  * Factory functions for creating MCP aggregators from Virtual MCP entities.
- * Shared between gateway routes and proxy routes for VIRTUAL connections.
+ * Shared between Virtual MCP routes and proxy routes for VIRTUAL connections.
  */
 
 import type { MeshContext } from "../core/mesh-context";
@@ -41,7 +41,7 @@ import type { AggregatorClient, AggregatorOptions } from "./types";
  * @param ctx - Mesh context for creating proxies
  * @returns AggregatorClient interface with aggregated tools, resources, and prompts
  */
-export async function createMCPAggregator(
+async function createMCPAggregator(
   options: AggregatorOptions,
   ctx: MeshContext,
 ): Promise<AggregatorClient> {

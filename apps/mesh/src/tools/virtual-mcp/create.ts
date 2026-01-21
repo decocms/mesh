@@ -2,7 +2,8 @@
  * COLLECTION_VIRTUAL_MCP_CREATE Tool
  *
  * Create a new MCP virtual MCP (organization-scoped) with collection binding compliance.
- * Also auto-creates a VIRTUAL connection for the new Virtual MCP.
+ * Note: Virtual MCPs are stored as connections with connection_type = 'VIRTUAL',
+ * so creating a Virtual MCP automatically creates the connection.
  */
 
 import { z } from "zod";
@@ -12,7 +13,6 @@ import {
   requireAuth,
   requireOrganization,
 } from "../../core/mesh-context";
-import { buildVirtualUrl } from "../connection/schema";
 import { VirtualMCPCreateDataSchema, VirtualMCPEntitySchema } from "./schema";
 
 /**
@@ -50,40 +50,12 @@ export const COLLECTION_VIRTUAL_MCP_CREATE = defineTool({
     }
 
     // Create the virtual MCP (input.data is already in the correct format)
+    // Note: The facade creates a VIRTUAL connection in the connections table
     const virtualMcp = await ctx.storage.virtualMcps.create(
       organization.id,
       userId,
       input.data,
     );
-
-    // Auto-create a VIRTUAL connection for this Virtual MCP
-    // This allows the Virtual MCP to appear in the connections list
-    try {
-      await ctx.storage.connections.create({
-        title: virtualMcp.title,
-        description: virtualMcp.description,
-        icon: virtualMcp.icon,
-        organization_id: organization.id,
-        created_by: userId,
-        connection_type: "VIRTUAL",
-        connection_url: buildVirtualUrl(virtualMcp.id),
-        connection_token: null,
-        connection_headers: null,
-        oauth_config: null,
-        configuration_state: null,
-        configuration_scopes: null,
-        metadata: {
-          virtualMcpId: virtualMcp.id,
-          autoCreated: true,
-        },
-      });
-    } catch (error) {
-      // Log but don't fail - the Virtual MCP was created successfully
-      console.error(
-        `Failed to auto-create VIRTUAL connection for ${virtualMcp.id}:`,
-        error,
-      );
-    }
 
     // Return virtual MCP entity directly (already in correct format)
     return {

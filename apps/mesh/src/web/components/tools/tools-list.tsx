@@ -26,6 +26,8 @@ export interface ToolsListProps {
   showToolbar?: boolean;
   /** Custom empty state message */
   emptyMessage?: string;
+  /** Whether tools are being loaded */
+  isLoading?: boolean;
 }
 
 /**
@@ -39,6 +41,7 @@ export function ToolsList({
   onToolClick,
   showToolbar = true,
   emptyMessage = "This connection doesn't have any tools yet.",
+  isLoading = false,
 }: ToolsListProps) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -205,7 +208,7 @@ export function ToolsList({
           <CollectionTableWrapper
             columns={columns}
             data={sortedTools}
-            isLoading={false}
+            isLoading={isLoading}
             sortKey={sortKey}
             sortDirection={sortDirection}
             onSort={handleSort}

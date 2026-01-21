@@ -6,12 +6,13 @@ import {
   useConnectionActions,
 } from "@/web/hooks/collections/use-connection";
 import { useCollectionBindings } from "@/web/hooks/use-binding";
-import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
+import { useConnectionTools } from "@/web/hooks/use-connection-tools";
+import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Loading01 } from "@untitledui/icons";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
+import { Loading01 } from "@untitledui/icons";
 import {
   useNavigate,
   useParams,
@@ -37,6 +38,8 @@ function ConnectionInspectorViewWithConnection({
   isUpdating,
   prompts,
   resources,
+  tools,
+  isLoadingTools,
 }: {
   connection: ConnectionEntity;
   connectionId: string;
@@ -52,6 +55,13 @@ function ConnectionInspectorViewWithConnection({
     description?: string;
     mimeType?: string;
   }>;
+  tools: Array<{
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+  }>;
+  isLoadingTools: boolean;
 }) {
   const router = useRouter();
   const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
@@ -67,14 +77,24 @@ function ConnectionInspectorViewWithConnection({
     | undefined;
   const hasRepository = !!repository?.url;
 
-  const toolsCount = connection?.tools?.length ?? 0;
+  const toolsCount = tools.length;
   const promptsCount = prompts.length;
   const resourcesCount = resources.length;
 
+  // Show Tools tab if we have tools OR if we're still loading them
+  // This handles VIRTUAL connections and others that fetch tools dynamically
+  const showToolsTab = toolsCount > 0 || isLoadingTools;
+
   const tabs = [
     { id: "settings", label: "Settings" },
-    ...(isMCPAuthenticated && toolsCount > 0
-      ? [{ id: "tools", label: "Tools", count: toolsCount }]
+    ...(isMCPAuthenticated && showToolsTab
+      ? [
+          {
+            id: "tools",
+            label: "Tools",
+            count: isLoadingTools ? undefined : toolsCount,
+          },
+        ]
       : []),
     ...(isMCPAuthenticated && promptsCount > 0
       ? [{ id: "prompts", label: "Prompts", count: promptsCount }]
@@ -127,9 +147,10 @@ function ConnectionInspectorViewWithConnection({
             >
               {activeTabId === "tools" ? (
                 <ToolsTab
-                  tools={connection.tools ?? undefined}
+                  tools={tools}
                   connectionId={connectionId}
                   org={org}
+                  isLoading={isLoadingTools}
                 />
               ) : activeTabId === "prompts" ? (
                 <PromptsTab
@@ -199,6 +220,13 @@ function ConnectionInspectorViewContent() {
   const { promptsMap } = useConnectionsPrompts([connectionId]);
   const { resourcesMap } = useConnectionsResources([connectionId]);
 
+  // Fetch tools - uses cached if available, otherwise fetches dynamically
+  // This handles VIRTUAL connections which always have null tools
+  const { tools, isLoading: isLoadingTools } = useConnectionTools(
+    connectionId,
+    connection?.tools,
+  );
+
   const prompts = promptsMap.get(connectionId) ?? [];
   const resources = resourcesMap.get(connectionId) ?? [];
 
@@ -247,6 +275,8 @@ function ConnectionInspectorViewContent() {
       isUpdating={actions.update.isPending}
       prompts={prompts}
       resources={resources}
+      tools={tools}
+      isLoadingTools={isLoadingTools}
     />
   );
 }

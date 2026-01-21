@@ -22,6 +22,7 @@ import * as migration020enabledplugins from "./020-enabled-plugins.ts";
 import * as migration021threads from "./021-threads.ts";
 import * as migration022renamegatewaytovirtualmcp from "./022-rename-gateway-to-virtual-mcp.ts";
 import * as migration023optimizethreadindexes from "./023-optimize-thread-indexes.ts";
+import * as migration024consolidatevirtualmcp from "./024-consolidate-virtual-mcp.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -48,6 +49,7 @@ const migrations = {
   "021-threads": migration021threads,
   "022-rename-gateway-to-virtual-mcp": migration022renamegatewaytovirtualmcp,
   "023-optimize-thread-indexes": migration023optimizethreadindexes,
+  "024-consolidate-virtual-mcp": migration024consolidatevirtualmcp,
 } satisfies Record<string, Migration>;
 
 export default migrations;

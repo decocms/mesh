@@ -13,7 +13,7 @@ export interface PromptSetSelectorProps {
 }
 
 /**
- * PromptSetSelector - Selector for prompts in gateway configuration
+ * PromptSetSelector - Selector for prompts in Virtual MCP configuration
  *
  * Reuses the ItemSetSelector pattern for consistent UX with tools.
  */

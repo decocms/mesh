@@ -10,8 +10,21 @@ interface ToolsTabProps {
     | undefined;
   connectionId: string;
   org: string;
+  isLoading?: boolean;
 }
 
-export function ToolsTab({ tools, connectionId, org }: ToolsTabProps) {
-  return <ToolsList tools={tools} connectionId={connectionId} org={org} />;
+export function ToolsTab({
+  tools,
+  connectionId,
+  org,
+  isLoading,
+}: ToolsTabProps) {
+  return (
+    <ToolsList
+      tools={tools}
+      connectionId={connectionId}
+      org={org}
+      isLoading={isLoading}
+    />
+  );
 }

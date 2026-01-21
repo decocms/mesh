@@ -7,7 +7,7 @@
 import type {
   BenchmarkConfig,
   BenchmarkScenario,
-  GatewayToolSelectionStrategy,
+  VirtualMCPtoolSelectionStrategy,
 } from "./types";
 
 /**
@@ -45,9 +45,9 @@ const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
 const TOOL_COUNTS = [10, 50, 100, 300, 500] as const;
 
 /**
- * Gateway strategies to compare
+ * Virtual MCP strategies to compare
  */
-const STRATEGIES: GatewayToolSelectionStrategy[] = [
+const STRATEGIES: VirtualMCPtoolSelectionStrategy[] = [
   "passthrough",
   // "smart_tool_selection", there's a bug in the smart tool selection strategy for now we are not using yet.
   "code_execution",

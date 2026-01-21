@@ -8,7 +8,10 @@
 import { unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import type { MeshServerHandle, GatewayToolSelectionStrategy } from "../types";
+import type {
+  MeshServerHandle,
+  VirtualMCPtoolSelectionStrategy,
+} from "../types";
 
 // Import from sibling mesh package (internal imports)
 import { createApp } from "@decocms/mesh/src/api/app";
@@ -238,7 +241,7 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
 
     createGateway: async (
       connectionId: string,
-      strategy: GatewayToolSelectionStrategy,
+      strategy: VirtualMCPtoolSelectionStrategy,
     ): Promise<string> => {
       const result = await callMcpTool<{ item: { id: string } }>(
         "COLLECTION_GATEWAY_CREATE",
@@ -268,7 +271,7 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
 
     getGatewayUrl: (
       gatewayId: string,
-      strategy?: GatewayToolSelectionStrategy,
+      strategy?: VirtualMCPtoolSelectionStrategy,
     ): string => {
       const url = new URL(`/mcp/gateway/${gatewayId}`, baseUrl);
       if (strategy) {

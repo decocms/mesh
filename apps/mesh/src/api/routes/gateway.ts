@@ -1,12 +1,12 @@
 /**
- * MCP Gateway Routes
+ * Virtual MCP / Agent Routes
  *
- * Provides two types of gateway endpoints:
- * 1. Virtual MCP - Uses virtual MCP entity from database at /mcp/gateway/:virtualMcpId
- * 2. Virtual MCP alias - Same as above at /mcp/virtual-mcp/:virtualMcpId
+ * Provides endpoints for accessing Virtual MCPs (agents):
+ * 1. /mcp/gateway/:virtualMcpId - Backward compatible endpoint
+ * 2. /mcp/virtual-mcp/:virtualMcpId - New canonical endpoint
  *
  * Architecture:
- * - Lists connections for the virtual MCP (from database or organization)
+ * - Lists connections for the Virtual MCP (from database or organization)
  * - Creates a ProxyCollection for all connections
  * - Uses lazy-loading aggregators (ToolAggregator, ResourceAggregator, etc.) to aggregate resources
  * - Deduplicates tools and prompts by name (first occurrence wins)
@@ -47,7 +47,7 @@ import type { Env } from "../env";
 const app = new Hono<Env>();
 
 // ============================================================================
-// Route Handler (shared between /gateway and /virtual-mcp endpoints)
+// Route Handler (shared between /gateway and /virtual-mcp endpoints for backward compat)
 // ============================================================================
 
 async function handleVirtualMcpRequest(
@@ -94,11 +94,12 @@ async function handleVirtualMcpRequest(
       return c.json({ error: "Agent not found" }, 404);
     }
 
-    ctx.virtualMcpId = virtualMcp.id;
-
     if (virtualMcp.status !== "active") {
       return c.json({ error: `Agent is inactive: ${virtualMcp.id}` }, 503);
     }
+
+    // Set connection context (Virtual MCPs are now connections)
+    ctx.connectionId = virtualMcp.id;
 
     // Set organization context
     const organization = await ctx.db
@@ -230,11 +231,11 @@ async function handleVirtualMcpRequest(
 // ============================================================================
 
 /**
- * Virtual MCP endpoint (backward compatible /mcp/gateway/:gatewayId)
+ * Virtual MCP endpoint (backward compatible /mcp/gateway/:virtualMcpId)
  *
- * Route: POST /mcp/gateway/:gatewayId?
- * - If gatewayId is provided: use that specific virtual MCP
- * - If gatewayId is omitted: use Decopilot agent (default agent)
+ * Route: POST /mcp/gateway/:virtualMcpId?
+ * - If virtualMcpId is provided: use that specific Virtual MCP
+ * - If virtualMcpId is omitted: use Decopilot agent (default agent)
  */
 app.all("/gateway/:virtualMcpId?", async (c) => {
   const virtualMcpId = c.req.param("virtualMcpId");

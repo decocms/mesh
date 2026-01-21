@@ -1,6 +1,6 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useProjectContext } from "@/web/providers/project-context-provider";
-import { getGatewayColor } from "@/web/utils/gateway-color";
+import { getAgentColor } from "@/web/utils/agent-color";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Popover,
@@ -73,7 +73,7 @@ function VirtualMCPBadge({
     }
   }, [open]);
 
-  const color = getGatewayColor(virtualMcpId);
+  const color = getAgentColor(virtualMcpId);
 
   const handleReset = (e: MouseEvent) => {
     e.stopPropagation();
@@ -237,7 +237,7 @@ export function ChatInput() {
   };
 
   const color = selectedVirtualMcp
-    ? getGatewayColor(selectedVirtualMcp.id)
+    ? getAgentColor(selectedVirtualMcp.id)
     : null;
 
   return (
