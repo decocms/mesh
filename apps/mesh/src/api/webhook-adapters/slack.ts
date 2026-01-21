@@ -94,24 +94,6 @@ export const slackAdapter: WebhookAdapter = {
   type: "slack",
   name: "Slack",
 
-  // Config fields this adapter looks for in configuration_state
-  configFields: ["SIGNING_SECRET"] as const,
-
-  matches(req: Request, body: unknown): boolean {
-    // Check for Slack-specific headers
-    const hasSlackSignature = req.headers.has("x-slack-signature");
-    const hasSlackTimestamp = req.headers.has("x-slack-request-timestamp");
-
-    // Check for Slack payload structure
-    const payload = body as Record<string, unknown>;
-    const isSlackPayload =
-      payload?.type === "url_verification" ||
-      payload?.type === "event_callback" ||
-      payload?.type === "app_rate_limited";
-
-    return (hasSlackSignature && hasSlackTimestamp) || isSlackPayload;
-  },
-
   async verify(
     req: Request,
     rawBody: string,

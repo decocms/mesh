@@ -1,154 +1,109 @@
 /**
- * Universal Webhook Proxy Routes
+ * Universal Webhook Proxy
  *
- * Provides webhook endpoints for MCP connections that need to receive
- * webhooks from external services (Slack, WhatsApp, GitHub, etc.)
+ * Receives webhooks from external services and publishes to Event Bus.
+ * Each MCP connection can have its own webhook URL.
  *
- * URL: POST /webhooks/:org/:connectionId
- *
- * Features:
- * - Auto-detection of webhook type (Slack, Meta, GitHub, generic)
- * - Signature verification using adapter-specific methods
- * - Challenge/verification handling for initial setup
- * - Event publishing to Event Bus for MCP processing
- *
- * Security:
- * - Validates org matches connection
- * - Verifies signatures before processing
- * - Minimal error details in responses
+ * URL: /webhooks/:org/:connectionId
  */
 
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
-import {
-  getAdapter,
-  detectAdapter,
-  type WebhookAdapterType,
-  type WebhookConfig,
-} from "../webhook-adapters";
+import { getAdapter, type WebhookAdapterType } from "../webhook-adapters";
 
-// ============================================================================
-// Types
-// ============================================================================
-
-type Variables = {
-  meshContext: MeshContext;
+type HonoEnv = {
+  Variables: { meshContext: MeshContext };
 };
-
-type HonoEnv = { Variables: Variables };
-
-// ============================================================================
-// Webhook Route
-// ============================================================================
 
 const app = new Hono<HonoEnv>();
 
-/**
- * Universal webhook endpoint
- *
- * POST /webhooks/:org/:connectionId
- * GET /webhooks/:org/:connectionId (for Meta challenge verification)
- */
 app.all("/:org/:connectionId", async (c) => {
   const orgSlug = c.req.param("org");
   const connectionId = c.req.param("connectionId");
   const ctx = c.get("meshContext");
 
-  // Look up connection
-  const connection = await ctx.storage.connections.findById(connectionId);
-
-  if (!connection || connection.status !== "active") {
-    return c.json({ error: "Not found" }, 404);
-  }
-
-  // Validate organization
-  const organization = await ctx.db
-    .selectFrom("organization")
-    .select(["id", "slug"])
-    .where("id", "=", connection.organization_id)
+  // Look up connection with org validation in single query
+  const result = await ctx.db
+    .selectFrom("connections")
+    .innerJoin("organization", "organization.id", "connections.organization_id")
+    .select([
+      "connections.id",
+      "connections.organization_id",
+      "connections.status",
+      "connections.configuration_state",
+      "connections.metadata",
+      "organization.slug",
+    ])
+    .where("connections.id", "=", connectionId)
+    .where("organization.slug", "=", orgSlug)
+    .where("connections.status", "=", "active")
     .executeTakeFirst();
 
-  if (!organization || organization.slug !== orgSlug) {
+  if (!result) {
     return c.json({ error: "Not found" }, 404);
   }
 
-  // Build webhook config from connection state
-  const configState = (connection.configuration_state ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const metadata = (connection.metadata ?? {}) as Record<string, unknown>;
+  // Get adapter from metadata
+  const metadata = (result.metadata ?? {}) as Record<string, unknown>;
+  const webhookType = metadata.webhookType as WebhookAdapterType | undefined;
 
-  const webhookConfig: WebhookConfig = {
-    connectionId,
-    organizationId: connection.organization_id,
-    ...configState,
-  };
-
-  // Parse body
-  const rawBody = await c.req.text();
-  let body: unknown = null;
-
-  if (rawBody) {
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
-      // Not JSON - could be form data or other format
-    }
+  if (!webhookType) {
+    return c.json({ error: "Bad request" }, 400);
   }
 
-  // Get adapter
-  const explicitType = metadata.webhookType as WebhookAdapterType | undefined;
-  const adapter = explicitType
-    ? getAdapter(explicitType)
-    : detectAdapter(c.req.raw, body);
-
+  const adapter = getAdapter(webhookType);
   if (!adapter) {
     return c.json({ error: "Bad request" }, 400);
   }
 
-  // Handle challenge (must be before signature verification for Slack)
-  const challengeResponse = adapter.handleChallenge(
-    c.req.raw,
-    body,
-    webhookConfig,
-  );
+  // Parse request body
+  const rawBody = await c.req.text();
+  let body: unknown = null;
+  if (rawBody) {
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      // Keep as raw string
+    }
+  }
 
+  // Build config for adapter
+  const configState = (result.configuration_state ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const config = {
+    connectionId,
+    organizationId: result.organization_id,
+    ...configState,
+  };
+
+  // Handle challenge (before signature verification for Slack)
+  const challengeResponse = adapter.handleChallenge(c.req.raw, body, config);
   if (challengeResponse) {
     return challengeResponse;
   }
 
   // Verify signature
-  const verification = await adapter.verify(c.req.raw, rawBody, webhookConfig);
-
+  const verification = await adapter.verify(c.req.raw, rawBody, config);
   if (!verification.verified) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  // Publish event to Event Bus
-  // Event Bus filters by publisher (connectionId) via SELF subscriptions
-  const eventType = adapter.getEventType(body);
-  const subject = adapter.getSubject?.(body);
-
+  // Publish to Event Bus
   try {
-    await ctx.eventBus.publish(connection.organization_id, connectionId, {
-      type: eventType,
+    await ctx.eventBus.publish(result.organization_id, connectionId, {
+      type: adapter.getEventType(body),
       data: body ?? rawBody,
-      subject,
+      subject: adapter.getSubject?.(body),
     });
   } catch (err) {
-    // Log error but still return 200 to acknowledge receipt
     console.error("[Webhooks] Event Bus publish failed:", err);
   }
 
   return c.json({ ok: true });
 });
 
-/**
- * Health check
- */
-app.get("/health", (c) => {
-  return c.json({ status: "ok", service: "webhooks" });
-});
+app.get("/health", (c) => c.json({ status: "ok" }));
 
 export default app;
