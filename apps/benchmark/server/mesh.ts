@@ -244,12 +244,11 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
       strategy: VirtualMCPtoolSelectionStrategy,
     ): Promise<string> => {
       const result = await callMcpTool<{ item: { id: string } }>(
-        "COLLECTION_GATEWAY_CREATE",
+        "COLLECTION_VIRTUAL_MCP_CREATE",
         {
           data: {
-            title: `Benchmark Gateway (${strategy})`,
-            description: `Gateway using ${strategy} strategy`,
-            tool_selection_strategy: strategy,
+            title: `Benchmark Agent (${strategy})`,
+            description: `Agent using ${strategy} strategy`,
             tool_selection_mode: "inclusion",
             connections: [
               {
@@ -263,7 +262,7 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
 
       if (!result?.item?.id) {
         console.error("Unexpected result:", JSON.stringify(result, null, 2));
-        throw new Error("No gateway ID returned");
+        throw new Error("No agent ID returned");
       }
 
       return result.item.id;
