@@ -1,20 +1,21 @@
 /**
  * Universal Webhook Adapter Types
  *
- * Defines the interface for the Slack webhook adapter.
+ * Defines the interface for webhook adapters.
+ * Each adapter is responsible for extracting the config fields it needs.
  */
 
 /**
  * Configuration passed to webhook adapter
+ * Contains all fields from the connection's configuration_state
+ * Each adapter extracts what it needs
  */
 export interface WebhookConfig {
   /** Connection ID */
   connectionId: string;
   /** Organization ID */
   organizationId: string;
-  /** Signing secret for signature verification */
-  signingSecret?: string;
-  /** Any additional configuration from MCP state */
+  /** All configuration from MCP state - adapter extracts what it needs */
   [key: string]: unknown;
 }
 
@@ -28,6 +29,13 @@ export interface VerificationResult {
 
 /**
  * Webhook Adapter Interface
+ *
+ * Each adapter is responsible for:
+ * - Detecting if it can handle a request
+ * - Extracting its config fields from WebhookConfig
+ * - Verifying signatures
+ * - Handling challenges
+ * - Extracting event type and subject
  */
 export interface WebhookAdapter {
   /** Unique identifier for this adapter */
@@ -37,12 +45,19 @@ export interface WebhookAdapter {
   readonly name: string;
 
   /**
+   * Config field names this adapter looks for
+   * Used for documentation and debugging only
+   */
+  readonly configFields: readonly string[];
+
+  /**
    * Check if this adapter can handle the given request
    */
   matches(req: Request, body: unknown): boolean;
 
   /**
    * Verify the request signature
+   * Adapter extracts the signing secret from config using its own field names
    */
   verify(
     req: Request,

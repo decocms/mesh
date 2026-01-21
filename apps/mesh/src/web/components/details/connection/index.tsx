@@ -146,6 +146,7 @@ function ConnectionInspectorViewWithConnection({
               ) : activeTabId === "settings" ? (
                 <SettingsTab
                   connection={connection}
+                  org={org}
                   onUpdate={onUpdate}
                   isUpdating={isUpdating}
                   isMCPAuthenticated={isMCPAuthenticated}

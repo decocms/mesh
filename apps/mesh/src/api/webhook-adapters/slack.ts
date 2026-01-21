@@ -94,6 +94,9 @@ export const slackAdapter: WebhookAdapter = {
   type: "slack",
   name: "Slack",
 
+  // Config fields this adapter looks for in configuration_state
+  configFields: ["SIGNING_SECRET"] as const,
+
   matches(req: Request, body: unknown): boolean {
     // Check for Slack-specific headers
     const hasSlackSignature = req.headers.has("x-slack-signature");
@@ -134,9 +137,8 @@ export const slackAdapter: WebhookAdapter = {
       };
     }
 
-    // Get signing secret from config
-    const signingSecret =
-      config.signingSecret || (config.SIGNING_SECRET as string);
+    // Get signing secret from config (field name: SIGNING_SECRET)
+    const signingSecret = config.SIGNING_SECRET as string | undefined;
     if (!signingSecret) {
       return {
         verified: false,
@@ -183,10 +185,10 @@ export const slackAdapter: WebhookAdapter = {
     const payload = body as SlackPayload;
 
     if (payload.type === "event_callback" && "event" in payload) {
-      return `slack.${payload.event.type}`;
+      return payload.event.type; // e.g. "message", "app_mention"
     }
 
-    return `slack.${payload.type}`;
+    return payload.type; // e.g. "url_verification"
   },
 
   getSubject(body: unknown): string | undefined {

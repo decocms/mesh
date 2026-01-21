@@ -44,9 +44,11 @@ import { connectionFormSchema, type ConnectionFormData } from "./schema";
  */
 function WebhookUrlDisplay({
   connectionId,
+  org,
   webhookType,
 }: {
   connectionId: string;
+  org: string;
   webhookType: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -56,7 +58,7 @@ function WebhookUrlDisplay({
     typeof window !== "undefined"
       ? window.location.origin
       : "https://mesh.deco.cx";
-  const webhookUrl = `${meshUrl}/webhooks/${connectionId}`;
+  const webhookUrl = `${meshUrl}/webhooks/${org}/${connectionId}`;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(webhookUrl);
@@ -291,6 +293,7 @@ function formValuesToConnectionUpdate(
 
 interface SettingsTabProps {
   connection: ConnectionEntity;
+  org: string;
   onUpdate: (connection: Partial<ConnectionEntity>) => Promise<void>;
   isUpdating: boolean;
   isMCPAuthenticated: boolean;
@@ -454,6 +457,7 @@ function SettingsRightPanel({
   isServerError,
   hasReadme,
   connection,
+  org,
 }: {
   hasMcpBinding: boolean;
   stateSchema?: Record<string, unknown>;
@@ -466,6 +470,7 @@ function SettingsRightPanel({
   isServerError?: boolean;
   hasReadme: boolean;
   connection: ConnectionEntity;
+  org: string;
 }) {
   const hasProperties =
     stateSchema &&
@@ -516,10 +521,11 @@ function SettingsRightPanel({
     return (
       <div className="w-3/5 min-w-0 overflow-auto flex flex-col">
         {/* Show webhook URL if MCP has webhookType */}
-        {webhookType && (
+        {webhookType && org && (
           <div className="p-5">
             <WebhookUrlDisplay
               connectionId={connection.id}
+              org={org}
               webhookType={webhookType}
             />
           </div>
@@ -546,9 +552,10 @@ function SettingsRightPanel({
   return (
     <div className="w-3/5 min-w-0 overflow-auto p-5">
       {/* Show webhook URL if MCP has webhookType */}
-      {webhookType && (
+      {webhookType && org && (
         <WebhookUrlDisplay
           connectionId={connection.id}
+          org={org}
           webhookType={webhookType}
         />
       )}
@@ -564,6 +571,7 @@ function SettingsRightPanel({
 function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   const {
     connection,
+    org,
     onUpdate,
     isUpdating,
     scopes,
@@ -742,6 +750,7 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
               isServerError={props.isServerError}
               hasReadme={hasReadme}
               connection={connection}
+              org={org}
             />
           </Suspense>
         </ErrorBoundary>
