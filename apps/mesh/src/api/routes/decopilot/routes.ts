@@ -132,7 +132,6 @@ app.post("/:org/decopilot/stream", async (c) => {
     // and the MCP client + transport streams leak (TextDecoderStream, 256KB buffers)
     const abortSignal = c.req.raw.signal;
     const abortHandler = () => {
-      console.log("[decopilot:stream] Request aborted - closing MCP client");
       client?.close().catch(console.error);
     };
     abortSignal.addEventListener("abort", abortHandler, { once: true });
@@ -165,13 +164,9 @@ app.post("/:org/decopilot/stream", async (c) => {
         await client?.close().catch(console.error);
       },
       onFinish: async () => {
-        console.log("[decopilot:stream] ✅ Stream finished, closing client");
         abortSignal.removeEventListener("abort", abortHandler);
         await client?.close().catch(console.error);
       },
-    });
-    console.log({
-      originalMessages: JSON.stringify(originalMessages, null, 2),
     });
 
     // 5. Return the stream response with metadata
@@ -200,15 +195,6 @@ app.post("/:org/decopilot/stream", async (c) => {
         return {};
       },
       onFinish: async ({ messages: UIMessages }) => {
-        console.log({
-          UIMessages: UIMessages.map((message) => ({
-            metadata: JSON.stringify(message.metadata, null, 2),
-            parts: JSON.stringify(message.parts, null, 2),
-            role: message.role,
-            id: message.id,
-          })),
-        });
-
         const messagesToSave = UIMessages.slice(-2).map((message) => {
           const now = new Date().getTime();
           const createdAt = message.role === "user" ? now : now + 1000;
@@ -220,25 +206,10 @@ app.post("/:org/decopilot/stream", async (c) => {
             threadId: memory.thread.id,
           };
         });
-        console.log({
-          messagesToSave: messagesToSave.map((message) => ({
-            metadata: message.metadata,
-            createdAt: message.createdAt,
-            role: message.role,
-            id: message.id,
-          })),
-        });
-
-        console.log("[decopilot:memory] 💾 Saving messages", {
-          threadId: memory.thread.id,
-          messageCount: messagesToSave.length,
-        });
 
         await memory.save(messagesToSave).catch((error) => {
           console.error("[decopilot:stream] Error saving messages", error);
         });
-
-        console.log("[decopilot:memory] ✅ Messages saved");
       },
     });
   } catch (error) {
