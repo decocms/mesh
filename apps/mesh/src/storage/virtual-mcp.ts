@@ -25,6 +25,7 @@ type RawVirtualMCPRow = {
   tool_selection_mode: ToolSelectionMode | string;
   icon: string | null;
   status: "active" | "inactive";
+  system_prompt: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   created_by: string;
@@ -64,6 +65,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
         tool_selection_mode: data.tool_selection_mode ?? "inclusion",
         icon: data.icon ?? null,
         status: data.status ?? "active",
+        system_prompt: data.system_prompt ?? null,
         created_at: now,
         updated_at: now,
         created_by: userId,
@@ -257,6 +259,9 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     if (data.status !== undefined) {
       updateData.status = data.status;
     }
+    if (data.system_prompt !== undefined) {
+      updateData.system_prompt = data.system_prompt;
+    }
 
     // Non-default update - simple update
     await this.db
@@ -334,6 +339,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       tool_selection_mode: this.parseToolSelectionMode(row.tool_selection_mode),
       icon: row.icon,
       status: row.status,
+      system_prompt: row.system_prompt ?? null,
       created_at: createdAt,
       updated_at: updatedAt,
       created_by: row.created_by,

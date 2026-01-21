@@ -582,6 +582,7 @@ export interface VirtualMCPTable {
   tool_selection_mode: ToolSelectionMode;
   icon: string | null;
   status: "active" | "inactive";
+  system_prompt: string | null; // Custom system prompt for this agent/gateway
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string;

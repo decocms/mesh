@@ -295,9 +295,13 @@ app.post("/:org/models/stream", async (c) => {
     abortSignal.addEventListener("abort", abortHandler, { once: true });
 
     // Convert UIMessages to CoreMessages and create MCP proxy/client in parallel
-    const [modelMessages, connection] = await Promise.all([
+    // Also fetch virtual MCP to get system_prompt if configured
+    const [modelMessages, connection, virtualMcp] = await Promise.all([
       convertToModelMessages(messages, { ignoreIncompleteToolCalls: true }),
       getConnectionById(ctx, organization.id, modelConfig.connectionId),
+      gatewayConfig.id
+        ? ctx.storage.virtualMcps.findById(gatewayConfig.id)
+        : null,
       client.connect(transport),
     ]);
 
@@ -311,10 +315,17 @@ app.post("/:org/models/stream", async (c) => {
       );
     }
 
-    // Extract context from frontend system message and combine with base prompt
-    const systemMessages = [
+    // Build system messages: DECOPILOT base + agent's system_prompt + frontend context
+    const systemMessages: SystemModelMessage[] = [
       DECOPILOT_SYSTEM_MESSAGE,
-      ...modelMessages.filter((m) => m.role === "system"),
+      // Inject virtual MCP's system_prompt if configured
+      ...(virtualMcp?.system_prompt
+        ? [{ role: "system" as const, content: virtualMcp.system_prompt }]
+        : []),
+      // Frontend system messages (e.g., current resource context)
+      ...(modelMessages.filter(
+        (m) => m.role === "system",
+      ) as SystemModelMessage[]),
     ];
 
     // Filter out system messages (they go to system param, not messages array)

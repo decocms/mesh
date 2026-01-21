@@ -361,7 +361,7 @@ async function handleVirtualMcpRequest(
       },
     );
 
-    // Handle list_prompts
+    // Handle list_prompts - delegate to aggregator
     server.server.setRequestHandler(
       ListPromptsRequestSchema,
       async (): Promise<ListPromptsResult> => {
@@ -369,7 +369,7 @@ async function handleVirtualMcpRequest(
       },
     );
 
-    // Handle get_prompt
+    // Handle get_prompt - delegate to aggregator
     server.server.setRequestHandler(
       GetPromptRequestSchema,
       async (request: GetPromptRequest): Promise<GetPromptResult> => {

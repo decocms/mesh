@@ -77,6 +77,11 @@ export const VirtualMCPEntitySchema = z.object({
     "Tool selection mode: 'inclusion' = include selected, 'exclusion' = exclude selected",
   ),
   status: z.enum(["active", "inactive"]).describe("Current status"),
+  system_prompt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Custom system prompt for this agent/gateway"),
   // Nested connections
   connections: z
     .array(VirtualMCPConnectionSchema)
@@ -109,6 +114,11 @@ export const VirtualMCPCreateDataSchema = z.object({
     .optional()
     .default("active")
     .describe("Initial status"),
+  system_prompt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Custom system prompt for this agent/gateway"),
   connections: z
     .array(
       z.object({
@@ -162,6 +172,11 @@ export const VirtualMCPUpdateDataSchema = z.object({
     .optional()
     .describe("New icon URL (null to clear)"),
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
+  system_prompt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Custom system prompt (null to clear)"),
   connections: z
     .array(
       z.object({

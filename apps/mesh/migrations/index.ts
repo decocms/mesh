@@ -21,6 +21,7 @@ import * as migration019removegatewayisdefault from "./019-remove-gateway-is-def
 import * as migration020enabledplugins from "./020-enabled-plugins.ts";
 import * as migration021threads from "./021-threads.ts";
 import * as migration022renamegatewaytovirtualmcp from "./022-rename-gateway-to-virtual-mcp.ts";
+import * as migration023virtualmcpsystemprompt from "./023-virtual-mcp-system-prompt.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -46,6 +47,7 @@ const migrations = {
   "020-enabled-plugins": migration020enabledplugins,
   "021-threads": migration021threads,
   "022-rename-gateway-to-virtual-mcp": migration022renamegatewaytovirtualmcp,
+  "023-virtual-mcp-system-prompt": migration023virtualmcpsystemprompt,
 } satisfies Record<string, Migration>;
 
 export default migrations;

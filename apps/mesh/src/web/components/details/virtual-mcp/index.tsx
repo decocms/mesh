@@ -16,7 +16,6 @@ import {
 } from "@/web/hooks/collections/use-virtual-mcp";
 import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
 import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
-import { useVirtualMCPSystemPrompt } from "@/web/hooks/use-virtual-mcp-system-prompt";
 import { slugify } from "@/web/utils/slugify";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -102,8 +101,10 @@ const virtualMcpFormSchema = VirtualMCPEntitySchema.pick({
   description: true,
   status: true,
   tool_selection_mode: true,
+  system_prompt: true,
 }).extend({
   title: z.string().min(1, "Name is required").max(255),
+  system_prompt: z.string().nullable().optional(),
 });
 
 type VirtualMCPFormData = z.infer<typeof virtualMcpFormSchema>;
@@ -549,15 +550,10 @@ function VirtualMCPShareModal({
 function VirtualMCPSettingsTab({
   form,
   icon,
-  virtualMcpId,
 }: {
   form: ReturnType<typeof useForm<VirtualMCPFormData>>;
   icon?: string | null;
-  virtualMcpId: string;
 }) {
-  const [systemPrompt, setSystemPrompt] =
-    useVirtualMCPSystemPrompt(virtualMcpId);
-
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Form {...form}>
@@ -705,19 +701,30 @@ function VirtualMCPSettingsTab({
 
           {/* System Prompt section */}
           <div className="flex flex-col gap-3 p-5">
-            <div>
-              <h4 className="text-sm font-medium text-foreground mb-1">
-                System Prompt
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Stored locally for now
-              </p>
-            </div>
-            <Textarea
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="Enter system prompt instructions..."
-              className="min-h-[240px] resize-none text-sm leading-relaxed"
+            <FormField
+              control={form.control}
+              name="system_prompt"
+              render={({ field }) => (
+                <FormItem>
+                  <div>
+                    <FormLabel className="text-sm font-medium">
+                      System Prompt
+                    </FormLabel>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Instructions for the AI when using this agent
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      value={field.value ?? ""}
+                      placeholder="Enter system prompt instructions..."
+                      className="min-h-[240px] resize-none text-sm leading-relaxed"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
           </div>
         </div>
@@ -810,6 +817,7 @@ function VirtualMCPInspectorViewWithData({
       description: virtualMcp.description,
       status: virtualMcp.status,
       tool_selection_mode: virtualMcp.tool_selection_mode ?? "inclusion",
+      system_prompt: virtualMcp.system_prompt ?? "",
     },
   });
 
@@ -834,6 +842,7 @@ function VirtualMCPInspectorViewWithData({
         description: formData.description,
         status: formData.status,
         tool_selection_mode: formData.tool_selection_mode,
+        system_prompt: formData.system_prompt || null,
         connections: newConnections,
       },
     });
@@ -850,6 +859,7 @@ function VirtualMCPInspectorViewWithData({
       description: virtualMcp.description,
       status: virtualMcp.status,
       tool_selection_mode: virtualMcp.tool_selection_mode ?? "inclusion",
+      system_prompt: virtualMcp.system_prompt ?? "",
     });
 
     // Reset selections to original virtual MCP values
@@ -990,7 +1000,6 @@ function VirtualMCPInspectorViewWithData({
                   <VirtualMCPSettingsTab
                     form={form}
                     icon={virtualMcp.icon}
-                    virtualMcpId={virtualMcpId}
                   />
                 ) : activeTabId === "tools" ? (
                   <ToolSetSelector
