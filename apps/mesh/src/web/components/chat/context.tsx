@@ -477,7 +477,6 @@ export function ChatProvider({
   const activeThread = stateThreads.find(
     (thread) => thread.id === stateActiveThreadId,
   );
-  console.log({ activeThread });
   const isNewThread =
     !activeThread || activeThread.updatedAt === activeThread.createdAt;
   // ===========================================================================
@@ -506,7 +505,6 @@ export function ChatProvider({
   const initialMessages = useThreadMessages(
     isNewThread ? null : stateActiveThreadId,
   );
-  console.log({ initialMessages, isNewThread, initialThreads });
   const [messages, setMessages] = useLocalStorage<Message[]>(
     LOCALSTORAGE_KEYS.messages(locator, stateActiveThreadId),
     initialMessages,
@@ -537,7 +535,7 @@ export function ChatProvider({
 
   const onFinish = async ({
     finishReason,
-    messages,
+    messages: finishMessages,
     isAbort,
     isDisconnect,
     isError,
@@ -555,12 +553,15 @@ export function ChatProvider({
       return;
     }
 
-    const newMessages = messages.slice(-2).filter(Boolean) as Message[];
+    const newMessages = finishMessages.slice(-2).filter(Boolean) as Message[];
 
     if (newMessages.length !== 2) {
       console.warn("[chat] Expected 2 messages, got", newMessages.length);
       return;
     }
+
+    const title = finishMessages.find((message) => message.metadata?.title)
+      ?.metadata?.title;
 
     if (
       stateThreads.findIndex((thread) => thread.id === stateActiveThreadId) ===
@@ -570,7 +571,7 @@ export function ChatProvider({
         ...prevThreads,
         {
           id: stateActiveThreadId,
-          title: "New Thread",
+          title: title ?? "New Thread",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },

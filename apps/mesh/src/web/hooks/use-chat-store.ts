@@ -5,20 +5,14 @@
  * Uses TanStack React Query for caching and mutations with idb-keyval for persistence.
  */
 
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message, Thread } from "../components/chat/types.ts";
 import { createToolCaller } from "@/tools/client.ts";
 import {
-  CollectionInsertOutput,
   CollectionListInput,
   CollectionListOutput,
-  CollectionUpdateOutput,
 } from "@decocms/bindings/collections";
 
 /**
@@ -68,42 +62,6 @@ async function getThreadMessages(threadId: string) {
   return result.items ?? [];
 }
 
-async function createThread(
-  thread: Thread,
-  messages?: Message[],
-): Promise<Thread> {
-  const toolCaller = createToolCaller();
-  const createToolName = "COLLECTION_THREADS_CREATE";
-  const input = {
-    data: {
-      ...thread,
-      messages,
-    },
-  };
-  const result = (await toolCaller(
-    createToolName,
-    input,
-  )) as CollectionInsertOutput<Thread>;
-  return result.item;
-}
-
-async function updateThread(
-  id: string,
-  updates: Partial<Thread>,
-): Promise<Thread> {
-  const toolCaller = createToolCaller();
-  const updateToolName = "COLLECTION_THREADS_UPDATE";
-  const input = {
-    id,
-    data: updates,
-  };
-  const result = (await toolCaller(
-    updateToolName,
-    input,
-  )) as CollectionUpdateOutput<Thread>;
-  return result.item;
-}
-
 /**
  * Hook to get messages for a specific thread
  *
@@ -126,64 +84,4 @@ export function useThreadMessages(threadId: string | null) {
   });
 
   return data ?? [];
-}
-
-/**
- * Hook to get thread mutation actions (insert, update, delete)
- *
- * @returns Object with insert, update, and delete mutation hooks
- */
-export function useThreadActions() {
-  const { locator } = useProjectContext();
-  const queryClient = useQueryClient();
-
-  const insert = useMutation({
-    mutationFn: async ({
-      thread,
-      messages,
-    }: {
-      thread: Thread;
-      messages?: Message[];
-    }) => {
-      return await createThread(thread, messages);
-    },
-    onSuccess: (thread: Thread) => {
-      // Invalidate all threads queries (including virtual MCP-filtered)
-      queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
-      if (thread.virtualMcpId) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.virtualMcpThreads(locator, thread.virtualMcpId),
-        });
-      }
-    },
-  });
-
-  const update = useMutation({
-    mutationFn: async ({
-      id,
-      updates,
-    }: {
-      id: string;
-      updates: Partial<Thread>;
-    }) => {
-      return await updateThread(id, updates);
-    },
-    onSuccess: (updated: Thread) => {
-      // Invalidate all threads queries (including virtual MCP-filtered)
-      queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.thread(locator, updated.id),
-      });
-      if (updated.virtualMcpId) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.virtualMcpThreads(locator, updated.virtualMcpId),
-        });
-      }
-    },
-  });
-
-  return {
-    insert,
-    update,
-  };
 }

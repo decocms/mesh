@@ -53,6 +53,7 @@ export interface Metadata {
   user?: ChatUserConfig;
   created_at?: string | Date;
   thread_id?: string;
+  title?: string;
   /** System prompt to prepend to messages at the transport layer */
   system?: string;
   /** Tiptap document for rich user input (includes prompt tags with resources) */

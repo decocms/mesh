@@ -25,6 +25,7 @@ import { createModelProvider } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
 import { createVirtualMcpTransport } from "./transport";
 import { Metadata } from "@/web/components/chat/types";
+import { generateTitleInBackground } from "./title-generator";
 
 // ============================================================================
 // MCP Client Connection
@@ -146,7 +147,10 @@ app.post("/:org/decopilot/stream", async (c) => {
         systemPrompts: [DECOPILOT_BASE_PROMPT],
       });
 
+    const shouldGenerateTitle = prunedMessages.length === 1;
+    console.log({ shouldGenerateTitle, prunedMessages });
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
+    let newTitle: string | null = null;
 
     // 4. Main stream
     const result = streamText({
@@ -158,6 +162,26 @@ app.post("/:org/decopilot/stream", async (c) => {
       maxOutputTokens,
       abortSignal,
       stopWhen: stepCountIs(30),
+      onStepFinish: async () => {
+        if (shouldGenerateTitle && newTitle === null) {
+          const userMessage = JSON.stringify(prunedMessages[0]?.content);
+
+          await generateTitleInBackground({
+            abortSignal,
+            model: modelProvider.model,
+            userMessage,
+            onTitle: (title) => {
+              newTitle = title;
+            },
+          })
+            .catch((error) => {
+              console.error("[decopilot:stream] Error generating title", error);
+            })
+            .then(() => {
+              console.log("[decopilot:stream] Title generated");
+            });
+        }
+      },
       onError: async (error) => {
         console.error("[decopilot:stream] Error", error);
         abortSignal.removeEventListener("abort", abortHandler);
@@ -172,6 +196,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     // 5. Return the stream response with metadata
     return result.toUIMessageStreamResponse({
       originalMessages,
+
       messageMetadata: ({ part }): Metadata => {
         if (part.type === "start") {
           return {
@@ -192,6 +217,13 @@ app.post("/:org/decopilot/stream", async (c) => {
             usage: { ...part.usage, providerMetadata: part.providerMetadata },
           };
         }
+
+        if (part.type === "finish") {
+          console.log({ part, newTitle });
+          return {
+            title: newTitle ?? undefined,
+          };
+        }
         return {};
       },
       onFinish: async ({ messages: UIMessages }) => {
@@ -200,6 +232,10 @@ app.post("/:org/decopilot/stream", async (c) => {
           const createdAt = message.role === "user" ? now : now + 1000;
           return {
             ...message,
+            metadata: {
+              ...message.metadata,
+              title: newTitle ?? undefined,
+            },
             id: generatePrefixedId("msg"),
             createdAt: new Date(createdAt).toISOString(),
             updatedAt: new Date(createdAt).toISOString(),
