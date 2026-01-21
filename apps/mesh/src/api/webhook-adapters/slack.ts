@@ -129,6 +129,12 @@ export const slackAdapter: WebhookAdapter = {
 
     // Check timestamp to prevent replay attacks (5 minutes tolerance)
     const requestTimestamp = parseInt(timestamp, 10);
+    if (Number.isNaN(requestTimestamp)) {
+      return {
+        verified: false,
+        error: "Invalid timestamp format",
+      };
+    }
     const now = Math.floor(Date.now() / 1000);
     if (Math.abs(now - requestTimestamp) > 300) {
       return {
