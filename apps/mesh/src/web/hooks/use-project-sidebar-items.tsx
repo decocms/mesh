@@ -1,6 +1,5 @@
-import { Locator } from "@decocms/mesh-sdk";
-import { useProjectContext } from "@decocms/mesh-sdk";
-import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js";
+import { Locator, useProjectContext } from "@decocms/mesh-sdk";
+import type { NavigationSidebarGroup } from "@deco/ui/components/navigation-sidebar.js";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
@@ -15,7 +14,7 @@ import {
 import { pluginRootSidebarItems } from "../index.tsx";
 import { useOrganizationSettings } from "./collections/use-organization-settings";
 
-export function useProjectSidebarItems() {
+export function useProjectSidebarItems(): NavigationSidebarGroup[] {
   const { locator, org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
@@ -35,73 +34,95 @@ export function useProjectSidebarItems() {
     routerState.location.pathname === `/${org}` ||
     routerState.location.pathname === `/${org}/`;
 
-  const KNOWN_ORG_ADMIN_SIDEBAR_ITEMS: NavigationSidebarItem[] = [
-    {
-      key: "home",
-      label: "Home",
-      icon: <Home02 />,
-      onClick: () => {
-        if (isOnHome) {
-          // Trigger a custom event to reset home view
-          window.dispatchEvent(new CustomEvent("reset-home-view"));
-        } else {
-          navigate({ to: "/$org", params: { org } });
-        }
-      },
-    },
-    {
-      key: "store",
-      label: "Store",
-      icon: <Building02 />,
-      onClick: () => navigate({ to: "/$org/store", params: { org } }),
-    },
-    ...enabledPluginItems.map((item) => ({
-      key: item.pluginId,
-      label: item.label,
-      icon: item.icon,
-      onClick: () =>
-        navigate({
-          to: "/$org/$pluginId",
-          params: { org, pluginId: item.pluginId },
-        }),
-    })),
-    {
-      key: "mcps",
-      label: "Connections",
-      icon: <Container />,
-      onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
-    },
-    {
-      key: "agents",
-      label: "Agents",
-      icon: <CpuChip02 />,
-      onClick: () => navigate({ to: "/$org/agents", params: { org } }),
-    },
-    {
-      key: "workflow",
-      label: "Workflows",
-      icon: <Zap />,
-      onClick: () => navigate({ to: "/$org/workflows", params: { org } }),
-    },
-    {
-      key: "monitoring",
-      label: "Monitoring",
-      icon: <BarChart10 />,
-      onClick: () => navigate({ to: "/$org/monitoring", params: { org } }),
-    },
-    {
-      key: "members",
-      label: "Members",
-      icon: <Users01 />,
-      onClick: () => navigate({ to: "/$org/members", params: { org } }),
-    },
-    {
-      key: "settings",
-      label: "Settings",
-      icon: <Settings01 />,
-      onClick: () => navigate({ to: "/$org/settings", params: { org } }),
-    },
-  ];
+  if (!isOrgAdminProject) {
+    return [];
+  }
 
-  return isOrgAdminProject ? KNOWN_ORG_ADMIN_SIDEBAR_ITEMS : [];
+  // Main section - primary navigation (no label, matches Figma)
+  const mainGroup: NavigationSidebarGroup = {
+    key: "main",
+    items: [
+      {
+        key: "home",
+        label: "Home",
+        icon: <Home02 />,
+        onClick: () => {
+          if (isOnHome) {
+            window.dispatchEvent(new CustomEvent("reset-home-view"));
+          } else {
+            navigate({ to: "/$org", params: { org } });
+          }
+        },
+      },
+    ],
+  };
+
+  // Workspace section - core workspace features (matches Figma "Workspace" section)
+  const workspaceGroup: NavigationSidebarGroup = {
+    key: "workspace",
+    label: "Workspace",
+    items: [
+      {
+        key: "mcps",
+        label: "Connections",
+        icon: <Container />,
+        onClick: () => navigate({ to: "/$org/mcps", params: { org } }),
+      },
+      {
+        key: "store",
+        label: "Store",
+        icon: <Building02 />,
+        onClick: () => navigate({ to: "/$org/store", params: { org } }),
+      },
+      ...enabledPluginItems.map((item) => ({
+        key: item.pluginId,
+        label: item.label,
+        icon: item.icon,
+        onClick: () =>
+          navigate({
+            to: "/$org/$pluginId",
+            params: { org, pluginId: item.pluginId },
+          }),
+      })),
+      {
+        key: "agents",
+        label: "Agents",
+        icon: <CpuChip02 />,
+        onClick: () => navigate({ to: "/$org/agents", params: { org } }),
+      },
+      {
+        key: "workflow",
+        label: "Workflows",
+        icon: <Zap />,
+        onClick: () => navigate({ to: "/$org/workflows", params: { org } }),
+      },
+      {
+        key: "monitoring",
+        label: "Monitor",
+        icon: <BarChart10 />,
+        onClick: () => navigate({ to: "/$org/monitoring", params: { org } }),
+      },
+      {
+        key: "members",
+        label: "Members",
+        icon: <Users01 />,
+        onClick: () => navigate({ to: "/$org/members", params: { org } }),
+      },
+    ],
+  };
+
+  // Settings section - org management (at bottom, matches Figma footer)
+  const settingsGroup: NavigationSidebarGroup = {
+    key: "settings",
+    items: [
+      {
+        key: "settings",
+        label: "Settings",
+        icon: <Settings01 />,
+        onClick: () => navigate({ to: "/$org/settings", params: { org } }),
+      },
+    ],
+  };
+
+  return [mainGroup, workspaceGroup, settingsGroup];
 }

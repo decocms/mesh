@@ -15,7 +15,7 @@ function AppTopbarRoot({ children, className }: AppTopbarProps) {
   return (
     <div
       className={cn(
-        "fixed top-0 left-0 right-0 z-20 bg-sidebar flex items-center w-full h-12 border-b border-border",
+        "sticky top-0 z-20 bg-background flex items-center w-full h-12 border-b border-border",
         className,
       )}
     >
@@ -67,7 +67,7 @@ function AppTopbarRight({ children, className }: AppTopbarSlotProps) {
 
 function AppTopbarSkeleton() {
   return (
-    <div className="fixed top-0 left-0 right-0 z-20 bg-sidebar flex items-center w-full h-12 border-b border-border">
+    <div className="sticky top-0 z-20 bg-background flex items-center w-full h-12 border-b border-border">
       <div className="flex items-center justify-center px-2 h-full border-r border-border">
         <div className="w-8 h-8 bg-muted rounded-md animate-pulse" />
       </div>

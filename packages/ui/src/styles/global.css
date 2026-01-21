@@ -41,7 +41,7 @@
   --primary-foreground: oklch(0.33 0.09 149);
   --secondary: oklch(0.91 0 107);
   --secondary-foreground: oklch(0.28 0.01 107);
-  --muted: oklch(0.97 0 107);
+  --muted: oklch(0.975 0.001 90);
   --muted-foreground: oklch(0.54 0.01 107);
   --accent: oklch(0.96 0 107);
   --accent-foreground: oklch(0.28 0.01 107);
@@ -59,9 +59,9 @@
   --chart-3: oklch(0.61 0.2 6.81);
   --chart-4: oklch(0.84 0.17 84.5);
   --chart-5: oklch(0.74 0.17 159);
-  --sidebar: oklch(1 0 0);
+  --sidebar: oklch(0.975 0.001 90);
   --sidebar-foreground: oklch(0.28 0.01 107);
-  --sidebar-accent: oklch(0.96 0 107);
+  --sidebar-accent: oklch(0.94 0.001 90);
   --sidebar-accent-foreground: oklch(0.28 0.01 107);
   --sidebar-border: oklch(0.91 0 107);
 

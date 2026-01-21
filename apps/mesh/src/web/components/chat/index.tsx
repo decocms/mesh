@@ -96,7 +96,7 @@ function ChatRoot({
   return (
     <div
       className={cn(
-        "flex flex-col h-full w-full bg-sidebar transform-[translateZ(0)]",
+        "flex flex-col h-full w-full bg-background transform-[translateZ(0)]",
         className,
       )}
     >
