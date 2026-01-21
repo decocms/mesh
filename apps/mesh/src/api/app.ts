@@ -28,6 +28,7 @@ import downstreamTokenRoutes from "./routes/downstream-token";
 import virtualMcpRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import modelsRoutes from "./routes/models";
+import openaiCompatRoutes from "./routes/openai-compat";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,
@@ -580,8 +581,11 @@ export function createApp(options: CreateAppOptions = {}) {
     }
   });
 
-  // LLM API routes (OpenAI-compatible)
+  // LLM API routes (internal UI format)
   app.route("/api", modelsRoutes);
+
+  // OpenAI-compatible LLM API routes
+  app.route("/api", openaiCompatRoutes);
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {
