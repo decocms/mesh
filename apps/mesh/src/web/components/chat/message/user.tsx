@@ -1,28 +1,8 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@deco/ui/components/alert-dialog.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Edit02 } from "@untitledui/icons";
 import { type UIMessage } from "ai";
 import { useContext, useState } from "react";
-import { useBranchMessage } from "../../../hooks/use-branch-message";
-import { useChat } from "../context";
-import { createTiptapDoc } from "../tiptap/utils.ts";
 import type { Metadata } from "../types.ts";
 import { MessageListContext } from "./list.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
@@ -34,99 +14,6 @@ export interface MessageProps<T extends Metadata> {
   status?: "streaming" | "submitted" | "ready" | "error";
   className?: string;
   pairIndex?: number;
-}
-
-/**
- * Edit message button with branch dialog
- * Handles the entire flow of branching a conversation from a specific message
- */
-interface EditMessageButtonProps {
-  messageId: string;
-  parts: UIMessage["parts"];
-  metadata?: Metadata;
-}
-
-function EditMessageButton({
-  messageId,
-  parts,
-  metadata,
-}: EditMessageButtonProps) {
-  const [showDialog, setShowDialog] = useState(false);
-  const {
-    setTiptapDoc,
-    startBranch,
-    setActiveThreadId,
-    activeThreadId,
-    isStreaming,
-  } = useChat();
-  const branchMessage = useBranchMessage(setActiveThreadId);
-
-  // Extract the full text from all text parts (for fallback)
-  const messageText = parts
-    .filter((part) => part.type === "text")
-    .map((part) => (part as { type: "text"; text: string }).text)
-    .join("\n");
-
-  const handleButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowDialog(true);
-  };
-
-  const handleConfirm = async () => {
-    // Branch creates new thread and copies messages
-    await branchMessage(messageId, messageText, activeThreadId);
-
-    // Set the input tiptapDoc for editing - use rich content if available, fallback to plain text
-    const editDoc = metadata?.tiptapDoc ?? createTiptapDoc(messageText);
-    setTiptapDoc(editDoc);
-
-    // Track the parent thread
-    startBranch({
-      threadId: activeThreadId,
-      messageId: messageId,
-    });
-
-    setShowDialog(false);
-  };
-
-  return (
-    <>
-      <div className="flex justify-center items-end px-2 pb-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={handleButtonClick}
-              variant="ghost"
-              size="xs"
-              disabled={isStreaming}
-              className="opacity-0 group-hover:opacity-100 hover:bg-gray-200/70 rounded-md transition-opacity text-muted-foreground hover:text-foreground aspect-square w-6 h-6 p-0"
-            >
-              <Edit02 size={16} className="p-0.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Edit message</TooltipContent>
-        </Tooltip>
-      </div>
-
-      <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Edit message?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will create a new conversation branch from this point. The
-              original conversation will remain unchanged.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirm}>
-              Confirm
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
 }
 
 const EXTENSIONS = [
@@ -235,7 +122,6 @@ export function MessageUser<T extends Metadata>({
               )}
             </div>
           </div>
-          <EditMessageButton messageId={id} parts={parts} metadata={metadata} />
         </div>
       </div>
     </>

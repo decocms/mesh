@@ -26,13 +26,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
-import {
-  getThreadFromIndexedDB,
-  useMessageActions,
-  useThreadActions,
-  useThreadMessages,
-  useThreads,
-} from "../../hooks/use-chat-store";
+import { useThreadMessages } from "../../hooks/use-chat-store";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
@@ -87,17 +81,12 @@ interface ChatContextValue {
   tiptapDoc: Metadata["tiptapDoc"];
   setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
   clearTiptapDoc: () => void;
-  parentThread: ParentThread | null;
-  startBranch: (parentThread: ParentThread) => void;
-  clearBranch: () => void;
   resetInteraction: () => void;
 
   // Thread management
   activeThreadId: string;
-  activeThread: Thread | null;
-  threads: Thread[];
-  createThread: (thread?: Partial<Thread>) => Thread;
   setActiveThreadId: (threadId: string) => void;
+  threads: Thread[];
   hideThread: (threadId: string) => void;
 
   // Virtual MCP state
@@ -132,7 +121,7 @@ const createModelsTransport = (
   org: string,
 ): DefaultChatTransport<UIMessage<Metadata>> =>
   new DefaultChatTransport<UIMessage<Metadata>>({
-    api: `/api/${org}/models/stream`,
+    api: `/api/${org}/decopilot/stream`,
     credentials: "include",
     prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
       const {
@@ -147,10 +136,14 @@ const createModelsTransport = (
             parts: [{ type: "text", text: system }],
           }
         : null;
+      const userMessage = messages.slice(-1).filter(Boolean) as Message[];
+      const allMessages = systemMessage
+        ? [systemMessage, ...userMessage]
+        : userMessage;
 
       return {
         body: {
-          messages: systemMessage ? [systemMessage, ...messages] : messages,
+          messages: allMessages,
           ...metadata,
         },
       };
@@ -464,39 +457,42 @@ function derivePartsFromTiptapDoc(
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
-const createThreadId = () => crypto.randomUUID();
-
 /**
  * Provider component for chat context
  * Consolidates all chat-related state: interaction, threads, virtual MCP, model, and chat session
  */
-export function ChatProvider({ children }: PropsWithChildren) {
+export function ChatProvider({
+  children,
+  initialThreads,
+}: PropsWithChildren & { initialThreads: Thread[] }) {
+  const { locator, org } = useProjectContext();
+  const [stateThreads, setStateThreads] = useLocalStorage<Thread[]>(
+    LOCALSTORAGE_KEYS.assistantChatThreads(locator),
+    initialThreads,
+  );
+  const [stateActiveThreadId, setStateActiveThreadId] = useLocalStorage<string>(
+    LOCALSTORAGE_KEYS.assistantChatActiveThread(locator) + ":state",
+    initialThreads[0]?.id ?? crypto.randomUUID(),
+  );
+  const activeThread = stateThreads.find(
+    (thread) => thread.id === stateActiveThreadId,
+  );
+  console.log({ activeThread });
+  const isNewThread =
+    !activeThread || activeThread.updatedAt === activeThread.createdAt;
   // ===========================================================================
   // 1. HOOKS - Call all hooks and derive state from them
   // ===========================================================================
 
   // Project context
-  const { locator, org } = useProjectContext();
-
   // User session
   const { data: session } = authClient.useSession();
   const user = session?.user ?? null;
-
   // Chat state (reducer-based)
   const [chatState, chatDispatch] = useReducer(
     chatStateReducer,
     initialChatState,
   );
-
-  // Thread state
-  const threadActions = useThreadActions();
-  const messageActions = useMessageActions();
-  const { threads } = useThreads();
-  const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
-    LOCALSTORAGE_KEYS.threadManagerState(locator) + ":active-id",
-    (existing) => existing || createThreadId(),
-  );
-  const persistedMessages = useThreadMessages(activeThreadId);
 
   // Virtual MCP state
   const virtualMcps = useVirtualMCPs();
@@ -507,7 +503,14 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Model state
   const modelsConnections = useModelConnections();
   const [selectedModel, setModel] = useModelState(locator, modelsConnections);
-
+  const initialMessages = useThreadMessages(
+    isNewThread ? null : stateActiveThreadId,
+  );
+  console.log({ initialMessages, isNewThread, initialThreads });
+  const [messages, setMessages] = useLocalStorage<Message[]>(
+    LOCALSTORAGE_KEYS.messages(locator, stateActiveThreadId),
+    initialMessages,
+  );
   // Context prompt
   const contextPrompt = useContextHook(storedSelectedVirtualMcpId);
 
@@ -518,13 +521,15 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // 2. DERIVED VALUES - Compute values from hook state
   // ===========================================================================
 
-  const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
-
   const selectedVirtualMcp = storedSelectedVirtualMcpId
     ? (virtualMcps.find((g) => g.id === storedSelectedVirtualMcpId) ?? null)
     : null;
 
   const transport = createModelsTransport(org.slug);
+
+  const addMessages = (newMessages: Message[]) => {
+    setMessages((prevMessages) => [...prevMessages, ...newMessages]);
+  };
 
   // ===========================================================================
   // 3. HOOK CALLBACKS - Functions passed to hooks
@@ -557,41 +562,21 @@ export function ChatProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    messageActions.insertMany.mutate(newMessages);
-
-    const msgTitle =
-      newMessages
-        .find((m) => m.parts?.find((part) => part.type === "text"))
-        ?.parts?.find((part) => part.type === "text")
-        ?.text.slice(0, 100) || "";
-
-    const existingThread = await getThreadFromIndexedDB(
-      locator,
-      activeThreadId,
-    );
-
-    if (!existingThread) {
-      const now = new Date().toISOString();
-      const newThread: Thread = {
-        id: activeThreadId,
-        title: msgTitle,
-        created_at: now,
-        updated_at: now,
-        hidden: false,
-        virtualMcpId: selectedVirtualMcp?.id,
-      };
-      threadActions.insert.mutate(newThread);
-      return;
+    if (
+      stateThreads.findIndex((thread) => thread.id === stateActiveThreadId) ===
+      -1
+    ) {
+      setStateThreads((prevThreads) => [
+        ...prevThreads,
+        {
+          id: stateActiveThreadId,
+          title: "New Thread",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
     }
-
-    threadActions.update.mutate({
-      id: activeThreadId,
-      updates: {
-        title: existingThread.title || msgTitle,
-        virtualMcpId: existingThread.virtualMcpId || selectedVirtualMcp?.id,
-        updated_at: new Date().toISOString(),
-      },
-    });
+    addMessages(newMessages);
   };
 
   const onError = (error: Error) => {
@@ -603,8 +588,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // ===========================================================================
 
   const chat = useAIChat<UIMessage<Metadata>>({
-    id: activeThreadId,
-    messages: persistedMessages,
+    id: stateActiveThreadId,
+    messages,
     transport,
     onFinish,
     onToolCall,
@@ -630,43 +615,16 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   const clearTiptapDoc = () => chatDispatch({ type: "CLEAR_TIPTAP_DOC" });
 
-  const startBranch = (parentCtx: ParentThread) =>
-    chatDispatch({ type: "START_BRANCH", payload: parentCtx });
-
-  const clearBranch = () => chatDispatch({ type: "CLEAR_BRANCH" });
-
   const resetInteraction = () => chatDispatch({ type: "RESET" });
 
-  // Thread functions
-  const createThread = (thread?: Partial<Thread>) => {
-    const id = thread?.id || crypto.randomUUID();
-    const now = new Date().toISOString();
-    const newThread: Thread = {
-      id,
-      title: thread?.title || "",
-      created_at: thread?.created_at || now,
-      updated_at: thread?.updated_at || now,
-      hidden: thread?.hidden ?? false,
-      virtualMcpId: thread?.virtualMcpId,
-    };
-    threadActions.insert.mutate(newThread);
-    setActiveThreadId(id);
-    clearBranch();
-    return newThread;
-  };
-
   const hideThread = (threadId: string) => {
-    threadActions.update.mutate({
-      id: threadId,
-      updates: {
-        hidden: true,
-        updated_at: new Date().toISOString(),
-      },
-    });
-
-    if (activeThreadId === threadId) {
-      setActiveThreadId(createThreadId());
-    }
+    setStateThreads((prevThreads) =>
+      prevThreads.map((thread) =>
+        thread.id === threadId
+          ? { ...thread, hidden: true, updatedAt: new Date().toISOString() }
+          : thread,
+      ),
+    );
   };
 
   // Virtual MCP functions
@@ -698,7 +656,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     const messageMetadata: Metadata = {
       tiptapDoc,
       created_at: new Date().toISOString(),
-      thread_id: activeThreadId,
+      thread_id: stateActiveThreadId,
       gateway: {
         id: selectedVirtualMcp?.id ?? null,
       },
@@ -719,15 +677,16 @@ export function ChatProvider({ children }: PropsWithChildren) {
       },
     };
 
-    await chat.sendMessage(
-      {
-        id: crypto.randomUUID(),
-        role: "user",
-        parts,
-        metadata: messageMetadata,
-      },
-      { metadata },
-    );
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      parts,
+      metadata: messageMetadata,
+    };
+
+    addMessages([userMessage]);
+
+    await chat.sendMessage(userMessage, { metadata });
   };
 
   const stopStreaming = () => chat.stop();
@@ -743,17 +702,12 @@ export function ChatProvider({ children }: PropsWithChildren) {
     tiptapDoc: chatState.tiptapDoc,
     setTiptapDoc,
     clearTiptapDoc,
-    parentThread: chatState.parentThread,
-    startBranch,
-    clearBranch,
     resetInteraction,
 
     // Thread management
-    activeThreadId,
-    activeThread,
-    threads,
-    createThread,
-    setActiveThreadId,
+    activeThreadId: stateActiveThreadId,
+    threads: stateThreads,
+    setActiveThreadId: setStateActiveThreadId,
     hideThread,
 
     // Virtual MCP state

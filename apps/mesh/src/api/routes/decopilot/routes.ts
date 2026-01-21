@@ -5,7 +5,6 @@
  * Uses the Agent, Memory, and ModelProvider abstractions.
  */
 
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { stepCountIs, streamText, UIMessage } from "ai";
@@ -13,11 +12,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
-import {
-  generatePrefixedId,
-  idMatchesPrefix,
-} from "@/shared/utils/generate-id";
-import type { ThreadMessage } from "@/storage/types";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 import { createAgent as createAgentImpl } from "./agent";
 import {
@@ -29,9 +24,9 @@ import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createModelProvider } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
-import { generateTitleInBackground } from "./title-generator";
 import type { Agent } from "./types";
-import { createGatewayTransport } from "./transport";
+import { createVirtualMcpTransport } from "./transport";
+import { Metadata } from "@/web/components/chat/types";
 
 // ============================================================================
 // Agent Creation
@@ -76,7 +71,6 @@ interface ValidatedRequest {
   temperature: number;
   windowSize: number;
   threadId: string | null | undefined;
-  transport: StreamableHTTPClientTransport;
 }
 
 async function validateRequest(
@@ -90,40 +84,10 @@ async function validateRequest(
     throw new Error("Invalid request body");
   }
 
-  // Validate unique message IDs
-  const uniqueIds = new Set<string>();
-  for (const m of parseResult.data.messages) {
-    if (m.id) uniqueIds.add(m.id);
-  }
-  if (uniqueIds.size !== parseResult.data.messages.length) {
-    throw new Error("Duplicate message IDs");
-  }
-
-  // Validate thread ID format
-  if (parseResult.data.thread_id) {
-    if (!idMatchesPrefix(parseResult.data.thread_id, "thrd")) {
-      throw new Error("Invalid thread ID");
-    }
-  }
-
-  // Validate gateway ID format
-  if (parseResult.data.gateway.id) {
-    if (!idMatchesPrefix(parseResult.data.gateway.id, "gw")) {
-      throw new Error("Invalid gateway ID");
-    }
-  }
-
-  const transport = createGatewayTransport(
-    c.req.raw,
-    organization.id,
-    parseResult.data.gateway.id,
-  );
-
   return {
     organization,
     model: parseResult.data.model,
     gateway: parseResult.data.gateway,
-    transport,
     messages: parseResult.data.messages as unknown as UIMessage<Metadata>[],
     temperature: parseResult.data.temperature ?? 0.5,
     windowSize: parseResult.data.memory?.windowSize ?? DEFAULT_WINDOW_SIZE,
@@ -151,8 +115,12 @@ app.post("/:org/decopilot/stream", async (c) => {
       temperature,
       windowSize,
       threadId,
-      transport,
     } = await validateRequest(c);
+    const transport = createVirtualMcpTransport(
+      c.req.raw,
+      organization.id,
+      gateway.id,
+    );
 
     // 2. Create agent, model provider, and process conversation in parallel
     const [createdAgent, modelProvider] = await Promise.all([
@@ -171,47 +139,26 @@ app.post("/:org/decopilot/stream", async (c) => {
 
     agent = createdAgent;
 
+    // CRITICAL: Register abort handler to ensure client cleanup on disconnect
+    // Without this, when client disconnects mid-stream, onFinish/onError are NOT called
+    // and the MCP client + transport streams leak (TextDecoderStream, 256KB buffers)
+    const abortSignal = c.req.raw.signal;
+    const abortHandler = () => {
+      console.log("[models:stream] Request aborted - closing MCP client");
+      agent?.client?.close().catch(console.error);
+    };
+    abortSignal.addEventListener("abort", abortHandler, { once: true });
+
     // 3. Process conversation (depends on agent for system prompts)
-    const {
-      memory,
-      systemMessages,
-      prunedMessages,
-      userMessages,
-      userCreatedAt,
-    } = await processConversation(ctx, agent, {
-      organizationId: organization.id,
-      threadId,
-      windowSize,
-      messages,
-    });
+    const { memory, systemMessages, prunedMessages, originalMessages } =
+      await processConversation(ctx, agent, {
+        organizationId: organization.id,
+        threadId,
+        windowSize,
+        messages,
+      });
 
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
-
-    // 4. Extract first user message for title generation
-    const firstUserMessage = userMessages[0];
-    const userText =
-      firstUserMessage?.parts
-        ?.map((p: { type: string; text?: string }) =>
-          p.type === "text" ? p.text : "",
-        )
-        .join("") || "";
-
-    const shouldGenerateTitle =
-      userText.length > 0 && prunedMessages.length <= 1;
-    let generatedTitle: string | null = null;
-
-    // Start title generation in background
-    if (shouldGenerateTitle) {
-      generateTitleInBackground({
-        model: modelProvider.model,
-        userMessage: userText,
-        onTitle: (title) => {
-          generatedTitle = title;
-        },
-      }).catch((err) => {
-        console.error("[decopilot:title] Background error:", err);
-      });
-    }
 
     // 5. Main agent stream
     const result = streamText({
@@ -221,30 +168,29 @@ app.post("/:org/decopilot/stream", async (c) => {
       tools: agent.tools,
       temperature,
       maxOutputTokens,
-      abortSignal: c.req.raw.signal,
+      abortSignal,
       stopWhen: stepCountIs(30),
       onError: async (error) => {
         console.error("[decopilot:stream] Error", error);
-        if (agent) {
-          await agent.close().catch(console.error);
-        }
+        abortSignal.removeEventListener("abort", abortHandler);
+        await agent?.close().catch(console.error);
       },
       onFinish: async () => {
         console.log("[decopilot:stream] ✅ Stream finished, closing agent", {
           organizationId: agent?.organizationId,
           contextSnapshot: agent?.context.snapshot(),
-          generatedTitle,
         });
-        if (agent) {
-          await agent.close().catch(console.error);
-        }
+        abortSignal.removeEventListener("abort", abortHandler);
+        await agent?.close().catch(console.error);
       },
     });
-
-    result.consumeStream();
+    console.log({
+      originalMessages: JSON.stringify(originalMessages, null, 2),
+    });
 
     // 6. Return the stream response with metadata
     return result.toUIMessageStreamResponse({
+      originalMessages,
       messageMetadata: ({ part }): Metadata => {
         if (part.type === "start") {
           return {
@@ -252,7 +198,6 @@ app.post("/:org/decopilot/stream", async (c) => {
             model: { id: model.id, connectionId: model.connectionId },
             created_at: new Date(),
             thread_id: memory.thread.id,
-            ...(generatedTitle ? { thread_title: generatedTitle } : {}),
           };
         }
         if (part.type === "reasoning-start") {
@@ -264,50 +209,44 @@ app.post("/:org/decopilot/stream", async (c) => {
         if (part.type === "finish-step") {
           return {
             usage: { ...part.usage, providerMetadata: part.providerMetadata },
-            ...(generatedTitle ? { thread_title: generatedTitle } : {}),
           };
         }
         return {};
       },
-      onFinish: async ({ responseMessage }) => {
-        const responseCreatedAt = new Date().toISOString();
-        const lastUserMessage = userMessages[userMessages.length - 1];
+      onFinish: async ({ messages: UIMessages }) => {
+        console.log({
+          UIMessages: UIMessages.map((message) => ({
+            metadata: JSON.stringify(message.metadata, null, 2),
+            parts: JSON.stringify(message.parts, null, 2),
+            role: message.role,
+            id: message.id,
+          })),
+        });
 
-        const messagesToSave: ThreadMessage[] = [
-          {
-            ...(responseMessage as ThreadMessage),
-            threadId: memory.thread.id,
+        const messagesToSave = UIMessages.slice(-2).map((message) => {
+          const now = new Date().getTime();
+          const createdAt = message.role === "user" ? now : now + 1000;
+          return {
+            ...message,
             id: generatePrefixedId("msg"),
-            createdAt: responseCreatedAt,
-            updatedAt: responseCreatedAt,
-          },
-        ];
-
-        if (lastUserMessage) {
-          messagesToSave.unshift({
-            ...lastUserMessage,
-            role: "user",
-            parts: lastUserMessage.parts as ThreadMessage["parts"],
-            id: generatePrefixedId("msg"),
+            createdAt: new Date(createdAt).toISOString(),
+            updatedAt: new Date(createdAt).toISOString(),
             threadId: memory.thread.id,
-            createdAt: userCreatedAt,
-            updatedAt: userCreatedAt,
-          });
-        }
+          };
+        });
+        console.log({
+          messagesToSave: messagesToSave.map((message) => ({
+            metadata: message.metadata,
+            createdAt: message.createdAt,
+            role: message.role,
+            id: message.id,
+          })),
+        });
 
         console.log("[decopilot:memory] 💾 Saving messages", {
           threadId: memory.thread.id,
           messageCount: messagesToSave.length,
-          generatedTitle,
         });
-
-        if (generatedTitle) {
-          await ctx.storage.threads
-            .update(memory.thread.id, { title: generatedTitle })
-            .catch((err) => {
-              console.error("[decopilot:title] Failed to save title:", err);
-            });
-        }
 
         await memory.save(messagesToSave).catch((error) => {
           console.error("[decopilot:stream] Error saving messages", error);

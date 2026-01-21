@@ -55,6 +55,54 @@ export class SqlThreadStorage implements ThreadStoragePort {
     return this.threadFromDbRow(result);
   }
 
+  async createWithMessages(
+    data: Partial<Thread> & { messages: ThreadMessage[] },
+  ): Promise<Thread> {
+    const id = data.id ?? generatePrefixedId("thrd");
+    const organizationId = data.organizationId;
+    if (!organizationId) {
+      throw new Error("organizationId is required");
+    }
+    const createdBy = data.createdBy;
+    if (!createdBy) {
+      throw new Error("createdBy is required");
+    }
+    const now = new Date().toISOString();
+    const title = data.title ?? "New Thread - " + now;
+    return await this.db.transaction().execute(async (trx) => {
+      const thread = await trx
+        .insertInto("threads")
+        .values({
+          id,
+          organization_id: organizationId,
+          title,
+          description: data.description ?? null,
+          created_at: now,
+          updated_at: now,
+          created_by: createdBy,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      await trx
+        .insertInto("thread_messages")
+        .values(
+          data.messages.map((message) => ({
+            id: generatePrefixedId("msg"),
+            thread_id: thread.id,
+            metadata: message.metadata
+              ? JSON.stringify(message.metadata)
+              : null,
+            parts: JSON.stringify(message.parts),
+            role: message.role,
+            created_at: message.createdAt,
+            updated_at: message.updatedAt,
+          })),
+        )
+        .execute();
+      return this.threadFromDbRow(thread);
+    });
+  }
+
   async get(id: string): Promise<Thread | null> {
     const row = await this.db
       .selectFrom("threads")

@@ -8,10 +8,7 @@
 import type { Thread, ThreadMessage } from "@/storage/types";
 import type { ThreadStoragePort } from "@/storage/ports";
 import type { Memory, MemoryConfig } from "./types";
-import {
-  generatePrefixedId,
-  idMatchesPrefix,
-} from "@/shared/utils/generate-id";
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
  * Thread-based Memory implementation
@@ -61,9 +58,8 @@ export async function createMemory(
   const { threadId, organizationId, userId, defaultWindowSize } = config;
 
   let thread: Thread;
-  const isValidId = threadId ? idMatchesPrefix(threadId, "thrd") : false;
 
-  if (!threadId || !isValidId) {
+  if (!threadId) {
     // Create new thread
     thread = await storage.create({
       id: generatePrefixedId("thrd"),

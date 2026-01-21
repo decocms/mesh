@@ -89,6 +89,7 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_THREADS_UPDATE",
   "COLLECTION_THREADS_DELETE",
   "COLLECTION_THREAD_MESSAGES_LIST",
+  "COLLECTION_THREAD_MESSAGES_SAVE",
 ] as const;
 
 /**
@@ -376,6 +377,11 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "List thread messages",
     category: "Threads",
   },
+  {
+    name: "COLLECTION_THREAD_MESSAGES_SAVE",
+    description: "Save thread messages",
+    category: "Threads",
+  },
 ];
 
 /**
@@ -429,6 +435,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_THREADS_UPDATE: "Update threads",
   COLLECTION_THREADS_DELETE: "Delete threads",
   COLLECTION_THREAD_MESSAGES_LIST: "List thread messages",
+  COLLECTION_THREAD_MESSAGES_SAVE: "Save thread messages",
 };
 
 // ============================================================================

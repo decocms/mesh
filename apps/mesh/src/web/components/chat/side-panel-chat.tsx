@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
 import { TypewriterTitle } from "./typewriter-title";
+import { useThreads } from "@/web/hooks/use-chat-store";
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
@@ -15,13 +16,14 @@ function ChatPanelContent() {
   const { org } = useProjectContext();
   const [, setOpen] = useDecoChatOpen();
   const {
-    createThread,
-    activeThread,
     selectedVirtualMcp,
     modelsConnections,
     isChatEmpty,
+    activeThreadId,
+    setActiveThreadId,
+    threads,
   } = useChat();
-
+  const activeThread = threads.find((thread) => thread.id === activeThreadId);
   if (modelsConnections.length === 0) {
     const title = "No model provider connected";
     const description =
@@ -82,7 +84,7 @@ function ChatPanelContent() {
         <Chat.Header.Right>
           <button
             type="button"
-            onClick={() => createThread()}
+            onClick={() => setActiveThreadId(crypto.randomUUID())}
             className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
             title="New chat"
           >
@@ -142,10 +144,11 @@ function ChatPanelContent() {
 }
 
 export function ChatPanel() {
+  const { threads } = useThreads();
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.Provider>
+        <Chat.Provider initialThreads={threads}>
           <ChatPanelContent />
         </Chat.Provider>
       </Suspense>

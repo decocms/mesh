@@ -8,29 +8,32 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 import { fixProtocol } from "../oauth-proxy";
 
-/**
- * Create a gateway transport for MCP client connection
- */
-export function createGatewayTransport(
+export function createVirtualMcpTransport(
   req: Request,
   organizationId: string,
-  gatewayId: string | null | undefined,
+  virtualMcpId: string | null | undefined,
 ): StreamableHTTPClientTransport {
+  // Build base URL for virtual MCP
   const url = fixProtocol(new URL(req.url));
   const baseUrl = `${url.protocol}//${url.host}`;
 
+  // Forward cookie and authorization headers
   const headers = new Headers([["x-org-id", organizationId]]);
-  for (const header of ["cookie", "authorization"]) {
+  const toProxy = ["cookie", "authorization"];
+  for (const header of toProxy) {
     if (req.headers.has(header)) {
       headers.set(header, req.headers.get(header)!);
     }
   }
 
-  const gatewayPath = gatewayId ? `/mcp/gateway/${gatewayId}` : "/mcp/gateway";
-  const gatewayUrl = new URL(gatewayPath, baseUrl);
-  gatewayUrl.searchParams.set("mode", "code_execution");
+  // Use /mcp/virtual-mcp/ for default, /mcp/virtual-mcp/:id for specific virtual MCP
+  const virtualMcpPath = virtualMcpId
+    ? `/mcp/virtual-mcp/${virtualMcpId}`
+    : "/mcp/virtual-mcp";
+  const virtualMcpUrl = new URL(virtualMcpPath, baseUrl);
+  virtualMcpUrl.searchParams.set("mode", "code_execution");
 
-  return new StreamableHTTPClientTransport(gatewayUrl, {
+  return new StreamableHTTPClientTransport(virtualMcpUrl, {
     requestInit: { headers },
   });
 }

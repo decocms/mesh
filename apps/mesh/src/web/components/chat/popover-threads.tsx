@@ -14,7 +14,6 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
 import { useState } from "react";
 import { useChat } from "./context";
-import { useThreads } from "../../hooks/use-chat-store";
 import type { Thread } from "./types.ts";
 
 type ThreadSection = {
@@ -49,7 +48,7 @@ function groupThreadsByDate(threads: Thread[]): ThreadSection[] {
   const olderThreads: Thread[] = [];
 
   for (const thread of threads) {
-    const date = new Date(thread.updated_at);
+    const date = new Date(thread.updatedAt);
     if (date >= today) {
       todayThreads.push(thread);
     } else if (date >= yesterday) {
@@ -108,8 +107,9 @@ export function ThreadHistoryPopover({
 }: {
   variant?: "outline" | "icon";
 }) {
-  const { setActiveThreadId, hideThread, activeThreadId, threads } = useChat();
   const [searchQuery, setSearchQuery] = useState("");
+  const { activeThreadId, setActiveThreadId, threads } = useChat();
+
   const filteredThreads = searchQuery.trim()
     ? threads.filter((thread) =>
         (thread.title || "New chat")
@@ -123,13 +123,7 @@ export function ThreadHistoryPopover({
   return (
     <TooltipProvider>
       <Tooltip>
-        <Popover
-          onOpenChange={(open) => {
-            if (!open) {
-              setSearchQuery("");
-            }
-          }}
-        >
+        <Popover>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               {variant === "outline" ? (
@@ -209,7 +203,7 @@ export function ThreadHistoryPopover({
                               {isActive
                                 ? "current"
                                 : section.showRelativeTime
-                                  ? formatRelativeTime(thread.updated_at)
+                                  ? formatRelativeTime(thread.updatedAt)
                                   : null}
                             </span>
                           </div>
@@ -217,7 +211,7 @@ export function ThreadHistoryPopover({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              hideThread(thread.id);
+                              // hideThread(thread.id);
                             }}
                             className="opacity-0 cursor-pointer group/trash group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity"
                             title="Remove chat"

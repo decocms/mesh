@@ -38,7 +38,6 @@
     "@jitl/quickjs-wasmfile-release-sync": "^0.31.0",
     "@untitledui/icons": "^0.0.19",
     "@xyflow/react": "^12.10.0",
-    "idb-keyval": "^6.2.2",
     "kysely": "^0.28.8",
     "kysely-bun-worker": "^0.6.0",
     "quickjs-emscripten-core": "^0.31.0"

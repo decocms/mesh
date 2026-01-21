@@ -7,7 +7,7 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { KEYS } from "../lib/query-keys";
 import { useProjectContext } from "../providers/project-context-provider";
@@ -20,7 +20,7 @@ import { useProjectContext } from "../providers/project-context-provider";
 export function useInvalidateCollectionsOnToolCall() {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
-  const router = useRouter();
+  const params = useParams({ strict: false });
 
   return (event: { toolCall: { toolName: string } }) => {
     const toolName = event.toolCall.toolName;
@@ -35,14 +35,9 @@ export function useInvalidateCollectionsOnToolCall() {
 
     const collectionName = match[1]; // e.g., "ASSISTANT", "WORKFLOW", etc.
 
-    // Extract connectionId from router state synchronously
-    // This avoids hook order issues when ChatProvider renders in different routing contexts
+    // Try to extract connectionId from URL params
     // Matches routes like /:org/mcps/:connectionId or /:org/mcps/:connectionId/:collectionName/:itemId
-    const connectionId = router.state.matches
-      .map((m) => m.params)
-      .find(
-        (p): p is { connectionId: string } => "connectionId" in p,
-      )?.connectionId;
+    const connectionId = params.connectionId;
 
     if (!connectionId) {
       // No connectionId in URL, can't invalidate

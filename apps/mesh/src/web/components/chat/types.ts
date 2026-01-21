@@ -75,8 +75,8 @@ export interface Metadata {
 export interface Thread {
   id: string;
   title: string;
-  created_at: string; // ISO string
-  updated_at: string; // ISO string
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
   hidden?: boolean;
   virtualMcpId?: string; // Associate thread with specific virtual MCP
 }

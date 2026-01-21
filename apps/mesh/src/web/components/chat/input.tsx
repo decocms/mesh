@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   ArrowUp,
   ChevronDown,
-  CornerUpLeft,
   CpuChip02,
   Edit01,
   Stop,
@@ -182,10 +181,6 @@ export function ChatInput() {
   const {
     tiptapDoc,
     setTiptapDoc,
-    clearTiptapDoc,
-    parentThread,
-    clearBranch,
-    setActiveThreadId,
     virtualMcps,
     selectedVirtualMcp,
     setVirtualMcpId,
@@ -214,13 +209,6 @@ export function ChatInput() {
     } else if (canSubmit && tiptapDoc) {
       void sendMessage(tiptapDoc);
     }
-  };
-
-  const handleGoToOriginalMessage = () => {
-    if (!parentThread) return;
-    setActiveThreadId(parentThread.threadId);
-    clearBranch();
-    clearTiptapDoc();
   };
 
   const handleFixInChat = () => {
@@ -299,28 +287,6 @@ export function ChatInput() {
             className="h-7 text-xs"
           >
             Continue
-          </Button>
-        </ChatHighlight>
-      )}
-
-      {parentThread && (
-        <ChatHighlight
-          variant="default"
-          title="Editing message (click to view original)"
-          description="You are in a new thread. You can go back to the original in any moment."
-          icon={<CornerUpLeft size={14} />}
-          onDismiss={() => {
-            clearBranch();
-            clearTiptapDoc();
-          }}
-        >
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleGoToOriginalMessage}
-            className="h-7 text-xs"
-          >
-            View original
           </Button>
         </ChatHighlight>
       )}

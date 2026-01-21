@@ -12,4 +12,7 @@ export { COLLECTION_THREADS_UPDATE } from "./update";
 export { COLLECTION_THREADS_DELETE } from "./delete";
 
 // Thread messages tool
-export { COLLECTION_THREAD_MESSAGES_LIST } from "./list-messages";
+export {
+  COLLECTION_THREAD_MESSAGES_LIST,
+  COLLECTION_THREAD_MESSAGES_SAVE,
+} from "./list-messages";

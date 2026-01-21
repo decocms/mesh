@@ -14,11 +14,12 @@ import { TITLE_GENERATOR_PROMPT } from "./constants";
  * Writes to the stream writer when complete.
  */
 export async function generateTitleInBackground(config: {
+  abortSignal: AbortSignal;
   model: ModelProvider["model"];
   userMessage: string;
   onTitle?: (title: string) => void;
 }): Promise<void> {
-  const { model, userMessage, onTitle } = config;
+  const { abortSignal, model, userMessage, onTitle } = config;
 
   try {
     const result = await generateText({
@@ -27,6 +28,7 @@ export async function generateTitleInBackground(config: {
       messages: [{ role: "user", content: userMessage }],
       maxOutputTokens: 30,
       temperature: 0.2,
+      abortSignal,
     });
 
     // Extract just the first line, clean up any formatting

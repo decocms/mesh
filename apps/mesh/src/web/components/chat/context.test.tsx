@@ -17,7 +17,6 @@ describe("ChatState Reducer Logic", () => {
     tiptapDoc: undefined,
     parentThread: null,
     finishReason: null,
-    generatedTitle: null,
   };
 
   // Helper to simulate reducer behavior
@@ -106,7 +105,6 @@ describe("ChatState Reducer Logic", () => {
         messageId: "msg-456",
       },
       finishReason: null,
-      generatedTitle: null,
     };
 
     const action: ChatStateAction = { type: "CLEAR_BRANCH" };
@@ -134,7 +132,6 @@ describe("ChatState Reducer Logic", () => {
       tiptapDoc: undefined,
       parentThread: null,
       finishReason: "stop",
-      generatedTitle: null,
     };
 
     const action: ChatStateAction = { type: "CLEAR_FINISH_REASON" };
@@ -160,7 +157,6 @@ describe("ChatState Reducer Logic", () => {
         messageId: "msg-456",
       },
       finishReason: "stop",
-      generatedTitle: null,
     };
 
     const action: ChatStateAction = { type: "RESET" };
@@ -239,7 +235,6 @@ describe("ChatState Reducer Logic", () => {
       tiptapDoc: originalDoc,
       parentThread: null,
       finishReason: null,
-      generatedTitle: null,
     };
 
     const modifiedDoc = {
@@ -271,7 +266,6 @@ describe("ChatState Reducer Logic", () => {
       tiptapDoc: undefined,
       parentThread: originalParentThread,
       finishReason: null,
-      generatedTitle: null,
     };
 
     const newState = applyAction(stateWithBranch, { type: "CLEAR_BRANCH" });

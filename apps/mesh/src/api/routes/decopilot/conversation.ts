@@ -4,7 +4,6 @@
  * Handles message processing, memory loading, and conversation state management.
  */
 
-import type { Metadata } from "@deco/ui/types/chat-metadata.ts";
 import {
   convertToModelMessages,
   pruneMessages,
@@ -17,13 +16,13 @@ import type { MeshContext } from "@/core/mesh-context";
 import { ensureUser } from "./helpers";
 import { createMemory } from "./memory";
 import type { Agent, Memory } from "./types";
+import { Metadata } from "@/web/components/chat/types";
 
 export interface ProcessedConversation {
   memory: Memory;
   systemMessages: SystemModelMessage[];
   prunedMessages: ReturnType<typeof pruneMessages>;
-  userMessages: UIMessage<Metadata>[];
-  userCreatedAt: string;
+  originalMessages: UIMessage<Metadata>[];
 }
 
 /**
@@ -60,13 +59,6 @@ export async function processConversation(
     ignoreIncompleteToolCalls: true,
   });
 
-  const userCreatedAt = new Date().toISOString();
-
-  // Extract user messages
-  const userMessages = modelMessages.filter(
-    (m) => m.role === "user",
-  ) as unknown as UIMessage<Metadata>[];
-
   // Build system messages from agent prompts + incoming system messages
   const systemMessages: SystemModelMessage[] = [
     ...agent.systemPrompts.map((content) => ({
@@ -91,7 +83,6 @@ export async function processConversation(
     memory,
     systemMessages,
     prunedMessages,
-    userMessages,
-    userCreatedAt,
+    originalMessages: validatedMessages as unknown as UIMessage<Metadata>[],
   };
 }

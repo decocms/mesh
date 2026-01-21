@@ -29,6 +29,7 @@ import virtualMcpRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import openaiCompatRoutes from "./routes/openai-compat";
 import decopilotRoutes from "./routes/decopilot";
+// import decopilotRoutes from "./routes/models";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,
@@ -572,7 +573,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/mcp", proxyRoutes);
 
   // Measure LLM models route latency
-  app.use("/api/:org/decopilot/*", async (c, next) => {
+  app.use("/api/:org/models/*", async (c, next) => {
     startTime(c, "llm_models");
     try {
       return await next();

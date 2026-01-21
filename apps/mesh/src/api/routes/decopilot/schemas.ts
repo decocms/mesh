@@ -19,7 +19,7 @@ const MemoryConfigSchema = z.object({
 });
 
 export const StreamRequestSchema = z.object({
-  messages: z.array(UIMessageSchema).describe("User messages"),
+  messages: z.array(UIMessageSchema),
   memory: MemoryConfigSchema.optional(),
   model: z
     .object({
