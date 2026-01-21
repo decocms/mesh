@@ -13,4 +13,3 @@ export async function down(db: Kysely<unknown>): Promise<void> {
     .dropColumn("system_prompt")
     .execute();
 }
-

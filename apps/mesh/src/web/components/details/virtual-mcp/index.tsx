@@ -997,10 +997,7 @@ function VirtualMCPInspectorViewWithData({
                 }
               >
                 {activeTabId === "settings" ? (
-                  <VirtualMCPSettingsTab
-                    form={form}
-                    icon={virtualMcp.icon}
-                  />
+                  <VirtualMCPSettingsTab form={form} icon={virtualMcp.icon} />
                 ) : activeTabId === "tools" ? (
                   <ToolSetSelector
                     toolSet={toolSet}
