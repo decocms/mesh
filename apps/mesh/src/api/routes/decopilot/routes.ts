@@ -2,7 +2,7 @@
  * Decopilot Routes
  *
  * HTTP handlers for the Decopilot AI assistant.
- * Uses the Agent, Memory, and ModelProvider abstractions.
+ * Uses Memory and ModelProvider abstractions.
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -14,7 +14,6 @@ import { Hono } from "hono";
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
-import { createAgent as createAgentImpl } from "./agent";
 import {
   DEFAULT_MAX_TOKENS,
   DEFAULT_WINDOW_SIZE,
@@ -24,35 +23,26 @@ import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createModelProvider } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
-import type { Agent } from "./types";
 import { createVirtualMcpTransport } from "./transport";
 import { Metadata } from "@/web/components/chat/types";
 
 // ============================================================================
-// Agent Creation
+// MCP Client Connection
 // ============================================================================
 
 /**
- * Create an Agent connected to a gateway with tools loaded
+ * Create and connect an MCP client with tools loaded
  */
-async function createConnectedAgent(config: {
-  organizationId: string;
-  threadId?: string | null;
+async function createConnectedClient(config: {
   transport: StreamableHTTPClientTransport;
   monitoringProperties?: Record<string, string>;
-}): Promise<Agent> {
+}) {
   const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
   await client.connect(config.transport);
 
   const tools = await toolsFromMCP(client, config.monitoringProperties);
-  const agent = createAgentImpl({
-    organizationId: config.organizationId,
-    client,
-    tools,
-    systemPrompts: [DECOPILOT_BASE_PROMPT],
-  });
 
-  return agent;
+  return { client, tools };
 }
 
 // ============================================================================
@@ -103,7 +93,7 @@ const app = new Hono<{ Variables: { meshContext: MeshContext } }>();
 
 app.post("/:org/decopilot/stream", async (c) => {
   const ctx = c.get("meshContext");
-  let agent: Agent | null = null;
+  let client: Client | null = null;
 
   try {
     // 1. Validate request
@@ -122,11 +112,9 @@ app.post("/:org/decopilot/stream", async (c) => {
       gateway.id,
     );
 
-    // 2. Create agent, model provider, and process conversation in parallel
-    const [createdAgent, modelProvider] = await Promise.all([
-      createConnectedAgent({
-        organizationId: organization.id,
-        threadId,
+    // 2. Create MCP client and model provider in parallel
+    const [{ client: mcpClient, tools }, modelProvider] = await Promise.all([
+      createConnectedClient({
         transport,
         monitoringProperties: {},
       }),
@@ -137,35 +125,36 @@ app.post("/:org/decopilot/stream", async (c) => {
       }),
     ]);
 
-    agent = createdAgent;
+    client = mcpClient;
 
     // CRITICAL: Register abort handler to ensure client cleanup on disconnect
     // Without this, when client disconnects mid-stream, onFinish/onError are NOT called
     // and the MCP client + transport streams leak (TextDecoderStream, 256KB buffers)
     const abortSignal = c.req.raw.signal;
     const abortHandler = () => {
-      console.log("[models:stream] Request aborted - closing MCP client");
-      agent?.client?.close().catch(console.error);
+      console.log("[decopilot:stream] Request aborted - closing MCP client");
+      client?.close().catch(console.error);
     };
     abortSignal.addEventListener("abort", abortHandler, { once: true });
 
-    // 3. Process conversation (depends on agent for system prompts)
+    // 3. Process conversation
     const { memory, systemMessages, prunedMessages, originalMessages } =
-      await processConversation(ctx, agent, {
+      await processConversation(ctx, {
         organizationId: organization.id,
         threadId,
         windowSize,
         messages,
+        systemPrompts: [DECOPILOT_BASE_PROMPT],
       });
 
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
-    // 5. Main agent stream
+    // 4. Main stream
     const result = streamText({
       model: modelProvider.model,
       system: systemMessages,
       messages: prunedMessages,
-      tools: agent.tools,
+      tools,
       temperature,
       maxOutputTokens,
       abortSignal,
@@ -173,22 +162,19 @@ app.post("/:org/decopilot/stream", async (c) => {
       onError: async (error) => {
         console.error("[decopilot:stream] Error", error);
         abortSignal.removeEventListener("abort", abortHandler);
-        await agent?.close().catch(console.error);
+        await client?.close().catch(console.error);
       },
       onFinish: async () => {
-        console.log("[decopilot:stream] ✅ Stream finished, closing agent", {
-          organizationId: agent?.organizationId,
-          contextSnapshot: agent?.context.snapshot(),
-        });
+        console.log("[decopilot:stream] ✅ Stream finished, closing client");
         abortSignal.removeEventListener("abort", abortHandler);
-        await agent?.close().catch(console.error);
+        await client?.close().catch(console.error);
       },
     });
     console.log({
       originalMessages: JSON.stringify(originalMessages, null, 2),
     });
 
-    // 6. Return the stream response with metadata
+    // 5. Return the stream response with metadata
     return result.toUIMessageStreamResponse({
       originalMessages,
       messageMetadata: ({ part }): Metadata => {
@@ -256,7 +242,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       },
     });
   } catch (error) {
-    await agent?.close().catch(console.error);
+    await client?.close().catch(console.error);
     const err = error as Error;
 
     console.error("[decopilot:stream] Error", err);

@@ -29,7 +29,6 @@ import virtualMcpRoutes from "./routes/gateway";
 import managementRoutes from "./routes/management";
 import openaiCompatRoutes from "./routes/openai-compat";
 import decopilotRoutes from "./routes/decopilot";
-// import decopilotRoutes from "./routes/models";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,

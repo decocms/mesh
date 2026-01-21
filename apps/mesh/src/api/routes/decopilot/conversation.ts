@@ -15,7 +15,7 @@ import {
 import type { MeshContext } from "@/core/mesh-context";
 import { ensureUser } from "./helpers";
 import { createMemory } from "./memory";
-import type { Agent, Memory } from "./types";
+import type { Memory } from "./types";
 import { Metadata } from "@/web/components/chat/types";
 
 export interface ProcessedConversation {
@@ -30,12 +30,12 @@ export interface ProcessedConversation {
  */
 export async function processConversation(
   ctx: MeshContext,
-  agent: Agent,
   config: {
     organizationId: string;
     threadId: string | null | undefined;
     windowSize: number;
     messages: UIMessage<Metadata>[];
+    systemPrompts: string[];
   },
 ): Promise<ProcessedConversation> {
   const userId = ensureUser(ctx);
@@ -59,9 +59,9 @@ export async function processConversation(
     ignoreIncompleteToolCalls: true,
   });
 
-  // Build system messages from agent prompts + incoming system messages
+  // Build system messages from prompts + incoming system messages
   const systemMessages: SystemModelMessage[] = [
-    ...agent.systemPrompts.map((content) => ({
+    ...config.systemPrompts.map((content) => ({
       role: "system" as const,
       content,
     })),
