@@ -204,4 +204,3 @@ export const slackAdapter: WebhookAdapter = {
     return undefined;
   },
 };
-

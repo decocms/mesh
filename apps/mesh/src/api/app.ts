@@ -184,7 +184,7 @@ export function createApp(options: CreateAppOptions = {}) {
     cors({
       origin: (origin) => {
         // Allow localhost and configured origins
-        if (origin.includes("localhost") || origin.includes("127.0.0.1") || origin.includes("localhost-c056dce8")) {
+        if (origin.includes("localhost") || origin.includes("127.0.0.1") {
           return origin;
         }
         // TODO: Configure allowed origins from environment

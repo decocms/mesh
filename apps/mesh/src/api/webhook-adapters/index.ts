@@ -31,12 +31,12 @@ export function getAdapter(type: WebhookAdapterType): WebhookAdapter {
  * Detect the appropriate adapter based on the request
  * Currently only supports Slack
  */
-export function detectAdapter(req: Request, body: unknown): WebhookAdapter | null {
+export function detectAdapter(
+  req: Request,
+  body: unknown,
+): WebhookAdapter | null {
   if (slackAdapter.matches(req, body)) {
     return slackAdapter;
   }
   return null;
 }
-
-// Re-export the Slack adapter
-export { slackAdapter } from "./slack";

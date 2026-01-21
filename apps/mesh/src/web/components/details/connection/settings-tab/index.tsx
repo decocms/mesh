@@ -21,7 +21,13 @@ import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
-import { Key01, File06, Loading01, Copy01, CheckCircle } from "@untitledui/icons";
+import {
+  Key01,
+  File06,
+  Loading01,
+  Copy01,
+  CheckCircle,
+} from "@untitledui/icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
@@ -36,13 +42,22 @@ import { connectionFormSchema, type ConnectionFormData } from "./schema";
 /**
  * WebhookUrlDisplay - Shows webhook URL for MCPs that have webhookType in metadata
  */
-function WebhookUrlDisplay({ connectionId, webhookType }: { connectionId: string; webhookType: string }) {
+function WebhookUrlDisplay({
+  connectionId,
+  webhookType,
+}: {
+  connectionId: string;
+  webhookType: string;
+}) {
   const [copied, setCopied] = useState(false);
-  
+
   // Use window.location.origin to get the current Mesh URL
-  const meshUrl = typeof window !== "undefined" ? window.location.origin : "https://mesh.deco.cx";
+  const meshUrl =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://mesh.deco.cx";
   const webhookUrl = `${meshUrl}/webhooks/${connectionId}`;
-  
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(webhookUrl);
     setCopied(true);
@@ -52,16 +67,15 @@ function WebhookUrlDisplay({ connectionId, webhookType }: { connectionId: string
 
   return (
     <div className="flex flex-col gap-2 p-4 mb-4 bg-muted/50 rounded-lg border border-border">
-      <Label className="text-sm font-medium">
-        Webhook URL ({webhookType})
-      </Label>
+      <Label className="text-sm font-medium">Webhook URL ({webhookType})</Label>
       <p className="text-xs text-muted-foreground">
-        Use this URL in your {webhookType} app's webhook/event subscription settings.
+        Use this URL in your {webhookType} app's webhook/event subscription
+        settings.
       </p>
       <div className="flex gap-2">
-        <Input 
-          value={webhookUrl} 
-          readOnly 
+        <Input
+          value={webhookUrl}
+          readOnly
           className="font-mono text-sm bg-background"
         />
         <Button
@@ -71,7 +85,11 @@ function WebhookUrlDisplay({ connectionId, webhookType }: { connectionId: string
           onClick={handleCopy}
           className="shrink-0"
         >
-          {copied ? <CheckCircle size={16} className="text-green-500" /> : <Copy01 size={16} />}
+          {copied ? (
+            <CheckCircle size={16} className="text-green-500" />
+          ) : (
+            <Copy01 size={16} />
+          )}
         </Button>
       </div>
     </div>
@@ -456,18 +474,21 @@ function SettingsRightPanel({
     Object.keys(stateSchema.properties).length > 0;
 
   // Check if MCP has webhookType in metadata, or infer from connection title/URL
-  const metadataWebhookType = (connection.metadata as Record<string, unknown> | undefined)?.webhookType as string | undefined;
-  
+  const metadataWebhookType = (
+    connection.metadata as Record<string, unknown> | undefined
+  )?.webhookType as string | undefined;
+
   // Infer webhookType from connection title if not in metadata (useful for local dev)
   const inferredWebhookType = (() => {
     const title = connection.title?.toLowerCase() ?? "";
     const url = connection.connection_url?.toLowerCase() ?? "";
     if (title.includes("slack") || url.includes("slack")) return "slack";
-    if (title.includes("whatsapp") || url.includes("whatsapp")) return "whatsapp";
+    if (title.includes("whatsapp") || url.includes("whatsapp"))
+      return "whatsapp";
     if (title.includes("github") || url.includes("github")) return "github";
     return undefined;
   })();
-  
+
   const webhookType = metadataWebhookType ?? inferredWebhookType;
 
   if (!isMCPAuthenticated) {
@@ -497,7 +518,10 @@ function SettingsRightPanel({
         {/* Show webhook URL if MCP has webhookType */}
         {webhookType && (
           <div className="p-5">
-            <WebhookUrlDisplay connectionId={connection.id} webhookType={webhookType} />
+            <WebhookUrlDisplay
+              connectionId={connection.id}
+              webhookType={webhookType}
+            />
           </div>
         )}
         <div className="flex-1 flex items-center justify-center">
@@ -523,7 +547,10 @@ function SettingsRightPanel({
     <div className="w-3/5 min-w-0 overflow-auto p-5">
       {/* Show webhook URL if MCP has webhookType */}
       {webhookType && (
-        <WebhookUrlDisplay connectionId={connection.id} webhookType={webhookType} />
+        <WebhookUrlDisplay
+          connectionId={connection.id}
+          webhookType={webhookType}
+        />
       )}
       <McpConfigurationForm
         stateSchema={stateSchema}

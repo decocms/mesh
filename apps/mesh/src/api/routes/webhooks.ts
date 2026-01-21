@@ -159,7 +159,11 @@ app.all("/:connectionId", async (c) => {
     (webhookConfig.signingSecret || webhookConfig.appSecret);
 
   if (shouldVerify) {
-    const verification = await adapter.verify(c.req.raw, rawBody, webhookConfig);
+    const verification = await adapter.verify(
+      c.req.raw,
+      rawBody,
+      webhookConfig,
+    );
 
     if (!verification.verified) {
       console.error(
@@ -227,4 +231,3 @@ app.get("/health", (c) => {
 });
 
 export default app;
-

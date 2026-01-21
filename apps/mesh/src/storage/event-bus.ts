@@ -482,7 +482,7 @@ class KyselyEventBusStorage implements EventBusStorage {
     // - "slack.*" matches "slack.message", "slack.app_mention", etc.
     // - "*" matches any event type
     // - Exact match: "slack.message" matches only "slack.message"
-    
+
     // Get all enabled subscriptions for this org with matching publisher
     const rows = await this.db
       .selectFrom("event_subscriptions")
@@ -501,19 +501,19 @@ class KyselyEventBusStorage implements EventBusStorage {
     const matchingRows = rows.filter((row) => {
       const pattern = row.event_type;
       const eventType = event.type;
-      
+
       // Exact match
       if (pattern === eventType) return true;
-      
+
       // Global wildcard
       if (pattern === "*") return true;
-      
+
       // Prefix wildcard: "slack.*" matches "slack.message"
       if (pattern.endsWith(".*")) {
         const prefix = pattern.slice(0, -2); // Remove ".*"
         return eventType.startsWith(prefix + ".");
       }
-      
+
       return false;
     });
 
