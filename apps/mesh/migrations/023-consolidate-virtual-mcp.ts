@@ -83,7 +83,38 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // ============================================================================
-  // Step 3: Rename virtual_mcp_connections -> connection_aggregations
+  // Step 3: Drop old FK constraints (PostgreSQL only - SQLite doesn't support this)
+  // These reference virtual_mcps which we want to drop
+  // ============================================================================
+
+  // Check if we're on PostgreSQL by trying to query pg_constraint
+  const isPostgres = await sql`SELECT 1 FROM pg_constraint LIMIT 1`
+    .execute(db)
+    .then(() => true)
+    .catch(() => false);
+
+  if (isPostgres) {
+    // Drop FK constraints - PostgreSQL keeps these after rename
+    // PostgreSQL constraint names from original migration 010-gateways.ts
+    await sql`ALTER TABLE virtual_mcp_connections DROP CONSTRAINT IF EXISTS gateway_connections_gateway_id_fkey`.execute(
+      db,
+    );
+    await sql`ALTER TABLE virtual_mcp_connections DROP CONSTRAINT IF EXISTS gateway_connections_connection_id_fkey`.execute(
+      db,
+    );
+    // Also try the renamed constraint names (if migration 022 created new ones)
+    await sql`ALTER TABLE virtual_mcp_connections DROP CONSTRAINT IF EXISTS virtual_mcp_connections_virtual_mcp_id_fkey`.execute(
+      db,
+    );
+    await sql`ALTER TABLE virtual_mcp_connections DROP CONSTRAINT IF EXISTS virtual_mcp_connections_connection_id_fkey`.execute(
+      db,
+    );
+  }
+  // SQLite: FK constraints don't need to be dropped - they're part of the table definition
+  // and SQLite doesn't enforce them by default anyway
+
+  // ============================================================================
+  // Step 4: Rename virtual_mcp_connections -> connection_aggregations
   // ============================================================================
 
   await db.schema
@@ -92,7 +123,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // ============================================================================
-  // Step 4: Rename columns in connection_aggregations
+  // Step 5: Rename columns in connection_aggregations
   // Since we kept the same IDs, no value updates needed
   // ============================================================================
 
@@ -107,7 +138,22 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // ============================================================================
-  // Step 5: Drop monitoring_logs.virtual_mcp_id column (no longer needed)
+  // Step 6: Add new FK constraints pointing to connections table (PostgreSQL only)
+  // SQLite: FK constraints are defined at table creation, not added later
+  // Migration 024 will recreate the table with proper FK constraints for both DBs
+  // ============================================================================
+
+  if (isPostgres) {
+    await sql`ALTER TABLE connection_aggregations ADD CONSTRAINT conn_agg_parent_fk FOREIGN KEY (parent_connection_id) REFERENCES connections(id) ON DELETE CASCADE`.execute(
+      db,
+    );
+    await sql`ALTER TABLE connection_aggregations ADD CONSTRAINT conn_agg_child_fk FOREIGN KEY (child_connection_id) REFERENCES connections(id) ON DELETE CASCADE`.execute(
+      db,
+    );
+  }
+
+  // ============================================================================
+  // Step 7: Drop monitoring_logs.virtual_mcp_id column (no longer needed)
   // Since Virtual MCPs are now connections, connection_id is sufficient
   // ============================================================================
 
@@ -121,7 +167,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // ============================================================================
-  // Step 6: Drop virtual_mcps table and its indexes
+  // Step 8: Drop virtual_mcps table and its indexes
   // ============================================================================
 
   await db.schema.dropIndex("idx_virtual_mcps_org_status").execute();
@@ -129,7 +175,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema.dropTable("virtual_mcps").execute();
 
   // ============================================================================
-  // Step 7: Create new indexes
+  // Step 9: Create new indexes
   // ============================================================================
 
   // Indexes for connection_aggregations

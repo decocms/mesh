@@ -186,6 +186,11 @@ function createSqliteDatabase(config: DatabaseConfig): SqliteDatabase {
     log,
   });
 
+  // Enable foreign keys (required for FK constraints to work in SQLite)
+  sql`PRAGMA foreign_keys = ON;`.execute(db).catch(() => {
+    // Ignore errors
+  });
+
   // Enable WAL mode and busy timeout for non-memory databases
   if (dbPath !== ":memory:" && config.options?.enableWAL !== false) {
     sql`PRAGMA journal_mode = WAL;`.execute(db).catch(() => {
