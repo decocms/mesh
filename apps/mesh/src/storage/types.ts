@@ -406,6 +406,7 @@ export interface MonitoringLogTable {
   user_id: string | null;
   request_id: string;
   user_agent: string | null; // x-mesh-client header
+  virtual_mcp_id: string | null; // Virtual MCP (Agent) ID if routed through an agent
   properties: JsonObject<Record<string, string>> | null; // Custom key-value metadata
 }
 
@@ -427,6 +428,7 @@ export interface MonitoringLog {
   userId: string | null;
   requestId: string;
   userAgent?: string | null; // x-mesh-client header
+  virtualMcpId?: string | null; // Virtual MCP (Agent) ID if routed through an agent
   properties?: Record<string, string> | null; // Custom key-value metadata
 }
 

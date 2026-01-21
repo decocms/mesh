@@ -506,10 +506,18 @@ async function createMCPProxyDoNotUseDirectly(
     ? async (_, next) => await next()
     : withStreamableConnectionAuthorization(ctx, connectionId);
 
+  // If ctx.connectionId is set and different from current connection,
+  // it means this proxy is being called through a Virtual MCP (agent)
+  const virtualMcpId =
+    ctx.connectionId && ctx.connectionId !== connectionId
+      ? ctx.connectionId
+      : undefined;
+
   const monitoringConfig: ProxyMonitoringMiddlewareParams = {
     enabled: getMonitoringConfig().enabled,
     connectionId,
     connectionTitle: connection.title,
+    virtualMcpId,
     ctx,
   };
 

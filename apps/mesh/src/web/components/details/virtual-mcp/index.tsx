@@ -1044,7 +1044,6 @@ function VirtualMCPInspectorViewContent() {
   const virtualMcpId =
     (params as { agentId?: string }).agentId ??
     (params as { virtualMcpId?: string }).virtualMcpId ??
-    (params as { agentId?: string }).agentId ??
     "";
 
   // Get tab from search params
