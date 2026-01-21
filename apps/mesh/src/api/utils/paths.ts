@@ -19,6 +19,7 @@ const PATH_PREFIXES = {
   OAUTH_PROXY: "/oauth-proxy/",
   WELL_KNOWN: "/.well-known",
   ORG: "/org/",
+  WEBHOOKS: "/webhooks/",
 } as const;
 
 /** Static file extensions that should be served as-is (internal use only) */
@@ -60,9 +61,14 @@ function isOrgPath(path: string): boolean {
   return path.startsWith(PATH_PREFIXES.ORG);
 }
 
+/** Check if a path is a webhook route */
+function isWebhookPath(path: string): boolean {
+  return path.startsWith(PATH_PREFIXES.WEBHOOKS);
+}
+
 /**
  * Check if a path should be handled by the API server (Hono routes)
- * Returns true for API routes, MCP routes, OAuth proxy routes, org routes, and system endpoints
+ * Returns true for API routes, MCP routes, OAuth proxy routes, org routes, webhooks, and system endpoints
  */
 export function isServerPath(path: string): boolean {
   return (
@@ -70,6 +76,7 @@ export function isServerPath(path: string): boolean {
     isMcpPath(path) ||
     isOAuthProxyPath(path) ||
     isOrgPath(path) ||
+    isWebhookPath(path) ||
     isSystemPath(path)
   );
 }
