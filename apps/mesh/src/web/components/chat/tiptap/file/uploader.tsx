@@ -22,9 +22,8 @@ interface FileUploaderProps {
 
 /**
  * Processes a file by converting it to base64 and inserting it into the editor.
- * Exported for use in file input handlers.
  */
-export async function processFile(
+async function processFile(
   editor: Editor,
   selectedModel: SelectedModelState | null,
   file: File,
