@@ -32,7 +32,11 @@ async function fetchAndInsertResource(
   resourceUri: string,
 ) {
   try {
-    const result = await fetchVirtualMCPResource(virtualMcpId, orgSlug, resourceUri);
+    const result = await fetchVirtualMCPResource(
+      virtualMcpId,
+      orgSlug,
+      resourceUri,
+    );
 
     insertMention(editor, range, {
       id: resourceUri,
@@ -60,7 +64,13 @@ export const ResourcesMention = ({
     range,
   }: OnSelectProps<ResourceItem>) => {
     // virtualMcpId can be null (default virtual MCP)
-    await fetchAndInsertResource(editor, range, virtualMcpId, org.slug, item.uri);
+    await fetchAndInsertResource(
+      editor,
+      range,
+      virtualMcpId,
+      org.slug,
+      item.uri,
+    );
   };
 
   const fetchItems = async (props: { query: string }) => {

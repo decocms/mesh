@@ -82,7 +82,13 @@ export const PromptsMention = ({
 
     // No arguments - fetch and insert directly
     // virtualMcpId can be null (default virtual MCP)
-    await fetchAndInsertPrompt(editor, range, virtualMcpId, org.slug, item.name);
+    await fetchAndInsertPrompt(
+      editor,
+      range,
+      virtualMcpId,
+      org.slug,
+      item.name,
+    );
   };
 
   const handleDialogSubmit = async (values: PromptArgumentValues) => {

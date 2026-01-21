@@ -203,7 +203,10 @@ const MentionItemList = <T extends BaseItem>({
               index === selectedIndex
                 ? (node) => {
                     if (!node) return;
-                    node.scrollIntoView({ block: "center", behavior: "smooth" });
+                    node.scrollIntoView({
+                      block: "center",
+                      behavior: "smooth",
+                    });
                   }
                 : undefined
             }
