@@ -204,10 +204,9 @@ app.post("/:org/transcribe", async (c) => {
       audioFile instanceof Blob ? audioFile.type || "audio/webm" : undefined;
     if (
       contentType &&
-      !SUPPORTED_AUDIO_FORMATS.some((f) => {
-        const prefix = f.split("/")[0];
-        return prefix ? contentType.startsWith(prefix) : false;
-      })
+      !SUPPORTED_AUDIO_FORMATS.some(
+        (f) => contentType === f || contentType.startsWith(`${f};`),
+      )
     ) {
       return c.json({ error: `Unsupported audio format: ${contentType}` }, 400);
     }
