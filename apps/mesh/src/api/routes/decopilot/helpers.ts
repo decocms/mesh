@@ -69,13 +69,6 @@ export async function toolsFromMCP(
 ): Promise<ToolSet> {
   const list = await client.listTools();
 
-  console.log({
-    tools: list.tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-    })),
-  });
-
   const toolEntries = list.tools.map((t) => {
     const { name, title, description, inputSchema, outputSchema } = t;
 

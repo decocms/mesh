@@ -41,7 +41,6 @@ export async function generateTitleInBackground(config: {
       .slice(0, 60) // Max 60 chars
       .trim();
 
-    console.log("[decopilot:title] ✅ Title generated:", title);
     onTitle?.(title);
   } catch (error) {
     const err = error as Error;

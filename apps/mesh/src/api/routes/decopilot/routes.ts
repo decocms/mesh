@@ -148,7 +148,6 @@ app.post("/:org/decopilot/stream", async (c) => {
       });
 
     const shouldGenerateTitle = prunedMessages.length === 1;
-    console.log({ shouldGenerateTitle, prunedMessages });
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
     let newTitle: string | null = null;
 
@@ -177,9 +176,6 @@ app.post("/:org/decopilot/stream", async (c) => {
             .catch((error) => {
               console.error("[decopilot:stream] Error generating title", error);
             })
-            .then(() => {
-              console.log("[decopilot:stream] Title generated");
-            });
         }
       },
       onError: async (error) => {
@@ -219,7 +215,6 @@ app.post("/:org/decopilot/stream", async (c) => {
         }
 
         if (part.type === "finish") {
-          console.log({ part, newTitle });
           return {
             title: newTitle ?? undefined,
           };
