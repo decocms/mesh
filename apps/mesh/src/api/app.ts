@@ -35,7 +35,6 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
 import publicConfigRoutes from "./routes/public-config";
-import webhookRoutes from "./routes/webhooks";
 import {
   isDecoHostedMcp,
   DECO_STORE_URL,
@@ -184,7 +183,7 @@ export function createApp(options: CreateAppOptions = {}) {
     cors({
       origin: (origin) => {
         // Allow localhost and configured origins
-        if (origin.includes("localhost") || origin.includes("127.0.0.1") || origin.includes("localhost-c056dce8")) {
+        if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
           return origin;
         }
         // TODO: Configure allowed origins from environment
@@ -607,14 +606,6 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // Downstream token management routes
   app.route("/api", downstreamTokenRoutes);
-
-  // ============================================================================
-  // Universal Webhook Proxy
-  // ============================================================================
-  // Provides webhook endpoints for MCP connections that need to receive
-  // webhooks from external services (Slack, WhatsApp, GitHub, etc.)
-  // URL: /webhooks/:connectionId
-  app.route("/webhooks", webhookRoutes);
 
   // ============================================================================
   // 404 Handler
