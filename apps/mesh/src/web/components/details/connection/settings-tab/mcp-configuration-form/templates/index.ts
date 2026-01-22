@@ -11,6 +11,7 @@ import type { TemplatesType } from "@rjsf/utils";
 import { CustomObjectFieldTemplate } from "./object-template";
 import { CustomFieldTemplate } from "./field-template";
 import { CustomArrayFieldTemplate } from "./array-template";
+import { CustomArrayFieldItemTemplate } from "./array-item-template";
 
 /**
  * Custom templates that override RJSF defaults.
@@ -19,6 +20,7 @@ export const customTemplates: Partial<TemplatesType> = {
   ObjectFieldTemplate: CustomObjectFieldTemplate,
   FieldTemplate: CustomFieldTemplate,
   ArrayFieldTemplate: CustomArrayFieldTemplate,
+  ArrayFieldItemTemplate: CustomArrayFieldItemTemplate,
 };
 
 // Re-export individual templates for direct use
