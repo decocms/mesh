@@ -1,4 +1,3 @@
-import { useConnection } from "@/web/hooks/collections/use-connection";
 import {
   Alert,
   AlertDescription,
@@ -35,6 +34,7 @@ import {
 } from "./connection/settings-tab";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import {
+  useConnection,
   useMCPClient,
   useMCPToolsListQuery,
   useProjectContext,

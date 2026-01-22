@@ -8,7 +8,7 @@ import {
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import type { ValidatedCollection } from "@/web/hooks/use-binding";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import { useConnection } from "@/web/hooks/collections/use-connection";
+import { useConnection } from "@decocms/mesh-sdk";
 import {
   useCollectionActions,
   useCollectionList,

@@ -7,8 +7,8 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Container } from "@untitledui/icons";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import {
+  useConnections,
   useMCPClient,
   useMCPToolCall,
   useProjectContext,

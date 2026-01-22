@@ -11,7 +11,7 @@ import {
   useCollectionList,
   type UseCollectionListOptions,
 } from "../use-collections";
-import { useConnections } from "./use-connection";
+import { useConnections } from "@decocms/mesh-sdk";
 import { useBindingConnections } from "../use-binding";
 
 // LLM type matching ModelSchema from @decocms/bindings

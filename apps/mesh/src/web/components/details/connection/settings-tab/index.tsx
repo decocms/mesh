@@ -1,9 +1,3 @@
-import type {
-  ConnectionEntity,
-  StdioConnectionParameters,
-  HttpConnectionParameters,
-} from "@/tools/connection/schema";
-import { isStdioParameters } from "@/tools/connection/schema";
 import {
   envVarsToRecord,
   recordToEnvVars,
@@ -11,12 +5,16 @@ import {
 } from "@/web/components/env-vars-editor";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { useConnectionActions } from "@/web/hooks/collections/use-connection";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import {
+  useConnectionActions,
   useMCPClient,
   useMCPToolCall,
   useProjectContext,
+  isStdioParameters,
+  type ConnectionEntity,
+  type StdioConnectionParameters,
+  type HttpConnectionParameters,
 } from "@decocms/mesh-sdk";
 import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";

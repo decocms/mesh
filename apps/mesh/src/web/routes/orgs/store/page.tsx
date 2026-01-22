@@ -2,19 +2,19 @@ import {
   getWellKnownCommunityRegistryConnection,
   getWellKnownRegistryConnection,
 } from "@/core/well-known-mcp";
-import { ConnectionCreateData } from "@/tools/connection/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header";
 import { StoreDiscovery } from "@/web/components/store";
 import { StoreRegistrySelect } from "@/web/components/store/store-registry-select";
 import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-empty-state";
-import {
-  useConnectionActions,
-  useConnections,
-} from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useConnectionActions,
+  useConnections,
+  useProjectContext,
+  type ConnectionCreateData,
+} from "@decocms/mesh-sdk";
 import { Loading01 } from "@untitledui/icons";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { Suspense } from "react";

@@ -5,16 +5,14 @@
 
 import { toast } from "sonner";
 import type { RegistryItem } from "@/web/components/store/types";
-import type { ConnectionEntity } from "@/tools/connection/schema";
-import {
-  useConnectionActions,
-  useConnections,
-} from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { authClient } from "@/web/lib/auth-client";
 import {
+  useConnectionActions,
+  useConnections,
   useProjectContext,
   StreamableHTTPClientTransport,
+  type ConnectionEntity,
 } from "@decocms/mesh-sdk";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";

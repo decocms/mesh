@@ -1,4 +1,4 @@
-import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useConnections } from "@decocms/mesh-sdk";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";

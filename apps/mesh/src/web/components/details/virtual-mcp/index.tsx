@@ -9,14 +9,21 @@ import { ResourceSetSelector } from "@/web/components/virtual-mcp/resource-selec
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import {
   useVirtualMCP,
   useVirtualMCPActions,
 } from "@/web/hooks/collections/use-virtual-mcp";
-import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
-import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
 import { useVirtualMCPSystemPrompt } from "@/web/hooks/use-virtual-mcp-system-prompt";
+import {
+  useConnections,
+  useProjectContext,
+  listPrompts,
+  listResources,
+  KEYS,
+  StreamableHTTPClientTransport,
+} from "@decocms/mesh-sdk";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { useQueries } from "@tanstack/react-query";
 import { slugify } from "@/web/utils/slugify";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -726,6 +733,29 @@ function VirtualMCPSettingsTab({
   );
 }
 
+/**
+ * Create and connect an MCP client for fetching prompts/resources
+ */
+async function createClientAndFetch<T>(
+  connectionId: string,
+  orgSlug: string,
+  fetchFn: (client: Client) => Promise<T>,
+): Promise<T> {
+  const url = new URL(`/mcp/${connectionId}`, window.location.origin);
+  const client = new Client({ name: "mesh-sdk", version: "1.0.0" }, {});
+  const transport = new StreamableHTTPClientTransport(url, {
+    requestInit: {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        "x-org-slug": orgSlug,
+      },
+    },
+  });
+  await client.connect(transport);
+  return fetchFn(client);
+}
+
 function VirtualMCPInspectorViewWithData({
   virtualMcp,
   virtualMcpId,
@@ -740,6 +770,7 @@ function VirtualMCPInspectorViewWithData({
   const router = useRouter();
   const navigate = useNavigate({ from: "/$org/agents/$agentId" });
   const actions = useVirtualMCPActions();
+  const { org } = useProjectContext();
 
   // Fetch all connections to get tool names for "all tools" expansion
   const connections = useConnections({});
@@ -747,11 +778,86 @@ function VirtualMCPInspectorViewWithData({
   // Get all connection IDs
   const connectionIds = connections.map((c) => c.id);
 
-  // Fetch prompts and resources for all connections
-  const { promptsMap: connectionPrompts } =
-    useConnectionsPrompts(connectionIds);
-  const { resourcesMap: connectionResources } =
-    useConnectionsResources(connectionIds);
+  // Fetch prompts for all connections using inline useQueries
+  const promptsQueries = useQueries({
+    queries: connectionIds.map((connectionId) => ({
+      queryKey: KEYS.connectionPrompts(connectionId),
+      queryFn: async () => {
+        try {
+          return await createClientAndFetch(
+            connectionId,
+            org.slug,
+            listPrompts,
+          );
+        } catch {
+          return { prompts: [] };
+        }
+      },
+      staleTime: 60000,
+      retry: false,
+    })),
+  });
+
+  // Fetch resources for all connections using inline useQueries
+  const resourcesQueries = useQueries({
+    queries: connectionIds.map((connectionId) => ({
+      queryKey: KEYS.connectionResources(connectionId),
+      queryFn: async () => {
+        try {
+          return await createClientAndFetch(
+            connectionId,
+            org.slug,
+            listResources,
+          );
+        } catch {
+          return { resources: [] };
+        }
+      },
+      staleTime: 60000,
+      retry: false,
+    })),
+  });
+
+  // Build prompts map from query results
+  const connectionPrompts = new Map<
+    string,
+    Array<{ name: string; description?: string }>
+  >();
+  connectionIds.forEach((connectionId, index) => {
+    const query = promptsQueries[index];
+    if (query?.data) {
+      connectionPrompts.set(
+        connectionId,
+        query.data.prompts.map((p) => ({
+          name: p.name,
+          description: p.description,
+        })),
+      );
+    } else {
+      connectionPrompts.set(connectionId, []);
+    }
+  });
+
+  // Build resources map from query results
+  const connectionResources = new Map<
+    string,
+    Array<{ uri: string; name?: string; description?: string }>
+  >();
+  connectionIds.forEach((connectionId, index) => {
+    const query = resourcesQueries[index];
+    if (query?.data) {
+      connectionResources.set(
+        connectionId,
+        query.data.resources.map((r) => ({
+          uri: r.uri,
+          name: r.name,
+          description: r.description,
+        })),
+      );
+    } else {
+      connectionResources.set(connectionId, []);
+    }
+  });
 
   // Build a map of connectionId -> all tool names
   const connectionToolsMap = new Map<string, string[]>();

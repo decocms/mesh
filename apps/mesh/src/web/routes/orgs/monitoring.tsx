@@ -17,12 +17,15 @@ import {
   calculateStats,
   type DateRange,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
 import { KEYS } from "@/web/lib/query-keys";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useConnections,
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";

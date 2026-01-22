@@ -7,13 +7,13 @@
  */
 
 import { useSuspenseQueries } from "@tanstack/react-query";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { KEYS } from "@/web/lib/query-keys";
 import { MCP_MESH_DECOCMS_KEY } from "@/web/utils/constants";
 import { findListToolName } from "@/web/utils/registry-utils";
 import {
+  useConnections,
   useProjectContext,
   StreamableHTTPClientTransport,
 } from "@decocms/mesh-sdk";

@@ -5,16 +5,16 @@
  * connections, and their metrics.
  */
 
-import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { CpuChip02, Container } from "@untitledui/icons";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 import {
+  useConnections,
   useMCPClient,
   useMCPToolCall,
   useProjectContext,
+  type ConnectionEntity,
 } from "@decocms/mesh-sdk";
 import {
   ToggleGroup,

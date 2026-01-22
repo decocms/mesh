@@ -1,4 +1,3 @@
-import type { ConnectionEntity } from "@/tools/connection/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
@@ -7,14 +6,15 @@ import { ConnectionCard } from "@/web/components/connections/connection-card.tsx
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import {
-  useConnections,
-  useConnectionActions,
-} from "@/web/hooks/collections/use-connection";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useConnections,
+  useConnectionActions,
+  useProjectContext,
+  type ConnectionEntity,
+} from "@decocms/mesh-sdk";
 import {
   AlertDialog,
   AlertDialogAction,

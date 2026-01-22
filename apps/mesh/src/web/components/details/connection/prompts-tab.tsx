@@ -4,12 +4,15 @@ import { CollectionTableWrapper } from "@/web/components/collections/collection-
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import { useConnection } from "@/web/hooks/collections/use-connection";
+import { useConnection } from "@decocms/mesh-sdk";
 import { Card } from "@deco/ui/components/card.tsx";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { ViewActions } from "@/web/components/details/layout";
-import type { McpPrompt } from "@/web/hooks/use-connection-prompts";
+import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
+
+/** Prompt type alias for convenience */
+type McpPrompt = Prompt;
 
 export interface PromptsListProps {
   /** Array of prompts to display */

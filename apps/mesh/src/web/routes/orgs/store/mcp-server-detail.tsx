@@ -10,15 +10,16 @@ import {
   type MCPServerData,
   type PublisherInfo,
 } from "@/web/components/store/mcp-server-detail";
+import { useRegistryConnections } from "@/web/hooks/use-binding";
+import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
 import {
   useConnection,
   useConnections,
   useConnectionActions,
+  useMCPClient,
+  useMCPToolCall,
   type ConnectionEntity,
-} from "@/web/hooks/collections/use-connection";
-import { useRegistryConnections } from "@/web/hooks/use-binding";
-import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
-import { useMCPClient, useMCPToolCall } from "@decocms/mesh-sdk";
+} from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
 import { authClient } from "@/web/lib/auth-client";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";

@@ -15,15 +15,18 @@ import {
   PluginSession,
 } from "@decocms/bindings";
 import type { PluginRenderHeaderProps } from "@decocms/bindings/plugins";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useConnections,
+  useMCPClient,
+  useProjectContext,
+  type ConnectionEntity,
+} from "@decocms/mesh-sdk";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { authClient } from "@/web/lib/auth-client";
 import { Outlet, useParams } from "@tanstack/react-router";
 import { Loading01 } from "@untitledui/icons";
 import { Suspense, type ReactNode } from "react";
-import type { ConnectionEntity } from "@/tools/connection/schema";
 
 interface PluginLayoutProps {
   /**

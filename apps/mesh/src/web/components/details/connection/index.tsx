@@ -1,15 +1,17 @@
-import type { ConnectionEntity } from "@/tools/connection/schema";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { useCollectionBindings } from "@/web/hooks/use-binding";
+import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import {
   useConnection,
   useConnectionActions,
-} from "@/web/hooks/collections/use-connection";
-import { useCollectionBindings } from "@/web/hooks/use-binding";
-import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
-import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
-import { useConnectionTools } from "@/web/hooks/use-connection-tools";
-import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
+  useProjectContext,
+  useMCPClient,
+  useMCPPromptsListQuery,
+  useMCPResourcesListQuery,
+  useMCPToolsListQuery,
+  type ConnectionEntity,
+} from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import { Loading01 } from "@untitledui/icons";
@@ -205,6 +207,7 @@ function ConnectionInspectorViewContent() {
   const { connectionId, org } = useParams({
     from: "/shell/$org/mcps/$connectionId",
   });
+  const { org: projectOrg } = useProjectContext();
 
   // We can use search params for active tab if we want persistent tabs
   const search = useSearch({ from: "/shell/$org/mcps/$connectionId" });
@@ -216,19 +219,40 @@ function ConnectionInspectorViewContent() {
   // Detect collection bindings
   const collections = useCollectionBindings(connection ?? undefined);
 
-  // Fetch prompts and resources for this connection
-  const { promptsMap } = useConnectionsPrompts([connectionId]);
-  const { resourcesMap } = useConnectionsResources([connectionId]);
+  // Get MCP client for this connection (suspense-based)
+  const client = useMCPClient({
+    connectionId,
+    orgSlug: projectOrg.slug,
+  });
+
+  // Fetch prompts and resources using SDK hooks
+  const { data: promptsData } = useMCPPromptsListQuery({ client });
+  const { data: resourcesData } = useMCPResourcesListQuery({ client });
 
   // Fetch tools - uses cached if available, otherwise fetches dynamically
   // This handles VIRTUAL connections which always have null tools
-  const { tools, isLoading: isLoadingTools } = useConnectionTools(
-    connectionId,
-    connection?.tools,
-  );
+  const hasCachedTools = connection?.tools && connection.tools.length > 0;
+  const { data: toolsData, isLoading: isLoadingTools } = useMCPToolsListQuery({
+    client,
+    enabled: !hasCachedTools,
+  });
 
-  const prompts = promptsMap.get(connectionId) ?? [];
-  const resources = resourcesMap.get(connectionId) ?? [];
+  const prompts = (promptsData?.prompts ?? []).map((p) => ({
+    name: p.name,
+    description: p.description,
+  }));
+  const resources = (resourcesData?.resources ?? []).map((r) => ({
+    uri: r.uri,
+    name: r.name,
+    description: r.description,
+  }));
+  const tools = hasCachedTools
+    ? (connection.tools ?? [])
+    : (toolsData?.tools ?? []).map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema as Record<string, unknown> | undefined,
+      }));
 
   // Update connection handler
   const handleUpdateConnection = async (

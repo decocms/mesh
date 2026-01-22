@@ -9,6 +9,7 @@ import {
   type BaseCollectionEntity,
   type CollectionDeleteInput,
   type CollectionDeleteOutput,
+  type CollectionGetInput,
   type CollectionGetOutput,
   type CollectionInsertInput,
   type CollectionInsertOutput,
@@ -19,10 +20,15 @@ import {
   type OrderByExpression,
   type WhereExpression,
 } from "@decocms/bindings/collections";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { useMCPToolCall } from "./use-mcp-tools";
+import { KEYS } from "../lib/query-keys";
 
 /**
  * Collection entity base type that matches the collection binding pattern
@@ -149,29 +155,43 @@ function extractPayload<T>(result: unknown): T {
  *
  * @param scopeKey - The scope key (connectionId for connection-scoped, virtualMcpId for virtual-mcp-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
- * @param itemId - The ID of the item to fetch
+ * @param itemId - The ID of the item to fetch (undefined returns null without making an API call)
  * @param client - The MCP client used to call collection tools
- * @returns Suspense query result with the item
+ * @returns Suspense query result with the item, or null if itemId is undefined
  */
 export function useCollectionItem<T extends CollectionEntity>(
   scopeKey: string,
   collectionName: string,
-  itemId: string,
+  itemId: string | undefined,
   client: Client | null,
 ) {
   void scopeKey; // Reserved for future use (e.g., cache scoping)
   const upperName = collectionName.toUpperCase();
   const getToolName = `COLLECTION_${upperName}_GET`;
 
-  const { data } = useMCPToolCall({
-    client,
-    toolName: getToolName,
-    toolArguments: { id: itemId },
-    select: (result) => extractPayload<CollectionGetOutput<T>>(result),
+  const { data } = useSuspenseQuery({
+    queryKey: KEYS.mcpToolCall(client, getToolName, itemId ?? ""),
+    queryFn: async () => {
+      if (!itemId) {
+        return { item: null } as CollectionGetOutput<T>;
+      }
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
+
+      const result = (await client.callTool({
+        name: getToolName,
+        arguments: {
+          id: itemId,
+        } as CollectionGetInput,
+      })) as { structuredContent?: unknown };
+
+      return extractPayload<CollectionGetOutput<T>>(result);
+    },
     staleTime: 60_000,
   });
 
-  return data.item;
+  return data?.item ?? null;
 }
 
 /**
@@ -316,7 +336,7 @@ export function useCollectionActions<T extends CollectionEntity>(
     },
   });
 
-  const delete_ = useMutation({
+  const remove = useMutation({
     mutationFn: async (id: string) => {
       if (!client) {
         throw new Error("MCP client is not available");
@@ -344,6 +364,6 @@ export function useCollectionActions<T extends CollectionEntity>(
   return {
     create,
     update,
-    delete: delete_,
+    delete: remove,
   };
 }

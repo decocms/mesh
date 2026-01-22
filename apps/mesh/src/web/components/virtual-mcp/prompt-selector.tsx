@@ -1,5 +1,5 @@
 import { ItemSetSelector, type SelectableItem } from "./item-selector";
-import type { useConnections } from "@/web/hooks/collections/use-connection";
+import type { useConnections } from "@decocms/mesh-sdk";
 
 export interface PromptSetSelectorProps {
   /** Current selection: connectionId -> array of selected prompt names */

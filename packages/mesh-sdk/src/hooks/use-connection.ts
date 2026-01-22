@@ -49,10 +49,10 @@ export function useConnections(options: UseConnectionsOptions = {}) {
 /**
  * Hook to get a single connection by ID
  *
- * @param connectionId - The ID of the connection to fetch (required)
+ * @param connectionId - The ID of the connection to fetch (undefined returns null without making an API call)
  * @returns Suspense query result with the connection as ConnectionEntity | null
  */
-export function useConnection(connectionId: string) {
+export function useConnection(connectionId: string | undefined) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: null,
