@@ -212,7 +212,7 @@ export interface RequestMetadata {
   ipAddress?: string;
   /** Custom properties from x-mesh-properties header (string key-value pairs) */
   properties?: Record<string, string>;
-  wellKnownForwardableHeaders?: Record<string, null>;
+  wellKnownForwardableHeaders?: Record<string, string | null>;
 }
 
 // ============================================================================
