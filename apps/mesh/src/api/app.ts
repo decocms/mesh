@@ -89,6 +89,8 @@ function buildDecoOAuthParams(projectLocator: string | null): URLSearchParams {
     params.set("auto_personal", "true");
   }
 
+  params.set("force_new", "true");
+
   return params;
 }
 
