@@ -115,6 +115,8 @@ async function fetchToolsFromHttpMCP(
         ? // We strive to have lenient output schemas, so allow additional properties
           { ...tool.outputSchema, additionalProperties: true }
         : undefined,
+      annotations: tool.annotations ?? undefined,
+      _meta: tool._meta ?? undefined,
     }));
   } catch (error) {
     console.error(
@@ -184,6 +186,8 @@ async function fetchToolsFromSSEMCP(
       outputSchema: tool.outputSchema
         ? { ...tool.outputSchema, additionalProperties: true }
         : undefined,
+      annotations: tool.annotations ?? undefined,
+      _meta: tool._meta ?? undefined,
     }));
   } catch (error) {
     console.error(
@@ -247,6 +251,8 @@ async function fetchToolsFromStdioMCP(
       description: tool.description ?? undefined,
       inputSchema: tool.inputSchema ?? {},
       outputSchema: tool.outputSchema ?? undefined,
+      annotations: tool.annotations ?? undefined,
+      _meta: tool._meta ?? undefined,
     }));
   } catch (error) {
     console.error(
