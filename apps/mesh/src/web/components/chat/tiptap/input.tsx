@@ -62,8 +62,9 @@ export function TiptapProvider({
 }: TiptapProviderProps) {
   const isDisabled = isStreaming || !selectedModel;
 
-  // Store onSubmit in a ref to avoid recreating the editor on every render
+  // Store callbacks in refs to avoid recreating the editor on every render
   const onSubmitRef = useRef(onSubmit);
+  const setTiptapDocRef = useRef(setTiptapDoc);
 
   // Initialize Tiptap editor
   const editor = useEditor(
@@ -88,17 +89,22 @@ export function TiptapProvider({
       },
       onUpdate: ({ editor }: { editor: ReturnType<typeof useEditor> }) => {
         // Update tiptapDoc in context whenever editor changes
-        setTiptapDoc(editor.getJSON());
+        setTiptapDocRef.current(editor.getJSON());
       },
     },
-    [isDisabled, setTiptapDoc],
+    [isDisabled],
   );
 
-  // Keep the ref up to date
+  // Keep the refs up to date
   // eslint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     onSubmitRef.current = onSubmit;
   }, [onSubmit]);
+
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    setTiptapDocRef.current = setTiptapDoc;
+  }, [setTiptapDoc]);
 
   // Sync editor content when tiptapDoc changes externally
   // eslint-disable-next-line ban-use-effect/ban-use-effect
