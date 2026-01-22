@@ -3,6 +3,7 @@ export {
   ProjectContextProvider,
   useProjectContext,
   Locator,
+  ORG_ADMIN_PROJECT_SLUG,
   type ProjectContextProviderProps,
   type ProjectLocator,
   type LocatorStructured,
@@ -10,12 +11,6 @@ export {
 
 // Hooks
 export {
-  // Tool call hooks
-  useToolCall,
-  useToolCallMutation,
-  useToolCallQuery,
-  type UseToolCallOptions,
-  type UseToolCallMutationOptions,
   // Collection hooks
   useCollectionItem,
   useCollectionList,
@@ -29,12 +24,47 @@ export {
   useConnectionActions,
   type ConnectionFilter,
   type UseConnectionsOptions,
-  // MCP hook
-  useMcp,
-  type McpTool,
-  type McpState,
-  type UseMcpOptions,
-  type UseMcpResult,
+  // MCP client hook
+  useMCPClient,
+  type UseMcpClientOptions,
+  // MCP tools hooks
+  useMCPToolsList,
+  useMCPToolsListQuery,
+  useMCPToolCall,
+  useMCPToolCallQuery,
+  useMCPToolCallMutation,
+  type UseMcpToolsListOptions,
+  type UseMcpToolsListQueryOptions,
+  type UseMcpToolCallOptions,
+  type UseMcpToolCallQueryOptions,
+  type UseMcpToolCallMutationOptions,
+  // MCP resources hooks and helpers
+  listResources,
+  readResource,
+  useMCPResourcesList,
+  useMCPResourcesListQuery,
+  useMCPReadResource,
+  type UseMcpResourcesListOptions,
+  type UseMcpResourcesListQueryOptions,
+  type UseMcpReadResourceOptions,
+  // MCP prompts hooks and helpers
+  listPrompts,
+  getPrompt,
+  useMCPPromptsList,
+  useMCPPromptsListQuery,
+  useMCPGetPrompt,
+  type UseMcpPromptsListOptions,
+  type UseMcpPromptsListQueryOptions,
+  type UseMcpGetPromptOptions,
+  // Virtual MCP hooks
+  useVirtualMCPPrompts,
+  useVirtualMCPPrompt,
+  useVirtualMCPResources,
+  useVirtualMCPResource,
+  type VirtualMCPPrompt,
+  type VirtualMCPPromptResult,
+  type VirtualMCPResource,
+  type VirtualMCPResourceResult,
 } from "./hooks";
 
 // Types
@@ -53,12 +83,8 @@ export {
   type ToolDefinition,
 } from "./types";
 
-// Tool caller
-export {
-  createToolCaller,
-  UNKNOWN_CONNECTION_ID,
-  type ToolCaller,
-} from "./lib/tool-caller";
+// Streamable HTTP transport
+export { StreamableHTTPClientTransport } from "./lib/streamable-http-client-transport";
 
 // Query keys
 export { KEYS } from "./lib/query-keys";

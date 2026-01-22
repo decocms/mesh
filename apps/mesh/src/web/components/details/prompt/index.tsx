@@ -1,4 +1,3 @@
-import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { EmptyState } from "@/web/components/empty-state";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
@@ -140,19 +139,17 @@ function PromptDetailContent({
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
-  const toolCaller = createToolCaller(providerId || UNKNOWN_CONNECTION_ID);
-
   const prompt = useCollectionItem<Prompt>(
     providerId,
     "PROMPT",
     promptId,
-    toolCaller,
+    providerId || undefined,
   );
 
   const actions = useCollectionActions<Prompt>(
     providerId,
     "PROMPT",
-    toolCaller,
+    providerId || undefined,
   );
   const isSaving = actions.update.isPending;
 
@@ -287,9 +284,9 @@ export interface PromptDetailsViewProps {
 }
 
 export function PromptDetailsView({ itemId, onBack }: PromptDetailsViewProps) {
-  const connectionId = getConnectionIdFromPathname() ?? UNKNOWN_CONNECTION_ID;
+  const connectionId = getConnectionIdFromPathname();
 
-  if (!connectionId || connectionId === UNKNOWN_CONNECTION_ID) {
+  if (!connectionId) {
     return (
       <div className="flex h-full w-full bg-background">
         <EmptyState

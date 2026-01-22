@@ -1,4 +1,4 @@
-import type { VirtualMCPPrompt } from "@/web/hooks/use-virtual-mcp-client";
+import type { VirtualMCPPrompt } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Dialog,

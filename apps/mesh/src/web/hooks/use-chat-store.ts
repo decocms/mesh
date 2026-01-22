@@ -10,7 +10,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
-import { useProjectContext } from "../providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import type { Message, Thread } from "../components/chat/types.ts";
 import { createToolCaller } from "@/tools/client.ts";
 import {

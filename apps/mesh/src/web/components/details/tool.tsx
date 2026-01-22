@@ -1,4 +1,3 @@
-import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
 import { useConnection } from "@/web/hooks/collections/use-connection";
 import {
   Alert,
@@ -26,7 +25,7 @@ import {
   Play,
   XClose,
 } from "@untitledui/icons";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { PinToSidebarButton } from "../pin-to-sidebar-button";
 import { ViewActions, ViewLayout } from "./layout";
@@ -35,7 +34,11 @@ import {
   ManualAuthRequiredState,
 } from "./connection/settings-tab";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
-import { useMcp } from "@/web/hooks/use-mcp";
+import {
+  useMCPClient,
+  useMCPToolsListQuery,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { MonacoCodeEditor } from "./workflow/components/monaco-editor";
 
@@ -60,8 +63,6 @@ function ToolDetailsContent({
   connectionId: string;
   onBack: () => void;
 }) {
-  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
-
   const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
   });
@@ -86,7 +87,6 @@ function ToolDetailsContent({
       key={`${connectionId}:${toolName}`}
       toolName={toolName}
       connectionId={connectionId}
-      mcpProxyUrl={mcpProxyUrl}
       onBack={onBack}
     />
   );
@@ -95,12 +95,10 @@ function ToolDetailsContent({
 function ToolDetailsAuthenticated({
   toolName,
   connectionId,
-  mcpProxyUrl,
   onBack,
 }: {
   toolName: string;
   connectionId: string;
-  mcpProxyUrl: URL;
   onBack: () => void;
 }) {
   const routerState = useRouterState();
@@ -161,20 +159,19 @@ function ToolDetailsAuthenticated({
     cost?: string;
   } | null>(null);
 
+  const { org } = useProjectContext();
   const connection = useConnection(connectionId);
-  const mcp = useMcp({
-    url: mcpProxyUrl.href,
+
+  const client = useMCPClient({
+    connectionId,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
   });
 
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (mcp.error) {
-      console.error("MCP Error:", mcp.error);
-    }
-  }, [mcp.error]);
+  const toolsQuery = useMCPToolsListQuery({ client });
 
   // Find the tool definition
-  const tool = mcp.tools?.find((t) => t.name === toolName);
+  const tool = toolsQuery.data?.tools?.find((t) => t.name === toolName);
 
   const toolProperties = tool?.inputSchema?.properties;
   const toolPropertyKeys = toolProperties ? Object.keys(toolProperties) : [];
@@ -199,9 +196,10 @@ function ToolDetailsAuthenticated({
     setStats(null);
 
     const startTime = performance.now();
-    const toolCaller = createToolCaller(connectionId);
-
     try {
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
       // Prepare arguments:
       // - If we have properties, merge derived defaults with user edits and parse object/array fields when provided as strings.
       // - Otherwise, parse the raw JSON input as the full args payload.
@@ -235,15 +233,22 @@ function ToolDetailsAuthenticated({
         );
       }
 
-      const result = await toolCaller(toolName, args);
+      const result = (await client.callTool({
+        name: toolName,
+        arguments: args,
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ?? result) as Record<
+        string,
+        unknown
+      >;
 
       const endTime = performance.now();
       const durationMs = Math.round(endTime - startTime);
 
-      setExecutionResult(result as Record<string, unknown>);
+      setExecutionResult(payload);
 
       // Calculate mocked stats based on result size
-      const resultStr = JSON.stringify(result);
+      const resultStr = JSON.stringify(payload);
       const bytes = new TextEncoder().encode(resultStr).length;
 
       setStats({
@@ -304,9 +309,9 @@ function ToolDetailsAuthenticated({
                   </h1>
                   {/* MCP Status */}
                   <div className="flex items-center gap-2 px-2.5 py-1 bg-muted/50 rounded-md h-fit">
-                    {mcp.state === "ready" ? (
+                    {toolsQuery.isSuccess ? (
                       <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
-                    ) : mcp.state === "connecting" ? (
+                    ) : toolsQuery.isLoading ? (
                       <Loading01
                         size={10}
                         className="animate-spin text-yellow-500 shrink-0"
@@ -315,7 +320,11 @@ function ToolDetailsAuthenticated({
                       <div className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
                     )}
                     <span className="font-mono text-xs capitalize text-muted-foreground leading-none">
-                      {mcp.state.replace("_", " ")}
+                      {toolsQuery.isSuccess
+                        ? "ready"
+                        : toolsQuery.isLoading
+                          ? "connecting"
+                          : "error"}
                     </span>
                   </div>
                 </div>
@@ -561,11 +570,11 @@ export function ToolDetailsView({
   onBack,
 }: ToolDetailsViewProps) {
   const params = useParams({ strict: false });
-  const connectionId = params.connectionId ?? UNKNOWN_CONNECTION_ID;
+  const connectionId = params.connectionId;
 
   const connection = useConnection(connectionId);
 
-  if (!connection) {
+  if (!connection || !connectionId) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-2 text-center">

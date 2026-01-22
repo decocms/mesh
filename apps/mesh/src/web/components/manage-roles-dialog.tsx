@@ -12,7 +12,7 @@ import {
 } from "@/web/hooks/use-organization-roles";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";

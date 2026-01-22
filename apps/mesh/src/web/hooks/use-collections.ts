@@ -26,9 +26,8 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { ToolCaller } from "../../tools/client";
 import { KEYS } from "../lib/query-keys";
-import { useProjectContext } from "../providers/project-context-provider";
+import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
 
 /**
  * Collection entity base type that matches the collection binding pattern
@@ -145,21 +144,27 @@ function buildOrderByExpression<T extends CollectionEntity>(
  * @param scopeKey - The scope key (connectionId for connection-scoped, gatewayId for gateway-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
  * @param itemId - The ID of the item to fetch
- * @param toolCaller - The tool caller function for making API calls
+ * @param connectionId - Connection ID for tool calls (null for management tools)
  * @returns Suspense query result with the item
  */
 export function useCollectionItem<T extends CollectionEntity>(
   scopeKey: string,
   collectionName: string,
   itemId: string | undefined,
-  toolCaller: ToolCaller,
+  connectionId: string | null | undefined,
 ) {
   const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: connectionId ?? null,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
   const upperName = collectionName.toUpperCase();
   const getToolName = `COLLECTION_${upperName}_GET`;
 
   const { data } = useSuspenseQuery({
     queryKey: KEYS.collectionItem(
+      client,
       org.slug,
       scopeKey,
       collectionName,
@@ -169,17 +174,25 @@ export function useCollectionItem<T extends CollectionEntity>(
       if (!itemId) {
         return { item: null } as CollectionGetOutput<T>;
       }
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
 
-      const result = (await toolCaller(getToolName, {
-        id: itemId,
-      } as CollectionGetInput)) as CollectionGetOutput<T>;
+      const result = (await client.callTool({
+        name: getToolName,
+        arguments: {
+          id: itemId,
+        } as CollectionGetInput,
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ??
+        result) as CollectionGetOutput<T>;
 
-      return result;
+      return payload;
     },
     staleTime: 60_000,
   });
 
-  return data.item;
+  return data?.item ?? null;
 }
 
 /**
@@ -187,17 +200,22 @@ export function useCollectionItem<T extends CollectionEntity>(
  *
  * @param scopeKey - The scope key (connectionId for connection-scoped, gatewayId for gateway-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
- * @param toolCaller - The tool caller function for making API calls
+ * @param connectionId - Connection ID for tool calls (null for management tools)
  * @param options - Filter and configuration options
  * @returns Suspense query result with items array
  */
 export function useCollectionList<T extends CollectionEntity>(
   scopeKey: string,
   collectionName: string,
-  toolCaller: ToolCaller,
+  connectionId: string | null | undefined,
   options: UseCollectionListOptions<T> = {},
 ) {
   const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: connectionId ?? null,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
   const {
     searchTerm,
     filters,
@@ -223,28 +241,34 @@ export function useCollectionList<T extends CollectionEntity>(
 
   const { data } = useSuspenseQuery({
     queryKey: KEYS.collectionList(
+      client,
       org.slug,
       scopeKey,
       collectionName,
       paramsKey,
     ),
     queryFn: async () => {
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
       const input: CollectionListInput = {
         ...(where && { where }),
         ...(orderBy && { orderBy }),
         limit: pageSize,
         offset: 0,
       };
-      const result = (await toolCaller(
-        listToolName,
-        input,
-      )) as CollectionListOutput<T>;
+      const result = (await client.callTool({
+        name: listToolName,
+        arguments: input,
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ??
+        result) as CollectionListOutput<T>;
 
-      return result?.items ?? [];
+      return payload?.items ?? [];
     },
   });
 
-  return data;
+  return data ?? [];
 }
 
 /**
@@ -252,15 +276,20 @@ export function useCollectionList<T extends CollectionEntity>(
  *
  * @param scopeKey - The scope key (connectionId for connection-scoped, gatewayId for gateway-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
- * @param toolCaller - The tool caller function for making API calls
+ * @param connectionId - Connection ID for tool calls (null for management tools)
  * @returns Object with create, update, and delete mutation hooks
  */
 export function useCollectionActions<T extends CollectionEntity>(
   scopeKey: string,
   collectionName: string,
-  toolCaller: ToolCaller,
+  connectionId: string | null | undefined,
 ) {
   const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: connectionId ?? null,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
   const queryClient = useQueryClient();
   const upperName = collectionName.toUpperCase();
   const createToolName = `COLLECTION_${upperName}_CREATE`;
@@ -269,11 +298,19 @@ export function useCollectionActions<T extends CollectionEntity>(
 
   const create = useMutation({
     mutationFn: async (data: Partial<T>) => {
-      const result = (await toolCaller(createToolName, {
-        data,
-      } as CollectionInsertInput<T>)) as CollectionInsertOutput<T>;
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
+      const result = (await client.callTool({
+        name: createToolName,
+        arguments: {
+          data,
+        } as CollectionInsertInput<T>,
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ??
+        result) as CollectionInsertOutput<T>;
 
-      return result.item;
+      return payload.item;
     },
     onSuccess: () => {
       // Invalidate all queries for this collection using the base prefix
@@ -290,12 +327,20 @@ export function useCollectionActions<T extends CollectionEntity>(
 
   const update = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<T> }) => {
-      const result = (await toolCaller(updateToolName, {
-        id,
-        data,
-      } as CollectionUpdateInput<T>)) as CollectionUpdateOutput<T>;
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
+      const result = (await client.callTool({
+        name: updateToolName,
+        arguments: {
+          id,
+          data,
+        } as CollectionUpdateInput<T>,
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ??
+        result) as CollectionUpdateOutput<T>;
 
-      return result.item;
+      return payload.item;
     },
     onSuccess: () => {
       // Invalidate all queries for this collection using the base prefix
@@ -312,11 +357,19 @@ export function useCollectionActions<T extends CollectionEntity>(
 
   const delete_ = useMutation({
     mutationFn: async (id: string) => {
-      const result = (await toolCaller(deleteToolName, {
-        id,
-      } as CollectionDeleteInput)) as CollectionDeleteOutput<T>;
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
+      const result = (await client.callTool({
+        name: deleteToolName,
+        arguments: {
+          id,
+        } as CollectionDeleteInput,
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ??
+        result) as CollectionDeleteOutput<T>;
 
-      return result.item.id;
+      return payload.item.id;
     },
     onSuccess: () => {
       // Invalidate all queries for this collection using the base prefix

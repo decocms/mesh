@@ -14,7 +14,7 @@ import {
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { Loading01 } from "@untitledui/icons";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { Suspense } from "react";

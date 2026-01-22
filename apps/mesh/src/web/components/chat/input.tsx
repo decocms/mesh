@@ -1,5 +1,5 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { getAgentColor } from "@/web/utils/agent-color";
 import { Button } from "@deco/ui/components/button.tsx";
 import {

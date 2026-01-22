@@ -5,7 +5,7 @@
  * Uses a map structure {[virtualMcpId]: prompt} scoped by project locator.
  */
 
-import { useProjectContext } from "../providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { LOCALSTORAGE_KEYS } from "../lib/localstorage-keys";
 import { useLocalStorage } from "./use-local-storage";
 

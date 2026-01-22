@@ -5,7 +5,6 @@
  * These hooks offer a reactive interface for accessing and manipulating connections.
  */
 
-import { createToolCaller } from "../lib/tool-caller";
 import type { ConnectionEntity } from "../types/connection";
 import { useProjectContext } from "../context/project-context";
 import {
@@ -15,6 +14,7 @@ import {
   useCollectionList,
   type UseCollectionListOptions,
 } from "./use-collections";
+import { useMCPClient } from "./use-mcp-client";
 
 /**
  * Filter definition for connections (matches @deco/ui Filter shape)
@@ -34,11 +34,15 @@ export type UseConnectionsOptions = UseCollectionListOptions<ConnectionEntity>;
  */
 export function useConnections(options: UseConnectionsOptions = {}) {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
+  const client = useMCPClient({
+    connectionId: null,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
   return useCollectionList<ConnectionEntity>(
     org.slug,
     "CONNECTIONS",
-    toolCaller,
+    client,
     options,
   );
 }
@@ -46,17 +50,21 @@ export function useConnections(options: UseConnectionsOptions = {}) {
 /**
  * Hook to get a single connection by ID
  *
- * @param connectionId - The ID of the connection to fetch
+ * @param connectionId - The ID of the connection to fetch (required)
  * @returns Suspense query result with the connection as ConnectionEntity | null
  */
-export function useConnection(connectionId: string | undefined) {
+export function useConnection(connectionId: string) {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
+  const client = useMCPClient({
+    connectionId: null,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
   return useCollectionItem<ConnectionEntity>(
     org.slug,
     "CONNECTIONS",
     connectionId,
-    toolCaller,
+    client,
   );
 }
 
@@ -67,10 +75,14 @@ export function useConnection(connectionId: string | undefined) {
  */
 export function useConnectionActions() {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
+  const client = useMCPClient({
+    connectionId: null,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
   return useCollectionActions<ConnectionEntity>(
     org.slug,
     "CONNECTIONS",
-    toolCaller,
+    client,
   );
 }

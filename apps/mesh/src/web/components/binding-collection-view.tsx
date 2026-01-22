@@ -7,7 +7,7 @@ import {
   useBindingConnections,
   useCollectionBindings,
 } from "@/web/hooks/use-binding";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { Loading01 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 

@@ -33,8 +33,8 @@ import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-c
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import type { ProjectLocator } from "../../lib/locator";
-import { useProjectContext } from "../../providers/project-context-provider";
+import type { ProjectLocator } from "@decocms/mesh-sdk";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import type { ChatMessage } from "./index";
 import {
   type ModelChangePayload,

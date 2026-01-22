@@ -1,10 +1,12 @@
-import {
-  fetchVirtualMCPResource,
-  fetchVirtualMCPResources,
-  type VirtualMCPResource,
-} from "@/web/hooks/use-virtual-mcp-client";
 import { KEYS } from "@/web/lib/query-keys";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import {
+  listResources,
+  readResource,
+  useMCPClient,
+  useProjectContext,
+  type VirtualMCPResource,
+} from "@decocms/mesh-sdk";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
 import { toast } from "sonner";
@@ -21,22 +23,15 @@ interface ResourceItem extends BaseItem {
 
 /**
  * Fetches a resource and inserts it as a mention node in the editor.
- * @param virtualMcpId - The virtual MCP ID, or null for default virtual MCP
- * @param orgSlug - The organization slug
  */
 async function fetchAndInsertResource(
   editor: Editor,
   range: Range,
-  virtualMcpId: string | null,
-  orgSlug: string,
+  client: Client,
   resourceUri: string,
 ) {
   try {
-    const result = await fetchVirtualMCPResource(
-      virtualMcpId,
-      orgSlug,
-      resourceUri,
-    );
+    const result = await readResource(client, resourceUri);
 
     insertMention(editor, range, {
       id: resourceUri,
@@ -56,6 +51,11 @@ export const ResourcesMention = ({
 }: ResourcesMentionProps) => {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: virtualMcpId,
+    orgSlug: org.slug,
+    isVirtualMCP: true,
+  });
   // Use the query key helper which handles null (default virtual MCP)
   const queryKey = KEYS.virtualMcpResources(virtualMcpId, org.slug);
 
@@ -63,18 +63,14 @@ export const ResourcesMention = ({
     item,
     range,
   }: OnSelectProps<ResourceItem>) => {
-    // virtualMcpId can be null (default virtual MCP)
-    await fetchAndInsertResource(
-      editor,
-      range,
-      virtualMcpId,
-      org.slug,
-      item.uri,
-    );
+    if (!client) return;
+    await fetchAndInsertResource(editor, range, client, item.uri);
   };
 
   const fetchItems = async (props: { query: string }) => {
     const { query } = props;
+
+    if (!client) return [];
 
     // Try to get from cache first (even if stale)
     let virtualMcpResources =
@@ -83,17 +79,18 @@ export const ResourcesMention = ({
     // If not in cache or we want fresh data, fetch from network
     // fetchQuery will use cache if fresh, otherwise fetch
     if (!virtualMcpResources) {
-      virtualMcpResources = await queryClient.fetchQuery({
+      const result = await queryClient.fetchQuery({
         queryKey,
-        queryFn: () => fetchVirtualMCPResources(virtualMcpId, org.slug),
+        queryFn: () => listResources(client),
         staleTime: 60000, // 1 minute
       });
+      virtualMcpResources = result.resources;
     } else {
       // Prefetch in background to ensure fresh data
       queryClient
         .fetchQuery({
           queryKey,
-          queryFn: () => fetchVirtualMCPResources(virtualMcpId, org.slug),
+          queryFn: () => listResources(client),
           staleTime: 60000,
         })
         .catch(() => {

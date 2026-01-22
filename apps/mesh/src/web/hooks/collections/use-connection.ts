@@ -5,9 +5,8 @@
  * These hooks offer a reactive interface for accessing and manipulating connections.
  */
 
-import { createToolCaller } from "../../../tools/client";
 import type { ConnectionEntity } from "../../../tools/connection/schema";
-import { useProjectContext } from "../../providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import {
   type CollectionFilter,
   useCollectionActions,
@@ -34,11 +33,10 @@ export type UseConnectionsOptions = UseCollectionListOptions<ConnectionEntity>;
  */
 export function useConnections(options: UseConnectionsOptions = {}) {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
   return useCollectionList<ConnectionEntity>(
     org.slug,
     "CONNECTIONS",
-    toolCaller,
+    null,
     options,
   );
 }
@@ -51,12 +49,11 @@ export function useConnections(options: UseConnectionsOptions = {}) {
  */
 export function useConnection(connectionId: string | undefined) {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
   return useCollectionItem<ConnectionEntity>(
     org.slug,
     "CONNECTIONS",
     connectionId,
-    toolCaller,
+    null,
   );
 }
 
@@ -67,12 +64,7 @@ export function useConnection(connectionId: string | undefined) {
  */
 export function useConnectionActions() {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
-  return useCollectionActions<ConnectionEntity>(
-    org.slug,
-    "CONNECTIONS",
-    toolCaller,
-  );
+  return useCollectionActions<ConnectionEntity>(org.slug, "CONNECTIONS", null);
 }
 
 /**

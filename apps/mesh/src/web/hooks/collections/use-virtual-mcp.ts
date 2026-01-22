@@ -7,10 +7,9 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { createToolCaller } from "../../../tools/client";
 import type { VirtualMCPEntity } from "../../../tools/virtual-mcp/schema";
 import { KEYS } from "../../lib/query-keys";
-import { useProjectContext } from "../../providers/project-context-provider";
+import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
 import {
   type CollectionFilter,
   useCollectionItem,
@@ -36,11 +35,10 @@ export type UseVirtualMCPsOptions = UseCollectionListOptions<VirtualMCPEntity>;
  */
 export function useVirtualMCPs(options: UseVirtualMCPsOptions = {}) {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
   return useCollectionList<VirtualMCPEntity>(
     org.slug,
     "VIRTUAL_MCP",
-    toolCaller,
+    null,
     options,
   );
 }
@@ -55,7 +53,6 @@ export function useVirtualMCP(
   virtualMcpId: string | null | undefined,
 ): VirtualMCPEntity | null {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
 
   // If null/undefined, return null (use default virtual MCP)
   // Use collection item hook for database virtual MCPs
@@ -63,7 +60,7 @@ export function useVirtualMCP(
     org.slug,
     "VIRTUAL_MCP",
     virtualMcpId ?? undefined,
-    toolCaller,
+    null,
   );
 
   return dbVirtualMCP;
@@ -79,17 +76,30 @@ export function useVirtualMCP(
  */
 export function useVirtualMCPActions() {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
+  const client = useMCPClient({
+    connectionId: null,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
   const queryClient = useQueryClient();
 
   // Custom create mutation that also invalidates connections cache
   // because server auto-creates a VIRTUAL connection for each Virtual MCP
   const create = useMutation({
     mutationFn: async (data: Partial<VirtualMCPEntity>) => {
-      const result = (await toolCaller("COLLECTION_VIRTUAL_MCP_CREATE", {
-        data,
-      })) as { item: VirtualMCPEntity };
-      return result.item;
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
+      const result = (await client.callTool({
+        name: "COLLECTION_VIRTUAL_MCP_CREATE",
+        arguments: {
+          data,
+        },
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ??
+        result) as { item: VirtualMCPEntity };
+
+      return payload.item;
     },
     onSuccess: () => {
       // Invalidate Virtual MCP queries
@@ -117,11 +127,20 @@ export function useVirtualMCPActions() {
       id: string;
       data: Partial<VirtualMCPEntity>;
     }) => {
-      const result = (await toolCaller("COLLECTION_VIRTUAL_MCP_UPDATE", {
-        id,
-        data,
-      })) as { item: VirtualMCPEntity };
-      return result.item;
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
+      const result = (await client.callTool({
+        name: "COLLECTION_VIRTUAL_MCP_UPDATE",
+        arguments: {
+          id,
+          data,
+        },
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ??
+        result) as { item: VirtualMCPEntity };
+
+      return payload.item;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -138,10 +157,19 @@ export function useVirtualMCPActions() {
   // Custom delete mutation with agent-specific messages
   const delete_ = useMutation({
     mutationFn: async (id: string) => {
-      const result = (await toolCaller("COLLECTION_VIRTUAL_MCP_DELETE", {
-        id,
-      })) as { item: { id: string } };
-      return result.item.id;
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
+      const result = (await client.callTool({
+        name: "COLLECTION_VIRTUAL_MCP_DELETE",
+        arguments: {
+          id,
+        },
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ??
+        result) as { item: { id: string } };
+
+      return payload.item.id;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

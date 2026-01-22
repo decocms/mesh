@@ -27,12 +27,17 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  InMemoryTaskMessageQueue,
+  InMemoryTaskStore,
+} from "@modelcontextprotocol/sdk/experimental/tasks";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import {
   type CallToolRequest,
   CallToolRequestSchema,
   type CallToolResult,
+  ErrorCode,
   type GetPromptRequest,
   GetPromptRequestSchema,
   type GetPromptResult,
@@ -44,6 +49,7 @@ import {
   type ListResourceTemplatesResult,
   ListToolsRequestSchema,
   type ListToolsResult,
+  McpError,
   type ReadResourceRequest,
   ReadResourceRequestSchema,
   type ReadResourceResult,
@@ -392,6 +398,19 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Create client factory for downstream MCP based on connection_type
   const createClient = async () => {
+    const client = new Client(
+      { name: "mcp-mesh-proxy", version: "1.0.0" },
+      {
+        capabilities: {
+          tasks: {
+            list: {},
+            cancel: {},
+            requests: { tool: { call: {} } },
+          },
+        },
+      },
+    );
+
     switch (connection.connection_type) {
       case "STDIO": {
         // Block STDIO connections in production unless explicitly allowed
@@ -410,14 +429,17 @@ async function createMCPProxyDoNotUseDirectly(
 
         // Get or create stable connection - respawns automatically if closed
         // We want stable local MCP connection - don't spawn new process per request
-        return getStableStdioClient({
-          id: connectionId,
-          name: connection.title,
-          command: stdioParams.command,
-          args: stdioParams.args,
-          env: stdioParams.envVars,
-          cwd: stdioParams.cwd,
-        });
+        return getStableStdioClient(
+          {
+            id: connectionId,
+            name: connection.title,
+            command: stdioParams.command,
+            args: stdioParams.args,
+            env: stdioParams.envVars,
+            cwd: stdioParams.cwd,
+          },
+          client,
+        );
       }
 
       case "HTTP":
@@ -428,7 +450,6 @@ async function createMCPProxyDoNotUseDirectly(
           );
         }
 
-        const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
         const headers = await buildRequestHeaders();
         if (httpParams?.headers) {
           Object.assign(headers, httpParams.headers);
@@ -448,7 +469,6 @@ async function createMCPProxyDoNotUseDirectly(
           throw new Error("SSE connection missing URL");
         }
 
-        const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
         const headers = await buildRequestHeaders();
         if (httpParams?.headers) {
           Object.assign(headers, httpParams.headers);
@@ -674,11 +694,16 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
-      const capabilities = client.getServerCapabilities();
-      if (!capabilities?.resources) {
+      return await client.listResources();
+    } catch (error) {
+      if (
+        error instanceof McpError &&
+        error.code === ErrorCode.MethodNotFound
+      ) {
         return { resources: [] };
       }
-      return await client.listResources();
+
+      throw error;
     } finally {
       client?.close().catch(console.error);
     }
@@ -703,11 +728,16 @@ async function createMCPProxyDoNotUseDirectly(
       let client: Awaited<ReturnType<typeof createClient>> | undefined;
       try {
         client = await createClient();
-        const capabilities = client.getServerCapabilities();
-        if (!capabilities?.resources) {
+        return await client.listResourceTemplates();
+      } catch (error) {
+        if (
+          error instanceof McpError &&
+          error.code === ErrorCode.MethodNotFound
+        ) {
           return { resourceTemplates: [] };
         }
-        return await client.listResourceTemplates();
+
+        throw error;
       } finally {
         client?.close().catch(console.error);
       }
@@ -718,11 +748,16 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
-      const capabilities = client.getServerCapabilities();
-      if (!capabilities?.prompts) {
+      return await client.listPrompts();
+    } catch (error) {
+      if (
+        error instanceof McpError &&
+        error.code === ErrorCode.MethodNotFound
+      ) {
         return { prompts: [] };
       }
-      return await client.listPrompts();
+
+      throw error;
     } finally {
       client?.close().catch(console.error);
     }
@@ -735,10 +770,6 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
-      const capabilities = client.getServerCapabilities();
-      if (!capabilities?.prompts) {
-        throw new Error("Prompts capability not supported");
-      }
       return await client.getPrompt(params);
     } finally {
       client?.close().catch(console.error);
@@ -883,6 +914,7 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     const clientCapabilities = client.getServerCapabilities();
+
     const proxyCapabilities = clientCapabilities ?? {
       tools: {},
       resources: {},
@@ -890,12 +922,11 @@ async function createMCPProxyDoNotUseDirectly(
     };
     // Create MCP server for this proxy
     const server = new McpServer(
-      {
-        name: "mcp-mesh",
-        version: "1.0.0",
-      },
+      { name: "mcp-mesh", version: "1.0.0" },
       {
         capabilities: proxyCapabilities,
+        taskStore: new InMemoryTaskStore(),
+        taskMessageQueue: new InMemoryTaskMessageQueue(),
       },
     );
 

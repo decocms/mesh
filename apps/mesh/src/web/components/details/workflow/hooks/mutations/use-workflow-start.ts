@@ -1,5 +1,3 @@
-import { useToolCallMutation } from "@/web/hooks/use-tool-call";
-import { createToolCaller } from "@/tools/client";
 import {
   useSelectedVirtualMcpId,
   useWorkflow,
@@ -7,35 +5,49 @@ import {
 } from "@/web/components/details/workflow/stores/workflow";
 import { useWorkflowBindingConnection } from "../use-workflow-binding-connection";
 import { useWorkflowInputSchema } from "../derived/use-workflow-input-schema";
+import {
+  useMCPClient,
+  useMCPToolCallMutation,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 
 export function useWorkflowStart() {
+  const { org } = useProjectContext();
   const { id: connectionId } = useWorkflowBindingConnection();
   const { setTrackingExecutionId } = useWorkflowActions();
-  const toolCaller = createToolCaller(connectionId);
   const workflow = useWorkflow();
   const selectedVirtualMcpId = useSelectedVirtualMcpId();
   const inputSchema = useWorkflowInputSchema();
-  const { mutateAsync: startWorkflow, isPending } = useToolCallMutation({
-    toolCaller,
-    toolName: "COLLECTION_WORKFLOW_EXECUTION_CREATE",
+  const client = useMCPClient({
+    connectionId,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
   });
+  const { mutateAsync: startWorkflowMutation, isPending } =
+    useMCPToolCallMutation({
+      client,
+    });
 
   const handleRunWorkflow = async (input: Record<string, unknown> = {}) => {
     if (!selectedVirtualMcpId) {
       throw new Error("Please select an Agent before running the workflow");
     }
     const startAtEpochMs = Date.now();
-    const result = await startWorkflow({
-      input,
-      virtual_mcp_id: selectedVirtualMcpId,
-      start_at_epoch_ms: startAtEpochMs,
-      workflow_collection_id: workflow.id,
+    const result = await startWorkflowMutation({
+      name: "COLLECTION_WORKFLOW_EXECUTION_CREATE",
+      arguments: {
+        input,
+        virtual_mcp_id: selectedVirtualMcpId,
+        start_at_epoch_ms: startAtEpochMs,
+        workflow_collection_id: workflow.id,
+      },
     });
 
+    const resultData =
+      (result as unknown as { structuredContent?: unknown })
+        .structuredContent ?? result;
     const executionId =
-      (result as { item: { id: string } })?.item?.id ??
-      (result as { structuredContent: { item: { id: string } } })
-        ?.structuredContent?.item?.id;
+      (resultData as { item?: { id?: string } })?.item?.id ?? undefined;
     setTrackingExecutionId(executionId);
     return executionId;
   };
@@ -47,17 +59,20 @@ export function useWorkflowStart() {
 }
 
 export function useWorkflowCancel() {
+  const { org } = useProjectContext();
   const { id: connectionId } = useWorkflowBindingConnection();
-  const toolCaller = createToolCaller(connectionId);
-  const { mutateAsync: cancelWorkflow, isPending: isCancelling } =
-    useToolCallMutation({
-      toolCaller,
-      toolName: "CANCEL_EXECUTION",
-    });
+  const client = useMCPClient({
+    connectionId,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
+  const { mutateAsync: cancelWorkflowMutation, isPending: isCancelling } =
+    useMCPToolCallMutation({ client });
 
   const handleCancelWorkflow = async (executionId: string) => {
-    const result = await cancelWorkflow({
-      executionId,
+    const result = await cancelWorkflowMutation({
+      name: "CANCEL_EXECUTION",
+      arguments: { executionId },
     });
     return result;
   };
@@ -66,21 +81,25 @@ export function useWorkflowCancel() {
 }
 
 export function useWorkflowResume() {
+  const { org } = useProjectContext();
   const { id: connectionId } = useWorkflowBindingConnection();
-  const toolCaller = createToolCaller(connectionId);
-  const { mutateAsync: resumeWorkflow, isPending: isResuming } =
-    useToolCallMutation({
-      toolCaller,
-      toolName: "RESUME_EXECUTION",
-    });
+  const client = useMCPClient({
+    connectionId,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
+  const { mutateAsync: resumeWorkflowMutation, isPending: isResuming } =
+    useMCPToolCallMutation({ client });
 
   const handleResumeWorkflow = async (executionId: string) => {
-    const result = (await resumeWorkflow({
-      executionId,
-    })) as {
-      success: boolean;
-    };
-    return result.success;
+    const result = await resumeWorkflowMutation({
+      name: "RESUME_EXECUTION",
+      arguments: { executionId },
+    });
+    const resultData =
+      (result as unknown as { structuredContent?: unknown })
+        .structuredContent ?? result;
+    return (resultData as { success?: boolean })?.success ?? false;
   };
 
   return { handleResumeWorkflow, isResuming };

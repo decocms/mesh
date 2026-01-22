@@ -14,7 +14,7 @@ import {
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,12 +76,11 @@ import { z } from "zod";
 import { authClient } from "@/web/lib/auth-client";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { RegistryItem } from "@/web/components/store/types";
-import { useToolCallQuery } from "@/web/hooks/use-tool-call";
+import { useMCPClient, useMCPToolCallQuery } from "@decocms/mesh-sdk";
 import {
   findListToolName,
   extractItemsFromResponse,
 } from "@/web/utils/registry-utils";
-import { createToolCaller } from "@/tools/client";
 
 import type {
   StdioConnectionParameters,
@@ -395,14 +394,19 @@ function OrgMcpsContent() {
   const registryConnection = useRegistryConnections(connections)[0];
   const registryId = registryConnection?.id ?? "";
   const registryListToolName = findListToolName(registryConnection?.tools);
-  const registryToolCaller = createToolCaller(registryId || undefined);
-  const { data: registryListResults } = useToolCallQuery<{}, unknown>({
-    toolCaller: registryToolCaller,
+  const registryClient = useMCPClient({
+    connectionId: registryId || null,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
+  const { data: registryListResults } = useMCPToolCallQuery<unknown>({
+    client: registryClient,
     toolName: registryListToolName,
-    toolInputParams: { limit: 200 },
-    scope: registryId,
+    toolArguments: { limit: 200 },
     enabled: Boolean(registryId && registryListToolName),
     staleTime: 60 * 60 * 1000,
+    select: (result) =>
+      (result as { structuredContent?: unknown }).structuredContent ?? result,
   });
   const registryItems = extractItemsFromResponse<RegistryItem>(
     registryListResults ?? [],

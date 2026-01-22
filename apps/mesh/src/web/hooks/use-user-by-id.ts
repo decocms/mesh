@@ -7,7 +7,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
-import { createToolCaller } from "../../tools/client";
+import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
 
 /**
  * User data returned by the API
@@ -28,16 +28,28 @@ type UserGetOutput = { user: UserData | null };
  * @returns React Query result with user data
  */
 export function useUserById(userId: string) {
-  const toolCaller = createToolCaller<{ id: string }, UserGetOutput>();
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: null,
+    orgSlug: org.slug,
+    isVirtualMCP: false,
+  });
 
   return useQuery({
     queryKey: KEYS.user(userId),
     queryFn: async () => {
-      const result = await toolCaller("USER_GET", { id: userId });
-      return result.user;
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
+      const result = (await client.callTool({
+        name: "USER_GET",
+        arguments: { id: userId },
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ?? result) as UserGetOutput;
+      return payload.user;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - users don't change frequently
     retry: 1,
-    enabled: !!userId,
+    enabled: !!userId && !!client,
   });
 }

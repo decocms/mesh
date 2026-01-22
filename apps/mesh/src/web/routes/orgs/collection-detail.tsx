@@ -1,4 +1,3 @@
-import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { PromptDetailsView } from "@/web/components/details/prompt/index.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -69,14 +68,9 @@ function CollectionDetailsContent() {
     router.history.back();
   };
 
-  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
-  const toolCaller = createToolCaller(safeConnectionId);
+  const scopeKey = connectionId ?? "no-connection";
 
-  const actions = useCollectionActions(
-    safeConnectionId,
-    collectionName,
-    toolCaller,
-  );
+  const actions = useCollectionActions(scopeKey, collectionName, connectionId);
 
   const handleUpdate = async (updates: Record<string, unknown>) => {
     if (!itemId) return;

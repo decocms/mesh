@@ -7,13 +7,17 @@
  */
 
 import { useSuspenseQueries } from "@tanstack/react-query";
-import { createToolCaller } from "@/tools/client";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { KEYS } from "@/web/lib/query-keys";
 import { MCP_MESH_DECOCMS_KEY } from "@/web/utils/constants";
 import { findListToolName } from "@/web/utils/registry-utils";
+import {
+  useProjectContext,
+  StreamableHTTPClientTransport,
+} from "@decocms/mesh-sdk";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 /**
  * Registry item from the registry API response.
@@ -41,6 +45,37 @@ interface RegistryItemWithBinding {
     [key: string]: unknown;
   };
   [key: string]: unknown;
+}
+
+async function callRegistryTool<TOutput>(
+  registryId: string,
+  orgSlug: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<TOutput> {
+  const url = new URL(`/mcp/${registryId}`, window.location.origin);
+  const client = new Client({ name: "mesh-web", version: "1.0.0" });
+
+  const transport = new StreamableHTTPClientTransport(url, {
+    requestInit: {
+      headers: {
+        Accept: "application/json, text/event-stream",
+        "Content-Type": "application/json",
+        "x-org-slug": orgSlug,
+      },
+    },
+  });
+
+  try {
+    await client.connect(transport);
+    const result = (await client.callTool({
+      name: toolName,
+      arguments: args,
+    })) as { structuredContent?: unknown };
+    return (result.structuredContent ?? result) as TOutput;
+  } finally {
+    await client.close().catch(console.error);
+  }
 }
 
 /**
@@ -102,6 +137,7 @@ function extractBindingTools(
 export function useBindingSchemaFromRegistry(
   serverName: string | undefined,
 ): UseBindingSchemaFromRegistryResult {
+  const { org } = useProjectContext();
   // Get all connections and filter to registry connections
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
@@ -119,7 +155,6 @@ export function useBindingSchemaFromRegistry(
     queries: registryConnections.map((registryConnection) => {
       const registryId = registryConnection.id;
       const listToolName = findListToolName(registryConnection.tools) || "";
-      const toolCaller = createToolCaller(registryId);
       const paramsKey = JSON.stringify(toolInputParams);
 
       return {
@@ -130,12 +165,9 @@ export function useBindingSchemaFromRegistry(
           }
 
           try {
-            const result = (await toolCaller(
-              listToolName,
-              toolInputParams,
-            )) as {
+            const result = await callRegistryTool<{
               items?: RegistryItemWithBinding[];
-            };
+            }>(registryId, org.slug, listToolName, toolInputParams);
             // Return the first matching item, or null if not found
             return result?.items?.[0] ?? null;
           } catch {

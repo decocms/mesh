@@ -1,12 +1,3 @@
-// Tool call hooks
-export {
-  useToolCall,
-  useToolCallMutation,
-  useToolCallQuery,
-  type UseToolCallOptions,
-  type UseToolCallMutationOptions,
-} from "./use-tool-call";
-
 // Collection hooks
 export {
   useCollectionItem,
@@ -26,11 +17,58 @@ export {
   type UseConnectionsOptions,
 } from "./use-connection";
 
-// MCP hook
+// MCP client hook
 export {
-  useMcp,
-  type McpTool,
-  type McpState,
-  type UseMcpOptions,
-  type UseMcpResult,
-} from "./use-mcp";
+  useMCPClient,
+  type UseMcpClientOptions,
+} from "./use-mcp-client";
+
+// MCP tools hooks
+export {
+  useMCPToolsList,
+  useMCPToolsListQuery,
+  useMCPToolCall,
+  useMCPToolCallQuery,
+  useMCPToolCallMutation,
+  type UseMcpToolsListOptions,
+  type UseMcpToolsListQueryOptions,
+  type UseMcpToolCallOptions,
+  type UseMcpToolCallQueryOptions,
+  type UseMcpToolCallMutationOptions,
+} from "./use-mcp-tools";
+
+// MCP resources hooks and helpers
+export {
+  listResources,
+  readResource,
+  useMCPResourcesList,
+  useMCPResourcesListQuery,
+  useMCPReadResource,
+  type UseMcpResourcesListOptions,
+  type UseMcpResourcesListQueryOptions,
+  type UseMcpReadResourceOptions,
+} from "./use-mcp-resources";
+
+// MCP prompts hooks and helpers
+export {
+  listPrompts,
+  getPrompt,
+  useMCPPromptsList,
+  useMCPPromptsListQuery,
+  useMCPGetPrompt,
+  type UseMcpPromptsListOptions,
+  type UseMcpPromptsListQueryOptions,
+  type UseMcpGetPromptOptions,
+} from "./use-mcp-prompts";
+
+// Virtual MCP hooks
+export {
+  useVirtualMCPPrompts,
+  useVirtualMCPPrompt,
+  useVirtualMCPResources,
+  useVirtualMCPResource,
+  type VirtualMCPPrompt,
+  type VirtualMCPPromptResult,
+  type VirtualMCPResource,
+  type VirtualMCPResourceResult,
+} from "./use-virtual-mcp";

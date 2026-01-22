@@ -5,7 +5,7 @@ import { useConnection } from "@/web/hooks/collections/use-connection";
 import { useDebounce } from "@/web/hooks/use-debounce";
 import { useScrollRestoration } from "@/web/hooks/use-scroll-restoration";
 import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { slugify } from "@/web/utils/slugify";
 import {
   findListToolName,

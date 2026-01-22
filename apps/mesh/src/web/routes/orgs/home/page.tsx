@@ -10,7 +10,7 @@ import { TypewriterTitle } from "@/web/components/chat/typewriter-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { authClient } from "@/web/lib/auth-client";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
 import { GitBranch01, MessageChatSquare, Plus } from "@untitledui/icons";

@@ -1,5 +1,4 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
-import { createToolCaller } from "@/tools/client";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import {
@@ -58,11 +57,10 @@ export function CollectionTab({
   const userId = session?.user?.id || "unknown";
   const connection = useConnection(connectionId);
 
-  const toolCaller = createToolCaller(connectionId);
   const actions = useCollectionActions<BaseCollectionEntity>(
     connectionId,
     collectionName,
-    toolCaller,
+    connectionId,
   );
 
   const {
@@ -83,7 +81,7 @@ export function CollectionTab({
   const items = useCollectionList<BaseCollectionEntity>(
     connectionId,
     collectionName,
-    toolCaller,
+    connectionId,
     {
       searchTerm,
       sortKey,

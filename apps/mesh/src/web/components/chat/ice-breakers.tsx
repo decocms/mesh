@@ -1,9 +1,4 @@
 import {
-  fetchVirtualMCPPrompt,
-  useVirtualMCPPrompts,
-  type VirtualMCPPrompt,
-} from "@/web/hooks/use-virtual-mcp-client";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -20,7 +15,13 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Suspense, useReducer, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "../error-boundary";
-import { useProjectContext } from "../../providers/project-context-provider";
+import {
+  getPrompt,
+  useMCPClient,
+  useProjectContext,
+  useVirtualMCPPrompts,
+  type VirtualMCPPrompt,
+} from "@decocms/mesh-sdk";
 import { useChat } from "./context";
 import {
   PromptArgsDialog,
@@ -242,7 +243,13 @@ function VirtualMCPIceBreakersContent({
 }) {
   const { tiptapDoc, sendMessage } = useChat();
   const { org } = useProjectContext();
-  const { data: prompts } = useVirtualMCPPrompts(virtualMcpId);
+  const client = useMCPClient({
+    connectionId: virtualMcpId,
+    orgSlug: org.slug,
+    isVirtualMCP: true,
+  });
+  const { data } = useVirtualMCPPrompts(virtualMcpId, org);
+  const prompts = data?.prompts ?? [];
   const [state, dispatch] = useReducer(iceBreakerReducer, { stage: "idle" });
   const [dialogPrompt, setDialogPrompt] = useState<VirtualMCPPrompt | null>(
     null,
@@ -252,13 +259,14 @@ function VirtualMCPIceBreakersContent({
     prompt: VirtualMCPPrompt,
     args?: PromptArgumentValues,
   ) => {
+    if (!client) {
+      toast.error("MCP client not available");
+      dispatch({ type: "RESET" });
+      return;
+    }
+
     try {
-      const result = await fetchVirtualMCPPrompt(
-        virtualMcpId,
-        org.slug,
-        prompt.name,
-        args,
-      );
+      const result = await getPrompt(client, prompt.name, args);
 
       dispatch({ type: "RESET" });
 

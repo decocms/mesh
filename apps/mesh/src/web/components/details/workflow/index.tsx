@@ -30,7 +30,6 @@ import {
   useCollectionActions,
   useCollectionItem,
 } from "@/web/hooks/use-collections";
-import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
 import { EmptyState } from "@deco/ui/components/empty-state.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -41,22 +40,21 @@ function useCollectionWorkflow({ itemId }: { itemId: string }) {
   const { connectionId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
-  const connId = connectionId ?? UNKNOWN_CONNECTION_ID;
-  const toolCaller = createToolCaller(connId);
+  const scopeKey = connectionId ?? "no-connection";
 
   const collectionName = "WORKFLOW";
 
   const item = useCollectionItem<Workflow>(
-    connId,
+    scopeKey,
     collectionName,
     itemId,
-    toolCaller,
+    connectionId,
   );
 
   const actions = useCollectionActions<Workflow>(
-    connId,
+    scopeKey,
     collectionName,
-    toolCaller,
+    connectionId,
   );
 
   const update = async (updates: Partial<Workflow>): Promise<void> => {
@@ -245,16 +243,15 @@ function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
   const { connectionId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
-  const connId = connectionId ?? UNKNOWN_CONNECTION_ID;
-  const toolCaller = createToolCaller(connId);
+  const scopeKey = connectionId ?? "no-connection";
 
   const collectionName = "WORKFLOW_EXECUTION";
 
   const item = useCollectionItem<WorkflowExecution>(
-    connId,
+    scopeKey,
     collectionName,
     itemId,
-    toolCaller,
+    connectionId,
   );
 
   return {
