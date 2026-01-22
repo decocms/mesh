@@ -177,11 +177,6 @@ const useModelState = (
 
   // Fetch models for the selected connection
   const models = useModels(modelsConnection?.id ?? null);
-
-  const maybeHaikuId = models.find(
-    (m) => m.id === "anthropic/claude-3.5-haiku",
-  )?.id;
-
   const cheapestModel = models.reduce((min, model) => {
     const inputCost = model.costs?.input ?? 0;
     const outputCost = model.costs?.output ?? 0;
