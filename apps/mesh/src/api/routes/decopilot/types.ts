@@ -74,6 +74,9 @@ export interface ModelProvider {
 
   /** Connection ID that provides this model */
   readonly connectionId: string;
+
+  /** Cheap model */
+  readonly cheapModel?: LanguageModelV2 | undefined;
 }
 
 /**

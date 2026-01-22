@@ -48,18 +48,23 @@ export function useThreads() {
 }
 
 async function getThreadMessages(threadId: string) {
-  const toolCaller = createToolCaller();
-  const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
-  const input: CollectionListInput & { threadId: string | null } = {
-    threadId,
-    limit: 100,
-    offset: 0,
-  };
-  const result = (await toolCaller(
-    listToolName,
-    input,
-  )) as CollectionListOutput<Message>;
-  return result.items ?? [];
+  try {
+    const toolCaller = createToolCaller();
+    const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
+    const input: CollectionListInput & { threadId: string | null } = {
+      threadId,
+      limit: 100,
+      offset: 0,
+    };
+    const result = (await toolCaller(
+      listToolName,
+      input,
+    )) as CollectionListOutput<Message>;
+    return result.items ?? [];
+  } catch (error) {
+    console.error({ error });
+    return [];
+  }
 }
 
 /**
@@ -74,14 +79,18 @@ export function useThreadMessages(threadId: string | null) {
   const { data } = useSuspenseQuery({
     queryKey: KEYS.threadMessages(locator, threadId ?? ""),
     queryFn: async () => {
-      if (!threadId) {
+      try {
+        if (!threadId) {
+          return [];
+        }
+        return await getThreadMessages(threadId);
+      } catch (error) {
+        console.error({ error });
         return [];
       }
-      const messages = await getThreadMessages(threadId);
-      return messages;
     },
+
     staleTime: 30_000,
   });
-
   return data ?? [];
 }

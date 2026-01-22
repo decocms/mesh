@@ -12,6 +12,7 @@ import type { Context } from "hono";
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import type { ConnectionEntity } from "@/tools/connection/schema";
+import { MCP_TOOL_CALL_TIMEOUT_MS } from "../proxy";
 
 /**
  * Ensure organization context exists and matches route param
@@ -93,7 +94,7 @@ export async function toolsFromMCP(
               arguments: argsWithMeta as Record<string, unknown>,
             },
             CallToolResultSchema,
-            { signal: options.abortSignal },
+            { signal: options.abortSignal, timeout: MCP_TOOL_CALL_TIMEOUT_MS },
           ) as Promise<CallToolResult>;
         },
         toModelOutput: ({ output }) => {

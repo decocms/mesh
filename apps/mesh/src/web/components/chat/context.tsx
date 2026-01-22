@@ -166,6 +166,7 @@ const useModelState = (
   const [modelState, setModelState] = useLocalStorage<{
     id: string;
     connectionId: string;
+    cheapModelId?: string | null;
   } | null>(LOCALSTORAGE_KEYS.chatSelectedModel(locator), null);
 
   // Determine connectionId to use (from stored selection or first available)
@@ -176,6 +177,19 @@ const useModelState = (
 
   // Fetch models for the selected connection
   const models = useModels(modelsConnection?.id ?? null);
+
+  const maybeHaikuId = models.find(
+    (m) => m.id === "anthropic/claude-3.5-haiku",
+  )?.id;
+
+  const cheapestModel = models.reduce((min, model) => {
+    const inputCost = model.costs?.input ?? 0;
+    const outputCost = model.costs?.output ?? 0;
+    return inputCost + outputCost <
+      (min?.costs?.input ?? 0) + (min?.costs?.output ?? 0)
+      ? model
+      : min;
+  }, models[0]);
 
   // Find the selected model from the fetched models using stored state
   const selectedModel = findOrFirst(models, modelState?.id);
@@ -188,6 +202,7 @@ const useModelState = (
           limits: selectedModel.limits,
           capabilities: selectedModel.capabilities,
           connectionId: modelsConnection.id,
+          cheapModelId: cheapestModel?.id,
         }
       : null;
 
@@ -658,6 +673,7 @@ export function ChatProvider({
       tiptapDoc,
       created_at: new Date().toISOString(),
       thread_id: stateActiveThreadId,
+      cheapModelId: selectedModel.cheapModelId,
       gateway: {
         id: selectedVirtualMcp?.id ?? null,
       },

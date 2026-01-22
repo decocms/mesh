@@ -16,7 +16,12 @@ import type { ModelProvider } from "./types";
  */
 export async function createModelProvider(
   ctx: MeshContext,
-  config: { organizationId: string; modelId: string; connectionId: string },
+  config: {
+    organizationId: string;
+    modelId: string;
+    connectionId: string;
+    cheapModelId?: string | null;
+  },
 ): Promise<ModelProvider> {
   const connection = await getConnectionById(
     ctx,
@@ -29,11 +34,17 @@ export async function createModelProvider(
 
   const proxy = await ctx.createMCPProxy(connection);
   const llmBinding = LanguageModelBinding.forClient(proxy);
-  const model = createLLMProvider(llmBinding).languageModel(config.modelId);
+
+  const llmProvider = createLLMProvider(llmBinding);
+  const model = llmProvider.languageModel(config.modelId);
+  const cheapModel = config.cheapModelId
+    ? llmProvider.languageModel(config.cheapModelId)
+    : undefined;
 
   return {
     model,
     modelId: config.modelId,
     connectionId: config.connectionId,
+    cheapModel,
   };
 }

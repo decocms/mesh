@@ -112,6 +112,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       organization.id,
       gateway.id,
     );
+    const lastMessage = messages[messages.length - 1];
 
     // 2. Create MCP client and model provider in parallel
     const [{ client: mcpClient, tools }, modelProvider] = await Promise.all([
@@ -123,6 +124,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         organizationId: organization.id,
         modelId: model.id,
         connectionId: model.connectionId,
+        cheapModelId: lastMessage?.metadata?.cheapModelId ?? null,
       }),
     ]);
 
@@ -164,10 +166,11 @@ app.post("/:org/decopilot/stream", async (c) => {
       onStepFinish: async () => {
         if (shouldGenerateTitle && newTitle === null) {
           const userMessage = JSON.stringify(prunedMessages[0]?.content);
+          const modelToUse = modelProvider.cheapModel ?? modelProvider.model;
 
           await generateTitleInBackground({
             abortSignal,
-            model: modelProvider.model,
+            model: modelToUse,
             userMessage,
             onTitle: (title) => {
               newTitle = title;
@@ -181,6 +184,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         console.error("[decopilot:stream] Error", error);
         abortSignal.removeEventListener("abort", abortHandler);
         await client?.close().catch(console.error);
+        throw error;
       },
       onFinish: async () => {
         abortSignal.removeEventListener("abort", abortHandler);
@@ -236,7 +240,6 @@ app.post("/:org/decopilot/stream", async (c) => {
             threadId: memory.thread.id,
           };
         });
-
         await memory.save(messagesToSave).catch((error) => {
           console.error("[decopilot:stream] Error saving messages", error);
         });

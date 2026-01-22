@@ -46,6 +46,7 @@ export type TiptapNode = JSONContent;
 // ============================================================================
 
 export interface Metadata {
+  cheapModelId?: string | null;
   reasoning_start_at?: string | Date;
   reasoning_end_at?: string | Date;
   model?: ChatModelConfig;
