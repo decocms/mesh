@@ -44,6 +44,7 @@ export interface Tool<
   TSchemaIn extends ZodTypeAny = ZodTypeAny,
   TSchemaOut extends ZodTypeAny | undefined = undefined,
 > {
+  _meta?: Record<string, unknown>;
   id: string;
   description?: string;
   inputSchema: TSchemaIn;
@@ -59,6 +60,7 @@ export interface Tool<
  * Streamable tool interface for tools that return Response streams.
  */
 export interface StreamableTool<TSchemaIn extends ZodSchema = ZodSchema> {
+  _meta?: Record<string, unknown>;
   id: string;
   inputSchema: TSchemaIn;
   streamable?: true;
@@ -71,6 +73,7 @@ export interface StreamableTool<TSchemaIn extends ZodSchema = ZodSchema> {
  * Uses a structural type with relaxed execute signature to allow tools with any schema.
  */
 export type CreatedTool = {
+  _meta?: Record<string, unknown>;
   id: string;
   description?: string;
   inputSchema: ZodTypeAny;
@@ -666,6 +669,7 @@ export const createMCPServer = <
         {
           _meta: {
             streamable: isStreamableTool(tool),
+            ...(tool._meta ?? {}),
           },
           description: tool.description,
           inputSchema:

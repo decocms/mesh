@@ -8,7 +8,7 @@ import type {
   RegistryItem,
   MCPRegistryServer,
 } from "@/web/components/store/types";
-import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
+import { MCP_MESH_DECOCMS_KEY } from "@/web/utils/constants";
 import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
 import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
@@ -64,7 +64,7 @@ export function extractConnectionData(
   options?: ExtractConnectionDataOptions,
 ) {
   const server = item.server as MCPRegistryServer["server"] | undefined;
-  const meshMeta = item._meta?.[MCP_REGISTRY_DECOCMS_KEY];
+  const meshMeta = item._meta?.[MCP_MESH_DECOCMS_KEY];
   const now = new Date().toISOString();
 
   const baseName =
