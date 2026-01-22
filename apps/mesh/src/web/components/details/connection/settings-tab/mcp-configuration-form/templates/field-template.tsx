@@ -2,8 +2,11 @@
  * Field Template
  *
  * Base wrapper for individual form fields.
- * Handles label, description, and special cases like readonly fields.
- * Layout: vertical (label, description, input stacked)
+ * Handles label, description, and special cases.
+ *
+ * Layouts:
+ * - Boolean: [Switch] Label + Description below
+ * - Others: Label, Description, Input (vertical stack)
  */
 
 import type { FieldTemplateProps } from "@rjsf/utils";
@@ -20,6 +23,27 @@ export function CustomFieldTemplate(props: FieldTemplateProps) {
   // Object fields are handled by ObjectFieldTemplate
   if (schema.type === "object") {
     return children;
+  }
+
+  // Boolean fields - horizontal layout with switch on left
+  if (schema.type === "boolean") {
+    return (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-3">
+          {children}
+          {label && (
+            <label className="text-sm font-medium cursor-pointer" htmlFor={id}>
+              {label}
+            </label>
+          )}
+        </div>
+        {description && (
+          <p className="text-xs text-muted-foreground pl-[44px]">
+            {description}
+          </p>
+        )}
+      </div>
+    );
   }
 
   // Handle readonly string fields with copy button
