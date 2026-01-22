@@ -1,11 +1,11 @@
 /**
  * Base Input Template
  *
- * Standard input widget with debounce support.
+ * Standard input widget with controlled value.
  * Based on admin-panel-cx BaseInputTemplate.
  */
 
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import type { WidgetProps } from "@rjsf/utils";
 import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -28,9 +28,6 @@ export function BaseInputWidget(props: WidgetProps) {
     rawErrors,
   } = props;
 
-  const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Determine input type from schema
   const inputType = (() => {
     if (schema.type === "number" || schema.type === "integer") return "number";
@@ -43,25 +40,45 @@ export function BaseInputWidget(props: WidgetProps) {
   const isNumberInput = inputType === "number";
 
   // Format value for display
-  const inputValue = isNumberInput
-    ? value || value === 0
-      ? value
-      : ""
-    : value == null
-      ? ""
-      : value;
+  const formatValue = (val: unknown) => {
+    if (isNumberInput) {
+      return val || val === 0 ? String(val) : "";
+    }
+    return val == null ? "" : String(val);
+  };
 
-  // Debounced onChange handler
+  // Local state for immediate UI updates
+  const [localValue, setLocalValue] = useState(() => formatValue(value));
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync local state when external value changes
+  useEffect(() => {
+    setLocalValue(formatValue(value));
+  }, [value]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Handle change with debounce
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const newValue = e.target.value;
+      
+      // Update local state immediately for responsive UI
+      setLocalValue(newValue);
 
       // Clear existing timer
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
 
-      // Set new debounced update
+      // Debounce the actual form update
       debounceTimerRef.current = setTimeout(() => {
         if (newValue === "") {
           onChange(options.emptyValue);
@@ -76,7 +93,7 @@ export function BaseInputWidget(props: WidgetProps) {
     [onChange, options.emptyValue, isNumberInput],
   );
 
-  // Handle blur
+  // Handle blur - flush pending changes
   const handleBlur = useCallback(
     (e: React.FocusEvent<HTMLInputElement>) => {
       // Flush pending changes immediately on blur
@@ -108,32 +125,22 @@ export function BaseInputWidget(props: WidgetProps) {
     [id, onFocus],
   );
 
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
-
   // Check for errors
   const hasError = rawErrors && rawErrors.length > 0;
 
   return (
     <Input
-      ref={inputRef}
       id={id}
       name={id}
       type={inputType}
-      defaultValue={inputValue}
+      value={localValue}
       readOnly={readonly}
       disabled={disabled}
       autoFocus={autofocus}
       onChange={handleChange}
       onBlur={handleBlur}
       onFocus={handleFocus}
-      placeholder={schema.default?.toString() || options.placeholder}
+      placeholder={options.placeholder || schema.default?.toString()}
       min={schema.minimum}
       max={schema.maximum}
       step={schema.multipleOf || (isNumberInput ? "any" : undefined)}
@@ -155,4 +162,3 @@ export function NumberInputWidget(props: WidgetProps) {
 export function TextInputWidget(props: WidgetProps) {
   return <BaseInputWidget {...props} />;
 }
-

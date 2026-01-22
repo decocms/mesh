@@ -49,10 +49,14 @@ export function CustomFieldTemplate(props: FieldTemplateProps) {
     return children;
   }
 
+  // Check if this is an array item (has numeric label like "0", "1", etc.)
+  const isArrayItem = /^\d+$/.test(label);
+
   // Check if should render label
   const shouldRenderLabel =
     !LABELS_TO_HIDE.includes(label) &&
     !label.includes("value-") &&
+    !isArrayItem && // Don't show label for array items
     classNames?.indexOf("field-object") === -1 &&
     classNames?.indexOf("field-array") === -1;
 
@@ -118,6 +122,11 @@ export function CustomFieldTemplate(props: FieldTemplateProps) {
         </div>
       </div>
     );
+  }
+
+  // Array items - just render input without label wrapper
+  if (isArrayItem) {
+    return <div className="w-full">{children}</div>;
   }
 
   // Default field layout - vertical stack
