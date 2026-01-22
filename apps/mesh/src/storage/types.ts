@@ -462,6 +462,8 @@ export interface EventTable {
   datacontenttype: string; // Content type (default: "application/json")
   dataschema: string | null; // Schema URI
   data: JsonObject<unknown> | null; // JSON payload
+  // Routing
+  target: string | null; // Target connection ID (null = broadcast to all matching subscriptions)
   // Recurring event support
   cron: string | null; // Cron expression for recurring delivery
   // Delivery tracking
@@ -488,6 +490,7 @@ export interface Event {
   datacontenttype: string;
   dataschema: string | null;
   data: unknown | null;
+  target: string | null;
   cron: string | null;
   status: EventStatus;
   attempts: number;

@@ -113,6 +113,7 @@ export class EventBus implements IEventBus {
       subject: input.subject,
       time: now,
       data: input.data,
+      target: input.target,
       cron: input.cron,
     });
 
