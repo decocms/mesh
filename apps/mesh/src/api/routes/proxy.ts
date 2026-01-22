@@ -1073,11 +1073,14 @@ app.all("/:connectionId/call-tool/:toolName", async (c) => {
       });
     }
 
-    return new Response(JSON.stringify(result.structuredContent), {
-      headers: {
-        "Content-Type": "application/json",
+    return new Response(
+      JSON.stringify(result.structuredContent ?? result.content),
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
       },
-    });
+    );
   } catch (error) {
     return handleError(error as Error, c);
   }
