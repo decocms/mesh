@@ -17,6 +17,7 @@ import {
   type Binder,
 } from "@decocms/bindings";
 import { Hono } from "hono";
+import { lookup } from "node:dns/promises";
 import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 
@@ -29,12 +30,44 @@ const app = new Hono<{ Variables: Variables }>();
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 /**
- * Validate audioUrl to prevent SSRF attacks
- * Only allows HTTP/HTTPS URLs with public hosts
+ * Check if an IP address is private/internal
  */
-function validateAudioUrl(
+function isPrivateIp(ip: string): boolean {
+  // IPv4 check
+  const ipv4Match = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    return (
+      a === 10 || // 10.0.0.0/8
+      a === 127 || // 127.0.0.0/8 (loopback)
+      (a === 172 && b && b >= 16 && b <= 31) || // 172.16.0.0/12
+      (a === 192 && b === 168) || // 192.168.0.0/16
+      (a === 169 && b === 254) || // 169.254.0.0/16 (link-local, AWS metadata)
+      a === 0 // 0.0.0.0/8
+    );
+  }
+
+  // IPv6 check
+  const ipLower = ip.toLowerCase();
+  if (
+    ipLower === "::1" || // loopback
+    ipLower.startsWith("fe80:") || // link-local
+    ipLower.startsWith("fc") || // unique local (fc00::/7)
+    ipLower.startsWith("fd") // unique local (fc00::/7)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Validate audioUrl to prevent SSRF attacks
+ * Checks URL format, scheme, and resolves DNS to verify IPs are public
+ */
+async function validateAudioUrl(
   urlString: string,
-): { valid: true } | { valid: false; error: string } {
+): Promise<{ valid: true } | { valid: false; error: string }> {
   let url: URL;
   try {
     url = new URL(urlString);
@@ -49,36 +82,32 @@ function validateAudioUrl(
 
   const hostname = url.hostname.toLowerCase();
 
-  // Block localhost and loopback addresses
-  if (
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname === "[::1]" ||
-    hostname === "::1"
-  ) {
+  // Block localhost and loopback addresses (string check)
+  if (hostname === "localhost" || hostname === "[::1]") {
     return { valid: false, error: "Localhost URLs are not allowed" };
   }
 
-  // Block private IP ranges (basic check)
-  // 10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x (link-local/AWS metadata)
-  const ipv4Match = hostname.match(
-    /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/,
-  );
-  if (ipv4Match) {
-    const [, a, b] = ipv4Match.map(Number);
-    if (
-      a === 10 ||
-      a === 127 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 169 && b === 254) ||
-      a === 0
-    ) {
-      return {
-        valid: false,
-        error: "Private or internal IP addresses are not allowed",
-      };
+  // If hostname is already an IP, check it directly
+  if (isPrivateIp(hostname)) {
+    return {
+      valid: false,
+      error: "Private or internal IP addresses are not allowed",
+    };
+  }
+
+  // Resolve DNS and check all returned IPs to prevent DNS rebinding
+  try {
+    const results = await lookup(hostname, { all: true });
+    for (const { address } of results) {
+      if (isPrivateIp(address)) {
+        return {
+          valid: false,
+          error: "URL resolves to a private or internal IP address",
+        };
+      }
     }
+  } catch {
+    return { valid: false, error: "Failed to resolve hostname" };
   }
 
   return { valid: true };
@@ -266,7 +295,7 @@ app.post("/:org/transcribe", async (c) => {
 
   // 4. Validate audioUrl if provided (prevent SSRF)
   if (audioUrl) {
-    const urlValidation = validateAudioUrl(audioUrl);
+    const urlValidation = await validateAudioUrl(audioUrl);
     if (!urlValidation.valid) {
       return c.json({ error: urlValidation.error }, 400);
     }
