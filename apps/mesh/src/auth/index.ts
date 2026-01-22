@@ -279,6 +279,13 @@ export const auth = betterAuth({
   // Base URL for OAuth - will be overridden by request context
   baseURL: process.env.BASE_URL || "http://localhost:3000",
 
+  // Trusted origins for development and tunnels
+  trustedOrigins: [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://*.deco.host",
+  ],
+
   // Better Auth can use the dialect directly
   database,
 

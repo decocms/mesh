@@ -3,6 +3,7 @@
  *
  * Base wrapper for individual form fields.
  * Handles label, description, and special cases like readonly fields.
+ * Layout: vertical (label, description, input stacked)
  */
 
 import type { FieldTemplateProps } from "@rjsf/utils";
@@ -24,62 +25,55 @@ export function CustomFieldTemplate(props: FieldTemplateProps) {
   // Handle readonly string fields with copy button
   if (schema.readOnly && schema.type === "string") {
     return (
-      <div className="flex items-center gap-3 justify-between">
-        <div className="flex-1 min-w-0">
-          {label && (
-            <label className="text-sm font-medium truncate block" htmlFor={id}>
-              {label}
-            </label>
-          )}
-          {description && (
-            <p className="text-xs text-muted-foreground truncate">
-              {description}
-            </p>
-          )}
-        </div>
-        <div className="w-[250px] shrink-0">
-          <ReadonlyStringWidget
-            id={id}
-            value={formData ?? schema.default}
-            schema={schema}
-            onChange={() => {}}
-            onBlur={() => {}}
-            onFocus={() => {}}
-            options={{}}
-            registry={props.registry}
-            label={label || ""}
-            required={props.required}
-            disabled={props.disabled}
-            readonly={true}
-            autofocus={false}
-            placeholder=""
-            rawErrors={[]}
-            uiSchema={{}}
-            formContext={{}}
-            name=""
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // Default field layout
-  return (
-    <div className="flex items-center gap-3 justify-between">
-      <div className="flex-1 min-w-0">
+      <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="text-sm font-medium truncate block" htmlFor={id}>
+          <label className="text-sm font-medium" htmlFor={id}>
             {label}
           </label>
         )}
         {description && (
-          <p className="text-xs text-muted-foreground truncate">
+          <p className="text-xs text-muted-foreground">
             {description}
           </p>
         )}
+        <ReadonlyStringWidget
+          id={id}
+          value={formData ?? schema.default}
+          schema={schema}
+          onChange={() => {}}
+          onBlur={() => {}}
+          onFocus={() => {}}
+          options={{}}
+          registry={props.registry}
+          label={label || ""}
+          required={props.required}
+          disabled={props.disabled}
+          readonly={true}
+          autofocus={false}
+          placeholder=""
+          rawErrors={[]}
+          uiSchema={{}}
+          formContext={{}}
+          name=""
+        />
       </div>
-      <div className="w-[200px] shrink-0">{children}</div>
+    );
+  }
+
+  // Default field layout - vertical stack
+  return (
+    <div className="flex flex-col gap-1.5">
+      {label && (
+        <label className="text-sm font-medium" htmlFor={id}>
+          {label}
+        </label>
+      )}
+      {description && (
+        <p className="text-xs text-muted-foreground">
+          {description}
+        </p>
+      )}
+      <div>{children}</div>
     </div>
   );
 }
-

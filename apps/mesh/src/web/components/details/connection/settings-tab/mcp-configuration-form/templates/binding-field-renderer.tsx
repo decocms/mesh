@@ -79,7 +79,7 @@ export function BindingFieldRenderer({
           onVirtualMcpChange={handleBindingChange}
           variant="bordered"
           placeholder="Select Agent"
-          className="w-[200px] shrink-0"
+            className="w-full"
         />
       </FieldWrapper>
     );
@@ -96,7 +96,7 @@ export function BindingFieldRenderer({
           onModelChange={handleModelChange}
           variant="bordered"
           placeholder="Select Language Model"
-          className="w-[200px] shrink-0"
+            className="w-full"
         />
       </FieldWrapper>
     );
@@ -112,13 +112,13 @@ export function BindingFieldRenderer({
         onValueChange={handleBindingChange}
         placeholder={`Select ${displayTitle.toLowerCase()}...`}
         onAddNew={() => formContext?.onAddNew()}
-        className="w-[200px] shrink-0"
+            className="w-full"
       />
     </FieldWrapper>
   );
 }
 
-// Field wrapper for consistent layout
+// Field wrapper for consistent layout - vertical stack
 function FieldWrapper({
   title,
   description,
@@ -129,14 +129,12 @@ function FieldWrapper({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-3 justify-between">
-      <div className="flex-1 min-w-0">
-        <label className="text-sm font-medium truncate block">{title}</label>
-        {description && (
-          <p className="text-xs text-muted-foreground truncate">{description}</p>
-        )}
-      </div>
-      {children}
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium">{title}</label>
+      {description && (
+        <p className="text-xs text-muted-foreground">{description}</p>
+      )}
+      <div>{children}</div>
     </div>
   );
 }

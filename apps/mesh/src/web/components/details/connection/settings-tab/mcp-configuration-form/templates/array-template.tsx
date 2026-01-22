@@ -2,7 +2,7 @@
  * Array Field Template
  *
  * Renders array fields with add/remove controls.
- * Based on RJSF ArrayFieldTemplateProps where items are React elements.
+ * Based on RJSF ArrayFieldTemplateProps.
  */
 
 import type { ArrayFieldTemplateProps } from "@rjsf/utils";
@@ -21,16 +21,16 @@ export function CustomArrayFieldTemplate(props: ArrayFieldTemplateProps) {
       {/* Array items */}
       <div className="space-y-2">
         {items.length === 0 ? (
-          <div className="text-sm text-muted-foreground py-2 text-center border border-dashed rounded-md">
-            No items added
+          <div className="text-sm text-muted-foreground py-3 text-center border border-dashed rounded-md">
+            No items added yet
           </div>
         ) : (
           items.map((item) => (
             <div
-              key={(item as unknown as { key?: string }).key ?? String(item)}
-              className="flex gap-2 items-start animate-in fade-in slide-in-from-top-1 duration-200"
+              key={(item as unknown as { key?: string; index?: number }).key ?? (item as unknown as { index?: number }).index}
+              className="flex gap-2 items-start"
             >
-              <div className="flex-1 min-w-0">{item}</div>
+              <div className="flex-1">{item}</div>
             </div>
           ))
         )}
@@ -39,11 +39,11 @@ export function CustomArrayFieldTemplate(props: ArrayFieldTemplateProps) {
       {/* Add button */}
       {canAdd && (
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={onAddClick}
           className="w-full"
-          type="button"
         >
           <Plus size={16} className="mr-2" />
           Add {itemLabel}
