@@ -151,7 +151,6 @@ app.post("/:org/decopilot/stream", async (c) => {
     const shouldGenerateTitle = prunedMessages.length === 1;
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
     let newTitle: string | null = null;
-
     // 4. Main stream
     const result = streamText({
       model: modelProvider.model,

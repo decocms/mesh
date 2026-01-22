@@ -576,7 +576,6 @@ export function ChatProvider({
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
       return;
     }
-    chatDispatch({ type: "SET_TIPTAP_DOC", payload: undefined });
 
     // Only add the assistant message - user message was already added before sendMessage
     const newMessages = finishMessages.slice(-1).filter(Boolean) as Message[];
@@ -731,7 +730,7 @@ export function ChatProvider({
       return;
     }
 
-    clearFinishReason();
+    resetInteraction();
 
     const messageMetadata: Metadata = {
       tiptapDoc,
