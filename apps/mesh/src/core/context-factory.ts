@@ -709,6 +709,7 @@ const DEFAULT_TIMINGS = {
   },
 };
 
+const wellKnownForwardableHeaders = ["x-hub-signature-256"];
 /**
  * Create a context factory function
  *
@@ -803,6 +804,11 @@ export function createMeshContextFactory(
       metadata: {
         requestId: crypto.randomUUID(),
         timestamp: new Date(),
+        wellKnownForwardableHeaders: Object.fromEntries(
+          wellKnownForwardableHeaders
+            .map((header) => [header, req?.headers.get(header) ?? null])
+            .filter(([_, value]) => value !== null),
+        ),
         userAgent:
           req?.headers.get("x-mesh-client") ||
           req?.headers.get("User-Agent") ||
