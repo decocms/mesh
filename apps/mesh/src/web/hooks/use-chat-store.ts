@@ -86,8 +86,7 @@ async function getThreadMessages(threadId: string) {
       input,
     )) as CollectionListOutput<Message>;
     return result.items ?? [];
-  } catch (error) {
-    console.error({ error });
+  } catch {
     return [];
   }
 }
@@ -109,8 +108,7 @@ export function useThreadMessages(threadId: string | null) {
           return [];
         }
         return await getThreadMessages(threadId);
-      } catch (error) {
-        console.error({ error });
+      } catch {
         return [];
       }
     },
