@@ -144,11 +144,17 @@ function ChatPanelContent() {
 }
 
 export function ChatPanel() {
-  const { threads } = useThreads();
+  const { threads, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useThreads();
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.Provider initialThreads={threads}>
+        <Chat.Provider
+          initialThreads={threads}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+        >
           <ChatPanelContent />
         </Chat.Provider>
       </Suspense>

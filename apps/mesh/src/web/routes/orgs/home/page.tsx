@@ -220,7 +220,8 @@ function HomeChatErrorFallback({
 }
 
 export default function OrgHomePage() {
-  const { threads } = useThreads();
+  const { threads, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useThreads();
   return (
     <ErrorBoundary
       fallback={({ error, resetError }) => (
@@ -228,7 +229,12 @@ export default function OrgHomePage() {
       )}
     >
       <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.Provider initialThreads={threads}>
+        <Chat.Provider
+          initialThreads={threads}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+        >
           <HomeContent />
         </Chat.Provider>
       </Suspense>

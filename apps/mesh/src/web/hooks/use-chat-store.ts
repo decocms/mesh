@@ -5,7 +5,10 @@
  * Uses TanStack React Query for caching and mutations with idb-keyval for persistence.
  */
 
-import { useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useSuspenseInfiniteQuery,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message, Thread } from "../components/chat/types.ts";
@@ -15,36 +18,58 @@ import {
   CollectionListOutput,
 } from "@decocms/bindings/collections";
 
+const THREADS_PAGE_SIZE = 50;
+
 /**
- * Hook to get all threads, optionally filtered by virtual MCP (agent)
+ * Hook to get all threads with infinite scroll pagination
  *
- * @param options - Optional filter options
- * @param options.virtualMcpId - Filter threads by virtual MCP ID
- * @returns Object with threads array and refetch function
+ * @returns Object with threads array, pagination helpers, and refetch function
  */
 export function useThreads() {
   const { locator } = useProjectContext();
   const toolCaller = createToolCaller();
   const listToolName = "COLLECTION_THREADS_LIST";
-  const input: CollectionListInput = {
-    limit: 100,
-    offset: 0,
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
+    useSuspenseInfiniteQuery({
+      queryKey: KEYS.threads(locator),
+      queryFn: async ({ pageParam = 0 }) => {
+        const input: CollectionListInput = {
+          limit: THREADS_PAGE_SIZE,
+          offset: pageParam,
+        };
+
+        const result = (await toolCaller(
+          listToolName,
+          input,
+        )) as CollectionListOutput<Thread>;
+
+        return {
+          items: result.items ?? [],
+          hasMore: result.hasMore ?? false,
+          totalCount: result.totalCount,
+        };
+      },
+      getNextPageParam: (lastPage, allPages) => {
+        if (!lastPage.hasMore) {
+          return undefined;
+        }
+        return allPages.length * THREADS_PAGE_SIZE;
+      },
+      initialPageParam: 0,
+      staleTime: 30_000,
+    });
+
+  // Flatten all pages into a single threads array
+  const threads = data?.pages.flatMap((page) => page.items) ?? [];
+
+  return {
+    threads,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   };
-
-  const { data, refetch } = useSuspenseQuery({
-    queryKey: KEYS.threads(locator),
-    queryFn: async () => {
-      const persistedThreads = (await toolCaller(
-        listToolName,
-        input,
-      )) as CollectionListOutput<Thread>;
-
-      return persistedThreads.items ?? [];
-    },
-    staleTime: 30_000,
-  });
-
-  return { threads: data ?? [], refetch };
 }
 
 async function getThreadMessages(threadId: string) {

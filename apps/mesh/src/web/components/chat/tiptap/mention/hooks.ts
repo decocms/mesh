@@ -428,7 +428,7 @@ export function useMentionState({
     editor.registerPlugin(suggestion);
 
     return () => {
-      if (editor?.isDestroyed) {
+      if (!editor?.isDestroyed) {
         editor.unregisterPlugin(key);
       }
     };

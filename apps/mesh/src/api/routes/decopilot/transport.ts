@@ -27,8 +27,9 @@ export function createVirtualMcpTransport(
   }
 
   // Use /mcp/virtual-mcp/ for default, /mcp/virtual-mcp/:id for specific virtual MCP
+  // Encode virtualMcpId to prevent path/query injection
   const virtualMcpPath = virtualMcpId
-    ? `/mcp/virtual-mcp/${virtualMcpId}`
+    ? `/mcp/virtual-mcp/${encodeURIComponent(virtualMcpId)}`
     : "/mcp/virtual-mcp";
   const virtualMcpUrl = new URL(virtualMcpPath, baseUrl);
   virtualMcpUrl.searchParams.set("mode", "code_execution");

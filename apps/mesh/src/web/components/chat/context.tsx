@@ -89,6 +89,11 @@ interface ChatContextValue {
   threads: Thread[];
   hideThread: (threadId: string) => void;
 
+  // Thread pagination (for infinite scroll)
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+
   // Virtual MCP state
   virtualMcps: VirtualMCPInfo[];
   selectedVirtualMcp: VirtualMCPInfo | null;
@@ -474,7 +479,15 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 export function ChatProvider({
   children,
   initialThreads,
-}: PropsWithChildren & { initialThreads: Thread[] }) {
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+}: PropsWithChildren & {
+  initialThreads: Thread[];
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+}) {
   const { locator, org } = useProjectContext();
   const [stateThreads, setStateThreads] = useLocalStorage<Thread[]>(
     LOCALSTORAGE_KEYS.assistantChatThreads(locator),
@@ -573,19 +586,22 @@ export function ChatProvider({
     const title = finishMessages.find((message) => message.metadata?.title)
       ?.metadata?.title;
 
-    if (
-      stateThreads.findIndex((thread) => thread.id === stateActiveThreadId) ===
-      -1
-    ) {
-      setStateThreads((prevThreads) => [
-        ...prevThreads,
-        {
+
+    const isNewThread = stateThreads.findIndex((thread) => thread.id === stateActiveThreadId) === -1;
+
+    if (isNewThread) {
+      setStateThreads((prevThreads) => {
+        const existingThread = prevThreads.find((thread) => thread.id === stateActiveThreadId);
+        if (existingThread) {
+          return prevThreads;
+        }
+        return [...prevThreads, {
           id: stateActiveThreadId,
           title: title ?? "New Thread",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        },
-      ]);
+        }];
+      });
     }
     addMessages(newMessages);
   };
@@ -721,6 +737,11 @@ export function ChatProvider({
     threads: stateThreads,
     setActiveThreadId: setStateActiveThreadId,
     hideThread,
+
+    // Thread pagination
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
 
     // Virtual MCP state
     virtualMcps,
