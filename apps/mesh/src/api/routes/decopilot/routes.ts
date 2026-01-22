@@ -16,9 +16,9 @@ import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 import {
+  DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
   DEFAULT_WINDOW_SIZE,
-  DECOPILOT_BASE_PROMPT,
 } from "./constants";
 import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
@@ -196,53 +196,6 @@ app.post("/:org/decopilot/stream", async (c) => {
         await client?.close().catch(console.error);
         throw error;
       },
-      // onAbort is called when stream is aborted - persist partial results
-      onAbort: async ({ steps }) => {
-        abortSignal.removeEventListener("abort", abortHandler);
-        await client?.close().catch(console.error);
-
-        // Save partial results if we have any completed steps
-        if (steps.length > 0) {
-          const lastStep = steps[steps.length - 1];
-          const userMsg = messages[messages.length - 1];
-          const partialMessages: UIMessage<Metadata>[] = [
-            {
-              id: generatePrefixedId("msg"),
-              role: "user",
-              parts: userMsg?.parts ?? [],
-              metadata: userMsg?.metadata,
-            },
-            {
-              id: generatePrefixedId("msg"),
-              role: "assistant",
-              parts: [{ type: "text" as const, text: lastStep?.text ?? "" }],
-              metadata: {},
-            },
-          ];
-
-          const messagesToSave = partialMessages.map((message) => {
-            const now = new Date().getTime();
-            const createdAt = message.role === "user" ? now : now + 1000;
-            return {
-              ...message,
-              metadata: {
-                ...message.metadata,
-                title: newTitle ?? undefined,
-              },
-              id: generatePrefixedId("msg"),
-              createdAt: new Date(createdAt).toISOString(),
-              updatedAt: new Date(createdAt).toISOString(),
-              threadId: memory.thread.id,
-            };
-          });
-          await memory.save(messagesToSave).catch((error) => {
-            console.error(
-              "[decopilot:stream] Error saving partial messages",
-              error,
-            );
-          });
-        }
-      },
       onFinish: async () => {
         abortSignal.removeEventListener("abort", abortHandler);
         await client?.close().catch(console.error);
@@ -283,12 +236,56 @@ app.post("/:org/decopilot/stream", async (c) => {
         }
         return {};
       },
-      onFinish: async ({ messages: UIMessages, isAborted }) => {
-        // Skip saving if aborted - onAbort already handled it
+      onFinish: async ({
+        messages: UIMessages,
+        isAborted,
+        responseMessage,
+      }) => {
         if (isAborted) {
+          const userMsg = messages[messages.length - 1];
+          const assistantMsg = responseMessage;
+          const assistantMsgParts = assistantMsg?.parts ?? [];
+          const userMsgParts = userMsg?.parts ?? [];
+          if (assistantMsgParts.length === 0 || userMsgParts.length === 0) {
+            return;
+          }
+          const partialMessages: UIMessage<Metadata>[] = [
+            {
+              id: generatePrefixedId("msg"),
+              role: "user",
+              parts: userMsgParts,
+              metadata: userMsg?.metadata,
+            },
+            {
+              id: generatePrefixedId("msg"),
+              role: "assistant",
+              parts: assistantMsgParts,
+              metadata: assistantMsg?.metadata,
+            },
+          ];
+
+          const messagesToSave = partialMessages.map((message) => {
+            const now = new Date().getTime();
+            const createdAt = message.role === "user" ? now : now + 1000;
+            return {
+              ...message,
+              metadata: {
+                ...message.metadata,
+                title: newTitle ?? undefined,
+              },
+              createdAt: new Date(createdAt).toISOString(),
+              updatedAt: new Date(createdAt).toISOString(),
+              threadId: memory.thread.id,
+            };
+          });
+          await memory.save(messagesToSave).catch((error) => {
+            console.error(
+              "[decopilot:stream] Error saving partial messages",
+              error,
+            );
+          });
           return;
         }
-
         const messagesToSave = UIMessages.slice(-2).map((message) => {
           const now = new Date().getTime();
           const createdAt = message.role === "user" ? now : now + 1000;
