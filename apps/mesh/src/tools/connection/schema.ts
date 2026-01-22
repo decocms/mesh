@@ -23,6 +23,17 @@ const OAuthConfigSchema = z.object({
 export type OAuthConfig = z.infer<typeof OAuthConfigSchema>;
 
 /**
+ * Tool annotations schema from MCP spec
+ */
+const ToolAnnotationsSchema = z.object({
+  title: z.string().optional(),
+  readOnlyHint: z.boolean().optional(),
+  destructiveHint: z.boolean().optional(),
+  idempotentHint: z.boolean().optional(),
+  openWorldHint: z.boolean().optional(),
+});
+
+/**
  * Tool definition schema from MCP discovery
  */
 const ToolDefinitionSchema = z.object({
@@ -30,6 +41,8 @@ const ToolDefinitionSchema = z.object({
   description: z.string().optional(),
   inputSchema: z.record(z.string(), z.unknown()),
   outputSchema: z.record(z.string(), z.unknown()).optional(),
+  annotations: ToolAnnotationsSchema.optional(),
+  _meta: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;

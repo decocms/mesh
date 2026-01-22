@@ -1,7 +1,8 @@
 import { BaseCollectionEntitySchema } from "@decocms/bindings/collections";
 import { z } from "zod";
 
-export const MCP_REGISTRY_DECOCMS_KEY = "mcp.mesh";
+// Re-export from core for backwards compatibility
+export { MCP_MESH_KEY as MCP_MESH_DECOCMS_KEY } from "@/core/constants";
 
 export type JsonSchema = {
   type?: string;

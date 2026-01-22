@@ -49,7 +49,7 @@ import {
   type ReadResourceResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import { Hono } from "hono";
+import { Context, Hono } from "hono";
 import { issueMeshToken } from "../../auth/jwt";
 import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
@@ -103,14 +103,25 @@ type CallStreamableToolMiddleware = (
  *
  * Permission check: { '<connectionId>': ['toolName'] }
  * Delegates to Better Auth's hasPermission API via boundAuth
+ *
+ * Supports public tools: if tool._meta["mcp.mesh"].public_tool is true,
+ * unauthenticated requests are allowed through.
  */
 function withConnectionAuthorization(
   ctx: MeshContext,
   connectionId: string,
+  listToolsFn: () => Promise<ListToolsResult>,
 ): CallToolMiddleware {
   return async (request, next) => {
     try {
       const toolName = request.params.name;
+
+      // Create getToolMeta callback scoped to current tool
+      const getToolMeta = async () => {
+        const { tools } = await listToolsFn();
+        const tool = tools.find((t) => t.name === toolName);
+        return tool?._meta as Record<string, unknown> | undefined;
+      };
 
       // Create AccessControl with connectionId set
       // This checks: does user have permission for this TOOL on this CONNECTION?
@@ -122,6 +133,7 @@ function withConnectionAuthorization(
         ctx.boundAuth, // Bound auth client (encapsulates headers)
         ctx.auth.user?.role, // Role for built-in role bypass
         connectionId, // Connection ID for permission check
+        getToolMeta, // Callback for public tool check
       );
 
       await connectionAccessControl.check(toolName);
@@ -145,14 +157,25 @@ function withConnectionAuthorization(
 /**
  * Streamable authorization middleware - checks access to tool on connection
  * Returns Response instead of CallToolResult for streaming use cases
+ *
+ * Supports public tools: if tool._meta["mcp.mesh"].public_tool is true,
+ * unauthenticated requests are allowed through.
  */
 function withStreamableConnectionAuthorization(
   ctx: MeshContext,
   connectionId: string,
+  listToolsFn: () => Promise<ListToolsResult>,
 ): CallStreamableToolMiddleware {
   return async (request, next) => {
     try {
       const toolName = request.params.name;
+
+      // Create getToolMeta callback scoped to current tool
+      const getToolMeta = async () => {
+        const { tools } = await listToolsFn();
+        const tool = tools.find((t) => t.name === toolName);
+        return tool?._meta as Record<string, unknown> | undefined;
+      };
 
       const connectionAccessControl = new AccessControl(
         ctx.authInstance,
@@ -161,6 +184,7 @@ function withStreamableConnectionAuthorization(
         ctx.boundAuth, // Bound auth client (encapsulates headers)
         ctx.auth.user?.role,
         connectionId,
+        getToolMeta, // Callback for public tool check
       );
 
       await connectionAccessControl.check(toolName);
@@ -497,14 +521,43 @@ async function createMCPProxyDoNotUseDirectly(
     }
   };
 
+  // List tools from downstream connection
+  // Uses indexed tools if available, falls back to client for connections without cached tools
+  // NOTE: Defined early so it can be passed to authorization middlewares for public tool check
+  const listTools = async (): Promise<ListToolsResult> => {
+    // Use indexed tools if available
+    if (connection.tools && connection.tools.length > 0) {
+      return {
+        tools: connection.tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema as Tool["inputSchema"],
+          outputSchema: tool.outputSchema as Tool["outputSchema"],
+          annotations: tool.annotations,
+          _meta: tool._meta,
+        })),
+      };
+    }
+
+    // Fall back to client for connections without indexed tools
+    let client: Awaited<ReturnType<typeof createClient>> | undefined;
+    try {
+      client = await createClient();
+      return await client.listTools();
+    } finally {
+      client?.close().catch(console.error);
+    }
+  };
+
   // Create authorization middlewares
   // Uses boundAuth for permission checks (delegates to Better Auth)
+  // Pass listTools for public tool check
   const authMiddleware: CallToolMiddleware = superUser
     ? async (_, next) => await next()
-    : withConnectionAuthorization(ctx, connectionId);
+    : withConnectionAuthorization(ctx, connectionId, listTools);
   const streamableAuthMiddleware: CallStreamableToolMiddleware = superUser
     ? async (_, next) => await next()
-    : withStreamableConnectionAuthorization(ctx, connectionId);
+    : withStreamableConnectionAuthorization(ctx, connectionId, listTools);
 
   // If ctx.connectionId is set and different from current connection,
   // it means this proxy is being called through a Virtual MCP (agent)
@@ -614,31 +667,6 @@ async function createMCPProxyDoNotUseDirectly(
         },
       );
     });
-  };
-
-  // List tools from downstream connection
-  // Uses indexed tools if available, falls back to client for connections without cached tools
-  const listTools = async (): Promise<ListToolsResult> => {
-    // Use indexed tools if available
-    if (connection.tools && connection.tools.length > 0) {
-      return {
-        tools: connection.tools.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: tool.inputSchema as Tool["inputSchema"],
-          outputSchema: tool.outputSchema as Tool["outputSchema"],
-        })),
-      };
-    }
-
-    // Fall back to client for connections without indexed tools
-    let client: Awaited<ReturnType<typeof createClient>> | undefined;
-    try {
-      client = await createClient();
-      return await client.listTools();
-    } finally {
-      client?.close().catch(console.error);
-    }
   };
 
   // List resources from downstream connection
@@ -1004,23 +1032,57 @@ app.all("/:connectionId", async (c) => {
     const proxy = await ctx.createMCPProxy(connectionId);
     return await proxy.fetch(c.req.raw);
   } catch (error) {
-    const err = error as Error;
+    return handleError(error as Error, c);
+  }
+});
 
-    if (err.message.includes("not found")) {
-      return c.json({ error: err.message }, 404);
-    }
-    if (err.message.includes("does not belong to the active organization")) {
-      // Return 404 to prevent leaking connection existence across organizations
-      return c.json({ error: "Connection not found" }, 404);
-    }
-    if (err.message.includes("inactive")) {
-      return c.json({ error: err.message }, 503);
+const handleError = (err: Error, c: Context) => {
+  if (err.message.includes("not found")) {
+    return c.json({ error: err.message }, 404);
+  }
+  if (err.message.includes("does not belong to the active organization")) {
+    return c.json({ error: "Connection not found" }, 404);
+  }
+  if (err.message.includes("inactive")) {
+    return c.json({ error: err.message }, 503);
+  }
+  return c.json({ error: "Internal server error", message: err.message }, 500);
+};
+
+app.all("/:connectionId/call-tool/:toolName", async (c) => {
+  const connectionId = c.req.param("connectionId");
+  const toolName = c.req.param("toolName");
+  const ctx = c.get("meshContext");
+
+  try {
+    const proxy = await ctx.createMCPProxy(connectionId);
+    const result = await proxy.client.callTool({
+      name: toolName,
+      arguments: await c.req.json(),
+    });
+    if (result instanceof Response) {
+      return result;
     }
 
-    return c.json(
-      { error: "Internal server error", message: err.message },
-      500,
+    if (result.isError) {
+      return new Response(JSON.stringify(result.content), {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        status: 500,
+      });
+    }
+
+    return new Response(
+      JSON.stringify(result.structuredContent ?? result.content),
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
     );
+  } catch (error) {
+    return handleError(error as Error, c);
   }
 });
 

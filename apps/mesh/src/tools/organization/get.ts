@@ -42,9 +42,17 @@ export const ORGANIZATION_GET = defineTool({
       throw new Error("No active organization found");
     }
 
+    // Filter out expired invitations - Better Auth returns all invitations
+    // but acceptInvitation/rejectInvitation will fail for expired ones
+    const now = new Date();
+    const validInvitations = organization.invitations?.filter(
+      (inv: { expiresAt: string | Date }) => new Date(inv.expiresAt) > now,
+    );
+
     // Convert dates to ISO strings for JSON Schema compatibility
     return {
       ...organization,
+      invitations: validInvitations,
       createdAt:
         organization.createdAt instanceof Date
           ? organization.createdAt.toISOString()

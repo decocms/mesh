@@ -9,10 +9,19 @@
  * 4. Tools can manually grant access for custom logic
  */
 
+import { MCP_MESH_KEY } from "@/core/constants";
 import { WellKnownMCPId } from "@/core/well-known-mcp";
 import type { BetterAuthInstance, BoundAuthClient } from "./mesh-context";
 
-// Forward declaration (will be replaced with actual Better Auth type)
+// ============================================================================
+// Types
+// ============================================================================
+
+/**
+ * Callback to get tool metadata for public tool check.
+ * Scoped to the current tool being accessed.
+ */
+export type GetToolMetaFn = () => Promise<Record<string, unknown> | undefined>;
 
 // ============================================================================
 // Errors
@@ -58,6 +67,7 @@ export class AccessControl implements Disposable {
     private boundAuth?: BoundAuthClient, // Bound auth client for permission checks
     private role?: string, // From user session (for built-in role bypass)
     private connectionId: string = WellKnownMCPId.SELF, // For connection-specific checks
+    private getToolMeta?: GetToolMetaFn, // Optional callback for public tool check
   ) {}
 
   [Symbol.dispose](): void {
@@ -103,6 +113,11 @@ export class AccessControl implements Disposable {
 
     // Check if authenticated first (401)
     if (!this.userId && !this.boundAuth) {
+      // Check if tool is public before throwing
+      if (this.getToolMeta && (await this.isToolPublic())) {
+        this.grant();
+        return;
+      }
       throw new UnauthorizedError(
         "Authentication required. Please provide a valid OAuth token or API key.",
       );
@@ -159,6 +174,24 @@ export class AccessControl implements Disposable {
 
     // Delegate to Better Auth's hasPermission API
     return this.boundAuth.hasPermission(permissionToCheck);
+  }
+
+  /**
+   * Check if the current tool is marked as public via _meta["mcp.mesh"].public_tool
+   */
+  private async isToolPublic(): Promise<boolean> {
+    if (!this.getToolMeta) return false;
+    try {
+      const meta = await this.getToolMeta();
+      if (!meta) return false;
+      const meshMeta = meta[MCP_MESH_KEY] as
+        | Record<string, unknown>
+        | undefined;
+      const value = meshMeta?.public_tool;
+      return value === true || value === "true";
+    } catch {
+      return false;
+    }
   }
 
   /**
