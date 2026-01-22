@@ -14,6 +14,7 @@ import {
   OBJECT_STORAGE_BINDING,
   SUPPORTED_AUDIO_FORMATS,
   connectionImplementsBinding,
+  type Binder,
 } from "@decocms/bindings";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
@@ -28,35 +29,18 @@ const app = new Hono<{ Variables: Variables }>();
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 /**
- * Find a connection that implements TRANSCRIPTION_BINDING
+ * Find a connection that implements a specific binding
  */
-async function findTranscriptionConnection(
+async function findConnectionWithBinding(
   ctx: MeshContext,
   organizationId: string,
+  binding: Binder,
 ): Promise<ConnectionEntity | null> {
   const connections = await ctx.storage.connections.list(organizationId);
   return (
     connections.find(
       (conn) =>
-        conn.status === "active" &&
-        connectionImplementsBinding(conn, TRANSCRIPTION_BINDING),
-    ) ?? null
-  );
-}
-
-/**
- * Find a connection that implements OBJECT_STORAGE_BINDING
- */
-async function findObjectStorageConnection(
-  ctx: MeshContext,
-  organizationId: string,
-): Promise<ConnectionEntity | null> {
-  const connections = await ctx.storage.connections.list(organizationId);
-  return (
-    connections.find(
-      (conn) =>
-        conn.status === "active" &&
-        connectionImplementsBinding(conn, OBJECT_STORAGE_BINDING),
+        conn.status === "active" && connectionImplementsBinding(conn, binding),
     ) ?? null
   );
 }
@@ -251,9 +235,10 @@ app.post("/:org/transcribe", async (c) => {
   }
 
   // 5. Find transcription connection
-  const transcriptionConnection = await findTranscriptionConnection(
+  const transcriptionConnection = await findConnectionWithBinding(
     ctx,
     organizationId,
+    TRANSCRIPTION_BINDING,
   );
 
   if (!transcriptionConnection) {
@@ -273,9 +258,10 @@ app.post("/:org/transcribe", async (c) => {
 
   if (audioFile && !audioUrl) {
     // Find object storage connection for temporary upload
-    objectStorageConnection = await findObjectStorageConnection(
+    objectStorageConnection = await findConnectionWithBinding(
       ctx,
       organizationId,
+      OBJECT_STORAGE_BINDING,
     );
 
     if (!objectStorageConnection) {

@@ -274,7 +274,7 @@ export function ChatInput() {
     if (isRecording) {
       const audioBlob = await stopRecording();
       if (!audioBlob) {
-        toast.error("Falha ao gravar áudio");
+        toast.error("Failed to record audio");
         return;
       }
 
@@ -292,7 +292,7 @@ export function ChatInput() {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(
-            (errorData as { error?: string }).error || "Falha na transcrição",
+            (errorData as { error?: string }).error || "Transcription failed",
           );
         }
 
@@ -312,7 +312,7 @@ export function ChatInput() {
         }
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Erro ao transcrever áudio",
+          err instanceof Error ? err.message : "Failed to transcribe audio",
         );
       } finally {
         setIsTranscribing(false);
@@ -503,10 +503,10 @@ export function ChatInput() {
                       </TooltipTrigger>
                       <TooltipContent side="top" sideOffset={8}>
                         {isTranscribing
-                          ? "Transcrevendo..."
+                          ? "Transcribing..."
                           : isRecording
-                            ? "Clique para parar e transcrever"
-                            : "Gravar áudio"}
+                            ? "Click to stop and transcribe"
+                            : "Record audio"}
                       </TooltipContent>
                     </Tooltip>
                   )}

@@ -138,7 +138,13 @@ const createModelsTransport = (
   new DefaultChatTransport<UIMessage<Metadata>>({
     api: `/api/${org}/decopilot/stream`,
     credentials: "include",
-    prepareSendMessagesRequest: ({ messages, requestMetadata = {} }: { messages: Message[]; requestMetadata: Metadata }) => {
+    prepareSendMessagesRequest: ({
+      messages,
+      requestMetadata = {},
+    }: {
+      messages: Message[];
+      requestMetadata: Metadata;
+    }) => {
       const {
         system,
         tiptapDoc: _tiptapDoc,
