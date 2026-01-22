@@ -586,21 +586,27 @@ export function ChatProvider({
     const title = finishMessages.find((message) => message.metadata?.title)
       ?.metadata?.title;
 
-
-    const isNewThread = stateThreads.findIndex((thread) => thread.id === stateActiveThreadId) === -1;
+    const isNewThread =
+      stateThreads.findIndex((thread) => thread.id === stateActiveThreadId) ===
+      -1;
 
     if (isNewThread) {
       setStateThreads((prevThreads) => {
-        const existingThread = prevThreads.find((thread) => thread.id === stateActiveThreadId);
+        const existingThread = prevThreads.find(
+          (thread) => thread.id === stateActiveThreadId,
+        );
         if (existingThread) {
           return prevThreads;
         }
-        return [...prevThreads, {
-          id: stateActiveThreadId,
-          title: title ?? "New Thread",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }];
+        return [
+          ...prevThreads,
+          {
+            id: stateActiveThreadId,
+            title: title ?? "New Thread",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        ];
       });
     }
     addMessages(newMessages);
