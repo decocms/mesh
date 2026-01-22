@@ -53,10 +53,10 @@ export const ResourcesMention = ({
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: virtualMcpId,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
   // Use the query key helper which handles null (default virtual MCP)
-  const queryKey = KEYS.virtualMcpResources(virtualMcpId, org.slug);
+  const queryKey = KEYS.virtualMcpResources(virtualMcpId, org.id);
 
   const handleItemSelect = async ({
     item,

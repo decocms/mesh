@@ -66,6 +66,7 @@ export async function handleVirtualMcpRequest(
   const ctx = c.get("meshContext");
 
   try {
+    // Prefer x-org-id header (no DB lookup) over x-org-slug (requires DB lookup)
     const orgId = c.req.header("x-org-id");
     const orgSlug = c.req.header("x-org-slug");
 

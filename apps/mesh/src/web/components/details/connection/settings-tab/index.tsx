@@ -263,7 +263,7 @@ function useMcpConfiguration(connectionId: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   const { data: configResult } = useMCPToolCall<McpConfigurationResult>({

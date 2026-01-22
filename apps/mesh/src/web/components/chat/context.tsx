@@ -533,7 +533,7 @@ export function ChatProvider({
   // MCP client for thread operations
   const mcpClient = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   // Project context

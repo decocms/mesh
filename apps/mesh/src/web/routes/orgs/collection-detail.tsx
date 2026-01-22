@@ -77,7 +77,7 @@ function CollectionDetailsContent() {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: connectionId ?? null,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   const actions = useCollectionActions(scopeKey, collectionName, client);

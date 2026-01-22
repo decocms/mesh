@@ -11,8 +11,8 @@ const DEFAULT_CLIENT_INFO = {
 export interface CreateMcpClientOptions {
   /** Connection ID - use WellKnownOrgMCPId.SELF(org.id) for the self/management MCP, or any connectionId for other MCPs */
   connectionId: string | null;
-  /** Organization slug - required, transforms to x-org-slug header */
-  orgSlug: string;
+  /** Organization ID - required, transforms to x-org-id header */
+  orgId: string;
   /** Authorization token - optional */
   token?: string | null;
 }
@@ -41,7 +41,7 @@ function buildMcpUrl(connectionId: string | null): string {
  */
 export async function createMCPClient({
   connectionId,
-  orgSlug,
+  orgId,
   token,
 }: CreateMcpClientOptions): Promise<Client> {
   const url = buildMcpUrl(connectionId);
@@ -65,7 +65,7 @@ export async function createMCPClient({
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json, text/event-stream",
-        "x-org-slug": orgSlug,
+        "x-org-id": orgId,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     },
@@ -75,7 +75,7 @@ export async function createMCPClient({
 
   // Add toJSON method for query key serialization
   // This allows the client to be used directly in query keys
-  const queryKey = KEYS.mcpClient(orgSlug, connectionId ?? "self", token ?? "");
+  const queryKey = KEYS.mcpClient(orgId, connectionId ?? "self", token ?? "");
   (client as Client & { toJSON: () => string }).toJSON = () =>
     `mcp-client:${queryKey.join(":")}`;
 
@@ -91,14 +91,14 @@ export async function createMCPClient({
  */
 export function useMCPClient({
   connectionId,
-  orgSlug,
+  orgId,
   token,
 }: UseMcpClientOptions): Client {
-  const queryKey = KEYS.mcpClient(orgSlug, connectionId ?? "", token ?? "");
+  const queryKey = KEYS.mcpClient(orgId, connectionId ?? "", token ?? "");
 
   const { data: client } = useSuspenseQuery({
     queryKey,
-    queryFn: () => createMCPClient({ connectionId, orgSlug, token }),
+    queryFn: () => createMCPClient({ connectionId, orgId, token }),
     staleTime: Infinity, // Keep client alive while query is active
     gcTime: 0, // Clean up immediately when query is inactive
   });

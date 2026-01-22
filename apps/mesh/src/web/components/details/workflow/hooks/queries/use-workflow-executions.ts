@@ -22,7 +22,7 @@ export function useWorkflowExecutions() {
 
   const client = useMCPClient({
     connectionId: connection.id,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   const { data, isLoading, refetch } =

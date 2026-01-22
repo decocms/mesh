@@ -28,7 +28,7 @@ export function useOrganizationSettings(organizationId: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   const { data } = useSuspenseQuery({
@@ -71,7 +71,7 @@ export function useOrganizationSettingsActions(organizationId: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   const update = useMutation({

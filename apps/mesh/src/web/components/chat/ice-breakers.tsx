@@ -241,7 +241,7 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
   const { data } = useMCPPromptsList({ client, staleTime: 60000 });
   const prompts = data?.prompts ?? [];

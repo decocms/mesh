@@ -49,7 +49,7 @@ function useCollectionWorkflow({ itemId }: { itemId: string }) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: connectionId ?? null,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   const item = useCollectionItem<Workflow>(

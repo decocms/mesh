@@ -38,7 +38,7 @@ export function useLLMsFromConnection(
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: connectionId ?? null,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
   const scopeKey = connectionId ?? "no-connection";
   return useCollectionList<LLM>(scopeKey, "LLM", client, options);

@@ -37,11 +37,11 @@ export function useVirtualMCPs(options: UseVirtualMCPsOptions = {}) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   return useCollectionList<VirtualMCPEntity>(
-    org.slug,
+    org.id,
     "VIRTUAL_MCP",
     client,
     options,
@@ -60,13 +60,13 @@ export function useVirtualMCP(
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   // If null/undefined, return null (use default virtual MCP)
   // Use collection item hook for database virtual MCPs
   const dbVirtualMCP = useCollectionItem<VirtualMCPEntity>(
-    org.slug,
+    org.id,
     "VIRTUAL_MCP",
     virtualMcpId ?? undefined,
     client,
@@ -84,12 +84,8 @@ export function useVirtualMCPActions() {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
-  return useCollectionActions<VirtualMCPEntity>(
-    org.slug,
-    "VIRTUAL_MCP",
-    client,
-  );
+  return useCollectionActions<VirtualMCPEntity>(org.id, "VIRTUAL_MCP", client);
 }

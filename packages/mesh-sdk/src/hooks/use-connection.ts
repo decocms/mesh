@@ -37,10 +37,10 @@ export function useConnections(options: UseConnectionsOptions = {}) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
   return useCollectionList<ConnectionEntity>(
-    org.slug,
+    org.id,
     "CONNECTIONS",
     client,
     options,
@@ -57,10 +57,10 @@ export function useConnection(connectionId: string | undefined) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
   return useCollectionItem<ConnectionEntity>(
-    org.slug,
+    org.id,
     "CONNECTIONS",
     connectionId,
     client,
@@ -76,11 +76,7 @@ export function useConnectionActions() {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
-  return useCollectionActions<ConnectionEntity>(
-    org.slug,
-    "CONNECTIONS",
-    client,
-  );
+  return useCollectionActions<ConnectionEntity>(org.id, "CONNECTIONS", client);
 }

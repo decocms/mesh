@@ -35,7 +35,7 @@ export function useUserById(userId: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   return useQuery({

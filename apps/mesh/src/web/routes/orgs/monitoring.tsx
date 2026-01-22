@@ -800,7 +800,7 @@ function MonitoringDashboardContent({
   const { org, locator } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   // Convert property filters to API params

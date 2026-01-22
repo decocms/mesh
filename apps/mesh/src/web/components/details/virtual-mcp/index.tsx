@@ -758,7 +758,7 @@ function VirtualMCPInspectorViewWithData({
         try {
           const client = await createMCPClient({
             connectionId,
-            orgSlug: org.slug,
+            orgId: org.id,
           });
           return await listPrompts(client);
         } catch {
@@ -778,7 +778,7 @@ function VirtualMCPInspectorViewWithData({
         try {
           const client = await createMCPClient({
             connectionId,
-            orgSlug: org.slug,
+            orgId: org.id,
           });
           return await listResources(client);
         } catch {

@@ -131,7 +131,7 @@ export function useBindingSchemaFromRegistry(
           try {
             const result = await callRegistryTool<{
               items?: RegistryItemWithBinding[];
-            }>(registryId, org.slug, listToolName, toolInputParams);
+            }>(registryId, org.id, listToolName, toolInputParams);
             // Return the first matching item, or null if not found
             return result?.items?.[0] ?? null;
           } catch {

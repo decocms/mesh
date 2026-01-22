@@ -135,7 +135,7 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
 
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   const { data: logsData } =

@@ -60,10 +60,10 @@ export const PromptsMention = ({
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: virtualMcpId,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
   // Use the query key helper which handles null (default virtual MCP)
-  const queryKey = KEYS.virtualMcpPrompts(virtualMcpId, org.slug);
+  const queryKey = KEYS.virtualMcpPrompts(virtualMcpId, org.id);
   const [activePrompt, setActivePrompt] = useState<PromptSelectContext | null>(
     null,
   );

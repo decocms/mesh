@@ -164,7 +164,7 @@ function ToolDetailsAuthenticated({
 
   const client = useMCPClient({
     connectionId,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   const toolsQuery = useMCPToolsListQuery({ client });

@@ -62,7 +62,7 @@ export function CollectionTab({
   const { org: projectOrg } = useProjectContext();
   const client = useMCPClient({
     connectionId,
-    orgSlug: projectOrg.slug,
+    orgId: projectOrg.id,
   });
 
   const actions = useCollectionActions<BaseCollectionEntity>(

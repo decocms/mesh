@@ -222,7 +222,7 @@ function ConnectionInspectorViewContent() {
   // Get MCP client for this connection (suspense-based)
   const client = useMCPClient({
     connectionId,
-    orgSlug: projectOrg.slug,
+    orgId: projectOrg.id,
   });
 
   // Fetch prompts and resources using SDK hooks

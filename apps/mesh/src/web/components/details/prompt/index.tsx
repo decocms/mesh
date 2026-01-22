@@ -145,7 +145,7 @@ function PromptDetailContent({
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: providerId || null,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   const prompt = useCollectionItem<Prompt>(

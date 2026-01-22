@@ -120,20 +120,20 @@ export function extractItemsFromResponse<T>(response: unknown): T[] {
  * Creates a client, calls the tool, and properly closes the client.
  *
  * @param registryId - The connection ID of the registry
- * @param orgSlug - The organization slug
+ * @param orgId - The organization ID
  * @param toolName - The name of the tool to call
  * @param args - The tool arguments
  * @returns The tool result (with structuredContent extracted if available)
  */
 export async function callRegistryTool<TOutput>(
   registryId: string,
-  orgSlug: string,
+  orgId: string,
   toolName: string,
   args: Record<string, unknown>,
 ): Promise<TOutput> {
   const client = await createMCPClient({
     connectionId: registryId,
-    orgSlug,
+    orgId,
   });
 
   try {

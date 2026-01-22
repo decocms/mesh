@@ -32,7 +32,7 @@ export function useThreads() {
   const { locator, org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
   const listToolName = "COLLECTION_THREADS_LIST";
 
@@ -93,7 +93,7 @@ export function useThreadMessages(threadId: string | null) {
   const { locator, org } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
   const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
 

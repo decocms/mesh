@@ -45,7 +45,7 @@ export function useInvitations() {
   const { org, locator } = useProjectContext();
   const client = useMCPClient({
     connectionId: WellKnownOrgMCPId.SELF(org.id),
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   return useSuspenseQuery({

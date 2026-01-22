@@ -48,9 +48,9 @@ export const KEYS = {
   mcpTools: (url: string, token?: string | null) =>
     ["mcp", "tools", url, token] as const,
 
-  // MCP client (scoped by orgSlug, connectionId, and token)
-  mcpClient: (orgSlug: string, connectionId: string, token: string) =>
-    ["mcp", "client", orgSlug, connectionId, token] as const,
+  // MCP client (scoped by orgId, connectionId, and token)
+  mcpClient: (orgId: string, connectionId: string, token: string) =>
+    ["mcp", "client", orgId, connectionId, token] as const,
 
   // MCP client-based queries (scoped by client instance)
   mcpToolsList: (client: unknown) =>
@@ -74,7 +74,7 @@ export const KEYS = {
     ["activeOrganization", org] as const,
 
   // Models list (scoped by organization)
-  modelsList: (orgSlug: string) => ["models-list", orgSlug] as const,
+  modelsList: (orgId: string) => ["models-list", orgId] as const,
 
   // Collections (scoped by connection)
   connectionCollections: (connectionId: string) =>
@@ -89,32 +89,32 @@ export const KEYS = {
   collectionItems: (connectionId: string, collectionName: string) =>
     ["collection", connectionId, collectionName] as const,
 
-  // Collection CRUD queries (scoped by org, scopeKey, client, and collection name)
-  // org: organization slug
+  // Collection CRUD queries (scoped by orgId, scopeKey, client, and collection name)
+  // orgId: organization ID
   // scopeKey: connectionId for connection-scoped tools, virtualMcpId for virtual-mcp-scoped, etc.
   // client: MCP client instance for cache isolation
   // Base prefix for invalidating all collection variants
-  collection: (org: string, scopeKey: string, collectionName: string) =>
-    [org, scopeKey, "collection", collectionName] as const,
+  collection: (orgId: string, scopeKey: string, collectionName: string) =>
+    [orgId, scopeKey, "collection", collectionName] as const,
   // Item query
   collectionItem: (
     client: unknown,
-    org: string,
+    orgId: string,
     scopeKey: string,
     collectionName: string,
     itemId: string,
-  ) => [client, org, scopeKey, "collection", collectionName, itemId] as const,
+  ) => [client, orgId, scopeKey, "collection", collectionName, itemId] as const,
   // List query
   collectionList: (
     client: unknown,
-    org: string,
+    orgId: string,
     scopeKey: string,
     collectionName: string,
     paramsKey: string,
   ) =>
     [
       client,
-      org,
+      orgId,
       scopeKey,
       "collection",
       collectionName,
@@ -124,14 +124,14 @@ export const KEYS = {
   // Infinite list query
   collectionListInfinite: (
     client: unknown,
-    org: string,
+    orgId: string,
     scopeKey: string,
     collectionName: string,
     paramsKey: string,
   ) =>
     [
       client,
-      org,
+      orgId,
       scopeKey,
       "collection",
       collectionName,

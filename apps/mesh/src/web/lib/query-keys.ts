@@ -60,7 +60,7 @@ export const KEYS = {
     ["activeOrganization", org] as const,
 
   // Models list (scoped by organization)
-  modelsList: (orgSlug: string) => ["models-list", orgSlug] as const,
+  modelsList: (orgId: string) => ["models-list", orgId] as const,
 
   // Collections (scoped by connection)
   connectionCollections: (connectionId: string) =>
@@ -75,32 +75,32 @@ export const KEYS = {
   collectionItems: (connectionId: string, collectionName: string) =>
     ["collection", connectionId, collectionName] as const,
 
-  // Collection CRUD queries (scoped by org, scopeKey, client, and collection name)
-  // org: organization slug
+  // Collection CRUD queries (scoped by orgId, scopeKey, client, and collection name)
+  // orgId: organization ID
   // scopeKey: connectionId for connection-scoped tools, virtualMcpId/gatewayId for scoped tools, etc.
   // client: MCP client instance for cache isolation
   // Base prefix for invalidating all collection variants
-  collection: (org: string, scopeKey: string, collectionName: string) =>
-    [org, scopeKey, "collection", collectionName] as const,
+  collection: (orgId: string, scopeKey: string, collectionName: string) =>
+    [orgId, scopeKey, "collection", collectionName] as const,
   // Item query
   collectionItem: (
     client: unknown,
-    org: string,
+    orgId: string,
     scopeKey: string,
     collectionName: string,
     itemId: string,
-  ) => [client, org, scopeKey, "collection", collectionName, itemId] as const,
+  ) => [client, orgId, scopeKey, "collection", collectionName, itemId] as const,
   // List query
   collectionList: (
     client: unknown,
-    org: string,
+    orgId: string,
     scopeKey: string,
     collectionName: string,
     paramsKey: string,
   ) =>
     [
       client,
-      org,
+      orgId,
       scopeKey,
       "collection",
       collectionName,
@@ -110,14 +110,14 @@ export const KEYS = {
   // Infinite list query
   collectionListInfinite: (
     client: unknown,
-    org: string,
+    orgId: string,
     scopeKey: string,
     collectionName: string,
     paramsKey: string,
   ) =>
     [
       client,
-      org,
+      orgId,
       scopeKey,
       "collection",
       collectionName,
@@ -145,13 +145,13 @@ export const KEYS = {
 
   // Virtual MCP prompts (for ice breakers in chat)
   // null virtualMcpId means default virtual MCP
-  virtualMcpPrompts: (virtualMcpId: string | null, orgSlug: string) =>
-    ["virtual-mcp", orgSlug, virtualMcpId ?? "default", "prompts"] as const,
+  virtualMcpPrompts: (virtualMcpId: string | null, orgId: string) =>
+    ["virtual-mcp", orgId, virtualMcpId ?? "default", "prompts"] as const,
 
   // Virtual MCP resources (for resource mentions in chat)
   // null virtualMcpId means default virtual MCP
-  virtualMcpResources: (virtualMcpId: string | null, orgSlug: string) =>
-    ["virtual-mcp", orgSlug, virtualMcpId ?? "default", "resources"] as const,
+  virtualMcpResources: (virtualMcpId: string | null, orgId: string) =>
+    ["virtual-mcp", orgId, virtualMcpId ?? "default", "resources"] as const,
 
   // Suggestion menu items (for filtering prompts/resources in chat input)
   // Note: The hook appends `show` and `query` to this base key

@@ -153,7 +153,7 @@ export function PluginLayout({
 
   const client = useMCPClient({
     connectionId: effectiveConnection.id,
-    orgSlug: org.slug,
+    orgId: org.id,
   });
 
   // Create the plugin context with connection

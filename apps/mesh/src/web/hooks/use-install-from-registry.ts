@@ -80,7 +80,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
         try {
           const result = await callRegistryTool(
             registryConnection.id,
-            org.slug,
+            org.id,
             listToolName,
             {
               where: { appName: parsedServerName },
