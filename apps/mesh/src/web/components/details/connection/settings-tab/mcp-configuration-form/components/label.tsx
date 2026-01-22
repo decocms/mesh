@@ -9,7 +9,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 
 interface LabelProps {
   title?: string;
-  description?: string;
+  description?: React.ReactNode; // Can be string or component
   htmlFor?: string;
   required?: boolean;
   readOnly?: boolean;
@@ -54,14 +54,14 @@ export function Label({
         )}
       </div>
 
-      {/* Description */}
+      {/* Description - use div because RJSF may pass component with div inside */}
       {description && (
-        <p
+        <div
           id={htmlFor ? `${htmlFor}-helper` : undefined}
           className="text-xs text-muted-foreground"
         >
           {description}
-        </p>
+        </div>
       )}
     </div>
   );

@@ -2,80 +2,81 @@
  * Array Field Template
  *
  * Renders array fields with add/remove controls.
- * Each item has a drag handle, input, and remove button.
+ * In RJSF v6, `items` are pre-rendered React elements.
  */
 
 import type { ArrayFieldTemplateProps } from "@rjsf/utils";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Plus, Trash01, DotsGrid } from "@untitledui/icons";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { formatTitle } from "../utils";
+import { getTemplate, getUiOptions, buttonId } from "@rjsf/utils";
 
 export function CustomArrayFieldTemplate(props: ArrayFieldTemplateProps) {
-  const { items, canAdd, onAddClick, title } = props;
+  const { 
+    canAdd, 
+    disabled, 
+    fieldPathId, 
+    uiSchema, 
+    items, 
+    onAddClick, 
+    readonly, 
+    registry, 
+    required,
+    schema,
+    title 
+  } = props;
 
-  // Get item label for better UX
-  const itemLabel = title ? formatTitle(title).replace(/s$/, "") : "Item";
+  const uiOptions = getUiOptions(uiSchema);
+  
+  // Get templates from registry
+  const ArrayFieldDescriptionTemplate = getTemplate("ArrayFieldDescriptionTemplate", registry, uiOptions);
+  const ArrayFieldTitleTemplate = getTemplate("ArrayFieldTitleTemplate", registry, uiOptions);
+  const { ButtonTemplates: { AddButton } } = registry.templates;
+
+  const hasItems = items && items.length > 0;
 
   return (
     <div className="space-y-2">
-      {/* Array items */}
-      {items.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-4 text-center border border-dashed rounded-md">
-          No items added yet
-        </div>
-      ) : (
-        <div className="space-y-1">
-          {items.map((item, index) => (
-            <div
-              key={item.key}
-              className={cn(
-                "group flex gap-2 items-center p-2 rounded-md border border-border",
-                "hover:bg-muted/30 transition-all"
-              )}
-            >
-              {/* Drag handle icon (visual only for now) */}
-              <div className="shrink-0 text-muted-foreground cursor-grab">
-                <DotsGrid size={16} />
-              </div>
+      {/* Title */}
+      <ArrayFieldTitleTemplate
+        fieldPathId={fieldPathId}
+        title={uiOptions.title || title}
+        schema={schema}
+        uiSchema={uiSchema}
+        required={required}
+        registry={registry}
+      />
 
-              {/* Content - the input widget */}
-              <div className="flex-1 min-w-0">
-                {item.children}
-              </div>
+      {/* Description */}
+      <ArrayFieldDescriptionTemplate
+        fieldPathId={fieldPathId}
+        description={uiOptions.description || schema.description}
+        schema={schema}
+        uiSchema={uiSchema}
+        registry={registry}
+      />
 
-              {/* Remove button */}
-              {item.hasRemove && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "shrink-0 h-8 w-8",
-                    "text-muted-foreground hover:text-destructive hover:bg-destructive/10",
-                  )}
-                  onClick={item.onDropIndexClick(index)}
-                >
-                  <Trash01 size={16} />
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Items container */}
+      <div className="space-y-1">
+        {!hasItems ? (
+          <div className="text-sm text-muted-foreground py-4 text-center border border-dashed rounded-md">
+            No items added yet
+          </div>
+        ) : (
+          // Items are pre-rendered React elements in RJSF v6
+          items
+        )}
+      </div>
 
       {/* Add button */}
       {canAdd && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onAddClick}
-          className="w-full max-w-md"
-        >
-          <Plus size={16} className="mr-2" />
-          Add {itemLabel}
-        </Button>
+        <div className="mt-2">
+          <AddButton
+            id={buttonId(fieldPathId, "add")}
+            className="rjsf-array-item-add w-full max-w-md"
+            onClick={onAddClick}
+            disabled={disabled || readonly}
+            uiSchema={uiSchema}
+            registry={registry}
+          />
+        </div>
       )}
     </div>
   );
