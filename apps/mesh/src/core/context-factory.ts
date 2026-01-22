@@ -805,10 +805,9 @@ export function createMeshContextFactory(
         requestId: crypto.randomUUID(),
         timestamp: new Date(),
         wellKnownForwardableHeaders: Object.fromEntries(
-          wellKnownForwardableHeaders.map((header) => [
-            header,
-            req?.headers.get(header) ?? null,
-          ]),
+          wellKnownForwardableHeaders
+            .map((header) => [header, req?.headers.get(header) ?? null])
+            .filter(([_, value]) => value !== null),
         ),
         userAgent:
           req?.headers.get("x-mesh-client") ||
