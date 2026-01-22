@@ -13,6 +13,11 @@ export interface ChatModelConfig {
     contextWindow?: number;
     maxOutputTokens?: number;
   };
+  capabilities?: {
+    vision?: boolean;
+    text?: boolean;
+    tools?: boolean;
+  };
 }
 
 export interface ChatGatewayConfig {

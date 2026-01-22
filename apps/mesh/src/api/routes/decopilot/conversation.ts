@@ -36,6 +36,7 @@ export async function processConversation(
     windowSize: number;
     messages: UIMessage<Metadata>[];
     systemPrompts: string[];
+    removeFileParts?: boolean;
   },
 ): Promise<ProcessedConversation> {
   const userId = ensureUser(ctx);
@@ -53,9 +54,21 @@ export async function processConversation(
 
   const allMessages = [...threadMessages, ...config.messages];
   const validatedMessages = await validateUIMessages({ messages: allMessages });
+  const mappedMessages = validatedMessages.map((message) => {
+    if (
+      !!config.removeFileParts &&
+      message.parts.some((part) => part.type === "file")
+    ) {
+      return {
+        ...message,
+        parts: message.parts.filter((part) => part.type !== "file"),
+      };
+    }
+    return message;
+  });
 
   // Convert to model messages
-  const modelMessages = await convertToModelMessages(validatedMessages, {
+  const modelMessages = await convertToModelMessages(mappedMessages, {
     ignoreIncompleteToolCalls: true,
   });
 

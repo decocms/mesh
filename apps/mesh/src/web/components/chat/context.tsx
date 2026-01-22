@@ -585,7 +585,6 @@ export function ChatProvider({
     finishReason?: string;
   }) => {
     chatDispatch({ type: "SET_FINISH_REASON", payload: finishReason ?? null });
-
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
       return;
     }
@@ -640,8 +639,9 @@ export function ChatProvider({
     addMessages(newMessages);
   };
 
-  const onError = (error: Error) => {
-    console.error("[chat] Chat error:", error);
+  const onError = () => {
+    chat.setMessages((messages) => messages.slice(0, -1));
+    setMessages((messages) => messages.slice(0, -1));
   };
 
   // ===========================================================================
@@ -752,6 +752,11 @@ export function ChatProvider({
         connectionId: selectedModel.connectionId,
         provider: selectedModel.provider ?? undefined,
         limits: selectedModel.limits ?? undefined,
+        capabilities: {
+          vision: selectedModel.capabilities?.includes("vision") ?? undefined,
+          text: selectedModel.capabilities?.includes("text") ?? undefined,
+          tools: selectedModel.capabilities?.includes("tools") ?? undefined,
+        },
       },
     };
 
@@ -761,7 +766,6 @@ export function ChatProvider({
       parts,
       metadata: messageMetadata,
     };
-
     addMessages([userMessage]);
 
     await chat.sendMessage(userMessage, { metadata });

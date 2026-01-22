@@ -25,7 +25,7 @@ import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createModelProvider } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
 import { createVirtualMcpTransport } from "./transport";
-import { Metadata } from "@/web/components/chat/types";
+import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
 import { generateTitleInBackground } from "./title-generator";
 
 // ============================================================================
@@ -53,11 +53,7 @@ async function createConnectedClient(config: {
 
 interface ValidatedRequest {
   organization: OrganizationScope;
-  model: {
-    id: string;
-    connectionId: string;
-    limits?: { maxOutputTokens?: number };
-  };
+  model: ChatModelConfig;
   gateway: { id: string | null | undefined };
   messages: UIMessage<Metadata>[];
   temperature: number;
@@ -139,6 +135,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       client?.close().catch(console.error);
     };
     abortSignal.addEventListener("abort", abortHandler, { once: true });
+    const modelHasVision = model.capabilities?.vision ?? true;
 
     // 3. Process conversation
     const { memory, systemMessages, prunedMessages, originalMessages } =
@@ -148,6 +145,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         windowSize,
         messages,
         systemPrompts: [DECOPILOT_BASE_PROMPT],
+        removeFileParts: !modelHasVision,
       });
 
     const shouldGenerateTitle = prunedMessages.length === 1;

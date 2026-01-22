@@ -25,6 +25,13 @@ export const StreamRequestSchema = z.object({
     .object({
       id: z.string(),
       connectionId: z.string(),
+      capabilities: z
+        .object({
+          vision: z.boolean().optional(),
+          text: z.boolean().optional(),
+          tools: z.boolean().optional(),
+        })
+        .optional(),
       provider: z
         .enum([
           "openai",
