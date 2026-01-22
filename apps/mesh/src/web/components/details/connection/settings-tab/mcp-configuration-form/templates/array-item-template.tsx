@@ -18,13 +18,15 @@ export function CustomArrayFieldItemTemplate(props: ArrayFieldItemTemplateProps)
   );
 
   return (
-    <div className="flex items-center gap-2 mb-2">
+    <div className="flex items-start gap-2 mb-2">
       {/* Input field */}
       <div className="flex-1 max-w-md">{children}</div>
       
-      {/* Remove button - close to input */}
+      {/* Remove button - aligned with input top */}
       {hasToolbar && (
-        <ArrayFieldItemButtonsTemplate {...buttonsProps} />
+        <div className="pt-[22px]">
+          <ArrayFieldItemButtonsTemplate {...buttonsProps} />
+        </div>
       )}
     </div>
   );
