@@ -1,10 +1,10 @@
 /**
  * Boolean Switch Widget
  *
- * Renders boolean fields as a toggle switch instead of a checkbox.
+ * Renders boolean fields as a styled checkbox.
  */
 
-import { Switch } from "@deco/ui/components/switch.tsx";
+import { Checkbox } from "@deco/ui/components/checkbox.tsx";
 import type { WidgetProps } from "@rjsf/utils";
 
 export function BooleanSwitchWidget({
@@ -13,15 +13,16 @@ export function BooleanSwitchWidget({
   schema,
   disabled,
   readonly,
+  id,
 }: WidgetProps) {
   const checked = value ?? (schema.default as boolean | undefined) ?? false;
 
   return (
-    <Switch
+    <Checkbox
+      id={id}
       checked={checked}
-      onCheckedChange={(newValue) => onChange(newValue)}
+      onCheckedChange={(newValue) => onChange(newValue === true)}
       disabled={disabled || readonly}
     />
   );
 }
-
