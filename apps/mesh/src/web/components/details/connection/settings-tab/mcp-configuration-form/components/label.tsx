@@ -37,7 +37,7 @@ export function Label({
 
   return (
     <div className={cn("flex flex-col gap-0.5", className)}>
-      {/* Title row with optional badge */}
+      {/* Title row with optional badge - only show optional for non-required fields */}
       <div className="flex flex-row flex-nowrap items-center gap-1.5">
         <label
           htmlFor={htmlFor}
@@ -49,7 +49,7 @@ export function Label({
         >
           {title}
         </label>
-        {!required && (
+        {required === false && (
           <span className="text-xs text-muted-foreground">(optional)</span>
         )}
       </div>

@@ -62,13 +62,12 @@ function SortableItem({ id, children, onRemove, canRemove }: SortableItemProps) 
         isDragging && "opacity-50 border-primary bg-muted shadow-lg z-50"
       )}
     >
-      {/* Drag handle */}
+      {/* Drag handle - always visible */}
       <button
         type="button"
         className={cn(
           "shrink-0 mt-1 cursor-grab active:cursor-grabbing",
-          "text-muted-foreground hover:text-foreground transition-colors",
-          "opacity-0 group-hover:opacity-100 focus:opacity-100"
+          "text-muted-foreground hover:text-foreground transition-colors"
         )}
         {...attributes}
         {...listeners}

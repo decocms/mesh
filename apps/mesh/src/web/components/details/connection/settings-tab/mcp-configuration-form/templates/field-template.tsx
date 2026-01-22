@@ -70,9 +70,6 @@ export function CustomFieldTemplate(props: FieldTemplateProps) {
               {label}
             </label>
           )}
-          {!required && (
-            <span className="text-xs text-muted-foreground">(optional)</span>
-          )}
         </div>
         {description && (
           <p className="text-xs text-muted-foreground pl-[44px]">
