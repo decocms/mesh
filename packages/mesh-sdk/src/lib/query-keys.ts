@@ -48,13 +48,9 @@ export const KEYS = {
   mcpTools: (url: string, token?: string | null) =>
     ["mcp", "tools", url, token] as const,
 
-  // MCP client (scoped by orgSlug, connectionId, type, and token)
-  mcpClient: (
-    orgSlug: string,
-    connectionId: string,
-    type: string,
-    token: string,
-  ) => ["mcp", "client", orgSlug, connectionId, type, token] as const,
+  // MCP client (scoped by orgSlug, connectionId, and token)
+  mcpClient: (orgSlug: string, connectionId: string, token: string) =>
+    ["mcp", "client", orgSlug, connectionId, token] as const,
 
   // MCP client-based queries (scoped by client instance)
   mcpToolsList: (client: unknown) =>

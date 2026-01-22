@@ -157,7 +157,6 @@ export function useCollectionItem<T extends CollectionEntity>(
   const client = useMCPClient({
     connectionId: connectionId ?? null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   const upperName = collectionName.toUpperCase();
   const getToolName = `COLLECTION_${upperName}_GET`;
@@ -214,7 +213,6 @@ export function useCollectionList<T extends CollectionEntity>(
   const client = useMCPClient({
     connectionId: connectionId ?? null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   const {
     searchTerm,
@@ -288,7 +286,6 @@ export function useCollectionActions<T extends CollectionEntity>(
   const client = useMCPClient({
     connectionId: connectionId ?? null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   const queryClient = useQueryClient();
   const upperName = collectionName.toUpperCase();

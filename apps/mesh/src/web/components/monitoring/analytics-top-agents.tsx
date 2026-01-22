@@ -135,7 +135,6 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const { data: logsData } =

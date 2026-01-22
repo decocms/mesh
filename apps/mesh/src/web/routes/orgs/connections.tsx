@@ -397,7 +397,6 @@ function OrgMcpsContent() {
   const registryClient = useMCPClient({
     connectionId: registryId || null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   const { data: registryListResults } = useMCPToolCallQuery<unknown>({
     client: registryClient,

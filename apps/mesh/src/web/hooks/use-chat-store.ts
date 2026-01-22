@@ -29,7 +29,6 @@ export function useThreads() {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   const listToolName = "COLLECTION_THREADS_LIST";
 
@@ -91,7 +90,6 @@ export function useThreadMessages(threadId: string | null) {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
 

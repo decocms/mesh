@@ -133,7 +133,6 @@ function TopToolsContent(_props: TopToolsContentProps) {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const { data: logsData } = useMCPToolCall<BaseMonitoringLogsResponse>({

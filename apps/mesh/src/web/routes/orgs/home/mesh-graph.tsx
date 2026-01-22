@@ -248,7 +248,6 @@ function useNodeMetrics(): NodeMetricsMap {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const { data: logsData } =

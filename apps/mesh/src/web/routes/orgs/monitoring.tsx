@@ -797,7 +797,6 @@ function MonitoringDashboardContent({
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   // Convert property filters to API params

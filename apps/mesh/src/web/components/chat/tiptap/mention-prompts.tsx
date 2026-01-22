@@ -4,8 +4,8 @@ import {
   listPrompts,
   useMCPClient,
   useProjectContext,
-  type VirtualMCPPrompt,
 } from "@decocms/mesh-sdk";
+import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
@@ -19,7 +19,7 @@ import { insertMention, OnSelectProps, Suggestion } from "./mention";
 
 interface PromptSelectContext {
   range: Range;
-  item: VirtualMCPPrompt;
+  item: Prompt;
 }
 
 interface PromptsMentionProps {
@@ -61,7 +61,6 @@ export const PromptsMention = ({
   const client = useMCPClient({
     connectionId: virtualMcpId,
     orgSlug: org.slug,
-    isVirtualMCP: true,
   });
   // Use the query key helper which handles null (default virtual MCP)
   const queryKey = KEYS.virtualMcpPrompts(virtualMcpId, org.slug);
@@ -69,10 +68,7 @@ export const PromptsMention = ({
     null,
   );
 
-  const handleItemSelect = async ({
-    item,
-    range,
-  }: OnSelectProps<VirtualMCPPrompt>) => {
+  const handleItemSelect = async ({ item, range }: OnSelectProps<Prompt>) => {
     // If prompt has arguments, open dialog
     if (item.arguments && item.arguments.length > 0) {
       setActivePrompt({ range, item: item });
@@ -99,8 +95,7 @@ export const PromptsMention = ({
     if (!client) return [];
 
     // Try to get from cache first (even if stale)
-    let virtualMcpPrompts =
-      queryClient.getQueryData<VirtualMCPPrompt[]>(queryKey);
+    let virtualMcpPrompts = queryClient.getQueryData<Prompt[]>(queryKey);
 
     // If not in cache or we want fresh data, fetch from network
     // fetchQuery will use cache if fresh, otherwise fetch
@@ -146,7 +141,7 @@ export const PromptsMention = ({
 
   return (
     <>
-      <Suggestion<VirtualMCPPrompt>
+      <Suggestion<Prompt>
         editor={editor}
         char="/"
         pluginKey="promptsDropdownMenu"

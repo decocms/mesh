@@ -298,7 +298,6 @@ function StoreMCPServerDetailContent() {
   const registryClient = useMCPClient({
     connectionId: effectiveRegistryId || null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const { data: listResults } = useMCPToolCall({

@@ -4,8 +4,8 @@ import {
   readResource,
   useMCPClient,
   useProjectContext,
-  type VirtualMCPResource,
 } from "@decocms/mesh-sdk";
+import type { Resource } from "@modelcontextprotocol/sdk/types.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
@@ -54,7 +54,6 @@ export const ResourcesMention = ({
   const client = useMCPClient({
     connectionId: virtualMcpId,
     orgSlug: org.slug,
-    isVirtualMCP: true,
   });
   // Use the query key helper which handles null (default virtual MCP)
   const queryKey = KEYS.virtualMcpResources(virtualMcpId, org.slug);
@@ -73,8 +72,7 @@ export const ResourcesMention = ({
     if (!client) return [];
 
     // Try to get from cache first (even if stale)
-    let virtualMcpResources =
-      queryClient.getQueryData<VirtualMCPResource[]>(queryKey);
+    let virtualMcpResources = queryClient.getQueryData<Resource[]>(queryKey);
 
     // If not in cache or we want fresh data, fetch from network
     // fetchQuery will use cache if fresh, otherwise fetch
@@ -115,7 +113,7 @@ export const ResourcesMention = ({
       );
     }
 
-    // Map VirtualMCPResource to ResourceItem format (extends BaseItem)
+    // Map Resource to ResourceItem format (extends BaseItem)
     return filteredResources.map((r) => ({
       name: r.name ?? r.uri,
       title: r.name,

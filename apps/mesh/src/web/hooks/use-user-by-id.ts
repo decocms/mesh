@@ -32,7 +32,6 @@ export function useUserById(userId: string) {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   return useQuery({

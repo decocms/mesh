@@ -9,40 +9,24 @@ const DEFAULT_CLIENT_INFO = {
 };
 
 export interface UseMcpClientOptions {
-  /** Connection ID - for regular connections use the connectionId, for virtual MCPs use the virtual MCP ID */
+  /** Connection ID - use the connectionId for any MCP server, or null for the management MCP */
   connectionId: string | null;
   /** Organization slug - required, transforms to x-org-slug header */
   orgSlug: string;
-  /** Whether this is a virtual MCP connection (default: true if connectionId is null, false otherwise) */
-  isVirtualMCP?: boolean;
-  /** Authorization token - optional for regular connections */
+  /** Authorization token - optional */
   token?: string | null;
 }
 
 /**
- * Build the MCP URL from connectionId and isVirtualMCP flag
+ * Build the MCP URL from connectionId
+ * Uses /mcp/:connectionId for all servers, or /mcp when connectionId is null (management MCP)
  */
-function buildMcpUrl(
-  connectionId: string | null,
-  isVirtualMCP: boolean,
-): string | null {
+function buildMcpUrl(connectionId: string | null): string {
   if (typeof window === "undefined") {
     throw new Error("MCP client requires a browser environment.");
   }
 
-  if (!connectionId) {
-    const path = isVirtualMCP ? "/mcp/virtual-mcp" : "/mcp";
-    return new URL(path, window.location.origin).href;
-  }
-
-  // Use virtual MCP pattern if isVirtualMCP is true
-  if (isVirtualMCP) {
-    const path = `/mcp/virtual-mcp/${connectionId}`;
-    return new URL(path, window.location.origin).href;
-  }
-
-  // Regular connection pattern
-  const path = `/mcp/${connectionId}`;
+  const path = connectionId ? `/mcp/${connectionId}` : "/mcp";
   return new URL(path, window.location.origin).href;
 }
 
@@ -56,14 +40,12 @@ function buildMcpUrl(
 export function useMCPClient({
   connectionId,
   orgSlug,
-  isVirtualMCP = connectionId === null,
   token,
 }: UseMcpClientOptions): Client | null {
-  const url = buildMcpUrl(connectionId, isVirtualMCP);
+  const url = buildMcpUrl(connectionId);
   const queryKey = KEYS.mcpClient(
     orgSlug,
-    connectionId ?? "none",
-    isVirtualMCP ? "virtual" : connectionId ? "connection" : "management",
+    connectionId ?? "management",
     token ?? "",
   );
 

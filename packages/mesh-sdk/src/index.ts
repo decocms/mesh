@@ -56,15 +56,6 @@ export {
   type UseMcpPromptsListOptions,
   type UseMcpPromptsListQueryOptions,
   type UseMcpGetPromptOptions,
-  // Virtual MCP hooks
-  useVirtualMCPPrompts,
-  useVirtualMCPPrompt,
-  useVirtualMCPResources,
-  useVirtualMCPResource,
-  type VirtualMCPPrompt,
-  type VirtualMCPPromptResult,
-  type VirtualMCPResource,
-  type VirtualMCPResourceResult,
 } from "./hooks";
 
 // Types

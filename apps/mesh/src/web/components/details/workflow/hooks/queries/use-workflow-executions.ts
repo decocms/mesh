@@ -23,7 +23,6 @@ export function useWorkflowExecutions() {
   const client = useMCPClient({
     connectionId: connection.id,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const { data, isLoading, refetch } =

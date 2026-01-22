@@ -60,6 +60,7 @@ import { issueMeshToken } from "../../auth/jwt";
 import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
 import { compose } from "../utils/compose";
+import { handleVirtualMcpRequest } from "./gateway";
 import { handleAuthError } from "./oauth-proxy";
 import {
   createProxyMonitoringMiddleware,
@@ -1046,8 +1047,18 @@ export async function dangerouslyCreateSuperUserMCPProxy(
 }
 
 // ============================================================================
-// Route Handler
+// Route Handlers
 // ============================================================================
+
+/**
+ * Default MCP endpoint - serves Decopilot virtual MCP (aggregates all org connections)
+ *
+ * Route: POST /mcp
+ * Uses the Decopilot default virtual MCP which excludes Mesh MCP and org registry
+ */
+app.all("/", async (c) => {
+  return handleVirtualMcpRequest(c, undefined);
+});
 
 /**
  * Proxy MCP request to a downstream connection

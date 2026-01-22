@@ -24,8 +24,6 @@ export interface UseToolCallOptions<TInput, TOutput>
   scope: string;
   /** Connection ID for tool calls (null for management tools) */
   connectionId: string | null;
-  /** Whether this is a virtual MCP connection */
-  isVirtualMCP?: boolean;
   /** Optional auth token for the MCP client */
   token?: string | null;
   /** Cache time in milliseconds */
@@ -50,7 +48,6 @@ export function useToolCall<TInput, TOutput>({
   toolInputParams,
   scope,
   connectionId,
-  isVirtualMCP,
   token,
   ...queryOptions
 }: UseToolCallOptions<TInput, TOutput>): UseSuspenseQueryResult<
@@ -61,7 +58,6 @@ export function useToolCall<TInput, TOutput>({
   const client = useMCPClient({
     connectionId,
     orgSlug: org.slug,
-    isVirtualMCP,
     token,
   });
   // Serialize the input params for the query key
@@ -88,7 +84,6 @@ export function useToolCall<TInput, TOutput>({
 export interface UseToolCallMutationOptions {
   toolName: string;
   connectionId: string | null;
-  isVirtualMCP?: boolean;
   token?: string | null;
 }
 
@@ -99,11 +94,10 @@ export function useToolCallMutation<TInput>(
   options: UseToolCallMutationOptions,
 ): UseMutationResult<unknown, Error, TInput> {
   const { org } = useProjectContext();
-  const { toolName, connectionId, isVirtualMCP, token } = options;
+  const { toolName, connectionId, token } = options;
   const client = useMCPClient({
     connectionId,
     orgSlug: org.slug,
-    isVirtualMCP,
     token,
   });
 
@@ -138,7 +132,6 @@ export function useToolCallQuery<TInput, TOutput>(
     toolInputParams,
     scope,
     connectionId,
-    isVirtualMCP,
     token,
     staleTime = 60_000,
     refetchInterval,
@@ -147,7 +140,6 @@ export function useToolCallQuery<TInput, TOutput>(
   const client = useMCPClient({
     connectionId,
     orgSlug: org.slug,
-    isVirtualMCP,
     token,
   });
 

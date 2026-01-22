@@ -531,7 +531,6 @@ export function ChatProvider({
   const mcpClient = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   // Project context

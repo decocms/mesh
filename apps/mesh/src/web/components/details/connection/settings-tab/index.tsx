@@ -266,7 +266,6 @@ function useMcpConfiguration(connectionId: string) {
   const client = useMCPClient({
     connectionId,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const { data: configResult } = useMCPToolCall<McpConfigurationResult>({

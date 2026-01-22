@@ -50,7 +50,7 @@ const app = new Hono<Env>();
 // Route Handler (shared between /gateway and /virtual-mcp endpoints for backward compat)
 // ============================================================================
 
-async function handleVirtualMcpRequest(
+export async function handleVirtualMcpRequest(
   c: {
     get: (key: "meshContext") => MeshContext;
     req: {

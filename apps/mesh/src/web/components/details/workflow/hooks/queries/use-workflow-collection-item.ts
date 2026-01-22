@@ -21,7 +21,6 @@ export function usePollingWorkflowExecution(executionId?: string) {
   const client = useMCPClient({
     connectionId: connection.id,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const { data, isLoading } = useMCPToolCallQuery<ExecutionQueryResult>({
@@ -73,7 +72,6 @@ export function useExecutionCompletedStep(
   const client = useMCPClient({
     connectionId: connection.id,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const { data, isLoading } = useMCPToolCallQuery<{

@@ -37,7 +37,6 @@ export function useConnections(options: UseConnectionsOptions = {}) {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   return useCollectionList<ConnectionEntity>(
     org.slug,
@@ -58,7 +57,6 @@ export function useConnection(connectionId: string) {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   return useCollectionItem<ConnectionEntity>(
     org.slug,
@@ -78,7 +76,6 @@ export function useConnectionActions() {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   return useCollectionActions<ConnectionEntity>(
     org.slug,

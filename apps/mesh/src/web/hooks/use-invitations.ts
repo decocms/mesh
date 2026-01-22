@@ -42,7 +42,6 @@ export function useInvitations() {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   return useSuspenseQuery({

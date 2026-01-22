@@ -25,7 +25,6 @@ export function useOrganizationSettings(organizationId: string) {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const { data } = useSuspenseQuery({
@@ -72,7 +71,6 @@ export function useOrganizationSettingsActions(organizationId: string) {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
 
   const update = useMutation({

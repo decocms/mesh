@@ -60,15 +60,3 @@ export {
   type UseMcpPromptsListQueryOptions,
   type UseMcpGetPromptOptions,
 } from "./use-mcp-prompts";
-
-// Virtual MCP hooks
-export {
-  useVirtualMCPPrompts,
-  useVirtualMCPPrompt,
-  useVirtualMCPResources,
-  useVirtualMCPResource,
-  type VirtualMCPPrompt,
-  type VirtualMCPPromptResult,
-  type VirtualMCPResource,
-  type VirtualMCPResourceResult,
-} from "./use-virtual-mcp";

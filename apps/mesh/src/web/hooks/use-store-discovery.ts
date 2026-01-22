@@ -79,7 +79,6 @@ export function useStoreDiscovery({
   const client = useMCPClient({
     connectionId: registryId || null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   const hasFiltersSupport = Boolean(filtersToolName);
 

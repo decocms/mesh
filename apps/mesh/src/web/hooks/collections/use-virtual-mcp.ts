@@ -79,7 +79,6 @@ export function useVirtualMCPActions() {
   const client = useMCPClient({
     connectionId: null,
     orgSlug: org.slug,
-    isVirtualMCP: false,
   });
   const queryClient = useQueryClient();
 
