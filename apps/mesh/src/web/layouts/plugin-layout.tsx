@@ -15,16 +15,18 @@ import {
   PluginSession,
 } from "@decocms/bindings";
 import type { PluginRenderHeaderProps } from "@decocms/bindings/plugins";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import {
+  useConnections,
+  useMCPClient,
+  useProjectContext,
+  type ConnectionEntity,
+} from "@decocms/mesh-sdk";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { authClient } from "@/web/lib/auth-client";
-import { createToolCaller } from "@/tools/client";
 import { Outlet, useParams } from "@tanstack/react-router";
 import { Loading01 } from "@untitledui/icons";
 import { Suspense, type ReactNode } from "react";
-import type { ConnectionEntity } from "@/tools/connection/schema";
 
 interface PluginLayoutProps {
   /**
@@ -149,8 +151,10 @@ export function PluginLayout({
     );
   }
 
-  // Create tool caller for the selected connection
-  const baseToolCaller = createToolCaller(effectiveConnection.id);
+  const client = useMCPClient({
+    connectionId: effectiveConnection.id,
+    orgSlug: org.slug,
+  });
 
   // Create the plugin context with connection
   // TypedToolCaller is generic - the plugin will cast it to the correct binding type
@@ -160,7 +164,16 @@ export function PluginLayout({
     // The toolCaller accepts any tool name and args at runtime
     // Type safety is enforced by the plugin using usePluginContext<MyBinding>()
     toolCaller: ((toolName: string, args: unknown) =>
-      baseToolCaller(toolName, args)) as PluginContext<Binder>["toolCaller"],
+      client
+        ? client
+            .callTool({
+              name: toolName,
+              arguments: args as Record<string, unknown>,
+            })
+            .then((result) => result.structuredContent ?? result)
+        : Promise.reject(
+            new Error("MCP client is not available"),
+          )) as PluginContext<Binder>["toolCaller"],
     org: orgContext,
     session,
   };

@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Inbox01, SearchMd, Loading01, FilterLines } from "@untitledui/icons";
-import { useConnection } from "@/web/hooks/collections/use-connection";
 import { useDebounce } from "@/web/hooks/use-debounce";
 import { useScrollRestoration } from "@/web/hooks/use-scroll-restoration";
 import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useConnection, useProjectContext } from "@decocms/mesh-sdk";
 import { slugify } from "@/web/utils/slugify";
 import {
   findListToolName,

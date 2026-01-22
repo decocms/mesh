@@ -49,7 +49,16 @@ function getMockActionFor(message: JSONRPCMessage): MockAction | null {
         message: {
           result: {
             protocolVersion,
-            capabilities: { tools: {} },
+            capabilities: {
+              tools: {},
+              resources: {},
+              prompts: {},
+              tasks: {
+                list: {},
+                cancel: {},
+                requests: { tool: { call: {} } },
+              },
+            },
             serverInfo: { name: "mesh-virtual-mcp", version: "1.0.0" },
           },
           jsonrpc: m.jsonrpc ?? "2.0",

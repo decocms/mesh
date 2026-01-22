@@ -3,10 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "../empty-state";
-import {
-  useConnectionActions,
-  useConnections,
-} from "@/web/hooks/collections/use-connection";
+import { useConnectionActions, useConnections } from "@decocms/mesh-sdk";
 import {
   getWellKnownOpenRouterConnection,
   OPENROUTER_ICON_URL,

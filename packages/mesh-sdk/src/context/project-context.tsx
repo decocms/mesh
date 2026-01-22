@@ -1,8 +1,9 @@
 import { createContext, useContext, type PropsWithChildren } from "react";
 
 /**
- * Locator pattern for identifying org/project scope.
- * Template literal type for strict type checking: "org/project"
+ * a ProjectLocator is a github-like slug string that identifies a project in an organization.
+ *
+ * format: <org-slug>/<project-slug>
  */
 export type ProjectLocator = `${string}/${string}`;
 
@@ -11,14 +12,17 @@ export type LocatorStructured = {
   project: string;
 };
 
+export const ORG_ADMIN_PROJECT_SLUG = "org-admin";
+
 export const Locator = {
-  from: ({ org, project }: LocatorStructured): ProjectLocator => {
+  from({ org, project }: LocatorStructured): ProjectLocator {
     if (org?.includes("/") || project.includes("/")) {
       throw new Error("Org or project cannot contain slashes");
     }
+
     return `${org}/${project}` as ProjectLocator;
   },
-  parse: (locator: ProjectLocator): LocatorStructured => {
+  parse(locator: ProjectLocator): LocatorStructured {
     if (locator.startsWith("/")) {
       locator = locator.slice(1) as ProjectLocator;
     }
@@ -28,7 +32,13 @@ export const Locator = {
     }
     return { org, project };
   },
-};
+  isOrgAdminProject(locator: ProjectLocator): boolean {
+    return locator.split("/")[1] === ORG_ADMIN_PROJECT_SLUG;
+  },
+  adminProject(org: string): ProjectLocator {
+    return `${org}/${ORG_ADMIN_PROJECT_SLUG}`;
+  },
+} as const;
 
 interface ProjectContextType {
   org: {

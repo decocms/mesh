@@ -13,7 +13,7 @@ import {
 } from "@/web/hooks/collections/use-virtual-mcp";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import {
   AlertDialog,
   AlertDialogAction,

@@ -1,6 +1,6 @@
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { CpuChip02, Plus, X } from "@untitledui/icons";
 import { Suspense } from "react";
 import { ErrorBoundary } from "../error-boundary";

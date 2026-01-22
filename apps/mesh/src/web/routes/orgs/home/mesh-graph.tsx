@@ -5,15 +5,17 @@
  * connections, and their metrics.
  */
 
-import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
-import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { CpuChip02, Container } from "@untitledui/icons";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
-import { useToolCall } from "@/web/hooks/use-tool-call";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import {
+  useConnections,
+  useMCPClient,
+  useMCPToolCall,
+  useProjectContext,
+  type ConnectionEntity,
+} from "@decocms/mesh-sdk";
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -240,20 +242,24 @@ function getMetricNumericValue(
 // ============================================================================
 
 function useNodeMetrics(): NodeMetricsMap {
-  const { locator } = useProjectContext();
-  const toolCaller = createToolCaller();
+  const { org } = useProjectContext();
   const dateRange = getLast24HoursDateRange();
 
-  const { data: logsData } = useToolCall<
-    { startDate: string; endDate: string; limit: number; offset: number },
-    MonitoringLogsWithVirtualMCPResponse
-  >({
-    toolCaller,
-    toolName: "MONITORING_LOGS_LIST",
-    toolInputParams: { ...dateRange, limit: 1000, offset: 0 },
-    scope: locator,
-    staleTime: 30_000,
+  const client = useMCPClient({
+    connectionId: null,
+    orgSlug: org.slug,
   });
+
+  const { data: logsData } =
+    useMCPToolCall<MonitoringLogsWithVirtualMCPResponse>({
+      client,
+      toolName: "MONITORING_LOGS_LIST",
+      toolArguments: { ...dateRange, limit: 1000, offset: 0 },
+      staleTime: 30_000,
+      select: (result) =>
+        ((result as { structuredContent?: unknown }).structuredContent ??
+          result) as MonitoringLogsWithVirtualMCPResponse,
+    });
 
   const logs = logsData?.logs ?? [];
   return aggregateMetrics(logs);

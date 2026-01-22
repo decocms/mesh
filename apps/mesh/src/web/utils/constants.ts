@@ -3,6 +3,7 @@ import { z } from "zod";
 
 // Re-export from core for backwards compatibility
 export { MCP_MESH_KEY as MCP_MESH_DECOCMS_KEY } from "@/core/constants";
+export { MCP_MESH_KEY as MCP_REGISTRY_DECOCMS_KEY } from "@/core/constants";
 
 export type JsonSchema = {
   type?: string;

@@ -10,7 +10,7 @@ import type {
 } from "react";
 import { Children, isValidElement, useRef } from "react";
 import { ChatProvider, useChat } from "./context";
-import { AgentIceBreakers } from "./ice-breakers";
+import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
 import { MessageAssistant } from "./message/assistant.tsx";
 import { MessageFooter, MessageList } from "./message/list.tsx";
@@ -265,7 +265,7 @@ export const Chat = Object.assign(ChatRoot, {
   Input: ChatInput,
   Provider: ChatProvider,
   Skeleton: DecoChatSkeleton,
-  IceBreakers: AgentIceBreakers,
+  IceBreakers: IceBreakers,
   NoLlmBindingEmptyState: NoLlmBindingEmptyState,
   ThreadHistoryPopover: ThreadHistoryPopover,
 });

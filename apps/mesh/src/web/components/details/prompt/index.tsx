@@ -1,10 +1,11 @@
-import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { EmptyState } from "@/web/components/empty-state";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
   useCollectionActions,
   useCollectionItem,
-} from "@/web/hooks/use-collections";
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -140,20 +141,21 @@ function PromptDetailContent({
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
-  const toolCaller = createToolCaller(providerId || UNKNOWN_CONNECTION_ID);
+
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: providerId || null,
+    orgSlug: org.slug,
+  });
 
   const prompt = useCollectionItem<Prompt>(
     providerId,
     "PROMPT",
     promptId,
-    toolCaller,
+    client,
   );
 
-  const actions = useCollectionActions<Prompt>(
-    providerId,
-    "PROMPT",
-    toolCaller,
-  );
+  const actions = useCollectionActions<Prompt>(providerId, "PROMPT", client);
   const isSaving = actions.update.isPending;
 
   const form = useForm<PromptEditor>({
@@ -287,9 +289,9 @@ export interface PromptDetailsViewProps {
 }
 
 export function PromptDetailsView({ itemId, onBack }: PromptDetailsViewProps) {
-  const connectionId = getConnectionIdFromPathname() ?? UNKNOWN_CONNECTION_ID;
+  const connectionId = getConnectionIdFromPathname();
 
-  if (!connectionId || connectionId === UNKNOWN_CONNECTION_ID) {
+  if (!connectionId) {
     return (
       <div className="flex h-full w-full bg-background">
         <EmptyState

@@ -1,4 +1,4 @@
-import type { ProjectLocator } from "./locator";
+import type { ProjectLocator } from "@decocms/mesh-sdk";
 
 /**
  * Known localStorage keys for the mesh app.

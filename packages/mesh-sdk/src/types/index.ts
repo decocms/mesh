@@ -3,6 +3,8 @@ export {
   ConnectionCreateDataSchema,
   ConnectionUpdateDataSchema,
   isStdioParameters,
+  parseVirtualUrl,
+  buildVirtualUrl,
   type ConnectionEntity,
   type ConnectionCreateData,
   type ConnectionUpdateData,
