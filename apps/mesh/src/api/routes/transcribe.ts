@@ -49,10 +49,8 @@ function isPrivateIp(ip: string): boolean {
 
   // IPv6 check
   const ipLower = ip.toLowerCase();
-  const ipv4MappedMatch = ipLower.match(
-    /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/,
-  );
-  if (ipv4MappedMatch && isPrivateIp(ipv4MappedMatch[1])) {
+  const ipv4MappedMatch = ipLower.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (ipv4MappedMatch && isPrivateIp(ipv4MappedMatch[1] ?? "")) {
     return true;
   }
   if (
