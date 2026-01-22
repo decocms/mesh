@@ -43,20 +43,19 @@ export const COLLECTION_THREADS_LIST = defineTool({
       throw new Error("User ID required to list threads");
     }
     const organization = requireOrganization(ctx);
+    const offset = input.offset ?? 0;
+    const limit = input.limit ?? 100;
+
     const { threads, total } = await ctx.storage.threads.list(
       organization.id,
       userId,
-      { limit: input.limit, offset: input.offset },
+      { limit, offset },
     );
 
-    // Calculate pagination
-    const offset = input.offset ?? 0;
-    const limit = input.limit ?? 100;
-    const paginatedThreads = threads.slice(offset, offset + limit);
     const hasMore = offset + limit < total;
 
     return {
-      items: paginatedThreads.map((thread) => ({
+      items: threads.map((thread) => ({
         ...thread,
         hidden: thread.hidden ?? false,
       })),
