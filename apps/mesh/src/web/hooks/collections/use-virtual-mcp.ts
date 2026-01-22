@@ -96,8 +96,9 @@ export function useVirtualMCPActions() {
           data,
         },
       })) as { structuredContent?: unknown };
-      const payload = (result.structuredContent ??
-        result) as { item: VirtualMCPEntity };
+      const payload = (result.structuredContent ?? result) as {
+        item: VirtualMCPEntity;
+      };
 
       return payload.item;
     },
@@ -137,8 +138,9 @@ export function useVirtualMCPActions() {
           data,
         },
       })) as { structuredContent?: unknown };
-      const payload = (result.structuredContent ??
-        result) as { item: VirtualMCPEntity };
+      const payload = (result.structuredContent ?? result) as {
+        item: VirtualMCPEntity;
+      };
 
       return payload.item;
     },
@@ -166,8 +168,9 @@ export function useVirtualMCPActions() {
           id,
         },
       })) as { structuredContent?: unknown };
-      const payload = (result.structuredContent ??
-        result) as { item: { id: string } };
+      const payload = (result.structuredContent ?? result) as {
+        item: { id: string };
+      };
 
       return payload.item.id;
     },
