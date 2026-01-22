@@ -596,6 +596,7 @@ export function createApp(options: CreateAppOptions = {}) {
         data: await c.req.json(),
         type: `public:${c.req.param("type")}`,
         subject: c.req.query("subject"),
+        target: c.req.query("target"),
         deliverAt: c.req.query("deliverAt"),
         cron: c.req.query("cron"),
       },

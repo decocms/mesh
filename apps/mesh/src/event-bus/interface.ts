@@ -28,6 +28,12 @@ export interface PublishEventInput {
   /** Event payload (any JSON value) */
   data?: unknown;
   /**
+   * Optional target connection ID.
+   * If provided, only this specific connection will receive the event.
+   * If omitted, the event is broadcast to all matching subscriptions.
+   */
+  target?: string;
+  /**
    * Optional scheduled delivery time (ISO 8601 timestamp).
    * If provided, the event will not be delivered until this time.
    * If omitted, the event is delivered immediately.

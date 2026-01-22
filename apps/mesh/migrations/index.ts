@@ -25,6 +25,7 @@ import * as migration023optimizethreadindexes from "./023-optimize-thread-indexe
 import * as migration024consolidatevirtualmcp from "./024-consolidate-virtual-mcp.ts";
 import * as migration025addmonitoringvirtualmcpid from "./025-add-monitoring-virtual-mcp-id.ts";
 import * as migration026restrictchildconnectiondelete from "./026-restrict-child-connection-delete.ts";
+import * as migration027eventtarget from "./027-event-target.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -55,6 +56,7 @@ const migrations = {
   "025-add-monitoring-virtual-mcp-id": migration025addmonitoringvirtualmcpid,
   "026-restrict-child-connection-delete":
     migration026restrictchildconnectiondelete,
+  "027-event-target": migration027eventtarget,
 } satisfies Record<string, Migration>;
 
 export default migrations;

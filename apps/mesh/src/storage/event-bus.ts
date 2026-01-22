@@ -39,6 +39,8 @@ export interface CreateEventInput {
   datacontenttype?: string;
   dataschema?: string | null;
   data?: unknown | null;
+  /** Target connection ID - if set, only this connection will receive the event */
+  target?: string | null;
   cron?: string | null;
 }
 
@@ -304,6 +306,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         datacontenttype: input.datacontenttype ?? "application/json",
         dataschema: input.dataschema ?? null,
         data: input.data ? JSON.stringify(input.data) : null,
+        target: input.target ?? null,
         cron: input.cron ?? null,
         status: "pending",
         attempts: 0,
@@ -325,6 +328,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       datacontenttype: input.datacontenttype ?? "application/json",
       dataschema: input.dataschema ?? null,
       data: input.data ?? null,
+      target: input.target ?? null,
       cron: input.cron ?? null,
       status: "pending",
       attempts: 0,
@@ -477,7 +481,7 @@ class KyselyEventBusStorage implements EventBusStorage {
   async getMatchingSubscriptions(event: Event): Promise<EventSubscription[]> {
     // Find enabled subscriptions that match the event type
     // and either have no publisher filter or match the event source
-    const rows = await this.db
+    let query = this.db
       .selectFrom("event_subscriptions")
       .selectAll()
       .where("organization_id", "=", event.organizationId)
@@ -488,8 +492,14 @@ class KyselyEventBusStorage implements EventBusStorage {
           eb("publisher", "is", null),
           eb("publisher", "=", event.source),
         ]),
-      )
-      .execute();
+      );
+
+    // If target is specified, only deliver to that specific connection
+    if (event.target) {
+      query = query.where("connection_id", "=", event.target);
+    }
+
+    const rows = await query.execute();
 
     return rows.map((row) => ({
       id: row.id,
@@ -630,6 +640,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         "e.datacontenttype",
         "e.dataschema",
         "e.data",
+        "e.target",
         "e.cron",
         "e.status as event_status",
         "e.attempts as event_attempts",
@@ -673,6 +684,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         datacontenttype: row.datacontenttype,
         dataschema: row.dataschema,
         data: row.data ? JSON.parse(row.data as string) : null,
+        target: row.target,
         cron: row.cron,
         status: row.event_status as EventStatus,
         attempts: row.event_attempts,
@@ -841,6 +853,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       datacontenttype: row.datacontenttype,
       dataschema: row.dataschema,
       data: row.data ? JSON.parse(row.data as string) : null,
+      target: row.target,
       cron: row.cron,
       status: row.status as EventStatus,
       attempts: row.attempts,
@@ -883,6 +896,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       datacontenttype: row.datacontenttype,
       dataschema: row.dataschema,
       data: row.data ? JSON.parse(row.data as string) : null,
+      target: row.target,
       cron: row.cron,
       status: row.status as EventStatus,
       attempts: row.attempts,
