@@ -114,8 +114,7 @@ export function useThreadMessages(threadId: string | null) {
         return [];
       }
     },
-
-    staleTime: 30_000,
+    staleTime: 0,
   });
   return data ?? [];
 }

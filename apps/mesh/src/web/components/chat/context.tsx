@@ -23,6 +23,7 @@ import {
   type PropsWithChildren,
   useContext,
   useReducer,
+  useRef,
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
@@ -511,11 +512,6 @@ export function ChatProvider({
     LOCALSTORAGE_KEYS.assistantChatActiveThread(locator) + ":state",
     initialThreads[0]?.id ?? crypto.randomUUID(),
   );
-  const activeThread = stateThreads.find(
-    (thread) => thread.id === stateActiveThreadId,
-  );
-  const isNewThread =
-    !activeThread || activeThread.updatedAt === activeThread.createdAt;
   // ===========================================================================
   // 1. HOOKS - Call all hooks and derive state from them
   // ===========================================================================
@@ -539,13 +535,9 @@ export function ChatProvider({
   // Model state
   const modelsConnections = useModelConnections();
   const [selectedModel, setModel] = useModelState(locator, modelsConnections);
-  const initialMessages = useThreadMessages(
-    isNewThread ? null : stateActiveThreadId,
-  );
-  const [messages, setMessages] = useLocalStorage<Message[]>(
-    LOCALSTORAGE_KEYS.messages(locator, stateActiveThreadId),
-    initialMessages,
-  );
+  // Always fetch messages for the active thread - if it's truly new, the query returns empty
+  const initialMessages = useThreadMessages(stateActiveThreadId);
+
   // Context prompt
   const contextPrompt = useContextHook(storedSelectedVirtualMcpId);
 
@@ -561,10 +553,6 @@ export function ChatProvider({
     : null;
 
   const transport = createModelsTransport(org.slug);
-
-  const addMessages = (newMessages: Message[]) => {
-    setMessages((prevMessages) => [...prevMessages, ...newMessages]);
-  };
 
   // ===========================================================================
   // 3. HOOK CALLBACKS - Functions passed to hooks
@@ -612,13 +600,20 @@ export function ChatProvider({
         if (existingThread) {
           return prevThreads;
         }
+        const now = new Date().toISOString();
+        const firstMessageCreatedAt =
+          newMessages[0]?.metadata?.created_at ?? now;
+        const parsedFirstMessageCreatedAt =
+          typeof firstMessageCreatedAt === "string"
+            ? firstMessageCreatedAt
+            : new Date(firstMessageCreatedAt).toISOString();
         return [
           ...prevThreads,
           {
             id: stateActiveThreadId,
             title: title ?? "New Thread",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: parsedFirstMessageCreatedAt,
+            updatedAt: parsedFirstMessageCreatedAt,
           },
         ];
       });
@@ -636,12 +631,10 @@ export function ChatProvider({
         ),
       );
     }
-    addMessages(newMessages);
   };
 
   const onError = () => {
     chat.setMessages((messages) => messages.slice(0, -1));
-    setMessages((messages) => messages.slice(0, -1));
   };
 
   // ===========================================================================
@@ -650,12 +643,22 @@ export function ChatProvider({
 
   const chat = useAIChat<UIMessage<Metadata>>({
     id: stateActiveThreadId,
-    messages,
+    messages: initialMessages,
     transport,
     onFinish,
     onToolCall,
     onError,
   });
+
+  // Sync initialMessages to chat when thread changes or messages are loaded
+  // useAIChat only uses `messages` prop as initial state, so we need to sync manually
+  // Track by thread ID + first message ID to detect actual changes (not just reference)
+  const syncKey = `${stateActiveThreadId}:${initialMessages[0]?.id ?? "empty"}:${initialMessages.length}`;
+  const prevSyncKeyRef = useRef(syncKey);
+  if (prevSyncKeyRef.current !== syncKey) {
+    prevSyncKeyRef.current = syncKey;
+    chat.setMessages(initialMessages);
+  }
 
   // ===========================================================================
   // 5. POST-HOOK DERIVED VALUES - Values derived from hooks with callbacks
@@ -766,7 +769,6 @@ export function ChatProvider({
       parts,
       metadata: messageMetadata,
     };
-    addMessages([userMessage]);
 
     await chat.sendMessage(userMessage, { metadata });
   };
