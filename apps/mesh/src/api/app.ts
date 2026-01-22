@@ -35,6 +35,7 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
 import publicConfigRoutes from "./routes/public-config";
+import transcribeRoutes from "./routes/transcribe";
 import {
   isDecoHostedMcp,
   DECO_STORE_URL,
@@ -586,6 +587,9 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // OpenAI-compatible LLM API routes
   app.route("/api", openaiCompatRoutes);
+
+  // Audio transcription routes
+  app.route("/api", transcribeRoutes);
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {

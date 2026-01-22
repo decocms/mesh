@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { type Binder, createBindingChecker } from "@decocms/bindings";
+import {
+  type Binder,
+  createBindingChecker,
+  OBJECT_STORAGE_BINDING,
+  TRANSCRIPTION_BINDING,
+} from "@decocms/bindings";
 import {
   BaseCollectionEntitySchema,
   createCollectionBindings,
@@ -23,6 +28,8 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
   WORKFLOW_EXECUTION: WORKFLOW_EXECUTION_BINDING,
   ASSISTANTS: ASSISTANTS_BINDING,
   MCP: MCP_BINDING,
+  TRANSCRIPTION: TRANSCRIPTION_BINDING,
+  OBJECT_STORAGE: OBJECT_STORAGE_BINDING,
 };
 
 /**

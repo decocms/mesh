@@ -25,7 +25,9 @@ import {
   type PropsWithChildren,
 } from "react";
 import { toast } from "sonner";
+import { useConnections } from "../../hooks/collections/use-connection";
 import { useModelConnections } from "../../hooks/collections/use-llm";
+import { useBindingConnections } from "../../hooks/use-binding";
 import {
   getThreadFromIndexedDB,
   useMessageActions,
@@ -122,6 +124,10 @@ interface ChatContextValue {
   clearChatError: () => void;
   finishReason: string | null;
   clearFinishReason: () => void;
+
+  // Binding availability
+  hasTranscriptionBinding: boolean;
+  hasObjectStorageBinding: boolean;
 }
 
 // ============================================================================
@@ -508,6 +514,19 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const modelsConnections = useModelConnections();
   const [selectedModel, setModel] = useModelState(locator, modelsConnections);
 
+  // Binding detection for transcription feature
+  const allConnections = useConnections();
+  const transcriptionConnections = useBindingConnections({
+    connections: allConnections,
+    binding: "TRANSCRIPTION",
+  });
+  const objectStorageConnections = useBindingConnections({
+    connections: allConnections,
+    binding: "OBJECT_STORAGE",
+  });
+  const hasTranscriptionBinding = transcriptionConnections.length > 0;
+  const hasObjectStorageBinding = objectStorageConnections.length > 0;
+
   // Context prompt
   const contextPrompt = useContextHook(storedSelectedVirtualMcpId);
 
@@ -778,6 +797,10 @@ export function ChatProvider({ children }: PropsWithChildren) {
     clearChatError: chat.clearError,
     finishReason: chatState.finishReason,
     clearFinishReason,
+
+    // Binding availability
+    hasTranscriptionBinding,
+    hasObjectStorageBinding,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
