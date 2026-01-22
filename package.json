@@ -1,7 +1,25 @@
 {
   "name": "@decocms/mesh-monorepo",
+  "devDependencies": {
+    "@biomejs/biome": "2.2.5",
+    "@types/node": "^24.9.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.0.4",
+    "deco-cli": "workspace:*",
+    "knip": "^5.73.4",
+    "oxlint": "1.23.0",
+    "react": "^19.2.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": "1.25.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.0.4"
+  },
   "private": true,
-  "type": "module",
   "scripts": {
     "link": "deco link -p 3000 -e MESH_URL -- bun run dev",
     "dev": "bun run --cwd=apps/mesh dev",
@@ -21,27 +39,9 @@
     "benchmark": "bun run --cwd=apps/benchmark benchmark",
     "benchmark:quick": "bun run --cwd=apps/benchmark benchmark:quick"
   },
+  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"
-  ],
-  "devDependencies": {
-    "@biomejs/biome": "2.2.5",
-    "@types/node": "^24.9.1",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.0.4",
-    "deco-cli": "workspace:*",
-    "knip": "^5.73.4",
-    "oxlint": "1.23.0",
-    "react": "^19.2.0",
-    "typescript": "^5.9.3"
-  },
-  "overrides": {
-    "@modelcontextprotocol/sdk": "1.25.2",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.0.4"
-  },
-  "engines": {
-    "node": ">=24.0.0"
-  }
+  ]
 }

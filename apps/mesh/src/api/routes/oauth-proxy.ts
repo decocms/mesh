@@ -293,7 +293,6 @@ export async function handleAuthError({
   );
 }
 
-// force https if not localhost
 export const fixProtocol = (url: URL) => {
   const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (!isLocal) {

@@ -12,9 +12,8 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Clock, SearchMd, Trash01 } from "@untitledui/icons";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useChat } from "./context";
-import { useThreads } from "../../hooks/use-chat-store";
 import type { Thread } from "./types.ts";
 
 type ThreadSection = {
@@ -49,7 +48,7 @@ function groupThreadsByDate(threads: Thread[]): ThreadSection[] {
   const olderThreads: Thread[] = [];
 
   for (const thread of threads) {
-    const date = new Date(thread.updated_at);
+    const date = new Date(thread.updatedAt);
     if (date >= today) {
       todayThreads.push(thread);
     } else if (date >= yesterday) {
@@ -108,9 +107,44 @@ export function ThreadHistoryPopover({
 }: {
   variant?: "outline" | "icon";
 }) {
-  const { threads, refetch } = useThreads();
-  const { activeThreadId, setActiveThreadId, hideThread } = useChat();
   const [searchQuery, setSearchQuery] = useState("");
+  const {
+    activeThreadId,
+    setActiveThreadId,
+    threads,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    hideThread,
+  } = useChat();
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Set up intersection observer for infinite scroll
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const setupObserver = (node: HTMLDivElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    if (node && hasNextPage && !isFetchingNextPage && fetchNextPage) {
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          if (
+            entries[0]?.isIntersecting &&
+            hasNextPage &&
+            !isFetchingNextPage &&
+            fetchNextPage
+          ) {
+            fetchNextPage();
+          }
+        },
+        { rootMargin: "100px" },
+      );
+      observerRef.current.observe(node);
+    }
+
+    sentinelRef.current = node;
+  };
 
   const filteredThreads = searchQuery.trim()
     ? threads.filter((thread) =>
@@ -122,18 +156,10 @@ export function ThreadHistoryPopover({
 
   const sections = groupThreadsByDate(filteredThreads);
 
-  const handleOpenChange = (open: boolean) => {
-    if (open) {
-      refetch();
-    } else {
-      setSearchQuery("");
-    }
-  };
-
   return (
     <TooltipProvider>
       <Tooltip>
-        <Popover onOpenChange={handleOpenChange}>
+        <Popover>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               {variant === "outline" ? (
@@ -186,56 +212,68 @@ export function ThreadHistoryPopover({
                   {searchQuery.trim() ? "No chats found" : "No chats yet"}
                 </div>
               ) : (
-                sections.map((section, sectionIndex) => (
-                  <div key={section.label}>
-                    {sectionIndex > 0 && <div className="border-t mx-3" />}
-                    <div className="px-3 py-1">
-                      <span className="text-xs font-medium text-muted-foreground tracking-wide">
-                        {section.label}
-                      </span>
-                    </div>
-                    {section.threads.map((thread) => {
-                      const isActive = thread.id === activeThreadId;
-                      return (
-                        <div
-                          key={thread.id}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer group",
-                            isActive && "bg-accent/50",
-                          )}
-                          onClick={() => setActiveThreadId(thread.id)}
-                        >
-                          <div className="flex-1 min-w-0 flex items-center gap-2">
-                            <span className="text-sm truncate">
-                              {thread.title || "New chat"}
-                            </span>
-                            <span className="text-xs text-muted-foreground shrink-0">
-                              {isActive
-                                ? "current"
-                                : section.showRelativeTime
-                                  ? formatRelativeTime(thread.updated_at)
-                                  : null}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              hideThread(thread.id);
-                            }}
-                            className="opacity-0 cursor-pointer group/trash group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity"
-                            title="Remove chat"
+                <>
+                  {sections.map((section, sectionIndex) => (
+                    <div key={section.label}>
+                      {sectionIndex > 0 && <div className="border-t mx-3" />}
+                      <div className="px-3 py-1">
+                        <span className="text-xs font-medium text-muted-foreground tracking-wide">
+                          {section.label}
+                        </span>
+                      </div>
+                      {section.threads.map((thread) => {
+                        const isActive = thread.id === activeThreadId;
+                        return (
+                          <div
+                            key={thread.id}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer group",
+                              isActive && "bg-accent/50",
+                            )}
+                            onClick={() => setActiveThreadId(thread.id)}
                           >
-                            <Trash01
-                              size={14}
-                              className="text-muted-foreground group-hover/trash:text-destructive"
-                            />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))
+                            <div className="flex-1 min-w-0 flex items-center gap-2">
+                              <span className="text-sm truncate">
+                                {thread.title || "New chat"}
+                              </span>
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {isActive
+                                  ? "current"
+                                  : section.showRelativeTime
+                                    ? formatRelativeTime(thread.updatedAt)
+                                    : null}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                hideThread(thread.id);
+                              }}
+                              className="opacity-0 cursor-pointer group/trash group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity"
+                              title="Remove chat"
+                            >
+                              <Trash01
+                                size={14}
+                                className="text-muted-foreground group-hover/trash:text-destructive"
+                              />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                  {/* Sentinel for infinite scroll */}
+                  {!searchQuery.trim() && hasNextPage && (
+                    <div ref={setupObserver} className="h-4" />
+                  )}
+                  {/* Loading indicator */}
+                  {isFetchingNextPage && (
+                    <div className="p-3 text-center text-xs text-muted-foreground">
+                      Loading more chats...
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </PopoverContent>

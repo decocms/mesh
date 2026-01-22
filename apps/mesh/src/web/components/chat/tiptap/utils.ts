@@ -2,26 +2,6 @@ import type { JSONContent } from "@tiptap/react";
 import type { TiptapDoc } from "../types";
 
 /**
- * Create a Tiptap document from text
- */
-export function createTiptapDoc(text: string): TiptapDoc {
-  return {
-    type: "doc",
-    content: [
-      {
-        type: "paragraph",
-        content: [
-          {
-            type: "text",
-            text,
-          },
-        ],
-      },
-    ],
-  };
-}
-
-/**
  * Check if a Tiptap document is empty
  */
 export function isTiptapDocEmpty(doc: TiptapDoc | null | undefined): boolean {

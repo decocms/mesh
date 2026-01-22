@@ -13,7 +13,6 @@ import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
-import { useRouterState } from "@tanstack/react-router";
 import { GitBranch01, MessageChatSquare, Plus } from "@untitledui/icons";
 import { Suspense } from "react";
 import {
@@ -22,6 +21,7 @@ import {
   MetricsModeProvider,
   MetricsModeSelector,
 } from "./mesh-graph.tsx";
+import { useThreads } from "@/web/hooks/use-chat-store.ts";
 
 /**
  * Get time-based greeting
@@ -43,9 +43,14 @@ type HomeViewMode = "chat" | "graph";
 function HomeContent() {
   const { org, locator } = useProjectContext();
   const { data: session } = authClient.useSession();
-  const { createThread, activeThread, modelsConnections, isChatEmpty } =
-    useChat();
-
+  const {
+    modelsConnections,
+    isChatEmpty,
+    activeThreadId,
+    setActiveThreadId,
+    threads,
+  } = useChat();
+  const activeThread = threads.find((thread) => thread.id === activeThreadId);
   // View mode state (chat vs graph)
   const [viewMode, setViewMode] = useLocalStorage<HomeViewMode>(
     `${locator}:home-view-mode`,
@@ -91,12 +96,18 @@ function HomeContent() {
                   variant="outline"
                   size="icon"
                   className="size-7 border border-input"
-                  onClick={() => createThread()}
+                  onClick={() => setActiveThreadId(crypto.randomUUID())}
                   aria-label="New chat"
                 >
                   <Plus size={16} />
                 </Button>
-                <Chat.ThreadHistoryPopover variant="outline" />
+                <Suspense
+                  fallback={
+                    <div className="size-7 rounded-full bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed" />
+                  }
+                >
+                  <Chat.ThreadHistoryPopover variant="outline" />
+                </Suspense>
               </>
             )}
             <ViewModeToggle
@@ -208,10 +219,26 @@ function HomeChatErrorFallback({
   );
 }
 
-export default function OrgHomePage() {
-  // Force remount on navigation to reset chat view
-  const routerState = useRouterState();
+/**
+ * Inner component that calls useThreads inside the Suspense boundary.
+ * This ensures the suspense fallback is shown while threads are loading.
+ */
+function HomeContentWithThreads() {
+  const { threads, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useThreads();
+  return (
+    <Chat.Provider
+      initialThreads={threads}
+      hasNextPage={hasNextPage}
+      isFetchingNextPage={isFetchingNextPage}
+      fetchNextPage={fetchNextPage}
+    >
+      <HomeContent />
+    </Chat.Provider>
+  );
+}
 
+export default function OrgHomePage() {
   return (
     <ErrorBoundary
       fallback={({ error, resetError }) => (
@@ -219,9 +246,7 @@ export default function OrgHomePage() {
       )}
     >
       <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.Provider key={routerState.location.pathname}>
-          <HomeContent />
-        </Chat.Provider>
+        <HomeContentWithThreads />
       </Suspense>
     </ErrorBoundary>
   );

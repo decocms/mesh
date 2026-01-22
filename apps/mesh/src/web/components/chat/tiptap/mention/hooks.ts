@@ -127,7 +127,7 @@ function useMenuNavigation<T>({
     const dom = editor.view.dom;
 
     // Guard against editor being destroyed
-    if (editor.isDestroyed || !dom) {
+    if (editor?.isDestroyed || !dom) {
       return undefined;
     }
 
@@ -349,7 +349,7 @@ export function useMentionState({
   // This ensures it's always active even when the menu is closed
   // eslint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (editor.isDestroyed) {
+    if (editor?.isDestroyed) {
       return;
     }
 
@@ -428,7 +428,7 @@ export function useMentionState({
     editor.registerPlugin(suggestion);
 
     return () => {
-      if (!editor.isDestroyed) {
+      if (!editor?.isDestroyed) {
         editor.unregisterPlugin(key);
       }
     };

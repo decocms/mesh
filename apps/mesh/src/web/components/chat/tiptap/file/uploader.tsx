@@ -101,7 +101,7 @@ export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
   // Register the file drop plugin once per editor instance
   // eslint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (editor.isDestroyed) {
+    if (editor?.isDestroyed) {
       return;
     }
 
@@ -153,7 +153,7 @@ export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
     editor.registerPlugin(fileDropPlugin);
 
     return () => {
-      if (!editor.isDestroyed) {
+      if (!editor?.isDestroyed) {
         editor.unregisterPlugin(pluginKey);
       }
     };

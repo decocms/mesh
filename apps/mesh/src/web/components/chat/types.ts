@@ -13,6 +13,11 @@ export interface ChatModelConfig {
     contextWindow?: number;
     maxOutputTokens?: number;
   };
+  capabilities?: {
+    vision?: boolean;
+    text?: boolean;
+    tools?: boolean;
+  };
 }
 
 export interface ChatGatewayConfig {
@@ -46,6 +51,7 @@ export type TiptapNode = JSONContent;
 // ============================================================================
 
 export interface Metadata {
+  cheapModelId?: string | null;
   reasoning_start_at?: string | Date;
   reasoning_end_at?: string | Date;
   model?: ChatModelConfig;
@@ -53,6 +59,7 @@ export interface Metadata {
   user?: ChatUserConfig;
   created_at?: string | Date;
   thread_id?: string;
+  title?: string;
   /** System prompt to prepend to messages at the transport layer */
   system?: string;
   /** Tiptap document for rich user input (includes prompt tags with resources) */
@@ -75,8 +82,8 @@ export interface Metadata {
 export interface Thread {
   id: string;
   title: string;
-  created_at: string; // ISO string
-  updated_at: string; // ISO string
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
   hidden?: boolean;
   virtualMcpId?: string; // Associate thread with specific virtual MCP
 }

@@ -19,7 +19,6 @@ import {
   AlertTriangle,
   ArrowUp,
   ChevronDown,
-  CornerUpLeft,
   CpuChip02,
   Edit01,
   Microphone01,
@@ -189,12 +188,9 @@ function VirtualMCPBadge({
 
 export function ChatInput() {
   const {
+    activeThreadId,
     tiptapDoc,
     setTiptapDoc,
-    clearTiptapDoc,
-    parentThread,
-    clearBranch,
-    setActiveThreadId,
     virtualMcps,
     selectedVirtualMcp,
     setVirtualMcpId,
@@ -246,13 +242,6 @@ export function ChatInput() {
     } else if (canSubmit && tiptapDoc) {
       void sendMessage(tiptapDoc);
     }
-  };
-
-  const handleGoToOriginalMessage = () => {
-    if (!parentThread) return;
-    setActiveThreadId(parentThread.threadId);
-    clearBranch();
-    clearTiptapDoc();
   };
 
   const handleFixInChat = () => {
@@ -389,28 +378,6 @@ export function ChatInput() {
         </ChatHighlight>
       )}
 
-      {parentThread && (
-        <ChatHighlight
-          variant="default"
-          title="Editing message (click to view original)"
-          description="You are in a new thread. You can go back to the original in any moment."
-          icon={<CornerUpLeft size={14} />}
-          onDismiss={() => {
-            clearBranch();
-            clearTiptapDoc();
-          }}
-        >
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleGoToOriginalMessage}
-            className="h-7 text-xs"
-          >
-            View original
-          </Button>
-        </ChatHighlight>
-      )}
-
       {/* Virtual MCP wrapper with badge */}
       <div
         className={cn(
@@ -432,6 +399,7 @@ export function ChatInput() {
         {/* Inner container with the input */}
         <div className="p-0.5">
           <TiptapProvider
+            key={activeThreadId}
             tiptapDoc={tiptapDoc}
             setTiptapDoc={setTiptapDoc}
             selectedModel={selectedModel}

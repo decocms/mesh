@@ -20,21 +20,16 @@ import {
 } from "ai";
 import {
   createContext,
+  type PropsWithChildren,
   useContext,
   useReducer,
-  type PropsWithChildren,
+  useRef,
 } from "react";
 import { toast } from "sonner";
 import { useConnections } from "../../hooks/collections/use-connection";
-import { useModelConnections } from "../../hooks/collections/use-llm";
 import { useBindingConnections } from "../../hooks/use-binding";
-import {
-  getThreadFromIndexedDB,
-  useMessageActions,
-  useThreadActions,
-  useThreadMessages,
-  useThreads,
-} from "../../hooks/use-chat-store";
+import { useModelConnections } from "../../hooks/collections/use-llm";
+import { useThreadMessages } from "../../hooks/use-chat-store";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
@@ -44,14 +39,17 @@ import type { ProjectLocator } from "../../lib/locator";
 import { useProjectContext } from "../../providers/project-context-provider";
 import type { ChatMessage } from "./index";
 import {
-  useModels,
   type ModelChangePayload,
   type SelectedModelState,
+  useModels,
 } from "./select-model";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import { useVirtualMCPs } from "./select-virtual-mcp";
 import type { FileAttrs } from "./tiptap/file/node.tsx";
 import type { Message, Metadata, ParentThread, Thread } from "./types.ts";
+import { createToolCaller } from "@/tools/client.ts";
+import { ThreadUpdateData } from "@/tools/thread/schema.ts";
+import { CollectionUpdateOutput } from "@decocms/bindings/collections";
 
 // ============================================================================
 // Type Definitions
@@ -89,18 +87,18 @@ interface ChatContextValue {
   tiptapDoc: Metadata["tiptapDoc"];
   setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
   clearTiptapDoc: () => void;
-  parentThread: ParentThread | null;
-  startBranch: (parentThread: ParentThread) => void;
-  clearBranch: () => void;
   resetInteraction: () => void;
 
   // Thread management
   activeThreadId: string;
-  activeThread: Thread | null;
-  threads: Thread[];
-  createThread: (thread?: Partial<Thread>) => Thread;
   setActiveThreadId: (threadId: string) => void;
+  threads: Thread[];
   hideThread: (threadId: string) => void;
+
+  // Thread pagination (for infinite scroll)
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
 
   // Virtual MCP state
   virtualMcps: VirtualMCPInfo[];
@@ -138,9 +136,9 @@ const createModelsTransport = (
   org: string,
 ): DefaultChatTransport<UIMessage<Metadata>> =>
   new DefaultChatTransport<UIMessage<Metadata>>({
-    api: `/api/${org}/models/stream`,
+    api: `/api/${org}/decopilot/stream`,
     credentials: "include",
-    prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
+    prepareSendMessagesRequest: ({ messages, requestMetadata = {} }: { messages: Message[]; requestMetadata: Metadata }) => {
       const {
         system,
         tiptapDoc: _tiptapDoc,
@@ -153,10 +151,14 @@ const createModelsTransport = (
             parts: [{ type: "text", text: system }],
           }
         : null;
+      const userMessage = messages.slice(-1).filter(Boolean) as Message[];
+      const allMessages = systemMessage
+        ? [systemMessage, ...userMessage]
+        : userMessage;
 
       return {
         body: {
-          messages: systemMessage ? [systemMessage, ...messages] : messages,
+          messages: allMessages,
           ...metadata,
         },
       };
@@ -179,6 +181,7 @@ const useModelState = (
   const [modelState, setModelState] = useLocalStorage<{
     id: string;
     connectionId: string;
+    cheapModelId?: string | null;
   } | null>(LOCALSTORAGE_KEYS.chatSelectedModel(locator), null);
 
   // Determine connectionId to use (from stored selection or first available)
@@ -189,6 +192,16 @@ const useModelState = (
 
   // Fetch models for the selected connection
   const models = useModels(modelsConnection?.id ?? null);
+  const cheapestModel = models
+    .filter((m) => (m.costs?.input ?? 0) + (m.costs?.output ?? 0) > 0)
+    .reduce<(typeof models)[number] | undefined>((min, model) => {
+      const inputCost = model.costs?.input ?? 0;
+      const outputCost = model.costs?.output ?? 0;
+      const minCost = (min?.costs?.input ?? 0) + (min?.costs?.output ?? 0);
+      return !min || minCost === 0 || inputCost + outputCost < minCost
+        ? model
+        : min;
+    }, undefined);
 
   // Find the selected model from the fetched models using stored state
   const selectedModel = findOrFirst(models, modelState?.id);
@@ -201,6 +214,7 @@ const useModelState = (
           limits: selectedModel.limits,
           capabilities: selectedModel.capabilities,
           connectionId: modelsConnection.id,
+          cheapModelId: cheapestModel?.id,
         }
       : null;
 
@@ -468,41 +482,55 @@ function derivePartsFromTiptapDoc(
   return parts;
 }
 
-const ChatContext = createContext<ChatContextValue | null>(null);
+async function callUpdateThreadTool(threadId: string, data: ThreadUpdateData) {
+  const toolCaller = createToolCaller();
+  const result = (await toolCaller("COLLECTION_THREADS_UPDATE", {
+    id: threadId,
+    data,
+  })) as CollectionUpdateOutput<Thread>;
+  return result.item;
+}
 
-const createThreadId = () => crypto.randomUUID();
+const ChatContext = createContext<ChatContextValue | null>(null);
 
 /**
  * Provider component for chat context
  * Consolidates all chat-related state: interaction, threads, virtual MCP, model, and chat session
  */
-export function ChatProvider({ children }: PropsWithChildren) {
+export function ChatProvider({
+  children,
+  initialThreads,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+}: PropsWithChildren & {
+  initialThreads: Thread[];
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+}) {
+  const { locator, org } = useProjectContext();
+  const [stateThreads, setStateThreads] = useLocalStorage<Thread[]>(
+    LOCALSTORAGE_KEYS.assistantChatThreads(locator),
+    initialThreads,
+  );
+  const [stateActiveThreadId, setStateActiveThreadId] = useLocalStorage<string>(
+    LOCALSTORAGE_KEYS.assistantChatActiveThread(locator) + ":state",
+    initialThreads[0]?.id ?? crypto.randomUUID(),
+  );
   // ===========================================================================
   // 1. HOOKS - Call all hooks and derive state from them
   // ===========================================================================
 
   // Project context
-  const { locator, org } = useProjectContext();
-
   // User session
   const { data: session } = authClient.useSession();
   const user = session?.user ?? null;
-
   // Chat state (reducer-based)
   const [chatState, chatDispatch] = useReducer(
     chatStateReducer,
     initialChatState,
   );
-
-  // Thread state
-  const threadActions = useThreadActions();
-  const messageActions = useMessageActions();
-  const { threads } = useThreads();
-  const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
-    LOCALSTORAGE_KEYS.threadManagerState(locator) + ":active-id",
-    (existing) => existing || createThreadId(),
-  );
-  const persistedMessages = useThreadMessages(activeThreadId);
 
   // Virtual MCP state
   const virtualMcps = useVirtualMCPs();
@@ -513,6 +541,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Model state
   const modelsConnections = useModelConnections();
   const [selectedModel, setModel] = useModelState(locator, modelsConnections);
+  // Always fetch messages for the active thread - if it's truly new, the query returns empty
+  const initialMessages = useThreadMessages(stateActiveThreadId);
 
   // Binding detection for transcription feature
   const allConnections = useConnections();
@@ -537,8 +567,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // 2. DERIVED VALUES - Compute values from hook state
   // ===========================================================================
 
-  const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
-
   const selectedVirtualMcp = storedSelectedVirtualMcpId
     ? (virtualMcps.find((g) => g.id === storedSelectedVirtualMcpId) ?? null)
     : null;
@@ -551,7 +579,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   const onFinish = async ({
     finishReason,
-    messages,
+    messages: finishMessages,
     isAbort,
     isDisconnect,
     isError,
@@ -564,57 +592,69 @@ export function ChatProvider({ children }: PropsWithChildren) {
     finishReason?: string;
   }) => {
     chatDispatch({ type: "SET_FINISH_REASON", payload: finishReason ?? null });
-
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
       return;
     }
+    chatDispatch({ type: "SET_TIPTAP_DOC", payload: undefined });
 
-    const newMessages = messages.slice(-2).filter(Boolean) as Message[];
+    // Only add the assistant message - user message was already added before sendMessage
+    const newMessages = finishMessages.slice(-1).filter(Boolean) as Message[];
 
-    if (newMessages.length !== 2) {
-      console.warn("[chat] Expected 2 messages, got", newMessages.length);
+    if (newMessages.length !== 1) {
+      console.warn("[chat] Expected 1 message, got", newMessages.length);
       return;
     }
 
-    messageActions.insertMany.mutate(newMessages);
+    const title = finishMessages.find((message) => message.metadata?.title)
+      ?.metadata?.title;
 
-    const msgTitle =
-      newMessages
-        .find((m) => m.parts?.find((part) => part.type === "text"))
-        ?.parts?.find((part) => part.type === "text")
-        ?.text.slice(0, 100) || "";
+    const isNewThread =
+      stateThreads.findIndex((thread) => thread.id === stateActiveThreadId) ===
+      -1;
 
-    const existingThread = await getThreadFromIndexedDB(
-      locator,
-      activeThreadId,
-    );
-
-    if (!existingThread) {
-      const now = new Date().toISOString();
-      const newThread: Thread = {
-        id: activeThreadId,
-        title: msgTitle,
-        created_at: now,
-        updated_at: now,
-        hidden: false,
-        virtualMcpId: selectedVirtualMcp?.id,
-      };
-      threadActions.insert.mutate(newThread);
-      return;
+    if (isNewThread) {
+      setStateThreads((prevThreads) => {
+        const existingThread = prevThreads.find(
+          (thread) => thread.id === stateActiveThreadId,
+        );
+        if (existingThread) {
+          return prevThreads;
+        }
+        const now = new Date().toISOString();
+        const firstMessageCreatedAt =
+          newMessages[0]?.metadata?.created_at ?? now;
+        const parsedFirstMessageCreatedAt =
+          typeof firstMessageCreatedAt === "string"
+            ? firstMessageCreatedAt
+            : new Date(firstMessageCreatedAt).toISOString();
+        return [
+          ...prevThreads,
+          {
+            id: stateActiveThreadId,
+            title: title ?? "New Thread",
+            createdAt: parsedFirstMessageCreatedAt,
+            updatedAt: parsedFirstMessageCreatedAt,
+          },
+        ];
+      });
+    } else {
+      // Update existing thread's updatedAt (and title if available)
+      setStateThreads((prevThreads) =>
+        prevThreads.map((thread) =>
+          thread.id === stateActiveThreadId
+            ? {
+                ...thread,
+                updatedAt: new Date().toISOString(),
+                ...(title && { title }),
+              }
+            : thread,
+        ),
+      );
     }
-
-    threadActions.update.mutate({
-      id: activeThreadId,
-      updates: {
-        title: existingThread.title || msgTitle,
-        virtualMcpId: existingThread.virtualMcpId || selectedVirtualMcp?.id,
-        updated_at: new Date().toISOString(),
-      },
-    });
   };
 
   const onError = (error: Error) => {
-    console.error("[chat] Chat error:", error);
+    console.error("[chat] Error", error);
   };
 
   // ===========================================================================
@@ -622,13 +662,23 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // ===========================================================================
 
   const chat = useAIChat<UIMessage<Metadata>>({
-    id: activeThreadId,
-    messages: persistedMessages,
+    id: stateActiveThreadId,
+    messages: initialMessages,
     transport,
     onFinish,
     onToolCall,
     onError,
   });
+
+  // Sync initialMessages to chat when thread changes or messages are loaded
+  // useAIChat only uses `messages` prop as initial state, so we need to sync manually
+  // Track by thread ID + first message ID to detect actual changes (not just reference)
+  const syncKey = `${stateActiveThreadId}:${initialMessages[0]?.id ?? "empty"}:${initialMessages.length}`;
+  const prevSyncKeyRef = useRef(syncKey);
+  if (prevSyncKeyRef.current !== syncKey) {
+    prevSyncKeyRef.current = syncKey;
+    chat.setMessages(initialMessages);
+  }
 
   // ===========================================================================
   // 5. POST-HOOK DERIVED VALUES - Values derived from hooks with callbacks
@@ -649,42 +699,31 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   const clearTiptapDoc = () => chatDispatch({ type: "CLEAR_TIPTAP_DOC" });
 
-  const startBranch = (parentCtx: ParentThread) =>
-    chatDispatch({ type: "START_BRANCH", payload: parentCtx });
-
-  const clearBranch = () => chatDispatch({ type: "CLEAR_BRANCH" });
-
   const resetInteraction = () => chatDispatch({ type: "RESET" });
 
-  // Thread functions
-  const createThread = (thread?: Partial<Thread>) => {
-    const id = thread?.id || crypto.randomUUID();
-    const now = new Date().toISOString();
-    const newThread: Thread = {
-      id,
-      title: thread?.title || "",
-      created_at: thread?.created_at || now,
-      updated_at: thread?.updated_at || now,
-      hidden: thread?.hidden ?? false,
-      virtualMcpId: thread?.virtualMcpId,
-    };
-    threadActions.insert.mutate(newThread);
-    setActiveThreadId(id);
-    clearBranch();
-    return newThread;
-  };
-
-  const hideThread = (threadId: string) => {
-    threadActions.update.mutate({
-      id: threadId,
-      updates: {
+  const hideThread = async (threadId: string) => {
+    try {
+      const updatedThread = await callUpdateThreadTool(threadId, {
         hidden: true,
-        updated_at: new Date().toISOString(),
-      },
-    });
-
-    if (activeThreadId === threadId) {
-      setActiveThreadId(createThreadId());
+      });
+      if (updatedThread) {
+        const willHideCurrentThread = threadId === stateActiveThreadId;
+        const firstDifferentThread = stateThreads.find(
+          (thread) => thread.id !== threadId,
+        );
+        if (willHideCurrentThread) {
+          setStateActiveThreadId(
+            firstDifferentThread?.id ?? crypto.randomUUID(),
+          );
+        }
+        setStateThreads((prevThreads) =>
+          prevThreads.filter((thread) => thread.id !== threadId),
+        );
+      }
+    } catch (error) {
+      const err = error as Error;
+      toast.error(`Failed to update thread: ${err.message}`);
+      console.error("[chat] Failed to update thread:", error);
     }
   };
 
@@ -711,13 +750,13 @@ export function ChatProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    // Reset interaction state (clears tiptapDoc, parentThread, finishReason)
-    resetInteraction();
+    clearFinishReason();
 
     const messageMetadata: Metadata = {
       tiptapDoc,
       created_at: new Date().toISOString(),
-      thread_id: activeThreadId,
+      thread_id: stateActiveThreadId,
+      cheapModelId: selectedModel.cheapModelId,
       gateway: {
         id: selectedVirtualMcp?.id ?? null,
       },
@@ -735,18 +774,22 @@ export function ChatProvider({ children }: PropsWithChildren) {
         connectionId: selectedModel.connectionId,
         provider: selectedModel.provider ?? undefined,
         limits: selectedModel.limits ?? undefined,
+        capabilities: {
+          vision: selectedModel.capabilities?.includes("vision") ?? undefined,
+          text: selectedModel.capabilities?.includes("text") ?? undefined,
+          tools: selectedModel.capabilities?.includes("tools") ?? undefined,
+        },
       },
     };
 
-    await chat.sendMessage(
-      {
-        id: crypto.randomUUID(),
-        role: "user",
-        parts,
-        metadata: messageMetadata,
-      },
-      { metadata },
-    );
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      parts,
+      metadata: messageMetadata,
+    };
+
+    await chat.sendMessage(userMessage, { metadata });
   };
 
   const stopStreaming = () => chat.stop();
@@ -762,18 +805,18 @@ export function ChatProvider({ children }: PropsWithChildren) {
     tiptapDoc: chatState.tiptapDoc,
     setTiptapDoc,
     clearTiptapDoc,
-    parentThread: chatState.parentThread,
-    startBranch,
-    clearBranch,
     resetInteraction,
 
     // Thread management
-    activeThreadId,
-    activeThread,
-    threads,
-    createThread,
-    setActiveThreadId,
+    activeThreadId: stateActiveThreadId,
+    threads: stateThreads,
+    setActiveThreadId: setStateActiveThreadId,
     hideThread,
+
+    // Thread pagination
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
 
     // Virtual MCP state
     virtualMcps,

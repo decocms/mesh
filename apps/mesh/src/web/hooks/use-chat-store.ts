@@ -5,114 +5,90 @@
  * Uses TanStack React Query for caching and mutations with idb-keyval for persistence.
  */
 
-import { entries, get, set, del } from "idb-keyval";
 import {
-  useMutation,
-  useQueryClient,
+  useSuspenseInfiniteQuery,
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
 import { useProjectContext } from "../providers/project-context-provider";
 import type { Message, Thread } from "../components/chat/types.ts";
+import { createToolCaller } from "@/tools/client.ts";
+import {
+  CollectionListInput,
+  CollectionListOutput,
+} from "@decocms/bindings/collections";
+
+const THREADS_PAGE_SIZE = 50;
 
 /**
- * Get a single thread by ID from IndexedDB
- */
-export async function getThreadFromIndexedDB(
-  locator: string,
-  threadId: string,
-): Promise<Thread | null> {
-  const key = `${locator}:threads:${threadId}`;
-  return (await get<Thread>(key)) ?? null;
-}
-
-/**
- * Get all threads from IndexedDB
- */
-async function getAllThreadsFromIndexedDB(locator: string): Promise<Thread[]> {
-  const prefix = `${locator}:threads:`;
-  const allEntries = await entries();
-  const threads = allEntries
-    .filter(
-      ([key]: [unknown, unknown]) =>
-        typeof key === "string" && key.startsWith(prefix),
-    )
-    .map(([, value]: [unknown, unknown]) => value as Thread)
-    .filter((thread: Thread) => !thread.hidden);
-
-  // Sort by updated_at descending (most recent first)
-  return threads.sort((a: Thread, b: Thread) => {
-    return String(b.updated_at).localeCompare(String(a.updated_at));
-  });
-}
-
-/**
- * Get messages for a specific thread from IndexedDB
- */
-export function getThreadMessagesFromIndexedDB(
-  locator: string,
-  threadId: string,
-): Promise<Message[]> {
-  const prefix = `${locator}:messages:`;
-  return entries().then((allEntries: [unknown, unknown][]) => {
-    const messages = allEntries
-      .filter(
-        ([key]: [unknown, unknown]) =>
-          typeof key === "string" && key.startsWith(prefix),
-      )
-      .map(([, value]: [unknown, unknown]) => value as Message)
-      .filter(
-        (msg: Message) =>
-          msg.metadata?.thread_id === threadId ||
-          (msg as unknown as { threadId?: string }).threadId === threadId,
-      );
-
-    // Sort by created_at
-    return messages.sort((a: Message, b: Message) => {
-      const aTime =
-        a.metadata?.created_at ||
-        (a as unknown as { createdAt?: string }).createdAt ||
-        "";
-      const bTime =
-        b.metadata?.created_at ||
-        (b as unknown as { createdAt?: string }).createdAt ||
-        "";
-      return String(aTime).localeCompare(String(bTime));
-    });
-  });
-}
-
-/**
- * Hook to get all threads, optionally filtered by virtual MCP (agent)
+ * Hook to get all threads with infinite scroll pagination
  *
- * @param options - Optional filter options
- * @param options.virtualMcpId - Filter threads by virtual MCP ID
- * @returns Object with threads array and refetch function
+ * @returns Object with threads array, pagination helpers, and refetch function
  */
-export function useThreads(options?: { virtualMcpId?: string }) {
+export function useThreads() {
   const { locator } = useProjectContext();
-  const virtualMcpId = options?.virtualMcpId;
+  const toolCaller = createToolCaller();
+  const listToolName = "COLLECTION_THREADS_LIST";
 
-  const { data, refetch } = useSuspenseQuery({
-    queryKey: virtualMcpId
-      ? KEYS.virtualMcpThreads(locator, virtualMcpId)
-      : KEYS.threads(locator),
-    queryFn: async () => {
-      const allThreads = await getAllThreadsFromIndexedDB(locator);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
+    useSuspenseInfiniteQuery({
+      queryKey: KEYS.threads(locator),
+      queryFn: async ({ pageParam = 0 }) => {
+        const input: CollectionListInput = {
+          limit: THREADS_PAGE_SIZE,
+          offset: pageParam,
+        };
 
-      // Apply virtual MCP filter if provided
-      if (virtualMcpId) {
-        return allThreads.filter(
-          (thread) => thread.virtualMcpId === virtualMcpId,
-        );
-      }
+        const result = (await toolCaller(
+          listToolName,
+          input,
+        )) as CollectionListOutput<Thread>;
 
-      return allThreads;
-    },
-    staleTime: 30_000,
-  });
+        return {
+          items: result.items ?? [],
+          hasMore: result.hasMore ?? false,
+          totalCount: result.totalCount,
+        };
+      },
+      getNextPageParam: (lastPage, allPages) => {
+        if (!lastPage.hasMore) {
+          return undefined;
+        }
+        return allPages.length * THREADS_PAGE_SIZE;
+      },
+      initialPageParam: 0,
+      staleTime: 30_000,
+    });
 
-  return { threads: data ?? [], refetch };
+  // Flatten all pages into a single threads array
+  const threads = data?.pages.flatMap((page) => page.items) ?? [];
+
+  return {
+    threads,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  };
+}
+
+async function getThreadMessages(threadId: string) {
+  try {
+    const toolCaller = createToolCaller();
+    const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
+    const input: CollectionListInput & { threadId: string | null } = {
+      threadId,
+      limit: 100,
+      offset: 0,
+    };
+    const result = (await toolCaller(
+      listToolName,
+      input,
+    )) as CollectionListOutput<Message>;
+    return result.items ?? [];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -121,195 +97,21 @@ export function useThreads(options?: { virtualMcpId?: string }) {
  * @param threadId - The ID of the thread
  * @returns Suspense query result with messages array
  */
-export function useThreadMessages(threadId: string) {
+export function useThreadMessages(threadId: string | null) {
   const { locator } = useProjectContext();
-
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.threadMessages(locator, threadId),
-    queryFn: () => getThreadMessagesFromIndexedDB(locator, threadId),
-    staleTime: 30_000,
-  });
-
-  return data ?? [];
-}
-
-/**
- * Hook to get thread mutation actions (insert, update, delete)
- *
- * @returns Object with insert, update, and delete mutation hooks
- */
-export function useThreadActions() {
-  const { locator } = useProjectContext();
-  const queryClient = useQueryClient();
-
-  const insert = useMutation({
-    mutationFn: async (thread: Thread) => {
-      const key = `${locator}:threads:${thread.id}`;
-      await set(key, thread);
-      return thread;
-    },
-    onSuccess: (thread: Thread) => {
-      // Invalidate all threads queries (including virtual MCP-filtered)
-      queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
-      if (thread.virtualMcpId) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.virtualMcpThreads(locator, thread.virtualMcpId),
-        });
-      }
-    },
-  });
-
-  const update = useMutation({
-    mutationFn: async ({
-      id,
-      updates,
-    }: {
-      id: string;
-      updates: Partial<Thread>;
-    }) => {
-      const key = `${locator}:threads:${id}`;
-      const existing = await get<Thread>(key);
-      if (!existing) {
-        throw new Error(`Thread ${id} not found`);
-      }
-      const updated: Thread = { ...existing, ...updates };
-      await set(key, updated);
-      return updated;
-    },
-    onSuccess: (updated: Thread) => {
-      // Invalidate all threads queries (including virtual MCP-filtered)
-      queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.thread(locator, updated.id),
-      });
-      if (updated.virtualMcpId) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.virtualMcpThreads(locator, updated.virtualMcpId),
-        });
-      }
-    },
-  });
-
-  const delete_ = useMutation({
-    mutationFn: async (id: string) => {
-      const key = `${locator}:threads:${id}`;
-      await del(key);
-      return id;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
-    },
-  });
-
-  return {
-    insert,
-    update,
-    delete: delete_,
-  };
-}
-
-/**
- * Hook to get message mutation actions (insert, update, delete)
- *
- * @returns Object with insert, update, and delete mutation hooks
- */
-export function useMessageActions() {
-  const { locator } = useProjectContext();
-  const queryClient = useQueryClient();
-
-  const insert = useMutation({
-    mutationFn: async (message: Message) => {
-      const key = `${locator}:messages:${message.id}`;
-      await set(key, message);
-      return message;
-    },
-    onSuccess: (message: Message) => {
-      const threadId =
-        message.metadata?.thread_id ||
-        (message as unknown as { threadId?: string }).threadId;
-      if (threadId) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.threadMessages(locator, threadId),
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
-    },
-  });
-
-  const insertMany = useMutation({
-    mutationFn: async (messages: Message[]) => {
-      await Promise.all(
-        messages.map((message) => {
-          const key = `${locator}:messages:${message.id}`;
-          return set(key, message);
-        }),
-      );
-      return messages;
-    },
-    onSuccess: (messages: Message[]) => {
-      const threadIds = new Set<string>();
-      for (const message of messages) {
-        const threadId =
-          message.metadata?.thread_id ||
-          (message as unknown as { threadId?: string }).threadId;
-        if (threadId) {
-          threadIds.add(threadId);
+    queryKey: KEYS.threadMessages(locator, threadId ?? ""),
+    queryFn: async () => {
+      try {
+        if (!threadId) {
+          return [];
         }
+        return await getThreadMessages(threadId);
+      } catch {
+        return [];
       }
-      for (const threadId of threadIds) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.threadMessages(locator, threadId),
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
     },
+    staleTime: 0,
   });
-
-  const update = useMutation({
-    mutationFn: async ({
-      id,
-      updates,
-    }: {
-      id: string;
-      updates: Partial<Message>;
-    }) => {
-      const key = `${locator}:messages:${id}`;
-      const existing = await get<Message>(key);
-      if (!existing) {
-        throw new Error(`Message ${id} not found`);
-      }
-      const updated: Message = { ...existing, ...updates };
-      await set(key, updated);
-      return updated;
-    },
-    onSuccess: (updated: Message) => {
-      const threadId =
-        updated.metadata?.thread_id ||
-        (updated as unknown as { threadId?: string }).threadId;
-      if (threadId) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.threadMessages(locator, threadId),
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
-    },
-  });
-
-  const delete_ = useMutation({
-    mutationFn: async (id: string) => {
-      const key = `${locator}:messages:${id}`;
-      await del(key);
-      return id;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.messages(locator) });
-    },
-  });
-
-  return {
-    insert,
-    insertMany,
-    update,
-    delete: delete_,
-  };
+  return data ?? [];
 }
