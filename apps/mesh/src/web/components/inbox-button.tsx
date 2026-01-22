@@ -168,8 +168,14 @@ export function InboxButton() {
 
   const rawInvitations = (_invitations ?? []) as Invitation[];
 
+  // Filter out expired invitations - Better Auth returns all invitations
+  // but acceptInvitation/rejectInvitation will fail for expired ones
+  const validInvitations = rawInvitations.filter(
+    (inv) => new Date(inv.expiresAt) > new Date(),
+  );
+
   // Enrich invitations with organization slugs
-  const enrichedInvitations = rawInvitations.map((inv) => {
+  const enrichedInvitations = validInvitations.map((inv) => {
     const org = (organizations ?? []).find((o) => o.id === inv.organizationId);
     return {
       ...inv,
