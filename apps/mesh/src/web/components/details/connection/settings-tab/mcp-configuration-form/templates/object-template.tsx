@@ -67,19 +67,21 @@ export function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
 
     return (
       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
-        <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 hover:bg-muted/50 rounded-md px-2 -mx-2 transition-colors">
-          <ChevronRight
-            size={16}
-            className={cn(
-              "text-muted-foreground transition-transform duration-200",
-              isOpen && "rotate-90",
-            )}
-          />
-          <span className="font-medium text-sm">{displayTitle}</span>
+        <CollapsibleTrigger className="flex flex-col items-start gap-0.5 w-full py-2 hover:bg-muted/50 rounded-md px-2 -mx-2 transition-colors">
+          <div className="flex items-center gap-2 w-full">
+            <ChevronRight
+              size={16}
+              className={cn(
+                "text-muted-foreground transition-transform duration-200 shrink-0",
+                isOpen && "rotate-90",
+              )}
+            />
+            <span className="font-medium text-sm">{displayTitle}</span>
+          </div>
           {descriptionStr && (
-            <span className="text-xs text-muted-foreground ml-auto truncate max-w-[200px]">
+            <p className="text-xs text-muted-foreground pl-6">
               {descriptionStr}
-            </span>
+            </p>
           )}
         </CollapsibleTrigger>
         <CollapsibleContent className="pl-4 border-l-2 border-border/30 ml-2 mt-2 space-y-4 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">

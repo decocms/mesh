@@ -36,31 +36,33 @@ export function CustomFieldTemplate(props: FieldTemplateProps) {
             {description}
           </p>
         )}
-        <ReadonlyStringWidget
-          id={id}
-          value={formData ?? schema.default}
-          schema={schema}
-          onChange={() => {}}
-          onBlur={() => {}}
-          onFocus={() => {}}
-          options={{}}
-          registry={props.registry}
-          label={label || ""}
-          required={props.required}
-          disabled={props.disabled}
-          readonly={true}
-          autofocus={false}
-          placeholder=""
-          rawErrors={[]}
-          uiSchema={{}}
-          formContext={{}}
-          name=""
-        />
+        <div className="max-w-md">
+          <ReadonlyStringWidget
+            id={id}
+            value={formData ?? schema.default}
+            schema={schema}
+            onChange={() => {}}
+            onBlur={() => {}}
+            onFocus={() => {}}
+            options={{}}
+            registry={props.registry}
+            label={label || ""}
+            required={props.required}
+            disabled={props.disabled}
+            readonly={true}
+            autofocus={false}
+            placeholder=""
+            rawErrors={[]}
+            uiSchema={{}}
+            formContext={{}}
+            name=""
+          />
+        </div>
       </div>
     );
   }
 
-  // Default field layout - vertical stack
+  // Default field layout - vertical stack with constrained width
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
@@ -73,7 +75,7 @@ export function CustomFieldTemplate(props: FieldTemplateProps) {
           {description}
         </p>
       )}
-      <div>{children}</div>
+      <div className="max-w-md">{children}</div>
     </div>
   );
 }

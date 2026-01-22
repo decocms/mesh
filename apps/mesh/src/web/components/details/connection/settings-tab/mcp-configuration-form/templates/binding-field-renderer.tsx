@@ -134,7 +134,7 @@ function FieldWrapper({
       {description && (
         <p className="text-xs text-muted-foreground">{description}</p>
       )}
-      <div>{children}</div>
+      <div className="max-w-md">{children}</div>
     </div>
   );
 }
