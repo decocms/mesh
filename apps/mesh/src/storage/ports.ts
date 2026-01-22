@@ -25,9 +25,9 @@ export interface ThreadStoragePort {
   delete(id: string): Promise<void>;
   list(
     organizationId: string,
+    createdBy?: string,
     options?: { limit?: number; offset?: number },
   ): Promise<{ threads: Thread[]; total: number }>;
-  listByUserId(userId: string): Promise<{ threads: Thread[]; total: number }>;
   // Message operations
   saveMessages(data: ThreadMessage[]): Promise<void>;
   listMessages(

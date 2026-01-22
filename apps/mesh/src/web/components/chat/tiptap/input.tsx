@@ -89,7 +89,7 @@ export function TiptapProvider({
       },
       onUpdate: ({ editor }: { editor: ReturnType<typeof useEditor> }) => {
         // Update tiptapDoc in context whenever editor changes
-        setTiptapDocRef.current(editor.getJSON());
+        setTiptapDocRef.current(editor?.getJSON());
       },
     },
     [isDisabled],
@@ -112,7 +112,7 @@ export function TiptapProvider({
     if (editor?.isDestroyed) return;
 
     // Only update if the content is different to avoid unnecessary updates
-    const currentJson = JSON.stringify(editor.getJSON());
+    const currentJson = JSON.stringify(editor?.getJSON());
     const newJson = JSON.stringify(tiptapDoc || { type: "doc", content: [] });
 
     if (currentJson !== newJson) {

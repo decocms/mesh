@@ -105,6 +105,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
 
   async list(
     organizationId: string,
+    createdBy?: string,
     options?: { limit?: number; offset?: number },
   ): Promise<{ threads: Thread[]; total: number }> {
     let query = this.db
@@ -112,13 +113,19 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("hidden", "=", false)
-      .orderBy("updated_at", "desc");
 
-    const countQuery = this.db
+      .orderBy("updated_at", "desc");
+    if (createdBy) {
+      query = query.where("created_by", "=", createdBy);
+    }
+    let countQuery = this.db
       .selectFrom("threads")
       .select((eb) => eb.fn.count("id").as("count"))
       .where("organization_id", "=", organizationId)
       .where("hidden", "=", false);
+    if (createdBy) {
+      countQuery = countQuery.where("created_by", "=", createdBy);
+    }
 
     if (options?.limit) {
       query = query.limit(options.limit);
@@ -135,21 +142,6 @@ export class SqlThreadStorage implements ThreadStoragePort {
     return {
       threads: rows.map((row) => this.threadFromDbRow(row)),
       total: Number(countResult?.count || 0),
-    };
-  }
-
-  async listByUserId(
-    userId: string,
-  ): Promise<{ threads: Thread[]; total: number }> {
-    const rows = await this.db
-      .selectFrom("threads")
-      .selectAll()
-      .where("created_by", "=", userId)
-      .orderBy("updated_at", "desc")
-      .execute();
-    return {
-      threads: rows.map((row) => this.threadFromDbRow(row)),
-      total: rows.length,
     };
   }
 

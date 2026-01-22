@@ -99,7 +99,6 @@ async function getThreadMessages(threadId: string) {
  */
 export function useThreadMessages(threadId: string | null) {
   const { locator } = useProjectContext();
-
   const { data } = useSuspenseQuery({
     queryKey: KEYS.threadMessages(locator, threadId ?? ""),
     queryFn: async () => {
