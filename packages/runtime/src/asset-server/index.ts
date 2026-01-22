@@ -213,7 +213,11 @@ export function createAssetHandler(config: AssetServerConfig = {}) {
     const indexRelativeToFilePath = join(filePath, "index.html");
     // Try to serve the requested file, fall back to index.html for SPA routing
     const indexPath = resolve(clientDir, "index.html");
-    for (const pathToTry of [filePath, indexRelativeToFilePath, indexPath]) {
+    const acceptsHtml = request.headers.get("accept")?.includes("text/html");
+    const fallbackPaths = acceptsHtml
+      ? [indexRelativeToFilePath, indexPath]
+      : [];
+    for (const pathToTry of [filePath, ...fallbackPaths]) {
       try {
         const file = Bun.file(pathToTry);
         if (await file.exists()) {
