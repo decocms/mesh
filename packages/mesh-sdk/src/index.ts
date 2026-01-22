@@ -3,7 +3,6 @@ export {
   ProjectContextProvider,
   useProjectContext,
   Locator,
-  ORG_ADMIN_PROJECT_SLUG,
   type ProjectContextProviderProps,
   type ProjectLocator,
   type LocatorStructured,
@@ -11,6 +10,12 @@ export {
 
 // Hooks
 export {
+  // Tool call hooks
+  useToolCall,
+  useToolCallMutation,
+  useToolCallQuery,
+  type UseToolCallOptions,
+  type UseToolCallMutationOptions,
   // Collection hooks
   useCollectionItem,
   useCollectionList,
@@ -24,40 +29,12 @@ export {
   useConnectionActions,
   type ConnectionFilter,
   type UseConnectionsOptions,
-  // MCP client hook and factory
-  createMCPClient,
-  useMCPClient,
-  type CreateMcpClientOptions,
-  type UseMcpClientOptions,
-  // MCP tools hooks
-  useMCPToolsList,
-  useMCPToolsListQuery,
-  useMCPToolCall,
-  useMCPToolCallQuery,
-  useMCPToolCallMutation,
-  type UseMcpToolsListOptions,
-  type UseMcpToolsListQueryOptions,
-  type UseMcpToolCallOptions,
-  type UseMcpToolCallQueryOptions,
-  type UseMcpToolCallMutationOptions,
-  // MCP resources hooks and helpers
-  listResources,
-  readResource,
-  useMCPResourcesList,
-  useMCPResourcesListQuery,
-  useMCPReadResource,
-  type UseMcpResourcesListOptions,
-  type UseMcpResourcesListQueryOptions,
-  type UseMcpReadResourceOptions,
-  // MCP prompts hooks and helpers
-  listPrompts,
-  getPrompt,
-  useMCPPromptsList,
-  useMCPPromptsListQuery,
-  useMCPGetPrompt,
-  type UseMcpPromptsListOptions,
-  type UseMcpPromptsListQueryOptions,
-  type UseMcpGetPromptOptions,
+  // MCP hook
+  useMcp,
+  type McpTool,
+  type McpState,
+  type UseMcpOptions,
+  type UseMcpResult,
 } from "./hooks";
 
 // Types
@@ -66,8 +43,6 @@ export {
   ConnectionCreateDataSchema,
   ConnectionUpdateDataSchema,
   isStdioParameters,
-  parseVirtualUrl,
-  buildVirtualUrl,
   type ConnectionEntity,
   type ConnectionCreateData,
   type ConnectionUpdateData,
@@ -78,8 +53,12 @@ export {
   type ToolDefinition,
 } from "./types";
 
-// Streamable HTTP transport
-export { StreamableHTTPClientTransport } from "./lib/streamable-http-client-transport";
+// Tool caller
+export {
+  createToolCaller,
+  UNKNOWN_CONNECTION_ID,
+  type ToolCaller,
+} from "./lib/tool-caller";
 
 // Query keys
 export { KEYS } from "./lib/query-keys";

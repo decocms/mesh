@@ -4,7 +4,7 @@ import {
   useOrganizationSettings,
   useOrganizationSettingsActions,
 } from "@/web/hooks/collections/use-organization-settings";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   Breadcrumb,
   BreadcrumbItem,

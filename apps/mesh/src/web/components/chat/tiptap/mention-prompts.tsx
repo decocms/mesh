@@ -1,12 +1,10 @@
-import { KEYS } from "@/web/lib/query-keys";
 import {
-  getPrompt,
-  listPrompts,
-  useMCPClient,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
-import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
-import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+  fetchVirtualMCPPrompt,
+  fetchVirtualMCPPrompts,
+  type VirtualMCPPrompt,
+} from "@/web/hooks/use-virtual-mcp-client";
+import { KEYS } from "@/web/lib/query-keys";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
 import { useState } from "react";
@@ -19,7 +17,7 @@ import { insertMention, OnSelectProps, Suggestion } from "./mention";
 
 interface PromptSelectContext {
   range: Range;
-  item: Prompt;
+  item: VirtualMCPPrompt;
 }
 
 interface PromptsMentionProps {
@@ -29,16 +27,24 @@ interface PromptsMentionProps {
 
 /**
  * Fetches a prompt and inserts it as a mention node in the editor.
+ * @param virtualMcpId - The virtual MCP ID, or null for default virtual MCP
+ * @param orgSlug - The organization slug
  */
 async function fetchAndInsertPrompt(
   editor: Editor,
   range: Range,
-  client: Client,
+  virtualMcpId: string | null,
+  orgSlug: string,
   promptName: string,
   values?: PromptArgumentValues,
 ) {
   try {
-    const result = await getPrompt(client, promptName, values);
+    const result = await fetchVirtualMCPPrompt(
+      virtualMcpId,
+      orgSlug,
+      promptName,
+      values,
+    );
 
     insertMention(editor, range, {
       id: promptName,
@@ -58,17 +64,16 @@ export const PromptsMention = ({
 }: PromptsMentionProps) => {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: virtualMcpId,
-    orgSlug: org.slug,
-  });
   // Use the query key helper which handles null (default virtual MCP)
   const queryKey = KEYS.virtualMcpPrompts(virtualMcpId, org.slug);
   const [activePrompt, setActivePrompt] = useState<PromptSelectContext | null>(
     null,
   );
 
-  const handleItemSelect = async ({ item, range }: OnSelectProps<Prompt>) => {
+  const handleItemSelect = async ({
+    item,
+    range,
+  }: OnSelectProps<VirtualMCPPrompt>) => {
     // If prompt has arguments, open dialog
     if (item.arguments && item.arguments.length > 0) {
       setActivePrompt({ range, item: item });
@@ -76,42 +81,54 @@ export const PromptsMention = ({
     }
 
     // No arguments - fetch and insert directly
-    if (!client) return;
-    await fetchAndInsertPrompt(editor, range, client, item.name);
+    // virtualMcpId can be null (default virtual MCP)
+    await fetchAndInsertPrompt(
+      editor,
+      range,
+      virtualMcpId,
+      org.slug,
+      item.name,
+    );
   };
 
   const handleDialogSubmit = async (values: PromptArgumentValues) => {
-    if (!activePrompt || !client) return;
+    if (!activePrompt) return;
 
     const { range, item: prompt } = activePrompt;
 
-    await fetchAndInsertPrompt(editor, range, client, prompt.name, values);
+    // virtualMcpId can be null (default virtual MCP)
+    await fetchAndInsertPrompt(
+      editor,
+      range,
+      virtualMcpId,
+      org.slug,
+      prompt.name,
+      values,
+    );
     setActivePrompt(null);
   };
 
   const fetchItems = async (props: { query: string }) => {
     const { query } = props;
 
-    if (!client) return [];
-
     // Try to get from cache first (even if stale)
-    let virtualMcpPrompts = queryClient.getQueryData<Prompt[]>(queryKey);
+    let virtualMcpPrompts =
+      queryClient.getQueryData<VirtualMCPPrompt[]>(queryKey);
 
     // If not in cache or we want fresh data, fetch from network
     // fetchQuery will use cache if fresh, otherwise fetch
     if (!virtualMcpPrompts) {
-      const result = await queryClient.fetchQuery({
+      virtualMcpPrompts = await queryClient.fetchQuery({
         queryKey,
-        queryFn: () => listPrompts(client),
+        queryFn: () => fetchVirtualMCPPrompts(virtualMcpId, org.slug),
         staleTime: 60000, // 1 minute
       });
-      virtualMcpPrompts = result.prompts;
     } else {
       // Prefetch in background to ensure fresh data
       queryClient
         .fetchQuery({
           queryKey,
-          queryFn: () => listPrompts(client),
+          queryFn: () => fetchVirtualMCPPrompts(virtualMcpId, org.slug),
           staleTime: 60000,
         })
         .catch(() => {
@@ -141,7 +158,7 @@ export const PromptsMention = ({
 
   return (
     <>
-      <Suggestion<Prompt>
+      <Suggestion<VirtualMCPPrompt>
         editor={editor}
         char="/"
         pluginKey="promptsDropdownMenu"

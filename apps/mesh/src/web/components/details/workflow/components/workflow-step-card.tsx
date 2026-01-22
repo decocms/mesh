@@ -11,7 +11,7 @@ import {
 } from "@untitledui/icons";
 import { Code } from "lucide-react";
 import type { Step } from "@decocms/bindings/workflow";
-import { useConnection } from "@decocms/mesh-sdk";
+import { useConnection } from "@/web/hooks/collections/use-connection";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import {
   DropdownMenu,

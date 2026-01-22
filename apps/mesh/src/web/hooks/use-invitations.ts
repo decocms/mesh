@@ -5,8 +5,9 @@
  * Uses Suspense for loading states - wrap components in <Suspense> and <ErrorBoundary>.
  */
 
+import { createToolCaller } from "@/tools/client";
 import { KEYS } from "@/web/lib/query-keys";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   useMutation,
   useQueryClient,
@@ -38,21 +39,16 @@ interface OrganizationData {
  * @returns Query result with invitations data (uses Suspense for loading, ErrorBoundary for errors)
  */
 export function useInvitations() {
-  const { org, locator } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: null,
-    orgSlug: org.slug,
-  });
+  const { locator } = useProjectContext();
+  const toolCaller = createToolCaller();
 
   return useSuspenseQuery({
     queryKey: KEYS.invitations(locator),
     queryFn: async () => {
-      const result = (await client.callTool({
-        name: "ORGANIZATION_GET",
-        arguments: {},
-      })) as { structuredContent?: unknown };
-      const orgData = (result.structuredContent ??
-        result) as OrganizationData | null;
+      const orgData = (await toolCaller(
+        "ORGANIZATION_GET",
+        {},
+      )) as OrganizationData | null;
 
       return orgData?.invitations ?? [];
     },

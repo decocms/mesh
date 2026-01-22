@@ -14,7 +14,7 @@ import {
 import { useOrganizationRoles } from "@/web/hooks/use-organization-roles";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import {
   Tooltip,
   TooltipContent,

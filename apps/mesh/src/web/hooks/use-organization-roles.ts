@@ -8,7 +8,7 @@
 import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { useQuery } from "@tanstack/react-query";
 
 const BUILTIN_ROLES = [

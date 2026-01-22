@@ -4,8 +4,9 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { ArrowLeft } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { memo, useDeferredValue, useRef, useState } from "react";
-import { useConnections, parseVirtualUrl } from "@decocms/mesh-sdk";
+import { useConnections } from "@/web/hooks/collections/use-connection";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { parseVirtualUrl } from "@/tools/connection/schema";
 
 /**
  * Generic item that can be displayed in the selector

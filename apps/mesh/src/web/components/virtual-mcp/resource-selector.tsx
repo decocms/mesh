@@ -1,5 +1,5 @@
 import { ItemSetSelector, type SelectableItem } from "./item-selector";
-import type { useConnections } from "@decocms/mesh-sdk";
+import type { useConnections } from "@/web/hooks/collections/use-connection";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Plus, X } from "@untitledui/icons";

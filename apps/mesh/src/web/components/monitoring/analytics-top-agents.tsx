@@ -4,15 +4,13 @@
  * Displays a horizontal bar chart of virtual MCPs (agents) sorted by tool calls, errors, or latency.
  */
 
+import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { CpuChip02 } from "@untitledui/icons";
 import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
-import {
-  useMCPClient,
-  useMCPToolCall,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { useToolCall } from "@/web/hooks/use-tool-call";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
 import type { MonitoringLogsWithVirtualMCPResponse } from "./index";
@@ -126,27 +124,23 @@ interface TopAgentsContentProps {
 }
 
 function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const navigate = useNavigate();
+  const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
 
   const virtualMcps = useVirtualMCPs({ pageSize: 100 }) ?? [];
 
-  const client = useMCPClient({
-    connectionId: null,
-    orgSlug: org.slug,
+  const { data: logsData } = useToolCall<
+    { startDate: string; endDate: string; limit: number; offset: number },
+    MonitoringLogsWithVirtualMCPResponse
+  >({
+    toolCaller,
+    toolName: "MONITORING_LOGS_LIST",
+    toolInputParams: { ...dateRange, limit: 1000, offset: 0 },
+    scope: locator,
+    staleTime: 30_000,
   });
-
-  const { data: logsData } =
-    useMCPToolCall<MonitoringLogsWithVirtualMCPResponse>({
-      client,
-      toolName: "MONITORING_LOGS_LIST",
-      toolArguments: { ...dateRange, limit: 1000, offset: 0 },
-      staleTime: 30_000,
-      select: (result) =>
-        ((result as { structuredContent?: unknown }).structuredContent ??
-          result) as MonitoringLogsWithVirtualMCPResponse,
-    });
 
   const logs = logsData?.logs ?? [];
 

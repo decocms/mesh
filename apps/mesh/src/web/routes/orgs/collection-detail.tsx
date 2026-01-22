@@ -1,11 +1,8 @@
+import { UNKNOWN_CONNECTION_ID, createToolCaller } from "@/tools/client";
 import { PromptDetailsView } from "@/web/components/details/prompt/index.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import {
-  useCollectionActions,
-  useMCPClient,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { useCollectionActions } from "@/web/hooks/use-collections";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import { Loading01, Container } from "@untitledui/icons";
 import { useParams, useRouter } from "@tanstack/react-router";
@@ -72,15 +69,14 @@ function CollectionDetailsContent() {
     router.history.back();
   };
 
-  const scopeKey = connectionId ?? "no-connection";
+  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(safeConnectionId);
 
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: connectionId ?? null,
-    orgSlug: org.slug,
-  });
-
-  const actions = useCollectionActions(scopeKey, collectionName, client);
+  const actions = useCollectionActions(
+    safeConnectionId,
+    collectionName,
+    toolCaller,
+  );
 
   const handleUpdate = async (updates: Record<string, unknown>) => {
     if (!itemId) return;

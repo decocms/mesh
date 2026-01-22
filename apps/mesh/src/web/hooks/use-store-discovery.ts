@@ -10,9 +10,9 @@ import {
   useSuspenseQuery,
   keepPreviousData,
 } from "@tanstack/react-query";
+import { createToolCaller } from "@/tools/client";
 import { KEYS } from "@/web/lib/query-keys";
 import { flattenPaginatedItems } from "@/web/utils/registry-utils";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
 import type {
   RegistryItem,
   RegistryFiltersResponse,
@@ -71,15 +71,11 @@ export function useStoreDiscovery({
   filtersToolName,
   search,
 }: UseStoreDiscoveryOptions): UseStoreDiscoveryResult {
-  const { org } = useProjectContext();
   // Filter state
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  const client = useMCPClient({
-    connectionId: registryId || null,
-    orgSlug: org.slug,
-  });
+  const toolCaller = createToolCaller(registryId);
   const hasFiltersSupport = Boolean(filtersToolName);
 
   // Fetch available filters (only if supported)
@@ -89,11 +85,8 @@ export function useStoreDiscovery({
       if (!filtersToolName) {
         return { tags: [], categories: [] };
       }
-      const result = (await client.callTool({
-        name: filtersToolName,
-        arguments: {},
-      })) as { structuredContent?: unknown };
-      return (result.structuredContent ?? result) as RegistryFiltersResponse;
+      const result = await toolCaller(filtersToolName, {});
+      return result as RegistryFiltersResponse;
     },
     staleTime: 60 * 60 * 1000, // 1 hour - filters don't change often
   });
@@ -140,11 +133,8 @@ export function useStoreDiscovery({
       const params = pageParam
         ? { ...filterParams, cursor: pageParam }
         : filterParams;
-      const result = (await client.callTool({
-        name: listToolName,
-        arguments: params,
-      })) as { structuredContent?: unknown };
-      return result.structuredContent ?? result;
+      const result = await toolCaller(listToolName, params);
+      return result;
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => {
@@ -205,11 +195,9 @@ export function useStoreDiscovery({
     isInitialLoading: isLoading,
     isFetching,
     loadMore,
-    availableTags: hasFiltersSupport
-      ? (filtersData as RegistryFiltersResponse | undefined)?.tags
-      : undefined,
+    availableTags: hasFiltersSupport ? filtersData?.tags : undefined,
     availableCategories: hasFiltersSupport
-      ? (filtersData as RegistryFiltersResponse | undefined)?.categories
+      ? filtersData?.categories
       : undefined,
     selectedTags,
     selectedCategories,

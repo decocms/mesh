@@ -4,20 +4,20 @@
  */
 
 import { toast } from "sonner";
+import { createToolCaller } from "@/tools/client";
 import type { RegistryItem } from "@/web/components/store/types";
-import { useRegistryConnections } from "@/web/hooks/use-binding";
-import { authClient } from "@/web/lib/auth-client";
+import type { ConnectionEntity } from "@/tools/connection/schema";
 import {
   useConnectionActions,
   useConnections,
-  useProjectContext,
-  type ConnectionEntity,
-} from "@decocms/mesh-sdk";
+} from "@/web/hooks/collections/use-connection";
+import { useRegistryConnections } from "@/web/hooks/use-binding";
+import { authClient } from "@/web/lib/auth-client";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import {
   findListToolName,
   extractItemsFromResponse,
-  callRegistryTool,
 } from "@/web/utils/registry-utils";
 
 interface InstallResult {
@@ -77,15 +77,11 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
         const listToolName = findListToolName(registryConnection.tools);
         if (!listToolName) return null;
 
+        const toolCaller = createToolCaller(registryConnection.id);
         try {
-          const result = await callRegistryTool(
-            registryConnection.id,
-            org.slug,
-            listToolName,
-            {
-              where: { appName: parsedServerName },
-            },
-          );
+          const result = await toolCaller(listToolName, {
+            where: { appName: parsedServerName },
+          });
           const items = extractItemsFromResponse<RegistryItem>(result ?? []);
           return items[0] ?? null;
         } catch {

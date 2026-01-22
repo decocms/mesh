@@ -30,11 +30,7 @@ import { ToolInput } from "./tool-selection/components/tool-input";
 import type { JsonSchema } from "@/web/utils/constants";
 import { MonacoCodeEditor } from "./monaco-editor";
 import type { Step, ToolCallAction } from "@decocms/bindings/workflow";
-import {
-  useMCPClient,
-  useMCPToolsListQuery,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { useMcp } from "@/web/hooks/use-mcp";
 import {
   useExecutionCompletedStep,
   usePollingWorkflowExecution,
@@ -190,23 +186,20 @@ function ReplaceToolButton() {
 }
 
 function useVirtualMCPTool(toolName: string) {
-  const { org } = useProjectContext();
   const virtualMcpId = useSelectedVirtualMcpId();
+  const mcpProxyUrl = virtualMcpId
+    ? new URL(`/mcp/virtual-mcp/${virtualMcpId}`, window.location.origin).href
+    : "";
 
-  const client = useMCPClient({
-    connectionId: virtualMcpId ?? null,
-    orgSlug: org.slug,
-  });
+  const mcp = useMcp({ url: mcpProxyUrl, enabled: !!virtualMcpId });
 
-  const toolsQuery = useMCPToolsListQuery({ client });
-
-  const tool = toolsQuery.data?.tools?.find((t) => t.name === toolName);
+  const tool = mcp.tools?.find((t) => t.name === toolName);
 
   return {
     tool,
-    isLoading: toolsQuery.isLoading,
-    isReady: toolsQuery.isSuccess,
-    error: toolsQuery.error,
+    isLoading: mcp.state === "connecting",
+    isReady: mcp.state === "ready",
+    error: mcp.error,
   };
 }
 

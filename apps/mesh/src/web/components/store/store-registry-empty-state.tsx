@@ -1,9 +1,7 @@
+import type { ConnectionCreateData } from "@/tools/connection/schema";
+import { useConnectionActions } from "@/web/hooks/collections/use-connection";
 import { authClient } from "@/web/lib/auth-client";
-import {
-  useConnectionActions,
-  useProjectContext,
-  type ConnectionCreateData,
-} from "@decocms/mesh-sdk";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useNavigate } from "@tanstack/react-router";

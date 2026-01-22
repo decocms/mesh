@@ -1,3 +1,10 @@
+import { createToolCaller } from "@/tools/client";
+import type {
+  ConnectionEntity,
+  StdioConnectionParameters,
+  HttpConnectionParameters,
+} from "@/tools/connection/schema";
+import { isStdioParameters } from "@/tools/connection/schema";
 import {
   envVarsToRecord,
   recordToEnvVars,
@@ -5,17 +12,9 @@ import {
 } from "@/web/components/env-vars-editor";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
+import { useConnectionActions } from "@/web/hooks/collections/use-connection";
 import { useBindingConnections } from "@/web/hooks/use-binding";
-import {
-  useConnectionActions,
-  useMCPClient,
-  useMCPToolCall,
-  useProjectContext,
-  isStdioParameters,
-  type ConnectionEntity,
-  type StdioConnectionParameters,
-  type HttpConnectionParameters,
-} from "@decocms/mesh-sdk";
+import { useToolCall } from "@/web/hooks/use-tool-call";
 import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
@@ -260,19 +259,16 @@ interface McpConfigurationResult {
 }
 
 function useMcpConfiguration(connectionId: string) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId,
-    orgSlug: org.slug,
-  });
+  const toolCaller = createToolCaller(connectionId);
 
-  const { data: configResult } = useMCPToolCall<McpConfigurationResult>({
-    client,
+  const { data: configResult } = useToolCall<
+    Record<string, never>,
+    McpConfigurationResult
+  >({
+    toolCaller,
     toolName: "MCP_CONFIGURATION",
-    toolArguments: {},
-    select: (result) =>
-      ((result as { structuredContent?: unknown }).structuredContent ??
-        result) as McpConfigurationResult,
+    toolInputParams: {},
+    scope: connectionId,
   });
 
   const stateSchema = configResult.stateSchema ?? {

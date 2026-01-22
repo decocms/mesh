@@ -1,5 +1,5 @@
-import { Locator } from "@decocms/mesh-sdk";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { Locator } from "@/web/lib/locator";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {

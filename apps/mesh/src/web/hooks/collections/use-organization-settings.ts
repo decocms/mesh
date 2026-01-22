@@ -11,8 +11,8 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import type { OrganizationSettings } from "../../../storage/types";
+import { createToolCaller } from "../../../tools/client";
 import { KEYS } from "../../lib/query-keys";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
 
 /**
  * Hook to get organization settings
@@ -21,21 +21,15 @@ import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
  * @returns Suspense query result with organization settings
  */
 export function useOrganizationSettings(organizationId: string) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: null,
-    orgSlug: org.slug,
-  });
+  const toolCaller = createToolCaller();
 
   const { data } = useSuspenseQuery({
     queryKey: KEYS.organizationSettings(organizationId),
     queryFn: async () => {
-      const result = (await client.callTool({
-        name: "ORGANIZATION_SETTINGS_GET",
-        arguments: {},
-      })) as { structuredContent?: unknown };
-      const settings = (result.structuredContent ??
-        result) as OrganizationSettings | null;
+      const settings = (await toolCaller(
+        "ORGANIZATION_SETTINGS_GET",
+        {},
+      )) as OrganizationSettings | null;
 
       // Return default settings if none exist
       if (!settings) {
@@ -64,11 +58,7 @@ export function useOrganizationSettings(organizationId: string) {
  */
 export function useOrganizationSettingsActions(organizationId: string) {
   const queryClient = useQueryClient();
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: null,
-    orgSlug: org.slug,
-  });
+  const toolCaller = createToolCaller();
 
   const update = useMutation({
     mutationFn: async (
@@ -76,15 +66,10 @@ export function useOrganizationSettingsActions(organizationId: string) {
         Pick<OrganizationSettings, "sidebar_items" | "enabled_plugins">
       >,
     ) => {
-      const result = (await client.callTool({
-        name: "ORGANIZATION_SETTINGS_UPDATE",
-        arguments: {
-          organizationId,
-          ...updates,
-        },
-      })) as { structuredContent?: unknown };
-      const settings = (result.structuredContent ??
-        result) as OrganizationSettings;
+      const settings = (await toolCaller("ORGANIZATION_SETTINGS_UPDATE", {
+        organizationId,
+        ...updates,
+      })) as OrganizationSettings;
 
       return settings;
     },

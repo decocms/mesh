@@ -33,8 +33,8 @@ import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-c
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import type { ProjectLocator } from "@decocms/mesh-sdk";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import type { ProjectLocator } from "../../lib/locator";
+import { useProjectContext } from "../../providers/project-context-provider";
 import type { ChatMessage } from "./index";
 import {
   type ModelChangePayload,
@@ -45,9 +45,9 @@ import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import { useVirtualMCPs } from "./select-virtual-mcp";
 import type { FileAttrs } from "./tiptap/file/node.tsx";
 import type { Message, Metadata, ParentThread, Thread } from "./types.ts";
-import type { ThreadUpdateData } from "@/tools/thread/schema.ts";
-import type { CollectionUpdateOutput } from "@decocms/bindings/collections";
-import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { createToolCaller } from "@/tools/client.ts";
+import { ThreadUpdateData } from "@/tools/thread/schema.ts";
+import { CollectionUpdateOutput } from "@decocms/bindings/collections";
 
 // ============================================================================
 // Type Definitions
@@ -476,24 +476,13 @@ function derivePartsFromTiptapDoc(
   return parts;
 }
 
-async function callUpdateThreadTool(
-  client: Client | null,
-  threadId: string,
-  data: ThreadUpdateData,
-) {
-  if (!client) {
-    throw new Error("MCP client is not available");
-  }
-  const result = (await client.callTool({
-    name: "COLLECTION_THREADS_UPDATE",
-    arguments: {
-      id: threadId,
-      data,
-    },
-  })) as { structuredContent?: unknown };
-  const payload = (result.structuredContent ??
-    result) as CollectionUpdateOutput<Thread>;
-  return payload.item;
+async function callUpdateThreadTool(threadId: string, data: ThreadUpdateData) {
+  const toolCaller = createToolCaller();
+  const result = (await toolCaller("COLLECTION_THREADS_UPDATE", {
+    id: threadId,
+    data,
+  })) as CollectionUpdateOutput<Thread>;
+  return result.item;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -526,12 +515,6 @@ export function ChatProvider({
   // ===========================================================================
   // 1. HOOKS - Call all hooks and derive state from them
   // ===========================================================================
-
-  // MCP client for thread operations
-  const mcpClient = useMCPClient({
-    connectionId: null,
-    orgSlug: org.slug,
-  });
 
   // Project context
   // User session
@@ -700,7 +683,7 @@ export function ChatProvider({
 
   const hideThread = async (threadId: string) => {
     try {
-      const updatedThread = await callUpdateThreadTool(mcpClient, threadId, {
+      const updatedThread = await callUpdateThreadTool(threadId, {
         hidden: true,
       });
       if (updatedThread) {

@@ -4,7 +4,7 @@
  * Contains shared types and the ExpandedLogContent component used by LogRow.
  */
 
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {

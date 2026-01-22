@@ -8,11 +8,11 @@ import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
+import { ORG_ADMIN_PROJECT_SLUG } from "@/web/lib/locator";
 import {
   ProjectContextProvider,
   ProjectContextProviderProps,
-} from "@decocms/mesh-sdk";
+} from "@/web/providers/project-context-provider";
 import { AppTopbar } from "@deco/ui/components/app-topbar.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { MessageChatSquare } from "@untitledui/icons";

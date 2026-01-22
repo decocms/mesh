@@ -7,12 +7,13 @@
  */
 
 import { useSuspenseQueries } from "@tanstack/react-query";
+import { createToolCaller } from "@/tools/client";
+import { useConnections } from "@/web/hooks/collections/use-connection";
 import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { KEYS } from "@/web/lib/query-keys";
-import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
-import { findListToolName, callRegistryTool } from "@/web/utils/registry-utils";
-import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
+import { MCP_MESH_DECOCMS_KEY } from "@/web/utils/constants";
+import { findListToolName } from "@/web/utils/registry-utils";
 
 /**
  * Registry item from the registry API response.
@@ -20,7 +21,7 @@ import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 interface RegistryItemWithBinding {
   id: string;
   _meta?: {
-    [MCP_REGISTRY_DECOCMS_KEY]?: {
+    [MCP_MESH_DECOCMS_KEY]?: {
       id?: string;
       verified?: boolean;
       scopeName?: string;
@@ -70,7 +71,7 @@ function parseServerName(serverName: string): string {
 function extractBindingTools(
   item: RegistryItemWithBinding,
 ): BindingDefinition[] | undefined {
-  const tools = item._meta?.[MCP_REGISTRY_DECOCMS_KEY]?.tools;
+  const tools = item._meta?.[MCP_MESH_DECOCMS_KEY]?.tools;
 
   if (!tools || tools.length === 0) {
     return undefined;
@@ -101,7 +102,6 @@ function extractBindingTools(
 export function useBindingSchemaFromRegistry(
   serverName: string | undefined,
 ): UseBindingSchemaFromRegistryResult {
-  const { org } = useProjectContext();
   // Get all connections and filter to registry connections
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
@@ -119,6 +119,7 @@ export function useBindingSchemaFromRegistry(
     queries: registryConnections.map((registryConnection) => {
       const registryId = registryConnection.id;
       const listToolName = findListToolName(registryConnection.tools) || "";
+      const toolCaller = createToolCaller(registryId);
       const paramsKey = JSON.stringify(toolInputParams);
 
       return {
@@ -129,9 +130,12 @@ export function useBindingSchemaFromRegistry(
           }
 
           try {
-            const result = await callRegistryTool<{
+            const result = (await toolCaller(
+              listToolName,
+              toolInputParams,
+            )) as {
               items?: RegistryItemWithBinding[];
-            }>(registryId, org.slug, listToolName, toolInputParams);
+            };
             // Return the first matching item, or null if not found
             return result?.items?.[0] ?? null;
           } catch {

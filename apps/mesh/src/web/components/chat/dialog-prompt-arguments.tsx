@@ -1,3 +1,4 @@
+import type { VirtualMCPPrompt } from "@/web/hooks/use-virtual-mcp-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Dialog,
@@ -17,7 +18,6 @@ import {
 import { Input } from "@deco/ui/components/input.tsx";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { useId } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
@@ -25,12 +25,12 @@ import { z } from "zod";
 export type PromptArgumentValues = Record<string, string>;
 
 interface PromptArgsDialogProps {
-  prompt: Prompt | null;
-  setPrompt: (prompt: Prompt | null) => void;
+  prompt: VirtualMCPPrompt | null;
+  setPrompt: (prompt: VirtualMCPPrompt | null) => void;
   onSubmit: (values: PromptArgumentValues) => Promise<void>;
 }
 
-function buildArgumentSchema(prompt: Prompt) {
+function buildArgumentSchema(prompt: VirtualMCPPrompt) {
   const shape: Record<string, z.ZodTypeAny> = {};
 
   for (const arg of prompt.arguments ?? []) {
@@ -40,7 +40,7 @@ function buildArgumentSchema(prompt: Prompt) {
   return z.object(shape);
 }
 
-function buildDefaultValues(prompt: Prompt): PromptArgumentValues {
+function buildDefaultValues(prompt: VirtualMCPPrompt): PromptArgumentValues {
   const defaults: PromptArgumentValues = {};
   for (const arg of prompt.arguments ?? []) {
     defaults[arg.name] = "";

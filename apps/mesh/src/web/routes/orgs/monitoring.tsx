@@ -4,6 +4,7 @@
  * Displays tool call monitoring logs and statistics for the organization.
  */
 
+import { createToolCaller } from "@/tools/client";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
@@ -17,15 +18,12 @@ import {
   calculateStats,
   type DateRange,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
+import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
 import { KEYS } from "@/web/lib/query-keys";
-import {
-  useConnections,
-  useMCPClient,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -796,11 +794,8 @@ function MonitoringDashboardContent({
   }));
 
   const { pageSize, streamingRefetchInterval } = MONITORING_CONFIG;
-  const { org, locator } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: null,
-    orgSlug: org.slug,
-  });
+  const { locator } = useProjectContext();
+  const toolCaller = createToolCaller();
 
   // Convert property filters to API params
   const propertyApiParams = propertyFiltersToApiParams(propertyFilters);
@@ -825,18 +820,12 @@ function MonitoringDashboardContent({
         JSON.stringify(baseParams),
       ),
       queryFn: async ({ pageParam = 0 }) => {
-        if (!client) {
-          throw new Error("MCP client is not available");
-        }
-        const result = (await client.callTool({
-          name: "MONITORING_LOGS_LIST",
-          arguments: {
-            ...baseParams,
-            limit: pageSize,
-            offset: pageParam,
-          },
-        })) as { structuredContent?: unknown };
-        return (result.structuredContent ?? result) as MonitoringLogsResponse;
+        const result = await toolCaller("MONITORING_LOGS_LIST", {
+          ...baseParams,
+          limit: pageSize,
+          offset: pageParam,
+        });
+        return result as MonitoringLogsResponse;
       },
       initialPageParam: 0,
       getNextPageParam: (lastPage, allPages) => {

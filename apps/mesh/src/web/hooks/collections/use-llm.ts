@@ -7,13 +7,12 @@
 
 import type { ModelCollectionEntitySchema } from "@decocms/bindings/llm";
 import { z } from "zod";
+import { UNKNOWN_CONNECTION_ID, createToolCaller } from "../../../tools/client";
 import {
   useCollectionList,
-  useConnections,
-  useMCPClient,
-  useProjectContext,
   type UseCollectionListOptions,
-} from "@decocms/mesh-sdk";
+} from "../use-collections";
+import { useConnections } from "./use-connection";
 import { useBindingConnections } from "../use-binding";
 
 // LLM type matching ModelSchema from @decocms/bindings
@@ -35,13 +34,12 @@ export function useLLMsFromConnection(
   connectionId: string | undefined,
   options: UseLLMsOptions = {},
 ) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: connectionId ?? null,
-    orgSlug: org.slug,
-  });
-  const scopeKey = connectionId ?? "no-connection";
-  return useCollectionList<LLM>(scopeKey, "LLM", client, options);
+  // Use a placeholder ID when connectionId is undefined to ensure hooks are always called
+  // in the same order (Rules of Hooks compliance)
+  const safeConnectionId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(safeConnectionId);
+
+  return useCollectionList<LLM>(safeConnectionId, "LLM", toolCaller, options);
 }
 
 /**

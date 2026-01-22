@@ -1,15 +1,13 @@
+import type { ConnectionCreateData } from "@/tools/connection/schema";
 import { CollectionTab } from "@/web/components/details/connection/collection-tab";
 import { BindingCollectionEmptyState } from "@/web/components/binding-collection-empty-state";
 import { CollectionHeader } from "@/web/components/collections/collection-header";
+import { useConnections } from "@/web/hooks/collections/use-connection";
 import {
   useBindingConnections,
   useCollectionBindings,
 } from "@/web/hooks/use-binding";
-import {
-  useConnections,
-  useProjectContext,
-  type ConnectionCreateData,
-} from "@decocms/mesh-sdk";
+import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Loading01 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 

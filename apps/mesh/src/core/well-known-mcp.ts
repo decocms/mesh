@@ -112,7 +112,7 @@ export function getWellKnownSelfConnection(
     title: "Mesh MCP",
     description: "The MCP for the mesh API",
     connection_type: "HTTP",
-    connection_url: `${baseUrl}/mcp/management`,
+    connection_url: `${baseUrl}/mcp`,
     icon: "https://assets.decocache.com/mcp/09e44283-f47d-4046-955f-816d227c626f/app.png",
     app_name: "@deco/management-mcp",
     connection_token: null,
@@ -186,7 +186,7 @@ export function getWellKnownMcpStudioConnection(): ConnectionCreateData {
 
 /**
  * Get well-known Decopilot Agent virtual MCP entity.
- * This is the default agent that aggregates ALL org connections.
+ * This is the default agent that aggregates all org connections except Mesh MCP and Store/Registry.
  *
  * @param organizationId - Organization ID
  * @returns VirtualMCPEntity representing the Decopilot agent
@@ -206,6 +206,21 @@ export function getWellKnownDecopilotAgent(
     updated_at: new Date().toISOString(),
     created_by: "system",
     updated_by: undefined,
-    connections: [], // Empty = no exclusions, include all connections
+    connections: [
+      {
+        // Exclude Mesh MCP (self connection)
+        connection_id: WellKnownOrgMCPId.SELF(organizationId),
+        selected_tools: null, // null means exclude entire connection
+        selected_resources: null,
+        selected_prompts: null,
+      },
+      {
+        // Exclude Deco Store Registry
+        connection_id: WellKnownOrgMCPId.REGISTRY(organizationId),
+        selected_tools: null,
+        selected_resources: null,
+        selected_prompts: null,
+      },
+    ],
   };
 }

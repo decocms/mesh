@@ -6,12 +6,7 @@ import {
   useSelectedVirtualMcpId,
   useWorkflowActions,
 } from "../stores/workflow";
-import {
-  useMCPClient,
-  useMCPToolsListQuery,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { useMcp, type McpTool } from "@/web/hooks/use-mcp";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 
 interface ToolSidebarProps {
@@ -22,21 +17,12 @@ interface ToolSidebarProps {
  * Hook to get tools from the selected virtual MCP (agent)
  */
 function useVirtualMCPTools() {
-  const { org } = useProjectContext();
   const virtualMcpId = useSelectedVirtualMcpId();
+  const mcpProxyUrl = virtualMcpId
+    ? new URL(`/mcp/virtual-mcp/${virtualMcpId}`, window.location.origin).href
+    : "";
 
-  const client = useMCPClient({
-    connectionId: virtualMcpId ?? null,
-    orgSlug: org.slug,
-  });
-
-  const toolsQuery = useMCPToolsListQuery({ client });
-
-  return {
-    tools: toolsQuery.data?.tools ?? [],
-    isLoading: toolsQuery.isLoading,
-    error: toolsQuery.error,
-  };
+  return useMcp({ url: mcpProxyUrl, enabled: !!virtualMcpId });
 }
 
 export function ToolSidebar({ className }: ToolSidebarProps) {
@@ -79,7 +65,7 @@ function ToolSelector({ className }: { className?: string }) {
     (a, b) => a.name.localeCompare(b.name),
   );
 
-  const handleSelectTool = (tool: Tool) => {
+  const handleSelectTool = (tool: McpTool) => {
     if (!currentStep) return;
 
     updateStep(currentStep.name, {

@@ -29,9 +29,8 @@ import { useParams } from "@tanstack/react-router";
 import {
   useCollectionActions,
   useCollectionItem,
-  useMCPClient,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+} from "@/web/hooks/use-collections";
+import { createToolCaller, UNKNOWN_CONNECTION_ID } from "@/tools/client";
 import { EmptyState } from "@deco/ui/components/empty-state.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,27 +41,22 @@ function useCollectionWorkflow({ itemId }: { itemId: string }) {
   const { connectionId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
-  const scopeKey = connectionId ?? "no-connection";
+  const connId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(connId);
 
   const collectionName = "WORKFLOW";
 
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: connectionId ?? null,
-    orgSlug: org.slug,
-  });
-
   const item = useCollectionItem<Workflow>(
-    scopeKey,
+    connId,
     collectionName,
     itemId,
-    client,
+    toolCaller,
   );
 
   const actions = useCollectionActions<Workflow>(
-    scopeKey,
+    connId,
     collectionName,
-    client,
+    toolCaller,
   );
 
   const update = async (updates: Partial<Workflow>): Promise<void> => {
@@ -251,15 +245,16 @@ function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
   const { connectionId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
-  const scopeKey = connectionId ?? "no-connection";
+  const connId = connectionId ?? UNKNOWN_CONNECTION_ID;
+  const toolCaller = createToolCaller(connId);
 
   const collectionName = "WORKFLOW_EXECUTION";
 
   const item = useCollectionItem<WorkflowExecution>(
-    scopeKey,
+    connId,
     collectionName,
     itemId,
-    connectionId,
+    toolCaller,
   );
 
   return {

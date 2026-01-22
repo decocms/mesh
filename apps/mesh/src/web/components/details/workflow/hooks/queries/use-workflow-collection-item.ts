@@ -1,11 +1,8 @@
 import { useRef } from "react";
 import { WorkflowExecution } from "@decocms/bindings/workflow";
+import { createToolCaller } from "@/tools/client";
 import { useWorkflowBindingConnection } from "../use-workflow-binding-connection";
-import {
-  useMCPClient,
-  useMCPToolCallQuery,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { useToolCallQuery } from "@/web/hooks/use-tool-call";
 
 type ExecutionQueryResult = {
   item: WorkflowExecution | null;
@@ -14,33 +11,26 @@ type ExecutionQueryResult = {
 const POLLING_INTERVALS = [100, 1000, 2000];
 
 export function usePollingWorkflowExecution(executionId?: string) {
-  const { org } = useProjectContext();
   const connection = useWorkflowBindingConnection();
+  const toolCaller = createToolCaller(connection.id);
   const intervalIndexRef = useRef(0);
 
-  const client = useMCPClient({
-    connectionId: connection.id,
-    orgSlug: org.slug,
-  });
-
-  const { data, isLoading } = useMCPToolCallQuery<ExecutionQueryResult>({
-    client,
+  const { data, isLoading } = useToolCallQuery<
+    { id: string | undefined },
+    ExecutionQueryResult
+  >({
+    toolCaller: toolCaller,
     toolName: "COLLECTION_WORKFLOW_EXECUTION_GET",
-    toolArguments: {
+    toolInputParams: {
       id: executionId,
     },
+    scope: connection.id,
     staleTime: 0,
     gcTime: 0,
     enabled: !!executionId,
-    select: (result) =>
-      ((result as { structuredContent?: unknown }).structuredContent ??
-        result) as ExecutionQueryResult,
     refetchInterval: executionId
-      ? (query: unknown) => {
-          const queryData = query as {
-            state?: { data?: ExecutionQueryResult };
-          };
-          const status = queryData.state?.data?.item?.status;
+      ? (query) => {
+          const status = query.state?.data?.item?.status;
           if (status === "running" || status === "enqueued") {
             const interval = POLLING_INTERVALS[intervalIndexRef.current] ?? 1;
             intervalIndexRef.current =
@@ -66,28 +56,21 @@ export function useExecutionCompletedStep(
   executionId?: string,
   stepName?: string,
 ) {
-  const { org } = useProjectContext();
   const connection = useWorkflowBindingConnection();
+  const toolCaller = createToolCaller(connection.id);
 
-  const client = useMCPClient({
-    connectionId: connection.id,
-    orgSlug: org.slug,
-  });
-
-  const { data, isLoading } = useMCPToolCallQuery<{
-    output: unknown | null;
-    error: string | null;
-  }>({
-    client,
+  const { data, isLoading } = useToolCallQuery<
+    { executionId: string | undefined; stepId: string | undefined },
+    { output: unknown | null; error: string | null }
+  >({
+    toolCaller: toolCaller,
     toolName: "COLLECTION_WORKFLOW_EXECUTION_GET_STEP_RESULT",
-    toolArguments: {
+    toolInputParams: {
       executionId: executionId,
       stepId: stepName,
     },
+    scope: connection.id,
     enabled: !!executionId && !!stepName,
-    select: (result) =>
-      ((result as { structuredContent?: unknown }).structuredContent ??
-        result) as { output: unknown | null; error: string | null },
   });
 
   return {

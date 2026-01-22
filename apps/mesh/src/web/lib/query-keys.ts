@@ -5,7 +5,7 @@
  * and prevents inline array declarations that are harder to maintain.
  */
 
-import { ProjectLocator } from "@decocms/mesh-sdk";
+import { ProjectLocator } from "./locator";
 
 export const KEYS = {
   // Public config (no auth required)
@@ -75,48 +75,35 @@ export const KEYS = {
   collectionItems: (connectionId: string, collectionName: string) =>
     ["collection", connectionId, collectionName] as const,
 
-  // Collection CRUD queries (scoped by org, scopeKey, client, and collection name)
+  // Collection CRUD queries (scoped by org, scopeKey and collection name)
   // org: organization slug
-  // scopeKey: connectionId for connection-scoped tools, virtualMcpId/gatewayId for scoped tools, etc.
-  // client: MCP client instance for cache isolation
+  // scopeKey: connectionId for connection-scoped tools, virtualMcpId for agent-scoped, etc.
   // Base prefix for invalidating all collection variants
   collection: (org: string, scopeKey: string, collectionName: string) =>
     [org, scopeKey, "collection", collectionName] as const,
   // Item query
   collectionItem: (
-    client: unknown,
     org: string,
     scopeKey: string,
     collectionName: string,
     itemId: string,
-  ) => [client, org, scopeKey, "collection", collectionName, itemId] as const,
+  ) => [org, scopeKey, "collection", collectionName, itemId] as const,
   // List query
   collectionList: (
-    client: unknown,
     org: string,
     scopeKey: string,
     collectionName: string,
     paramsKey: string,
   ) =>
-    [
-      client,
-      org,
-      scopeKey,
-      "collection",
-      collectionName,
-      "list",
-      paramsKey,
-    ] as const,
+    [org, scopeKey, "collection", collectionName, "list", paramsKey] as const,
   // Infinite list query
   collectionListInfinite: (
-    client: unknown,
     org: string,
     scopeKey: string,
     collectionName: string,
     paramsKey: string,
   ) =>
     [
-      client,
       org,
       scopeKey,
       "collection",
@@ -171,8 +158,4 @@ export const KEYS = {
 
   // User data
   user: (userId: string) => ["user", userId] as const,
-
-  // Remote MCP tools (for store server detail page)
-  remoteMcpTools: (remoteUrl: string | null) =>
-    ["remote-mcp-tools", remoteUrl] as const,
 } as const;

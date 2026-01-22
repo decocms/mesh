@@ -12,7 +12,7 @@ import {
   useOrganizationSettings,
   useOrganizationSettingsActions,
 } from "../hooks/collections/use-organization-settings";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { useProjectContext } from "../providers/project-context-provider";
 
 /**
  * Individual sidebar item

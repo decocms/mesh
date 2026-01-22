@@ -5,6 +5,7 @@
  * These hooks offer a reactive interface for accessing and manipulating connections.
  */
 
+import { createToolCaller } from "../lib/tool-caller";
 import type { ConnectionEntity } from "../types/connection";
 import { useProjectContext } from "../context/project-context";
 import {
@@ -14,7 +15,6 @@ import {
   useCollectionList,
   type UseCollectionListOptions,
 } from "./use-collections";
-import { useMCPClient } from "./use-mcp-client";
 
 /**
  * Filter definition for connections (matches @deco/ui Filter shape)
@@ -34,14 +34,11 @@ export type UseConnectionsOptions = UseCollectionListOptions<ConnectionEntity>;
  */
 export function useConnections(options: UseConnectionsOptions = {}) {
   const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: null,
-    orgSlug: org.slug,
-  });
+  const toolCaller = createToolCaller();
   return useCollectionList<ConnectionEntity>(
     org.slug,
     "CONNECTIONS",
-    client,
+    toolCaller,
     options,
   );
 }
@@ -49,20 +46,17 @@ export function useConnections(options: UseConnectionsOptions = {}) {
 /**
  * Hook to get a single connection by ID
  *
- * @param connectionId - The ID of the connection to fetch (undefined returns null without making an API call)
+ * @param connectionId - The ID of the connection to fetch
  * @returns Suspense query result with the connection as ConnectionEntity | null
  */
 export function useConnection(connectionId: string | undefined) {
   const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: null,
-    orgSlug: org.slug,
-  });
+  const toolCaller = createToolCaller();
   return useCollectionItem<ConnectionEntity>(
     org.slug,
     "CONNECTIONS",
     connectionId,
-    client,
+    toolCaller,
   );
 }
 
@@ -73,13 +67,10 @@ export function useConnection(connectionId: string | undefined) {
  */
 export function useConnectionActions() {
   const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: null,
-    orgSlug: org.slug,
-  });
+  const toolCaller = createToolCaller();
   return useCollectionActions<ConnectionEntity>(
     org.slug,
     "CONNECTIONS",
-    client,
+    toolCaller,
   );
 }
