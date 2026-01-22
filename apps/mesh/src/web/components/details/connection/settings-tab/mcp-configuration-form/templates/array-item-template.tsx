@@ -22,9 +22,9 @@ export function CustomArrayFieldItemTemplate(props: ArrayFieldItemTemplateProps)
       {/* Input field */}
       <div className="flex-1 max-w-md">{children}</div>
       
-      {/* Remove button - aligned with input top */}
+      {/* Remove button - aligned with input */}
       {hasToolbar && (
-        <div className="pt-[22px]">
+        <div className="pt-[30px]">
           <ArrayFieldItemButtonsTemplate {...buttonsProps} />
         </div>
       )}
