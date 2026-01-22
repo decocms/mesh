@@ -179,6 +179,7 @@ function VirtualMCPBadge({
 
 export function ChatInput() {
   const {
+    activeThreadId,
     tiptapDoc,
     setTiptapDoc,
     virtualMcps,
@@ -312,6 +313,7 @@ export function ChatInput() {
         {/* Inner container with the input */}
         <div className="p-0.5">
           <TiptapProvider
+            key={activeThreadId}
             tiptapDoc={tiptapDoc}
             setTiptapDoc={setTiptapDoc}
             selectedModel={selectedModel}
