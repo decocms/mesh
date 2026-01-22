@@ -144,9 +144,10 @@ function InvitationsGrid({ query }: { query?: string }) {
 
   const invitations = (_invitations ?? []) as Invitation[];
 
-  // Filter to only show pending invitations
+  // Filter to only show pending invitations that haven't expired
+  // Better Auth returns all invitations but accept/reject will fail for expired ones
   const pendingInvitations = invitations.filter(
-    (inv) => inv.status === "pending",
+    (inv) => inv.status === "pending" && new Date(inv.expiresAt) > new Date(),
   );
 
   // Filter invitations based on search query
