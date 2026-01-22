@@ -9,9 +9,11 @@ import type { ModelCollectionEntitySchema } from "@decocms/bindings/llm";
 import { z } from "zod";
 import {
   useCollectionList,
+  useConnections,
+  useMCPClient,
+  useProjectContext,
   type UseCollectionListOptions,
-} from "../use-collections";
-import { useConnections } from "@decocms/mesh-sdk";
+} from "@decocms/mesh-sdk";
 import { useBindingConnections } from "../use-binding";
 
 // LLM type matching ModelSchema from @decocms/bindings
@@ -33,8 +35,13 @@ export function useLLMsFromConnection(
   connectionId: string | undefined,
   options: UseLLMsOptions = {},
 ) {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: connectionId ?? null,
+    orgSlug: org.slug,
+  });
   const scopeKey = connectionId ?? "no-connection";
-  return useCollectionList<LLM>(scopeKey, "LLM", connectionId, options);
+  return useCollectionList<LLM>(scopeKey, "LLM", client, options);
 }
 
 /**

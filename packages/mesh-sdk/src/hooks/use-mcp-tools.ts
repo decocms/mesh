@@ -23,7 +23,7 @@ export interface UseMcpToolsListOptions
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
 }
 
 /**
@@ -34,10 +34,6 @@ export function useMCPToolsList({
   client,
   ...queryOptions
 }: UseMcpToolsListOptions): UseSuspenseQueryResult<ListToolsResult, Error> {
-  if (!client) {
-    throw new Error("MCP client is not available");
-  }
-
   return useSuspenseQuery<ListToolsResult, Error>({
     ...queryOptions,
     queryKey: KEYS.mcpToolsList(client),
@@ -55,7 +51,7 @@ export interface UseMcpToolsListQueryOptions
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
 }
 
 /**
@@ -69,12 +65,8 @@ export function useMCPToolsListQuery({
     ...queryOptions,
     queryKey: KEYS.mcpToolsList(client),
     queryFn: async () => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       return await client.listTools();
     },
-    enabled: !!client,
     staleTime: queryOptions.staleTime ?? 30000,
     retry: false,
   });
@@ -86,7 +78,7 @@ export interface UseMcpToolCallOptions<TData = CallToolResult>
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
   /** Tool name to call */
   toolName: string;
   /** Tool arguments */
@@ -105,10 +97,6 @@ export function useMCPToolCall<TData = CallToolResult>({
   toolArguments,
   ...queryOptions
 }: UseMcpToolCallOptions<TData>): UseSuspenseQueryResult<TData, Error> {
-  if (!client) {
-    throw new Error("MCP client is not available");
-  }
-
   const argsKey = JSON.stringify(toolArguments ?? {});
 
   return useSuspenseQuery<CallToolResult, Error, TData>({
@@ -132,7 +120,7 @@ export interface UseMcpToolCallQueryOptions<TData = CallToolResult>
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
   /** Tool name to call */
   toolName: string;
   /** Tool arguments */
@@ -156,16 +144,12 @@ export function useMCPToolCallQuery<TData = CallToolResult>({
     ...queryOptions,
     queryKey: KEYS.mcpToolCall(client, toolName, argsKey),
     queryFn: async () => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const result = await client.callTool({
         name: toolName,
         arguments: toolArguments,
       });
       return result as CallToolResult;
     },
-    enabled: !!client && (queryOptions.enabled ?? true),
     staleTime: queryOptions.staleTime ?? 30000,
     retry: false,
   });
@@ -177,7 +161,7 @@ export interface UseMcpToolCallMutationOptions
     "mutationFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
 }
 
 /**
@@ -194,9 +178,6 @@ export function useMCPToolCallMutation({
   return useMutation<CallToolResult, Error, CallToolRequest["params"]>({
     ...mutationOptions,
     mutationFn: async (params) => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       return (await client.callTool(params)) as CallToolResult;
     },
   });

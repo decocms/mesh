@@ -37,9 +37,6 @@ export function useUserById(userId: string) {
   return useQuery({
     queryKey: KEYS.user(userId),
     queryFn: async () => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const result = (await client.callTool({
         name: "USER_GET",
         arguments: { id: userId },
@@ -49,6 +46,6 @@ export function useUserById(userId: string) {
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - users don't change frequently
     retry: 1,
-    enabled: !!userId && !!client,
+    enabled: !!userId,
   });
 }

@@ -30,9 +30,6 @@ export function useOrganizationSettings(organizationId: string) {
   const { data } = useSuspenseQuery({
     queryKey: KEYS.organizationSettings(organizationId),
     queryFn: async () => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const result = (await client.callTool({
         name: "ORGANIZATION_SETTINGS_GET",
         arguments: {},
@@ -79,9 +76,6 @@ export function useOrganizationSettingsActions(organizationId: string) {
         Pick<OrganizationSettings, "sidebar_items" | "enabled_plugins">
       >,
     ) => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const result = (await client.callTool({
         name: "ORGANIZATION_SETTINGS_UPDATE",
         arguments: {

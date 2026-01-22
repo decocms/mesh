@@ -48,7 +48,7 @@ export interface UseMcpPromptsListOptions
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
 }
 
 /**
@@ -59,10 +59,6 @@ export function useMCPPromptsList({
   client,
   ...queryOptions
 }: UseMcpPromptsListOptions): UseSuspenseQueryResult<ListPromptsResult, Error> {
-  if (!client) {
-    throw new Error("MCP client is not available");
-  }
-
   return useSuspenseQuery<ListPromptsResult, Error>({
     ...queryOptions,
     queryKey: KEYS.mcpPromptsList(client),
@@ -78,7 +74,7 @@ export interface UseMcpPromptsListQueryOptions
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
 }
 
 /**
@@ -91,13 +87,7 @@ export function useMCPPromptsListQuery({
   return useQuery<ListPromptsResult, Error>({
     ...queryOptions,
     queryKey: KEYS.mcpPromptsList(client),
-    queryFn: () => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
-      return listPrompts(client);
-    },
-    enabled: !!client,
+    queryFn: () => listPrompts(client),
     staleTime: queryOptions.staleTime ?? 30000,
     retry: false,
   });
@@ -109,7 +99,7 @@ export interface UseMcpGetPromptOptions
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
   /** Prompt name */
   name: string;
   /** Optional prompt arguments */
@@ -126,10 +116,6 @@ export function useMCPGetPrompt({
   arguments: args,
   ...queryOptions
 }: UseMcpGetPromptOptions): UseSuspenseQueryResult<GetPromptResult, Error> {
-  if (!client || !name) {
-    throw new Error("MCP client is not available");
-  }
-
   return useSuspenseQuery<GetPromptResult, Error>({
     ...queryOptions,
     queryKey: KEYS.mcpGetPrompt(client, name, JSON.stringify(args ?? {})),

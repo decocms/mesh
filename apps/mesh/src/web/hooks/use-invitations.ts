@@ -47,9 +47,6 @@ export function useInvitations() {
   return useSuspenseQuery({
     queryKey: KEYS.invitations(locator),
     queryFn: async () => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const result = (await client.callTool({
         name: "ORGANIZATION_GET",
         arguments: {},

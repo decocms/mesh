@@ -35,13 +35,13 @@ function buildMcpUrl(connectionId: string | null): string {
  * Uses Suspense - must be used within a Suspense boundary.
  *
  * @param options - Configuration for the MCP client
- * @returns The MCP client instance
+ * @returns The MCP client instance (never null - suspends until ready)
  */
 export function useMCPClient({
   connectionId,
   orgSlug,
   token,
-}: UseMcpClientOptions): Client | null {
+}: UseMcpClientOptions): Client {
   const url = buildMcpUrl(connectionId);
   const queryKey = KEYS.mcpClient(
     orgSlug,
@@ -94,5 +94,6 @@ export function useMCPClient({
     gcTime: 0, // Clean up immediately when query is inactive
   });
 
-  return client;
+  // useSuspenseQuery guarantees data is available (suspends until ready)
+  return client!;
 }

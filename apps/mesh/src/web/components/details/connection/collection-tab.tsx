@@ -8,11 +8,13 @@ import {
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import type { ValidatedCollection } from "@/web/hooks/use-binding";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import { useConnection } from "@decocms/mesh-sdk";
 import {
+  useConnection,
   useCollectionActions,
   useCollectionList,
-} from "@/web/hooks/use-collections";
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { useListState } from "@/web/hooks/use-list-state";
 import { authClient } from "@/web/lib/auth-client";
 import { BaseCollectionJsonSchema } from "@/web/utils/constants";
@@ -57,10 +59,16 @@ export function CollectionTab({
   const userId = session?.user?.id || "unknown";
   const connection = useConnection(connectionId);
 
+  const { org: projectOrg } = useProjectContext();
+  const client = useMCPClient({
+    connectionId,
+    orgSlug: projectOrg.slug,
+  });
+
   const actions = useCollectionActions<BaseCollectionEntity>(
     connectionId,
     collectionName,
-    connectionId,
+    client,
   );
 
   const {
@@ -81,7 +89,7 @@ export function CollectionTab({
   const items = useCollectionList<BaseCollectionEntity>(
     connectionId,
     collectionName,
-    connectionId,
+    client,
     {
       searchTerm,
       sortKey,

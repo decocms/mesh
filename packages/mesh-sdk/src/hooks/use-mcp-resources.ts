@@ -44,7 +44,7 @@ export interface UseMcpResourcesListOptions
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
 }
 
 /**
@@ -58,10 +58,6 @@ export function useMCPResourcesList({
   ListResourcesResult,
   Error
 > {
-  if (!client) {
-    throw new Error("MCP client is not available");
-  }
-
   return useSuspenseQuery<ListResourcesResult, Error>({
     ...queryOptions,
     queryKey: KEYS.mcpResourcesList(client),
@@ -77,7 +73,7 @@ export interface UseMcpResourcesListQueryOptions
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
 }
 
 /**
@@ -93,13 +89,7 @@ export function useMCPResourcesListQuery({
   return useQuery<ListResourcesResult, Error>({
     ...queryOptions,
     queryKey: KEYS.mcpResourcesList(client),
-    queryFn: () => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
-      return listResources(client);
-    },
-    enabled: !!client,
+    queryFn: () => listResources(client),
     staleTime: queryOptions.staleTime ?? 30000,
     retry: false,
   });
@@ -111,7 +101,7 @@ export interface UseMcpReadResourceOptions
     "queryKey" | "queryFn"
   > {
   /** The MCP client from useMCPClient */
-  client: Client | null;
+  client: Client;
   /** Resource URI to read */
   uri: string;
 }
@@ -128,10 +118,6 @@ export function useMCPReadResource({
   ReadResourceResult,
   Error
 > {
-  if (!client || !uri) {
-    throw new Error("MCP client is not available");
-  }
-
   return useSuspenseQuery<ReadResourceResult, Error>({
     ...queryOptions,
     queryKey: KEYS.mcpReadResource(client, uri),

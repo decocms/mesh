@@ -89,9 +89,6 @@ export function useStoreDiscovery({
       if (!filtersToolName) {
         return { tags: [], categories: [] };
       }
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const result = (await client.callTool({
         name: filtersToolName,
         arguments: {},
@@ -140,9 +137,6 @@ export function useStoreDiscovery({
       JSON.stringify(filterParams),
     ),
     queryFn: async ({ pageParam }) => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const params = pageParam
         ? { ...filterParams, cursor: pageParam }
         : filterParams;
@@ -167,7 +161,6 @@ export function useStoreDiscovery({
     },
     staleTime: 60 * 60 * 1000,
     placeholderData: keepPreviousData,
-    enabled: !!client,
   });
 
   // Extract totalCount from first page if available

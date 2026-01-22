@@ -163,7 +163,7 @@ export function useCollectionItem<T extends CollectionEntity>(
   scopeKey: string,
   collectionName: string,
   itemId: string | undefined,
-  client: Client | null,
+  client: Client,
 ) {
   void scopeKey; // Reserved for future use (e.g., cache scoping)
   const upperName = collectionName.toUpperCase();
@@ -174,9 +174,6 @@ export function useCollectionItem<T extends CollectionEntity>(
     queryFn: async () => {
       if (!itemId) {
         return { item: null } as CollectionGetOutput<T>;
-      }
-      if (!client) {
-        throw new Error("MCP client is not available");
       }
 
       const result = (await client.callTool({
@@ -206,7 +203,7 @@ export function useCollectionItem<T extends CollectionEntity>(
 export function useCollectionList<T extends CollectionEntity>(
   scopeKey: string,
   collectionName: string,
-  client: Client | null,
+  client: Client,
   options: UseCollectionListOptions<T> = {},
 ) {
   void scopeKey; // Reserved for future use (e.g., cache scoping)
@@ -261,7 +258,7 @@ export function useCollectionList<T extends CollectionEntity>(
 export function useCollectionActions<T extends CollectionEntity>(
   scopeKey: string,
   collectionName: string,
-  client: Client | null,
+  client: Client,
 ) {
   void scopeKey; // Reserved for future use (e.g., cache scoping)
   const queryClient = useQueryClient();
@@ -287,9 +284,6 @@ export function useCollectionActions<T extends CollectionEntity>(
 
   const create = useMutation({
     mutationFn: async (data: Partial<T>) => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const result = (await client.callTool({
         name: createToolName,
         arguments: {
@@ -312,9 +306,6 @@ export function useCollectionActions<T extends CollectionEntity>(
 
   const update = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<T> }) => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const result = (await client.callTool({
         name: updateToolName,
         arguments: {
@@ -338,9 +329,6 @@ export function useCollectionActions<T extends CollectionEntity>(
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      if (!client) {
-        throw new Error("MCP client is not available");
-      }
       const result = (await client.callTool({
         name: deleteToolName,
         arguments: {

@@ -3,7 +3,9 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
   useCollectionActions,
   useCollectionItem,
-} from "@/web/hooks/use-collections";
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -139,18 +141,21 @@ function PromptDetailContent({
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
+
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: providerId || null,
+    orgSlug: org.slug,
+  });
+
   const prompt = useCollectionItem<Prompt>(
     providerId,
     "PROMPT",
     promptId,
-    providerId || undefined,
+    client,
   );
 
-  const actions = useCollectionActions<Prompt>(
-    providerId,
-    "PROMPT",
-    providerId || undefined,
-  );
+  const actions = useCollectionActions<Prompt>(providerId, "PROMPT", client);
   const isSaving = actions.update.isPending;
 
   const form = useForm<PromptEditor>({

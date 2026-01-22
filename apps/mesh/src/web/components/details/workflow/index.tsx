@@ -29,7 +29,9 @@ import { useParams } from "@tanstack/react-router";
 import {
   useCollectionActions,
   useCollectionItem,
-} from "@/web/hooks/use-collections";
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { EmptyState } from "@deco/ui/components/empty-state.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,17 +46,23 @@ function useCollectionWorkflow({ itemId }: { itemId: string }) {
 
   const collectionName = "WORKFLOW";
 
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: connectionId ?? null,
+    orgSlug: org.slug,
+  });
+
   const item = useCollectionItem<Workflow>(
     scopeKey,
     collectionName,
     itemId,
-    connectionId,
+    client,
   );
 
   const actions = useCollectionActions<Workflow>(
     scopeKey,
     collectionName,
-    connectionId,
+    client,
   );
 
   const update = async (updates: Partial<Workflow>): Promise<void> => {

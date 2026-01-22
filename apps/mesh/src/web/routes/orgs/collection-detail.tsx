@@ -1,7 +1,11 @@
 import { PromptDetailsView } from "@/web/components/details/prompt/index.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { useCollectionActions } from "@/web/hooks/use-collections";
+import {
+  useCollectionActions,
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import { Loading01, Container } from "@untitledui/icons";
 import { useParams, useRouter } from "@tanstack/react-router";
@@ -70,7 +74,13 @@ function CollectionDetailsContent() {
 
   const scopeKey = connectionId ?? "no-connection";
 
-  const actions = useCollectionActions(scopeKey, collectionName, connectionId);
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: connectionId ?? null,
+    orgSlug: org.slug,
+  });
+
+  const actions = useCollectionActions(scopeKey, collectionName, client);
 
   const handleUpdate = async (updates: Record<string, unknown>) => {
     if (!itemId) return;
