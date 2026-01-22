@@ -10,6 +10,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { consumeStream, stepCountIs, streamText, UIMessage } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
@@ -72,7 +73,7 @@ async function validateRequest(
 
   const parseResult = StreamRequestSchema.safeParse(rawPayload);
   if (!parseResult.success) {
-    throw new Error("Invalid request body");
+    throw new HTTPException(400, { message: "Invalid request body" });
   }
 
   return {
@@ -82,7 +83,7 @@ async function validateRequest(
     messages: parseResult.data.messages as unknown as UIMessage<Metadata>[],
     temperature: parseResult.data.temperature ?? 0.5,
     windowSize: parseResult.data.memory?.windowSize ?? DEFAULT_WINDOW_SIZE,
-    threadId: parseResult.data.thread_id,
+    threadId: parseResult.data.thread_id ?? parseResult.data.memory?.threadId,
   };
 }
 
@@ -315,6 +316,10 @@ app.post("/:org/decopilot/stream", async (c) => {
     const err = error as Error;
 
     console.error("[decopilot:stream] Error", err);
+
+    if (error instanceof HTTPException) {
+      return c.json({ error: err.message }, error.status);
+    }
 
     if (err.name === "AbortError") {
       console.warn("[decopilot:stream] Aborted", { error: err.message });

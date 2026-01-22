@@ -115,6 +115,7 @@ export function ThreadHistoryPopover({
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    hideThread,
   } = useChat();
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -247,7 +248,7 @@ export function ThreadHistoryPopover({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // hideThread(thread.id);
+                                hideThread(thread.id);
                               }}
                               className="opacity-0 cursor-pointer group/trash group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity"
                               title="Remove chat"

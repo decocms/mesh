@@ -153,7 +153,7 @@ export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
     editor.registerPlugin(fileDropPlugin);
 
     return () => {
-      if (editor?.isDestroyed) {
+      if (!editor?.isDestroyed) {
         editor.unregisterPlugin(pluginKey);
       }
     };

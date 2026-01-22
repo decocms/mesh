@@ -81,6 +81,9 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (data.updatedBy !== undefined) {
       updateData.updated_by = data.updatedBy;
     }
+    if (data.hidden !== undefined) {
+      updateData.hidden = data.hidden;
+    }
 
     await this.db
       .updateTable("threads")

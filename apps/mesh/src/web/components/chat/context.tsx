@@ -20,9 +20,9 @@ import {
 } from "ai";
 import {
   createContext,
+  type PropsWithChildren,
   useContext,
   useReducer,
-  type PropsWithChildren,
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
@@ -36,14 +36,17 @@ import type { ProjectLocator } from "../../lib/locator";
 import { useProjectContext } from "../../providers/project-context-provider";
 import type { ChatMessage } from "./index";
 import {
-  useModels,
   type ModelChangePayload,
   type SelectedModelState,
+  useModels,
 } from "./select-model";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import { useVirtualMCPs } from "./select-virtual-mcp";
 import type { FileAttrs } from "./tiptap/file/node.tsx";
 import type { Message, Metadata, ParentThread, Thread } from "./types.ts";
+import { createToolCaller } from "@/tools/client.ts";
+import { ThreadUpdateData } from "@/tools/thread/schema.ts";
+import { CollectionUpdateOutput } from "@decocms/bindings/collections";
 
 // ============================================================================
 // Type Definitions
@@ -472,6 +475,15 @@ function derivePartsFromTiptapDoc(
   return parts;
 }
 
+async function callUpdateThreadTool(threadId: string, data: ThreadUpdateData) {
+  const toolCaller = createToolCaller();
+  const result = (await toolCaller("COLLECTION_THREADS_UPDATE", {
+    id: threadId,
+    data,
+  })) as CollectionUpdateOutput<Thread>;
+  return result.item;
+}
+
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 /**
@@ -578,10 +590,11 @@ export function ChatProvider({
       return;
     }
 
-    const newMessages = finishMessages.slice(-2).filter(Boolean) as Message[];
+    // Only add the assistant message - user message was already added before sendMessage
+    const newMessages = finishMessages.slice(-1).filter(Boolean) as Message[];
 
-    if (newMessages.length !== 2) {
-      console.warn("[chat] Expected 2 messages, got", newMessages.length);
+    if (newMessages.length !== 1) {
+      console.warn("[chat] Expected 1 message, got", newMessages.length);
       return;
     }
 
@@ -665,14 +678,30 @@ export function ChatProvider({
 
   const resetInteraction = () => chatDispatch({ type: "RESET" });
 
-  const hideThread = (threadId: string) => {
-    setStateThreads((prevThreads) =>
-      prevThreads.map((thread) =>
-        thread.id === threadId
-          ? { ...thread, hidden: true, updatedAt: new Date().toISOString() }
-          : thread,
-      ),
-    );
+  const hideThread = async (threadId: string) => {
+    try {
+      const updatedThread = await callUpdateThreadTool(threadId, {
+        hidden: true,
+      });
+      if (updatedThread) {
+        const willHideCurrentThread = threadId === stateActiveThreadId;
+        const firstDifferentThread = stateThreads.find(
+          (thread) => thread.id !== threadId,
+        );
+        if (willHideCurrentThread) {
+          setStateActiveThreadId(
+            firstDifferentThread?.id ?? crypto.randomUUID(),
+          );
+        }
+        setStateThreads((prevThreads) =>
+          prevThreads.filter((thread) => thread.id !== threadId),
+        );
+      }
+    } catch (error) {
+      const err = error as Error;
+      toast.error(`Failed to update thread: ${err.message}`);
+      console.error("[chat] Failed to update thread:", error);
+    }
   };
 
   // Virtual MCP functions
