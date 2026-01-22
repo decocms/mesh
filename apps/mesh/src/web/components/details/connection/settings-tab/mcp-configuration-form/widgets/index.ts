@@ -10,19 +10,28 @@
 import type { RegistryWidgetsType } from "@rjsf/utils";
 import { BooleanSwitchWidget } from "./boolean-switch";
 import { ReadonlyStringWidget } from "./readonly-string";
+import { BaseInputWidget, NumberInputWidget, TextInputWidget } from "./base-input";
 
 /**
  * Custom widgets that override RJSF defaults.
- * Keys are RJSF widget names (e.g., "CheckboxWidget" overrides default checkbox).
  */
 export const customWidgets: RegistryWidgetsType = {
-  // Override default checkbox with toggle switch
+  // Boolean toggle
   CheckboxWidget: BooleanSwitchWidget,
-  // Custom widget for readonly strings
-  ReadonlyWidget: ReadonlyStringWidget,
+
+  // Text inputs with debounce
+  TextWidget: TextInputWidget,
+  BaseInput: BaseInputWidget,
+
+  // Number inputs
+  NumberWidget: NumberInputWidget,
+  IntegerWidget: NumberInputWidget,
+
+  // Readonly string with copy button
+  ReadOnlyWidget: ReadonlyStringWidget,
 };
 
 // Re-export individual widgets for direct use
 export { BooleanSwitchWidget } from "./boolean-switch";
 export { ReadonlyStringWidget } from "./readonly-string";
-
+export { BaseInputWidget, NumberInputWidget, TextInputWidget } from "./base-input";

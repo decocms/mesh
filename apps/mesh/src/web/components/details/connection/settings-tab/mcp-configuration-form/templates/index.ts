@@ -26,4 +26,3 @@ export { CustomObjectFieldTemplate } from "./object-template";
 export { CustomFieldTemplate } from "./field-template";
 export { CustomArrayFieldTemplate } from "./array-template";
 export { BindingFieldRenderer } from "./binding-field-renderer";
-

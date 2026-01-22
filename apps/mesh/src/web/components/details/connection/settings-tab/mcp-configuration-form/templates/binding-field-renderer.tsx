@@ -2,15 +2,17 @@
  * Binding Field Renderer
  *
  * Renders binding fields with appropriate selectors based on binding type.
+ * Agent selector now shows a card with larger icon and name.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
-import { Loading01, Plus } from "@untitledui/icons";
+import { Loading01, Plus, CpuChip02, Check, SearchMd } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
 import {
   Select,
   SelectContent,
@@ -18,15 +20,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { toast } from "sonner";
-import { VirtualMCPSelector } from "@/web/components/chat/select-virtual-mcp";
+import { useVirtualMCPs } from "@/web/components/chat/select-virtual-mcp";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   ModelChangePayload,
   ModelSelector,
   SelectedModelState,
 } from "@/web/components/chat";
-import { formatTitle, isDynamicBindingSchema, type FormContext } from "../utils";
+import {
+  formatTitle,
+  isDynamicBindingSchema,
+  type FormContext,
+} from "../utils";
+import { Label } from "../components/label";
 
 interface BindingFieldRendererProps {
   bindingType?: string;
@@ -70,16 +83,13 @@ export function BindingFieldRenderer({
     });
   };
 
-  // Agent selector
+  // Agent selector with card layout
   if (bindingType === "@deco/agent") {
     return (
       <FieldWrapper title={displayTitle} description={description}>
-        <VirtualMCPSelector
-          selectedVirtualMcpId={currentValue || undefined}
-          onVirtualMcpChange={handleBindingChange}
-          variant="bordered"
-          placeholder="Select Agent"
-            className="w-full"
+        <AgentSelectorCard
+          selectedAgentId={currentValue || undefined}
+          onAgentChange={handleBindingChange}
         />
       </FieldWrapper>
     );
@@ -96,7 +106,7 @@ export function BindingFieldRenderer({
           onModelChange={handleModelChange}
           variant="bordered"
           placeholder="Select Language Model"
-            className="w-full"
+          className="w-full max-w-md"
         />
       </FieldWrapper>
     );
@@ -112,7 +122,7 @@ export function BindingFieldRenderer({
         onValueChange={handleBindingChange}
         placeholder={`Select ${displayTitle.toLowerCase()}...`}
         onAddNew={() => formContext?.onAddNew()}
-            className="w-full"
+        className="w-full max-w-md"
       />
     </FieldWrapper>
   );
@@ -130,12 +140,175 @@ function FieldWrapper({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium">{title}</label>
-      {description && (
-        <p className="text-xs text-muted-foreground">{description}</p>
-      )}
+      <Label title={title} description={description} />
       <div className="max-w-md">{children}</div>
     </div>
+  );
+}
+
+// Agent Selector Card Component
+interface AgentSelectorCardProps {
+  selectedAgentId?: string;
+  onAgentChange: (agentId: string) => void;
+}
+
+function AgentSelectorCard({
+  selectedAgentId,
+  onAgentChange,
+}: AgentSelectorCardProps) {
+  const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const virtualMcps = useVirtualMCPs();
+
+  // Filter agents based on search term
+  const filteredAgents = (() => {
+    if (!searchTerm.trim()) return virtualMcps;
+    const search = searchTerm.toLowerCase();
+    return virtualMcps.filter(
+      (agent) =>
+        agent.title.toLowerCase().includes(search) ||
+        agent.description?.toLowerCase().includes(search),
+    );
+  })();
+
+  const selectedAgent = selectedAgentId
+    ? virtualMcps.find((g) => g.id === selectedAgentId)
+    : null;
+
+  const handleSelect = (agentId: string) => {
+    onAgentChange(agentId);
+    setOpen(false);
+    setSearchTerm("");
+  };
+
+  // Focus search input when popover opens
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
+    }
+  }, [open]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-3 w-full p-3 rounded-lg border border-input",
+            "hover:bg-accent/50 transition-colors cursor-pointer text-left",
+            "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+          )}
+        >
+          {/* Icon */}
+          <IntegrationIcon
+            icon={selectedAgent?.icon}
+            name={selectedAgent?.title || "Agent"}
+            size="sm"
+            fallbackIcon={<CpuChip02 size={20} />}
+            className="size-10 rounded-lg border border-border/50 shadow-sm shrink-0"
+          />
+
+          {/* Text Content */}
+          <div className="flex flex-col flex-1 min-w-0">
+            <span className="text-sm font-medium text-foreground truncate">
+              {selectedAgent?.title || "Select Agent"}
+            </span>
+            {selectedAgent?.description && (
+              <p className="text-xs text-muted-foreground line-clamp-1">
+                {selectedAgent.description}
+              </p>
+            )}
+            {!selectedAgent && (
+              <p className="text-xs text-muted-foreground">
+                Choose an agent to use
+              </p>
+            )}
+          </div>
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        className="w-[400px] p-0 overflow-hidden"
+        align="start"
+        sideOffset={8}
+      >
+        <div className="flex flex-col max-h-[400px]">
+          {/* Search input */}
+          <div className="border-b px-4 py-3 bg-background/95 backdrop-blur sticky top-0 z-10">
+            <div className="relative flex items-center gap-2">
+              <SearchMd
+                size={16}
+                className="text-muted-foreground pointer-events-none shrink-0"
+              />
+              <Input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search agents..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 h-8 text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none p-0"
+              />
+            </div>
+          </div>
+
+          {/* Agent list */}
+          <div className="overflow-y-auto p-2">
+            {filteredAgents.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                {filteredAgents.map((agent) => (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    onClick={() => handleSelect(agent.id)}
+                    className={cn(
+                      "flex items-start gap-3 p-3 hover:bg-accent cursor-pointer rounded-lg transition-colors w-full text-left",
+                      agent.id === selectedAgentId && "bg-accent",
+                    )}
+                  >
+                    {/* Icon */}
+                    <IntegrationIcon
+                      icon={agent.icon}
+                      name={agent.title}
+                      size="sm"
+                      fallbackIcon={<CpuChip02 />}
+                      className="size-10 rounded-lg border border-border/50 shadow-sm shrink-0"
+                    />
+
+                    {/* Text Content */}
+                    <div className="flex flex-col flex-1 min-w-0 gap-0.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {agent.title}
+                        </span>
+                        {agent.id === selectedAgentId && (
+                          <Check
+                            size={16}
+                            className="text-foreground shrink-0"
+                          />
+                        )}
+                      </div>
+                      {agent.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {agent.description}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                No agents found
+              </div>
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -298,7 +471,7 @@ function BindingSelector({
 
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger size="sm" className={cn("w-[200px]", className)}>
+      <SelectTrigger size="sm" className={cn("w-full", className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -357,4 +530,3 @@ function BindingSelector({
     </Select>
   );
 }
-

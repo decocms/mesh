@@ -3,8 +3,10 @@
  *
  * Handles rendering of object fields including:
  * - Binding fields (special selectors)
- * - Nested objects (collapsible sections)
+ * - Nested objects (collapsible sections with chevron)
  * - Root objects (flat rendering)
+ *
+ * Based on admin-panel-cx ObjectFieldTemplate.
  */
 
 import type { ObjectFieldTemplateProps } from "@rjsf/utils";
@@ -38,7 +40,8 @@ export function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
 
   // Convert title to string (it can be a ReactElement in some cases)
   const titleStr = typeof title === "string" ? title : undefined;
-  const descriptionStr = typeof description === "string" ? description : undefined;
+  const descriptionStr =
+    typeof description === "string" ? description : undefined;
 
   // Handle binding fields with special selectors
   if (isBindingField(schema as Record<string, unknown>)) {
@@ -76,7 +79,7 @@ export function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
                 isOpen && "rotate-90",
               )}
             />
-            <span className="font-medium text-sm">{displayTitle}</span>
+            <span className="font-semibold text-sm">{displayTitle}</span>
           </div>
           {descriptionStr && (
             <p className="text-xs text-muted-foreground pl-6">
@@ -84,7 +87,7 @@ export function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
             </p>
           )}
         </CollapsibleTrigger>
-        <CollapsibleContent className="pl-4 border-l-2 border-border/30 ml-2 mt-2 space-y-4 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+        <CollapsibleContent className="pl-5 border-l-2 border-border/40 ml-2 mt-2 space-y-4 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
           {properties.map((element) => (
             <div key={element.name}>{element.content}</div>
           ))}
