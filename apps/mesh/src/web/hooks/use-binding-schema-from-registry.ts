@@ -12,7 +12,7 @@ import { useConnections } from "@/web/hooks/collections/use-connection";
 import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { KEYS } from "@/web/lib/query-keys";
-import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
+import { MCP_MESH_DECOCMS_KEY } from "@/web/utils/constants";
 import { findListToolName } from "@/web/utils/registry-utils";
 
 /**
@@ -21,7 +21,7 @@ import { findListToolName } from "@/web/utils/registry-utils";
 interface RegistryItemWithBinding {
   id: string;
   _meta?: {
-    [MCP_REGISTRY_DECOCMS_KEY]?: {
+    [MCP_MESH_DECOCMS_KEY]?: {
       id?: string;
       verified?: boolean;
       scopeName?: string;
@@ -71,7 +71,7 @@ function parseServerName(serverName: string): string {
 function extractBindingTools(
   item: RegistryItemWithBinding,
 ): BindingDefinition[] | undefined {
-  const tools = item._meta?.[MCP_REGISTRY_DECOCMS_KEY]?.tools;
+  const tools = item._meta?.[MCP_MESH_DECOCMS_KEY]?.tools;
 
   if (!tools || tools.length === 0) {
     return undefined;
