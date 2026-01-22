@@ -242,7 +242,11 @@ export function useAudioRecorder(
    */
   const stopRecording = (): Promise<Blob | null> => {
     return new Promise((resolve) => {
-      if (!mediaRecorderRef.current || !isRecording) {
+      // Check recorder's actual state instead of React state to avoid stale closures
+      if (
+        !mediaRecorderRef.current ||
+        mediaRecorderRef.current.state !== "recording"
+      ) {
         resolve(null);
         return;
       }
@@ -251,13 +255,7 @@ export function useAudioRecorder(
       resolveStopRef.current = resolve;
 
       // Stop the recorder
-      if (mediaRecorderRef.current.state === "recording") {
-        mediaRecorderRef.current.stop();
-      } else {
-        // If not recording, resolve immediately
-        resolve(null);
-        resolveStopRef.current = null;
-      }
+      mediaRecorderRef.current.stop();
     });
   };
 

@@ -34,36 +34,40 @@ export const SUPPORTED_AUDIO_FORMATS = [
 /**
  * TRANSCRIBE_AUDIO Input Schema
  */
-export const TranscriptionInputSchema = z.object({
-  audio: z.string().optional().describe("Base64-encoded audio data"),
-  audioUrl: z
-    .string()
-    .url()
-    .optional()
-    .describe("URL pointing to the audio file"),
-  mimeType: z
-    .string()
-    .optional()
-    .describe("MIME type of the audio file (e.g., audio/webm, audio/mp3)"),
-  language: z
-    .string()
-    .optional()
-    .describe(
-      "Language hint for transcription (ISO 639-1 code, e.g., en, pt, es)",
-    ),
-  prompt: z
-    .string()
-    .optional()
-    .describe("Optional prompt to guide the transcription with context"),
-  includeTimestamps: z
-    .boolean()
-    .optional()
-    .describe("Whether to include word-level timestamps"),
-  includeSpeakerLabels: z
-    .boolean()
-    .optional()
-    .describe("Whether to identify and label different speakers"),
-});
+export const TranscriptionInputSchema = z
+  .object({
+    audio: z.string().optional().describe("Base64-encoded audio data"),
+    audioUrl: z
+      .string()
+      .url()
+      .optional()
+      .describe("URL pointing to the audio file"),
+    mimeType: z
+      .string()
+      .optional()
+      .describe("MIME type of the audio file (e.g., audio/webm, audio/mp3)"),
+    language: z
+      .string()
+      .optional()
+      .describe(
+        "Language hint for transcription (ISO 639-1 code, e.g., en, pt, es)",
+      ),
+    prompt: z
+      .string()
+      .optional()
+      .describe("Optional prompt to guide the transcription with context"),
+    includeTimestamps: z
+      .boolean()
+      .optional()
+      .describe("Whether to include word-level timestamps"),
+    includeSpeakerLabels: z
+      .boolean()
+      .optional()
+      .describe("Whether to identify and label different speakers"),
+  })
+  .refine((data) => data.audio !== undefined || data.audioUrl !== undefined, {
+    message: "Either 'audio' or 'audioUrl' must be provided",
+  });
 
 export type TranscriptionInput = z.infer<typeof TranscriptionInputSchema>;
 

@@ -29,6 +29,62 @@ const app = new Hono<{ Variables: Variables }>();
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 /**
+ * Validate audioUrl to prevent SSRF attacks
+ * Only allows HTTP/HTTPS URLs with public hosts
+ */
+function validateAudioUrl(
+  urlString: string,
+): { valid: true } | { valid: false; error: string } {
+  let url: URL;
+  try {
+    url = new URL(urlString);
+  } catch {
+    return { valid: false, error: "Invalid URL format" };
+  }
+
+  // Only allow HTTP/HTTPS schemes
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return { valid: false, error: "Only HTTP and HTTPS URLs are allowed" };
+  }
+
+  const hostname = url.hostname.toLowerCase();
+
+  // Block localhost and loopback addresses
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]" ||
+    hostname === "::1"
+  ) {
+    return { valid: false, error: "Localhost URLs are not allowed" };
+  }
+
+  // Block private IP ranges (basic check)
+  // 10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x (link-local/AWS metadata)
+  const ipv4Match = hostname.match(
+    /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/,
+  );
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (
+      a === 10 ||
+      a === 127 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254) ||
+      a === 0
+    ) {
+      return {
+        valid: false,
+        error: "Private or internal IP addresses are not allowed",
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
  * Find a connection that implements a specific binding
  */
 async function findConnectionWithBinding(
@@ -208,7 +264,15 @@ app.post("/:org/transcribe", async (c) => {
     return c.json({ error: "Either audio file or audioUrl is required" }, 400);
   }
 
-  // 4. Validate file size and format
+  // 4. Validate audioUrl if provided (prevent SSRF)
+  if (audioUrl) {
+    const urlValidation = validateAudioUrl(audioUrl);
+    if (!urlValidation.valid) {
+      return c.json({ error: urlValidation.error }, 400);
+    }
+  }
+
+  // 5. Validate file size and format (if file provided)
   if (audioFile) {
     if (audioFile.size > MAX_FILE_SIZE) {
       return c.json(
