@@ -212,6 +212,7 @@ export interface RequestMetadata {
   ipAddress?: string;
   /** Custom properties from x-mesh-properties header (string key-value pairs) */
   properties?: Record<string, string>;
+  wellKnownForwardableHeaders?: Record<string, null>;
 }
 
 // ============================================================================
@@ -221,13 +222,13 @@ export interface RequestMetadata {
 // Forward declare storage types
 import type { createMCPProxy } from "@/api/routes/proxy";
 import type { BetterAuthInstance } from "@/auth";
+import { SqlThreadStorage } from "@/storage/threads";
 import type { EventBus } from "../event-bus/interface";
 import type { ConnectionStorage } from "../storage/connection";
-import type { VirtualMCPStorage } from "../storage/virtual-mcp";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { UserStorage } from "../storage/user";
-import { SqlThreadStorage } from "@/storage/threads";
+import type { VirtualMCPStorage } from "../storage/virtual-mcp";
 
 // Better Auth instance type - flexible for testing
 // In production, this is the actual Better Auth instance

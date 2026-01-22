@@ -296,6 +296,7 @@ async function createMCPProxyDoNotUseDirectly(
 
     const headers: Record<string, string> = {
       ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
+      ...(ctx.metadata.wellKnownForwardableHeaders ?? {}),
     };
 
     // Try to get cached token from downstream_tokens first
