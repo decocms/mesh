@@ -182,14 +182,16 @@ const useModelState = (
 
   // Fetch models for the selected connection
   const models = useModels(modelsConnection?.id ?? null);
-  const cheapestModel = models.reduce((min, model) => {
-    const inputCost = model.costs?.input ?? 0;
-    const outputCost = model.costs?.output ?? 0;
-    return inputCost + outputCost <
-      (min?.costs?.input ?? 0) + (min?.costs?.output ?? 0)
-      ? model
-      : min;
-  }, models[0]);
+  const cheapestModel = models
+    .filter((m) => (m.costs?.input ?? 0) + (m.costs?.output ?? 0) > 0)
+    .reduce<(typeof models)[number] | undefined>((min, model) => {
+      const inputCost = model.costs?.input ?? 0;
+      const outputCost = model.costs?.output ?? 0;
+      const minCost = (min?.costs?.input ?? 0) + (min?.costs?.output ?? 0);
+      return !min || minCost === 0 || inputCost + outputCost < minCost
+        ? model
+        : min;
+    }, undefined);
 
   // Find the selected model from the fetched models using stored state
   const selectedModel = findOrFirst(models, modelState?.id);
@@ -608,6 +610,19 @@ export function ChatProvider({
           },
         ];
       });
+    } else {
+      // Update existing thread's updatedAt (and title if available)
+      setStateThreads((prevThreads) =>
+        prevThreads.map((thread) =>
+          thread.id === stateActiveThreadId
+            ? {
+                ...thread,
+                updatedAt: new Date().toISOString(),
+                ...(title && { title }),
+              }
+            : thread,
+        ),
+      );
     }
     addMessages(newMessages);
   };

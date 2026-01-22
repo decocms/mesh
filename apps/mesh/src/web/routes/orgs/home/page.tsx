@@ -219,9 +219,26 @@ function HomeChatErrorFallback({
   );
 }
 
-export default function OrgHomePage() {
+/**
+ * Inner component that calls useThreads inside the Suspense boundary.
+ * This ensures the suspense fallback is shown while threads are loading.
+ */
+function HomeContentWithThreads() {
   const { threads, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useThreads();
+  return (
+    <Chat.Provider
+      initialThreads={threads}
+      hasNextPage={hasNextPage}
+      isFetchingNextPage={isFetchingNextPage}
+      fetchNextPage={fetchNextPage}
+    >
+      <HomeContent />
+    </Chat.Provider>
+  );
+}
+
+export default function OrgHomePage() {
   return (
     <ErrorBoundary
       fallback={({ error, resetError }) => (
@@ -229,14 +246,7 @@ export default function OrgHomePage() {
       )}
     >
       <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.Provider
-          initialThreads={threads}
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          fetchNextPage={fetchNextPage}
-        >
-          <HomeContent />
-        </Chat.Provider>
+        <HomeContentWithThreads />
       </Suspense>
     </ErrorBoundary>
   );

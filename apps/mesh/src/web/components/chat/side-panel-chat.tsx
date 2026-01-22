@@ -143,20 +143,26 @@ function ChatPanelContent() {
   );
 }
 
-export function ChatPanel() {
+function ChatPanelWithThreads() {
   const { threads, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useThreads();
   return (
+    <Chat.Provider
+      initialThreads={threads}
+      hasNextPage={hasNextPage}
+      isFetchingNextPage={isFetchingNextPage}
+      fetchNextPage={fetchNextPage}
+    >
+      <ChatPanelContent />
+    </Chat.Provider>
+  );
+}
+
+export function ChatPanel() {
+  return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.Provider
-          initialThreads={threads}
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          fetchNextPage={fetchNextPage}
-        >
-          <ChatPanelContent />
-        </Chat.Provider>
+        <ChatPanelWithThreads />
       </Suspense>
     </ErrorBoundary>
   );

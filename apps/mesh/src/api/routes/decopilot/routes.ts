@@ -7,7 +7,7 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { stepCountIs, streamText, UIMessage } from "ai";
+import { consumeStream, stepCountIs, streamText, UIMessage } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
 
@@ -164,6 +164,9 @@ app.post("/:org/decopilot/stream", async (c) => {
       abortSignal,
       stopWhen: stepCountIs(30),
       onStepFinish: async () => {
+        // Title generation runs after first step's TEXT is already streamed.
+        // This blocks the "finish-step" event and subsequent steps (for tool calls),
+        // but the response text has already been sent to the client.
         if (shouldGenerateTitle && newTitle === null) {
           const userMessage = JSON.stringify(prunedMessages[0]?.content);
           const modelToUse = modelProvider.cheapModel ?? modelProvider.model;
@@ -174,6 +177,14 @@ app.post("/:org/decopilot/stream", async (c) => {
             userMessage,
             onTitle: (title) => {
               newTitle = title;
+              ctx.storage.threads
+                .update(memory.thread.id, { title })
+                .catch((error) => {
+                  console.error(
+                    "[decopilot:stream] Error updating thread title",
+                    error,
+                  );
+                });
             },
           }).catch((error) => {
             console.error("[decopilot:stream] Error generating title", error);
@@ -186,6 +197,53 @@ app.post("/:org/decopilot/stream", async (c) => {
         await client?.close().catch(console.error);
         throw error;
       },
+      // onAbort is called when stream is aborted - persist partial results
+      onAbort: async ({ steps }) => {
+        abortSignal.removeEventListener("abort", abortHandler);
+        await client?.close().catch(console.error);
+
+        // Save partial results if we have any completed steps
+        if (steps.length > 0) {
+          const lastStep = steps[steps.length - 1];
+          const userMsg = messages[messages.length - 1];
+          const partialMessages: UIMessage<Metadata>[] = [
+            {
+              id: generatePrefixedId("msg"),
+              role: "user",
+              parts: userMsg?.parts ?? [],
+              metadata: userMsg?.metadata,
+            },
+            {
+              id: generatePrefixedId("msg"),
+              role: "assistant",
+              parts: [{ type: "text" as const, text: lastStep?.text ?? "" }],
+              metadata: {},
+            },
+          ];
+
+          const messagesToSave = partialMessages.map((message) => {
+            const now = new Date().getTime();
+            const createdAt = message.role === "user" ? now : now + 1000;
+            return {
+              ...message,
+              metadata: {
+                ...message.metadata,
+                title: newTitle ?? undefined,
+              },
+              id: generatePrefixedId("msg"),
+              createdAt: new Date(createdAt).toISOString(),
+              updatedAt: new Date(createdAt).toISOString(),
+              threadId: memory.thread.id,
+            };
+          });
+          await memory.save(messagesToSave).catch((error) => {
+            console.error(
+              "[decopilot:stream] Error saving partial messages",
+              error,
+            );
+          });
+        }
+      },
       onFinish: async () => {
         abortSignal.removeEventListener("abort", abortHandler);
         await client?.close().catch(console.error);
@@ -195,6 +253,8 @@ app.post("/:org/decopilot/stream", async (c) => {
     // 5. Return the stream response with metadata
     return result.toUIMessageStreamResponse({
       originalMessages,
+      // consumeSseStream ensures proper abort handling and prevents memory leaks
+      consumeSseStream: consumeStream,
 
       messageMetadata: ({ part }): Metadata => {
         if (part.type === "start") {
@@ -224,7 +284,12 @@ app.post("/:org/decopilot/stream", async (c) => {
         }
         return {};
       },
-      onFinish: async ({ messages: UIMessages }) => {
+      onFinish: async ({ messages: UIMessages, isAborted }) => {
+        // Skip saving if aborted - onAbort already handled it
+        if (isAborted) {
+          return;
+        }
+
         const messagesToSave = UIMessages.slice(-2).map((message) => {
           const now = new Date().getTime();
           const createdAt = message.role === "user" ? now : now + 1000;
