@@ -7,11 +7,12 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { CpuChip02 } from "@untitledui/icons";
-import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 import {
   useMCPClient,
   useMCPToolCall,
   useProjectContext,
+  useVirtualMCPs,
+  WellKnownOrgMCPId,
 } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
@@ -133,7 +134,7 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
   const virtualMcps = useVirtualMCPs({ pageSize: 100 }) ?? [];
 
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 

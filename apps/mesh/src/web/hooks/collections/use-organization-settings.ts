@@ -12,7 +12,11 @@ import {
 } from "@tanstack/react-query";
 import type { OrganizationSettings } from "../../../storage/types";
 import { KEYS } from "../../lib/query-keys";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useMCPClient,
+  useProjectContext,
+  WellKnownOrgMCPId,
+} from "@decocms/mesh-sdk";
 
 /**
  * Hook to get organization settings
@@ -23,7 +27,7 @@ import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
 export function useOrganizationSettings(organizationId: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 
@@ -66,7 +70,7 @@ export function useOrganizationSettingsActions(organizationId: string) {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 

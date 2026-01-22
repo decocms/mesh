@@ -11,7 +11,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/vanilla/shallow";
 import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
-import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
+import { useVirtualMCPs } from "@decocms/mesh-sdk";
 
 type CurrentStepTab = "input" | "output" | "action" | "executions";
 export type StepType = "tool" | "code";

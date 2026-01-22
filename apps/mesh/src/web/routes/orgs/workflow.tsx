@@ -1,4 +1,4 @@
-import { getWellKnownMcpStudioConnection } from "@/core/well-known-mcp";
+import { getWellKnownMcpStudioConnection } from "@decocms/mesh-sdk";
 import { BindingCollectionView } from "@/web/components/binding-collection-view";
 
 export default function WorkflowPage() {

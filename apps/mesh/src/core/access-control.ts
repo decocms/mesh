@@ -10,7 +10,6 @@
  */
 
 import { MCP_MESH_KEY } from "@/core/constants";
-import { WellKnownMCPId } from "@/core/well-known-mcp";
 import type { BetterAuthInstance, BoundAuthClient } from "./mesh-context";
 
 // ============================================================================
@@ -66,7 +65,7 @@ export class AccessControl implements Disposable {
     private toolName?: string,
     private boundAuth?: BoundAuthClient, // Bound auth client for permission checks
     private role?: string, // From user session (for built-in role bypass)
-    private connectionId: string = WellKnownMCPId.SELF, // For connection-specific checks
+    private connectionId: string = "self", // For connection-specific checks (matches permission resource key)
     private getToolMeta?: GetToolMetaFn, // Optional callback for public tool check
   ) {}
 

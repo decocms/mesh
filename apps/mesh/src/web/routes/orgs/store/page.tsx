@@ -1,7 +1,3 @@
-import {
-  getWellKnownCommunityRegistryConnection,
-  getWellKnownRegistryConnection,
-} from "@/core/well-known-mcp";
 import { CollectionHeader } from "@/web/components/collections/collection-header";
 import { StoreDiscovery } from "@/web/components/store";
 import { StoreRegistrySelect } from "@/web/components/store/store-registry-select";
@@ -10,6 +6,8 @@ import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import {
+  getWellKnownCommunityRegistryConnection,
+  getWellKnownRegistryConnection,
   useConnectionActions,
   useConnections,
   useProjectContext,

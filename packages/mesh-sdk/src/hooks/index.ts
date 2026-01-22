@@ -62,3 +62,12 @@ export {
   type UseMcpPromptsListQueryOptions,
   type UseMcpGetPromptOptions,
 } from "./use-mcp-prompts";
+
+// Virtual MCP hooks
+export {
+  useVirtualMCPs,
+  useVirtualMCP,
+  useVirtualMCPActions,
+  type VirtualMCPFilter,
+  type UseVirtualMCPsOptions,
+} from "./use-virtual-mcp";

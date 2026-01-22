@@ -384,7 +384,6 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 import { createMCPProxy } from "@/api/routes/proxy";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
-import { WellKnownMCPId } from "./well-known-mcp";
 import { SqlThreadStorage } from "@/storage/threads";
 
 /**
@@ -784,7 +783,7 @@ export function createMeshContextFactory(
       undefined, // toolName set later by defineTool
       boundAuth, // Bound auth client for permission checks
       authResult.role, // Role from session (for built-in role bypass)
-      WellKnownMCPId.SELF, // Default connectionId for management APIs
+      "self", // Default connectionId for management APIs (matches permission resource key)
     );
 
     const ctx: MeshContext = {

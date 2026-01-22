@@ -7,7 +7,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useMCPClient,
+  useProjectContext,
+  WellKnownOrgMCPId,
+} from "@decocms/mesh-sdk";
 
 /**
  * User data returned by the API
@@ -30,7 +34,7 @@ type UserGetOutput = { user: UserData | null };
 export function useUserById(userId: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 

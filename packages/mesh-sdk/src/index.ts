@@ -58,6 +58,12 @@ export {
   type UseMcpPromptsListOptions,
   type UseMcpPromptsListQueryOptions,
   type UseMcpGetPromptOptions,
+  // Virtual MCP hooks
+  useVirtualMCPs,
+  useVirtualMCP,
+  useVirtualMCPActions,
+  type VirtualMCPFilter,
+  type UseVirtualMCPsOptions,
 } from "./hooks";
 
 // Types
@@ -76,6 +82,15 @@ export {
   type StdioConnectionParameters,
   type OAuthConfig,
   type ToolDefinition,
+  // Virtual MCP types
+  VirtualMCPEntitySchema,
+  VirtualMCPCreateDataSchema,
+  VirtualMCPUpdateDataSchema,
+  type VirtualMCPEntity,
+  type VirtualMCPCreateData,
+  type VirtualMCPUpdateData,
+  type VirtualMCPConnection,
+  type ToolSelectionMode,
 } from "./types";
 
 // Streamable HTTP transport
@@ -83,3 +98,17 @@ export { StreamableHTTPClientTransport } from "./lib/streamable-http-client-tran
 
 // Query keys
 export { KEYS } from "./lib/query-keys";
+
+// Constants and well-known MCP definitions
+export {
+  // Org-scoped MCP ID generators
+  WellKnownOrgMCPId,
+  // Connection factory functions
+  getWellKnownRegistryConnection,
+  getWellKnownCommunityRegistryConnection,
+  getWellKnownSelfConnection,
+  getWellKnownOpenRouterConnection,
+  getWellKnownMcpStudioConnection,
+  // Virtual MCP factory functions
+  getWellKnownDecopilotAgent,
+} from "./lib/constants";

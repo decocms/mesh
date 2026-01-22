@@ -26,7 +26,6 @@ import { meter, prometheusExporter, tracer } from "../observability";
 import authRoutes from "./routes/auth";
 import downstreamTokenRoutes from "./routes/downstream-token";
 import virtualMcpRoutes from "./routes/gateway";
-import managementRoutes from "./routes/management";
 import openaiCompatRoutes from "./routes/openai-compat";
 import decopilotRoutes from "./routes/decopilot";
 import oauthProxyRoutes, {
@@ -35,11 +34,8 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import proxyRoutes from "./routes/proxy";
 import publicConfigRoutes from "./routes/public-config";
-import {
-  isDecoHostedMcp,
-  DECO_STORE_URL,
-  WellKnownOrgMCPId,
-} from "../core/well-known-mcp";
+import { isDecoHostedMcp, DECO_STORE_URL } from "@/core/deco-constants";
+import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import type { MeshContext } from "../core/mesh-context";
 
 // Track current event bus instance for cleanup during HMR
@@ -563,15 +559,13 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/mcp/:connectionId?", mcpAuth);
   app.use("/mcp/gateway/:virtualMcpId?", mcpAuth);
   app.use("/mcp/virtual-mcp/:virtualMcpId?", mcpAuth);
-  app.use("/mcp/management", mcpAuth);
 
   // Virtual MCP / Agent routes (must be before proxy to match /mcp/gateway and /mcp/virtual-mcp before /mcp/:connectionId)
   // /mcp/gateway/:virtualMcpId (backward compat) or /mcp/virtual-mcp/:virtualMcpId
   app.route("/mcp", virtualMcpRoutes);
-  // Management MCP routes (at /mcp/management)
-  app.route("/mcp/management", managementRoutes);
 
   // MCP Proxy routes (connection-specific)
+  // Note: SELF MCP ({org}_self) is handled by proxy.ts with special case detection
   app.route("/mcp", proxyRoutes);
 
   // Measure LLM models route latency

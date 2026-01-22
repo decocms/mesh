@@ -1,4 +1,3 @@
-import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -14,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { useVirtualMCPs, type VirtualMCPEntity } from "@decocms/mesh-sdk";
 import { Check, CpuChip02, SearchMd } from "@untitledui/icons";
 import {
   useEffect,
@@ -22,22 +22,11 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { useVirtualMCPs as useVirtualMCPsCollection } from "../../hooks/collections/use-virtual-mcp";
 import { useCreateVirtualMCP } from "../../hooks/use-create-virtual-mcp";
 
 export interface VirtualMCPInfo
   extends Pick<VirtualMCPEntity, "id" | "title" | "description" | "icon"> {
   fallbackIcon?: ReactNode; // Icon to use when icon is not available
-}
-
-/**
- * Hook to fetch and map virtual MCPs (agents) for the selector.
- * Returns only real virtual MCPs from the database.
- * When no virtual MCP is selected (null), the default route is used.
- */
-export function useVirtualMCPs(): VirtualMCPInfo[] {
-  const virtualMcpsData = useVirtualMCPsCollection();
-  return virtualMcpsData ?? [];
 }
 
 function VirtualMCPItemContent({
@@ -269,9 +258,7 @@ export function VirtualMCPSelector({
           icon={selectedVirtualMcp.icon}
           name={selectedVirtualMcp.title}
           size="xs"
-          fallbackIcon={
-            selectedVirtualMcp.fallbackIcon ?? <CpuChip02 size={12} />
-          }
+          fallbackIcon={<CpuChip02 size={12} />}
           className="size-5 rounded-md"
         />
       ) : (

@@ -5,16 +5,17 @@
  * These hooks offer a reactive interface for accessing and manipulating virtual MCPs.
  */
 
-import type { VirtualMCPEntity } from "../../../tools/virtual-mcp/schema";
+import type { VirtualMCPEntity } from "../types/virtual-mcp";
+import { useProjectContext } from "../context";
 import {
-  useMCPClient,
-  useProjectContext,
   useCollectionActions,
   useCollectionItem,
   useCollectionList,
   type CollectionFilter,
   type UseCollectionListOptions,
-} from "@decocms/mesh-sdk";
+} from "./use-collections";
+import { useMCPClient } from "./use-mcp-client";
+import { WellKnownOrgMCPId } from "../lib/constants";
 
 /**
  * Filter definition for virtual MCPs (matches @deco/ui Filter shape)
@@ -34,7 +35,10 @@ export type UseVirtualMCPsOptions = UseCollectionListOptions<VirtualMCPEntity>;
  */
 export function useVirtualMCPs(options: UseVirtualMCPsOptions = {}) {
   const { org } = useProjectContext();
-  const client = useMCPClient({ connectionId: null, orgSlug: org.slug });
+  const client = useMCPClient({
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    orgSlug: org.slug,
+  });
 
   return useCollectionList<VirtualMCPEntity>(
     org.slug,
@@ -55,7 +59,7 @@ export function useVirtualMCP(
 ): VirtualMCPEntity | null {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 
@@ -78,7 +82,10 @@ export function useVirtualMCP(
  */
 export function useVirtualMCPActions() {
   const { org } = useProjectContext();
-  const client = useMCPClient({ connectionId: null, orgSlug: org.slug });
+  const client = useMCPClient({
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    orgSlug: org.slug,
+  });
 
   return useCollectionActions<VirtualMCPEntity>(
     org.slug,
@@ -86,8 +93,3 @@ export function useVirtualMCPActions() {
     client,
   );
 }
-
-/**
- * Re-export VirtualMCPEntity type for convenience
- */
-export type { VirtualMCPEntity };

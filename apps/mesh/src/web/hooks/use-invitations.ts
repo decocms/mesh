@@ -6,7 +6,11 @@
  */
 
 import { KEYS } from "@/web/lib/query-keys";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useMCPClient,
+  useProjectContext,
+  WellKnownOrgMCPId,
+} from "@decocms/mesh-sdk";
 import {
   useMutation,
   useQueryClient,
@@ -40,7 +44,7 @@ interface OrganizationData {
 export function useInvitations() {
   const { org, locator } = useProjectContext();
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 

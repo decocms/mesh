@@ -1,7 +1,3 @@
-import {
-  VirtualMCPEntitySchema,
-  type VirtualMCPEntity,
-} from "@/tools/virtual-mcp/schema";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { PromptSetSelector } from "@/web/components/virtual-mcp/prompt-selector.tsx";
@@ -9,18 +5,18 @@ import { ResourceSetSelector } from "@/web/components/virtual-mcp/resource-selec
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
-import {
-  useVirtualMCP,
-  useVirtualMCPActions,
-} from "@/web/hooks/collections/use-virtual-mcp";
 import { useVirtualMCPSystemPrompt } from "@/web/hooks/use-virtual-mcp-system-prompt";
 import {
   createMCPClient,
   useConnections,
   useProjectContext,
+  useVirtualMCP,
+  useVirtualMCPActions,
   listPrompts,
   listResources,
   KEYS,
+  VirtualMCPEntitySchema,
+  type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
 import { useQueries } from "@tanstack/react-query";
 import { slugify } from "@/web/utils/slugify";

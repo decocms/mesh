@@ -5,16 +5,17 @@
  * connections, and their metrics.
  */
 
-import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { CpuChip02, Container } from "@untitledui/icons";
-import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 import {
   useConnections,
   useMCPClient,
   useMCPToolCall,
   useProjectContext,
+  useVirtualMCPs,
+  WellKnownOrgMCPId,
   type ConnectionEntity,
+  type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
 import {
   ToggleGroup,
@@ -246,7 +247,7 @@ function useNodeMetrics(): NodeMetricsMap {
   const dateRange = getLast24HoursDateRange();
 
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 

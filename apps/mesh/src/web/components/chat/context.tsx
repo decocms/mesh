@@ -5,7 +5,17 @@
  * Provides optimized state management to minimize re-renders across the component tree.
  */
 
+import type { ThreadUpdateData } from "@/tools/thread/schema.ts";
 import { useChat as useAIChat } from "@ai-sdk/react";
+import type { CollectionUpdateOutput } from "@decocms/bindings/collections";
+import type { ProjectLocator } from "@decocms/mesh-sdk";
+import {
+  useMCPClient,
+  useProjectContext,
+  useVirtualMCPs,
+  WellKnownOrgMCPId,
+} from "@decocms/mesh-sdk";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type {
   EmbeddedResource,
   PromptMessage,
@@ -23,7 +33,6 @@ import {
   type PropsWithChildren,
   useContext,
   useReducer,
-  useRef,
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
@@ -33,8 +42,6 @@ import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-c
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import type { ProjectLocator } from "@decocms/mesh-sdk";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
 import type { ChatMessage } from "./index";
 import {
   type ModelChangePayload,
@@ -42,12 +49,8 @@ import {
   useModels,
 } from "./select-model";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
-import { useVirtualMCPs } from "./select-virtual-mcp";
 import type { FileAttrs } from "./tiptap/file/node.tsx";
 import type { Message, Metadata, ParentThread, Thread } from "./types.ts";
-import type { ThreadUpdateData } from "@/tools/thread/schema.ts";
-import type { CollectionUpdateOutput } from "@decocms/bindings/collections";
-import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 // ============================================================================
 // Type Definitions
@@ -529,7 +532,7 @@ export function ChatProvider({
 
   // MCP client for thread operations
   const mcpClient = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 
@@ -666,16 +669,6 @@ export function ChatProvider({
     onToolCall,
     onError,
   });
-
-  // Sync initialMessages to chat when thread changes or messages are loaded
-  // useAIChat only uses `messages` prop as initial state, so we need to sync manually
-  // Track by thread ID + first message ID to detect actual changes (not just reference)
-  const syncKey = `${stateActiveThreadId}:${initialMessages[0]?.id ?? "empty"}:${initialMessages.length}`;
-  const prevSyncKeyRef = useRef(syncKey);
-  if (prevSyncKeyRef.current !== syncKey) {
-    prevSyncKeyRef.current = syncKey;
-    chat.setMessages(initialMessages);
-  }
 
   // ===========================================================================
   // 5. POST-HOOK DERIVED VALUES - Values derived from hooks with callbacks

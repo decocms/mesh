@@ -10,7 +10,11 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
-import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useMCPClient,
+  useProjectContext,
+  WellKnownOrgMCPId,
+} from "@decocms/mesh-sdk";
 import type { Message, Thread } from "../components/chat/types.ts";
 import type {
   CollectionListInput,
@@ -27,7 +31,7 @@ const THREADS_PAGE_SIZE = 50;
 export function useThreads() {
   const { locator, org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
   const listToolName = "COLLECTION_THREADS_LIST";
@@ -88,7 +92,7 @@ export function useThreads() {
 export function useThreadMessages(threadId: string | null) {
   const { locator, org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
   const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";

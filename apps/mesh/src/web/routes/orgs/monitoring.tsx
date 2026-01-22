@@ -17,7 +17,6 @@ import {
   calculateStats,
   type DateRange,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
-import { useVirtualMCPs } from "@/web/hooks/collections/use-virtual-mcp";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
 import { KEYS } from "@/web/lib/query-keys";
@@ -25,6 +24,8 @@ import {
   useConnections,
   useMCPClient,
   useProjectContext,
+  useVirtualMCPs,
+  WellKnownOrgMCPId,
 } from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -798,7 +799,7 @@ function MonitoringDashboardContent({
   const { pageSize, streamingRefetchInterval } = MONITORING_CONFIG;
   const { org, locator } = useProjectContext();
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 

@@ -11,6 +11,7 @@ import {
   useMCPClient,
   useMCPToolCall,
   useProjectContext,
+  WellKnownOrgMCPId,
 } from "@decocms/mesh-sdk";
 import { ChartContainer, ChartTooltip } from "@deco/ui/components/chart.tsx";
 import { useNavigate } from "@tanstack/react-router";
@@ -131,7 +132,7 @@ function TopToolsContent(_props: TopToolsContentProps) {
   const connections = useConnections() ?? [];
 
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 

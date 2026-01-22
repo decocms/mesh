@@ -14,7 +14,7 @@ import {
   isDecoHostedMcp,
   DECO_STORE_URL,
   DECO_CMS_API_HOST,
-} from "../../core/well-known-mcp";
+} from "@/core/deco-constants";
 
 describe("OAuth Proxy Routes", () => {
   let app: Hono;

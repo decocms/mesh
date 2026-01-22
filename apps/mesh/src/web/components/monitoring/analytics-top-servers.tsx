@@ -12,6 +12,7 @@ import {
   useMCPClient,
   useMCPToolCall,
   useProjectContext,
+  WellKnownOrgMCPId,
 } from "@decocms/mesh-sdk";
 import {
   ToggleGroup,
@@ -138,7 +139,7 @@ function TopServersContent({
   const connections = useConnections({ pageSize: 100 }) ?? [];
 
   const client = useMCPClient({
-    connectionId: null,
+    connectionId: WellKnownOrgMCPId.SELF(org.id),
     orgSlug: org.slug,
   });
 

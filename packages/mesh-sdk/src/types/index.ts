@@ -14,3 +14,14 @@ export {
   type OAuthConfig,
   type ToolDefinition,
 } from "./connection";
+
+export {
+  VirtualMCPEntitySchema,
+  VirtualMCPCreateDataSchema,
+  VirtualMCPUpdateDataSchema,
+  type VirtualMCPEntity,
+  type VirtualMCPCreateData,
+  type VirtualMCPUpdateData,
+  type VirtualMCPConnection,
+  type ToolSelectionMode,
+} from "./virtual-mcp";

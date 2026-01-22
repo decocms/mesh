@@ -40,7 +40,7 @@ import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import { createMCPAggregatorFromEntity } from "../../aggregator";
 import { parseStrategyFromMode } from "../../aggregator/strategy";
-import { getWellKnownDecopilotAgent } from "../../core/well-known-mcp";
+import { getWellKnownDecopilotAgent } from "@decocms/mesh-sdk";
 import type { Env } from "../env";
 
 // Define Hono variables type

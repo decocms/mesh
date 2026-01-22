@@ -9,7 +9,7 @@ const DEFAULT_CLIENT_INFO = {
 };
 
 export interface CreateMcpClientOptions {
-  /** Connection ID - use the connectionId for any MCP server, or null for the management MCP */
+  /** Connection ID - use WellKnownOrgMCPId.SELF(org.id) for the self/management MCP, or any connectionId for other MCPs */
   connectionId: string | null;
   /** Organization slug - required, transforms to x-org-slug header */
   orgSlug: string;
@@ -21,7 +21,7 @@ export type UseMcpClientOptions = CreateMcpClientOptions;
 
 /**
  * Build the MCP URL from connectionId
- * Uses /mcp/:connectionId for all servers, or /mcp when connectionId is null (management MCP)
+ * Uses /mcp/:connectionId for all servers
  */
 function buildMcpUrl(connectionId: string | null): string {
   if (typeof window === "undefined") {
@@ -75,11 +75,7 @@ export async function createMCPClient({
 
   // Add toJSON method for query key serialization
   // This allows the client to be used directly in query keys
-  const queryKey = KEYS.mcpClient(
-    orgSlug,
-    connectionId ?? "management",
-    token ?? "",
-  );
+  const queryKey = KEYS.mcpClient(orgSlug, connectionId ?? "self", token ?? "");
   (client as Client & { toJSON: () => string }).toJSON = () =>
     `mcp-client:${queryKey.join(":")}`;
 
@@ -98,11 +94,7 @@ export function useMCPClient({
   orgSlug,
   token,
 }: UseMcpClientOptions): Client {
-  const queryKey = KEYS.mcpClient(
-    orgSlug,
-    connectionId ?? "management",
-    token ?? "",
-  );
+  const queryKey = KEYS.mcpClient(orgSlug, connectionId ?? "", token ?? "");
 
   const { data: client } = useSuspenseQuery({
     queryKey,
