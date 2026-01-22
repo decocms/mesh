@@ -26,10 +26,10 @@ const monitoringLogSchema = z.object({
     .string()
     .nullish()
     .describe("Client identifier (x-mesh-client header)"),
-  gatewayId: z
+  virtualMcpId: z
     .string()
     .nullish()
-    .describe("Gateway ID if routed through a gateway"),
+    .describe("Virtual MCP (Agent) ID if routed through an agent"),
   properties: z
     .record(z.string(), z.string())
     .nullish()
@@ -41,7 +41,10 @@ export const MONITORING_LOGS_LIST = defineTool({
   description: "List monitoring logs for tool calls in the organization",
   inputSchema: z.object({
     connectionId: z.string().optional().describe("Filter by connection ID"),
-    gatewayId: z.string().optional().describe("Filter by gateway ID"),
+    virtualMcpId: z
+      .string()
+      .optional()
+      .describe("Filter by Virtual MCP (Agent) ID"),
     toolName: z.string().optional().describe("Filter by tool name"),
     isError: z.boolean().optional().describe("Filter by error status"),
     startDate: z
@@ -95,7 +98,7 @@ export const MONITORING_LOGS_LIST = defineTool({
     const filters = {
       organizationId: org.id,
       connectionId: input.connectionId,
-      gatewayId: input.gatewayId,
+      virtualMcpId: input.virtualMcpId,
       toolName: input.toolName,
       isError: input.isError,
       startDate: input.startDate ? new Date(input.startDate) : undefined,

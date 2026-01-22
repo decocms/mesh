@@ -17,7 +17,7 @@
 > - Route all MCP traffic through a single governed endpoint
 > - Enforce RBAC, policies, and audit trails at the control plane
 > - Full observability with OpenTelemetry — traces, costs, errors
-> - Runtime strategies as gateways for optimal tool selection 
+> - Runtime strategies as mcps for optimal tool selection 
 > - Self-host with Docker, Bun/Node, Kubernetes, or run locally
 
 ---
@@ -37,7 +37,7 @@ It replaces M×N integrations (M MCP servers × N clients) with one production e
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                         MCP MESH                                │
-│       Gateway · Policy Engine · Observability · Token Vault     │
+│       Virtual MCP · Policy Engine · Observability · Token Vault     │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -65,17 +65,17 @@ Or use `npx @decocms/mesh` to instantly get a mesh running.
 
 ---
 
-## Runtime strategies as gateways
+## Runtime strategies as Virtual MCPs
 
 As tool surfaces grow, “send every tool definition to the model on every call” gets expensive and slow.
-The mesh models runtime strategies as gateways: one endpoint, different ways of exposing tools.
+The mesh models runtime strategies as Virtual MCPs: one endpoint, different ways of exposing tools.
 
 Examples:
 - Full-context: expose everything (simple and deterministic for small toolsets)
 - Smart selection: narrow the toolset before execution
 - Code execution: load tools on demand and run code in a sandbox
 
-Gateways are configurable and extensible. You can add new strategies and also curate toolsets (see Virtual MCPs).
+Virtual MCPs are configurable and extensible. You can add new strategies and also curate toolsets (see Virtual MCPs).
 
 ---
 

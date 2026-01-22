@@ -563,8 +563,8 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/mcp/gateway/:virtualMcpId?", mcpAuth);
   app.use("/mcp/virtual-mcp/:virtualMcpId?", mcpAuth);
 
-  // MCP Virtual MCP routes (must be before proxy to match /mcp/gateway and /mcp/virtual-mcp before /mcp/:connectionId)
-  // Virtual MCP: /mcp/gateway/:virtualMcpId (backward compat) or /mcp/virtual-mcp/:virtualMcpId
+  // Virtual MCP / Agent routes (must be before proxy to match /mcp/gateway and /mcp/virtual-mcp before /mcp/:connectionId)
+  // /mcp/gateway/:virtualMcpId (backward compat) or /mcp/virtual-mcp/:virtualMcpId
   app.route("/mcp", virtualMcpRoutes);
   // Management MCP routes
   app.route("/mcp", managementRoutes);

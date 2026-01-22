@@ -1,4 +1,5 @@
 import type { ConnectionEntity } from "@/tools/connection/schema";
+import { parseVirtualUrl } from "@/tools/connection/schema";
 import { EnvVarsEditor } from "@/web/components/env-vars-editor";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
@@ -21,10 +22,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
-import { CheckCircle, Container, Globe02, Terminal } from "@untitledui/icons";
+import {
+  CheckCircle,
+  Container,
+  CpuChip02,
+  Globe02,
+  Terminal,
+} from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useForm, useWatch } from "react-hook-form";
-import { ConnectionVirtualMCPsSection } from "./connection-gateways-section";
+import { ConnectionVirtualMCPsSection } from "./connection-virtual-mcps-section";
 import type { ConnectionFormData } from "./schema";
 
 /**
@@ -64,6 +71,42 @@ function ConnectionFields({
   // 2. The connection is already an STDIO type (allow viewing/editing existing connections)
   const showStdioOptions =
     stdioEnabled || connection.connection_type === "STDIO";
+
+  // VIRTUAL connections are read-only (auto-created from Virtual MCPs)
+  const isVirtualConnection = connection.connection_type === "VIRTUAL";
+  const virtualMcpId = isVirtualConnection
+    ? parseVirtualUrl(connection.connection_url)
+    : null;
+
+  // For VIRTUAL connections, show a read-only info section instead of editable fields
+  if (isVirtualConnection) {
+    return (
+      <div className="flex flex-col gap-4 p-5 border-b border-border">
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Type</span>
+          <div className="flex items-center gap-2 h-10 px-3 border border-border rounded-lg bg-muted/50">
+            <CpuChip02 className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm">Virtual MCP</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            This connection references a Virtual MCP. Tools and resources are
+            aggregated dynamically from the Virtual MCP&apos;s underlying
+            connections.
+          </p>
+        </div>
+        {virtualMcpId && (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">Virtual MCP ID</span>
+            <div className="flex items-center gap-2 h-10 px-3 border border-border rounded-lg bg-muted/50">
+              <code className="text-sm text-muted-foreground">
+                {virtualMcpId}
+              </code>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 p-5 border-b border-border">
@@ -424,7 +467,7 @@ export function ConnectionSettingsFormUI({
           </span>
         </div>
 
-        {/* Gateways section */}
+        {/* Agents section */}
         <ConnectionVirtualMCPsSection
           connectionId={connection.id}
           connectionTitle={connection.title}

@@ -5,7 +5,7 @@
  * Call after searching to get full input/output schemas.
  *
  * Uses:
- * - If ctx.gatewayId is set: describes tools from gateway connections
+ * - If ctx.connectionId points to a Virtual MCP: describes tools from its connections
  * - Otherwise: describes tools from ALL active connections in the organization
  */
 
@@ -27,7 +27,7 @@ export const CODE_EXECUTION_DESCRIBE_TOOLS = defineTool({
     requireOrganization(ctx);
     await ctx.access.check();
 
-    // Get tools from connections (gateway-specific or all org connections)
+    // Get tools from connections (agent-specific or all org connections)
     const toolContext = await getToolsWithConnections(ctx);
 
     // Describe requested tools

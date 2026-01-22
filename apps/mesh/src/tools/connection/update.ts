@@ -21,9 +21,11 @@ import {
 import { fetchToolsFromMCP } from "./fetch-tools";
 import { prop } from "./json-path";
 import {
+  buildVirtualUrl,
   type ConnectionEntity,
   ConnectionEntitySchema,
   ConnectionUpdateDataSchema,
+  parseVirtualUrl,
 } from "./schema";
 
 /**
@@ -131,6 +133,35 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       throw new Error("Connection not found in organization");
     }
 
+    // Validate VIRTUAL connections if connection_type or connection_url is being updated
+    const finalConnectionType =
+      data.connection_type ?? existing.connection_type;
+    let finalConnectionUrl = data.connection_url ?? existing.connection_url;
+
+    if (finalConnectionType === "VIRTUAL") {
+      const virtualMcpId = parseVirtualUrl(finalConnectionUrl);
+      if (!virtualMcpId) {
+        throw new Error(
+          "VIRTUAL connection requires connection_url in format: virtual://$virtual_mcp_id",
+        );
+      }
+
+      const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
+      if (!virtualMcp) {
+        throw new Error(`Virtual MCP not found: ${virtualMcpId}`);
+      }
+
+      // Verify the Virtual MCP belongs to the same organization
+      if (virtualMcp.organization_id !== organization.id) {
+        throw new Error(
+          "Virtual MCP does not belong to the current organization",
+        );
+      }
+
+      // Ensure the URL is properly formatted
+      finalConnectionUrl = buildVirtualUrl(virtualMcpId);
+    }
+
     // Handle MCP configuration state and scopes if present
     let finalState = data.configuration_state ?? existing.configuration_state;
     let finalScopes =
@@ -183,8 +214,8 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     const fetchedTools = await fetchToolsFromMCP({
       id: existing.id,
       title: data.title ?? existing.title,
-      connection_type: data.connection_type ?? existing.connection_type,
-      connection_url: data.connection_url ?? existing.connection_url,
+      connection_type: finalConnectionType,
+      connection_url: finalConnectionUrl,
       connection_token: tokenForToolFetch,
       connection_headers:
         data.connection_headers ?? existing.connection_headers,
@@ -194,6 +225,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     // Update the connection with the refreshed tools and configuration
     const updatePayload: Partial<ConnectionEntity> = {
       ...data,
+      connection_url: finalConnectionUrl,
       tools,
       configuration_state: finalState,
       configuration_scopes: finalScopes,

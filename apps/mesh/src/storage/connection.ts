@@ -39,7 +39,7 @@ type RawConnectionRow = {
   icon: string | null;
   app_name: string | null;
   app_id: string | null;
-  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO";
+  connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO" | "VIRTUAL";
   connection_url: string | null;
   connection_token: string | null;
   connection_headers: string | null; // JSON, envVars encrypted for STDIO

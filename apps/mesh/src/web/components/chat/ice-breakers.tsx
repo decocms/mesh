@@ -166,7 +166,7 @@ function IceBreakers({
   );
 }
 
-interface GatewayIceBreakersProps {
+interface AgentIceBreakersProps {
   className?: string;
 }
 
@@ -337,7 +337,7 @@ function VirtualMCPIceBreakersContent({
  * Uses the chat context for virtual MCP selection and message sending.
  * Includes ErrorBoundary, Suspense, and container internally.
  */
-export function GatewayIceBreakers({ className }: GatewayIceBreakersProps) {
+export function AgentIceBreakers({ className }: AgentIceBreakersProps) {
   const { selectedVirtualMcp } = useChat();
   // When selectedVirtualMcp is null, it means default virtual MCP (id is null)
   const virtualMcpId = selectedVirtualMcp?.id ?? null;

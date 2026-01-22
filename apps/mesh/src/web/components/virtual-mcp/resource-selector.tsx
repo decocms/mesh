@@ -15,6 +15,8 @@ export interface ResourceSetSelectorProps {
     string,
     Array<{ uri: string; name?: string; description?: string }>
   >;
+  /** Virtual MCP ID to exclude from selection (prevents self-reference) */
+  excludeVirtualMcpId?: string;
 }
 
 /**
@@ -104,7 +106,7 @@ function PatternInput({
 }
 
 /**
- * ResourceSetSelector - Selector for resources in gateway configuration
+ * ResourceSetSelector - Selector for resources in Virtual MCP configuration
  *
  * Supports both individual resource selection (via checkboxes) and
  * pattern-based selection (via URI patterns with wildcards).
@@ -113,6 +115,7 @@ export function ResourceSetSelector({
   resourceSet,
   onResourceSetChange,
   connectionResources,
+  excludeVirtualMcpId,
 }: ResourceSetSelectorProps) {
   const [selectedConnectionId, _setSelectedConnectionId] = useState<
     string | null
@@ -185,6 +188,7 @@ export function ResourceSetSelector({
         itemLabel="resources"
         emptyItemsMessage="This connection has no resources available"
         extraContent={extraContent}
+        excludeVirtualMcpId={excludeVirtualMcpId}
       />
     </div>
   );

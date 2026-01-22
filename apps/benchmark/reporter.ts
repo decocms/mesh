@@ -10,7 +10,7 @@ import type {
   AggregatedResult,
   BenchmarkReport,
   BenchmarkResult,
-  GatewayToolSelectionStrategy,
+  VirtualMCPtoolSelectionStrategy,
 } from "./types";
 
 /**
@@ -35,7 +35,7 @@ function aggregateResults(results: BenchmarkResult[]): AggregatedResult[] {
     const successCount = group.filter((r) => r.success).length;
 
     aggregated.push({
-      strategy: strategy as GatewayToolSelectionStrategy,
+      strategy: strategy as VirtualMCPtoolSelectionStrategy,
       toolCount: parseInt(toolCount, 10),
       model,
       avgInputTokens: Math.round(
@@ -90,7 +90,7 @@ function aggregateForDashboard(results: BenchmarkResult[]): AggregatedResult[] {
     const successCount = group.filter((r) => r.success).length;
 
     aggregated.push({
-      strategy: strategy as GatewayToolSelectionStrategy,
+      strategy: strategy as VirtualMCPtoolSelectionStrategy,
       toolCount: parseInt(toolCount, 10),
       model: "all", // Aggregated across all models
       avgInputTokens: Math.round(

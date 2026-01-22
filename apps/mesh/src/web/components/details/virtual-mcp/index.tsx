@@ -380,9 +380,9 @@ function VirtualMCPShareModal({
   };
 
   // Build URL with mode query parameter
-  // Virtual MCPs are accessed via the gateway endpoint
+  // Virtual MCPs are accessed via the virtual-mcp endpoint (or gateway for backward compat)
   const virtualMcpUrl = new URL(
-    `/mcp/gateway/${virtualMcp.id}`,
+    `/mcp/virtual-mcp/${virtualMcp.id}`,
     window.location.origin,
   );
   virtualMcpUrl.searchParams.set("mode", mode);
@@ -817,30 +817,38 @@ function VirtualMCPInspectorViewWithData({
   const hasAnyChanges = hasFormChanges || selectionDirty;
 
   const handleSave = async () => {
-    const formData = form.getValues();
+    try {
+      const formData = form.getValues();
 
-    // Merge all selections into virtual MCP connections format
-    const newConnections = mergeSelectionsToVirtualMCPConnections(
-      toolSet,
-      resourceSet,
-      promptSet,
-      connectionToolsMap,
-    );
+      // Merge all selections into virtual MCP connections format
+      const newConnections = mergeSelectionsToVirtualMCPConnections(
+        toolSet,
+        resourceSet,
+        promptSet,
+        connectionToolsMap,
+      );
 
-    await actions.update.mutateAsync({
-      id: virtualMcpId,
-      data: {
+      const updateData = {
         title: formData.title,
         description: formData.description,
         status: formData.status,
         tool_selection_mode: formData.tool_selection_mode,
         connections: newConnections,
-      },
-    });
+      };
 
-    // Reset dirty states
-    form.reset(formData);
-    setSelectionDirty(false);
+      await actions.update.mutateAsync({
+        id: virtualMcpId,
+        data: updateData,
+      });
+
+      // Reset dirty states
+      form.reset(formData);
+      setSelectionDirty(false);
+    } catch (error) {
+      // Error is already handled by mutation's onError, but we catch here
+      // to prevent unhandled promise rejection
+      console.error("Failed to save virtual MCP:", error);
+    }
   };
 
   const handleCancel = () => {
@@ -996,18 +1004,21 @@ function VirtualMCPInspectorViewWithData({
                   <ToolSetSelector
                     toolSet={toolSet}
                     onToolSetChange={handleToolSetChange}
+                    excludeVirtualMcpId={virtualMcpId}
                   />
                 ) : activeTabId === "resources" ? (
                   <ResourceSetSelector
                     resourceSet={resourceSet}
                     onResourceSetChange={handleResourceSetChange}
                     connectionResources={connectionResources}
+                    excludeVirtualMcpId={virtualMcpId}
                   />
                 ) : activeTabId === "prompts" ? (
                   <PromptSetSelector
                     promptSet={promptSet}
                     onPromptSetChange={handlePromptSetChange}
                     connectionPrompts={connectionPrompts}
+                    excludeVirtualMcpId={virtualMcpId}
                   />
                 ) : null}
               </Suspense>
@@ -1033,7 +1044,6 @@ function VirtualMCPInspectorViewContent() {
   const virtualMcpId =
     (params as { agentId?: string }).agentId ??
     (params as { virtualMcpId?: string }).virtualMcpId ??
-    (params as { gatewayId?: string }).gatewayId ??
     "";
 
   // Get tab from search params

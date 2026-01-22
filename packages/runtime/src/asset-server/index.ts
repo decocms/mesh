@@ -1,5 +1,5 @@
 import { devServerProxy } from "./dev-server-proxy";
-import { resolve, dirname, join } from "path";
+import { resolve, dirname, join, extname } from "path";
 
 export interface AssetServerConfig {
   /**
@@ -213,7 +213,17 @@ export function createAssetHandler(config: AssetServerConfig = {}) {
     const indexRelativeToFilePath = join(filePath, "index.html");
     // Try to serve the requested file, fall back to index.html for SPA routing
     const indexPath = resolve(clientDir, "index.html");
-    for (const pathToTry of [filePath, indexRelativeToFilePath, indexPath]) {
+
+    const acceptHeader = request.headers.get("accept");
+    const acceptsHtml =
+      acceptHeader?.includes("text/html") ||
+      (acceptHeader?.includes("*/*") &&
+        ["", ".html"].includes(extname(filePath)));
+
+    const fallbackPaths = acceptsHtml
+      ? [indexRelativeToFilePath, indexPath]
+      : [];
+    for (const pathToTry of [filePath, ...fallbackPaths]) {
       try {
         const file = Bun.file(pathToTry);
         if (await file.exists()) {

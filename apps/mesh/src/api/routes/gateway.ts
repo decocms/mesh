@@ -1,12 +1,12 @@
 /**
- * MCP Gateway Routes
+ * Virtual MCP / Agent Routes
  *
- * Provides two types of gateway endpoints:
- * 1. Virtual MCP - Uses virtual MCP entity from database at /mcp/gateway/:virtualMcpId
- * 2. Virtual MCP alias - Same as above at /mcp/virtual-mcp/:virtualMcpId
+ * Provides endpoints for accessing Virtual MCPs (agents):
+ * 1. /mcp/gateway/:virtualMcpId - Backward compatible endpoint
+ * 2. /mcp/virtual-mcp/:virtualMcpId - New canonical endpoint
  *
  * Architecture:
- * - Lists connections for the virtual MCP (from database or organization)
+ * - Lists connections for the Virtual MCP (from database or organization)
  * - Creates a ProxyCollection for all connections
  * - Uses lazy-loading aggregators (ToolAggregator, ResourceAggregator, etc.) to aggregate resources
  * - Deduplicates tools and prompts by name (first occurrence wins)
@@ -38,189 +38,16 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
-import {
-  PromptAggregator,
-  ProxyCollection,
-  ResourceAggregator,
-  ResourceTemplateAggregator,
-  ToolAggregator,
-  type AggregatorClient,
-  type AggregatorOptions,
-} from "../../aggregator";
-import {
-  parseStrategyFromMode,
-  type AggregatorToolSelectionStrategy,
-} from "../../aggregator/strategy";
+import { createMCPAggregatorFromEntity } from "../../aggregator";
+import { parseStrategyFromMode } from "../../aggregator/strategy";
 import { getWellKnownDecopilotAgent } from "../../core/well-known-mcp";
-import type { VirtualMCPEntity } from "../../tools/virtual-mcp/schema";
-import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { Env } from "../env";
 
 // Define Hono variables type
 const app = new Hono<Env>();
 
 // ============================================================================
-// MCP Aggregator Factory
-// ============================================================================
-
-/**
- * Create an MCP aggregator that aggregates tools, resources, and prompts from multiple connections
- *
- * Uses lazy-loading aggregators - data is only fetched from connections when first accessed.
- *
- * @param options - Aggregator configuration (connections with selected tools and strategy)
- * @param ctx - Mesh context for creating proxies
- * @returns AggregatorClient interface with aggregated tools, resources, and prompts
- */
-async function createMCPAggregator(
-  options: AggregatorOptions,
-  ctx: MeshContext,
-): Promise<AggregatorClient> {
-  // Create proxy collection for all connections
-  const proxies = await ProxyCollection.create(options.connections, ctx);
-
-  // Create lazy aggregator abstractions
-  const tools = new ToolAggregator(proxies, {
-    selectionMode: options.toolSelectionMode,
-    strategy: options.toolSelectionStrategy,
-  });
-  const resources = new ResourceAggregator(proxies, {
-    selectionMode: options.toolSelectionMode,
-  });
-  const resourceTemplates = new ResourceTemplateAggregator(proxies);
-  const prompts = new PromptAggregator(proxies, {
-    selectionMode: options.toolSelectionMode,
-  });
-
-  return {
-    client: {
-      listTools: tools.list.bind(tools),
-      callTool: tools.call.bind(tools),
-      listResources: resources.list.bind(resources),
-      readResource: resources.read.bind(resources),
-      listResourceTemplates: resourceTemplates.list.bind(resourceTemplates),
-      listPrompts: prompts.list.bind(prompts),
-      getPrompt: prompts.get.bind(prompts),
-    },
-    callStreamableTool: tools.callStreamable.bind(tools),
-  };
-}
-
-// ============================================================================
-// Helper to create MCP aggregator from database entity
-// ============================================================================
-
-/**
- * Load virtual MCP entity and create MCP aggregator
- * Handles inclusion/exclusion modes and smart_tool_selection strategy
- */
-async function createMCPAggregatorFromEntity(
-  virtualMcp: VirtualMCPEntity,
-  ctx: MeshContext,
-  strategy: AggregatorToolSelectionStrategy,
-): Promise<AggregatorClient> {
-  let connections: Array<{
-    connection: ConnectionEntity;
-    selectedTools: string[] | null;
-    selectedResources: string[] | null;
-    selectedPrompts: string[] | null;
-  }>;
-
-  if (virtualMcp.tool_selection_mode === "exclusion") {
-    // Exclusion mode: list ALL org connections, then apply exclusion filter
-    const allConnections = await ctx.storage.connections.list(
-      virtualMcp.organization_id,
-    );
-    const activeConnections = allConnections.filter(
-      (c) => c.status === "active",
-    );
-
-    // Build a map of connection exclusions
-    const exclusionMap = new Map<
-      string,
-      {
-        selectedTools: string[] | null;
-        selectedResources: string[] | null;
-        selectedPrompts: string[] | null;
-      }
-    >();
-    for (const vmConn of virtualMcp.connections) {
-      exclusionMap.set(vmConn.connection_id, {
-        selectedTools: vmConn.selected_tools,
-        selectedResources: vmConn.selected_resources,
-        selectedPrompts: vmConn.selected_prompts,
-      });
-    }
-
-    connections = [];
-    for (const conn of activeConnections) {
-      const exclusionEntry = exclusionMap.get(conn.id);
-
-      if (exclusionEntry === undefined) {
-        // Connection NOT in virtualMcp.connections -> include all
-        connections.push({
-          connection: conn,
-          selectedTools: null,
-          selectedResources: null,
-          selectedPrompts: null,
-        });
-      } else if (
-        (exclusionEntry.selectedTools === null ||
-          exclusionEntry.selectedTools.length === 0) &&
-        (exclusionEntry.selectedResources === null ||
-          exclusionEntry.selectedResources.length === 0) &&
-        (exclusionEntry.selectedPrompts === null ||
-          exclusionEntry.selectedPrompts.length === 0)
-      ) {
-        // Connection in virtualMcp.connections with all null/empty -> exclude entire connection
-        // Skip this connection
-      } else {
-        // Connection in virtualMcp.connections with specific exclusions
-        connections.push({
-          connection: conn,
-          selectedTools: exclusionEntry.selectedTools,
-          selectedResources: exclusionEntry.selectedResources,
-          selectedPrompts: exclusionEntry.selectedPrompts,
-        });
-      }
-    }
-  } else {
-    // Inclusion mode (default): use only the connections specified in virtual MCP
-    const connectionIds = virtualMcp.connections.map((c) => c.connection_id);
-    const loadedConnections: ConnectionEntity[] = [];
-
-    for (const connId of connectionIds) {
-      const conn = await ctx.storage.connections.findById(connId);
-      if (conn && conn.status === "active") {
-        loadedConnections.push(conn);
-      }
-    }
-
-    connections = loadedConnections.map((conn) => {
-      const vmConn = virtualMcp.connections.find(
-        (c) => c.connection_id === conn.id,
-      );
-      return {
-        connection: conn,
-        selectedTools: vmConn?.selected_tools ?? null,
-        selectedResources: vmConn?.selected_resources ?? null,
-        selectedPrompts: vmConn?.selected_prompts ?? null,
-      };
-    });
-  }
-
-  // Build aggregator options with strategy
-  const options: AggregatorOptions = {
-    connections,
-    toolSelectionMode: virtualMcp.tool_selection_mode,
-    toolSelectionStrategy: strategy,
-  };
-
-  return createMCPAggregator(options, ctx);
-}
-
-// ============================================================================
-// Route Handler (shared between /gateway and /virtual-mcp endpoints)
+// Route Handler (shared between /gateway and /virtual-mcp endpoints for backward compat)
 // ============================================================================
 
 async function handleVirtualMcpRequest(
@@ -267,11 +94,12 @@ async function handleVirtualMcpRequest(
       return c.json({ error: "Agent not found" }, 404);
     }
 
-    ctx.virtualMcpId = virtualMcp.id;
-
     if (virtualMcp.status !== "active") {
       return c.json({ error: `Agent is inactive: ${virtualMcp.id}` }, 503);
     }
+
+    // Set connection context (Virtual MCPs are now connections)
+    ctx.connectionId = virtualMcp.id;
 
     // Set organization context
     const organization = await ctx.db
@@ -403,11 +231,11 @@ async function handleVirtualMcpRequest(
 // ============================================================================
 
 /**
- * Virtual MCP endpoint (backward compatible /mcp/gateway/:gatewayId)
+ * Virtual MCP endpoint (backward compatible /mcp/gateway/:virtualMcpId)
  *
- * Route: POST /mcp/gateway/:gatewayId?
- * - If gatewayId is provided: use that specific virtual MCP
- * - If gatewayId is omitted: use Decopilot agent (default agent)
+ * Route: POST /mcp/gateway/:virtualMcpId?
+ * - If virtualMcpId is provided: use that specific Virtual MCP
+ * - If virtualMcpId is omitted: use Decopilot agent (default agent)
  */
 app.all("/gateway/:virtualMcpId?", async (c) => {
   const virtualMcpId = c.req.param("virtualMcpId");

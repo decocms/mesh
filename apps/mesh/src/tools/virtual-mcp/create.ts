@@ -2,6 +2,8 @@
  * COLLECTION_VIRTUAL_MCP_CREATE Tool
  *
  * Create a new MCP virtual MCP (organization-scoped) with collection binding compliance.
+ * Note: Virtual MCPs are stored as connections with connection_type = 'VIRTUAL',
+ * so creating a Virtual MCP automatically creates the connection.
  */
 
 import { z } from "zod";
@@ -48,6 +50,7 @@ export const COLLECTION_VIRTUAL_MCP_CREATE = defineTool({
     }
 
     // Create the virtual MCP (input.data is already in the correct format)
+    // Note: The facade creates a VIRTUAL connection in the connections table
     const virtualMcp = await ctx.storage.virtualMcps.create(
       organization.id,
       userId,

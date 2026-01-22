@@ -6,10 +6,13 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { memo, useDeferredValue, useRef, useState } from "react";
 import { useConnections } from "@/web/hooks/collections/use-connection";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { parseVirtualUrl } from "@/tools/connection/schema";
 
 export interface ToolSetSelectorProps {
   toolSet: Record<string, string[]>;
   onToolSetChange: (toolSet: Record<string, string[]>) => void;
+  /** Virtual MCP ID to exclude from selection (prevents self-reference) */
+  excludeVirtualMcpId?: string;
 }
 
 interface ConnectionItemProps {
@@ -127,6 +130,7 @@ type FilterMode = "all" | "selected" | "unselected";
 export function ToolSetSelector({
   toolSet,
   onToolSetChange,
+  excludeVirtualMcpId,
 }: ToolSetSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -134,9 +138,18 @@ export function ToolSetSelector({
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const initialOrder = useRef<Set<string>>(new Set(Object.keys(toolSet)));
 
-  const connections = useConnections({
+  const allConnections = useConnections({
     searchTerm: deferredSearchQuery.trim() || undefined,
   });
+
+  // Filter out VIRTUAL connections that would cause self-reference
+  const connections = excludeVirtualMcpId
+    ? allConnections.filter((conn) => {
+        if (conn.connection_type !== "VIRTUAL") return true;
+        const virtualMcpId = parseVirtualUrl(conn.connection_url);
+        return virtualMcpId !== excludeVirtualMcpId;
+      })
+    : allConnections;
 
   const initialOrderSet = initialOrder.current;
 

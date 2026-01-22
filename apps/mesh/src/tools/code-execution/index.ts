@@ -3,8 +3,8 @@
  *
  * MCP tools for searching, describing, and executing code with tools.
  * These tools can operate on:
- * - Gateway-specific connections (when ctx.gatewayId is set)
- * - All organization connections (when no gateway is specified)
+ * - Agent-specific connections (when ctx.connectionId points to a Virtual MCP)
+ * - All organization connections (when no specific agent is set)
  */
 
 export { CODE_EXECUTION_SEARCH_TOOLS } from "./search";

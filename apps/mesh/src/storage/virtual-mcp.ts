@@ -1,8 +1,10 @@
 /**
  * Virtual MCP Storage Implementation
  *
- * Handles CRUD operations for MCP virtual MCPs using Kysely (database-agnostic).
- * Virtual MCPs aggregate tools from multiple connections with selective tool exposure.
+ * This is now a FACADE over the connections table.
+ * Virtual MCPs are stored as connections with connection_type = 'VIRTUAL'.
+ * The aggregations (which child connections are included) are stored in
+ * the connection_aggregations table.
  */
 
 import type { Kysely } from "kysely";
@@ -16,26 +18,24 @@ import type {
 import type { ToolSelectionMode } from "../tools/virtual-mcp/schema";
 import type { Database } from "./types";
 
-/** Raw database row type for virtual_mcps */
-type RawVirtualMCPRow = {
+/** Raw database row type for connections (VIRTUAL type) */
+type RawConnectionRow = {
   id: string;
   organization_id: string;
   title: string;
   description: string | null;
-  tool_selection_mode: ToolSelectionMode | string;
   icon: string | null;
-  status: "active" | "inactive";
+  status: "active" | "inactive" | "error";
   created_at: Date | string;
   updated_at: Date | string;
   created_by: string;
-  updated_by: string | null;
 };
 
-/** Raw database row type for virtual_mcp_connections */
-type RawVirtualMCPConnectionRow = {
+/** Raw database row type for connection_aggregations */
+type RawAggregationRow = {
   id: string;
-  virtual_mcp_id: string;
-  connection_id: string;
+  parent_connection_id: string;
+  child_connection_id: string;
   selected_tools: string | string[] | null;
   selected_resources: string | string[] | null;
   selected_prompts: string | string[] | null;
@@ -53,33 +53,43 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     const id = generatePrefixedId("vir");
     const now = new Date().toISOString();
 
-    // Insert virtual MCP
+    // Insert as a VIRTUAL connection
     await this.db
-      .insertInto("virtual_mcps")
+      .insertInto("connections")
       .values({
         id,
         organization_id: organizationId,
+        created_by: userId,
         title: data.title,
         description: data.description ?? null,
-        tool_selection_mode: data.tool_selection_mode ?? "inclusion",
         icon: data.icon ?? null,
+        app_name: null,
+        app_id: null,
+        connection_type: "VIRTUAL",
+        connection_url: `virtual://${id}`,
+        connection_token: null,
+        connection_headers: null,
+        oauth_config: null,
+        configuration_state: null,
+        configuration_scopes: null,
+        metadata: null,
+        tools: null,
+        bindings: null,
         status: data.status ?? "active",
         created_at: now,
         updated_at: now,
-        created_by: userId,
-        updated_by: null,
       })
       .execute();
 
-    // Insert virtual MCP connections
+    // Insert connection aggregations
     if (data.connections.length > 0) {
       await this.db
-        .insertInto("virtual_mcp_connections")
+        .insertInto("connection_aggregations")
         .values(
           data.connections.map((conn) => ({
-            id: generatePrefixedId("virc"),
-            virtual_mcp_id: id,
-            connection_id: conn.connection_id,
+            id: generatePrefixedId("agg"),
+            parent_connection_id: id,
+            child_connection_id: conn.connection_id,
             selected_tools: conn.selected_tools
               ? JSON.stringify(conn.selected_tools)
               : null,
@@ -112,32 +122,34 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     id: string,
   ): Promise<VirtualMCPEntity | null> {
     const row = await db
-      .selectFrom("virtual_mcps")
+      .selectFrom("connections")
       .selectAll()
       .where("id", "=", id)
+      .where("connection_type", "=", "VIRTUAL")
       .executeTakeFirst();
 
     if (!row) {
       return null;
     }
 
-    const connectionRows = await db
-      .selectFrom("virtual_mcp_connections")
+    const aggregationRows = await db
+      .selectFrom("connection_aggregations")
       .selectAll()
-      .where("virtual_mcp_id", "=", id)
+      .where("parent_connection_id", "=", id)
       .execute();
 
     return this.deserializeVirtualMCPEntity(
-      row as unknown as RawVirtualMCPRow,
-      connectionRows as RawVirtualMCPConnectionRow[],
+      row as unknown as RawConnectionRow,
+      aggregationRows as RawAggregationRow[],
     );
   }
 
   async list(organizationId: string): Promise<VirtualMCPEntity[]> {
     const rows = await this.db
-      .selectFrom("virtual_mcps")
+      .selectFrom("connections")
       .selectAll()
       .where("organization_id", "=", organizationId)
+      .where("connection_type", "=", "VIRTUAL")
       .execute();
 
     const virtualMcpIds = rows.map((r) => r.id);
@@ -146,28 +158,25 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       return [];
     }
 
-    // Fetch all connections for all virtual MCPs in one query
-    const connectionRows = await this.db
-      .selectFrom("virtual_mcp_connections")
+    // Fetch all aggregations for all virtual MCPs in one query
+    const aggregationRows = await this.db
+      .selectFrom("connection_aggregations")
       .selectAll()
-      .where("virtual_mcp_id", "in", virtualMcpIds)
+      .where("parent_connection_id", "in", virtualMcpIds)
       .execute();
 
-    // Group connections by virtual_mcp_id
-    const connectionsByVirtualMCP = new Map<
-      string,
-      RawVirtualMCPConnectionRow[]
-    >();
-    for (const conn of connectionRows as RawVirtualMCPConnectionRow[]) {
-      const existing = connectionsByVirtualMCP.get(conn.virtual_mcp_id) ?? [];
-      existing.push(conn);
-      connectionsByVirtualMCP.set(conn.virtual_mcp_id, existing);
+    // Group aggregations by parent_connection_id
+    const aggregationsByParent = new Map<string, RawAggregationRow[]>();
+    for (const agg of aggregationRows as RawAggregationRow[]) {
+      const existing = aggregationsByParent.get(agg.parent_connection_id) ?? [];
+      existing.push(agg);
+      aggregationsByParent.set(agg.parent_connection_id, existing);
     }
 
     return rows.map((row) =>
       this.deserializeVirtualMCPEntity(
-        row as unknown as RawVirtualMCPRow,
-        connectionsByVirtualMCP.get(row.id) ?? [],
+        row as unknown as RawConnectionRow,
+        aggregationsByParent.get(row.id) ?? [],
       ),
     );
   }
@@ -176,25 +185,26 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     organizationId: string,
     connectionId: string,
   ): Promise<VirtualMCPEntity[]> {
-    // Find virtual MCP IDs that include this connection
-    const virtualMcpConnectionRows = await this.db
-      .selectFrom("virtual_mcp_connections")
-      .select("virtual_mcp_id")
-      .where("connection_id", "=", connectionId)
+    // Find virtual MCP IDs that include this connection as a child
+    const aggregationRows = await this.db
+      .selectFrom("connection_aggregations")
+      .select("parent_connection_id")
+      .where("child_connection_id", "=", connectionId)
       .execute();
 
-    const virtualMcpIds = virtualMcpConnectionRows.map((r) => r.virtual_mcp_id);
+    const virtualMcpIds = aggregationRows.map((r) => r.parent_connection_id);
 
     if (virtualMcpIds.length === 0) {
       return [];
     }
 
-    // Fetch the virtual MCPs (filtered by organization)
+    // Fetch the virtual MCPs (filtered by organization and VIRTUAL type)
     const rows = await this.db
-      .selectFrom("virtual_mcps")
+      .selectFrom("connections")
       .selectAll()
       .where("id", "in", virtualMcpIds)
       .where("organization_id", "=", organizationId)
+      .where("connection_type", "=", "VIRTUAL")
       .execute();
 
     if (rows.length === 0) {
@@ -203,43 +213,39 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
 
     const resultVirtualMcpIds = rows.map((r) => r.id);
 
-    // Fetch all connections for these virtual MCPs
-    const connectionRows = await this.db
-      .selectFrom("virtual_mcp_connections")
+    // Fetch all aggregations for these virtual MCPs
+    const allAggregationRows = await this.db
+      .selectFrom("connection_aggregations")
       .selectAll()
-      .where("virtual_mcp_id", "in", resultVirtualMcpIds)
+      .where("parent_connection_id", "in", resultVirtualMcpIds)
       .execute();
 
-    // Group connections by virtual_mcp_id
-    const connectionsByVirtualMCP = new Map<
-      string,
-      RawVirtualMCPConnectionRow[]
-    >();
-    for (const conn of connectionRows as RawVirtualMCPConnectionRow[]) {
-      const existing = connectionsByVirtualMCP.get(conn.virtual_mcp_id) ?? [];
-      existing.push(conn);
-      connectionsByVirtualMCP.set(conn.virtual_mcp_id, existing);
+    // Group aggregations by parent_connection_id
+    const aggregationsByParent = new Map<string, RawAggregationRow[]>();
+    for (const agg of allAggregationRows as RawAggregationRow[]) {
+      const existing = aggregationsByParent.get(agg.parent_connection_id) ?? [];
+      existing.push(agg);
+      aggregationsByParent.set(agg.parent_connection_id, existing);
     }
 
     return rows.map((row) =>
       this.deserializeVirtualMCPEntity(
-        row as RawVirtualMCPRow,
-        connectionsByVirtualMCP.get(row.id) ?? [],
+        row as RawConnectionRow,
+        aggregationsByParent.get(row.id) ?? [],
       ),
     );
   }
 
   async update(
     id: string,
-    userId: string,
+    _userId: string,
     data: VirtualMCPUpdateData,
   ): Promise<VirtualMCPEntity> {
     const now = new Date().toISOString();
 
-    // Build update object for virtual MCP table
+    // Build update object for connections table
     const updateData: Record<string, unknown> = {
       updated_at: now,
-      updated_by: userId,
     };
 
     if (data.title !== undefined) {
@@ -248,38 +254,37 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     if (data.description !== undefined) {
       updateData.description = data.description;
     }
-    if (data.tool_selection_mode !== undefined) {
-      updateData.tool_selection_mode = data.tool_selection_mode;
-    }
     if (data.icon !== undefined) {
       updateData.icon = data.icon;
     }
     if (data.status !== undefined) {
       updateData.status = data.status;
     }
+    // Note: tool_selection_mode is no longer stored in DB, ignored
 
-    // Non-default update - simple update
+    // Update the connection
     await this.db
-      .updateTable("virtual_mcps")
+      .updateTable("connections")
       .set(updateData)
       .where("id", "=", id)
+      .where("connection_type", "=", "VIRTUAL")
       .execute();
 
-    // Update connections if provided
+    // Update aggregations if provided
     if (data.connections !== undefined) {
       await this.db
-        .deleteFrom("virtual_mcp_connections")
-        .where("virtual_mcp_id", "=", id)
+        .deleteFrom("connection_aggregations")
+        .where("parent_connection_id", "=", id)
         .execute();
 
       if (data.connections.length > 0) {
         await this.db
-          .insertInto("virtual_mcp_connections")
+          .insertInto("connection_aggregations")
           .values(
             data.connections.map((conn) => ({
-              id: generatePrefixedId("virc"),
-              virtual_mcp_id: id,
-              connection_id: conn.connection_id,
+              id: generatePrefixedId("agg"),
+              parent_connection_id: id,
+              child_connection_id: conn.connection_id,
               selected_tools: conn.selected_tools
                 ? JSON.stringify(conn.selected_tools)
                 : null,
@@ -305,16 +310,26 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
   }
 
   async delete(id: string): Promise<void> {
-    // Connections are deleted automatically due to CASCADE DELETE
-    await this.db.deleteFrom("virtual_mcps").where("id", "=", id).execute();
+    // First delete aggregations (no cascade since it's a different relationship)
+    await this.db
+      .deleteFrom("connection_aggregations")
+      .where("parent_connection_id", "=", id)
+      .execute();
+
+    // Then delete the connection
+    await this.db
+      .deleteFrom("connections")
+      .where("id", "=", id)
+      .where("connection_type", "=", "VIRTUAL")
+      .execute();
   }
 
   /**
-   * Deserialize virtual MCP row with connections to VirtualMCPEntity (snake_case)
+   * Deserialize connection row with aggregations to VirtualMCPEntity
    */
   private deserializeVirtualMCPEntity(
-    row: RawVirtualMCPRow,
-    connectionRows: RawVirtualMCPConnectionRow[],
+    row: RawConnectionRow,
+    aggregationRows: RawAggregationRow[],
   ): VirtualMCPEntity {
     // Convert Date to ISO string if needed
     const createdAt =
@@ -326,36 +341,30 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
         ? row.updated_at.toISOString()
         : row.updated_at;
 
+    // Map status - connections can have 'error' but VirtualMCPEntity only has 'active' | 'inactive'
+    const status: "active" | "inactive" =
+      row.status === "active" ? "active" : "inactive";
+
     return {
       id: row.id,
       organization_id: row.organization_id,
       title: row.title,
       description: row.description,
-      tool_selection_mode: this.parseToolSelectionMode(row.tool_selection_mode),
+      // tool_selection_mode is no longer stored - always default to inclusion
+      tool_selection_mode: "inclusion" as ToolSelectionMode,
       icon: row.icon,
-      status: row.status,
+      status,
       created_at: createdAt,
       updated_at: updatedAt,
       created_by: row.created_by,
-      updated_by: row.updated_by ?? undefined,
-      connections: connectionRows.map((conn) => ({
-        connection_id: conn.connection_id,
-        selected_tools: this.parseJson<string[]>(conn.selected_tools),
-        selected_resources: this.parseJson<string[]>(conn.selected_resources),
-        selected_prompts: this.parseJson<string[]>(conn.selected_prompts),
+      updated_by: undefined, // connections table doesn't have updated_by
+      connections: aggregationRows.map((agg) => ({
+        connection_id: agg.child_connection_id,
+        selected_tools: this.parseJson<string[]>(agg.selected_tools),
+        selected_resources: this.parseJson<string[]>(agg.selected_resources),
+        selected_prompts: this.parseJson<string[]>(agg.selected_prompts),
       })),
     };
-  }
-
-  /**
-   * Parse tool selection mode value (inclusion/exclusion)
-   */
-  private parseToolSelectionMode(
-    value: ToolSelectionMode | string | null,
-  ): ToolSelectionMode {
-    if (value === "exclusion") return "exclusion";
-    // Default to inclusion for any other value (including null, "null", legacy JSON)
-    return "inclusion";
   }
 
   /**

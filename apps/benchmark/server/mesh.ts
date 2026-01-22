@@ -8,7 +8,10 @@
 import { unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import type { MeshServerHandle, GatewayToolSelectionStrategy } from "../types";
+import type {
+  MeshServerHandle,
+  VirtualMCPtoolSelectionStrategy,
+} from "../types";
 
 // Import from sibling mesh package (internal imports)
 import { createApp } from "@decocms/mesh/src/api/app";
@@ -238,15 +241,14 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
 
     createGateway: async (
       connectionId: string,
-      strategy: GatewayToolSelectionStrategy,
+      strategy: VirtualMCPtoolSelectionStrategy,
     ): Promise<string> => {
       const result = await callMcpTool<{ item: { id: string } }>(
-        "COLLECTION_GATEWAY_CREATE",
+        "COLLECTION_VIRTUAL_MCP_CREATE",
         {
           data: {
-            title: `Benchmark Gateway (${strategy})`,
-            description: `Gateway using ${strategy} strategy`,
-            tool_selection_strategy: strategy,
+            title: `Benchmark Agent (${strategy})`,
+            description: `Agent using ${strategy} strategy`,
             tool_selection_mode: "inclusion",
             connections: [
               {
@@ -260,7 +262,7 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
 
       if (!result?.item?.id) {
         console.error("Unexpected result:", JSON.stringify(result, null, 2));
-        throw new Error("No gateway ID returned");
+        throw new Error("No agent ID returned");
       }
 
       return result.item.id;
@@ -268,7 +270,7 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
 
     getGatewayUrl: (
       gatewayId: string,
-      strategy?: GatewayToolSelectionStrategy,
+      strategy?: VirtualMCPtoolSelectionStrategy,
     ): string => {
       const url = new URL(`/mcp/gateway/${gatewayId}`, baseUrl);
       if (strategy) {

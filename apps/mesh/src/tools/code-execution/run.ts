@@ -5,7 +5,7 @@
  * Code must be an ES module that exports a default async function.
  *
  * Uses:
- * - If ctx.gatewayId is set: runs with tools from gateway connections
+ * - If ctx.connectionId points to a Virtual MCP: runs with tools from its connections
  * - Otherwise: runs with tools from ALL active connections in the organization
  */
 
@@ -27,7 +27,7 @@ export const CODE_EXECUTION_RUN_CODE = defineTool({
     requireOrganization(ctx);
     await ctx.access.check();
 
-    // Get tools from connections (gateway-specific or all org connections)
+    // Get tools from connections (agent-specific or all org connections)
     const toolContext = await getToolsWithConnections(ctx);
 
     // Run code with tools

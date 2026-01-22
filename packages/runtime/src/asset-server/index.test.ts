@@ -214,13 +214,21 @@ describe("createAssetHandler", () => {
   });
 
   describe("SPA fallback for routes with dots", () => {
+    const acceptsHtml = {
+      headers: {
+        accept: "text/html",
+      },
+    };
     test("serves index.html for /user/john.doe (non-existent path with dot)", async () => {
       const handler = createAssetHandler({
         env: "production",
         clientDir: tempDir,
       });
 
-      const request = new Request("http://localhost:3000/user/john.doe");
+      const request = new Request(
+        "http://localhost:3000/user/john.doe",
+        acceptsHtml,
+      );
       const result = await handler(request);
 
       expect(result).not.toBeNull();
@@ -235,7 +243,10 @@ describe("createAssetHandler", () => {
         clientDir: tempDir,
       });
 
-      const request = new Request("http://localhost:3000/page/v2.0");
+      const request = new Request(
+        "http://localhost:3000/page/v2.0",
+        acceptsHtml,
+      );
       const result = await handler(request);
 
       expect(result).not.toBeNull();
@@ -249,7 +260,10 @@ describe("createAssetHandler", () => {
         clientDir: tempDir,
       });
 
-      const request = new Request("http://localhost:3000/files/report.2024");
+      const request = new Request(
+        "http://localhost:3000/files/report.2024",
+        acceptsHtml,
+      );
       const result = await handler(request);
 
       expect(result).not.toBeNull();
@@ -263,7 +277,10 @@ describe("createAssetHandler", () => {
         clientDir: tempDir,
       });
 
-      const request = new Request("http://localhost:3000/assets/style.css");
+      const request = new Request(
+        "http://localhost:3000/assets/style.css",
+        acceptsHtml,
+      );
       const result = await handler(request);
 
       expect(result).not.toBeNull();
@@ -281,6 +298,7 @@ describe("createAssetHandler", () => {
       // This CSS file doesn't exist, so it should fall back to index.html
       const request = new Request(
         "http://localhost:3000/assets/nonexistent.css",
+        acceptsHtml,
       );
       const result = await handler(request);
 
@@ -295,7 +313,10 @@ describe("createAssetHandler", () => {
         clientDir: tempDir,
       });
 
-      const request = new Request("http://localhost:3000/dashboard");
+      const request = new Request(
+        "http://localhost:3000/dashboard",
+        acceptsHtml,
+      );
       const result = await handler(request);
 
       expect(result).not.toBeNull();

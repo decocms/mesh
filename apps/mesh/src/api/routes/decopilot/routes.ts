@@ -54,7 +54,7 @@ async function createConnectedClient(config: {
 interface ValidatedRequest {
   organization: OrganizationScope;
   model: ChatModelConfig;
-  gateway: { id: string | null | undefined };
+  agent: { id: string | null | undefined };
   messages: UIMessage<Metadata>[];
   temperature: number;
   windowSize: number;
@@ -75,7 +75,7 @@ async function validateRequest(
   return {
     organization,
     model: parseResult.data.model,
-    gateway: parseResult.data.gateway,
+    agent: parseResult.data.agent,
     messages: parseResult.data.messages as unknown as UIMessage<Metadata>[],
     temperature: parseResult.data.temperature ?? 0.5,
     windowSize: parseResult.data.memory?.windowSize ?? DEFAULT_WINDOW_SIZE,
@@ -98,7 +98,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     const {
       organization,
       model,
-      gateway,
+      agent,
       messages,
       temperature,
       windowSize,
@@ -107,7 +107,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     const transport = createVirtualMcpTransport(
       c.req.raw,
       organization.id,
-      gateway.id,
+      agent.id,
     );
     const lastMessage = messages[messages.length - 1];
 
@@ -151,7 +151,6 @@ app.post("/:org/decopilot/stream", async (c) => {
     const shouldGenerateTitle = prunedMessages.length === 1;
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
     let newTitle: string | null = null;
-
     // 4. Main stream
     const result = streamText({
       model: modelProvider.model,
@@ -211,7 +210,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       messageMetadata: ({ part }): Metadata => {
         if (part.type === "start") {
           return {
-            gateway: { id: gateway.id ?? null },
+            agent: { id: agent.id ?? null },
             model: { id: model.id, connectionId: model.connectionId },
             created_at: new Date(),
             thread_id: memory.thread.id,

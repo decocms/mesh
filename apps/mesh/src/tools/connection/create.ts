@@ -13,7 +13,12 @@ import {
   requireOrganization,
 } from "../../core/mesh-context";
 import { fetchToolsFromMCP } from "./fetch-tools";
-import { ConnectionCreateDataSchema, ConnectionEntitySchema } from "./schema";
+import {
+  buildVirtualUrl,
+  ConnectionCreateDataSchema,
+  ConnectionEntitySchema,
+  parseVirtualUrl,
+} from "./schema";
 
 /**
  * Input schema for creating connections (wrapped in data field for collection compliance)
@@ -57,7 +62,33 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
       created_by: userId,
     };
 
+    // Validate VIRTUAL connections - ensure the referenced Virtual MCP exists
+    if (connectionData.connection_type === "VIRTUAL") {
+      const virtualMcpId = parseVirtualUrl(connectionData.connection_url);
+      if (!virtualMcpId) {
+        throw new Error(
+          "VIRTUAL connection requires connection_url in format: virtual://$virtual_mcp_id",
+        );
+      }
+
+      const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
+      if (!virtualMcp) {
+        throw new Error(`Virtual MCP not found: ${virtualMcpId}`);
+      }
+
+      // Verify the Virtual MCP belongs to the same organization
+      if (virtualMcp.organization_id !== organization.id) {
+        throw new Error(
+          "Virtual MCP does not belong to the current organization",
+        );
+      }
+
+      // Ensure the URL is properly formatted
+      connectionData.connection_url = buildVirtualUrl(virtualMcpId);
+    }
+
     // Fetch tools from the MCP server before creating the connection
+    // VIRTUAL connections return null since tools are fetched dynamically
     const fetchedTools = await fetchToolsFromMCP({
       id: `pending-${Date.now()}`,
       title: connectionData.title,

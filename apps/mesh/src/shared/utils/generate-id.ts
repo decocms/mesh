@@ -6,6 +6,7 @@ type IdPrefixes =
   | "log"
   | "vir"
   | "virc"
+  | "agg"
   | "dtok"
   | "thrd"
   | "msg";

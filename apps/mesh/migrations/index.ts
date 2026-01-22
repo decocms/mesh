@@ -22,6 +22,9 @@ import * as migration020enabledplugins from "./020-enabled-plugins.ts";
 import * as migration021threads from "./021-threads.ts";
 import * as migration022renamegatewaytovirtualmcp from "./022-rename-gateway-to-virtual-mcp.ts";
 import * as migration023optimizethreadindexes from "./023-optimize-thread-indexes.ts";
+import * as migration024consolidatevirtualmcp from "./024-consolidate-virtual-mcp.ts";
+import * as migration025addmonitoringvirtualmcpid from "./025-add-monitoring-virtual-mcp-id.ts";
+import * as migration026restrictchildconnectiondelete from "./026-restrict-child-connection-delete.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -48,6 +51,10 @@ const migrations = {
   "021-threads": migration021threads,
   "022-rename-gateway-to-virtual-mcp": migration022renamegatewaytovirtualmcp,
   "023-optimize-thread-indexes": migration023optimizethreadindexes,
+  "024-consolidate-virtual-mcp": migration024consolidatevirtualmcp,
+  "025-add-monitoring-virtual-mcp-id": migration025addmonitoringvirtualmcpid,
+  "026-restrict-child-connection-delete":
+    migration026restrictchildconnectiondelete,
 } satisfies Record<string, Migration>;
 
 export default migrations;

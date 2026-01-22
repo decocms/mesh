@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * MCP Gateway Benchmark Suite
+ * Virtual MCP Benchmark Suite
  *
  * Main entry point for running benchmarks.
  *
@@ -57,7 +57,7 @@ async function main() {
 
   if (values.help) {
     console.log(`
-MCP Gateway Benchmark Suite
+Virtual MCP Benchmark Suite
 
 Usage:
   bun run benchmark/benchmark.ts [options]
@@ -108,7 +108,7 @@ Output:
   }
 
   console.log("=".repeat(60));
-  console.log("MCP Gateway Benchmark Suite");
+  console.log("Virtual MCP Benchmark Suite");
   console.log("=".repeat(60));
   console.log(`Mode: ${modeName}`);
   console.log(`Scenarios: ${scenarios.length}`);
