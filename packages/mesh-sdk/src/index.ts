@@ -24,8 +24,10 @@ export {
   useConnectionActions,
   type ConnectionFilter,
   type UseConnectionsOptions,
-  // MCP client hook
+  // MCP client hook and factory
+  createMCPClient,
   useMCPClient,
+  type CreateMcpClientOptions,
   type UseMcpClientOptions,
   // MCP tools hooks
   useMCPToolsList,

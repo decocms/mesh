@@ -15,14 +15,13 @@ import {
 } from "@/web/hooks/collections/use-virtual-mcp";
 import { useVirtualMCPSystemPrompt } from "@/web/hooks/use-virtual-mcp-system-prompt";
 import {
+  createMCPClient,
   useConnections,
   useProjectContext,
   listPrompts,
   listResources,
   KEYS,
-  StreamableHTTPClientTransport,
 } from "@decocms/mesh-sdk";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { useQueries } from "@tanstack/react-query";
 import { slugify } from "@/web/utils/slugify";
 import { Badge } from "@deco/ui/components/badge.tsx";
@@ -733,29 +732,6 @@ function VirtualMCPSettingsTab({
   );
 }
 
-/**
- * Create and connect an MCP client for fetching prompts/resources
- */
-async function createClientAndFetch<T>(
-  connectionId: string,
-  orgSlug: string,
-  fetchFn: (client: Client) => Promise<T>,
-): Promise<T> {
-  const url = new URL(`/mcp/${connectionId}`, window.location.origin);
-  const client = new Client({ name: "mesh-sdk", version: "1.0.0" }, {});
-  const transport = new StreamableHTTPClientTransport(url, {
-    requestInit: {
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json, text/event-stream",
-        "x-org-slug": orgSlug,
-      },
-    },
-  });
-  await client.connect(transport);
-  return fetchFn(client);
-}
-
 function VirtualMCPInspectorViewWithData({
   virtualMcp,
   virtualMcpId,
@@ -784,11 +760,11 @@ function VirtualMCPInspectorViewWithData({
       queryKey: KEYS.connectionPrompts(connectionId),
       queryFn: async () => {
         try {
-          return await createClientAndFetch(
+          const client = await createMCPClient({
             connectionId,
-            org.slug,
-            listPrompts,
-          );
+            orgSlug: org.slug,
+          });
+          return await listPrompts(client);
         } catch {
           return { prompts: [] };
         }
@@ -804,11 +780,11 @@ function VirtualMCPInspectorViewWithData({
       queryKey: KEYS.connectionResources(connectionId),
       queryFn: async () => {
         try {
-          return await createClientAndFetch(
+          const client = await createMCPClient({
             connectionId,
-            org.slug,
-            listResources,
-          );
+            orgSlug: org.slug,
+          });
+          return await listResources(client);
         } catch {
           return { resources: [] };
         }

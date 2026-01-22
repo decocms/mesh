@@ -17,8 +17,13 @@ export {
   type UseConnectionsOptions,
 } from "./use-connection";
 
-// MCP client hook
-export { useMCPClient, type UseMcpClientOptions } from "./use-mcp-client";
+// MCP client hook and factory
+export {
+  createMCPClient,
+  useMCPClient,
+  type CreateMcpClientOptions,
+  type UseMcpClientOptions,
+} from "./use-mcp-client";
 
 // MCP tools hooks
 export {

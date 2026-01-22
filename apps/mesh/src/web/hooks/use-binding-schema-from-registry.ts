@@ -10,14 +10,15 @@ import { useSuspenseQueries } from "@tanstack/react-query";
 import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { KEYS } from "@/web/lib/query-keys";
-import { MCP_MESH_DECOCMS_KEY } from "@/web/utils/constants";
-import { findListToolName } from "@/web/utils/registry-utils";
+import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
+import {
+  findListToolName,
+  callRegistryTool,
+} from "@/web/utils/registry-utils";
 import {
   useConnections,
   useProjectContext,
-  StreamableHTTPClientTransport,
 } from "@decocms/mesh-sdk";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 /**
  * Registry item from the registry API response.
@@ -25,7 +26,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 interface RegistryItemWithBinding {
   id: string;
   _meta?: {
-    [MCP_MESH_DECOCMS_KEY]?: {
+    [MCP_REGISTRY_DECOCMS_KEY]?: {
       id?: string;
       verified?: boolean;
       scopeName?: string;
@@ -45,37 +46,6 @@ interface RegistryItemWithBinding {
     [key: string]: unknown;
   };
   [key: string]: unknown;
-}
-
-async function callRegistryTool<TOutput>(
-  registryId: string,
-  orgSlug: string,
-  toolName: string,
-  args: Record<string, unknown>,
-): Promise<TOutput> {
-  const url = new URL(`/mcp/${registryId}`, window.location.origin);
-  const client = new Client({ name: "mesh-web", version: "1.0.0" });
-
-  const transport = new StreamableHTTPClientTransport(url, {
-    requestInit: {
-      headers: {
-        Accept: "application/json, text/event-stream",
-        "Content-Type": "application/json",
-        "x-org-slug": orgSlug,
-      },
-    },
-  });
-
-  try {
-    await client.connect(transport);
-    const result = (await client.callTool({
-      name: toolName,
-      arguments: args,
-    })) as { structuredContent?: unknown };
-    return (result.structuredContent ?? result) as TOutput;
-  } finally {
-    await client.close().catch(console.error);
-  }
 }
 
 /**
@@ -106,7 +76,7 @@ function parseServerName(serverName: string): string {
 function extractBindingTools(
   item: RegistryItemWithBinding,
 ): BindingDefinition[] | undefined {
-  const tools = item._meta?.[MCP_MESH_DECOCMS_KEY]?.tools;
+  const tools = item._meta?.[MCP_REGISTRY_DECOCMS_KEY]?.tools;
 
   if (!tools || tools.length === 0) {
     return undefined;

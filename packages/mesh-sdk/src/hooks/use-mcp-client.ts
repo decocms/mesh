@@ -8,7 +8,7 @@ const DEFAULT_CLIENT_INFO = {
   version: "1.0.0",
 };
 
-export interface UseMcpClientOptions {
+export interface CreateMcpClientOptions {
   /** Connection ID - use the connectionId for any MCP server, or null for the management MCP */
   connectionId: string | null;
   /** Organization slug - required, transforms to x-org-slug header */
@@ -16,6 +16,8 @@ export interface UseMcpClientOptions {
   /** Authorization token - optional */
   token?: string | null;
 }
+
+export type UseMcpClientOptions = CreateMcpClientOptions;
 
 /**
  * Build the MCP URL from connectionId
@@ -31,6 +33,60 @@ function buildMcpUrl(connectionId: string | null): string {
 }
 
 /**
+ * Create and connect an MCP client with Streamable HTTP transport.
+ * This is the low-level function for creating clients outside of React hooks.
+ *
+ * @param options - Configuration for the MCP client
+ * @returns Promise resolving to the connected MCP client
+ */
+export async function createMCPClient({
+  connectionId,
+  orgSlug,
+  token,
+}: CreateMcpClientOptions): Promise<Client> {
+  const url = buildMcpUrl(connectionId);
+
+  const client = new Client(DEFAULT_CLIENT_INFO, {
+    capabilities: {
+      tasks: {
+        list: {},
+        cancel: {},
+        requests: {
+          tool: {
+            call: {},
+          },
+        },
+      },
+    },
+  });
+
+  const transport = new StreamableHTTPClientTransport(new URL(url), {
+    requestInit: {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        "x-org-slug": orgSlug,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    },
+  });
+
+  await client.connect(transport);
+
+  // Add toJSON method for query key serialization
+  // This allows the client to be used directly in query keys
+  const queryKey = KEYS.mcpClient(
+    orgSlug,
+    connectionId ?? "management",
+    token ?? "",
+  );
+  (client as Client & { toJSON: () => string }).toJSON = () =>
+    `mcp-client:${queryKey.join(":")}`;
+
+  return client;
+}
+
+/**
  * Hook to create and manage an MCP client with Streamable HTTP transport.
  * Uses Suspense - must be used within a Suspense boundary.
  *
@@ -42,7 +98,6 @@ export function useMCPClient({
   orgSlug,
   token,
 }: UseMcpClientOptions): Client {
-  const url = buildMcpUrl(connectionId);
   const queryKey = KEYS.mcpClient(
     orgSlug,
     connectionId ?? "management",
@@ -51,45 +106,7 @@ export function useMCPClient({
 
   const { data: client } = useSuspenseQuery({
     queryKey,
-    queryFn: async () => {
-      if (!url) {
-        throw new Error("MCP URL is not available");
-      }
-
-      const client = new Client(DEFAULT_CLIENT_INFO, {
-        capabilities: {
-          tasks: {
-            list: {},
-            cancel: {},
-            requests: {
-              tool: {
-                call: {},
-              },
-            },
-          },
-        },
-      });
-
-      const transport = new StreamableHTTPClientTransport(new URL(url), {
-        requestInit: {
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json, text/event-stream",
-            "x-org-slug": orgSlug,
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        },
-      });
-
-      await client.connect(transport);
-
-      // Add toJSON method for query key serialization
-      // This allows the client to be used directly in query keys
-      (client as Client & { toJSON: () => string }).toJSON = () =>
-        `mcp-client:${queryKey.join(":")}`;
-
-      return client;
-    },
+    queryFn: () => createMCPClient({ connectionId, orgSlug, token }),
     staleTime: Infinity, // Keep client alive while query is active
     gcTime: 0, // Clean up immediately when query is inactive
   });

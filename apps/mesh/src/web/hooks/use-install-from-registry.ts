@@ -11,14 +11,13 @@ import {
   useConnectionActions,
   useConnections,
   useProjectContext,
-  StreamableHTTPClientTransport,
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import {
   findListToolName,
   extractItemsFromResponse,
+  callRegistryTool,
 } from "@/web/utils/registry-utils";
 
 interface InstallResult {
@@ -36,37 +35,6 @@ interface UseInstallFromRegistryResult {
    * Whether an installation is in progress
    */
   isInstalling: boolean;
-}
-
-async function callRegistryTool<TOutput>(
-  registryId: string,
-  orgSlug: string,
-  toolName: string,
-  args: Record<string, unknown>,
-): Promise<TOutput> {
-  const url = new URL(`/mcp/${registryId}`, window.location.origin);
-  const client = new Client({ name: "mesh-web", version: "1.0.0" });
-
-  const transport = new StreamableHTTPClientTransport(url, {
-    requestInit: {
-      headers: {
-        Accept: "application/json, text/event-stream",
-        "Content-Type": "application/json",
-        "x-org-slug": orgSlug,
-      },
-    },
-  });
-
-  try {
-    await client.connect(transport);
-    const result = (await client.callTool({
-      name: toolName,
-      arguments: args,
-    })) as { structuredContent?: unknown };
-    return (result.structuredContent ?? result) as TOutput;
-  } finally {
-    await client.close().catch(console.error);
-  }
 }
 
 /**

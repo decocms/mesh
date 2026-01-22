@@ -27,10 +27,6 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import {
-  InMemoryTaskMessageQueue,
-  InMemoryTaskStore,
-} from "@modelcontextprotocol/sdk/experimental/tasks";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import {
@@ -924,11 +920,7 @@ async function createMCPProxyDoNotUseDirectly(
     // Create MCP server for this proxy
     const server = new McpServer(
       { name: "mcp-mesh", version: "1.0.0" },
-      {
-        capabilities: proxyCapabilities,
-        taskStore: new InMemoryTaskStore(),
-        taskMessageQueue: new InMemoryTaskMessageQueue(),
-      },
+      { capabilities: proxyCapabilities },
     );
 
     // Create transport (web-standard Streamable HTTP for fetch Request/Response)
