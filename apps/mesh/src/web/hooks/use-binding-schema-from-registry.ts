@@ -11,14 +11,8 @@ import type { BindingDefinition } from "@/web/hooks/use-binding";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { KEYS } from "@/web/lib/query-keys";
 import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
-import {
-  findListToolName,
-  callRegistryTool,
-} from "@/web/utils/registry-utils";
-import {
-  useConnections,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { findListToolName, callRegistryTool } from "@/web/utils/registry-utils";
+import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 
 /**
  * Registry item from the registry API response.
