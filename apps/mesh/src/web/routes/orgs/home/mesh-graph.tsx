@@ -255,7 +255,7 @@ function useNodeMetrics(): NodeMetricsMap {
     useMCPToolCall<MonitoringLogsWithVirtualMCPResponse>({
       client,
       toolName: "MONITORING_LOGS_LIST",
-      toolArguments: { ...dateRange, limit: 10, offset: 0 },
+      toolArguments: { ...dateRange, limit: 1000, offset: 0 },
       staleTime: 30_000,
       select: (result) =>
         ((result as { structuredContent?: unknown }).structuredContent ??

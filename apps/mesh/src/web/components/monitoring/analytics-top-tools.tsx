@@ -139,7 +139,7 @@ function TopToolsContent(_props: TopToolsContentProps) {
   const { data: logsData } = useMCPToolCall<BaseMonitoringLogsResponse>({
     client,
     toolName: "MONITORING_LOGS_LIST",
-    toolArguments: { ...dateRange, limit: 20, offset: 0 },
+    toolArguments: { ...dateRange, limit: 2000, offset: 0 },
     staleTime: 30_000,
     select: (result) =>
       ((result as { structuredContent?: unknown }).structuredContent ??
