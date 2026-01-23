@@ -14,6 +14,7 @@ import {
   useProjectContext,
   useVirtualMCPs,
   SELF_MCP_ALIAS_ID,
+  useConnections,
 } from "@decocms/mesh-sdk";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type {
@@ -35,7 +36,6 @@ import {
   useReducer,
 } from "react";
 import { toast } from "sonner";
-import { useConnections } from "../../hooks/collections/use-connection";
 import { useBindingConnections } from "../../hooks/use-binding";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import { useThreadMessages } from "../../hooks/use-chat-store";
@@ -141,13 +141,7 @@ const createModelsTransport = (
   new DefaultChatTransport<UIMessage<Metadata>>({
     api: `/api/${org}/decopilot/stream`,
     credentials: "include",
-    prepareSendMessagesRequest: ({
-      messages,
-      requestMetadata = {},
-    }: {
-      messages: Message[];
-      requestMetadata: Metadata;
-    }) => {
+    prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
       const {
         system,
         tiptapDoc: _tiptapDoc,
