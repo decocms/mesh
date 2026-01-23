@@ -37,6 +37,7 @@ export async function processConversation(
     messages: UIMessage<Metadata>[];
     systemPrompts: string[];
     removeFileParts?: boolean;
+    virtualMcpId?: string | null;
   },
 ): Promise<ProcessedConversation> {
   const userId = ensureUser(ctx);
@@ -47,6 +48,7 @@ export async function processConversation(
     threadId: config.threadId,
     userId,
     defaultWindowSize: config.windowSize,
+    virtualMcpId: config.virtualMcpId,
   });
 
   // Load thread history

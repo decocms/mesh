@@ -48,17 +48,90 @@ export function useThreads() {
           offset: pageParam,
         };
 
-        const result = (await client.callTool({
+        const result = await client.callTool({
           name: listToolName,
           arguments: input,
-        })) as { structuredContent?: unknown };
-        const payload = (result.structuredContent ??
-          result) as CollectionListOutput<Thread>;
+        });
+
+        // Extract payload - MCP CallToolResult has structuredContent or content
+        // structuredContent is the parsed JSON, content is the raw text
+        let payload: CollectionListOutput<Thread>;
+
+        if (result.isError) {
+          const errorText = Array.isArray(result.content)
+            ? result.content
+                .map((c) => (c.type === "text" ? c.text : ""))
+                .join("\n")
+            : "Unknown error";
+
+          // Debug: log error details
+          if (process.env.NODE_ENV === "development") {
+            // eslint-disable-next-line no-console
+            console.error("[useThreads] Tool call error:", {
+              errorText,
+              isError: result.isError,
+              content: result.content,
+              contentString: Array.isArray(result.content)
+                ? result.content
+                    .map((c) => {
+                      if (c.type === "text") return c.text;
+                      return JSON.stringify(c);
+                    })
+                    .join("\n")
+                : String(result.content),
+            });
+          }
+
+          // Don't throw - return empty result instead to prevent UI crash
+          // The ErrorBoundary will handle it gracefully
+          return {
+            items: [],
+            hasMore: false,
+            totalCount: 0,
+          };
+        }
+
+        if ("structuredContent" in result && result.structuredContent) {
+          payload = result.structuredContent as CollectionListOutput<Thread>;
+        } else if (Array.isArray(result.content) && result.content.length > 0) {
+          // Fallback: try to parse from content text
+          const textContent = result.content
+            .map((c) => (c.type === "text" ? c.text : null))
+            .filter(Boolean)
+            .join("");
+          if (textContent) {
+            try {
+              payload = JSON.parse(textContent) as CollectionListOutput<Thread>;
+            } catch {
+              throw new Error("Failed to parse tool result");
+            }
+          } else {
+            throw new Error("Tool result has no content");
+          }
+        } else {
+          // Direct result (shouldn't happen but handle it)
+          payload = result as unknown as CollectionListOutput<Thread>;
+        }
+
+        // Debug: log query results
+        if (process.env.NODE_ENV === "development") {
+          // eslint-disable-next-line no-console
+          console.log("[useThreads] Query result:", {
+            hasStructuredContent: "structuredContent" in result,
+            hasContent:
+              Array.isArray(result.content) && result.content.length > 0,
+            payload,
+            items: payload.items?.length ?? 0,
+            totalCount: payload.totalCount,
+            hasMore: payload.hasMore,
+            offset: pageParam,
+          });
+        }
 
         return {
           items: payload.items ?? [],
           hasMore: payload.hasMore ?? false,
-          totalCount: payload.totalCount,
+          totalCount: payload.totalCount ?? 0,
         };
       },
       getNextPageParam: (lastPage, allPages) => {

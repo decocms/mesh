@@ -56,6 +56,9 @@ export interface MemoryConfig {
 
   /** Default window size for pruning */
   defaultWindowSize?: number;
+
+  /** Virtual MCP (Agent) ID if routed through an agent */
+  virtualMcpId?: string | null;
 }
 
 // ============================================================================

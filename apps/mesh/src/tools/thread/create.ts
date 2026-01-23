@@ -57,6 +57,7 @@ export const COLLECTION_THREADS_CREATE = defineTool({
       organizationId: organization.id,
       title: input.data.title,
       description: input.data.description,
+      virtualMcpId: input.data.virtualMcpId ?? undefined,
       createdBy: userId,
     });
 

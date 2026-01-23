@@ -8,25 +8,23 @@
 import { Chat, useChat } from "@/web/components/chat/index";
 import { TypewriterTitle } from "@/web/components/chat/typewriter-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { authClient } from "@/web/lib/auth-client";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import {
+  getWellKnownDecopilotAgent,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
-import { GitBranch01, MessageChatSquare, Plus } from "@untitledui/icons";
-import { Suspense } from "react";
-import {
-  MeshVisualization,
-  MeshVisualizationSkeleton,
-  MetricsModeProvider,
-  MetricsModeSelector,
-} from "./mesh-graph.tsx";
+import { MessageChatSquare, Pin01, Plus, Share07 } from "@untitledui/icons";
+import { Suspense, useMemo } from "react";
+import { toast } from "sonner";
 import { useThreads } from "@/web/hooks/use-chat-store.ts";
+import { AgentsList } from "@/web/components/home/agents-list.tsx";
 
 /**
  * Get time-based greeting
@@ -39,14 +37,10 @@ function getTimeBasedGreeting(): string {
   return "Night";
 }
 
-// ---------- View Mode Types ----------
-
-type HomeViewMode = "chat" | "graph";
-
 // ---------- Main Content ----------
 
 function HomeContent() {
-  const { org, locator } = useProjectContext();
+  const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
   const {
     modelsConnections,
@@ -54,16 +48,18 @@ function HomeContent() {
     activeThreadId,
     setActiveThreadId,
     threads,
+    selectedVirtualMcp,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
-  // View mode state (chat vs graph)
-  const [viewMode, setViewMode] = useLocalStorage<HomeViewMode>(
-    `${locator}:home-view-mode`,
-    "chat",
-  );
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
   const greeting = getTimeBasedGreeting();
+
+  // Memoize agent calculation to prevent unnecessary recalculations
+  const displayAgent = useMemo(() => {
+    const defaultAgent = getWellKnownDecopilotAgent(org.id);
+    return selectedVirtualMcp ?? defaultAgent;
+  }, [org.id, selectedVirtualMcp]);
 
   // Show empty state when no LLM binding is found
   if (modelsConnections.length === 0) {
@@ -75,109 +71,125 @@ function HomeContent() {
   }
 
   return (
-    <MetricsModeProvider>
-      <Chat>
-        <Chat.Header>
-          <Chat.Header.Left>
-            {viewMode === "graph" ? (
-              <span className="text-sm font-medium text-foreground">
-                Summary
-              </span>
-            ) : !isChatEmpty && activeThread?.title ? (
-              <TypewriterTitle
-                text={activeThread.title}
-                className="text-sm font-medium text-foreground"
-              />
-            ) : (
-              <span className="text-sm font-medium text-foreground">Chat</span>
-            )}
-          </Chat.Header.Left>
-          <Chat.Header.Right>
-            {viewMode === "graph" && <MetricsModeSelector />}
-            {viewMode !== "graph" && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="size-7 border border-input"
-                      onClick={() => setActiveThreadId(crypto.randomUUID())}
-                      aria-label="New chat"
-                    >
-                      <Plus size={16} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>New chat</TooltipContent>
-                </Tooltip>
-                <Suspense
-                  fallback={
-                    <div className="size-7 rounded-full bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed" />
-                  }
-                >
-                  <Chat.ThreadHistoryPopover variant="outline" />
-                </Suspense>
-              </>
-            )}
-            <ViewModeToggle
-              value={viewMode}
-              onValueChange={setViewMode}
-              size="sm"
-              options={[
-                { value: "chat", icon: <MessageChatSquare /> },
-                { value: "graph", icon: <GitBranch01 /> },
-              ]}
+    <Chat>
+      <Chat.Header>
+        <Chat.Header.Left>
+          {!isChatEmpty && activeThread?.title ? (
+            <TypewriterTitle
+              text={activeThread.title}
+              className="text-sm font-medium text-foreground"
             />
-          </Chat.Header.Right>
-        </Chat.Header>
+          ) : (
+            <span className="text-sm font-medium text-foreground">Chat</span>
+          )}
+        </Chat.Header.Left>
+        <Chat.Header.Right>
+          {!isChatEmpty && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="size-7 border border-input"
+                    onClick={() => setActiveThreadId(crypto.randomUUID())}
+                    aria-label="New chat"
+                  >
+                    <Plus size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New chat</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="size-7 border border-input"
+                    onClick={() => {
+                      // TODO: Implement thread pinning functionality
+                      toast.info("Pin feature coming soon");
+                    }}
+                    aria-label="Pin chat"
+                  >
+                    <Pin01 size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Pin chat</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="size-7 border border-input"
+                    onClick={() => {
+                      // TODO: Implement share functionality
+                      toast.info("Share feature coming soon");
+                    }}
+                    aria-label="Share chat"
+                  >
+                    <Share07 size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Share chat</TooltipContent>
+              </Tooltip>
+            </>
+          )}
+        </Chat.Header.Right>
+      </Chat.Header>
 
-        {viewMode === "graph" ? (
-          <div className="flex-1 overflow-hidden relative">
-            <ErrorBoundary
-              fallback={
-                <div className="bg-background p-5 text-sm text-muted-foreground h-full flex items-center justify-center">
-                  Failed to load mesh visualization
-                </div>
-              }
-            >
-              <Suspense fallback={<MeshVisualizationSkeleton />}>
-                <MeshVisualization />
-              </Suspense>
-            </ErrorBoundary>
-          </div>
-        ) : !isChatEmpty ? (
-          <>
-            <Chat.Main>
-              <Chat.Messages minHeightOffset={280} />
-            </Chat.Main>
-            <Chat.Footer>
-              <Chat.Input />
-            </Chat.Footer>
-          </>
-        ) : (
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 pb-32 pt-10">
-            <div className="flex flex-col items-center gap-6 w-full max-w-[550px]">
-              {/* Greeting */}
-              <div className="text-center">
-                <p className="text-lg font-medium text-foreground">
-                  {greeting} {userName},
-                </p>
-                <p className="text-base text-muted-foreground">
-                  What are we building today?
-                </p>
-              </div>
-
-              {/* Chat Input */}
-              <Chat.Input />
-
-              {/* Ice breakers for selected agent */}
-              <Chat.IceBreakers className="w-full" />
+      {!isChatEmpty ? (
+        <>
+          <Chat.Main>
+            <Chat.Messages minHeightOffset={280} />
+          </Chat.Main>
+          <Chat.Footer>
+            <Chat.Input />
+          </Chat.Footer>
+        </>
+      ) : (
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 pb-32 pt-10">
+          <div className="flex flex-col items-center gap-3 w-full max-w-[600px]">
+            {/* Agent Image */}
+            <div className="flex justify-center">
+              <IntegrationIcon
+                icon={displayAgent.icon}
+                name={displayAgent.title}
+                size="md"
+                className="size-12 rounded-xl border border-stone-200/60 shadow-sm aspect-square transition-opacity duration-200"
+              />
             </div>
+
+            {/* Greeting */}
+            <div className="text-center">
+              <p className="text-lg font-medium text-foreground">
+                {greeting} {userName},
+              </p>
+              <p className="text-base text-muted-foreground opacity-50 mb-0">
+                What are we building today?
+              </p>
+            </div>
+
+            {/* Chat Input */}
+            <div className="w-full -mt-1">
+              <Chat.Input />
+            </div>
+
+            {/* Ice breakers for selected agent */}
+            <Chat.IceBreakers className="w-full" />
           </div>
-        )}
-      </Chat>
-    </MetricsModeProvider>
+
+          {/* Agents List - Separate container to allow wider width */}
+          <div className="flex flex-col items-center w-full mt-4">
+            <AgentsList />
+          </div>
+        </div>
+      )}
+    </Chat>
   );
 }
 

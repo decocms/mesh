@@ -15,6 +15,7 @@ import {
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  ChevronDown,
   ChevronSelectorVertical,
   CurrencyDollar,
   File06,
@@ -336,7 +337,15 @@ function SelectedModelDisplay({
   placeholder?: string;
 }) {
   if (!model) {
-    return <span className="text-sm text-muted-foreground">{placeholder}</span>;
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm text-muted-foreground">{placeholder}</span>
+        <ChevronDown
+          size={14}
+          className="text-muted-foreground opacity-50 shrink-0"
+        />
+      </div>
+    );
   }
 
   return (
@@ -351,6 +360,10 @@ function SelectedModelDisplay({
       <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 hidden sm:inline-block">
         {model.title}
       </span>
+      <ChevronDown
+        size={14}
+        className="text-muted-foreground opacity-50 shrink-0"
+      />
     </div>
   );
 }

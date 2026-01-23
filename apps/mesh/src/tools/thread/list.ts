@@ -37,7 +37,22 @@ export const COLLECTION_THREADS_LIST = defineTool({
   outputSchema: ThreadListOutputSchema,
 
   handler: async (input, ctx) => {
-    await ctx.access.check();
+    try {
+      await ctx.access.check();
+    } catch (error) {
+      // Debug: log access check error
+      if (process.env.NODE_ENV === "development") {
+        // eslint-disable-next-line no-console
+        console.error("[COLLECTION_THREADS_LIST] Access check failed:", {
+          error: error instanceof Error ? error.message : String(error),
+          userId: ctx.auth.user?.id,
+          hasUser: !!ctx.auth.user,
+          hasApiKey: !!ctx.auth.apiKey,
+        });
+      }
+      throw error;
+    }
+
     const userId = ctx.auth.user?.id;
     if (!userId) {
       throw new Error("User ID required to list threads");
@@ -51,6 +66,19 @@ export const COLLECTION_THREADS_LIST = defineTool({
       userId,
       { limit, offset },
     );
+
+    // Debug: log query results
+    if (process.env.NODE_ENV === "development") {
+      // eslint-disable-next-line no-console
+      console.log("[COLLECTION_THREADS_LIST] Query:", {
+        organizationId: organization.id,
+        userId,
+        threadsFound: threads.length,
+        total,
+        offset,
+        limit,
+      });
+    }
 
     const hasMore = offset + limit < total;
 

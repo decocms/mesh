@@ -55,7 +55,8 @@ export async function createMemory(
   storage: ThreadStoragePort,
   config: MemoryConfig,
 ): Promise<Memory> {
-  const { threadId, organizationId, userId, defaultWindowSize } = config;
+  const { threadId, organizationId, userId, defaultWindowSize, virtualMcpId } =
+    config;
 
   let thread: Thread;
 
@@ -64,6 +65,7 @@ export async function createMemory(
     thread = await storage.create({
       id: generatePrefixedId("thrd"),
       organizationId,
+      virtualMcpId: virtualMcpId ?? undefined,
       createdBy: userId,
     });
   } else {
@@ -76,10 +78,15 @@ export async function createMemory(
       thread = await storage.create({
         id: existing ? generatePrefixedId("thrd") : threadId,
         organizationId,
+        virtualMcpId: virtualMcpId ?? undefined,
         createdBy: userId,
       });
     } else {
+      // If existing thread doesn't have virtualMcpId and we're providing one, update it
       thread = existing;
+      if (virtualMcpId && !thread.virtualMcpId) {
+        thread = await storage.update(thread.id, { virtualMcpId });
+      }
     }
   }
 

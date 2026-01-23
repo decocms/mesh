@@ -499,7 +499,7 @@ async function callUpdateThreadTool(
   return payload.item;
 }
 
-const ChatContext = createContext<ChatContextValue | null>(null);
+export const ChatContext = createContext<ChatContextValue | null>(null);
 
 /**
  * Provider component for chat context

@@ -48,6 +48,11 @@ export const ThreadEntitySchema = z.object({
     .string()
     .nullable()
     .describe("User ID who last updated the thread"),
+  virtualMcpId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Virtual MCP (Agent) ID if routed through an agent"),
 });
 
 export type ThreadEntity = z.infer<typeof ThreadEntitySchema>;
@@ -60,6 +65,10 @@ export const ThreadCreateDataSchema = z.object({
   id: z.string().optional().describe("Optional custom ID for the thread"),
   title: z.string().describe("Thread title"),
   description: z.string().nullish().describe("Thread description"),
+  virtualMcpId: z
+    .string()
+    .nullish()
+    .describe("Virtual MCP (Agent) ID if routed through an agent"),
 });
 
 export type ThreadCreateData = z.infer<typeof ThreadCreateDataSchema>;

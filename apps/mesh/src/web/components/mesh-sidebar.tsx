@@ -1,4 +1,5 @@
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { SidebarChatsSection } from "@/web/components/chat/sidebar-chats-section";
 import { SidebarItemsSection } from "@/web/components/sidebar-items-section";
 import { useProjectSidebarItems } from "@/web/hooks/use-project-sidebar-items";
 import { NavigationSidebar } from "@deco/ui/components/navigation-sidebar.tsx";
@@ -15,6 +16,11 @@ export function MeshSidebar() {
           <ErrorBoundary>
             <Suspense fallback={null}>
               <SidebarItemsSection />
+            </Suspense>
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              <SidebarChatsSection />
             </Suspense>
           </ErrorBoundary>
         </>

@@ -27,6 +27,7 @@ import * as migration025addmonitoringvirtualmcpid from "./025-add-monitoring-vir
 import * as migration026restrictchildconnectiondelete from "./026-restrict-child-connection-delete.ts";
 import * as migration027updatemanagementmcpurl from "./027-update-management-mcp-url.ts";
 import * as migration028updatemanagementmcptoself from "./028-update-management-mcp-to-self.ts";
+import * as migration029addthreadvirtualmcpid from "./029-add-thread-virtual-mcp-id.ts";
 
 const migrations = {
   "001-initial-schema": migration001initialschema,
@@ -59,6 +60,7 @@ const migrations = {
     migration026restrictchildconnectiondelete,
   "027-update-management-mcp-url": migration027updatemanagementmcpurl,
   "028-update-management-mcp-to-self": migration028updatemanagementmcptoself,
+  "029-add-thread-virtual-mcp-id": migration029addthreadvirtualmcpid,
 } satisfies Record<string, Migration>;
 
 export default migrations;

@@ -40,6 +40,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       organization_id: data.organizationId,
       title: data.title,
       description: data.description ?? null,
+      virtual_mcp_id: data.virtualMcpId ?? null,
       created_at: now,
       updated_at: now,
       created_by: data.createdBy,
@@ -83,6 +84,9 @@ export class SqlThreadStorage implements ThreadStoragePort {
     }
     if (data.hidden !== undefined) {
       updateData.hidden = data.hidden;
+    }
+    if (data.virtualMcpId !== undefined) {
+      updateData.virtual_mcp_id = data.virtualMcpId;
     }
 
     await this.db
@@ -231,8 +235,17 @@ export class SqlThreadStorage implements ThreadStoragePort {
     updated_at: Date | string;
     created_by: string;
     updated_by: string | null;
-    hidden: boolean | null;
+    hidden: boolean | number | null;
+    virtual_mcp_id?: string | null;
   }): Thread {
+    // Convert hidden from number (0/1) to boolean if needed (SQLite returns numbers)
+    const hidden =
+      row.hidden === null || row.hidden === undefined
+        ? null
+        : typeof row.hidden === "number"
+          ? row.hidden !== 0
+          : row.hidden;
+
     return {
       id: row.id,
       organizationId: row.organization_id,
@@ -248,7 +261,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
           : row.updated_at.toISOString(),
       createdBy: row.created_by,
       updatedBy: row.updated_by,
-      hidden: row.hidden,
+      hidden,
+      virtualMcpId: row.virtual_mcp_id ?? undefined,
     };
   }
 

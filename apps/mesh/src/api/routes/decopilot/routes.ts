@@ -146,6 +146,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         messages,
         systemPrompts: [DECOPILOT_BASE_PROMPT],
         removeFileParts: !modelHasVision,
+        virtualMcpId: agent.id,
       });
 
     const shouldGenerateTitle = prunedMessages.length === 1;

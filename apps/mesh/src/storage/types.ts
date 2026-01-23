@@ -598,6 +598,7 @@ export interface ThreadTable {
   title: string;
   description: string | null;
   hidden: boolean | null;
+  virtual_mcp_id: string | null; // Virtual MCP (Agent) ID if routed through an agent
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string; // User ID;
@@ -614,6 +615,7 @@ export interface Thread {
   createdBy: string;
   updatedBy: string | null;
   hidden: boolean | null;
+  virtualMcpId?: string | null; // Virtual MCP (Agent) ID if routed through an agent
 }
 
 export interface ThreadMessageTable {

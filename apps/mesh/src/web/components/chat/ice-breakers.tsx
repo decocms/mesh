@@ -339,8 +339,6 @@ export function IceBreakers({ className }: IceBreakersProps) {
   const { selectedVirtualMcp } = useChat();
   // When selectedVirtualMcp is null, it means default virtual MCP (id is null)
   const connectionId = selectedVirtualMcp?.id ?? null;
-  // Use a stable key for ErrorBoundary (null becomes "default")
-  const errorBoundaryKey = connectionId ?? "default";
 
   return (
     <div
@@ -350,8 +348,11 @@ export function IceBreakers({ className }: IceBreakersProps) {
         className,
       )}
     >
-      <ErrorBoundary key={errorBoundaryKey} fallback={null}>
-        <Suspense fallback={<IceBreakersFallback />}>
+      <ErrorBoundary fallback={null}>
+        <Suspense
+          key={connectionId ?? "default"}
+          fallback={<IceBreakersFallback />}
+        >
           <IceBreakersContent connectionId={connectionId} />
         </Suspense>
       </ErrorBoundary>
