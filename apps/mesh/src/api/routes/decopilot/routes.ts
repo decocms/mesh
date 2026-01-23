@@ -135,7 +135,6 @@ app.post("/:org/decopilot/stream", async (c) => {
       client?.close().catch(console.error);
     };
     abortSignal.addEventListener("abort", abortHandler, { once: true });
-    const modelHasVision = model.capabilities?.vision ?? true;
 
     // Get server instructions if available (for virtual MCP agents)
     const serverInstructions = mcpClient.getInstructions();
@@ -151,7 +150,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         windowSize,
         messages,
         systemPrompts: [systemPrompt],
-        removeFileParts: !modelHasVision,
+        model,
       });
 
     const shouldGenerateTitle = prunedMessages.length === 1;
