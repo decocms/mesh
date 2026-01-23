@@ -110,6 +110,14 @@ export {
   type ServerFromClientOptions,
 } from "./lib/server-client-bridge";
 
+// In-memory transport
+export {
+  createInMemoryTransportPair,
+  InMemoryClientTransport,
+  InMemoryServerTransport,
+  type InMemoryTransportPair,
+} from "./lib/in-memory-transport";
+
 // Query keys
 export { KEYS } from "./lib/query-keys";
 
