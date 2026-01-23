@@ -206,7 +206,7 @@ function ShellLayoutContent() {
   }
 
   return (
-    <ProjectContextProvider {...projectContext}>
+    <ProjectContextProvider key={org} {...projectContext}>
       <PersistentSidebarProvider>
         <div className="flex flex-col h-screen">
           <Topbar
