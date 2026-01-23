@@ -262,7 +262,9 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       updateData.status = data.status;
     }
     if (data.metadata !== undefined) {
-      updateData.metadata = data.metadata ? JSON.stringify(data.metadata) : null;
+      updateData.metadata = data.metadata
+        ? JSON.stringify(data.metadata)
+        : null;
     }
     // Note: tool_selection_mode is no longer stored in DB, ignored
 

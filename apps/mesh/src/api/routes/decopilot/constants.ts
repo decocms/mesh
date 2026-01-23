@@ -13,9 +13,7 @@ export const DEFAULT_WINDOW_SIZE = 50;
  * @param agentInstructions - Optional instructions specific to the selected agent/virtual MCP
  * @returns The complete system prompt combining platform instructions with agent-specific instructions
  */
-export function DECOPILOT_BASE_PROMPT(
-  agentInstructions?: string,
-): string {
+export function DECOPILOT_BASE_PROMPT(agentInstructions?: string): string {
   const platformPrompt = `You are an AI assistant running in an MCP Mesh environment.
 
 ## About MCP Mesh
