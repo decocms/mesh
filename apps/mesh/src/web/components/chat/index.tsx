@@ -12,17 +12,15 @@ import { Children, isValidElement, useRef } from "react";
 import { ChatProvider, useChat } from "./context";
 import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
-import { MessageAssistant } from "./message/assistant.tsx";
-import { MessageFooter, MessageList } from "./message/list.tsx";
-import { MessageUser } from "./message/user.tsx";
+import { MessagePair, useMessagePairs } from "./message/pair.tsx";
 import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
 import { ThreadHistoryPopover } from "./popover-threads";
 import { DecoChatSkeleton } from "./skeleton";
 import type { Metadata } from "./types.ts";
 export { useChat } from "./context";
-export type { VirtualMCPInfo } from "./select-virtual-mcp";
 export { ModelSelector } from "./select-model";
 export type { ModelChangePayload, SelectedModelState } from "./select-model";
+export type { VirtualMCPInfo } from "./select-virtual-mcp";
 
 export type ChatMessage = UIMessage<Metadata>;
 
@@ -129,29 +127,25 @@ function ChatEmptyState({ children }: PropsWithChildren) {
 function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
   const { messages, chatStatus: status } = useChat();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const messagePairs = useMessagePairs(messages);
 
   useChatAutoScroll({ messageCount: messages.length, sentinelRef });
 
   return (
-    <MessageList minHeightOffset={minHeightOffset}>
-      {messages.map((message, index) =>
-        message.role === "user" ? (
-          <MessageUser
-            key={message.id}
-            message={message as UIMessage<Metadata>}
+    <div className="w-full min-w-0 max-w-full overflow-y-auto h-full overflow-x-hidden">
+      <div className="flex flex-col min-w-0 max-w-2xl mx-auto w-full">
+        {messagePairs.map((pair, index) => (
+          <MessagePair
+            key={`pair-${pair.user.id}`}
+            pair={pair}
+            isLastPair={index === messagePairs.length - 1}
+            minHeightOffset={minHeightOffset}
+            status={index === messagePairs.length - 1 ? status : undefined}
           />
-        ) : message.role === "assistant" ? (
-          <MessageAssistant
-            key={message.id}
-            message={message as UIMessage<Metadata>}
-            status={index === messages.length - 1 ? status : undefined}
-          />
-        ) : null,
-      )}
-      <MessageFooter>
+        ))}
         <div ref={sentinelRef} className="h-0" />
-      </MessageFooter>
-    </MessageList>
+      </div>
+    </div>
   );
 }
 
