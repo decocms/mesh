@@ -709,11 +709,12 @@ function VirtualMCPSettingsTab({
                 <FormItem>
                   <div>
                     <FormLabel className="text-sm font-medium text-foreground mb-1">
-                      System Prompt
+                      Instructions
                     </FormLabel>
                     <p className="text-xs text-muted-foreground">
-                      MCP server instructions used as system prompt for this
-                      agent
+                      Define the agent's role, capabilities, and behavior to
+                      guide how it interprets requests, uses available tools,
+                      and responds to users.
                     </p>
                   </div>
                   <FormControl>
@@ -725,7 +726,7 @@ function VirtualMCPSettingsTab({
                           instructions: e.target.value || undefined,
                         })
                       }
-                      placeholder="Enter system prompt instructions..."
+                      placeholder="You are a helpful assistant that specializes in customer support. Your role is to help users resolve issues and answer questions..."
                       className="min-h-[240px] resize-none text-sm leading-relaxed"
                     />
                   </FormControl>
