@@ -44,6 +44,7 @@ function useChatAutoScroll({
   const [_, startTransition] = useTransition();
 
   // Periodic scrolling during streaming (low priority)
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- Interval lifecycle management requires useEffect
   useEffect(() => {
     if (chatStatus !== "streaming") {
       return;
@@ -64,6 +65,7 @@ function useChatAutoScroll({
   }, [chatStatus, sentinelRef]);
 
   // Scroll to the sentinel when the message count changes
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- Interval lifecycle management requires useEffect
   useEffect(() => {
     startTransition(() => {
       sentinelRef.current?.scrollIntoView({
