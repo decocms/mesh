@@ -297,17 +297,55 @@ export function ChatInput() {
 
         const data = (await response.json()) as { text?: string };
         if (data.text) {
-          // Insert transcribed text into the input
-          const doc = {
-            type: "doc" as const,
-            content: [
-              {
+          // Append transcribed text to the existing input content
+          const transcribedText = data.text;
+
+          // If there's existing content, append to it; otherwise create new doc
+          if (tiptapDoc && tiptapDoc.content && tiptapDoc.content.length > 0) {
+            // Clone the existing document
+            const newContent = [...tiptapDoc.content];
+            const lastParagraphIndex = newContent.length - 1;
+            const lastParagraph = newContent[lastParagraphIndex];
+
+            // If last paragraph has content, append with a space; otherwise just add the text
+            if (
+              lastParagraph &&
+              lastParagraph.type === "paragraph" &&
+              lastParagraph.content &&
+              lastParagraph.content.length > 0
+            ) {
+              // Append to the last paragraph with a space separator
+              newContent[lastParagraphIndex] = {
+                ...lastParagraph,
+                content: [
+                  ...lastParagraph.content,
+                  { type: "text", text: ` ${transcribedText}` },
+                ],
+              };
+            } else {
+              // Last paragraph is empty, replace it with the transcribed text
+              newContent[lastParagraphIndex] = {
                 type: "paragraph",
-                content: [{ type: "text", text: data.text }],
-              },
-            ],
-          };
-          setTiptapDoc(doc);
+                content: [{ type: "text", text: transcribedText }],
+              };
+            }
+
+            setTiptapDoc({
+              type: "doc" as const,
+              content: newContent,
+            });
+          } else {
+            // No existing content, create new doc
+            setTiptapDoc({
+              type: "doc" as const,
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: transcribedText }],
+                },
+              ],
+            });
+          }
         }
       } catch (err) {
         toast.error(
