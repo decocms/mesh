@@ -109,6 +109,11 @@ export class AccessControl implements Disposable {
     if (this._granted) {
       return;
     }
+    // tool is public with zero IO operations, so we can grant access immediately
+    if (this.toolName?.startsWith("MESH_PUBLIC_")) {
+      this.grant();
+      return;
+    }
 
     // Check if authenticated first (401)
     if (!this.userId && !this.boundAuth) {
