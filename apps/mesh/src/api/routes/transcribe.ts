@@ -4,7 +4,7 @@
  * Provides audio transcription functionality by:
  * 1. Receiving audio via FormData (blob) or URL
  * 2. Finding a connection with TRANSCRIPTION_BINDING
- * 3. Converting audio to data URL (base64) for direct transcription
+ * 3. Converting audio blob to base64 (passed via 'audio' field) or using URL directly
  * 4. Calling TRANSCRIBE_AUDIO and returning the result
  */
 
@@ -134,12 +134,11 @@ async function findConnectionWithBinding(
 }
 
 /**
- * Convert a Blob to a data URL (base64)
+ * Convert a Blob to base64 string
  */
-async function blobToDataUrl(blob: Blob, mimeType: string): Promise<string> {
+async function blobToBase64(blob: Blob): Promise<string> {
   const arrayBuffer = await blob.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString("base64");
-  return `data:${mimeType};base64,${base64}`;
+  return Buffer.from(arrayBuffer).toString("base64");
 }
 
 /**
@@ -241,14 +240,14 @@ app.post("/:org/transcribe", async (c) => {
     );
   }
 
-  // 6. Convert audio to data URL if blob provided
-  let finalAudioUrl = audioUrl;
+  // 6. Convert audio to base64 if blob provided
+  let audioBase64: string | undefined;
 
   if (audioFile && !audioUrl) {
     try {
-      finalAudioUrl = await blobToDataUrl(audioFile, audioFile.type);
+      audioBase64 = await blobToBase64(audioFile);
     } catch (error) {
-      console.error("[transcribe] Failed to convert audio to data URL:", error);
+      console.error("[transcribe] Failed to convert audio to base64:", error);
       return c.json(
         {
           error: `Failed to process audio: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -264,7 +263,8 @@ app.post("/:org/transcribe", async (c) => {
     const transcriptionClient = TranscriptionBinding.forClient(proxy);
 
     const result = await transcriptionClient.TRANSCRIBE_AUDIO({
-      audioUrl: finalAudioUrl ?? undefined,
+      audio: audioBase64,
+      audioUrl: audioUrl ?? undefined,
       mimeType: audioFile?.type,
       language: language ?? undefined,
     });
