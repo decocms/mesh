@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@decocms/bindings": "^1.1.1",
-    "@modelcontextprotocol/sdk": "1.25.2",
+    "@modelcontextprotocol/sdk": "1.25.3",
     "zod": "^4.0.0"
   },
   "peerDependencies": {
