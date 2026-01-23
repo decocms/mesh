@@ -9,8 +9,11 @@
  * - GET /memory       - Memory usage stats
  * - GET /heap-snapshot - Download heap snapshot
  * - GET /gc           - Trigger garbage collection
+ * - GET /prestop-hook - Save heap snapshot if PRESTOP_HEAP_SNAPSHOT_DIR is set
  */
 import v8 from "node:v8";
+import { rename, mkdir } from "node:fs/promises";
+import { join } from "node:path";
 
 export interface DebugServerConfig {
   port: number;
@@ -65,6 +68,47 @@ export function startDebugServer(config: DebugServerConfig) {
           return Response.json({ status: "gc triggered" });
         }
         return Response.json({ status: "gc not available" }, { status: 501 });
+      }
+
+      // GET /prestop-hook - save heap snapshot if PRESTOP_HEAP_SNAPSHOT_DIR is set
+      if (url.pathname === "/prestop-hook") {
+        const directory = process.env.PRESTOP_HEAP_SNAPSHOT_DIR;
+
+        if (!directory) {
+          return Response.json({
+            status: "skipped",
+            reason: "PRESTOP_HEAP_SNAPSHOT_DIR not set",
+          });
+        }
+
+        try {
+          await mkdir(directory, { recursive: true });
+
+          const snapshotPath = v8.writeHeapSnapshot();
+          const podName =
+            process.env.HOSTNAME ?? process.env.POD_NAME ?? "unknown";
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const filename = `${podName}-${timestamp}.heapsnapshot`;
+          const destPath = join(directory, filename);
+
+          await rename(snapshotPath, destPath);
+
+          const mem = process.memoryUsage();
+          console.log("[prestop-hook] Heap snapshot saved:", destPath);
+
+          return Response.json({
+            status: "saved",
+            path: destPath,
+            memory: {
+              rss: mem.rss,
+              heapUsed: mem.heapUsed,
+              external: mem.external,
+            },
+          });
+        } catch (error) {
+          console.error("[prestop-hook] Failed to save heap snapshot:", error);
+          return Response.json({ error: String(error) }, { status: 500 });
+        }
       }
 
       return Response.json({ error: "Not found" }, { status: 404 });
