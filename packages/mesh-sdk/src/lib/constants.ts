@@ -97,8 +97,8 @@ export function getWellKnownSelfConnection(
     title: "Mesh MCP",
     description: "The MCP for the mesh API",
     connection_type: "HTTP",
-    // URL is routed through the proxy which detects _self suffix
-    connection_url: `${baseUrl}/mcp/${WellKnownOrgMCPId.SELF(orgId)}`,
+    // Custom url for targeting this mcp. It's a standalone endpoint that exposes all management tools.
+    connection_url: `${baseUrl}/mcp/self`,
     icon: "https://assets.decocache.com/mcp/09e44283-f47d-4046-955f-816d227c626f/app.png",
     app_name: "@deco/management-mcp",
     connection_token: null,

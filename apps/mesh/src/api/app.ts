@@ -8,35 +8,36 @@
  * - CORS support
  */
 
+import { DECO_STORE_URL, isDecoHostedMcp } from "@/core/deco-constants";
+import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
 import { Hono } from "hono";
-import { logger } from "hono/logger";
-import { cors } from "hono/cors";
-import { timing, startTime, endTime } from "hono/timing";
 import { getCookie } from "hono/cookie";
+import { cors } from "hono/cors";
+import { logger } from "hono/logger";
+import { endTime, startTime, timing } from "hono/timing";
 import { auth } from "../auth";
 import {
   ContextFactory,
   createMeshContextFactory,
 } from "../core/context-factory";
+import type { MeshContext } from "../core/mesh-context";
 import { getDb, type MeshDatabase } from "../database";
-import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import { createEventBus, type EventBus } from "../event-bus";
 import { meter, prometheusExporter, tracer } from "../observability";
 import authRoutes from "./routes/auth";
+import decopilotRoutes from "./routes/decopilot";
 import downstreamTokenRoutes from "./routes/downstream-token";
 import virtualMcpRoutes from "./routes/gateway";
-import openaiCompatRoutes from "./routes/openai-compat";
-import decopilotRoutes from "./routes/decopilot";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,
 } from "./routes/oauth-proxy";
+import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
 import publicConfigRoutes from "./routes/public-config";
-import { isDecoHostedMcp, DECO_STORE_URL } from "@/core/deco-constants";
-import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
-import type { MeshContext } from "../core/mesh-context";
+import selfRoutes from "./routes/self";
+import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
@@ -559,10 +560,14 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/mcp/:connectionId?", mcpAuth);
   app.use("/mcp/gateway/:virtualMcpId?", mcpAuth);
   app.use("/mcp/virtual-mcp/:virtualMcpId?", mcpAuth);
+  app.use("/mcp/self", mcpAuth);
 
   // Virtual MCP / Agent routes (must be before proxy to match /mcp/gateway and /mcp/virtual-mcp before /mcp/:connectionId)
   // /mcp/gateway/:virtualMcpId (backward compat) or /mcp/virtual-mcp/:virtualMcpId
   app.route("/mcp", virtualMcpRoutes);
+
+  // Self MCP routes (at /mcp/self) - exposes all management tools
+  app.route("/mcp/self", selfRoutes);
 
   // MCP Proxy routes (connection-specific)
   // Note: SELF MCP ({org}_self) is handled by proxy.ts with special case detection

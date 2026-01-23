@@ -1058,19 +1058,12 @@ app.all("/", async (c) => {
  *
  * Route: POST /mcp/:connectionId
  * Connection IDs are globally unique UUIDs (no project prefix needed)
- * Special case: connectionIds ending with "_self" are routed to the management MCP
  */
 app.all("/:connectionId", async (c) => {
   const connectionId = c.req.param("connectionId");
   const ctx = c.get("meshContext");
 
   try {
-    // Check if this is the SELF/management MCP (org-scoped pattern: {org}_self)
-    if (connectionId.endsWith("_self")) {
-      const { managementMCP } = await import("../../tools");
-      return managementMCP(ctx).fetch(c.req.raw);
-    }
-
     // Otherwise proxy to downstream
     const proxy = await ctx.createMCPProxy(connectionId);
     return await proxy.fetch(c.req.raw);
