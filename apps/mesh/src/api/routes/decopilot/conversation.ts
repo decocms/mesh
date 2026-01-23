@@ -4,6 +4,8 @@
  * Handles message processing, memory loading, and conversation state management.
  */
 
+import type { MeshContext } from "@/core/mesh-context";
+import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
 import {
   convertToModelMessages,
   pruneMessages,
@@ -12,12 +14,9 @@ import {
   validateUIMessages,
 } from "ai";
 import { HTTPException } from "hono/http-exception";
-
-import type { MeshContext } from "@/core/mesh-context";
 import { ensureUser } from "./helpers";
 import { createMemory } from "./memory";
 import type { Memory } from "./types";
-import { Metadata, ChatModelConfig } from "@/web/components/chat/types";
 
 export interface ProcessedConversation {
   memory: Memory;
@@ -44,19 +43,6 @@ export async function processConversation(
 
   const modelHasVision = config.model.capabilities?.vision ?? true;
 
-  // Check if messages contain files when model doesn't support vision
-  if (!modelHasVision) {
-    const hasFiles = config.messages.some((message) =>
-      message.parts?.some((part) => part.type === "file"),
-    );
-    if (hasFiles) {
-      throw new HTTPException(400, {
-        message:
-          "This model does not support file uploads. Please change the model and try again.",
-      });
-    }
-  }
-
   // Create or load memory
   const memory = await createMemory(ctx.storage.threads, {
     organizationId: config.organizationId,
@@ -69,6 +55,20 @@ export async function processConversation(
   const threadMessages = await memory.loadHistory();
 
   const allMessages = [...threadMessages, ...config.messages];
+
+  // Check if messages contain files when model doesn't support vision
+  if (!modelHasVision) {
+    const hasFiles = allMessages.some((message) =>
+      message.parts?.some((part) => part.type === "file"),
+    );
+    if (hasFiles) {
+      throw new HTTPException(400, {
+        message:
+          "This model does not support file uploads. Please change the model and try again.",
+      });
+    }
+  }
+
   const validatedMessages = await validateUIMessages({ messages: allMessages });
   const mappedMessages = validatedMessages;
 
