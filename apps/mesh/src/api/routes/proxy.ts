@@ -529,6 +529,7 @@ async function createMCPProxyDoNotUseDirectly(
             resources: {},
             prompts: {},
           }),
+          getInstructions: () => virtualMcp.metadata?.instructions ?? undefined,
         } as unknown as Client;
       }
 
@@ -912,6 +913,7 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     const clientCapabilities = client.getServerCapabilities();
+    const instructions = client.getInstructions();
 
     const proxyCapabilities = clientCapabilities ?? {
       tools: {},
@@ -921,7 +923,7 @@ async function createMCPProxyDoNotUseDirectly(
     // Create MCP server for this proxy
     const server = new McpServer(
       { name: "mcp-mesh", version: "1.0.0" },
-      { capabilities: proxyCapabilities },
+      { capabilities: proxyCapabilities, instructions },
     );
 
     // Create transport (web-standard Streamable HTTP for fetch Request/Response)

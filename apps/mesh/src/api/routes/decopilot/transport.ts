@@ -5,7 +5,6 @@
  */
 
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-
 import { fixProtocol } from "../oauth-proxy";
 
 export function createVirtualMcpTransport(

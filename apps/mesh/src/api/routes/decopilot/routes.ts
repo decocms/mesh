@@ -140,8 +140,6 @@ app.post("/:org/decopilot/stream", async (c) => {
     // Get server instructions if available (for virtual MCP agents)
     const serverInstructions = mcpClient.getInstructions();
 
-    console.log("serverInstructions", serverInstructions);
-
     // Build system prompt combining platform instructions with agent-specific instructions
     const systemPrompt = DECOPILOT_BASE_PROMPT(serverInstructions);
 
