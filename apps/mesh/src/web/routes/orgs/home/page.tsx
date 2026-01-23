@@ -12,6 +12,11 @@ import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
 import { GitBranch01, MessageChatSquare, Plus } from "@untitledui/icons";
 import { Suspense } from "react";
@@ -91,16 +96,21 @@ function HomeContent() {
             {viewMode === "graph" && <MetricsModeSelector />}
             {viewMode !== "graph" && (
               <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="size-7 border border-input"
-                  onClick={() => setActiveThreadId(crypto.randomUUID())}
-                  aria-label="New chat"
-                >
-                  <Plus size={16} />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="size-7 border border-input"
+                      onClick={() => setActiveThreadId(crypto.randomUUID())}
+                      aria-label="New chat"
+                    >
+                      <Plus size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>New chat</TooltipContent>
+                </Tooltip>
                 <Suspense
                   fallback={
                     <div className="size-7 rounded-full bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed" />
