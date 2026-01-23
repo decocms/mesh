@@ -136,6 +136,7 @@ export async function handleVirtualMcpRequest(
       },
       {
         capabilities: { tools: {}, resources: {}, prompts: {} },
+        instructions: virtualMcp.metadata?.instructions ?? undefined,
       },
     );
 

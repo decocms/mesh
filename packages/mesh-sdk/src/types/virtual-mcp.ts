@@ -77,6 +77,14 @@ export const VirtualMCPEntitySchema = z.object({
     "Tool selection mode: 'inclusion' = include selected, 'exclusion' = exclude selected",
   ),
   status: z.enum(["active", "inactive"]).describe("Current status"),
+  // Metadata (stored in connections.metadata)
+  metadata: z
+    .object({
+      instructions: z.string().optional().describe("MCP server instructions"),
+    })
+    .nullable()
+    .optional()
+    .describe("Additional metadata including MCP server instructions"),
   // Nested connections
   connections: z
     .array(VirtualMCPConnectionSchema)
@@ -109,6 +117,13 @@ export const VirtualMCPCreateDataSchema = z.object({
     .optional()
     .default("active")
     .describe("Initial status"),
+  metadata: z
+    .object({
+      instructions: z.string().optional().describe("MCP server instructions"),
+    })
+    .nullable()
+    .optional()
+    .describe("Additional metadata including MCP server instructions"),
   connections: z
     .array(
       z.object({
@@ -162,6 +177,13 @@ export const VirtualMCPUpdateDataSchema = z.object({
     .optional()
     .describe("New icon URL (null to clear)"),
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
+  metadata: z
+    .object({
+      instructions: z.string().optional().describe("MCP server instructions"),
+    })
+    .nullable()
+    .optional()
+    .describe("Additional metadata including MCP server instructions"),
   connections: z
     .array(
       z.object({
