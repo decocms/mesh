@@ -142,11 +142,8 @@ app.post("/:org/decopilot/stream", async (c) => {
 
     console.log("serverInstructions", serverInstructions);
 
-    // Build system prompts array - append server instructions if available
-    const systemPrompts = [DECOPILOT_BASE_PROMPT];
-    if (serverInstructions?.trim()) {
-      systemPrompts.push(serverInstructions);
-    }
+    // Build system prompt combining platform instructions with agent-specific instructions
+    const systemPrompt = DECOPILOT_BASE_PROMPT(serverInstructions);
 
     // 3. Process conversation
     const { memory, systemMessages, prunedMessages, originalMessages } =
@@ -155,7 +152,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         threadId,
         windowSize,
         messages,
-        systemPrompts,
+        systemPrompts: [systemPrompt],
         removeFileParts: !modelHasVision,
       });
 

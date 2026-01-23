@@ -382,7 +382,7 @@ function VirtualMCPShareModal({
   };
 
   // Build URL with mode query parameter
-  // Virtual MCPs are accessed via the virtual-mcp endpoint (or gateway for backward compat)
+  // Virtual MCPs (agents) are accessed via the virtual-mcp endpoint
   const virtualMcpUrl = new URL(
     `/mcp/virtual-mcp/${virtualMcp.id}`,
     window.location.origin,
