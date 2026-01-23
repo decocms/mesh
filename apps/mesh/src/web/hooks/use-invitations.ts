@@ -9,7 +9,7 @@ import { KEYS } from "@/web/lib/query-keys";
 import {
   useMCPClient,
   useProjectContext,
-  WellKnownOrgMCPId,
+  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import {
   useMutation,
@@ -44,7 +44,7 @@ interface OrganizationData {
 export function useInvitations() {
   const { org, locator } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 

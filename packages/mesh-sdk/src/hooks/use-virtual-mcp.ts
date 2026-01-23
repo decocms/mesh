@@ -15,7 +15,7 @@ import {
   type UseCollectionListOptions,
 } from "./use-collections";
 import { useMCPClient } from "./use-mcp-client";
-import { WellKnownOrgMCPId } from "../lib/constants";
+import { SELF_MCP_ALIAS_ID } from "../lib/constants";
 
 /**
  * Filter definition for virtual MCPs (matches @deco/ui Filter shape)
@@ -36,7 +36,7 @@ export type UseVirtualMCPsOptions = UseCollectionListOptions<VirtualMCPEntity>;
 export function useVirtualMCPs(options: UseVirtualMCPsOptions = {}) {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
@@ -59,7 +59,7 @@ export function useVirtualMCP(
 ): VirtualMCPEntity | null {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
@@ -83,7 +83,7 @@ export function useVirtualMCP(
 export function useVirtualMCPActions() {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 

@@ -13,7 +13,7 @@ import {
   useMCPToolCall,
   useProjectContext,
   useVirtualMCPs,
-  WellKnownOrgMCPId,
+  SELF_MCP_ALIAS_ID,
   type ConnectionEntity,
   type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
@@ -247,7 +247,7 @@ function useNodeMetrics(): NodeMetricsMap {
   const dateRange = getLast24HoursDateRange();
 
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 

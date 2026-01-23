@@ -13,7 +13,7 @@ import { KEYS } from "../lib/query-keys";
 import {
   useMCPClient,
   useProjectContext,
-  WellKnownOrgMCPId,
+  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import type { Message, Thread } from "../components/chat/types.ts";
 import type {
@@ -31,7 +31,7 @@ const THREADS_PAGE_SIZE = 50;
 export function useThreads() {
   const { locator, org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   const listToolName = "COLLECTION_THREADS_LIST";
@@ -92,7 +92,7 @@ export function useThreads() {
 export function useThreadMessages(threadId: string | null) {
   const { locator, org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";

@@ -12,7 +12,7 @@ import {
   useMCPToolCall,
   useProjectContext,
   useVirtualMCPs,
-  WellKnownOrgMCPId,
+  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
@@ -134,7 +134,7 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
   const virtualMcps = useVirtualMCPs({ pageSize: 100 }) ?? [];
 
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 

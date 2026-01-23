@@ -24,6 +24,13 @@ export const WellKnownOrgMCPId = {
 };
 
 /**
+ * Frontend connection ID for the self/management MCP endpoint.
+ * Use this constant when calling management tools (ALL_TOOLS) from the frontend.
+ * The endpoint is exposed at /mcp/self.
+ */
+export const SELF_MCP_ALIAS_ID = "self";
+
+/**
  * Get well-known connection definition for the Deco Store registry.
  * This can be used by both frontend and backend to create registry connections.
  *
@@ -98,7 +105,7 @@ export function getWellKnownSelfConnection(
     description: "The MCP for the mesh API",
     connection_type: "HTTP",
     // Custom url for targeting this mcp. It's a standalone endpoint that exposes all management tools.
-    connection_url: `${baseUrl}/mcp/self`,
+    connection_url: `${baseUrl}/mcp/${SELF_MCP_ALIAS_ID}`,
     icon: "https://assets.decocache.com/mcp/09e44283-f47d-4046-955f-816d227c626f/app.png",
     app_name: "@deco/management-mcp",
     connection_token: null,

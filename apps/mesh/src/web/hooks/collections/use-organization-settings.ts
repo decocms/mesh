@@ -15,7 +15,7 @@ import { KEYS } from "../../lib/query-keys";
 import {
   useMCPClient,
   useProjectContext,
-  WellKnownOrgMCPId,
+  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 
 /**
@@ -27,7 +27,7 @@ import {
 export function useOrganizationSettings(organizationId: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
@@ -70,7 +70,7 @@ export function useOrganizationSettingsActions(organizationId: string) {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 

@@ -9,7 +9,7 @@ const DEFAULT_CLIENT_INFO = {
 };
 
 export interface CreateMcpClientOptions {
-  /** Connection ID - use WellKnownOrgMCPId.SELF(org.id) for the self/management MCP, or any connectionId for other MCPs */
+  /** Connection ID - use SELF_MCP_ALIAS_ID for the self/management MCP (ALL_TOOLS), or any connectionId for other MCPs */
   connectionId: string | null;
   /** Organization ID - required, transforms to x-org-id header */
   orgId: string;

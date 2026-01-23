@@ -25,7 +25,7 @@ import {
   useMCPClient,
   useProjectContext,
   useVirtualMCPs,
-  WellKnownOrgMCPId,
+  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -799,7 +799,7 @@ function MonitoringDashboardContent({
   const { pageSize, streamingRefetchInterval } = MONITORING_CONFIG;
   const { org, locator } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 

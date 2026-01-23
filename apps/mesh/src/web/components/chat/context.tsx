@@ -13,7 +13,7 @@ import {
   useMCPClient,
   useProjectContext,
   useVirtualMCPs,
-  WellKnownOrgMCPId,
+  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type {
@@ -532,7 +532,7 @@ export function ChatProvider({
 
   // MCP client for thread operations
   const mcpClient = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 

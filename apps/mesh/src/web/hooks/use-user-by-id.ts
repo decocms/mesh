@@ -10,7 +10,7 @@ import { KEYS } from "../lib/query-keys";
 import {
   useMCPClient,
   useProjectContext,
-  WellKnownOrgMCPId,
+  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 
 /**
@@ -34,7 +34,7 @@ type UserGetOutput = { user: UserData | null };
 export function useUserById(userId: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 

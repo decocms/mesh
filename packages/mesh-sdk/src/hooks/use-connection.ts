@@ -15,7 +15,7 @@ import {
   type UseCollectionListOptions,
 } from "./use-collections";
 import { useMCPClient } from "./use-mcp-client";
-import { WellKnownOrgMCPId } from "../lib/constants";
+import { SELF_MCP_ALIAS_ID } from "../lib/constants";
 
 /**
  * Filter definition for connections (matches @deco/ui Filter shape)
@@ -36,7 +36,7 @@ export type UseConnectionsOptions = UseCollectionListOptions<ConnectionEntity>;
 export function useConnections(options: UseConnectionsOptions = {}) {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   return useCollectionList<ConnectionEntity>(
@@ -56,7 +56,7 @@ export function useConnections(options: UseConnectionsOptions = {}) {
 export function useConnection(connectionId: string | undefined) {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   return useCollectionItem<ConnectionEntity>(
@@ -75,7 +75,7 @@ export function useConnection(connectionId: string | undefined) {
 export function useConnectionActions() {
   const { org } = useProjectContext();
   const client = useMCPClient({
-    connectionId: WellKnownOrgMCPId.SELF(org.id),
+    connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   return useCollectionActions<ConnectionEntity>(org.id, "CONNECTIONS", client);
