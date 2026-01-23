@@ -4,12 +4,19 @@ import { CollectionTableWrapper } from "@/web/components/collections/collection-
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import { useConnection } from "@/web/hooks/collections/use-connection";
+import { useConnection } from "@decocms/mesh-sdk";
 import { Card } from "@deco/ui/components/card.tsx";
 import { useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { ViewActions } from "@/web/components/details/layout";
-import type { McpResource } from "@/web/hooks/use-connection-resources";
+
+/** Resource type for display - compatible with MCP Resource but with optional name */
+interface McpResource {
+  uri: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+}
 
 export interface ResourcesListProps {
   /** Array of resources to display */

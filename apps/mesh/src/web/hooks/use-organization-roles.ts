@@ -5,10 +5,9 @@
  * dynamic access control feature. Combines built-in roles with custom roles.
  */
 
-import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
 
 const BUILTIN_ROLES = [
@@ -73,7 +72,7 @@ function parsePermission(
 
   for (const [resource, tools] of Object.entries(permission)) {
     // "self" is for static/organization-level permissions
-    if (resource === WellKnownMCPId.SELF) {
+    if (resource === "self") {
       if (tools.includes("*")) {
         allowsAllStaticPermissions = true;
       } else {

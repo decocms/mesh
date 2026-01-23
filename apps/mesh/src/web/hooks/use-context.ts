@@ -10,7 +10,6 @@
  */
 
 import { useParams } from "@tanstack/react-router";
-import { useVirtualMCPSystemPrompt } from "./use-virtual-mcp-system-prompt";
 
 /**
  * Hook that generates context for the AI assistant based on current state
@@ -22,23 +21,12 @@ export function useContext(virtualMcpId?: string | null): string {
   // Extract route parameters directly using useParams
   const params = useParams({ strict: false });
 
-  // Get stored system prompt for this virtual MCP
-  const [virtualMcpPrompt] = useVirtualMCPSystemPrompt(
-    virtualMcpId ?? undefined,
-  );
-
   const contextParts: string[] = [];
 
   // Add virtual MCP context if selected
   if (virtualMcpId) {
     contextParts.push(`### Selected Agent
 - ID: ${virtualMcpId}`);
-
-    // Add virtual MCP-specific custom instructions if available
-    if (virtualMcpPrompt?.trim()) {
-      contextParts.push(`### Agent Instructions
-${virtualMcpPrompt}`);
-    }
   }
 
   // Add route context based on available params

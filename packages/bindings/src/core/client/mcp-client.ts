@@ -9,7 +9,6 @@ import {
 import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
 import { RequestOptions } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import {
-  CallToolRequest,
   Implementation,
   ListToolsRequest,
   ListToolsResult,
@@ -43,15 +42,15 @@ class Client extends BaseClient {
     return result;
   }
 }
-type CallToolResponse = Awaited<ReturnType<Client["callTool"]>>;
 export interface ServerClient {
   client: {
-    callTool: (params: CallToolRequest["params"]) => Promise<CallToolResponse>;
+    callTool: Client["callTool"];
     listTools: () => Promise<ListToolsResult>;
   };
   callStreamableTool: (
     tool: string,
     args: Record<string, unknown>,
+    signal?: AbortSignal,
   ) => Promise<Response>;
 }
 export const createServerClient = async (
@@ -74,7 +73,7 @@ export const createServerClient = async (
 
   return {
     client,
-    callStreamableTool: (tool, args) => {
+    callStreamableTool: (tool, args, signal) => {
       if (mcpServer.connection.type !== "HTTP") {
         throw new Error("HTTP connection required");
       }
@@ -101,6 +100,7 @@ export const createServerClient = async (
         redirect: "manual",
         body: JSON.stringify(args),
         headers,
+        signal,
       });
     },
   };

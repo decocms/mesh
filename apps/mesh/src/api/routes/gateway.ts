@@ -40,7 +40,7 @@ import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import { createMCPAggregatorFromEntity } from "../../aggregator";
 import { parseStrategyFromMode } from "../../aggregator/strategy";
-import { getWellKnownDecopilotAgent } from "../../core/well-known-mcp";
+import { getWellKnownDecopilotAgent } from "@decocms/mesh-sdk";
 import type { Env } from "../env";
 
 // Define Hono variables type
@@ -50,7 +50,7 @@ const app = new Hono<Env>();
 // Route Handler (shared between /gateway and /virtual-mcp endpoints for backward compat)
 // ============================================================================
 
-async function handleVirtualMcpRequest(
+export async function handleVirtualMcpRequest(
   c: {
     get: (key: "meshContext") => MeshContext;
     req: {
@@ -66,6 +66,7 @@ async function handleVirtualMcpRequest(
   const ctx = c.get("meshContext");
 
   try {
+    // Prefer x-org-id header (no DB lookup) over x-org-slug (requires DB lookup)
     const orgId = c.req.header("x-org-id");
     const orgSlug = c.req.header("x-org-slug");
 
@@ -135,6 +136,7 @@ async function handleVirtualMcpRequest(
       },
       {
         capabilities: { tools: {}, resources: {}, prompts: {} },
+        instructions: virtualMcp.metadata?.instructions ?? undefined,
       },
     );
 

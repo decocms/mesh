@@ -10,20 +10,22 @@ import {
   type MCPServerData,
   type PublisherInfo,
 } from "@/web/components/store/mcp-server-detail";
+import { useRegistryConnections } from "@/web/hooks/use-binding";
+import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
 import {
   useConnection,
   useConnections,
   useConnectionActions,
+  useMCPClient,
+  useMCPToolCall,
   type ConnectionEntity,
-} from "@/web/hooks/collections/use-connection";
-import { useRegistryConnections } from "@/web/hooks/use-binding";
-import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
-import { useToolCall } from "@/web/hooks/use-tool-call";
-import { useMcp } from "@/web/hooks/use-mcp";
+} from "@decocms/mesh-sdk";
+import { useQuery } from "@tanstack/react-query";
 import { authClient } from "@/web/lib/auth-client";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { KEYS } from "@/web/lib/query-keys";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import { slugify } from "@/web/utils/slugify";
 import { getGitHubAvatarUrl, extractGitHubRepo } from "@/web/utils/github-icon";
@@ -43,7 +45,6 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { createToolCaller } from "@/tools/client";
 
 /** Get publisher info (logo and server count) from items in the store or connection in database */
 function getPublisherInfo(
@@ -274,8 +275,6 @@ function StoreMCPServerDetailContent() {
         return getTool?.name || "";
       })();
 
-  const toolCaller = createToolCaller(effectiveRegistryId);
-
   // If serverName provided, use versions tool (or get as fallback); otherwise use list tool
   const shouldUseVersionsTool = !!serverName;
   let toolName = "";
@@ -297,11 +296,17 @@ function StoreMCPServerDetailContent() {
     toolInputParams = {};
   }
 
-  const { data: listResults } = useToolCall({
-    toolCaller,
+  const registryClient = useMCPClient({
+    connectionId: effectiveRegistryId || null,
+    orgId: org.id,
+  });
+
+  const { data: listResults } = useMCPToolCall({
+    client: registryClient,
     toolName: toolName,
-    toolInputParams: toolInputParams,
-    scope: effectiveRegistryId,
+    toolArguments: toolInputParams,
+    select: (result) =>
+      (result as { structuredContent?: unknown }).structuredContent ?? result,
   });
 
   // Extract items and totalCount from results
@@ -407,20 +412,45 @@ function StoreMCPServerDetailContent() {
   const shouldFetchRemote = !hasLocalTools && !!remoteUrl;
 
   // Fetch tools from remote MCP server if no local tools are available
-  const remoteMcp = useMcp({
-    url: shouldFetchRemote ? remoteUrl : "",
-  });
+  const remoteMcpQuery = useQuery({
+    queryKey: KEYS.remoteMcpTools(remoteUrl),
+    queryFn: async () => {
+      if (!remoteUrl) return [];
 
-  const isLoadingRemoteTools =
-    shouldFetchRemote && remoteMcp.state === "connecting";
+      const { Client } = await import(
+        "@modelcontextprotocol/sdk/client/index.js"
+      );
+      const { StreamableHTTPClientTransport } = await import(
+        "@decocms/mesh-sdk"
+      );
 
-  const remoteTools =
-    shouldFetchRemote && remoteMcp.state === "ready"
-      ? (remoteMcp.tools || []).map((t) => ({
+      const client = new Client({ name: "mesh-store", version: "1.0.0" });
+
+      const transport = new StreamableHTTPClientTransport(new URL(remoteUrl), {
+        requestInit: {
+          headers: {
+            Accept: "application/json, text/event-stream",
+            "Content-Type": "application/json",
+          },
+        },
+      });
+
+      try {
+        await client.connect(transport);
+        const result = await client.listTools();
+        return (result.tools || []).map((t) => ({
           name: t.name,
           description: t.description,
-        }))
-      : [];
+        }));
+      } finally {
+        await client.close().catch(console.error);
+      }
+    },
+    enabled: shouldFetchRemote,
+  });
+
+  const isLoadingRemoteTools = shouldFetchRemote && remoteMcpQuery.isLoading;
+  const remoteTools = remoteMcpQuery.data ?? [];
 
   // Combine local and remote tools - prefer local if available
   const effectiveTools = hasLocalTools ? data?.tools || [] : remoteTools;

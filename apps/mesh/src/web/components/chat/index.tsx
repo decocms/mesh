@@ -8,21 +8,25 @@ import type {
   ReactNode,
   RefObject,
 } from "react";
-import { Children, isValidElement, useRef } from "react";
+import {
+  Children,
+  isValidElement,
+  useEffect,
+  useRef,
+  useTransition,
+} from "react";
 import { ChatProvider, useChat } from "./context";
-import { AgentIceBreakers } from "./ice-breakers";
+import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
-import { MessageAssistant } from "./message/assistant.tsx";
-import { MessageFooter, MessageList } from "./message/list.tsx";
-import { MessageUser } from "./message/user.tsx";
+import { MessagePair, useMessagePairs } from "./message/pair.tsx";
 import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
 import { ThreadHistoryPopover } from "./popover-threads";
 import { DecoChatSkeleton } from "./skeleton";
 import type { Metadata } from "./types.ts";
 export { useChat } from "./context";
-export type { VirtualMCPInfo } from "./select-virtual-mcp";
 export { ModelSelector } from "./select-model";
 export type { ModelChangePayload, SelectedModelState } from "./select-model";
+export type { VirtualMCPInfo } from "./select-virtual-mcp";
 
 export type ChatMessage = UIMessage<Metadata>;
 
@@ -30,28 +34,46 @@ export type ChatStatus = UseChatHelpers<UIMessage<Metadata>>["status"];
 
 function useChatAutoScroll({
   messageCount,
+  chatStatus,
   sentinelRef,
 }: {
   messageCount: number;
+  chatStatus: ChatStatus;
   sentinelRef: RefObject<HTMLDivElement | null>;
 }) {
-  const lastMessageCountRef = useRef(messageCount);
-  const lastScrolledCountRef = useRef(0);
+  const [_, startTransition] = useTransition();
 
-  if (
-    messageCount > lastMessageCountRef.current &&
-    lastScrolledCountRef.current !== messageCount
-  ) {
-    queueMicrotask(() => {
+  // Periodic scrolling during streaming (low priority)
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- Interval lifecycle management requires useEffect
+  useEffect(() => {
+    if (chatStatus !== "streaming") {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      startTransition(() => {
+        sentinelRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    }, 500);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [chatStatus, sentinelRef]);
+
+  // Scroll to the sentinel when the message count changes
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- Interval lifecycle management requires useEffect
+  useEffect(() => {
+    startTransition(() => {
       sentinelRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
-      lastScrolledCountRef.current = messageCount;
     });
-  }
-
-  lastMessageCountRef.current = messageCount;
+  }, [messageCount, sentinelRef]);
 }
 
 function findChild<T>(
@@ -129,29 +151,29 @@ function ChatEmptyState({ children }: PropsWithChildren) {
 function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
   const { messages, chatStatus: status } = useChat();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const messagePairs = useMessagePairs(messages);
 
-  useChatAutoScroll({ messageCount: messages.length, sentinelRef });
+  useChatAutoScroll({
+    messageCount: messagePairs.length,
+    chatStatus: status,
+    sentinelRef,
+  });
 
   return (
-    <MessageList minHeightOffset={minHeightOffset}>
-      {messages.map((message, index) =>
-        message.role === "user" ? (
-          <MessageUser
-            key={message.id}
-            message={message as UIMessage<Metadata>}
+    <div className="w-full min-w-0 max-w-full overflow-y-auto h-full overflow-x-hidden">
+      <div className="flex flex-col min-w-0 max-w-2xl mx-auto w-full">
+        {messagePairs.map((pair, index) => (
+          <MessagePair
+            key={`pair-${pair.user.id}`}
+            pair={pair}
+            isLastPair={index === messagePairs.length - 1}
+            minHeightOffset={minHeightOffset}
+            status={index === messagePairs.length - 1 ? status : undefined}
           />
-        ) : message.role === "assistant" ? (
-          <MessageAssistant
-            key={message.id}
-            message={message as UIMessage<Metadata>}
-            status={index === messages.length - 1 ? status : undefined}
-          />
-        ) : null,
-      )}
-      <MessageFooter>
+        ))}
         <div ref={sentinelRef} className="h-0" />
-      </MessageFooter>
-    </MessageList>
+      </div>
+    </div>
   );
 }
 
@@ -265,7 +287,7 @@ export const Chat = Object.assign(ChatRoot, {
   Input: ChatInput,
   Provider: ChatProvider,
   Skeleton: DecoChatSkeleton,
-  IceBreakers: AgentIceBreakers,
+  IceBreakers: IceBreakers,
   NoLlmBindingEmptyState: NoLlmBindingEmptyState,
   ThreadHistoryPopover: ThreadHistoryPopover,
 });

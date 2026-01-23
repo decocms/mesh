@@ -1,4 +1,3 @@
-import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
 import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
@@ -7,13 +6,14 @@ import { ConnectionCard } from "@/web/components/connections/connection-card.tsx
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import {
-  useVirtualMCPs,
-  useVirtualMCPActions,
-} from "@/web/hooks/collections/use-virtual-mcp";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import {
+  useProjectContext,
+  useVirtualMCPs,
+  useVirtualMCPActions,
+  type VirtualMCPEntity,
+} from "@decocms/mesh-sdk";
 import {
   AlertDialog,
   AlertDialogAction,

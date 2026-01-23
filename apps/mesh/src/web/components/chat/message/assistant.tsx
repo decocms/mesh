@@ -1,18 +1,17 @@
 import { cn } from "@deco/ui/lib/utils.ts";
-import type { Metadata } from "../types.ts";
-import type { ToolUIPart } from "ai";
-import { useEffect, useState, type ReactNode } from "react";
 import {
-  Target04,
-  Stars01,
-  Lightbulb01,
   ChevronRight,
+  Lightbulb01,
+  Stars01,
+  Target04,
 } from "@untitledui/icons";
-import { MessageProps } from "./user.tsx";
+import type { ToolUIPart, UIMessage } from "ai";
+import { useEffect, useState, type ReactNode } from "react";
+import { MemoizedMarkdown } from "../markdown.tsx";
+import type { Metadata } from "../types.ts";
+import { UsageStats } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
-import { UsageStats } from "../usage-stats.tsx";
-import { MemoizedMarkdown } from "../markdown.tsx";
 
 type ThinkingStage = "planning" | "thinking";
 
@@ -78,18 +77,15 @@ function ThoughtSummary({
   id,
 }: {
   duration: number;
-  parts: MessagePart[];
+  parts: ReasoningPart[];
   id: string;
 }) {
   const seconds = (duration / 1000).toFixed(1);
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Find reasoning parts to display
-  const reasoningParts = parts.filter((part) => part.type === "reasoning");
-  const isReasoningStreaming = reasoningParts.some(
-    (part) => part.state === "streaming",
-  );
+  // Parts are already filtered to reasoning parts
+  const isReasoningStreaming = parts.some((part) => part.state === "streaming");
 
   // Auto-expand when reasoning is streaming
   const shouldShowContent = isReasoningStreaming || isExpanded;
@@ -136,7 +132,7 @@ function ThoughtSummary({
       </button>
       {shouldShowContent && (
         <div className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 max-h-[300px] overflow-y-auto">
-          {reasoningParts.map((part, index) => (
+          {parts.map((part, index) => (
             <div
               key={`${id}-reasoning-${index}`}
               className="text-muted-foreground markdown-sm pb-2"
@@ -153,7 +149,19 @@ function ThoughtSummary({
   );
 }
 
-type MessagePart = MessageProps<Metadata>["message"]["parts"][number];
+type MessagePart = UIMessage<Metadata>["parts"][number];
+
+type ReasoningPart = Extract<MessagePart, { type: "reasoning" }>;
+
+function isReasoningPart(part: MessagePart): part is ReasoningPart {
+  return part.type === "reasoning";
+}
+
+interface MessageAssistantProps<T extends Metadata> {
+  message: UIMessage<T> | null;
+  status?: "streaming" | "submitted" | "ready" | "error";
+  className?: string;
+}
 
 interface MessagePartProps {
   part: MessagePart;
@@ -163,6 +171,12 @@ interface MessagePartProps {
   isFirstToolCallInSequence?: boolean;
   isLastToolCallInSequence?: boolean;
   hasNextToolCall?: boolean;
+}
+
+function isToolCallPart(part: MessagePart | null | undefined): boolean {
+  return Boolean(
+    part?.type === "dynamic-tool" || part?.type?.startsWith("tool-"),
+  );
 }
 
 function MessagePart({
@@ -221,40 +235,21 @@ function MessagePart({
   throw new Error(`Unknown part type: ${part.type}`);
 }
 
-export function MessageAssistant<T extends Metadata>({
-  message,
-  status,
+function EmptyAssistantState() {
+  return (
+    <div className="text-[15px] text-muted-foreground/60 py-2">
+      No response was generated
+    </div>
+  );
+}
+
+function Container({
   className,
-}: MessageProps<T>) {
-  const { id, parts } = message;
-  const isStreaming = status === "streaming";
-  const isSubmitted = status === "submitted";
-  const isLoading = isStreaming || isSubmitted;
-
-  const hasContent = parts.length > 0;
-  // Check if we have reasoning parts or if reasoning is currently streaming
-  const hasReasoning = parts.some((part) => part.type === "reasoning");
-  const isReasoningStreaming =
-    isLoading &&
-    parts.some(
-      (part) => part.type === "reasoning" && part.state === "streaming",
-    );
-  // Show thought if we have reasoning parts OR if reasoning is currently streaming
-  const reasoningStartAt = message.metadata?.reasoning_start_at
-    ? new Date(message.metadata.reasoning_start_at)
-    : null;
-  const reasoningEndAt = message.metadata?.reasoning_end_at
-    ? new Date(message.metadata.reasoning_end_at)
-    : null;
-  const duration =
-    reasoningStartAt !== null
-      ? (reasoningEndAt ?? new Date()).getTime() - reasoningStartAt.getTime()
-      : null;
-  const showThought =
-    hasContent && (hasReasoning || isReasoningStreaming) && duration !== null;
-  // Create usage stats component to pass to the last text part
-  const usageStats = <UsageStats messages={[message]} />;
-
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return (
     <div
       className={cn(
@@ -264,54 +259,84 @@ export function MessageAssistant<T extends Metadata>({
     >
       <div className="flex flex-col min-w-0 w-full items-start">
         <div className="w-full min-w-0 not-only:rounded-2xl text-[15px] wrap-break-word overflow-wrap-anywhere bg-transparent">
-          {hasContent ? (
-            <>
-              {showThought && (
-                <ThoughtSummary duration={duration} parts={parts} id={id} />
-              )}
-              {parts.map((part, index) => {
-                const nextPart = parts[index + 1];
-                const prevPart = parts[index - 1];
-                const isFollowedByToolCall =
-                  nextPart &&
-                  (nextPart.type === "dynamic-tool" ||
-                    nextPart.type.startsWith("tool-"));
-                const isToolCall =
-                  part.type === "dynamic-tool" || part.type.startsWith("tool-");
-                const prevIsToolCall =
-                  prevPart &&
-                  (prevPart.type === "dynamic-tool" ||
-                    prevPart.type.startsWith("tool-"));
-                const nextIsToolCall =
-                  nextPart &&
-                  (nextPart.type === "dynamic-tool" ||
-                    nextPart.type.startsWith("tool-"));
-
-                const isFirstToolCallInSequence = isToolCall && !prevIsToolCall;
-                const isLastToolCallInSequence = isToolCall && !nextIsToolCall;
-                const hasNextToolCall = isToolCall && nextIsToolCall;
-
-                return (
-                  <MessagePart
-                    key={`${id}-${index}`}
-                    part={part}
-                    id={id}
-                    usageStats={
-                      index === parts.length - 1 ? usageStats : undefined
-                    }
-                    isFollowedByToolCall={isFollowedByToolCall}
-                    isFirstToolCallInSequence={isFirstToolCallInSequence}
-                    isLastToolCallInSequence={isLastToolCallInSequence}
-                    hasNextToolCall={hasNextToolCall}
-                  />
-                );
-              })}
-            </>
-          ) : isLoading ? (
-            <TypingIndicator />
-          ) : null}
+          {children}
         </div>
       </div>
     </div>
+  );
+}
+
+export function MessageAssistant<T extends Metadata>({
+  message,
+  status,
+  className,
+}: MessageAssistantProps<T>) {
+  const isStreaming = status === "streaming";
+  const isSubmitted = status === "submitted";
+  const isLoading = isStreaming || isSubmitted;
+
+  // Handle null message or empty parts
+  const hasContent = message !== null && message.parts.length > 0;
+
+  // Reasoning logic (only when message exists)
+  const reasoningParts = message?.parts?.filter(isReasoningPart) ?? [];
+  const hasReasoning = reasoningParts.length > 0;
+
+  const reasoningStartAt = message?.metadata?.reasoning_start_at
+    ? new Date(message.metadata.reasoning_start_at)
+    : null;
+  const reasoningEndAt = message?.metadata?.reasoning_end_at
+    ? new Date(message.metadata.reasoning_end_at)
+    : new Date();
+
+  const duration =
+    reasoningStartAt !== null
+      ? reasoningEndAt.getTime() - reasoningStartAt.getTime()
+      : null;
+
+  return (
+    <Container className={className}>
+      {hasContent ? (
+        <>
+          {hasReasoning && duration !== null && (
+            <ThoughtSummary
+              duration={duration}
+              parts={reasoningParts}
+              id={message.id}
+            />
+          )}
+          {message.parts.map((part, index) => {
+            const isLast = index === message.parts.length - 1;
+            const nextPart = message.parts[index + 1];
+            const prevPart = message.parts[index - 1];
+
+            const isToolCall = isToolCallPart(part);
+            const prevIsToolCall = isToolCallPart(prevPart);
+            const nextIsToolCall = isToolCallPart(nextPart);
+
+            const isFirstToolCallInSequence = isToolCall && !prevIsToolCall;
+            const isLastToolCallInSequence = isToolCall && !nextIsToolCall;
+            const hasNextToolCall = isToolCall && nextIsToolCall;
+
+            return (
+              <MessagePart
+                key={`${message.id}-${index}`}
+                part={part}
+                id={message.id}
+                usageStats={isLast && <UsageStats messages={[message]} />}
+                isFollowedByToolCall={nextIsToolCall}
+                isFirstToolCallInSequence={isFirstToolCallInSequence}
+                isLastToolCallInSequence={isLastToolCallInSequence}
+                hasNextToolCall={hasNextToolCall}
+              />
+            );
+          })}
+        </>
+      ) : isLoading ? (
+        <TypingIndicator />
+      ) : (
+        <EmptyAssistantState />
+      )}
+    </Container>
   );
 }

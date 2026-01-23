@@ -4,12 +4,15 @@
  * Displays a line chart of top tools by usage in the last 24 hours.
  */
 
-import { createToolCaller } from "@/tools/client";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Container } from "@untitledui/icons";
-import { useConnections } from "@/web/hooks/collections/use-connection";
-import { useToolCall } from "@/web/hooks/use-tool-call";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import {
+  useConnections,
+  useMCPClient,
+  useMCPToolCall,
+  useProjectContext,
+  SELF_MCP_ALIAS_ID,
+} from "@decocms/mesh-sdk";
 import { ChartContainer, ChartTooltip } from "@deco/ui/components/chart.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Line, LineChart } from "recharts";
@@ -123,21 +126,24 @@ interface TopToolsContentProps {
 }
 
 function TopToolsContent(_props: TopToolsContentProps) {
-  const { org, locator } = useProjectContext();
+  const { org } = useProjectContext();
   const navigate = useNavigate();
-  const toolCaller = createToolCaller();
   const dateRange = getLast24HoursDateRange();
   const connections = useConnections() ?? [];
 
-  const { data: logsData } = useToolCall<
-    { startDate: string; endDate: string; limit: number; offset: number },
-    BaseMonitoringLogsResponse
-  >({
-    toolCaller,
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const { data: logsData } = useMCPToolCall<BaseMonitoringLogsResponse>({
+    client,
     toolName: "MONITORING_LOGS_LIST",
-    toolInputParams: { ...dateRange, limit: 2000, offset: 0 },
-    scope: locator,
+    toolArguments: { ...dateRange, limit: 20, offset: 0 },
     staleTime: 30_000,
+    select: (result) =>
+      ((result as { structuredContent?: unknown }).structuredContent ??
+        result) as BaseMonitoringLogsResponse,
   });
 
   const logs = logsData?.logs ?? [];
@@ -174,7 +180,7 @@ function TopToolsContent(_props: TopToolsContentProps) {
                     name={tool.name}
                     size="xs"
                     fallbackIcon={<Container />}
-                    className="shrink-0 !size-4 !min-w-4 aspect-square rounded-sm"
+                    className="shrink-0 size-4! min-w-4! aspect-square rounded-sm"
                   />
                   <span className="text-[10px] text-foreground truncate max-w-32">
                     {tool.name}

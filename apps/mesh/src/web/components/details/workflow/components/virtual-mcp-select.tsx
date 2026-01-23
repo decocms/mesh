@@ -1,4 +1,4 @@
-import { useVirtualMCPs } from "@/web/components/chat/select-virtual-mcp";
+import { useVirtualMCPs as useVirtualMCPsCollection } from "@decocms/mesh-sdk";
 import {
   Select,
   SelectContent,
@@ -25,7 +25,7 @@ export function VirtualMCPSelect({
   className,
   placeholder = "Select Agent",
 }: VirtualMCPSelectProps) {
-  const virtualMcps = useVirtualMCPs();
+  const virtualMcps = useVirtualMCPsCollection() ?? [];
 
   return (
     <Select

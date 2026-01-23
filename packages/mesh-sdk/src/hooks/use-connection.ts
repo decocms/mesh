@@ -5,7 +5,6 @@
  * These hooks offer a reactive interface for accessing and manipulating connections.
  */
 
-import { createToolCaller } from "../lib/tool-caller";
 import type { ConnectionEntity } from "../types/connection";
 import { useProjectContext } from "../context/project-context";
 import {
@@ -15,6 +14,8 @@ import {
   useCollectionList,
   type UseCollectionListOptions,
 } from "./use-collections";
+import { useMCPClient } from "./use-mcp-client";
+import { SELF_MCP_ALIAS_ID } from "../lib/constants";
 
 /**
  * Filter definition for connections (matches @deco/ui Filter shape)
@@ -34,11 +35,14 @@ export type UseConnectionsOptions = UseCollectionListOptions<ConnectionEntity>;
  */
 export function useConnections(options: UseConnectionsOptions = {}) {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
   return useCollectionList<ConnectionEntity>(
-    org.slug,
+    org.id,
     "CONNECTIONS",
-    toolCaller,
+    client,
     options,
   );
 }
@@ -46,17 +50,20 @@ export function useConnections(options: UseConnectionsOptions = {}) {
 /**
  * Hook to get a single connection by ID
  *
- * @param connectionId - The ID of the connection to fetch
+ * @param connectionId - The ID of the connection to fetch (undefined returns null without making an API call)
  * @returns Suspense query result with the connection as ConnectionEntity | null
  */
 export function useConnection(connectionId: string | undefined) {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
   return useCollectionItem<ConnectionEntity>(
-    org.slug,
+    org.id,
     "CONNECTIONS",
     connectionId,
-    toolCaller,
+    client,
   );
 }
 
@@ -67,10 +74,9 @@ export function useConnection(connectionId: string | undefined) {
  */
 export function useConnectionActions() {
   const { org } = useProjectContext();
-  const toolCaller = createToolCaller();
-  return useCollectionActions<ConnectionEntity>(
-    org.slug,
-    "CONNECTIONS",
-    toolCaller,
-  );
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  return useCollectionActions<ConnectionEntity>(org.id, "CONNECTIONS", client);
 }

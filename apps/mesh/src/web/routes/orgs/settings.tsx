@@ -2,7 +2,7 @@ import { CollectionHeader } from "@/web/components/collections/collection-header
 import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Form,

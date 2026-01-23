@@ -3,15 +3,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "../empty-state";
-import {
-  useConnectionActions,
-  useConnections,
-} from "@/web/hooks/collections/use-connection";
+import { OPENROUTER_ICON_URL, OPENROUTER_MCP_URL } from "@/core/deco-constants";
 import {
   getWellKnownOpenRouterConnection,
-  OPENROUTER_ICON_URL,
-  OPENROUTER_MCP_URL,
-} from "@/core/well-known-mcp";
+  useConnectionActions,
+  useConnections,
+} from "@decocms/mesh-sdk";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { authClient } from "@/web/lib/auth-client";
 

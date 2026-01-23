@@ -2,7 +2,7 @@ import {
   useVirtualMCPActions,
   useVirtualMCPs,
   type VirtualMCPEntity,
-} from "@/web/hooks/collections/use-virtual-mcp";
+} from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { CpuChip02, ChevronRight, Plus, Loading01 } from "@untitledui/icons";
 import { Link, useNavigate } from "@tanstack/react-router";

@@ -48,6 +48,24 @@ export const KEYS = {
   mcpTools: (url: string, token?: string | null) =>
     ["mcp", "tools", url, token] as const,
 
+  // MCP client (scoped by orgId, connectionId, and token)
+  mcpClient: (orgId: string, connectionId: string, token: string) =>
+    ["mcp", "client", orgId, connectionId, token] as const,
+
+  // MCP client-based queries (scoped by client instance)
+  mcpToolsList: (client: unknown) =>
+    ["mcp", "client", client, "tools"] as const,
+  mcpResourcesList: (client: unknown) =>
+    ["mcp", "client", client, "resources"] as const,
+  mcpPromptsList: (client: unknown) =>
+    ["mcp", "client", client, "prompts"] as const,
+  mcpReadResource: (client: unknown, uri: string) =>
+    ["mcp", "client", client, "resource", uri] as const,
+  mcpGetPrompt: (client: unknown, name: string, argsKey: string) =>
+    ["mcp", "client", client, "prompt", name, argsKey] as const,
+  mcpToolCall: (client: unknown, toolName: string, argsKey: string) =>
+    ["mcp", "client", client, "tool-call", toolName, argsKey] as const,
+
   organizationSettings: (organizationId: string) =>
     ["organization-settings", organizationId] as const,
 
@@ -56,7 +74,7 @@ export const KEYS = {
     ["activeOrganization", org] as const,
 
   // Models list (scoped by organization)
-  modelsList: (orgSlug: string) => ["models-list", orgSlug] as const,
+  modelsList: (orgId: string) => ["models-list", orgId] as const,
 
   // Collections (scoped by connection)
   connectionCollections: (connectionId: string) =>
@@ -71,36 +89,49 @@ export const KEYS = {
   collectionItems: (connectionId: string, collectionName: string) =>
     ["collection", connectionId, collectionName] as const,
 
-  // Collection CRUD queries (scoped by org, scopeKey and collection name)
-  // org: organization slug
+  // Collection CRUD queries (scoped by orgId, scopeKey, client, and collection name)
+  // orgId: organization ID
   // scopeKey: connectionId for connection-scoped tools, virtualMcpId for virtual-mcp-scoped, etc.
+  // client: MCP client instance for cache isolation
   // Base prefix for invalidating all collection variants
-  collection: (org: string, scopeKey: string, collectionName: string) =>
-    [org, scopeKey, "collection", collectionName] as const,
+  collection: (orgId: string, scopeKey: string, collectionName: string) =>
+    [orgId, scopeKey, "collection", collectionName] as const,
   // Item query
   collectionItem: (
-    org: string,
+    client: unknown,
+    orgId: string,
     scopeKey: string,
     collectionName: string,
     itemId: string,
-  ) => [org, scopeKey, "collection", collectionName, itemId] as const,
+  ) => [client, orgId, scopeKey, "collection", collectionName, itemId] as const,
   // List query
   collectionList: (
-    org: string,
-    scopeKey: string,
-    collectionName: string,
-    paramsKey: string,
-  ) =>
-    [org, scopeKey, "collection", collectionName, "list", paramsKey] as const,
-  // Infinite list query
-  collectionListInfinite: (
-    org: string,
+    client: unknown,
+    orgId: string,
     scopeKey: string,
     collectionName: string,
     paramsKey: string,
   ) =>
     [
-      org,
+      client,
+      orgId,
+      scopeKey,
+      "collection",
+      collectionName,
+      "list",
+      paramsKey,
+    ] as const,
+  // Infinite list query
+  collectionListInfinite: (
+    client: unknown,
+    orgId: string,
+    scopeKey: string,
+    collectionName: string,
+    paramsKey: string,
+  ) =>
+    [
+      client,
+      orgId,
       scopeKey,
       "collection",
       collectionName,

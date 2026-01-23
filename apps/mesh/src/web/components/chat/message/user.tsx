@@ -2,18 +2,17 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { type UIMessage } from "ai";
-import { useContext, useState } from "react";
-import type { Metadata } from "../types.ts";
-import { MessageListContext } from "./list.tsx";
-import { MessageTextPart } from "./parts/text-part.tsx";
+import { useState } from "react";
 import { FileNode } from "../tiptap/file/node.tsx";
 import { MentionNode } from "../tiptap/mention/node.tsx";
+import type { Metadata } from "../types.ts";
+import { MessageTextPart } from "./parts/text-part.tsx";
 
 export interface MessageProps<T extends Metadata> {
   message: UIMessage<T>;
   status?: "streaming" | "submitted" | "ready" | "error";
   className?: string;
-  pairIndex?: number;
+  onScrollToPair?: () => void;
 }
 
 const EXTENSIONS = [
@@ -59,10 +58,9 @@ function RichMessageContent({
 export function MessageUser<T extends Metadata>({
   message,
   className,
-  pairIndex,
+  onScrollToPair,
 }: MessageProps<T>) {
   const { id, parts, metadata } = message;
-  const messageListContext = useContext(MessageListContext);
   const [isFocused, setIsFocused] = useState(false);
 
   // Early return if no parts
@@ -72,9 +70,7 @@ export function MessageUser<T extends Metadata>({
 
   const handleClick = () => {
     setIsFocused(true);
-    if (pairIndex !== undefined) {
-      messageListContext?.scrollToPair(pairIndex);
-    }
+    onScrollToPair?.();
   };
 
   // Check if we have rich content to render

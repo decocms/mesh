@@ -4,7 +4,7 @@
  * Create a new MCP connection (organization-scoped) with collection binding compliance.
  */
 
-import { WellKnownOrgMCPId } from "@/core/well-known-mcp";
+import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import {

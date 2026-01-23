@@ -1,43 +1,34 @@
-import type { ConnectionCreateData } from "@/tools/connection/schema";
-import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
+/**
+ * Well-known MCP Constants
+ *
+ * Single source of truth for well-known MCP IDs and connection definitions.
+ * This module provides constants and factory functions for creating standard MCP connections.
+ */
 
-/** Deco CMS API host for detecting deco-hosted MCPs */
-export const DECO_CMS_API_HOST = "api.decocms.com";
-
-/** The Deco Store registry URL (public, no OAuth) */
-export const DECO_STORE_URL = "https://api.decocms.com/mcp/registry";
-
-/** OpenRouter MCP URL (deco-hosted) */
-export const OPENROUTER_MCP_URL = "https://sites-openrouter.decocache.com/mcp";
-
-/** OpenRouter icon URL */
-export const OPENROUTER_ICON_URL = "https://openrouter.ai/favicon.ico";
+import type { ConnectionCreateData } from "../types/connection";
+import type { VirtualMCPEntity } from "../types/virtual-mcp";
 
 /**
- * Check if a connection URL is a deco-hosted MCP (excluding the registry itself).
- * Used to determine if smart OAuth params should be added.
+ * Well-known MCP connection ID generators (org-scoped)
+ *
+ * These generate org-prefixed connection IDs for well-known MCPs.
+ * Example: WellKnownOrgMCPId.SELF("my-org") => "my-org_self"
  */
-export function isDecoHostedMcp(connectionUrl: string | null): boolean {
-  if (!connectionUrl) return false;
-  try {
-    const url = new URL(connectionUrl);
-    return url.host === DECO_CMS_API_HOST && connectionUrl !== DECO_STORE_URL;
-  } catch {
-    return false;
-  }
-}
-
-export const WellKnownMCPId = {
-  SELF: "self",
-  REGISTRY: "registry",
-  COMMUNITY_REGISTRY: "community-registry",
-};
 export const WellKnownOrgMCPId = {
-  SELF: (org: string) => `${org}_${WellKnownMCPId.SELF}`,
-  REGISTRY: (org: string) => `${org}_${WellKnownMCPId.REGISTRY}`,
-  COMMUNITY_REGISTRY: (org: string) =>
-    `${org}_${WellKnownMCPId.COMMUNITY_REGISTRY}`,
+  /** Self/management MCP - used for management tools (monitoring, organization, user, collections) */
+  SELF: (org: string) => `${org}_self`,
+  /** Deco Store registry */
+  REGISTRY: (org: string) => `${org}_registry`,
+  /** Community MCP registry */
+  COMMUNITY_REGISTRY: (org: string) => `${org}_community-registry`,
 };
+
+/**
+ * Frontend connection ID for the self/management MCP endpoint.
+ * Use this constant when calling management tools (ALL_TOOLS) from the frontend.
+ * The endpoint is exposed at /mcp/self.
+ */
+export const SELF_MCP_ALIAS_ID = "self";
 
 /**
  * Get well-known connection definition for the Deco Store registry.
@@ -53,7 +44,7 @@ export function getWellKnownRegistryConnection(
     title: "Deco Store",
     description: "Official deco MCP registry with curated integrations",
     connection_type: "HTTP",
-    connection_url: DECO_STORE_URL,
+    connection_url: "https://api.decocms.com/mcp/registry",
     icon: "https://assets.decocache.com/decocms/00ccf6c3-9e13-4517-83b0-75ab84554bb9/596364c63320075ca58483660156b6d9de9b526e.png",
     app_name: "deco-registry",
     app_id: null,
@@ -77,7 +68,7 @@ export function getWellKnownRegistryConnection(
  */
 export function getWellKnownCommunityRegistryConnection(): ConnectionCreateData {
   return {
-    id: WellKnownMCPId.COMMUNITY_REGISTRY,
+    id: "community-registry",
     title: "MCP Registry",
     description: "Community MCP registry with thousands of handy MCPs",
     connection_type: "HTTP",
@@ -106,13 +97,15 @@ export function getWellKnownCommunityRegistryConnection(): ConnectionCreateData 
  */
 export function getWellKnownSelfConnection(
   baseUrl: string,
+  orgId: string,
 ): ConnectionCreateData {
   return {
-    id: WellKnownMCPId.SELF,
+    id: WellKnownOrgMCPId.SELF(orgId),
     title: "Mesh MCP",
     description: "The MCP for the mesh API",
     connection_type: "HTTP",
-    connection_url: `${baseUrl}/mcp`,
+    // Custom url for targeting this mcp. It's a standalone endpoint that exposes all management tools.
+    connection_url: `${baseUrl}/mcp/${SELF_MCP_ALIAS_ID}`,
     icon: "https://assets.decocache.com/mcp/09e44283-f47d-4046-955f-816d227c626f/app.png",
     app_name: "@deco/management-mcp",
     connection_token: null,
@@ -122,7 +115,7 @@ export function getWellKnownSelfConnection(
     configuration_scopes: null,
     metadata: {
       isDefault: true,
-      type: WellKnownOrgMCPId.SELF,
+      type: "self",
     },
   };
 }
@@ -138,11 +131,11 @@ export function getWellKnownOpenRouterConnection(
     id: opts.id,
     title: "OpenRouter",
     description: "Access hundreds of LLM models from a single API",
-    icon: OPENROUTER_ICON_URL,
+    icon: "https://openrouter.ai/favicon.ico",
     app_name: "openrouter",
     app_id: "openrouter",
     connection_type: "HTTP",
-    connection_url: OPENROUTER_MCP_URL,
+    connection_url: "https://sites-openrouter.decocache.com/mcp",
     connection_token: null,
     connection_headers: null,
     oauth_config: null,
@@ -186,7 +179,7 @@ export function getWellKnownMcpStudioConnection(): ConnectionCreateData {
 
 /**
  * Get well-known Decopilot Agent virtual MCP entity.
- * This is the default agent that aggregates all org connections except Mesh MCP and Store/Registry.
+ * This is the default agent that aggregates ALL org connections.
  *
  * @param organizationId - Organization ID
  * @returns VirtualMCPEntity representing the Decopilot agent
@@ -206,21 +199,6 @@ export function getWellKnownDecopilotAgent(
     updated_at: new Date().toISOString(),
     created_by: "system",
     updated_by: undefined,
-    connections: [
-      {
-        // Exclude Mesh MCP (self connection)
-        connection_id: WellKnownOrgMCPId.SELF(organizationId),
-        selected_tools: null, // null means exclude entire connection
-        selected_resources: null,
-        selected_prompts: null,
-      },
-      {
-        // Exclude Deco Store Registry
-        connection_id: WellKnownOrgMCPId.REGISTRY(organizationId),
-        selected_tools: null,
-        selected_resources: null,
-        selected_prompts: null,
-      },
-    ],
+    connections: [], // Empty = no exclusions, include all connections
   };
 }

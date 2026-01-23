@@ -1,7 +1,7 @@
 /**
- * Management Tools MCP Server
+ * Self MCP Server
  *
- * Exposes MCP Mesh management tools via MCP protocol at /mcp endpoint
+ * Exposes MCP Mesh management tools via MCP protocol at /mcp/self endpoint
  * Tools: PROJECT_CREATE, PROJECT_LIST, CONNECTION_CREATE, etc.
  */
 import { Hono } from "hono";
@@ -16,9 +16,9 @@ type Variables = {
 const app = new Hono<{ Variables: Variables }>();
 
 /**
- * MCP Server endpoint for management tools
+ * MCP Server endpoint for self-management tools
  *
- * Route: POST /mcp
+ * Route: POST /mcp/self
  * Exposes all PROJECT_* and CONNECTION_* tools via MCP protocol
  */
 app.all("/", async (c) => {

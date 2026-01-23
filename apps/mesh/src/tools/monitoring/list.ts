@@ -57,7 +57,7 @@ export const MONITORING_LOGS_LIST = defineTool({
       .datetime()
       .optional()
       .describe("Filter by end date (ISO 8601 datetime string)"),
-    limit: z.number().default(100).describe("Maximum number of results"),
+    limit: z.number().default(10).describe("Maximum number of results"),
     offset: z.number().default(0).describe("Offset for pagination"),
     // Property filters
     properties: z

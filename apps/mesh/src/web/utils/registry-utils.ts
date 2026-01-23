@@ -3,6 +3,8 @@
  * Centralizes duplicated logic across store-related files
  */
 
+import { createMCPClient } from "@decocms/mesh-sdk";
+
 /**
  * Find the LIST tool from a tools array
  * Returns the tool name if found, empty string otherwise
@@ -111,4 +113,36 @@ export function extractItemsFromResponse<T>(response: unknown): T[] {
   }
 
   return [];
+}
+
+/**
+ * Call a tool on a registry connection.
+ * Creates a client, calls the tool, and properly closes the client.
+ *
+ * @param registryId - The connection ID of the registry
+ * @param orgId - The organization ID
+ * @param toolName - The name of the tool to call
+ * @param args - The tool arguments
+ * @returns The tool result (with structuredContent extracted if available)
+ */
+export async function callRegistryTool<TOutput>(
+  registryId: string,
+  orgId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<TOutput> {
+  const client = await createMCPClient({
+    connectionId: registryId,
+    orgId,
+  });
+
+  try {
+    const result = (await client.callTool({
+      name: toolName,
+      arguments: args,
+    })) as { structuredContent?: unknown };
+    return (result.structuredContent ?? result) as TOutput;
+  } finally {
+    await client.close().catch(console.error);
+  }
 }

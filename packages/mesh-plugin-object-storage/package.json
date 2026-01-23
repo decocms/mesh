@@ -11,7 +11,7 @@
   "dependencies": {
     "@decocms/bindings": "workspace:*",
     "@deco/ui": "workspace:*",
-    "@tanstack/react-query": "^5.90.11",
+    "@tanstack/react-query": "5.90.11",
     "@untitledui/icons": "^0.0.19",
     "react": "^19.2.0",
     "sonner": "^2.0.7",

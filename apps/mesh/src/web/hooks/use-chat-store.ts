@@ -10,10 +10,13 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { KEYS } from "../lib/query-keys";
-import { useProjectContext } from "../providers/project-context-provider";
-import type { Message, Thread } from "../components/chat/types.ts";
-import { createToolCaller } from "@/tools/client.ts";
 import {
+  useMCPClient,
+  useProjectContext,
+  SELF_MCP_ALIAS_ID,
+} from "@decocms/mesh-sdk";
+import type { Message, Thread } from "../components/chat/types.ts";
+import type {
   CollectionListInput,
   CollectionListOutput,
 } from "@decocms/bindings/collections";
@@ -26,28 +29,36 @@ const THREADS_PAGE_SIZE = 50;
  * @returns Object with threads array, pagination helpers, and refetch function
  */
 export function useThreads() {
-  const { locator } = useProjectContext();
-  const toolCaller = createToolCaller();
+  const { locator, org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
   const listToolName = "COLLECTION_THREADS_LIST";
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
     useSuspenseInfiniteQuery({
       queryKey: KEYS.threads(locator),
       queryFn: async ({ pageParam = 0 }) => {
+        if (!client) {
+          throw new Error("MCP client is not available");
+        }
         const input: CollectionListInput = {
           limit: THREADS_PAGE_SIZE,
           offset: pageParam,
         };
 
-        const result = (await toolCaller(
-          listToolName,
-          input,
-        )) as CollectionListOutput<Thread>;
+        const result = (await client.callTool({
+          name: listToolName,
+          arguments: input,
+        })) as { structuredContent?: unknown };
+        const payload = (result.structuredContent ??
+          result) as CollectionListOutput<Thread>;
 
         return {
-          items: result.items ?? [],
-          hasMore: result.hasMore ?? false,
-          totalCount: result.totalCount,
+          items: payload.items ?? [],
+          hasMore: payload.hasMore ?? false,
+          totalCount: payload.totalCount,
         };
       },
       getNextPageParam: (lastPage, allPages) => {
@@ -72,25 +83,6 @@ export function useThreads() {
   };
 }
 
-async function getThreadMessages(threadId: string) {
-  try {
-    const toolCaller = createToolCaller();
-    const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
-    const input: CollectionListInput & { threadId: string | null } = {
-      threadId,
-      limit: 100,
-      offset: 0,
-    };
-    const result = (await toolCaller(
-      listToolName,
-      input,
-    )) as CollectionListOutput<Message>;
-    return result.items ?? [];
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Hook to get messages for a specific thread
  *
@@ -98,15 +90,32 @@ async function getThreadMessages(threadId: string) {
  * @returns Suspense query result with messages array
  */
 export function useThreadMessages(threadId: string | null) {
-  const { locator } = useProjectContext();
+  const { locator, org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
+
   const { data } = useSuspenseQuery({
     queryKey: KEYS.threadMessages(locator, threadId ?? ""),
     queryFn: async () => {
       try {
-        if (!threadId) {
+        if (!threadId || !client) {
           return [];
         }
-        return await getThreadMessages(threadId);
+        const input: CollectionListInput & { threadId: string | null } = {
+          threadId,
+          limit: 100,
+          offset: 0,
+        };
+        const result = (await client.callTool({
+          name: listToolName,
+          arguments: input,
+        })) as { structuredContent?: unknown };
+        const payload = (result.structuredContent ??
+          result) as CollectionListOutput<Message>;
+        return payload.items ?? [];
       } catch {
         return [];
       }

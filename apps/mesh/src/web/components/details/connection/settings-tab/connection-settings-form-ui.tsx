@@ -3,7 +3,7 @@ import { parseVirtualUrl } from "@/tools/connection/schema";
 import { EnvVarsEditor } from "@/web/components/env-vars-editor";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
-import { useProjectContext } from "@/web/providers/project-context-provider";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import {
   Form,

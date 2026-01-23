@@ -33,6 +33,7 @@ import {
   type CallToolRequest,
   CallToolRequestSchema,
   type CallToolResult,
+  ErrorCode,
   type GetPromptRequest,
   GetPromptRequestSchema,
   type GetPromptResult,
@@ -44,6 +45,7 @@ import {
   type ListResourceTemplatesResult,
   ListToolsRequestSchema,
   type ListToolsResult,
+  McpError,
   type ReadResourceRequest,
   ReadResourceRequestSchema,
   type ReadResourceResult,
@@ -54,6 +56,7 @@ import { issueMeshToken } from "../../auth/jwt";
 import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
 import { compose } from "../utils/compose";
+import { handleVirtualMcpRequest } from "./gateway";
 import { handleAuthError } from "./oauth-proxy";
 import {
   createProxyMonitoringMiddleware,
@@ -296,6 +299,8 @@ async function createMCPProxyDoNotUseDirectly(
 
     const headers: Record<string, string> = {
       ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
+      ...(ctx.metadata.wellKnownForwardableHeaders ?? {}),
+      "x-request-id": ctx.metadata.requestId,
     };
 
     // Try to get cached token from downstream_tokens first
@@ -392,6 +397,19 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Create client factory for downstream MCP based on connection_type
   const createClient = async () => {
+    const client = new Client(
+      { name: "mcp-mesh-proxy", version: "1.0.0" },
+      {
+        capabilities: {
+          tasks: {
+            list: {},
+            cancel: {},
+            requests: { tool: { call: {} } },
+          },
+        },
+      },
+    );
+
     switch (connection.connection_type) {
       case "STDIO": {
         // Block STDIO connections in production unless explicitly allowed
@@ -410,14 +428,17 @@ async function createMCPProxyDoNotUseDirectly(
 
         // Get or create stable connection - respawns automatically if closed
         // We want stable local MCP connection - don't spawn new process per request
-        return getStableStdioClient({
-          id: connectionId,
-          name: connection.title,
-          command: stdioParams.command,
-          args: stdioParams.args,
-          env: stdioParams.envVars,
-          cwd: stdioParams.cwd,
-        });
+        return getStableStdioClient(
+          {
+            id: connectionId,
+            name: connection.title,
+            command: stdioParams.command,
+            args: stdioParams.args,
+            env: stdioParams.envVars,
+            cwd: stdioParams.cwd,
+          },
+          client,
+        );
       }
 
       case "HTTP":
@@ -428,7 +449,6 @@ async function createMCPProxyDoNotUseDirectly(
           );
         }
 
-        const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
         const headers = await buildRequestHeaders();
         if (httpParams?.headers) {
           Object.assign(headers, httpParams.headers);
@@ -448,7 +468,6 @@ async function createMCPProxyDoNotUseDirectly(
           throw new Error("SSE connection missing URL");
         }
 
-        const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
         const headers = await buildRequestHeaders();
         if (httpParams?.headers) {
           Object.assign(headers, httpParams.headers);
@@ -511,6 +530,7 @@ async function createMCPProxyDoNotUseDirectly(
             resources: {},
             prompts: {},
           }),
+          getInstructions: () => virtualMcp.metadata?.instructions ?? undefined,
         } as unknown as Client;
       }
 
@@ -609,6 +629,7 @@ async function createMCPProxyDoNotUseDirectly(
           attributes: {
             "connection.id": connectionId,
             "tool.name": request.params.name,
+            "request.id": ctx.metadata.requestId,
           },
         },
         async (span) => {
@@ -674,11 +695,16 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
-      const capabilities = client.getServerCapabilities();
-      if (!capabilities?.resources) {
+      return await client.listResources();
+    } catch (error) {
+      if (
+        error instanceof McpError &&
+        error.code === ErrorCode.MethodNotFound
+      ) {
         return { resources: [] };
       }
-      return await client.listResources();
+
+      throw error;
     } finally {
       client?.close().catch(console.error);
     }
@@ -703,11 +729,16 @@ async function createMCPProxyDoNotUseDirectly(
       let client: Awaited<ReturnType<typeof createClient>> | undefined;
       try {
         client = await createClient();
-        const capabilities = client.getServerCapabilities();
-        if (!capabilities?.resources) {
+        return await client.listResourceTemplates();
+      } catch (error) {
+        if (
+          error instanceof McpError &&
+          error.code === ErrorCode.MethodNotFound
+        ) {
           return { resourceTemplates: [] };
         }
-        return await client.listResourceTemplates();
+
+        throw error;
       } finally {
         client?.close().catch(console.error);
       }
@@ -718,11 +749,16 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
-      const capabilities = client.getServerCapabilities();
-      if (!capabilities?.prompts) {
+      return await client.listPrompts();
+    } catch (error) {
+      if (
+        error instanceof McpError &&
+        error.code === ErrorCode.MethodNotFound
+      ) {
         return { prompts: [] };
       }
-      return await client.listPrompts();
+
+      throw error;
     } finally {
       client?.close().catch(console.error);
     }
@@ -735,10 +771,6 @@ async function createMCPProxyDoNotUseDirectly(
     let client: Awaited<ReturnType<typeof createClient>> | undefined;
     try {
       client = await createClient();
-      const capabilities = client.getServerCapabilities();
-      if (!capabilities?.prompts) {
-        throw new Error("Prompts capability not supported");
-      }
       return await client.getPrompt(params);
     } finally {
       client?.close().catch(console.error);
@@ -792,6 +824,7 @@ async function createMCPProxyDoNotUseDirectly(
           attributes: {
             "connection.id": connectionId,
             "tool.name": request.params.name,
+            "request.id": ctx.metadata.requestId,
           },
         },
         async (span) => {
@@ -883,6 +916,8 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     const clientCapabilities = client.getServerCapabilities();
+    const instructions = client.getInstructions();
+
     const proxyCapabilities = clientCapabilities ?? {
       tools: {},
       resources: {},
@@ -890,13 +925,8 @@ async function createMCPProxyDoNotUseDirectly(
     };
     // Create MCP server for this proxy
     const server = new McpServer(
-      {
-        name: "mcp-mesh",
-        version: "1.0.0",
-      },
-      {
-        capabilities: proxyCapabilities,
-      },
+      { name: "mcp-mesh", version: "1.0.0" },
+      { capabilities: proxyCapabilities, instructions },
     );
 
     // Create transport (web-standard Streamable HTTP for fetch Request/Response)
@@ -1015,8 +1045,18 @@ export async function dangerouslyCreateSuperUserMCPProxy(
 }
 
 // ============================================================================
-// Route Handler
+// Route Handlers
 // ============================================================================
+
+/**
+ * Default MCP endpoint - serves Decopilot virtual MCP (aggregates all org connections)
+ *
+ * Route: POST /mcp
+ * Uses the Decopilot default virtual MCP which excludes Mesh MCP and org registry
+ */
+app.all("/", async (c) => {
+  return handleVirtualMcpRequest(c, undefined);
+});
 
 /**
  * Proxy MCP request to a downstream connection
@@ -1029,6 +1069,7 @@ app.all("/:connectionId", async (c) => {
   const ctx = c.get("meshContext");
 
   try {
+    // Otherwise proxy to downstream
     const proxy = await ctx.createMCPProxy(connectionId);
     return await proxy.fetch(c.req.raw);
   } catch (error) {

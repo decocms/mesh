@@ -1,9 +1,4 @@
 import {
-  fetchVirtualMCPPrompt,
-  useVirtualMCPPrompts,
-  type VirtualMCPPrompt,
-} from "@/web/hooks/use-virtual-mcp-client";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -17,22 +12,28 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  getPrompt,
+  useMCPClient,
+  useMCPPromptsList,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
+import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { Suspense, useReducer, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "../error-boundary";
-import { useProjectContext } from "../../providers/project-context-provider";
 import { useChat } from "./context";
 import {
   PromptArgsDialog,
   type PromptArgumentValues,
 } from "./dialog-prompt-arguments";
-import { appendToTiptapDoc } from "./tiptap/utils";
 import { createMentionDoc } from "./tiptap/mention/node";
+import { appendToTiptapDoc } from "./tiptap/utils";
 
-interface IceBreakersProps {
-  prompts: VirtualMCPPrompt[];
-  onSelect: (prompt: VirtualMCPPrompt) => void;
-  loadingPrompt?: VirtualMCPPrompt | null;
+interface IceBreakersUIProps {
+  prompts: Prompt[];
+  onSelect: (prompt: Prompt) => void;
+  loadingPrompt?: Prompt | null;
   className?: string;
 }
 
@@ -45,8 +46,8 @@ function PromptPill({
   isDisabled,
   isLoading,
 }: {
-  prompt: VirtualMCPPrompt;
-  onSelect: (prompt: VirtualMCPPrompt) => void;
+  prompt: Prompt;
+  onSelect: (prompt: Prompt) => void;
   isSelected?: boolean;
   isDisabled?: boolean;
   isLoading?: boolean;
@@ -79,16 +80,16 @@ function PromptPill({
 }
 
 /**
- * IceBreakers - Displays virtual MCP prompts as clickable conversation starters
+ * IceBreakersUI - Displays prompts as clickable conversation starters
  *
  * Shows prompts as compact pills that, when clicked, submit the prompt as the first message
  */
-function IceBreakers({
+function IceBreakersUI({
   prompts,
   onSelect,
   loadingPrompt,
   className,
-}: IceBreakersProps) {
+}: IceBreakersUIProps) {
   if (prompts.length === 0) return null;
 
   const visiblePrompts = prompts.slice(0, MAX_VISIBLE);
@@ -166,7 +167,7 @@ function IceBreakers({
   );
 }
 
-interface AgentIceBreakersProps {
+interface IceBreakersProps {
   className?: string;
 }
 
@@ -190,15 +191,15 @@ type IceBreakerState =
   | { stage: "idle" }
   | {
       stage: "loading";
-      prompt: VirtualMCPPrompt;
+      prompt: Prompt;
       arguments?: PromptArgumentValues;
     };
 
 type IceBreakerAction =
-  | { type: "SELECT_PROMPT"; prompt: VirtualMCPPrompt }
+  | { type: "SELECT_PROMPT"; prompt: Prompt }
   | {
       type: "START_LOADING";
-      prompt: VirtualMCPPrompt;
+      prompt: Prompt;
       arguments?: PromptArgumentValues;
     }
   | { type: "RESET" };
@@ -232,33 +233,30 @@ function iceBreakerReducer(
 }
 
 /**
- * Inner component that fetches and displays prompts for a specific virtual MCP
- * @param virtualMcpId - The virtual MCP ID, or null for default virtual MCP
+ * Inner component that fetches and displays prompts for a specific MCP connection
+ * @param connectionId - The connection ID, or null for the management MCP
  */
-function VirtualMCPIceBreakersContent({
-  virtualMcpId,
-}: {
-  virtualMcpId: string | null;
-}) {
+function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
   const { tiptapDoc, sendMessage } = useChat();
   const { org } = useProjectContext();
-  const { data: prompts } = useVirtualMCPPrompts(virtualMcpId);
+  const client = useMCPClient({
+    connectionId,
+    orgId: org.id,
+  });
+  const { data } = useMCPPromptsList({ client, staleTime: 60000 });
+  const prompts = data?.prompts ?? [];
   const [state, dispatch] = useReducer(iceBreakerReducer, { stage: "idle" });
-  const [dialogPrompt, setDialogPrompt] = useState<VirtualMCPPrompt | null>(
-    null,
-  );
+  const [dialogPrompt, setDialogPrompt] = useState<Prompt | null>(null);
 
-  const loadPrompt = async (
-    prompt: VirtualMCPPrompt,
-    args?: PromptArgumentValues,
-  ) => {
+  const loadPrompt = async (prompt: Prompt, args?: PromptArgumentValues) => {
+    if (!client) {
+      toast.error("MCP client not available");
+      dispatch({ type: "RESET" });
+      return;
+    }
+
     try {
-      const result = await fetchVirtualMCPPrompt(
-        virtualMcpId,
-        org.slug,
-        prompt.name,
-        args,
-      );
+      const result = await getPrompt(client, prompt.name, args);
 
       dispatch({ type: "RESET" });
 
@@ -284,7 +282,7 @@ function VirtualMCPIceBreakersContent({
     }
   };
 
-  const handlePromptSelection = async (prompt: VirtualMCPPrompt) => {
+  const handlePromptSelection = async (prompt: Prompt) => {
     // If prompt has arguments, open dialog
     if (prompt.arguments && prompt.arguments.length > 0) {
       dispatch({ type: "SELECT_PROMPT", prompt });
@@ -315,7 +313,7 @@ function VirtualMCPIceBreakersContent({
 
   return (
     <div className="relative w-full">
-      <IceBreakers
+      <IceBreakersUI
         prompts={prompts}
         onSelect={handlePromptSelection}
         loadingPrompt={state.stage === "loading" ? state.prompt : null}
@@ -333,16 +331,16 @@ function VirtualMCPIceBreakersContent({
 }
 
 /**
- * Ice breakers component that uses suspense to fetch virtual MCP prompts
- * Uses the chat context for virtual MCP selection and message sending.
+ * Ice breakers component that uses suspense to fetch MCP prompts.
+ * Uses the chat context for connection selection and message sending.
  * Includes ErrorBoundary, Suspense, and container internally.
  */
-export function AgentIceBreakers({ className }: AgentIceBreakersProps) {
+export function IceBreakers({ className }: IceBreakersProps) {
   const { selectedVirtualMcp } = useChat();
   // When selectedVirtualMcp is null, it means default virtual MCP (id is null)
-  const virtualMcpId = selectedVirtualMcp?.id ?? null;
+  const connectionId = selectedVirtualMcp?.id ?? null;
   // Use a stable key for ErrorBoundary (null becomes "default")
-  const errorBoundaryKey = virtualMcpId ?? "default";
+  const errorBoundaryKey = connectionId ?? "default";
 
   return (
     <div
@@ -354,7 +352,7 @@ export function AgentIceBreakers({ className }: AgentIceBreakersProps) {
     >
       <ErrorBoundary key={errorBoundaryKey} fallback={null}>
         <Suspense fallback={<IceBreakersFallback />}>
-          <VirtualMCPIceBreakersContent virtualMcpId={virtualMcpId} />
+          <IceBreakersContent connectionId={connectionId} />
         </Suspense>
       </ErrorBoundary>
     </div>

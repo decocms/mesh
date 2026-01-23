@@ -9,8 +9,12 @@ export const DEFAULT_WINDOW_SIZE = 50;
 
 /**
  * Base system prompt for Decopilot
+ *
+ * @param agentInstructions - Optional instructions specific to the selected agent/virtual MCP
+ * @returns The complete system prompt combining platform instructions with agent-specific instructions
  */
-export const DECOPILOT_BASE_PROMPT = `You are an AI assistant running in an MCP Mesh environment.
+export function DECOPILOT_BASE_PROMPT(agentInstructions?: string): string {
+  const platformPrompt = `You are an AI assistant running in an MCP Mesh environment.
 
 ## About MCP Mesh
 
@@ -36,9 +40,23 @@ Follow this state machine when handling user requests:
 
 ## Important Notes
 - All tool calls are logged and audited for security and compliance
-- You have access to the tools exposed through the selected agent/gateway
-- Connections may expose resources that users can browse and edit
-- When users mention "agents", they are typically referring to gateways`;
+- You have access to the tools exposed through the selected agent
+- Connections may expose resources that users can browse and edit`;
+
+  if (!agentInstructions?.trim()) {
+    return platformPrompt;
+  }
+
+  return `${platformPrompt}
+
+---
+
+## Agent-Specific Instructions
+
+The following instructions are specific to the agent (virtual MCP) the user has selected. These instructions supplement the platform guidelines above:
+
+${agentInstructions}`;
+}
 
 export const TITLE_GENERATOR_PROMPT = `Your task: Generate a short title (3-6 words) summarizing the user's request.
 

@@ -1,11 +1,10 @@
 /**
  * Decopilot Transport
  *
- * Creates gateway transport for MCP client connections.
+ * Creates transport for MCP client connections to virtual MCP agents.
  */
 
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-
 import { fixProtocol } from "../oauth-proxy";
 
 export function createVirtualMcpTransport(
@@ -26,11 +25,11 @@ export function createVirtualMcpTransport(
     }
   }
 
-  // Use /mcp/virtual-mcp/ for default, /mcp/virtual-mcp/:id for specific virtual MCP
   // Encode virtualMcpId to prevent path/query injection
-  const virtualMcpPath = virtualMcpId
-    ? `/mcp/virtual-mcp/${encodeURIComponent(virtualMcpId)}`
-    : "/mcp/virtual-mcp";
+  const virtualMcpPath = !virtualMcpId
+    ? "/mcp"
+    : `/mcp/${encodeURIComponent(virtualMcpId)}`;
+
   const virtualMcpUrl = new URL(virtualMcpPath, baseUrl);
   virtualMcpUrl.searchParams.set("mode", "code_execution");
 

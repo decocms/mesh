@@ -1,4 +1,4 @@
-import type { ProjectLocator } from "./locator";
+import type { ProjectLocator } from "@decocms/mesh-sdk";
 
 /**
  * Known localStorage keys for the mesh app.
@@ -19,8 +19,6 @@ export const LOCALSTORAGE_KEYS = {
   sidebarOpen: () => `mesh:sidebar-open`,
   selectedRegistry: (org: string) => `mesh:store:selected-registry:${org}`,
   orgHomeQuickstart: (org: string) => `mesh:org-home:quickstart:${org}`,
-  virtualMcpSystemPrompts: (locator: ProjectLocator) =>
-    `mesh:virtual-mcp:system-prompts:${locator}`,
   storeShowStdio: () => `mesh:store:show-stdio`,
   developerMode: () => `mesh:user:developer-mode`,
   pluginConnection: (org: string, pluginId: string) =>

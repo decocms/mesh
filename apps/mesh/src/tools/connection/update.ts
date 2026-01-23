@@ -9,7 +9,6 @@ import {
   getReferencedConnectionIds,
   parseScope,
 } from "@/auth/configuration-scopes";
-import { WellKnownMCPId } from "@/core/well-known-mcp";
 import { DownstreamTokenStorage } from "@/storage/downstream-token";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
@@ -77,7 +76,7 @@ async function validateConfiguration(
 
   // Validate all referenced connections
   for (const refConnectionId of referencedConnections) {
-    if (refConnectionId === WellKnownMCPId.SELF) {
+    if (refConnectionId.endsWith("_self")) {
       continue;
     }
     // Verify connection exists and belongs to same organization

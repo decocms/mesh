@@ -29,6 +29,7 @@ type RawConnectionRow = {
   created_at: Date | string;
   updated_at: Date | string;
   created_by: string;
+  metadata: string | null;
 };
 
 /** Raw database row type for connection_aggregations */
@@ -72,7 +73,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
         oauth_config: null,
         configuration_state: null,
         configuration_scopes: null,
-        metadata: null,
+        metadata: data.metadata ? JSON.stringify(data.metadata) : null,
         tools: null,
         bindings: null,
         status: data.status ?? "active",
@@ -260,6 +261,11 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     if (data.status !== undefined) {
       updateData.status = data.status;
     }
+    if (data.metadata !== undefined) {
+      updateData.metadata = data.metadata
+        ? JSON.stringify(data.metadata)
+        : null;
+    }
     // Note: tool_selection_mode is no longer stored in DB, ignored
 
     // Update the connection
@@ -358,6 +364,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       updated_at: updatedAt,
       created_by: row.created_by,
       updated_by: undefined, // connections table doesn't have updated_by
+      metadata: this.parseJson<{ instructions?: string }>(row.metadata),
       connections: aggregationRows.map((agg) => ({
         connection_id: agg.child_connection_id,
         selected_tools: this.parseJson<string[]>(agg.selected_tools),

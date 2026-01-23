@@ -1,4 +1,4 @@
-import { useConnections } from "@/web/hooks/collections/use-connection";
+import { useConnections } from "@decocms/mesh-sdk";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 
 export function useWorkflowBindingConnection() {

@@ -1,7 +1,3 @@
-import {
-  VirtualMCPEntitySchema,
-  type VirtualMCPEntity,
-} from "@/tools/virtual-mcp/schema";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { PromptSetSelector } from "@/web/components/virtual-mcp/prompt-selector.tsx";
@@ -9,14 +5,19 @@ import { ResourceSetSelector } from "@/web/components/virtual-mcp/resource-selec
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
-import { useConnections } from "@/web/hooks/collections/use-connection";
 import {
+  createMCPClient,
+  useConnections,
+  useProjectContext,
   useVirtualMCP,
   useVirtualMCPActions,
-} from "@/web/hooks/collections/use-virtual-mcp";
-import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
-import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
-import { useVirtualMCPSystemPrompt } from "@/web/hooks/use-virtual-mcp-system-prompt";
+  listPrompts,
+  listResources,
+  KEYS,
+  VirtualMCPEntitySchema,
+  type VirtualMCPEntity,
+} from "@decocms/mesh-sdk";
+import { useQueries } from "@tanstack/react-query";
 import { slugify } from "@/web/utils/slugify";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -102,6 +103,7 @@ const virtualMcpFormSchema = VirtualMCPEntitySchema.pick({
   description: true,
   status: true,
   tool_selection_mode: true,
+  metadata: true,
 }).extend({
   title: z.string().min(1, "Name is required").max(255),
 });
@@ -380,7 +382,7 @@ function VirtualMCPShareModal({
   };
 
   // Build URL with mode query parameter
-  // Virtual MCPs are accessed via the virtual-mcp endpoint (or gateway for backward compat)
+  // Virtual MCPs (agents) are accessed via the virtual-mcp endpoint
   const virtualMcpUrl = new URL(
     `/mcp/virtual-mcp/${virtualMcp.id}`,
     window.location.origin,
@@ -549,15 +551,10 @@ function VirtualMCPShareModal({
 function VirtualMCPSettingsTab({
   form,
   icon,
-  virtualMcpId,
 }: {
   form: ReturnType<typeof useForm<VirtualMCPFormData>>;
   icon?: string | null;
-  virtualMcpId: string;
 }) {
-  const [systemPrompt, setSystemPrompt] =
-    useVirtualMCPSystemPrompt(virtualMcpId);
-
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Form {...form}>
@@ -705,19 +702,37 @@ function VirtualMCPSettingsTab({
 
           {/* System Prompt section */}
           <div className="flex flex-col gap-3 p-5">
-            <div>
-              <h4 className="text-sm font-medium text-foreground mb-1">
-                System Prompt
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Stored locally for now
-              </p>
-            </div>
-            <Textarea
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="Enter system prompt instructions..."
-              className="min-h-[240px] resize-none text-sm leading-relaxed"
+            <FormField
+              control={form.control}
+              name="metadata"
+              render={({ field }) => (
+                <FormItem>
+                  <div>
+                    <FormLabel className="text-sm font-medium text-foreground mb-1">
+                      Instructions
+                    </FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Define the agent's role, capabilities, and behavior to
+                      guide how it interprets requests, uses available tools,
+                      and responds to users.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Textarea
+                      value={field.value?.instructions ?? ""}
+                      onChange={(e) =>
+                        field.onChange({
+                          ...(field.value ?? {}),
+                          instructions: e.target.value || undefined,
+                        })
+                      }
+                      placeholder="You are a helpful assistant that specializes in customer support. Your role is to help users resolve issues and answer questions..."
+                      className="min-h-[240px] resize-none text-sm leading-relaxed"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
           </div>
         </div>
@@ -740,6 +755,7 @@ function VirtualMCPInspectorViewWithData({
   const router = useRouter();
   const navigate = useNavigate({ from: "/$org/agents/$agentId" });
   const actions = useVirtualMCPActions();
+  const { org } = useProjectContext();
 
   // Fetch all connections to get tool names for "all tools" expansion
   const connections = useConnections({});
@@ -747,11 +763,86 @@ function VirtualMCPInspectorViewWithData({
   // Get all connection IDs
   const connectionIds = connections.map((c) => c.id);
 
-  // Fetch prompts and resources for all connections
-  const { promptsMap: connectionPrompts } =
-    useConnectionsPrompts(connectionIds);
-  const { resourcesMap: connectionResources } =
-    useConnectionsResources(connectionIds);
+  // Fetch prompts for all connections using inline useQueries
+  const promptsQueries = useQueries({
+    queries: connectionIds.map((connectionId) => ({
+      queryKey: KEYS.connectionPrompts(connectionId),
+      queryFn: async () => {
+        try {
+          const client = await createMCPClient({
+            connectionId,
+            orgId: org.id,
+          });
+          return await listPrompts(client);
+        } catch {
+          return { prompts: [] };
+        }
+      },
+      staleTime: 60000,
+      retry: false,
+    })),
+  });
+
+  // Fetch resources for all connections using inline useQueries
+  const resourcesQueries = useQueries({
+    queries: connectionIds.map((connectionId) => ({
+      queryKey: KEYS.connectionResources(connectionId),
+      queryFn: async () => {
+        try {
+          const client = await createMCPClient({
+            connectionId,
+            orgId: org.id,
+          });
+          return await listResources(client);
+        } catch {
+          return { resources: [] };
+        }
+      },
+      staleTime: 60000,
+      retry: false,
+    })),
+  });
+
+  // Build prompts map from query results
+  const connectionPrompts = new Map<
+    string,
+    Array<{ name: string; description?: string }>
+  >();
+  connectionIds.forEach((connectionId, index) => {
+    const query = promptsQueries[index];
+    if (query?.data) {
+      connectionPrompts.set(
+        connectionId,
+        query.data.prompts.map((p) => ({
+          name: p.name,
+          description: p.description,
+        })),
+      );
+    } else {
+      connectionPrompts.set(connectionId, []);
+    }
+  });
+
+  // Build resources map from query results
+  const connectionResources = new Map<
+    string,
+    Array<{ uri: string; name?: string; description?: string }>
+  >();
+  connectionIds.forEach((connectionId, index) => {
+    const query = resourcesQueries[index];
+    if (query?.data) {
+      connectionResources.set(
+        connectionId,
+        query.data.resources.map((r) => ({
+          uri: r.uri,
+          name: r.name,
+          description: r.description,
+        })),
+      );
+    } else {
+      connectionResources.set(connectionId, []);
+    }
+  });
 
   // Build a map of connectionId -> all tool names
   const connectionToolsMap = new Map<string, string[]>();
@@ -810,6 +901,7 @@ function VirtualMCPInspectorViewWithData({
       description: virtualMcp.description,
       status: virtualMcp.status,
       tool_selection_mode: virtualMcp.tool_selection_mode ?? "inclusion",
+      metadata: virtualMcp.metadata ?? { instructions: "" },
     },
   });
 
@@ -833,6 +925,7 @@ function VirtualMCPInspectorViewWithData({
         description: formData.description,
         status: formData.status,
         tool_selection_mode: formData.tool_selection_mode,
+        metadata: formData.metadata,
         connections: newConnections,
       };
 
@@ -858,6 +951,7 @@ function VirtualMCPInspectorViewWithData({
       description: virtualMcp.description,
       status: virtualMcp.status,
       tool_selection_mode: virtualMcp.tool_selection_mode ?? "inclusion",
+      metadata: virtualMcp.metadata ?? { instructions: "" },
     });
 
     // Reset selections to original virtual MCP values
@@ -995,11 +1089,7 @@ function VirtualMCPInspectorViewWithData({
                 }
               >
                 {activeTabId === "settings" ? (
-                  <VirtualMCPSettingsTab
-                    form={form}
-                    icon={virtualMcp.icon}
-                    virtualMcpId={virtualMcpId}
-                  />
+                  <VirtualMCPSettingsTab form={form} icon={virtualMcp.icon} />
                 ) : activeTabId === "tools" ? (
                   <ToolSetSelector
                     toolSet={toolSet}

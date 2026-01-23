@@ -4,6 +4,8 @@
  * Handles message processing, memory loading, and conversation state management.
  */
 
+import type { MeshContext } from "@/core/mesh-context";
+import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
 import {
   convertToModelMessages,
   pruneMessages,
@@ -11,12 +13,10 @@ import {
   UIMessage,
   validateUIMessages,
 } from "ai";
-
-import type { MeshContext } from "@/core/mesh-context";
+import { HTTPException } from "hono/http-exception";
 import { ensureUser } from "./helpers";
 import { createMemory } from "./memory";
 import type { Memory } from "./types";
-import { Metadata } from "@/web/components/chat/types";
 
 export interface ProcessedConversation {
   memory: Memory;
@@ -36,10 +36,12 @@ export async function processConversation(
     windowSize: number;
     messages: UIMessage<Metadata>[];
     systemPrompts: string[];
-    removeFileParts?: boolean;
+    model: ChatModelConfig;
   },
 ): Promise<ProcessedConversation> {
   const userId = ensureUser(ctx);
+
+  const modelHasVision = config.model.capabilities?.vision ?? true;
 
   // Create or load memory
   const memory = await createMemory(ctx.storage.threads, {
@@ -53,19 +55,22 @@ export async function processConversation(
   const threadMessages = await memory.loadHistory();
 
   const allMessages = [...threadMessages, ...config.messages];
-  const validatedMessages = await validateUIMessages({ messages: allMessages });
-  const mappedMessages = validatedMessages.map((message) => {
-    if (
-      !!config.removeFileParts &&
-      message.parts.some((part) => part.type === "file")
-    ) {
-      return {
-        ...message,
-        parts: message.parts.filter((part) => part.type !== "file"),
-      };
+
+  // Check if messages contain files when model doesn't support vision
+  if (!modelHasVision) {
+    const hasFiles = allMessages.some((message) =>
+      message.parts?.some((part) => part.type === "file"),
+    );
+    if (hasFiles) {
+      throw new HTTPException(400, {
+        message:
+          "This model does not support file uploads. Please change the model and try again.",
+      });
     }
-    return message;
-  });
+  }
+
+  const validatedMessages = await validateUIMessages({ messages: allMessages });
+  const mappedMessages = validatedMessages;
 
   // Convert to model messages
   const modelMessages = await convertToModelMessages(mappedMessages, {

@@ -10,7 +10,6 @@
  */
 
 import { MCP_MESH_KEY } from "@/core/constants";
-import { WellKnownMCPId } from "@/core/well-known-mcp";
 import type { BetterAuthInstance, BoundAuthClient } from "./mesh-context";
 
 // ============================================================================
@@ -66,7 +65,7 @@ export class AccessControl implements Disposable {
     private toolName?: string,
     private boundAuth?: BoundAuthClient, // Bound auth client for permission checks
     private role?: string, // From user session (for built-in role bypass)
-    private connectionId: string = WellKnownMCPId.SELF, // For connection-specific checks
+    private connectionId: string = "self", // For connection-specific checks (matches permission resource key)
     private getToolMeta?: GetToolMetaFn, // Optional callback for public tool check
   ) {}
 
@@ -108,6 +107,11 @@ export class AccessControl implements Disposable {
   async check(...resources: string[]): Promise<void> {
     // If already granted, skip check
     if (this._granted) {
+      return;
+    }
+    // tool is public with zero IO operations, so we can grant access immediately
+    if (this.toolName?.startsWith("MESH_PUBLIC_")) {
+      this.grant();
       return;
     }
 
@@ -180,6 +184,7 @@ export class AccessControl implements Disposable {
    * Check if the current tool is marked as public via _meta["mcp.mesh"].public_tool
    */
   private async isToolPublic(): Promise<boolean> {
+    if (this.toolName?.startsWith("MESH_PUBLIC_")) return true;
     if (!this.getToolMeta) return false;
     try {
       const meta = await this.getToolMeta();

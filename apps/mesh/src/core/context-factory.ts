@@ -384,7 +384,6 @@ function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 import { createMCPProxy } from "@/api/routes/proxy";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
-import { WellKnownMCPId } from "./well-known-mcp";
 import { SqlThreadStorage } from "@/storage/threads";
 
 /**
@@ -709,6 +708,7 @@ const DEFAULT_TIMINGS = {
   },
 };
 
+const wellKnownForwardableHeaders = ["x-hub-signature-256"];
 /**
  * Create a context factory function
  *
@@ -783,7 +783,7 @@ export function createMeshContextFactory(
       undefined, // toolName set later by defineTool
       boundAuth, // Bound auth client for permission checks
       authResult.role, // Role from session (for built-in role bypass)
-      WellKnownMCPId.SELF, // Default connectionId for management APIs
+      "self", // Default connectionId for management APIs (matches permission resource key)
     );
 
     const ctx: MeshContext = {
@@ -803,6 +803,11 @@ export function createMeshContextFactory(
       metadata: {
         requestId: crypto.randomUUID(),
         timestamp: new Date(),
+        wellKnownForwardableHeaders: Object.fromEntries(
+          wellKnownForwardableHeaders
+            .map((header) => [header, req?.headers.get(header) ?? null])
+            .filter(([_, value]) => value !== null),
+        ),
         userAgent:
           req?.headers.get("x-mesh-client") ||
           req?.headers.get("User-Agent") ||

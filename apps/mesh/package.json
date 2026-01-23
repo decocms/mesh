@@ -1,6 +1,6 @@
 {
   "name": "@decocms/mesh",
-  "version": "2.29.2",
+  "version": "2.38.6",
   "description": "MCP Mesh - Self-hostable MCP Gateway for managing AI connections and tools",
   "author": "Deco team",
   "license": "MIT",
@@ -74,7 +74,7 @@
     "@rjsf/utils": "^6.1.2",
     "@rjsf/validator-ajv8": "^6.1.2",
     "@tailwindcss/vite": "^4.1.17",
-    "@tanstack/react-query": "^5.90.11",
+    "@tanstack/react-query": "5.90.11",
     "@tanstack/react-router": "^1.139.7",
     "@tanstack/react-router-devtools": "^1.139.7",
     "@tiptap/core": "^3.15.3",

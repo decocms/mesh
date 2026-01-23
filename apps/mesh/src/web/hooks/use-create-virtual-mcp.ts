@@ -4,9 +4,11 @@
  */
 
 import { useNavigate } from "@tanstack/react-router";
-import { useVirtualMCPActions } from "./collections/use-virtual-mcp";
-import { useProjectContext } from "../providers/project-context-provider";
-import type { VirtualMCPEntity } from "@/tools/virtual-mcp/schema";
+import {
+  useProjectContext,
+  useVirtualMCPActions,
+  type VirtualMCPEntity,
+} from "@decocms/mesh-sdk";
 
 interface CreateVirtualMCPResult {
   id: string;
