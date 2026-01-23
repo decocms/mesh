@@ -350,7 +350,7 @@ function InstallClaudeButton({ url, serverName }: ShareWithNameProps) {
 /**
  * Share Modal - Virtual MCP sharing and IDE integration
  */
-function VirtualMCPShareModal({
+export function VirtualMCPShareModal({
   open,
   onOpenChange,
   virtualMcp,
@@ -598,7 +598,7 @@ function VirtualMCPSettingsTab({
                     <FormControl>
                       <Input
                         {...field}
-                        className="h-auto text-lg! font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                        className="h-auto py-0.5 text-lg! font-medium leading-7 px-2 -mx-2 border-transparent hover:bg-input/25 focus:border-input bg-transparent transition-all"
                         placeholder="Agent Name"
                       />
                     </FormControl>
@@ -615,7 +615,7 @@ function VirtualMCPSettingsTab({
                       <Input
                         {...field}
                         value={field.value || ""}
-                        className="h-auto text-base text-muted-foreground leading-6 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                        className="h-auto py-0.5 text-base text-muted-foreground leading-6 px-2 -mx-2 border-transparent hover:bg-input/25 focus:border-input bg-transparent transition-all"
                         placeholder="Add a description..."
                       />
                     </FormControl>

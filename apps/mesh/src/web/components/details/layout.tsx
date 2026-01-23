@@ -72,7 +72,7 @@ export function ViewLayout({ children, onBack, title }: ViewLayoutProps) {
             {/* Actions Slot */}
             <div
               ref={setActionsEl}
-              className="flex items-center gap-2 ml-auto shrink-0 border-l border-border pl-4"
+              className="flex items-center gap-2 ml-auto shrink-0"
             />
           </div>
         </div>
