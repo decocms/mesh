@@ -67,16 +67,8 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
       }
       async function callToolFn(
         args: Record<string, unknown>,
-        toolNameOrRequestInit?: string | symbol | RequestInit,
+        toolName = name,
       ) {
-        let toolName: string | symbol;
-        let requestInit: RequestInit | undefined;
-        if (typeof toolNameOrRequestInit === "object") {
-          toolName = name;
-          requestInit = toolNameOrRequestInit;
-        } else {
-          toolName ??= name;
-        }
         const debugId = options?.debugId?.();
         const extraHeaders = debugId
           ? { "x-trace-debug-id": debugId }
@@ -85,21 +77,13 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
         const { client, callStreamableTool } = await createClient(extraHeaders);
 
         if (options?.streamable?.[String(toolName)]) {
-          return callStreamableTool(
-            String(toolName),
-            args,
-            requestInit?.signal ?? undefined,
-          );
+          return callStreamableTool(String(toolName), args);
         }
 
-        const { structuredContent, isError, content } = await client.callTool(
-          {
-            name: String(toolName),
-            arguments: args as Record<string, unknown>,
-          },
-          undefined,
-          { signal: requestInit?.signal ?? undefined },
-        );
+        const { structuredContent, isError, content } = await client.callTool({
+          name: String(toolName),
+          arguments: args as Record<string, unknown>,
+        });
 
         if (isError) {
           const maybeErrorMessage = (content as { text: string }[])?.[0]?.text;
