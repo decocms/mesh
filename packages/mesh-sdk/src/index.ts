@@ -96,6 +96,14 @@ export {
 // Streamable HTTP transport
 export { StreamableHTTPClientTransport } from "./lib/streamable-http-client-transport";
 
+// In-memory transport
+export {
+  createInMemoryTransportPair,
+  InMemoryClientTransport,
+  InMemoryServerTransport,
+  type InMemoryTransportPair,
+} from "./lib/in-memory-transport";
+
 // Query keys
 export { KEYS } from "./lib/query-keys";
 
