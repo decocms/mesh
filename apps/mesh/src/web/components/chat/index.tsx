@@ -8,7 +8,13 @@ import type {
   ReactNode,
   RefObject,
 } from "react";
-import { Children, isValidElement, useRef } from "react";
+import {
+  Children,
+  isValidElement,
+  useEffect,
+  useRef,
+  useTransition,
+} from "react";
 import { ChatProvider, useChat } from "./context";
 import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
@@ -28,28 +34,44 @@ export type ChatStatus = UseChatHelpers<UIMessage<Metadata>>["status"];
 
 function useChatAutoScroll({
   messageCount,
+  chatStatus,
   sentinelRef,
 }: {
   messageCount: number;
+  chatStatus: ChatStatus;
   sentinelRef: RefObject<HTMLDivElement | null>;
 }) {
-  const lastMessageCountRef = useRef(messageCount);
-  const lastScrolledCountRef = useRef(0);
+  const [_, startTransition] = useTransition();
 
-  if (
-    messageCount > lastMessageCountRef.current &&
-    lastScrolledCountRef.current !== messageCount
-  ) {
-    queueMicrotask(() => {
+  // Periodic scrolling during streaming (low priority)
+  useEffect(() => {
+    if (chatStatus !== "streaming") {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      startTransition(() => {
+        sentinelRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    }, 500);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [chatStatus, sentinelRef]);
+
+  // Scroll to the sentinel when the message count changes
+  useEffect(() => {
+    startTransition(() => {
       sentinelRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
-      lastScrolledCountRef.current = messageCount;
     });
-  }
-
-  lastMessageCountRef.current = messageCount;
+  }, [messageCount, sentinelRef]);
 }
 
 function findChild<T>(
@@ -129,7 +151,11 @@ function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const messagePairs = useMessagePairs(messages);
 
-  useChatAutoScroll({ messageCount: messages.length, sentinelRef });
+  useChatAutoScroll({
+    messageCount: messagePairs.length,
+    chatStatus: status,
+    sentinelRef,
+  });
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-y-auto h-full overflow-x-hidden">
