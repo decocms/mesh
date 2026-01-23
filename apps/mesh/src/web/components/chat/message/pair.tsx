@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { useRef } from "react";
 import type { ChatStatus } from "../index.tsx";
 import type { Metadata } from "../types.ts";
@@ -59,6 +60,7 @@ interface MessagePairProps {
   isLastPair: boolean;
   minHeightOffset?: number;
   status?: ChatStatus;
+  messageBackground?: "muted" | "background";
 }
 
 export function MessagePair({
@@ -66,6 +68,7 @@ export function MessagePair({
   isLastPair,
   minHeightOffset,
   status,
+  messageBackground = "muted",
 }: MessagePairProps) {
   const pairRef = useRef<HTMLDivElement>(null);
 
@@ -78,6 +81,9 @@ export function MessagePair({
     }
   };
 
+  const stickyBgClass =
+    messageBackground === "background" ? "bg-background" : "bg-muted";
+
   return (
     <div
       ref={pairRef}
@@ -89,7 +95,7 @@ export function MessagePair({
       }
     >
       {/* Sticky overlay to prevent scrolling content from appearing above the user message */}
-      <div className="sticky top-0 z-50 bg-muted w-full h-4" />
+      <div className={cn("sticky top-0 z-50 w-full h-4", stickyBgClass)} />
       <div className="sticky mb-3 top-4 z-50">
         <MessageUser message={pair.user} onScrollToPair={scrollToPair} />
       </div>

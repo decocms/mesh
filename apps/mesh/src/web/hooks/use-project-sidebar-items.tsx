@@ -7,7 +7,6 @@ import {
   Container,
   CpuChip02,
   Home02,
-  Settings01,
   Users01,
   Zap,
 } from "@untitledui/icons";
@@ -38,7 +37,6 @@ export function useProjectSidebarItems(): NavigationSidebarGroup[] {
     return [];
   }
 
-  // Main section - primary navigation (no label, matches Figma)
   const mainGroup: NavigationSidebarGroup = {
     key: "main",
     items: [
@@ -54,14 +52,6 @@ export function useProjectSidebarItems(): NavigationSidebarGroup[] {
           }
         },
       },
-    ],
-  };
-
-  // Workspace section - core workspace features (matches Figma "Workspace" section)
-  const workspaceGroup: NavigationSidebarGroup = {
-    key: "workspace",
-    label: "Workspace",
-    items: [
       {
         key: "mcps",
         label: "Connections",
@@ -111,18 +101,5 @@ export function useProjectSidebarItems(): NavigationSidebarGroup[] {
     ],
   };
 
-  // Settings section - org management (at bottom, matches Figma footer)
-  const settingsGroup: NavigationSidebarGroup = {
-    key: "settings",
-    items: [
-      {
-        key: "settings",
-        label: "Settings",
-        icon: <Settings01 />,
-        onClick: () => navigate({ to: "/$org/settings", params: { org } }),
-      },
-    ],
-  };
-
-  return [mainGroup, workspaceGroup, settingsGroup];
+  return [mainGroup];
 }
