@@ -300,6 +300,7 @@ async function createMCPProxyDoNotUseDirectly(
     const headers: Record<string, string> = {
       ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
       ...(ctx.metadata.wellKnownForwardableHeaders ?? {}),
+      "x-request-id": ctx.metadata.requestId,
     };
 
     // Try to get cached token from downstream_tokens first
@@ -628,6 +629,7 @@ async function createMCPProxyDoNotUseDirectly(
           attributes: {
             "connection.id": connectionId,
             "tool.name": request.params.name,
+            "request.id": ctx.metadata.requestId,
           },
         },
         async (span) => {
@@ -822,6 +824,7 @@ async function createMCPProxyDoNotUseDirectly(
           attributes: {
             "connection.id": connectionId,
             "tool.name": request.params.name,
+            "request.id": ctx.metadata.requestId,
           },
         },
         async (span) => {

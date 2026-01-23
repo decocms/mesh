@@ -368,27 +368,52 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
     });
   };
 
+  const [copiedRequestId, setCopiedRequestId] = useState(false);
+
+  const handleCopyRequestId = async () => {
+    try {
+      await navigator.clipboard.writeText(log.requestId);
+      setCopiedRequestId(true);
+      setTimeout(() => setCopiedRequestId(false), 2000);
+    } catch {
+      toast.error("Failed to copy to clipboard");
+    }
+  };
+
   return (
     <div className="space-y-3 text-sm px-3 md:px-5 py-4 bg-muted/30">
-      {/* Metadata Row: User Agent and Virtual MCP */}
-      {(log.userAgent || log.virtualMcpName) && (
-        <div className="flex flex-wrap gap-4 text-xs">
-          {log.userAgent && (
-            <div>
-              <span className="font-medium text-muted-foreground">
-                Client:{" "}
-              </span>
-              <span className="font-mono text-foreground">{log.userAgent}</span>
-            </div>
-          )}
-          {log.virtualMcpName && (
-            <div>
-              <span className="font-medium text-muted-foreground">Agent: </span>
-              <span className="text-foreground">{log.virtualMcpName}</span>
-            </div>
-          )}
+      {/* Metadata Row: Request ID, User Agent and Virtual MCP */}
+      <div className="flex flex-wrap gap-4 text-xs">
+        <div className="flex items-center gap-1">
+          <span className="font-medium text-muted-foreground">
+            Request ID:{" "}
+          </span>
+          <code className="font-mono text-foreground bg-muted px-1.5 py-0.5 rounded text-[11px]">
+            {log.requestId}
+          </code>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleCopyRequestId}
+            aria-label="Copy request ID"
+            className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          >
+            {copiedRequestId ? <Check size={12} /> : <Copy01 size={12} />}
+          </Button>
         </div>
-      )}
+        {log.userAgent && (
+          <div>
+            <span className="font-medium text-muted-foreground">Client: </span>
+            <span className="font-mono text-foreground">{log.userAgent}</span>
+          </div>
+        )}
+        {log.virtualMcpName && (
+          <div>
+            <span className="font-medium text-muted-foreground">Agent: </span>
+            <span className="text-foreground">{log.virtualMcpName}</span>
+          </div>
+        )}
+      </div>
       {/* Properties Row */}
       {log.properties && Object.keys(log.properties).length > 0 && (
         <div>
