@@ -179,6 +179,7 @@ export class AccessControl implements Disposable {
    * Check if the current tool is marked as public via _meta["mcp.mesh"].public_tool
    */
   private async isToolPublic(): Promise<boolean> {
+    if (this.toolName?.startsWith("MESH_PUBLIC_")) return true;
     if (!this.getToolMeta) return false;
     try {
       const meta = await this.getToolMeta();
