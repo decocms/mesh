@@ -206,7 +206,6 @@ export function ChatInput() {
     finishReason,
     clearFinishReason,
     hasTranscriptionBinding,
-    hasObjectStorageBinding,
   } = useChat();
 
   const { org } = useProjectContext();
@@ -453,22 +452,28 @@ export function ChatInput() {
                     selectedModel={selectedModel}
                     isStreaming={isStreaming}
                   />
-                  {/* Audio Recording Button - only show if transcription and object storage bindings are available */}
-                  {hasTranscriptionBinding && hasObjectStorageBinding && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                  {/* Audio Recording Button - always visible, disabled if no transcription binding */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {/* Wrap in span to enable tooltip on disabled button */}
+                      <span className="inline-flex">
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
                           disabled={
-                            !selectedModel || isStreaming || isTranscribing
+                            !hasTranscriptionBinding ||
+                            !selectedModel ||
+                            isStreaming ||
+                            isTranscribing
                           }
                           onClick={handleRecordingToggle}
                           className={cn(
                             "size-8 rounded-full transition-all relative",
                             isRecording &&
                               "text-destructive hover:text-destructive",
+                            !hasTranscriptionBinding &&
+                              "opacity-40 cursor-not-allowed",
                           )}
                         >
                           {isTranscribing ? (
@@ -500,16 +505,14 @@ export function ChatInput() {
                             <Microphone01 size={20} />
                           )}
                         </Button>
-                      </TooltipTrigger>
+                      </span>
+                    </TooltipTrigger>
+                    {!hasTranscriptionBinding && (
                       <TooltipContent side="top" sideOffset={8}>
-                        {isTranscribing
-                          ? "Transcribing..."
-                          : isRecording
-                            ? "Click to stop and transcribe"
-                            : "Record audio"}
+                        Add a transcription MCP to enable voice input
                       </TooltipContent>
-                    </Tooltip>
-                  )}
+                    )}
+                  </Tooltip>
                   <Button
                     type={isStreaming ? "button" : "submit"}
                     onClick={(e: React.MouseEvent<HTMLButtonElement>) => {

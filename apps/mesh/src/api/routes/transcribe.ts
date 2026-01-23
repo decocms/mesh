@@ -4,14 +4,13 @@
  * Provides audio transcription functionality by:
  * 1. Receiving audio via FormData (blob) or URL
  * 2. Finding a connection with TRANSCRIPTION_BINDING
- * 3. Using OBJECT_STORAGE_BINDING for temporary upload if needed
+ * 3. Converting audio to data URL (base64) for direct transcription
  * 4. Calling TRANSCRIBE_AUDIO and returning the result
  */
 
 import {
   TranscriptionBinding,
   TRANSCRIPTION_BINDING,
-  OBJECT_STORAGE_BINDING,
   SUPPORTED_AUDIO_FORMATS,
   connectionImplementsBinding,
   type Binder,
@@ -135,118 +134,12 @@ async function findConnectionWithBinding(
 }
 
 /**
- * Upload audio to object storage and get a presigned URL
+ * Convert a Blob to a data URL (base64)
  */
-async function uploadAudioToObjectStorage(
-  ctx: MeshContext,
-  connection: ConnectionEntity,
-  audioBlob: Blob,
-  mimeType: string,
-): Promise<{ url: string; key: string }> {
-  const proxy = await ctx.createMCPProxy(connection);
-
-  // Generate unique key for temporary audio file
-  const timestamp = Date.now();
-  const randomSuffix = Math.random().toString(36).substring(2, 8);
-  const extension = mimeType.split("/")[1]?.split(";")[0] || "webm";
-  const key = `_transcription_temp/${timestamp}-${randomSuffix}.${extension}`;
-
-  // Get presigned URL for upload
-  const putResult = await proxy.client.callTool({
-    name: "PUT_PRESIGNED_URL",
-    arguments: {
-      key,
-      contentType: mimeType,
-      expiresIn: 300, // 5 minutes
-    },
-  });
-
-  if (putResult.isError) {
-    const errorText =
-      putResult.content
-        .map((c: { type: string; text?: string }) =>
-          c.type === "text" ? c.text : "",
-        )
-        .join("\n") || "Failed to get upload URL";
-    throw new Error(errorText);
-  }
-
-  // Extract URL from result
-  const putContent = putResult.content.find(
-    (c: { type: string }) => c.type === "text",
-  );
-  if (!putContent || putContent.type !== "text") {
-    throw new Error("Invalid PUT_PRESIGNED_URL response");
-  }
-
-  const putData = JSON.parse((putContent as { text: string }).text) as {
-    url: string;
-  };
-
-  // Upload the audio blob
-  const uploadResponse = await fetch(putData.url, {
-    method: "PUT",
-    body: audioBlob,
-    headers: {
-      "Content-Type": mimeType,
-    },
-  });
-
-  if (!uploadResponse.ok) {
-    throw new Error(`Failed to upload audio: ${uploadResponse.statusText}`);
-  }
-
-  // Get presigned URL for reading
-  const getResult = await proxy.client.callTool({
-    name: "GET_PRESIGNED_URL",
-    arguments: {
-      key,
-      expiresIn: 300, // 5 minutes
-    },
-  });
-
-  if (getResult.isError) {
-    const errorText =
-      getResult.content
-        .map((c: { type: string; text?: string }) =>
-          c.type === "text" ? c.text : "",
-        )
-        .join("\n") || "Failed to get download URL";
-    throw new Error(errorText);
-  }
-
-  const getContent = getResult.content.find(
-    (c: { type: string }) => c.type === "text",
-  );
-  if (!getContent || getContent.type !== "text") {
-    throw new Error("Invalid GET_PRESIGNED_URL response");
-  }
-
-  const getData = JSON.parse((getContent as { text: string }).text) as {
-    url: string;
-  };
-
-  return { url: getData.url, key };
-}
-
-/**
- * Delete temporary audio file from object storage
- */
-async function deleteAudioFromObjectStorage(
-  ctx: MeshContext,
-  connection: ConnectionEntity,
-  key: string,
-): Promise<void> {
-  try {
-    const proxy = await ctx.createMCPProxy(connection);
-    await proxy.client.callTool({
-      name: "DELETE_OBJECT",
-      arguments: { key },
-    });
-  } catch (error) {
-    // Log but don't fail if cleanup fails
-    console.warn("[transcribe] Failed to cleanup temporary file:", key, error);
-  }
+async function blobToDataUrl(blob: Blob, mimeType: string): Promise<string> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  return `data:${mimeType};base64,${base64}`;
 }
 
 /**
@@ -348,43 +241,17 @@ app.post("/:org/transcribe", async (c) => {
     );
   }
 
-  // 6. Handle audio upload if blob provided
+  // 6. Convert audio to data URL if blob provided
   let finalAudioUrl = audioUrl;
-  let tempFileKey: string | null = null;
-  let objectStorageConnection: ConnectionEntity | null = null;
 
   if (audioFile && !audioUrl) {
-    // Find object storage connection for temporary upload
-    objectStorageConnection = await findConnectionWithBinding(
-      ctx,
-      organizationId,
-      OBJECT_STORAGE_BINDING,
-    );
-
-    if (!objectStorageConnection) {
-      return c.json(
-        {
-          error:
-            "No object storage configured. Please add a connection with object storage capabilities (e.g., S3, R2, GCS) or provide an audioUrl instead.",
-        },
-        400,
-      );
-    }
-
     try {
-      const uploadResult = await uploadAudioToObjectStorage(
-        ctx,
-        objectStorageConnection,
-        audioFile,
-        audioFile.type,
-      );
-      finalAudioUrl = uploadResult.url;
-      tempFileKey = uploadResult.key;
+      finalAudioUrl = await blobToDataUrl(audioFile, audioFile.type);
     } catch (error) {
-      console.error("[transcribe] Upload failed:", error);
+      console.error("[transcribe] Failed to convert audio to data URL:", error);
       return c.json(
         {
-          error: `Failed to upload audio: ${error instanceof Error ? error.message : "Unknown error"}`,
+          error: `Failed to process audio: ${error instanceof Error ? error.message : "Unknown error"}`,
         },
         500,
       );
@@ -402,17 +269,7 @@ app.post("/:org/transcribe", async (c) => {
       language: language ?? undefined,
     });
 
-    // 8. Cleanup temporary file
-    if (tempFileKey && objectStorageConnection) {
-      // Don't await - cleanup in background
-      void deleteAudioFromObjectStorage(
-        ctx,
-        objectStorageConnection,
-        tempFileKey,
-      );
-    }
-
-    // 9. Return result
+    // 8. Return result
     return c.json({
       text: result.text,
       language: result.language,
@@ -421,15 +278,6 @@ app.post("/:org/transcribe", async (c) => {
     });
   } catch (error) {
     console.error("[transcribe] Transcription failed:", error);
-
-    // Cleanup on error
-    if (tempFileKey && objectStorageConnection) {
-      void deleteAudioFromObjectStorage(
-        ctx,
-        objectStorageConnection,
-        tempFileKey,
-      );
-    }
 
     return c.json(
       {

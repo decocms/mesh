@@ -128,7 +128,6 @@ interface ChatContextValue {
 
   // Binding availability
   hasTranscriptionBinding: boolean;
-  hasObjectStorageBinding: boolean;
 }
 
 // ============================================================================
@@ -570,12 +569,7 @@ export function ChatProvider({
     connections: allConnections,
     binding: "TRANSCRIPTION",
   });
-  const objectStorageConnections = useBindingConnections({
-    connections: allConnections,
-    binding: "OBJECT_STORAGE",
-  });
   const hasTranscriptionBinding = transcriptionConnections.length > 0;
-  const hasObjectStorageBinding = objectStorageConnections.length > 0;
 
   // Context prompt
   const contextPrompt = useContextHook(storedSelectedVirtualMcpId);
@@ -852,7 +846,6 @@ export function ChatProvider({
 
     // Binding availability
     hasTranscriptionBinding,
-    hasObjectStorageBinding,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
