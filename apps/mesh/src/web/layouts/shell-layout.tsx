@@ -26,6 +26,7 @@ import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
+import { FloatingChatInput } from "@/web/components/chat/floating-chat-input";
 
 /**
  * This component persists the width of the chat panel across reloads.
@@ -152,6 +153,8 @@ function ShellLayoutContent() {
           <SidebarInset>
             <ChatPanels disableChat={isHomeRoute} />
           </SidebarInset>
+          {/* Floating chat input - hidden on home route (has its own chat) */}
+          {!isHomeRoute && <FloatingChatInput />}
         </SidebarLayout>
       </PersistentSidebarProvider>
     </ProjectContextProvider>

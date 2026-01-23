@@ -89,7 +89,7 @@ export function MessagePair({
       }
     >
       {/* Sticky overlay to prevent scrolling content from appearing above the user message */}
-      <div className="sticky top-0 z-50 bg-background w-full h-4" />
+      <div className="sticky top-0 z-50 bg-muted w-full h-4" />
       <div className="sticky mb-3 top-4 z-50">
         <MessageUser message={pair.user} onScrollToPair={scrollToPair} />
       </div>
