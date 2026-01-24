@@ -586,6 +586,40 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
     toast.success("Authentication successful");
   };
 
+  const handleRemoveOAuth = async () => {
+    try {
+      const response = await fetch(
+        `/api/connections/${connection.id}/oauth-token`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        toast.error(`Failed to remove OAuth: ${errorText}`);
+        return;
+      }
+
+      // Invalidate auth status query to trigger UI refresh
+      const mcpProxyUrl = new URL(
+        `/mcp/${connection.id}`,
+        window.location.origin,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+      });
+
+      toast.success(
+        "OAuth removed. You can now re-authenticate with a different account.",
+      );
+    } catch (err) {
+      console.error("Error removing OAuth token:", err);
+      toast.error("Failed to remove OAuth");
+    }
+  };
+
   return (
     <>
       <ViewActions>
@@ -616,6 +650,8 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
             form={form}
             connection={connection}
             hasOAuthToken={props.hasOAuthToken}
+            onReauthenticate={handleAuthenticate}
+            onRemoveOAuth={handleRemoveOAuth}
           />
         </div>
 
