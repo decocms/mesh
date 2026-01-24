@@ -58,7 +58,7 @@ export interface ServerPluginContext {
  * Tools are registered at startup but gated by org settings at runtime.
  */
 export interface ServerPlugin {
-  /** Unique plugin identifier (e.g., "gateway-templates") */
+  /** Unique plugin identifier (e.g., "user-sandbox") */
   id: string;
 
   /** Short description shown in settings UI */

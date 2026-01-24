@@ -9,10 +9,10 @@
  */
 
 import type { ServerPlugin } from "@decocms/bindings/server-plugin";
-import { serverPlugin as gatewayTemplatesPlugin } from "mesh-plugin-gateway-templates/server";
+import { serverPlugin as userSandboxPlugin } from "mesh-plugin-user-sandbox/server";
 
 /**
  * Registered server plugins.
  * Add new plugins to this array.
  */
-export const serverPlugins: ServerPlugin[] = [gatewayTemplatesPlugin];
+export const serverPlugins: ServerPlugin[] = [userSandboxPlugin];

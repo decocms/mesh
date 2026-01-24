@@ -1,5 +1,5 @@
 /**
- * Gateway Templates Connect Page
+ * User Sandbox Connect Page
  *
  * Public page for end users to configure integrations.
  * Does NOT require Mesh authentication - session ID is the credential.
@@ -79,9 +79,9 @@ export default function ConnectPage() {
     isLoading,
     error,
   } = useQuery<SessionData>({
-    queryKey: ["gateway-template-session", sessionId],
+    queryKey: ["user-sandbox-session", sessionId],
     queryFn: async () => {
-      const res = await fetch(`/api/gateway-templates/sessions/${sessionId}`);
+      const res = await fetch(`/api/user-sandbox/sessions/${sessionId}`);
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to load session");
@@ -100,7 +100,7 @@ export default function ConnectPage() {
       connectionId?: string;
     }) => {
       const res = await fetch(
-        `/api/gateway-templates/sessions/${sessionId}/configure`,
+        `/api/user-sandbox/sessions/${sessionId}/configure`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -118,7 +118,7 @@ export default function ConnectPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["gateway-template-session", sessionId],
+        queryKey: ["user-sandbox-session", sessionId],
       });
     },
   });
@@ -127,7 +127,7 @@ export default function ConnectPage() {
   const completeMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(
-        `/api/gateway-templates/sessions/${sessionId}/complete`,
+        `/api/user-sandbox/sessions/${sessionId}/complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -145,7 +145,7 @@ export default function ConnectPage() {
       } else {
         toast.success("Setup complete!");
         queryClient.invalidateQueries({
-          queryKey: ["gateway-template-session", sessionId],
+          queryKey: ["user-sandbox-session", sessionId],
         });
       }
     },
@@ -166,7 +166,7 @@ export default function ConnectPage() {
     try {
       // Step 1: Provision the connection
       const provisionRes = await fetch(
-        `/api/gateway-templates/sessions/${sessionId}/provision`,
+        `/api/user-sandbox/sessions/${sessionId}/provision`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

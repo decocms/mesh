@@ -70,7 +70,7 @@ const pluginMigrationsRecord: Record<string, Migration> = {};
 
 for (const { pluginId, migration } of pluginMigrations) {
   // Prefix with plugin ID to avoid name collisions and ensure proper ordering
-  // e.g., "gateway-templates/001-gateway-templates"
+  // e.g., "user-sandbox/001-user-sandbox"
   const key = `${pluginId}/${migration.name}`;
   pluginMigrationsRecord[key] = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
