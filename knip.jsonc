@@ -21,6 +21,9 @@
         "scripts/**/*.ts"
       ],
       "ignore": ["src/api/index.ts"]
+    },
+    "packages/mesh-sdk": {
+      "ignoreDependencies": ["sonner"]
     }
   },
   "ignoreDependencies": ["@types/*"],
