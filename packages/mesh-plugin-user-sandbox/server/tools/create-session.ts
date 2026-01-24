@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import type { Kysely } from "kysely";
+import { sql } from "kysely";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import {
   UserSandboxCreateSessionInputSchema,
@@ -17,9 +18,59 @@ import { getPluginStorage, getConnectBaseUrl } from "./utils";
 /** Default session expiration: 7 days */
 const DEFAULT_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 
+/** Type for the user_sandbox_agents linking table */
+interface UserSandboxAgentRow {
+  id: string;
+  user_sandbox_id: string;
+  external_user_id: string;
+  connection_id: string;
+  created_at: string;
+}
+
+/** Type for connection inserts */
+interface ConnectionInsert {
+  id: string;
+  organization_id: string;
+  created_by: string;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  app_name: string | null;
+  app_id: string | null;
+  connection_type: string;
+  connection_url: string | null;
+  connection_token: string | null;
+  connection_headers: string | null;
+  oauth_config: string | null;
+  configuration_state: string | null;
+  configuration_scopes: string | null;
+  metadata: string | null;
+  tools: string | null;
+  bindings: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Database type for queries */
+interface AgentDatabase {
+  user_sandbox_agents: UserSandboxAgentRow;
+  connections: ConnectionInsert;
+}
+
 /**
  * Find or create a Virtual MCP for an external user.
  * Each (template_id, external_user_id) pair gets exactly one Virtual MCP.
+ *
+ * Uses a linking table (user_sandbox_agents) with a UNIQUE constraint to
+ * prevent race conditions. The constraint ensures only one agent per
+ * (user_sandbox_id, external_user_id) pair at the database level.
+ *
+ * Algorithm:
+ * 1. Try INSERT OR IGNORE into linking table
+ * 2. SELECT to get canonical connection_id
+ * 3. If we won the race (our ID was inserted), create the connection
+ * 4. If we lost (another ID exists), return the existing connection
  */
 async function findOrCreateVirtualMCP(
   db: Kysely<unknown>,
@@ -31,104 +82,74 @@ async function findOrCreateVirtualMCP(
   agentInstructions: string | null,
   toolSelectionMode: "inclusion" | "exclusion",
 ): Promise<string> {
-  // Query for existing Virtual MCP with matching metadata
-  const existingRows = await (
-    db as Kysely<{
-      connections: {
-        id: string;
-        metadata: string | null;
-        connection_type: string;
-        organization_id: string;
-      };
-    }>
-  )
-    .selectFrom("connections")
-    .select(["id", "metadata"])
-    .where("connection_type", "=", "VIRTUAL")
-    .where("organization_id", "=", organizationId)
-    .execute();
+  const typedDb = db as Kysely<AgentDatabase>;
+  const now = new Date().toISOString();
 
-  // Find one with matching user_sandbox_id and external_user_id
-  for (const row of existingRows) {
-    if (row.metadata) {
-      try {
-        const metadata = JSON.parse(row.metadata);
-        if (
-          metadata.user_sandbox_id === templateId &&
-          metadata.external_user_id === externalUserId
-        ) {
-          return row.id;
-        }
-      } catch {
-        // Ignore parse errors
-      }
-    }
+  // Generate IDs for the new agent
+  const linkingId = `usa_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 10)}`;
+  const connectionId = `vir_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 10)}`;
+
+  // Step 1: Try to insert into the linking table with ON CONFLICT DO NOTHING
+  // The UNIQUE constraint on (user_sandbox_id, external_user_id) ensures atomicity
+  await sql`
+    INSERT INTO user_sandbox_agents (id, user_sandbox_id, external_user_id, connection_id, created_at)
+    VALUES (${linkingId}, ${templateId}, ${externalUserId}, ${connectionId}, ${now})
+    ON CONFLICT (user_sandbox_id, external_user_id) DO NOTHING
+  `.execute(typedDb);
+
+  // Step 2: Select the canonical agent (either ours or the race winner's)
+  const canonical = await typedDb
+    .selectFrom("user_sandbox_agents")
+    .select("connection_id")
+    .where("user_sandbox_id", "=", templateId)
+    .where("external_user_id", "=", externalUserId)
+    .executeTakeFirst();
+
+  if (!canonical) {
+    // This shouldn't happen - we just inserted or there was already a row
+    throw new Error(
+      `Failed to find or create agent for template ${templateId} and user ${externalUserId}`,
+    );
   }
 
-  // Create new Virtual MCP
-  const now = new Date().toISOString();
-  const id = `vir_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 10)}`;
+  // Step 3: If we won the race (our connection_id was inserted), create the actual connection
+  if (canonical.connection_id === connectionId) {
+    await typedDb
+      .insertInto("connections")
+      .values({
+        id: connectionId,
+        organization_id: organizationId,
+        created_by: createdBy,
+        title: agentTitle,
+        description: agentInstructions,
+        icon: null,
+        app_name: null,
+        app_id: null,
+        connection_type: "VIRTUAL",
+        connection_url: `virtual://${connectionId}`,
+        connection_token: null,
+        connection_headers: JSON.stringify({
+          tool_selection_mode: toolSelectionMode,
+        }),
+        oauth_config: null,
+        configuration_state: null,
+        configuration_scopes: null,
+        metadata: JSON.stringify({
+          user_sandbox_id: templateId,
+          external_user_id: externalUserId,
+          source: "user-sandbox",
+        }),
+        tools: null,
+        bindings: null,
+        status: "active",
+        created_at: now,
+        updated_at: now,
+      })
+      .execute();
+  }
 
-  await (
-    db as Kysely<{
-      connections: {
-        id: string;
-        organization_id: string;
-        created_by: string;
-        title: string;
-        description: string | null;
-        icon: string | null;
-        app_name: string | null;
-        app_id: string | null;
-        connection_type: string;
-        connection_url: string | null;
-        connection_token: string | null;
-        connection_headers: string | null;
-        oauth_config: string | null;
-        configuration_state: string | null;
-        configuration_scopes: string | null;
-        metadata: string | null;
-        tools: string | null;
-        bindings: string | null;
-        status: string;
-        created_at: string;
-        updated_at: string;
-      };
-    }>
-  )
-    .insertInto("connections")
-    .values({
-      id,
-      organization_id: organizationId,
-      created_by: createdBy,
-      title: agentTitle,
-      description: agentInstructions,
-      icon: null,
-      app_name: null,
-      app_id: null,
-      connection_type: "VIRTUAL",
-      connection_url: `virtual://${id}`,
-      connection_token: null,
-      connection_headers: JSON.stringify({
-        tool_selection_mode: toolSelectionMode,
-      }),
-      oauth_config: null,
-      configuration_state: null,
-      configuration_scopes: null,
-      metadata: JSON.stringify({
-        user_sandbox_id: templateId,
-        external_user_id: externalUserId,
-        source: "user-sandbox",
-      }),
-      tools: null,
-      bindings: null,
-      status: "active",
-      created_at: now,
-      updated_at: now,
-    })
-    .execute();
-
-  return id;
+  // Return the canonical connection ID (ours or the existing one)
+  return canonical.connection_id;
 }
 
 export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {

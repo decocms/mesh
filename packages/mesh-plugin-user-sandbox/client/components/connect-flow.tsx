@@ -260,8 +260,10 @@ export function ConnectFlow({
             );
 
             if (!tokenRes.ok) {
-              console.warn(
-                "Failed to save OAuth tokens, connection may need re-auth",
+              const errorData = await tokenRes.json().catch(() => ({}));
+              throw new Error(
+                errorData.error ||
+                  "Failed to save authentication tokens. Please try again.",
               );
             }
           }

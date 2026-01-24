@@ -43,6 +43,18 @@ export interface UserSandboxSessionTable {
   expires_at: string;
 }
 
+/**
+ * Linking table for unique (template, external_user_id) → Virtual MCP mapping.
+ * Enforces uniqueness at the database level to prevent race conditions.
+ */
+export interface UserSandboxAgentTable {
+  id: string;
+  user_sandbox_id: string;
+  external_user_id: string;
+  connection_id: string;
+  created_at: ColumnType<string, string, string>;
+}
+
 // ============================================================================
 // Entity Types (Application Layer)
 // ============================================================================
@@ -225,4 +237,5 @@ export interface UserSandboxSessionUpdateInput {
 export interface UserSandboxDatabase {
   user_sandbox: UserSandboxTable;
   user_sandbox_sessions: UserSandboxSessionTable;
+  user_sandbox_agents: UserSandboxAgentTable;
 }

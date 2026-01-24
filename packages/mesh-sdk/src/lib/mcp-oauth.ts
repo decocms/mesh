@@ -143,11 +143,17 @@ class McpOAuthProvider implements OAuthClientProvider {
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
 
-    window.open(
+    const popup = window.open(
       authorizationUrl.toString(),
       "mcp-oauth",
       `width=${width},height=${height},left=${left},top=${top},popup=yes`,
     );
+
+    if (!popup) {
+      throw new Error(
+        "OAuth popup was blocked. Please allow popups for this site and try again.",
+      );
+    }
   }
 
   saveCodeVerifier(codeVerifier: string): void {
