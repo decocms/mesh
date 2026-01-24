@@ -110,14 +110,20 @@ export const USER_SANDBOX_CLEAR_USER_SESSION: ServerPluginToolDefinition = {
 
       const childConnectionIds = aggregations.map((a) => a.child_connection_id);
 
+      // Step 3: Delete connection aggregations FIRST (removes FK references)
+      await db
+        .deleteFrom("connection_aggregations")
+        .where("parent_connection_id", "in", userAgentIds)
+        .execute();
+
       if (childConnectionIds.length > 0) {
-        // Step 3: Delete OAuth tokens for child connections
+        // Step 4: Delete OAuth tokens for child connections
         await db
           .deleteFrom("downstream_tokens")
           .where("connectionId", "in", childConnectionIds)
           .execute();
 
-        // Step 4: Delete the child connections
+        // Step 5: Delete the child connections (now safe, aggregations removed)
         await db
           .deleteFrom("connections")
           .where("id", "in", childConnectionIds)
@@ -125,12 +131,6 @@ export const USER_SANDBOX_CLEAR_USER_SESSION: ServerPluginToolDefinition = {
 
         deletedConnections = childConnectionIds.length;
       }
-
-      // Step 5: Delete connection aggregations for these agents
-      await db
-        .deleteFrom("connection_aggregations")
-        .where("parent_connection_id", "in", userAgentIds)
-        .execute();
 
       // Step 6: Delete the Virtual MCPs (agents) themselves
       await db
