@@ -362,6 +362,8 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
   app.post("/api/user-sandbox/sessions/:sessionId/oauth-token", async (c) => {
     try {
       const sessionId = c.req.param("sessionId");
+      console.log(`[UserSandbox] oauth-token request for session: ${sessionId}`);
+
       const body = await c.req.json<{
         connection_id: string;
         access_token: string;
@@ -373,10 +375,19 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
         token_endpoint?: string | null;
       }>();
 
+      console.log(`[UserSandbox] oauth-token body:`, {
+        connection_id: body.connection_id,
+        has_access_token: !!body.access_token,
+        has_refresh_token: !!body.refresh_token,
+        expires_in: body.expires_in,
+      });
+
       if (!body.connection_id) {
+        console.error(`[UserSandbox] oauth-token missing connection_id`);
         return c.json({ error: "connection_id is required" }, 400);
       }
       if (!body.access_token) {
+        console.error(`[UserSandbox] oauth-token missing access_token`);
         return c.json({ error: "access_token is required" }, 400);
       }
 
@@ -471,10 +482,18 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
             updatedAt: now,
           })
           .execute();
+
+        console.log(
+          `[UserSandbox] oauth-token created for connection: ${body.connection_id}`,
+        );
       }
 
+      console.log(
+        `[UserSandbox] oauth-token saved successfully for session: ${sessionId}, connection: ${body.connection_id}`,
+      );
       return c.json({ success: true, expiresAt });
     } catch (error) {
+      console.error(`[UserSandbox] oauth-token error:`, error);
       return errorResponse(c, error);
     }
   });
@@ -495,17 +514,16 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
         return c.json({ error: "Template not found" }, 404);
       }
 
-      // Check all required apps are configured
-      const unconfiguredApps = template.required_apps.filter((app) => {
+      // Check at least one app is configured (allow partial configuration)
+      const configuredApps = template.required_apps.filter((app) => {
         const status = session.app_statuses[app.app_name];
-        return !status?.configured;
+        return status?.configured;
       });
 
-      if (unconfiguredApps.length > 0) {
+      if (configuredApps.length === 0) {
         return c.json(
           {
-            error: "Not all required apps are configured",
-            unconfigured: unconfiguredApps.map((a) => a.app_name),
+            error: "At least one app must be configured",
           },
           400,
         );
