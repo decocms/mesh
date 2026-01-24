@@ -208,8 +208,10 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
         return c.json({ error: "app_name is required" }, 400);
       }
 
-      // Validate session
-      const session = await validateSessionAccess(sessionId, storage);
+      // Validate session (allow completed so users can add more apps later)
+      const session = await validateSessionAccess(sessionId, storage, {
+        allowCompleted: true,
+      });
 
       // Get template to find app configuration
       const template = await templates.findById(session.template_id);
@@ -303,8 +305,10 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
         return c.json({ error: "app_name is required" }, 400);
       }
 
-      // Validate session
-      const session = await validateSessionAccess(sessionId, storage);
+      // Validate session (allow completed so users can add more apps later)
+      const session = await validateSessionAccess(sessionId, storage, {
+        allowCompleted: true,
+      });
 
       // Get template to verify app is required
       const template = await templates.findById(session.template_id);
@@ -380,8 +384,10 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
         return c.json({ error: "access_token is required" }, 400);
       }
 
-      // Validate session
-      const session = await validateSessionAccess(sessionId, storage);
+      // Validate session (allow completed so users can add more apps later)
+      const session = await validateSessionAccess(sessionId, storage, {
+        allowCompleted: true,
+      });
 
       // Verify the connection belongs to this session
       const connectionBelongsToSession = Object.values(
@@ -486,8 +492,10 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
     try {
       const sessionId = c.req.param("sessionId");
 
-      // Validate session
-      const session = await validateSessionAccess(sessionId, storage);
+      // Validate session (allow completed so users can re-complete after adding more apps)
+      const session = await validateSessionAccess(sessionId, storage, {
+        allowCompleted: true,
+      });
 
       // Get template
       const template = await templates.findById(session.template_id);
