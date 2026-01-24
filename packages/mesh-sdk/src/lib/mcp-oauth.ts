@@ -46,6 +46,13 @@ const activeOAuthSessions = new Map<string, McpOAuthProvider>();
 const OAUTH_CALLBACK_STORAGE_KEY = "mcp:oauth:callback:";
 
 /**
+ * Window mode for OAuth flow
+ * - "popup": Opens in a popup window (default, may be blocked on some devices)
+ * - "tab": Opens in a new tab (works on all devices, uses localStorage for communication)
+ */
+export type OAuthWindowMode = "popup" | "tab";
+
+/**
  * Options for the MCP OAuth provider
  */
 export interface McpOAuthProviderOptions {
@@ -59,6 +66,8 @@ export interface McpOAuthProviderOptions {
   callbackUrl?: string;
   /** OAuth scopes to request (space-separated or array). If not provided, no scope is requested */
   scope?: string | string[];
+  /** Window mode: "popup" (default) or "tab" (for devices that block popups) */
+  windowMode?: OAuthWindowMode;
 }
 
 /**
@@ -69,6 +78,7 @@ class McpOAuthProvider implements OAuthClientProvider {
   private serverUrl: string;
   private _clientMetadata: OAuthClientMetadata;
   private _redirectUrl: string;
+  private _windowMode: OAuthWindowMode;
 
   // In-memory storage for OAuth flow data
   private _state: string | null = null;
@@ -80,6 +90,7 @@ class McpOAuthProvider implements OAuthClientProvider {
     this.serverUrl = options.serverUrl;
     this._redirectUrl =
       options.callbackUrl ?? `${window.location.origin}/oauth/callback`;
+    this._windowMode = options.windowMode ?? "popup";
 
     // Build scope string if provided
     const scopeStr = options.scope
@@ -138,21 +149,31 @@ class McpOAuthProvider implements OAuthClientProvider {
   }
 
   redirectToAuthorization(authorizationUrl: URL): void {
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
+    if (this._windowMode === "tab") {
+      // Open in new tab - uses localStorage for cross-tab communication
+      const tab = window.open(authorizationUrl.toString(), "_blank");
+      if (!tab) {
+        // Fallback: navigate current window (will lose state, but works)
+        window.location.href = authorizationUrl.toString();
+      }
+    } else {
+      // Open in popup (default)
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
 
-    const popup = window.open(
-      authorizationUrl.toString(),
-      "mcp-oauth",
-      `width=${width},height=${height},left=${left},top=${top},popup=yes`,
-    );
-
-    if (!popup) {
-      throw new Error(
-        "OAuth popup was blocked. Please allow popups for this site and try again.",
+      const popup = window.open(
+        authorizationUrl.toString(),
+        "mcp-oauth",
+        `width=${width},height=${height},left=${left},top=${top},popup=yes`,
       );
+
+      if (!popup) {
+        throw new Error(
+          "OAuth popup was blocked. Please allow popups for this site and try again.",
+        );
+      }
     }
   }
 
@@ -219,27 +240,37 @@ interface FullTokenResult {
 
 /**
  * Authenticate with an MCP server using OAuth
- * @param serverUrl - Full MCP server URL to authenticate with
+ * @param params.connectionId - The connection ID to authenticate
+ * @param params.meshUrl - Mesh server URL (optional, defaults to window.location.origin for same-origin apps)
+ * @param params.clientName - OAuth client name
+ * @param params.clientUri - OAuth client URI
+ * @param params.callbackUrl - OAuth callback URL (defaults to current origin + /oauth/callback)
+ * @param params.timeout - Timeout in ms (default 120000)
+ * @param params.scope - OAuth scopes to request
+ * @param params.windowMode - "popup" (default) or "tab" (for devices that block popups)
  */
 export async function authenticateMcp(params: {
   connectionId: string;
+  /** Mesh server URL - optional, defaults to window.location.origin (for external apps, provide your Mesh server URL) */
+  meshUrl?: string;
   clientName?: string;
   clientUri?: string;
   callbackUrl?: string;
   timeout?: number;
   /** OAuth scopes to request. If not provided, no scope is requested (server decides) */
   scope?: string | string[];
+  /** Window mode: "popup" (default) or "tab" (for devices that block popups). Tab mode uses localStorage for cross-tab communication. */
+  windowMode?: OAuthWindowMode;
 }): Promise<AuthenticateMcpResult> {
-  const serverUrl = new URL(
-    `/mcp/${params.connectionId}`,
-    window.location.origin,
-  );
+  const baseUrl = params.meshUrl ?? window.location.origin;
+  const serverUrl = new URL(`/mcp/${params.connectionId}`, baseUrl);
   const provider = new McpOAuthProvider({
     serverUrl: serverUrl.href,
     clientName: params.clientName,
     clientUri: params.clientUri,
     callbackUrl: params.callbackUrl,
     scope: params.scope,
+    windowMode: params.windowMode,
   });
 
   try {
@@ -584,17 +615,19 @@ function extractConnectionIdFromUrl(url: string): string | null {
 
 /**
  * Check if connection has a stored OAuth token
+ * @param connectionId - The connection ID to check
+ * @param apiBaseUrl - Base URL for the API call (optional, defaults to relative path)
  */
 async function checkOAuthTokenStatus(
   connectionId: string,
+  apiBaseUrl?: string,
 ): Promise<{ hasToken: boolean }> {
   try {
-    const response = await fetch(
-      `/api/connections/${connectionId}/oauth-token/status`,
-      {
-        credentials: "include",
-      },
-    );
+    const path = `/api/connections/${connectionId}/oauth-token/status`;
+    const url = apiBaseUrl ? new URL(path, apiBaseUrl).href : path;
+    const response = await fetch(url, {
+      credentials: apiBaseUrl ? "omit" : "include", // Don't send cookies for cross-origin
+    });
     if (!response.ok) {
       return { hasToken: false };
     }
@@ -607,13 +640,19 @@ async function checkOAuthTokenStatus(
 
 /**
  * Check if an MCP connection is authenticated and whether it supports OAuth
+ * @param params.url - The MCP URL to check
+ * @param params.token - Authorization token (optional)
+ * @param params.meshUrl - Mesh server URL for API calls (optional, defaults to URL origin)
  */
 export async function isConnectionAuthenticated({
   url,
   token,
+  meshUrl,
 }: {
   url: string;
   token: string | null;
+  /** Mesh server URL for API calls - optional, defaults to extracting from url parameter */
+  meshUrl?: string;
 }): Promise<McpAuthStatus> {
   try {
     const headers = new Headers();
@@ -643,11 +682,13 @@ export async function isConnectionAuthenticated({
 
     // Extract connection ID for OAuth token status check
     const connectionId = extractConnectionIdFromUrl(url);
+    // Determine base URL for API calls (meshUrl > URL origin > window.location.origin)
+    const apiBaseUrl = meshUrl ?? new URL(url).origin;
 
     if (response.ok) {
       // Check if we have an OAuth token stored for this connection
       const oauthStatus = connectionId
-        ? await checkOAuthTokenStatus(connectionId)
+        ? await checkOAuthTokenStatus(connectionId, apiBaseUrl)
         : { hasToken: false };
 
       return {

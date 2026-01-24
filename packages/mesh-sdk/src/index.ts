@@ -108,6 +108,7 @@ export {
   type OAuthTokenInfo,
   type AuthenticateMcpResult,
   type McpAuthStatus,
+  type OAuthWindowMode,
 } from "./lib/mcp-oauth";
 
 // Constants and well-known MCP definitions

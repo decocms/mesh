@@ -15,21 +15,28 @@ export interface CreateMcpClientOptions {
   orgId: string;
   /** Authorization token - optional */
   token?: string | null;
+  /** Mesh server URL - optional, defaults to window.location.origin (for external apps, provide your Mesh server URL) */
+  meshUrl?: string;
 }
 
 export type UseMcpClientOptions = CreateMcpClientOptions;
 
 /**
- * Build the MCP URL from connectionId
+ * Build the MCP URL from connectionId and optional meshUrl
  * Uses /mcp/:connectionId for all servers
  */
-function buildMcpUrl(connectionId: string | null): string {
-  if (typeof window === "undefined") {
-    throw new Error("MCP client requires a browser environment.");
+function buildMcpUrl(connectionId: string | null, meshUrl?: string): string {
+  const baseUrl =
+    meshUrl ??
+    (typeof window !== "undefined" ? window.location.origin : undefined);
+  if (!baseUrl) {
+    throw new Error(
+      "MCP client requires either meshUrl option or a browser environment.",
+    );
   }
 
   const path = connectionId ? `/mcp/${connectionId}` : "/mcp";
-  return new URL(path, window.location.origin).href;
+  return new URL(path, baseUrl).href;
 }
 
 /**
@@ -43,8 +50,9 @@ export async function createMCPClient({
   connectionId,
   orgId,
   token,
+  meshUrl,
 }: CreateMcpClientOptions): Promise<Client> {
-  const url = buildMcpUrl(connectionId);
+  const url = buildMcpUrl(connectionId, meshUrl);
 
   const client = new Client(DEFAULT_CLIENT_INFO, {
     capabilities: {
@@ -75,7 +83,12 @@ export async function createMCPClient({
 
   // Add toJSON method for query key serialization
   // This allows the client to be used directly in query keys
-  const queryKey = KEYS.mcpClient(orgId, connectionId ?? "self", token ?? "");
+  const queryKey = KEYS.mcpClient(
+    orgId,
+    connectionId ?? "self",
+    token ?? "",
+    meshUrl ?? "",
+  );
   (client as Client & { toJSON: () => string }).toJSON = () =>
     `mcp-client:${queryKey.join(":")}`;
 
@@ -93,12 +106,18 @@ export function useMCPClient({
   connectionId,
   orgId,
   token,
+  meshUrl,
 }: UseMcpClientOptions): Client {
-  const queryKey = KEYS.mcpClient(orgId, connectionId ?? "", token ?? "");
+  const queryKey = KEYS.mcpClient(
+    orgId,
+    connectionId ?? "",
+    token ?? "",
+    meshUrl ?? "",
+  );
 
   const { data: client } = useSuspenseQuery({
     queryKey,
-    queryFn: () => createMCPClient({ connectionId, orgId, token }),
+    queryFn: () => createMCPClient({ connectionId, orgId, token, meshUrl }),
     staleTime: Infinity, // Keep client alive while query is active
     gcTime: 0, // Clean up immediately when query is inactive
   });
