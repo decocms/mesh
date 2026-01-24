@@ -1,0 +1,86 @@
+name: Publish @decocms/mesh-sdk
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/mesh-sdk/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Check if version changed
+        id: version-check
+        run: |
+          # Get the current version from package.json
+          CURRENT_VERSION=$(bun -e "console.log(require('./package.json').version)")
+
+          # Try to get the published version from npm (will fail if package doesn't exist)
+          PUBLISHED_VERSION=$(bun info @decocms/mesh-sdk version 2>/dev/null || echo "0.0.0")
+
+          echo "Current version: $CURRENT_VERSION"
+          echo "Published version: $PUBLISHED_VERSION"
+          echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          if [ "$CURRENT_VERSION" != "$PUBLISHED_VERSION" ]; then
+            echo "version-changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Version changed ($PUBLISHED_VERSION → $CURRENT_VERSION), will publish"
+          else
+            echo "version-changed=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Version unchanged ($CURRENT_VERSION), skipping publish"
+          fi
+
+          # Check if this is a prerelease version (contains a hyphen)
+          if [[ "$CURRENT_VERSION" == *-* ]]; then
+            echo "npm-tag=next" >> $GITHUB_OUTPUT
+            echo "📦 Prerelease version detected, will publish with tag 'next'"
+          else
+            echo "npm-tag=latest" >> $GITHUB_OUTPUT
+            echo "📦 Stable version detected, will publish with tag 'latest'"
+          fi
+        working-directory: packages/mesh-sdk
+
+      - name: Publish to npm
+        if: steps.version-check.outputs.version-changed == 'true'
+        run: bun publish --access public --tag ${{ steps.version-check.outputs.npm-tag }}
+        working-directory: packages/mesh-sdk
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create Release
+        if: steps.version-check.outputs.version-changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "mesh-sdk-v${{ steps.version-check.outputs.current-version }}" \
+            --title "@decocms/mesh-sdk v${{ steps.version-check.outputs.current-version }}" \
+            --notes "## Changes
+
+          Automated release of @decocms/mesh-sdk package.
+
+          ### Installation
+          \`\`\`bash
+          npm install @decocms/mesh-sdk
+          \`\`\`
+          
+          ### Features
+          - React hooks for MCP connections
+          - OAuth authentication utilities
+          - Support for external apps via \`meshUrl\` parameter
+          - TypeScript types for connections and virtual MCPs"
