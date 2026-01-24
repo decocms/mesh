@@ -58,6 +58,12 @@ interface AgentDatabase {
   connections: ConnectionInsert;
 }
 
+/** Result of findOrCreateVirtualMCP operation */
+interface FindOrCreateResult {
+  connectionId: string;
+  created: boolean;
+}
+
 /**
  * Find or create a Virtual MCP for an external user.
  * Each (template_id, external_user_id) pair gets exactly one Virtual MCP.
@@ -80,7 +86,7 @@ async function findOrCreateVirtualMCP(
   agentTitle: string,
   agentInstructions: string | null,
   toolSelectionMode: "inclusion" | "exclusion",
-): Promise<string> {
+): Promise<FindOrCreateResult> {
   const typedDb = db as Kysely<AgentDatabase>;
 
   // Step 1: Check if agent already exists (fast path for common case)
@@ -92,7 +98,7 @@ async function findOrCreateVirtualMCP(
     .executeTakeFirst();
 
   if (existing) {
-    return existing.connection_id;
+    return { connectionId: existing.connection_id, created: false };
   }
 
   // Step 2: Create new agent in a transaction (connection first, then linking row)
@@ -147,7 +153,7 @@ async function findOrCreateVirtualMCP(
         .execute();
     });
 
-    return connectionId;
+    return { connectionId, created: true };
   } catch (error) {
     // Step 3: Handle race condition - another request created the agent
     // Check for unique constraint violation (SQLite: UNIQUE constraint failed)
@@ -165,7 +171,7 @@ async function findOrCreateVirtualMCP(
         .executeTakeFirst();
 
       if (winner) {
-        return winner.connection_id;
+        return { connectionId: winner.connection_id, created: false };
       }
     }
 
@@ -232,6 +238,7 @@ export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {
         url: `${baseUrl}/connect/${existingSession.id}`,
         expiresAt: existingSession.expires_at,
         agentId: existingSession.created_agent_id,
+        created: false,
       };
     }
 
@@ -242,7 +249,7 @@ export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {
     );
     const createdBy = template.created_by ?? meshCtx.auth.user?.id ?? "system";
 
-    const agentId = await findOrCreateVirtualMCP(
+    const { connectionId: agentId, created } = await findOrCreateVirtualMCP(
       meshCtx.db,
       meshCtx.organization.id,
       createdBy,
@@ -277,6 +284,7 @@ export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {
       url: `${baseUrl}/connect/${session.id}`,
       expiresAt: session.expires_at,
       agentId,
+      created,
     };
   },
 };
