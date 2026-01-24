@@ -6,6 +6,12 @@ import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
+import {
   Form,
   FormControl,
   FormDescription,
@@ -24,10 +30,13 @@ import {
 } from "@deco/ui/components/select.tsx";
 import {
   CheckCircle,
+  ChevronDown,
   Container,
   CpuChip02,
   Globe02,
+  RefreshCcw01,
   Terminal,
+  Trash01,
 } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useForm, useWatch } from "react-hook-form";
@@ -41,10 +50,14 @@ function ConnectionFields({
   form,
   connection,
   hasOAuthToken,
+  onReauthenticate,
+  onRemoveOAuth,
 }: {
   form: ReturnType<typeof useForm<ConnectionFormData>>;
   connection: ConnectionEntity;
   hasOAuthToken?: boolean;
+  onReauthenticate?: () => void | Promise<void>;
+  onRemoveOAuth?: () => void | Promise<void>;
 }) {
   const uiType = useWatch({ control: form.control, name: "ui_type" });
   const connectionUrl = useWatch({
@@ -310,11 +323,34 @@ function ConnectionFields({
 
           {/* Authentication status badge */}
           {hasOAuthToken ? (
-            <div className="flex items-center">
-              <Badge variant="success" className="gap-1.5">
-                <CheckCircle size={12} />
-                Authenticated via OAuth
-              </Badge>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Badge variant="success" className="gap-1.5">
+                      <CheckCircle size={12} />
+                      Authenticated via OAuth
+                      <ChevronDown size={12} />
+                    </Badge>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={onReauthenticate}>
+                    <RefreshCcw01 size={16} />
+                    Re-authenticate
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={onRemoveOAuth}
+                  >
+                    <Trash01 size={16} />
+                    Remove OAuth
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ) : connection.connection_token ? (
             <div className="flex items-center">
@@ -391,10 +427,14 @@ export function ConnectionSettingsFormUI({
   form,
   connection,
   hasOAuthToken,
+  onReauthenticate,
+  onRemoveOAuth,
 }: {
   form: ReturnType<typeof useForm<ConnectionFormData>>;
   connection: ConnectionEntity;
   hasOAuthToken?: boolean;
+  onReauthenticate?: () => void | Promise<void>;
+  onRemoveOAuth?: () => void | Promise<void>;
 }) {
   const { org } = useProjectContext();
 
@@ -453,6 +493,8 @@ export function ConnectionSettingsFormUI({
           form={form}
           connection={connection}
           hasOAuthToken={hasOAuthToken}
+          onReauthenticate={onReauthenticate}
+          onRemoveOAuth={onRemoveOAuth}
         />
 
         {/* Last Updated section */}
