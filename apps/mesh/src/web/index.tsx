@@ -18,7 +18,10 @@ import type { ReactNode } from "react";
 import "../../index.css";
 
 import { sourcePlugins } from "./plugins.ts";
-import type { AnyPlugin, PluginSetupContext } from "@decocms/bindings/plugins";
+import type {
+  AnyClientPlugin,
+  PluginSetupContext,
+} from "@decocms/bindings/plugins";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -58,6 +61,15 @@ const betterAuthRoutes = createRoute({
   getParentRoute: () => rootRoute,
   path: "/auth/$pathname",
   component: lazyRouteComponent(() => import("./routes/auth-catchall.tsx")),
+});
+
+/**
+ * Gateway templates connect flow (public, no auth)
+ */
+const connectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/connect/$sessionId",
+  component: lazyRouteComponent(() => import("./routes/connect.tsx")),
 });
 
 const shellLayout = createRoute({
@@ -228,7 +240,10 @@ export const pluginRootSidebarItems: {
 
 const pluginRoutes: AnyRoute[] = [];
 
-sourcePlugins.forEach((plugin: AnyPlugin) => {
+sourcePlugins.forEach((plugin: AnyClientPlugin) => {
+  // Only invoke setup if the plugin provides it
+  if (!plugin.setup) return;
+
   const context: PluginSetupContext = {
     parentRoute: pluginLayoutRoute as AnyRoute,
     routing: {
@@ -280,6 +295,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   betterAuthRoutes,
   oauthCallbackRoute,
+  connectRoute,
 ]);
 
 const router = createRouter({

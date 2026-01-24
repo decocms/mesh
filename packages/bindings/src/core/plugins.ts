@@ -43,14 +43,21 @@ export interface PluginRenderHeaderProps {
   onConnectionChange: (connectionId: string) => void;
 }
 
-export interface Plugin<TBinding extends Binder> {
+/**
+ * Client Plugin interface.
+ *
+ * Defines the contract for client-side plugins that extend the Mesh UI.
+ * Client plugins are separate from server plugins to avoid bundling
+ * server code into the client bundle.
+ */
+export interface ClientPlugin<TBinding extends Binder> {
   id: string;
   /**
    * Short description of the plugin shown in the settings UI.
    */
   description?: string;
   binding: TBinding;
-  setup: PluginSetup;
+  setup?: PluginSetup;
   /**
    * Optional custom layout component for this plugin.
    * If not provided, a default layout with connection selector will be used.
@@ -68,7 +75,16 @@ export interface Plugin<TBinding extends Binder> {
   renderEmptyState?: () => ReactNode;
 }
 
-export type AnyPlugin = Plugin<any>;
+/**
+ * @deprecated Use ClientPlugin instead
+ */
+export interface Plugin<TBinding extends Binder>
+  extends ClientPlugin<TBinding> {
+  setup: PluginSetup; // Required for backwards compatibility
+}
+
+export type AnyClientPlugin = ClientPlugin<Binder>;
+export type AnyPlugin = Plugin<Binder>;
 
 // Re-export plugin router utilities
 export {

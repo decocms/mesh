@@ -13,6 +13,10 @@
     "zod": "^4.0.0",
     "zod-from-json-schema": "^0.5.2"
   },
+  "devDependencies": {
+    "hono": "^4.7.10",
+    "kysely": "^0.27.5"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./collections": "./src/well-known/collections.ts",
@@ -24,7 +28,8 @@
     "./prompt": "./src/well-known/prompt.ts",
     "./workflow": "./src/well-known/workflow.ts",
     "./plugins": "./src/core/plugins.ts",
-    "./plugin-router": "./src/core/plugin-router.tsx"
+    "./plugin-router": "./src/core/plugin-router.tsx",
+    "./server-plugin": "./src/core/server-plugin.ts"
   },
   "engines": {
     "node": ">=24.0.0"

@@ -99,6 +99,17 @@ export { StreamableHTTPClientTransport } from "./lib/streamable-http-client-tran
 // Query keys
 export { KEYS } from "./lib/query-keys";
 
+// MCP OAuth utilities
+export {
+  authenticateMcp,
+  handleOAuthCallback,
+  isConnectionAuthenticated,
+  type McpOAuthProviderOptions,
+  type OAuthTokenInfo,
+  type AuthenticateMcpResult,
+  type McpAuthStatus,
+} from "./lib/mcp-oauth";
+
 // Constants and well-known MCP definitions
 export {
   // Frontend self MCP ID

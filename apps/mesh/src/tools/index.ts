@@ -3,10 +3,16 @@
  *
  * Central export for all MCP Mesh management tools
  * Types are inferred from ALL_TOOLS - this is the source of truth.
+ *
+ * Plugin tools are collected at startup and combined with core tools.
  */
 
 import { mcpServer } from "@/api/utils/mcp";
 import { MeshContext } from "@/core/mesh-context";
+import {
+  collectPluginTools,
+  filterToolsByEnabledPlugins,
+} from "@/core/plugin-loader";
 import * as ApiKeyTools from "./apiKeys";
 import * as CodeExecutionTools from "./code-execution";
 import * as ConnectionTools from "./connection";
@@ -19,8 +25,8 @@ import * as ThreadTools from "./thread";
 import * as UserTools from "./user";
 import { ToolName } from "./registry";
 
-// All available tools - types are inferred
-export const ALL_TOOLS = [
+// Core tools - always available
+const CORE_TOOLS = [
   OrganizationTools.ORGANIZATION_CREATE,
   OrganizationTools.ORGANIZATION_LIST,
   OrganizationTools.ORGANIZATION_GET,
@@ -85,20 +91,52 @@ export const ALL_TOOLS = [
   ThreadTools.COLLECTION_THREAD_MESSAGES_LIST,
 ] as const satisfies { name: ToolName }[];
 
+// Plugin tools - collected at startup, gated by org settings at runtime
+const PLUGIN_TOOLS = collectPluginTools();
+
+// Tool type for combined core + plugin tools
+interface CombinedTool {
+  name: string;
+  description: string;
+  inputSchema: unknown;
+  outputSchema: unknown;
+  handler: (input: unknown, ctx: MeshContext) => Promise<unknown>;
+  execute: (input: unknown, ctx: MeshContext) => Promise<unknown>;
+}
+
+// All available tools - core + plugin tools
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const ALL_TOOLS: CombinedTool[] = [
+  ...(CORE_TOOLS as unknown as CombinedTool[]),
+  ...(PLUGIN_TOOLS as unknown as CombinedTool[]),
+];
+
 export type MCPMeshTools = typeof ALL_TOOLS;
 
 // Derive tool name type from ALL_TOOLS
 export type ToolNameFromTools = (typeof ALL_TOOLS)[number]["name"];
 
-export const managementMCP = (ctx: MeshContext) => {
-  // Convert ALL_TOOLS to ToolDefinition format
-  const tools = ALL_TOOLS.map((tool) => ({
+export const managementMCP = async (ctx: MeshContext) => {
+  // Get enabled plugins for this organization to filter plugin tools
+  let enabledPlugins: string[] | null = null;
+  if (ctx.organization) {
+    const settings = await ctx.storage.organizationSettings.get(
+      ctx.organization.id,
+    );
+    enabledPlugins = settings?.enabled_plugins ?? null;
+  }
+
+  // Filter tools based on enabled plugins
+  // Core tools are always included, plugin tools only if their plugin is enabled
+  const filteredTools = filterToolsByEnabledPlugins(ALL_TOOLS, enabledPlugins);
+
+  // Convert filtered tools to ToolDefinition format
+  const tools = filteredTools.map((tool) => ({
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,
     outputSchema: tool.outputSchema,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handler: async (args: any) => {
+    handler: async (args: unknown) => {
       ctx.access.setToolName(tool.name);
       // Execute the tool with the mesh context
       return await tool.execute(args, ctx);
@@ -110,7 +148,8 @@ export const managementMCP = (ctx: MeshContext) => {
     name: "mcp-mesh-management",
     version: "1.0.0",
   })
-    .withTools(tools)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .withTools(tools as any)
     .build();
 
   // Handle the incoming MCP message

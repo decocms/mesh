@@ -105,6 +105,7 @@
     "jose": "^6.0.11",
     "lucide-react": "^0.468.0",
     "marked": "^15.0.6",
+    "mesh-plugin-user-sandbox": "workspace:*",
     "mesh-plugin-object-storage": "workspace:*",
     "nanoid": "^5.1.6",
     "pg": "^8.16.3",
