@@ -4,6 +4,7 @@
  * Creates tables for:
  * - user_sandbox: Template definitions with required apps and completion config
  * - user_sandbox_sessions: Per-user session state for the connect flow
+ * - user_sandbox_agents: Links (template, external_user_id) to Virtual MCP (unique constraint)
  */
 
 import { Kysely, sql } from "kysely";
@@ -117,10 +118,52 @@ export const migration: ServerPluginMigration = {
       .on("user_sandbox_sessions")
       .column("organization_id")
       .execute();
+
+    // User Sandbox Agents table
+    // Enforces one Virtual MCP (connection) per (template, external_user_id) pair
+    // Prevents race conditions when concurrent requests create agents for the same user
+    await db.schema
+      .createTable("user_sandbox_agents")
+      .addColumn("id", "text", (col) => col.primaryKey())
+      .addColumn("user_sandbox_id", "text", (col) =>
+        col.notNull().references("user_sandbox.id").onDelete("cascade"),
+      )
+      .addColumn("external_user_id", "text", (col) => col.notNull())
+      .addColumn("connection_id", "text", (col) =>
+        col.notNull().references("connections.id").onDelete("cascade"),
+      )
+      .addColumn("created_at", "text", (col) =>
+        col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
+      )
+      .execute();
+
+    // UNIQUE constraint on (user_sandbox_id, external_user_id)
+    // This prevents duplicate Virtual MCPs for the same user
+    await db.schema
+      .createIndex("idx_user_sandbox_agents_unique")
+      .on("user_sandbox_agents")
+      .columns(["user_sandbox_id", "external_user_id"])
+      .unique()
+      .execute();
+
+    // Index for looking up agents by connection
+    await db.schema
+      .createIndex("idx_user_sandbox_agents_connection")
+      .on("user_sandbox_agents")
+      .column("connection_id")
+      .execute();
   },
 
   async down(db: Kysely<unknown>): Promise<void> {
     // Drop indexes first
+    await db.schema
+      .dropIndex("idx_user_sandbox_agents_connection")
+      .ifExists()
+      .execute();
+    await db.schema
+      .dropIndex("idx_user_sandbox_agents_unique")
+      .ifExists()
+      .execute();
     await db.schema
       .dropIndex("idx_user_sandbox_sessions_org")
       .ifExists()
@@ -135,7 +178,8 @@ export const migration: ServerPluginMigration = {
       .execute();
     await db.schema.dropIndex("idx_user_sandbox_org").ifExists().execute();
 
-    // Drop tables (sessions first due to FK constraint)
+    // Drop tables (agents and sessions first due to FK constraints)
+    await db.schema.dropTable("user_sandbox_agents").ifExists().execute();
     await db.schema.dropTable("user_sandbox_sessions").ifExists().execute();
     await db.schema.dropTable("user_sandbox").ifExists().execute();
   },

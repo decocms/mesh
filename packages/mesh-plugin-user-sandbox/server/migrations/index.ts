@@ -6,6 +6,5 @@
 
 import type { ServerPluginMigration } from "@decocms/bindings/server-plugin";
 import { migration as migration001 } from "./001-user-sandbox";
-import { migration as migration002 } from "./002-user-sandbox-agents";
 
-export const migrations: ServerPluginMigration[] = [migration001, migration002];
+export const migrations: ServerPluginMigration[] = [migration001];
