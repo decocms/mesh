@@ -31,9 +31,8 @@ export function getPluginStorage(): UserSandboxPluginStorage {
 
 /**
  * Get the base URL for connect flow.
- * Uses the origin from the request or falls back to env var.
+ * Uses BASE_URL env var (same as main app) or falls back to localhost.
  */
 export function getConnectBaseUrl(): string {
-  // In production, this should come from env or be derived from request
-  return process.env.MESH_PUBLIC_URL || "http://localhost:3000";
+  return process.env.BASE_URL || "http://localhost:3000";
 }
