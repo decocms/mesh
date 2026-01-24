@@ -1,4 +1,5 @@
 import { type Migration } from "kysely";
+import { collectPluginMigrations } from "../src/core/plugin-loader";
 import * as migration001initialschema from "./001-initial-schema.ts";
 import * as migration002organizationsettings from "./002-organization-settings.ts";
 import * as migration003connectionschemaalign from "./003-connection-schema-align.ts";
@@ -28,7 +29,8 @@ import * as migration026restrictchildconnectiondelete from "./026-restrict-child
 import * as migration027updatemanagementmcpurl from "./027-update-management-mcp-url.ts";
 import * as migration028updatemanagementmcptoself from "./028-update-management-mcp-to-self.ts";
 
-const migrations = {
+// Core migrations
+const coreMigrations: Record<string, Migration> = {
   "001-initial-schema": migration001initialschema,
   "002-organization-settings": migration002organizationsettings,
   "003-connection-schema-align": migration003connectionschemaalign,
@@ -59,6 +61,30 @@ const migrations = {
     migration026restrictchildconnectiondelete,
   "027-update-management-mcp-url": migration027updatemanagementmcpurl,
   "028-update-management-mcp-to-self": migration028updatemanagementmcptoself,
-} satisfies Record<string, Migration>;
+};
+
+// Collect plugin migrations and merge with core migrations
+// Plugin migrations are prefixed with their plugin ID for namespacing
+const pluginMigrations = collectPluginMigrations();
+const pluginMigrationsRecord: Record<string, Migration> = {};
+
+for (const { pluginId, migration } of pluginMigrations) {
+  // Prefix with plugin ID to avoid name collisions and ensure proper ordering
+  // e.g., "gateway-templates/001-gateway-templates"
+  const key = `${pluginId}/${migration.name}`;
+  pluginMigrationsRecord[key] = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    up: migration.up as (db: any) => Promise<void>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    down: migration.down as (db: any) => Promise<void>,
+  };
+}
+
+// Combine core and plugin migrations
+// Core migrations run first (by alphabetical order), then plugin migrations
+const migrations: Record<string, Migration> = {
+  ...coreMigrations,
+  ...pluginMigrationsRecord,
+};
 
 export default migrations;

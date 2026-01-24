@@ -240,7 +240,7 @@ export async function handleVirtualMcpRequest(
  * - If virtualMcpId is omitted: use Decopilot agent (default agent)
  */
 app.all("/gateway/:virtualMcpId?", async (c) => {
-  const virtualMcpId = c.req.param("virtualMcpId");
+  const virtualMcpId = c.req.param("virtualMcpId") || c.req.header("x-virtual-mcp-id");
   return handleVirtualMcpRequest(c, virtualMcpId);
 });
 
@@ -252,7 +252,7 @@ app.all("/gateway/:virtualMcpId?", async (c) => {
  * - If virtualMcpId is omitted: use Decopilot agent (default agent)
  */
 app.all("/virtual-mcp/:virtualMcpId?", async (c) => {
-  const virtualMcpId = c.req.param("virtualMcpId");
+  const virtualMcpId = c.req.param("virtualMcpId") || c.req.header("x-virtual-mcp-id");
   return handleVirtualMcpRequest(c, virtualMcpId);
 });
 

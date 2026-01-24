@@ -38,6 +38,11 @@ import proxyRoutes from "./routes/proxy";
 import publicConfigRoutes from "./routes/public-config";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
+import {
+  mountPluginRoutes,
+  initializePluginStorage,
+} from "../core/plugin-loader";
+import { CredentialVault } from "../encryption/credential-vault";
 
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
@@ -607,6 +612,21 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // Downstream token management routes
   app.route("/api", downstreamTokenRoutes);
+
+  // ============================================================================
+  // Server Plugin Routes
+  // ============================================================================
+
+  // Mount routes from registered server plugins
+  // - Public routes are mounted at root level (e.g., /connect/:sessionId)
+  // - Authenticated routes are mounted at /api/plugins/:pluginId/*
+  const vault = new CredentialVault(process.env.ENCRYPTION_KEY || "");
+
+  // Initialize plugin storage (creates storage instances for all plugins)
+  initializePluginStorage(database.db, vault);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mountPluginRoutes(app, { db: database.db as any, vault });
 
   // ============================================================================
   // 404 Handler
