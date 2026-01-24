@@ -180,6 +180,10 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
           name: t.name,
           description: t.description,
           connection: t._meta.connectionTitle,
+          // Include UI resource URI if the tool has an associated MCP App
+          ...(t._meta?.["ui/resourceUri"]
+            ? { uiResourceUri: t._meta["ui/resourceUri"] }
+            : {}),
         })),
         totalAvailable: filteredTools.length,
       });
