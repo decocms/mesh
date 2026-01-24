@@ -13,6 +13,7 @@ import { USER_SANDBOX_GET } from "./get";
 import { USER_SANDBOX_CREATE_SESSION } from "./create-session";
 import { USER_SANDBOX_LIST_SESSIONS } from "./list-sessions";
 import { USER_SANDBOX_LIST_USER_AGENTS } from "./list-user-agents";
+import { USER_SANDBOX_CLEAR_USER_SESSION } from "./clear-user-session";
 
 export const tools = [
   USER_SANDBOX_CREATE,
@@ -23,6 +24,7 @@ export const tools = [
   USER_SANDBOX_CREATE_SESSION,
   USER_SANDBOX_LIST_SESSIONS,
   USER_SANDBOX_LIST_USER_AGENTS,
+  USER_SANDBOX_CLEAR_USER_SESSION,
 ];
 
 // Re-export utility for storage initialization

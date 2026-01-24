@@ -203,6 +203,22 @@ export class UserSandboxSessionStorage {
   }
 
   /**
+   * Delete all sessions for an external user in an organization
+   */
+  async deleteByExternalUserId(
+    organizationId: string,
+    externalUserId: string,
+  ): Promise<number> {
+    const result = await this.db
+      .deleteFrom("user_sandbox_sessions")
+      .where("organization_id", "=", organizationId)
+      .where("external_user_id", "=", externalUserId)
+      .executeTakeFirst();
+
+    return Number(result.numDeletedRows ?? 0);
+  }
+
+  /**
    * Deserialize a database row to entity
    */
   private deserialize(row: RawSessionRow): UserSandboxSessionEntity {

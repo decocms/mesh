@@ -269,3 +269,19 @@ const AgentSummarySchema = z.object({
 export const UserSandboxListUserAgentsOutputSchema = z.object({
   agents: z.array(AgentSummarySchema),
 });
+
+// CLEAR USER SESSION
+export const UserSandboxClearUserSessionInputSchema = z.object({
+  externalUserId: z
+    .string()
+    .describe("External user ID whose session data should be cleared"),
+});
+
+export const UserSandboxClearUserSessionOutputSchema = z.object({
+  success: z.boolean(),
+  deletedAgents: z.number().describe("Number of agents (Virtual MCPs) deleted"),
+  deletedConnections: z
+    .number()
+    .describe("Number of child connections deleted"),
+  deletedSessions: z.number().describe("Number of sessions deleted"),
+});
