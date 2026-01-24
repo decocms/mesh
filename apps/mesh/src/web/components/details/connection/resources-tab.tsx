@@ -325,7 +325,13 @@ export function ResourcesTab({
   org,
 }: ResourcesTabProps) {
   const connection = useConnection(connectionId);
-  const { data: mcpClient } = useMCPClient({ connectionId });
+
+  // Get MCP client for reading resources
+  // useMCPClient uses Suspense, so it must be called unconditionally
+  const mcpClient = useMCPClient({
+    connectionId,
+    orgId: org,
+  });
 
   // State for app preview dialog
   const [previewApp, setPreviewApp] = useState<McpResource | null>(null);

@@ -8,7 +8,7 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { ToolOutputRenderer } from "./tool-outputs/tool-output-renderer.tsx";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { MonacoCodeEditor } from "../../../details/workflow/components/monaco-editor.tsx";
 import { useDeveloperMode } from "@/web/hooks/use-developer-mode.ts";
 import {
@@ -16,15 +16,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@deco/ui/components/collapsible.tsx";
-import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
-import { UIResourceLoader } from "@/mcp-apps/resource-loader.ts";
-import type {
-  UIToolsCallResult,
-  UIResourcesReadResult,
-} from "@/mcp-apps/types.ts";
-import { useToolUIResource } from "@/mcp-apps/use-tool-ui-resource.ts";
-import { useMCPClient } from "@decocms/mesh-sdk";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { useChat } from "../../context.tsx";
+import { getUIResourceUri } from "@/mcp-apps/types.ts";
+import { MCPAppLoader } from "./mcp-app-loader.tsx";
 
 interface ToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
@@ -45,6 +40,40 @@ function getFriendlyToolName(toolName: string): string {
     .join(" ");
 }
 
+/** Loading fallback for MCP App */
+function MCPAppLoadingFallback({
+  friendlyName,
+  isFirstInSequence,
+  developerMode,
+}: {
+  friendlyName: string;
+  isFirstInSequence: boolean;
+  developerMode: boolean;
+}) {
+  if (developerMode) {
+    return (
+      <div className="flex items-center justify-center h-32 border border-border rounded-lg">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm">Loading app...</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div
+      className={cn("flex flex-col gap-2 my-4", isFirstInSequence && "mt-2")}
+    >
+      <div className="flex items-center gap-1.5 opacity-75">
+        <LayersTwo01 className="size-4 text-primary shrink-0 animate-pulse" />
+        <span className="text-[15px] text-muted-foreground shimmer">
+          Loading {friendlyName}...
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function ToolCallPart({
   part,
   isFirstInSequence = false,
@@ -58,91 +87,41 @@ export function ToolCallPart({
   const [isExpanded, setIsExpanded] = useState(false);
   const [developerMode] = useDeveloperMode();
 
-  // Get virtual MCP from chat context
+  // Get project context and virtual MCP from chat context
+  const { org } = useProjectContext();
   const { selectedVirtualMcp } = useChat();
-  const virtualMcpId = selectedVirtualMcp?.id ?? null;
 
-  // Look up tool's UI resource
-  const { uiResource } = useToolUIResource(toolName, virtualMcpId);
-  const uiResourceUri = uiResource?.uri;
-  const toolConnectionId = uiResource?.connectionId;
+  // Extract UI resource URI from tool output's _meta (if present)
+  // The MCP Apps spec allows tools to include _meta in their result
+  const toolOutput = state === "output-available" ? part.output : null;
+  const uiResourceUri = getUIResourceUri(
+    toolOutput && typeof toolOutput === "object" && "_meta" in toolOutput
+      ? (toolOutput as Record<string, unknown>)._meta
+      : undefined,
+  );
 
-  // Get MCP client for the tool's connection (to read resources)
-  const { data: mcpClient } = useMCPClient({
-    connectionId: toolConnectionId,
-  });
-
-  // MCP App state
-  const [appHtml, setAppHtml] = useState<string | null>(null);
-  const [appLoading, setAppLoading] = useState(false);
-  const [appError, setAppError] = useState<string | null>(null);
+  // Get connectionId from the tool output's _meta as well
+  const toolConnectionId =
+    toolOutput &&
+    typeof toolOutput === "object" &&
+    "_meta" in toolOutput &&
+    typeof (toolOutput as Record<string, unknown>)._meta === "object" &&
+    (toolOutput as Record<string, unknown>)._meta !== null &&
+    "connectionId" in
+      ((toolOutput as Record<string, unknown>)._meta as Record<string, unknown>)
+      ? String(
+          (
+            (toolOutput as Record<string, unknown>)._meta as Record<
+              string,
+              unknown
+            >
+          ).connectionId,
+        )
+      : (selectedVirtualMcp?.id ?? null);
 
   // Check if this tool has an MCP App and output is available
   const hasMCPApp = !!uiResourceUri && state === "output-available";
-
-  // Create readResource function for MCP App
-  const readResource = async (uri: string): Promise<UIResourcesReadResult> => {
-    if (!mcpClient) {
-      throw new Error("MCP client not available");
-    }
-    const result = await mcpClient.readResource({ uri });
-    return {
-      contents: result.contents.map((c) => ({
-        uri: c.uri,
-        mimeType: c.mimeType,
-        text: "text" in c ? (c.text as string) : undefined,
-        blob: "blob" in c ? (c.blob as string) : undefined,
-      })),
-    };
-  };
-
-  // Create callTool function for MCP App
-  const callTool = async (
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<UIToolsCallResult> => {
-    if (!mcpClient) {
-      throw new Error("MCP client not available");
-    }
-    const result = await mcpClient.callTool({ name, arguments: args });
-    return {
-      content: result.content.map((c) => ({
-        type: c.type as "text" | "image" | "resource",
-        text: "text" in c ? (c.text as string) : undefined,
-        data: "data" in c ? (c.data as string) : undefined,
-        mimeType: "mimeType" in c ? (c.mimeType as string) : undefined,
-        uri: "uri" in c ? (c.uri as string) : undefined,
-      })),
-      isError: result.isError,
-    };
-  };
-
-  // Load the MCP App HTML when output is available
-  const loadMCPApp = async () => {
-    if (!uiResourceUri || !mcpClient || appHtml || appLoading) return;
-
-    setAppLoading(true);
-    setAppError(null);
-
-    try {
-      const loader = new UIResourceLoader();
-      const content = await loader.load(uiResourceUri, async (uri) => {
-        const result = await readResource(uri);
-        return { contents: result.contents };
-      });
-      setAppHtml(content.html);
-    } catch (err) {
-      console.error("Failed to load MCP App:", err);
-      setAppError(err instanceof Error ? err.message : "Failed to load app");
-    } finally {
-      setAppLoading(false);
-    }
-  };
-
-  // Trigger app load when conditions are met
-  if (hasMCPApp && mcpClient && !appHtml && !appLoading && !appError) {
-    loadMCPApp();
-  }
+  const canRenderMCPApp = hasMCPApp && !!toolConnectionId && !!org?.id;
 
   const showInput =
     (state === "input-streaming" ||
@@ -161,53 +140,29 @@ export function ToolCallPart({
     const isError = state === "output-error";
 
     // Show MCP App in business mode when available
-    if (hasMCPApp && appHtml && mcpClient && toolConnectionId) {
+    if (canRenderMCPApp) {
       return (
-        <div
-          className={cn(
-            "flex flex-col gap-2 my-4",
-            isFirstInSequence && "mt-2",
-          )}
+        <Suspense
+          fallback={
+            <MCPAppLoadingFallback
+              friendlyName={friendlyName}
+              isFirstInSequence={isFirstInSequence}
+              developerMode={false}
+            />
+          }
         >
-          <div className="flex items-center gap-1.5 opacity-75">
-            <LayersTwo01 className="size-4 text-primary shrink-0" />
-            <span className="text-[15px] text-muted-foreground">
-              {friendlyName}
-            </span>
-          </div>
-          <MCPAppRenderer
-            html={appHtml}
-            uri={uiResourceUri!}
+          <MCPAppLoader
+            uiResourceUri={uiResourceUri!}
             connectionId={toolConnectionId!}
+            orgId={org!.id}
             toolName={toolName}
+            friendlyName={friendlyName}
             toolInput={part.input}
             toolResult={part.output}
-            callTool={callTool}
-            readResource={readResource}
-            minHeight={150}
-            maxHeight={400}
-            className="border border-border rounded-lg"
+            developerMode={false}
+            isFirstInSequence={isFirstInSequence}
           />
-        </div>
-      );
-    }
-
-    // Show loading state for MCP App
-    if (hasMCPApp && appLoading) {
-      return (
-        <div
-          className={cn(
-            "flex flex-col gap-2 my-4",
-            isFirstInSequence && "mt-2",
-          )}
-        >
-          <div className="flex items-center gap-1.5 opacity-75">
-            <LayersTwo01 className="size-4 text-primary shrink-0 animate-pulse" />
-            <span className="text-[15px] text-muted-foreground shimmer">
-              Loading {friendlyName}...
-            </span>
-          </div>
-        </div>
+        </Suspense>
       );
     }
 
@@ -332,53 +287,36 @@ export function ToolCallPart({
                 )}
 
                 {/* MCP App Output */}
-                {hasMCPApp && appHtml && mcpClient && toolConnectionId && (
-                  <div className="flex flex-col gap-0.5">
-                    <div className="px-1 h-5 flex items-center gap-2">
-                      <LayersTwo01 className="size-3.5 text-primary" />
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Interactive App
-                      </span>
-                    </div>
-                    <MCPAppRenderer
-                      html={appHtml}
-                      uri={uiResourceUri!}
-                      connectionId={toolConnectionId}
+                {canRenderMCPApp && (
+                  <Suspense
+                    fallback={
+                      <MCPAppLoadingFallback
+                        friendlyName={friendlyName}
+                        isFirstInSequence={isFirstInSequence}
+                        developerMode={true}
+                      />
+                    }
+                  >
+                    <MCPAppLoader
+                      uiResourceUri={uiResourceUri!}
+                      connectionId={toolConnectionId!}
+                      orgId={org!.id}
                       toolName={toolName}
+                      friendlyName={friendlyName}
                       toolInput={part.input}
                       toolResult={part.output}
-                      callTool={callTool}
-                      readResource={readResource}
-                      minHeight={150}
-                      maxHeight={400}
-                      className="border border-border rounded-lg"
+                      developerMode={true}
+                      isFirstInSequence={isFirstInSequence}
                     />
-                  </div>
-                )}
-
-                {/* MCP App Loading */}
-                {hasMCPApp && appLoading && (
-                  <div className="flex items-center justify-center h-32 border border-border rounded-lg">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      <span className="text-sm">Loading app...</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* MCP App Error */}
-                {hasMCPApp && appError && (
-                  <div className="flex items-center justify-center h-32 border border-destructive/20 rounded-lg bg-destructive/10">
-                    <span className="text-sm text-destructive">{appError}</span>
-                  </div>
+                  </Suspense>
                 )}
 
                 {/* Regular Output (shown if no MCP App or as fallback in developer mode) */}
-                {showOutput && (!hasMCPApp || (developerMode && appHtml)) && (
+                {showOutput && !canRenderMCPApp && (
                   <div className="flex flex-col gap-0.5">
                     <div className="px-1 h-5 flex items-center">
                       <span className="text-xs font-medium text-muted-foreground">
-                        {hasMCPApp ? "Raw Output" : "Output"}
+                        Output
                       </span>
                     </div>
                     <div className="border border-border rounded-lg max-h-[200px] overflow-auto p-2 h-full">
