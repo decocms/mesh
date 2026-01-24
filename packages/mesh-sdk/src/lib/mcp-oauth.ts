@@ -605,7 +605,8 @@ export interface McpAuthStatus {
  */
 function extractConnectionIdFromUrl(url: string): string | null {
   try {
-    const urlObj = new URL(url);
+    // Use window.location.origin as base for relative URLs
+    const urlObj = new URL(url, window.location.origin);
     const match = urlObj.pathname.match(/^\/mcp\/([^/]+)/);
     return match?.[1] ?? null;
   } catch {
@@ -683,7 +684,8 @@ export async function isConnectionAuthenticated({
     // Extract connection ID for OAuth token status check
     const connectionId = extractConnectionIdFromUrl(url);
     // Determine base URL for API calls (meshUrl > URL origin > window.location.origin)
-    const apiBaseUrl = meshUrl ?? new URL(url).origin;
+    // Use window.location.origin as base for relative URLs
+    const apiBaseUrl = meshUrl ?? new URL(url, window.location.origin).origin;
 
     if (response.ok) {
       // Check if we have an OAuth token stored for this connection
