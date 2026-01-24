@@ -3,13 +3,9 @@
  */
 
 export {
-  validateSession,
-  validateSessionForConfiguration,
-  validateConnectionBelongsToSession,
   validateSessionAccess,
+  SessionAccessError,
   createConnectionMetadata,
   createAgentMetadata,
-  SessionAccessError,
-  METADATA_KEYS,
   type UserSandboxConnectionMetadata,
 } from "./validate-session-access";

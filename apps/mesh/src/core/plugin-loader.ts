@@ -10,7 +10,6 @@
 
 import type { Hono } from "hono";
 import type {
-  ServerPlugin,
   ServerPluginContext,
   ServerPluginMigration,
 } from "@decocms/bindings/server-plugin";
@@ -33,7 +32,7 @@ const pluginToolMap = new Map<string, string>();
  * Wrap a tool with plugin-enabled check.
  * The tool will throw an error if the plugin is not enabled for the organization.
  */
-export function withPluginEnabled<
+function withPluginEnabled<
   TInput extends z.ZodType,
   TOutput extends z.ZodType,
   TName extends string,
@@ -100,13 +99,6 @@ export function filterToolsByEnabledPlugins<T extends { name: string }>(
     // Plugin tool - only show if plugin is enabled
     return enabledPlugins?.includes(pluginId) ?? false;
   });
-}
-
-/**
- * Get the plugin ID for a tool, if it's from a plugin.
- */
-export function getPluginIdForTool(toolName: string): string | undefined {
-  return pluginToolMap.get(toolName);
 }
 
 // ============================================================================
@@ -250,29 +242,4 @@ export function initializePluginStorage(
       pluginStorageMap.set(plugin.id, storage);
     }
   }
-}
-
-/**
- * Get storage instance for a plugin.
- */
-export function getPluginStorage<T>(pluginId: string): T | undefined {
-  return pluginStorageMap.get(pluginId) as T | undefined;
-}
-
-// ============================================================================
-// Plugin Utilities
-// ============================================================================
-
-/**
- * Get all registered server plugins.
- */
-export function getServerPlugins(): readonly ServerPlugin[] {
-  return serverPlugins;
-}
-
-/**
- * Get a server plugin by ID.
- */
-export function getServerPlugin(id: string): ServerPlugin | undefined {
-  return serverPlugins.find((p) => p.id === id);
 }

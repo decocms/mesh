@@ -4,15 +4,6 @@
  * Exports all MCP tools for the plugin.
  */
 
-export { USER_SANDBOX_CREATE } from "./create";
-export { USER_SANDBOX_UPDATE } from "./update";
-export { USER_SANDBOX_DELETE } from "./delete";
-export { USER_SANDBOX_LIST } from "./list";
-export { USER_SANDBOX_GET } from "./get";
-export { USER_SANDBOX_CREATE_SESSION } from "./create-session";
-export { USER_SANDBOX_LIST_SESSIONS } from "./list-sessions";
-export { USER_SANDBOX_LIST_USER_AGENTS } from "./list-user-agents";
-
 // Re-export the tools array for plugin registration
 import { USER_SANDBOX_CREATE } from "./create";
 import { USER_SANDBOX_UPDATE } from "./update";

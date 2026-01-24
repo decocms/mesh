@@ -21,7 +21,11 @@ import type {
   AppStatus,
   RequiredApp,
 } from "../storage/types";
-import { validateSessionAccess, SessionAccessError } from "../security";
+import {
+  validateSessionAccess,
+  SessionAccessError,
+  createConnectionMetadata,
+} from "../security";
 import { completeSession } from "../services";
 
 /**
@@ -42,6 +46,7 @@ async function createConnectionFromApp(
   createdBy: string,
   sessionId: string,
   externalUserId: string,
+  templateId: string,
   app: RequiredApp,
 ): Promise<string> {
   const connectionId = generateConnectionId();
@@ -80,11 +85,9 @@ async function createConnectionFromApp(
     oauth_config: app.oauth_config ? JSON.stringify(app.oauth_config) : null,
     configuration_state: null,
     configuration_scopes: null,
-    metadata: JSON.stringify({
-      user_sandbox_session_id: sessionId,
-      external_user_id: externalUserId,
-      source: "user-sandbox",
-    }),
+    metadata: JSON.stringify(
+      createConnectionMetadata(sessionId, externalUserId, templateId),
+    ),
     tools: null,
     bindings: null,
     status: "active",
@@ -255,6 +258,7 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
         template.created_by,
         sessionId,
         session.external_user_id,
+        session.template_id,
         requiredApp,
       );
 

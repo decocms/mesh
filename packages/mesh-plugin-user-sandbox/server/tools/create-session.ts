@@ -7,13 +7,13 @@
 
 import { z } from "zod";
 import type { Kysely } from "kysely";
-import { sql } from "kysely";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import {
   UserSandboxCreateSessionInputSchema,
   UserSandboxCreateSessionOutputSchema,
 } from "./schema";
 import { getPluginStorage, getConnectBaseUrl } from "./utils";
+import { createAgentMetadata } from "../security";
 
 /** Default session expiration: 7 days */
 const DEFAULT_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
@@ -123,11 +123,9 @@ async function findOrCreateVirtualMCP(
           oauth_config: null,
           configuration_state: null,
           configuration_scopes: null,
-          metadata: JSON.stringify({
-            user_sandbox_id: templateId,
-            external_user_id: externalUserId,
-            source: "user-sandbox",
-          }),
+          metadata: JSON.stringify(
+            createAgentMetadata(externalUserId, templateId),
+          ),
           tools: null,
           bindings: null,
           status: "active",

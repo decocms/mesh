@@ -11,8 +11,6 @@ import { UserSandboxSessionStorage } from "./user-sandbox-session";
 import type { UserSandboxDatabase } from "./types";
 import { setPluginStorage } from "../tools/utils";
 
-export { UserSandboxStorage } from "./user-sandbox";
-export { UserSandboxSessionStorage } from "./user-sandbox-session";
 export * from "./types";
 
 /**

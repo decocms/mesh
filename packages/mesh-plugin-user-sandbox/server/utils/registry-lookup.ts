@@ -272,7 +272,7 @@ function extractRequiredAppFromRegistryItem(
  * @param selectedPrompts - Optional prompt selection
  * @returns RequiredApp data or throws if not found
  */
-export async function lookupAppFromRegistry(
+async function lookupAppFromRegistry(
   ctx: MeshContextWithProxy,
   registryId: string,
   appName: string,

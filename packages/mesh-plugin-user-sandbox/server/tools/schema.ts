@@ -10,7 +10,7 @@ import { z } from "zod";
 // Common Schemas
 // ============================================================================
 
-export const OAuthConfigSchema = z.object({
+const OAuthConfigSchema = z.object({
   authorizationEndpoint: z
     .string()
     .describe("OAuth authorization endpoint URL"),
@@ -22,11 +22,11 @@ export const OAuthConfigSchema = z.object({
     .describe("OAuth grant type"),
 });
 
-export const HttpConnectionParametersSchema = z.object({
+const HttpConnectionParametersSchema = z.object({
   headers: z.record(z.string(), z.string()).optional().describe("HTTP headers"),
 });
 
-export const StdioConnectionParametersSchema = z.object({
+const StdioConnectionParametersSchema = z.object({
   command: z.string().describe("Command to run"),
   args: z.array(z.string()).optional().describe("Command arguments"),
   cwd: z.string().optional().describe("Working directory"),
@@ -36,7 +36,7 @@ export const StdioConnectionParametersSchema = z.object({
     .describe("Environment variables"),
 });
 
-export const RequiredAppSchema = z.object({
+const RequiredAppSchema = z.object({
   app_name: z.string().describe("App name from registry (e.g., '@deco/gmail')"),
   title: z.string().describe("Display title for the app"),
   description: z.string().nullable().optional().describe("App description"),
@@ -70,7 +70,7 @@ export const RequiredAppSchema = z.object({
     .describe("Selected prompts to expose (null = all)"),
 });
 
-export const AppStatusSchema = z.object({
+const AppStatusSchema = z.object({
   configured: z.boolean().describe("Whether the app has been configured"),
   connection_id: z.string().nullable().describe("Connection ID if created"),
   error: z
@@ -98,7 +98,7 @@ export const UserSandboxEntitySchema = z.object({
   created_by: z.string().nullable(),
 });
 
-export const UserSandboxSessionEntitySchema = z.object({
+const UserSandboxSessionEntitySchema = z.object({
   id: z.string(),
   template_id: z.string(),
   organization_id: z.string(),
@@ -120,7 +120,7 @@ export const UserSandboxSessionEntitySchema = z.object({
  * Simplified app input for template creation.
  * Only app_name is required - other details are fetched from registry.
  */
-export const RequiredAppInputSchema = z.object({
+const RequiredAppInputSchema = z.object({
   app_name: z
     .string()
     .describe("App name from registry (e.g., '@deco/openrouter')"),
@@ -253,7 +253,7 @@ export const UserSandboxListUserAgentsInputSchema = z.object({
   externalUserId: z.string().describe("External user ID to find agents for"),
 });
 
-export const AgentSummarySchema = z.object({
+const AgentSummarySchema = z.object({
   id: z.string().describe("Agent (Virtual MCP) ID"),
   title: z.string(),
   external_user_id: z.string(),

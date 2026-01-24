@@ -137,24 +137,30 @@ export function validateConnectionBelongsToSession(
  * Create connection metadata for a connection created via user sandbox.
  */
 export function createConnectionMetadata(
-  session: UserSandboxSessionEntity,
-): UserSandboxConnectionMetadata {
+  sessionId: string,
+  externalUserId: string,
+  templateId: string,
+): UserSandboxConnectionMetadata & { source: string } {
   return {
-    [METADATA_KEYS.SESSION_ID]: session.id,
-    [METADATA_KEYS.EXTERNAL_USER_ID]: session.external_user_id,
-    [METADATA_KEYS.TEMPLATE_ID]: session.template_id,
+    [METADATA_KEYS.SESSION_ID]: sessionId,
+    [METADATA_KEYS.EXTERNAL_USER_ID]: externalUserId,
+    [METADATA_KEYS.TEMPLATE_ID]: templateId,
+    source: "user-sandbox",
   };
 }
 
 /**
  * Create agent (Virtual MCP) metadata for an agent created via user sandbox.
+ * Note: Agents don't include SESSION_ID since they are long-lived and can span multiple sessions.
  */
 export function createAgentMetadata(
-  session: UserSandboxSessionEntity,
-): UserSandboxConnectionMetadata {
+  externalUserId: string,
+  templateId: string,
+): UserSandboxConnectionMetadata & { source: string } {
   return {
-    [METADATA_KEYS.EXTERNAL_USER_ID]: session.external_user_id,
-    [METADATA_KEYS.TEMPLATE_ID]: session.template_id,
+    [METADATA_KEYS.EXTERNAL_USER_ID]: externalUserId,
+    [METADATA_KEYS.TEMPLATE_ID]: templateId,
+    source: "user-sandbox",
   };
 }
 
