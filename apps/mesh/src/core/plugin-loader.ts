@@ -133,7 +133,7 @@ export function collectPluginTools(): ToolDefinition<
         name: toolDef.name,
         description: toolDef.description ?? "",
         inputSchema: toolDef.inputSchema as z.ZodType,
-        outputSchema: (toolDef.outputSchema ?? {}) as z.ZodType,
+        outputSchema: toolDef.outputSchema as z.ZodType | undefined,
         handler: toolDef.handler as (
           input: unknown,
           ctx: MeshContext,
