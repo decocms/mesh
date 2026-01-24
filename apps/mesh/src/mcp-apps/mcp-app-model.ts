@@ -157,6 +157,20 @@ export class MCPAppModel {
     iframe.addEventListener("load", () => {
       this.initializeApp();
     });
+
+    // If iframe is already loaded (e.g., from cache or fast load), initialize now
+    // Check if contentDocument exists and is ready
+    try {
+      if (
+        iframe.contentDocument?.readyState === "complete" ||
+        iframe.contentWindow
+      ) {
+        // Small delay to ensure the iframe's JS has executed
+        setTimeout(() => this.initializeApp(), 50);
+      }
+    } catch {
+      // Cross-origin access denied - will rely on load event
+    }
   }
 
   /**
