@@ -2,7 +2,7 @@
  * Session Access Validation Tests
  */
 
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect } from "bun:test";
 import {
   validateSession,
   validateSessionForConfiguration,

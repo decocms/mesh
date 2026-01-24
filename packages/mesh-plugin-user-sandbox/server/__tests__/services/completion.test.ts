@@ -2,7 +2,7 @@
  * Completion Service Tests
  */
 
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { describe, it, expect } from "bun:test";
 import { Kysely } from "kysely";
 import { BunWorkerDialect } from "kysely-bun-worker";
 import {

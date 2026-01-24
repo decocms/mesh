@@ -41,7 +41,7 @@ export class UserSandboxStorage {
    * Create a new user sandbox
    */
   async create(data: UserSandboxCreateInput): Promise<UserSandboxEntity> {
-    const id = generatePrefixedId("gtpl");
+    const id = generatePrefixedId("usb");
     const now = new Date().toISOString();
 
     const row: Insertable<UserSandboxDatabase["user_sandbox"]> = {

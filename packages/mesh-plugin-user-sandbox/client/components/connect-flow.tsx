@@ -19,6 +19,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@deco/ui/components/sonner.tsx";
 import { authenticateMcp, isConnectionAuthenticated } from "@decocms/mesh-sdk";
+import { KEYS } from "../lib/query-keys";
 
 // ============================================================================
 // Types
@@ -99,7 +100,7 @@ export function ConnectFlow({
     isLoading,
     error,
   } = useQuery<SessionData>({
-    queryKey: ["user-sandbox-session", sessionId],
+    queryKey: KEYS.session(sessionId),
     queryFn: async () => {
       const res = await fetch(`/api/user-sandbox/sessions/${sessionId}`);
       if (!res.ok) {
@@ -138,7 +139,7 @@ export function ConnectFlow({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["user-sandbox-session", sessionId],
+        queryKey: KEYS.session(sessionId),
       });
     },
   });
@@ -165,7 +166,7 @@ export function ConnectFlow({
       } else {
         toast.success("Setup complete!");
         queryClient.invalidateQueries({
-          queryKey: ["user-sandbox-session", sessionId],
+          queryKey: KEYS.session(sessionId),
         });
         onComplete?.({
           agentId: data.agentId,
