@@ -8,14 +8,21 @@
 
 import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { UIResourceLoader } from "@/mcp-apps/resource-loader.ts";
-import type {
-  UIToolsCallResult,
-  UIResourcesReadResult,
+import {
+  MCP_APP_DISPLAY_MODES,
+  type UIToolsCallResult,
+  type UIResourcesReadResult,
 } from "@/mcp-apps/types.ts";
 import { useMCPClient } from "@decocms/mesh-sdk";
 import { useState } from "react";
-import { LayersTwo01 } from "@untitledui/icons";
+import { LayersTwo01, Expand06, Minimize01 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { Button } from "@deco/ui/components/button.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 
 interface MCPAppLoaderProps {
   /** The UI resource URI */
@@ -52,8 +59,8 @@ export function MCPAppLoader({
   friendlyName,
   toolInput,
   toolResult,
-  minHeight = 150,
-  maxHeight = 400,
+  minHeight = MCP_APP_DISPLAY_MODES.collapsed.minHeight,
+  maxHeight = MCP_APP_DISPLAY_MODES.collapsed.maxHeight,
   className,
   developerMode = false,
   isFirstInSequence = false,
@@ -68,6 +75,7 @@ export function MCPAppLoader({
   const [appHtml, setAppHtml] = useState<string | null>(null);
   const [appLoading, setAppLoading] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Create readResource function for MCP App
   const readResource = async (uri: string): Promise<UIResourcesReadResult> => {
@@ -127,6 +135,31 @@ export function MCPAppLoader({
     loadMCPApp();
   }
 
+  // For expanded mode, we'll use inline styles for viewport-based height
+
+  // Expand toggle button
+  const ExpandButton = () => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 shrink-0"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          {isExpanded ? (
+            <Minimize01 className="size-3.5" />
+          ) : (
+            <Expand06 className="size-3.5" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        {isExpanded ? "Collapse" : "Expand"}
+      </TooltipContent>
+    </Tooltip>
+  );
+
   // Loading state
   if (appLoading) {
     if (developerMode) {
@@ -164,14 +197,26 @@ export function MCPAppLoader({
 
   // Loaded - render the app
   if (appHtml) {
+    // Compute heights based on expanded state
+    const currentMinHeight = isExpanded
+      ? MCP_APP_DISPLAY_MODES.expanded.minHeight
+      : minHeight;
+    const currentMaxHeight = isExpanded
+      ? MCP_APP_DISPLAY_MODES.expanded.maxHeight
+      : maxHeight;
+
+    // Unified render path - same structure, different props
     if (developerMode) {
       return (
         <div className="flex flex-col gap-0.5">
-          <div className="px-1 h-5 flex items-center gap-2">
-            <LayersTwo01 className="size-3.5 text-primary" />
-            <span className="text-xs font-medium text-muted-foreground">
-              Interactive App
-            </span>
+          <div className="px-1 h-6 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <LayersTwo01 className="size-3.5 text-primary" />
+              <span className="text-xs font-medium text-muted-foreground">
+                Interactive App
+              </span>
+            </div>
+            <ExpandButton />
           </div>
           <MCPAppRenderer
             html={appHtml}
@@ -182,8 +227,8 @@ export function MCPAppLoader({
             toolResult={toolResult}
             callTool={callTool}
             readResource={readResource}
-            minHeight={minHeight}
-            maxHeight={maxHeight}
+            minHeight={currentMinHeight}
+            maxHeight={currentMaxHeight}
             className={cn("border border-border rounded-lg", className)}
           />
         </div>
@@ -194,11 +239,14 @@ export function MCPAppLoader({
       <div
         className={cn("flex flex-col gap-2 my-4", isFirstInSequence && "mt-2")}
       >
-        <div className="flex items-center gap-1.5 opacity-75">
-          <LayersTwo01 className="size-4 text-primary shrink-0" />
-          <span className="text-[15px] text-muted-foreground">
-            {friendlyName}
-          </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 opacity-75">
+            <LayersTwo01 className="size-4 text-primary shrink-0" />
+            <span className="text-[15px] text-muted-foreground">
+              {friendlyName}
+            </span>
+          </div>
+          <ExpandButton />
         </div>
         <MCPAppRenderer
           html={appHtml}
@@ -209,8 +257,8 @@ export function MCPAppLoader({
           toolResult={toolResult}
           callTool={callTool}
           readResource={readResource}
-          minHeight={minHeight}
-          maxHeight={maxHeight}
+          minHeight={currentMinHeight}
+          maxHeight={currentMaxHeight}
           className={cn("border border-border rounded-lg", className)}
         />
       </div>

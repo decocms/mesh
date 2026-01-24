@@ -73,7 +73,7 @@ export function MCPAppRenderer({
   toolInput,
   toolResult,
   displayMode = "inline",
-  minHeight = 100,
+  minHeight = 150,
   maxHeight = 600,
   callTool,
   readResource,
@@ -82,9 +82,20 @@ export function MCPAppRenderer({
 }: MCPAppRendererProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const modelRef = useRef<MCPAppModel | null>(null);
+  const prevBoundsRef = useRef({ minHeight, maxHeight });
   const [height, setHeight] = useState(minHeight);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // React to minHeight/maxHeight prop changes (for expand/collapse without remount)
+  // Always reset to minHeight when bounds change to ensure proper size transition
+  if (
+    prevBoundsRef.current.minHeight !== minHeight ||
+    prevBoundsRef.current.maxHeight !== maxHeight
+  ) {
+    prevBoundsRef.current = { minHeight, maxHeight };
+    setHeight(minHeight);
+  }
 
   // Handle size change from the app
   const handleSizeChange = (params: UISizeChangedParams) => {
