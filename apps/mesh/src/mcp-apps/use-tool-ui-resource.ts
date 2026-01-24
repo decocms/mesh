@@ -5,7 +5,11 @@
  * has an associated MCP App UI resource.
  */
 
-import { useMCPClient, useMCPToolsListQuery } from "@decocms/mesh-sdk";
+import {
+  useMCPClient,
+  useMCPToolsListQuery,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { getUIResourceUri } from "./types.ts";
 
 export interface ToolUIResource {
@@ -29,10 +33,24 @@ export function useToolUIResource(
   uiResource: ToolUIResource | undefined;
   isLoading: boolean;
 } {
+  const { org } = useProjectContext();
+
   // Get MCP client for the virtual MCP
-  const { data: mcpClient } = useMCPClient({
-    connectionId: virtualMcpId,
-  });
+  // Note: useMCPClient uses Suspense, so it will throw if not ready
+  // We need to handle the case where virtualMcpId is null
+  let mcpClient: ReturnType<typeof useMCPClient> | null = null;
+
+  try {
+    if (virtualMcpId && org?.id) {
+      mcpClient = useMCPClient({
+        connectionId: virtualMcpId,
+        orgId: org.id,
+      });
+    }
+  } catch {
+    // Client not ready yet (Suspense)
+    mcpClient = null;
+  }
 
   // Get tools list
   const { data: toolsData, isLoading } = useMCPToolsListQuery({
