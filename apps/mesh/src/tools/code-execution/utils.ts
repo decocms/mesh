@@ -381,6 +381,10 @@ export function describeTools(
       connection: t._meta?.connectionTitle ?? "",
       inputSchema: t.inputSchema,
       outputSchema: t.outputSchema,
+      // Include UI resource URI if the tool has an associated MCP App
+      ...(t._meta?.["ui/resourceUri"]
+        ? { uiResourceUri: t._meta["ui/resourceUri"] }
+        : {}),
     })),
     notFound: names.filter((n) => !toolMap.has(n)),
   };

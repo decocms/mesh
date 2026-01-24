@@ -4,11 +4,14 @@ import { CollectionTableWrapper } from "@/web/components/collections/collection-
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import { useConnection } from "@decocms/mesh-sdk";
+import { useConnection, useMCPClient } from "@decocms/mesh-sdk";
 import { Card } from "@deco/ui/components/card.tsx";
 import { useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { ViewActions } from "@/web/components/details/layout";
+import { AppPreviewDialog } from "@/mcp-apps/app-preview-dialog.tsx";
+import { isUIResourceUri, type UIToolsCallResult } from "@/mcp-apps/types.ts";
+import { LayersTwo01 } from "@untitledui/icons";
 
 /** Resource type for display - compatible with MCP Resource but with optional name */
 interface McpResource {
@@ -266,20 +269,142 @@ interface ResourcesTabProps {
   org: string;
 }
 
+/**
+ * UI Apps Section - displays resources with ui:// scheme
+ */
+function UIAppsSection({
+  uiResources,
+  onAppClick,
+}: {
+  uiResources: McpResource[];
+  onAppClick: (resource: McpResource) => void;
+}) {
+  if (uiResources.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="border-b border-border pb-4 mb-4">
+      <div className="flex items-center gap-2 mb-3 px-5 pt-4">
+        <LayersTwo01 className="size-4 text-muted-foreground" />
+        <h3 className="text-sm font-medium text-foreground">UI Apps</h3>
+        <span className="text-xs text-muted-foreground">
+          ({uiResources.length})
+        </span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 px-5">
+        {uiResources.map((resource) => (
+          <Card
+            key={resource.uri}
+            className="cursor-pointer transition-colors hover:bg-accent/50"
+            onClick={() => onAppClick(resource)}
+          >
+            <div className="flex flex-col gap-2 p-4">
+              <div className="flex items-center gap-2">
+                <LayersTwo01 className="size-5 text-primary shrink-0" />
+                <span className="text-sm font-medium text-foreground truncate">
+                  {resource.name || resource.uri.replace("ui://", "")}
+                </span>
+              </div>
+              {resource.description && (
+                <p className="text-xs text-muted-foreground line-clamp-2">
+                  {resource.description}
+                </p>
+              )}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ResourcesTab({
   resources,
   connectionId,
   org,
 }: ResourcesTabProps) {
   const connection = useConnection(connectionId);
+  const { data: mcpClient } = useMCPClient({ connectionId });
+
+  // State for app preview dialog
+  const [previewApp, setPreviewApp] = useState<McpResource | null>(null);
+
+  // Separate UI resources from regular resources
+  const uiResources = resources?.filter((r) => isUIResourceUri(r.uri)) ?? [];
+  const regularResources =
+    resources?.filter((r) => !isUIResourceUri(r.uri)) ?? [];
+
+  // Handler for reading resources via MCP client
+  const handleReadResource = async (uri: string) => {
+    if (!mcpClient) {
+      throw new Error("MCP client not available");
+    }
+    const result = await mcpClient.readResource({ uri });
+    return {
+      contents: result.contents.map((c) => ({
+        uri: c.uri,
+        mimeType: c.mimeType,
+        text: "text" in c ? (c.text as string) : undefined,
+        blob: "blob" in c ? (c.blob as string) : undefined,
+      })),
+    };
+  };
+
+  // Handler for calling tools via MCP client
+  const handleCallTool = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<UIToolsCallResult> => {
+    if (!mcpClient) {
+      throw new Error("MCP client not available");
+    }
+    const result = await mcpClient.callTool({ name, arguments: args });
+    return {
+      content: result.content.map((c) => ({
+        type: c.type as "text" | "image" | "resource",
+        text: "text" in c ? (c.text as string) : undefined,
+        data: "data" in c ? (c.data as string) : undefined,
+        mimeType: "mimeType" in c ? (c.mimeType as string) : undefined,
+        uri: "uri" in c ? (c.uri as string) : undefined,
+      })),
+      isError: result.isError,
+    };
+  };
 
   return (
-    <ResourcesList
-      resources={resources}
-      connectionId={connectionId}
-      org={org}
-      connectionTitle={connection?.title}
-      connectionIcon={connection?.icon}
-    />
+    <>
+      {/* UI Apps Section */}
+      {uiResources.length > 0 && (
+        <UIAppsSection uiResources={uiResources} onAppClick={setPreviewApp} />
+      )}
+
+      {/* Regular Resources */}
+      <ResourcesList
+        resources={regularResources}
+        connectionId={connectionId}
+        org={org}
+        connectionTitle={connection?.title}
+        connectionIcon={connection?.icon}
+        emptyMessage={
+          uiResources.length > 0
+            ? "No other resources available."
+            : "This connection doesn't have any resources yet."
+        }
+      />
+
+      {/* App Preview Dialog */}
+      {previewApp && mcpClient && (
+        <AppPreviewDialog
+          open={!!previewApp}
+          onOpenChange={(open) => !open && setPreviewApp(null)}
+          uri={previewApp.uri}
+          name={previewApp.name}
+          connectionId={connectionId}
+          readResource={handleReadResource}
+          callTool={handleCallTool}
+        />
+      )}
+    </>
   );
 }
