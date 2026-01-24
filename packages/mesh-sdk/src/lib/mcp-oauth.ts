@@ -601,12 +601,24 @@ export interface McpAuthStatus {
 }
 
 /**
+ * Get the current origin for URL resolution.
+ * Returns window.location.origin in browser, undefined on server.
+ */
+function getCurrentOrigin(): string | undefined {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return undefined;
+}
+
+/**
  * Extract connection ID from MCP proxy URL
  */
 function extractConnectionIdFromUrl(url: string): string | null {
   try {
-    // Use window.location.origin as base for relative URLs
-    const urlObj = new URL(url, window.location.origin);
+    // Use current origin as base for relative URLs (browser only)
+    const base = getCurrentOrigin();
+    const urlObj = base ? new URL(url, base) : new URL(url);
     const match = urlObj.pathname.match(/^\/mcp\/([^/]+)/);
     return match?.[1] ?? null;
   } catch {
@@ -683,9 +695,11 @@ export async function isConnectionAuthenticated({
 
     // Extract connection ID for OAuth token status check
     const connectionId = extractConnectionIdFromUrl(url);
-    // Determine base URL for API calls (meshUrl > URL origin > window.location.origin)
-    // Use window.location.origin as base for relative URLs
-    const apiBaseUrl = meshUrl ?? new URL(url, window.location.origin).origin;
+    // Determine base URL for API calls (meshUrl > URL origin > current origin)
+    // Use current origin as base for relative URLs (browser only)
+    const base = getCurrentOrigin();
+    const apiBaseUrl =
+      meshUrl ?? (base ? new URL(url, base).origin : new URL(url).origin);
 
     if (response.ok) {
       // Check if we have an OAuth token stored for this connection
