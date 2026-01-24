@@ -237,6 +237,11 @@ export const UserSandboxCreateSessionOutputSchema = z.object({
     .nullable()
     .optional()
     .describe("Virtual MCP ID for this user (unique per template + user)"),
+  created: z
+    .boolean()
+    .describe(
+      "Whether the agent was newly created (true) or already existed (false)",
+    ),
 });
 
 // LIST SESSIONS
