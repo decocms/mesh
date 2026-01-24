@@ -208,14 +208,23 @@ export async function handleVirtualMcpRequest(
     );
 
     // Handle the incoming MCP message
-    // CRITICAL: Use try/finally to ensure transport is closed
+    // For GET requests (SSE streams), we must NOT close the transport immediately.
+    // The SSE stream is meant to stay open for server-initiated messages, and the
+    // SDK's ReadableStream has a cancel callback that handles cleanup when the
+    // client disconnects. Closing the transport immediately would terminate the
+    // SSE connection and cause an infinite reconnection loop.
+    // For POST requests, the transport can be safely closed after handling.
+    const isGetRequest = c.req.raw.method === "GET";
+
     try {
       return await transport.handleRequest(c.req.raw);
     } finally {
-      try {
-        await transport.close?.();
-      } catch {
-        // Ignore close errors
+      if (!isGetRequest) {
+        try {
+          await transport.close?.();
+        } catch {
+          // Ignore close errors
+        }
       }
     }
   } catch (error) {

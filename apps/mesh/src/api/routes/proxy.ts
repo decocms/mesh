@@ -973,23 +973,31 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     // Handle the incoming message
-    // CRITICAL: Use try/finally to ensure BOTH transport AND client are closed after request
-    // Without this, ReadableStream/WritableStream controllers and TextDecoderStream accumulate in memory
+    // For GET requests (SSE streams), we must NOT close the transport or client immediately.
+    // The SSE stream is meant to stay open for server-initiated messages, and the
+    // SDK's ReadableStream has a cancel callback that handles cleanup when the
+    // client disconnects. Closing immediately would terminate the SSE connection
+    // and cause an infinite reconnection loop.
+    // For POST requests, both transport and client can be safely closed after handling.
+    const isGetRequest = req.method === "GET";
+
     try {
       return await transport.handleRequest(req);
     } finally {
-      // Close the downstream client to release HTTP transport streams (TextDecoderStream, etc.)
-      // This is critical - the client created at the start of handleMcpRequest was never being closed!
-      try {
-        await client.close();
-      } catch {
-        // Ignore close errors - client may already be closed
-      }
-      // Close the server transport
-      try {
-        await transport.close?.();
-      } catch {
-        // Ignore close errors - transport may already be closed
+      if (!isGetRequest) {
+        // Close the downstream client to release HTTP transport streams (TextDecoderStream, etc.)
+        // This is critical - the client created at the start of handleMcpRequest was never being closed!
+        try {
+          await client.close();
+        } catch {
+          // Ignore close errors - client may already be closed
+        }
+        // Close the server transport
+        try {
+          await transport.close?.();
+        } catch {
+          // Ignore close errors - transport may already be closed
+        }
       }
     }
   };
