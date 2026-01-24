@@ -52,9 +52,19 @@ interface CacheEntry {
 }
 
 /**
+ * Check if we're in development mode
+ * In dev mode, caching is disabled to allow hot reloading of MCP App UIs
+ */
+const isDev =
+  typeof import.meta !== "undefined" &&
+  "env" in import.meta &&
+  (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true;
+
+/**
  * UI Resource Loader
  *
  * Loads and caches UI resources from MCP servers.
+ * Caching is disabled in development mode to allow hot reloading.
  */
 export class UIResourceLoader {
   private cache: Map<string, CacheEntry> = new Map();
@@ -62,7 +72,8 @@ export class UIResourceLoader {
   private maxCacheSize: number;
 
   constructor(options: ResourceLoaderOptions = {}) {
-    this.cacheTTL = options.cacheTTL ?? 5 * 60 * 1000; // 5 minutes
+    // Disable caching in dev mode for hot reloading
+    this.cacheTTL = isDev ? 0 : (options.cacheTTL ?? 5 * 60 * 1000); // 5 minutes in prod
     this.maxCacheSize = options.maxCacheSize ?? 100;
   }
 
