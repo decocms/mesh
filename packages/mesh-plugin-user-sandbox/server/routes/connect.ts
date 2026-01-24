@@ -357,6 +357,129 @@ export function connectRoutes(app: Hono, ctx: ServerPluginContext): void {
   });
 
   // ============================================================================
+  // POST /api/user-sandbox/sessions/:sessionId/oauth-token - Save OAuth token for a connection
+  // ============================================================================
+  app.post("/api/user-sandbox/sessions/:sessionId/oauth-token", async (c) => {
+    try {
+      const sessionId = c.req.param("sessionId");
+      const body = await c.req.json<{
+        connection_id: string;
+        access_token: string;
+        refresh_token?: string | null;
+        expires_in?: number | null;
+        scope?: string | null;
+        client_id?: string | null;
+        client_secret?: string | null;
+        token_endpoint?: string | null;
+      }>();
+
+      if (!body.connection_id) {
+        return c.json({ error: "connection_id is required" }, 400);
+      }
+      if (!body.access_token) {
+        return c.json({ error: "access_token is required" }, 400);
+      }
+
+      // Validate session
+      const session = await validateSessionAccess(sessionId, storage);
+
+      // Verify the connection belongs to this session
+      const connectionBelongsToSession = Object.values(
+        session.app_statuses,
+      ).some((status) => status.connection_id === body.connection_id);
+      if (!connectionBelongsToSession) {
+        return c.json(
+          { error: "Connection does not belong to this session" },
+          403,
+        );
+      }
+
+      // Calculate expiry time
+      const expiresAt = body.expires_in
+        ? new Date(Date.now() + body.expires_in * 1000)
+        : null;
+
+      const now = new Date().toISOString();
+
+      // Encrypt sensitive fields using the context vault
+      const encryptedAccessToken = await ctx.vault.encrypt(body.access_token);
+      const encryptedRefreshToken = body.refresh_token
+        ? await ctx.vault.encrypt(body.refresh_token)
+        : null;
+      const encryptedClientSecret = body.client_secret
+        ? await ctx.vault.encrypt(body.client_secret)
+        : null;
+
+      // Use raw SQL to avoid type issues with downstream_tokens table
+      // which is defined in the main app, not in this plugin's types
+      const anyDb = db as unknown as Kysely<{
+        downstream_tokens: {
+          id: string;
+          connectionId: string;
+          accessToken: string;
+          refreshToken: string | null;
+          scope: string | null;
+          expiresAt: string | null;
+          clientId: string | null;
+          clientSecret: string | null;
+          tokenEndpoint: string | null;
+          createdAt: string;
+          updatedAt: string;
+        };
+      }>;
+
+      // Check for existing token
+      const existing = await anyDb
+        .selectFrom("downstream_tokens")
+        .select(["id"])
+        .where("connectionId", "=", body.connection_id)
+        .executeTakeFirst();
+
+      if (existing) {
+        // Update existing token
+        await anyDb
+          .updateTable("downstream_tokens")
+          .set({
+            accessToken: encryptedAccessToken,
+            refreshToken: encryptedRefreshToken,
+            scope: body.scope ?? null,
+            expiresAt: expiresAt?.toISOString() ?? null,
+            clientId: body.client_id ?? null,
+            clientSecret: encryptedClientSecret,
+            tokenEndpoint: body.token_endpoint ?? null,
+            updatedAt: now,
+          })
+          .where("id", "=", existing.id)
+          .execute();
+      } else {
+        // Create new token
+        const tokenId = `dtok_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
+
+        await anyDb
+          .insertInto("downstream_tokens")
+          .values({
+            id: tokenId,
+            connectionId: body.connection_id,
+            accessToken: encryptedAccessToken,
+            refreshToken: encryptedRefreshToken,
+            scope: body.scope ?? null,
+            expiresAt: expiresAt?.toISOString() ?? null,
+            clientId: body.client_id ?? null,
+            clientSecret: encryptedClientSecret,
+            tokenEndpoint: body.token_endpoint ?? null,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .execute();
+      }
+
+      return c.json({ success: true, expiresAt });
+    } catch (error) {
+      return errorResponse(c, error);
+    }
+  });
+
+  // ============================================================================
   // POST /api/user-sandbox/sessions/:sessionId/complete - Finalize setup
   // ============================================================================
   app.post("/api/user-sandbox/sessions/:sessionId/complete", async (c) => {
