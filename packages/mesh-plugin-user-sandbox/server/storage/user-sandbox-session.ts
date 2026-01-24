@@ -39,7 +39,7 @@ export class UserSandboxSessionStorage {
   async create(
     data: UserSandboxSessionCreateInput,
   ): Promise<UserSandboxSessionEntity> {
-    const id = generatePrefixedId("uss");
+    const id = generatePrefixedId("sandbox_session");
     const now = new Date().toISOString();
 
     const row: Insertable<UserSandboxDatabase["user_sandbox_sessions"]> = {
