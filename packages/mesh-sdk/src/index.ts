@@ -113,7 +113,7 @@ export {
 // Constants and well-known MCP definitions
 export {
   // Frontend self MCP ID
-  SELF_MCP_ALIAS_ID as SELF_MCP_ALIAS_ID,
+  SELF_MCP_ALIAS_ID,
   // Org-scoped MCP ID generators
   WellKnownOrgMCPId,
   // Connection factory functions
