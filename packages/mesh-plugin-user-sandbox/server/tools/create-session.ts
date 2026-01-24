@@ -67,10 +67,9 @@ interface AgentDatabase {
  * (user_sandbox_id, external_user_id) pair at the database level.
  *
  * Algorithm:
- * 1. Try INSERT OR IGNORE into linking table
- * 2. SELECT to get canonical connection_id
- * 3. If we won the race (our ID was inserted), create the connection
- * 4. If we lost (another ID exists), return the existing connection
+ * 1. Check if agent already exists (fast path)
+ * 2. If not, create connection + linking row in a transaction
+ * 3. Handle race condition by catching unique constraint violation
  */
 async function findOrCreateVirtualMCP(
   db: Kysely<unknown>,
@@ -83,73 +82,98 @@ async function findOrCreateVirtualMCP(
   toolSelectionMode: "inclusion" | "exclusion",
 ): Promise<string> {
   const typedDb = db as Kysely<AgentDatabase>;
-  const now = new Date().toISOString();
 
-  // Generate IDs for the new agent using crypto-grade randomness
-  const linkingId = `usa_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
-  const connectionId = `vir_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
-
-  // Step 1: Try to insert into the linking table with ON CONFLICT DO NOTHING
-  // The UNIQUE constraint on (user_sandbox_id, external_user_id) ensures atomicity
-  await sql`
-    INSERT INTO user_sandbox_agents (id, user_sandbox_id, external_user_id, connection_id, created_at)
-    VALUES (${linkingId}, ${templateId}, ${externalUserId}, ${connectionId}, ${now})
-    ON CONFLICT (user_sandbox_id, external_user_id) DO NOTHING
-  `.execute(typedDb);
-
-  // Step 2: Select the canonical agent (either ours or the race winner's)
-  const canonical = await typedDb
+  // Step 1: Check if agent already exists (fast path for common case)
+  const existing = await typedDb
     .selectFrom("user_sandbox_agents")
     .select("connection_id")
     .where("user_sandbox_id", "=", templateId)
     .where("external_user_id", "=", externalUserId)
     .executeTakeFirst();
 
-  if (!canonical) {
-    // This shouldn't happen - we just inserted or there was already a row
-    throw new Error(
-      `Failed to find or create agent for template ${templateId} and user ${externalUserId}`,
-    );
+  if (existing) {
+    return existing.connection_id;
   }
 
-  // Step 3: If we won the race (our connection_id was inserted), create the actual connection
-  if (canonical.connection_id === connectionId) {
-    await typedDb
-      .insertInto("connections")
-      .values({
-        id: connectionId,
-        organization_id: organizationId,
-        created_by: createdBy,
-        title: agentTitle,
-        description: agentInstructions,
-        icon: null,
-        app_name: null,
-        app_id: null,
-        connection_type: "VIRTUAL",
-        connection_url: `virtual://${connectionId}`,
-        connection_token: null,
-        connection_headers: JSON.stringify({
-          tool_selection_mode: toolSelectionMode,
-        }),
-        oauth_config: null,
-        configuration_state: null,
-        configuration_scopes: null,
-        metadata: JSON.stringify({
+  // Step 2: Create new agent in a transaction (connection first, then linking row)
+  const now = new Date().toISOString();
+  const linkingId = `usa_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
+  const connectionId = `vir_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
+
+  try {
+    await typedDb.transaction().execute(async (trx) => {
+      // Create the connection first
+      await trx
+        .insertInto("connections")
+        .values({
+          id: connectionId,
+          organization_id: organizationId,
+          created_by: createdBy,
+          title: agentTitle,
+          description: agentInstructions,
+          icon: null,
+          app_name: null,
+          app_id: null,
+          connection_type: "VIRTUAL",
+          connection_url: `virtual://${connectionId}`,
+          connection_token: null,
+          connection_headers: JSON.stringify({
+            tool_selection_mode: toolSelectionMode,
+          }),
+          oauth_config: null,
+          configuration_state: null,
+          configuration_scopes: null,
+          metadata: JSON.stringify({
+            user_sandbox_id: templateId,
+            external_user_id: externalUserId,
+            source: "user-sandbox",
+          }),
+          tools: null,
+          bindings: null,
+          status: "active",
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      // Then create the linking row (unique constraint prevents duplicates)
+      await trx
+        .insertInto("user_sandbox_agents")
+        .values({
+          id: linkingId,
           user_sandbox_id: templateId,
           external_user_id: externalUserId,
-          source: "user-sandbox",
-        }),
-        tools: null,
-        bindings: null,
-        status: "active",
-        created_at: now,
-        updated_at: now,
-      })
-      .execute();
-  }
+          connection_id: connectionId,
+          created_at: now,
+        })
+        .execute();
+    });
 
-  // Return the canonical connection ID (ours or the existing one)
-  return canonical.connection_id;
+    return connectionId;
+  } catch (error) {
+    // Step 3: Handle race condition - another request created the agent
+    // Check for unique constraint violation (SQLite: UNIQUE constraint failed)
+    const errorMessage = String(error);
+    if (
+      errorMessage.includes("UNIQUE constraint") ||
+      errorMessage.includes("duplicate key")
+    ) {
+      // Another request won the race - fetch and return their agent
+      const winner = await typedDb
+        .selectFrom("user_sandbox_agents")
+        .select("connection_id")
+        .where("user_sandbox_id", "=", templateId)
+        .where("external_user_id", "=", externalUserId)
+        .executeTakeFirst();
+
+      if (winner) {
+        return winner.connection_id;
+      }
+    }
+
+    // Re-throw unexpected errors
+    throw error;
+  }
 }
 
 export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {
