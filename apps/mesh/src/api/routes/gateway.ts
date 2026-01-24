@@ -63,6 +63,26 @@ export async function handleVirtualMcpRequest(
   },
   virtualMcpId: string | undefined,
 ) {
+  // Reject GET requests to prevent SSE reconnection loops.
+  // Virtual MCPs are aggregators that respond to client requests - they don't
+  // need server-initiated messages (SSE). When clients send GET requests for
+  // SSE streaming, our stateless transport setup closes immediately after
+  // handleRequest returns, causing an infinite reconnection loop.
+  // By rejecting GET, clients fall back to POST-only mode which works correctly.
+  if (c.req.raw.method === "GET") {
+    return c.json(
+      {
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "SSE streaming not supported. Use POST requests only.",
+        },
+        id: null,
+      },
+      405,
+    );
+  }
+
   const ctx = c.get("meshContext");
 
   try {
