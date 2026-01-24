@@ -5,6 +5,13 @@ import {
 } from "@deco/ui/components/alert.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   Tooltip,
@@ -269,7 +276,7 @@ function ToolDetailsAuthenticated({
     }
   };
 
-  const handleInputChange = (key: string, value: string) => {
+  const handleInputChange = (key: string, value: unknown) => {
     setEditedParams((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -383,6 +390,25 @@ function ToolDetailsAuthenticated({
                             placeholder={`Enter ${key} as JSON...`}
                             rows={3}
                           />
+                        ) : prop.type === "boolean" ? (
+                          <Select
+                            value={
+                              hasEditedKey(key)
+                                ? String(editedParams[key] ?? "")
+                                : ""
+                            }
+                            onValueChange={(v) =>
+                              handleInputChange(key, v === "true")
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select true or false..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="true">true</SelectItem>
+                              <SelectItem value="false">false</SelectItem>
+                            </SelectContent>
+                          </Select>
                         ) : (
                           <Input
                             value={
