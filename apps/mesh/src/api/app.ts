@@ -196,6 +196,8 @@ export function createApp(options: CreateAppOptions = {}) {
       credentials: true,
       allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
       allowHeaders: ["Content-Type", "Authorization", "mcp-protocol-version"],
+      // Expose WWW-Authenticate so OAuth discovery works from cross-origin clients
+      exposeHeaders: ["WWW-Authenticate"],
     }),
   );
 
