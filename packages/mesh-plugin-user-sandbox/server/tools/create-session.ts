@@ -224,6 +224,25 @@ export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {
       throw new Error("Template is not active");
     }
 
+    // Find or create Virtual MCP for this user (always do this first)
+    const agentTitle = template.agent_title_template.replace(
+      "{{externalUserId}}",
+      typedInput.externalUserId,
+    );
+    const createdBy = template.created_by ?? meshCtx.auth.user?.id ?? "system";
+
+    const { connectionId: agentId, created: agentCreated } =
+      await findOrCreateVirtualMCP(
+        meshCtx.db,
+        meshCtx.organization.id,
+        createdBy,
+        template.id,
+        typedInput.externalUserId,
+        agentTitle,
+        template.agent_instructions,
+        template.tool_selection_mode,
+      );
+
     // Check for existing non-expired session for this user
     const existingSession = await storage.sessions.findExisting(
       typedInput.templateId,
@@ -231,34 +250,23 @@ export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {
     );
 
     if (existingSession) {
+      // If existing session has no agent ID, update it with the one we just found/created
+      if (!existingSession.created_agent_id) {
+        await storage.sessions.update(existingSession.id, {
+          created_agent_id: agentId,
+        });
+      }
+
       // Return existing session URL
       const baseUrl = getConnectBaseUrl();
       return {
         sessionId: existingSession.id,
         url: `${baseUrl}/connect/${existingSession.id}`,
         expiresAt: existingSession.expires_at,
-        agentId: existingSession.created_agent_id,
-        created: false,
+        agentId: existingSession.created_agent_id ?? agentId,
+        created: agentCreated,
       };
     }
-
-    // Find or create Virtual MCP for this user
-    const agentTitle = template.agent_title_template.replace(
-      "{{externalUserId}}",
-      typedInput.externalUserId,
-    );
-    const createdBy = template.created_by ?? meshCtx.auth.user?.id ?? "system";
-
-    const { connectionId: agentId, created } = await findOrCreateVirtualMCP(
-      meshCtx.db,
-      meshCtx.organization.id,
-      createdBy,
-      template.id,
-      typedInput.externalUserId,
-      agentTitle,
-      template.agent_instructions,
-      template.tool_selection_mode,
-    );
 
     // Calculate expiration
     const expiresInSeconds =
@@ -284,7 +292,7 @@ export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {
       url: `${baseUrl}/connect/${session.id}`,
       expiresAt: session.expires_at,
       agentId,
-      created,
+      created: agentCreated,
     };
   },
 };
