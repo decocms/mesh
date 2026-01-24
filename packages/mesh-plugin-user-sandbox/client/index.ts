@@ -25,4 +25,4 @@ export const clientPlugin: ClientPlugin<typeof USER_SANDBOX_BINDING> = {
 };
 
 // Re-export components for use in standalone connect flow
-export { ConnectFlow } from "./components";
+export { ConnectFlow, type ConnectFlowProps } from "./components";

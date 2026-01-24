@@ -2,4 +2,4 @@
  * User Sandbox Plugin - Client Components Index
  */
 
-export { ConnectFlow } from "./connect-flow";
+export { ConnectFlow, type ConnectFlowProps } from "./connect-flow";

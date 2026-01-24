@@ -1,11 +1,24 @@
 /**
- * User Sandbox Plugin - Connect Flow UI Components
+ * User Sandbox Plugin - Connect Flow UI Component
  *
  * Brandless UI for the end-user connect flow.
- * This component can be embedded in a SPA or used standalone.
+ * This component handles the OAuth flow and session management.
  */
 
-import * as React from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@deco/ui/components/button.tsx";
+import { Card, CardContent } from "@deco/ui/components/card.tsx";
+import {
+  Loader2,
+  Check,
+  ExternalLink,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Toaster } from "@deco/ui/components/sonner.tsx";
+import { authenticateMcp, isConnectionAuthenticated } from "@decocms/mesh-sdk";
 
 // ============================================================================
 // Types
@@ -19,16 +32,21 @@ interface AppStatus {
 
 interface RequiredApp {
   app_name: string;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  connection_type: string;
+  requires_oauth: boolean;
   selected_tools: string[] | null;
   selected_resources: string[] | null;
   selected_prompts: string[] | null;
   status: AppStatus;
 }
 
-interface SessionStatus {
+interface SessionData {
   session: {
     id: string;
-    status: "pending" | "in_progress" | "completed";
+    status: string;
     external_user_id: string;
     expires_at: string;
     redirect_url: string | null;
@@ -43,363 +61,416 @@ interface SessionStatus {
   apps: RequiredApp[];
 }
 
-interface ConnectFlowProps {
+interface ProvisionResponse {
+  success: boolean;
+  connection_id: string;
+  already_provisioned: boolean;
+  requires_oauth: boolean;
+}
+
+// ============================================================================
+// Props
+// ============================================================================
+
+export interface ConnectFlowProps {
+  /** The session ID from the URL */
   sessionId: string;
+  /** Called when setup completes successfully (if no redirect) */
   onComplete?: (result: { agentId?: string; redirectUrl?: string }) => void;
+  /** Called when an error occurs */
   onError?: (error: Error) => void;
 }
 
 // ============================================================================
-// API Helpers
+// Component
 // ============================================================================
 
-async function fetchSessionStatus(sessionId: string): Promise<SessionStatus> {
-  const res = await fetch(`/connect/${sessionId}/status`);
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `Failed to load session: ${res.status}`);
-  }
-  return res.json();
-}
-
-async function configureApp(
-  sessionId: string,
-  appName: string,
-  config?: { connectionId?: string },
-): Promise<void> {
-  const res = await fetch(`/connect/${sessionId}/configure`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      app_name: appName,
-      connection_id: config?.connectionId,
-    }),
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to configure app");
-  }
-}
-
-async function completeSetup(
-  sessionId: string,
-): Promise<{ success: boolean; redirectUrl?: string; agentId?: string }> {
-  const res = await fetch(`/connect/${sessionId}/complete`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to complete setup");
-  }
-
-  return res.json();
-}
-
-// ============================================================================
-// Components
-// ============================================================================
-
-/**
- * App Card Component
- */
-function AppCard({
-  app,
-  onConnect,
-  loading,
-}: {
-  app: RequiredApp;
-  onConnect: () => void;
-  loading: boolean;
-}) {
-  const configured = app.status?.configured;
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "16px",
-        padding: "16px",
-        background: "rgba(255, 255, 255, 0.03)",
-        borderRadius: "12px",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
-        transition: "background 0.2s",
-      }}
-    >
-      <div
-        style={{
-          width: "40px",
-          height: "40px",
-          borderRadius: "10px",
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "20px",
-        }}
-      >
-        📦
-      </div>
-
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 500, color: "#fff" }}>{app.app_name}</div>
-        <div
-          style={{
-            fontSize: "13px",
-            color: configured ? "#4ade80" : "#888",
-            marginTop: "2px",
-          }}
-        >
-          {configured ? "✓ Connected" : "Not connected"}
-        </div>
-      </div>
-
-      {configured ? (
-        <span
-          style={{
-            fontSize: "12px",
-            padding: "4px 12px",
-            borderRadius: "12px",
-            background: "#4ade80",
-            color: "#0a2010",
-            fontWeight: 500,
-          }}
-        >
-          Connected
-        </span>
-      ) : (
-        <button
-          onClick={onConnect}
-          disabled={loading}
-          style={{
-            padding: "10px 20px",
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            border: "none",
-            borderRadius: "8px",
-            color: "white",
-            fontWeight: 500,
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.5 : 1,
-            transition: "transform 0.2s, box-shadow 0.2s",
-          }}
-        >
-          {loading ? "Connecting..." : "Connect"}
-        </button>
-      )}
-    </div>
-  );
-}
-
-/**
- * Main Connect Flow Component
- */
 export function ConnectFlow({
   sessionId,
   onComplete,
   onError,
 }: ConnectFlowProps) {
-  const [status, setStatus] = React.useState<SessionStatus | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [configuring, setConfiguring] = React.useState<string | null>(null);
-  const [completing, setCompleting] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [configuringApp, setConfiguringApp] = useState<string | null>(null);
 
-  // Load initial status
-  React.useEffect(() => {
-    fetchSessionStatus(sessionId)
-      .then((data) => {
-        setStatus(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-        onError?.(err);
+  // Fetch session data
+  const {
+    data: sessionData,
+    isLoading,
+    error,
+  } = useQuery<SessionData>({
+    queryKey: ["user-sandbox-session", sessionId],
+    queryFn: async () => {
+      const res = await fetch(`/api/user-sandbox/sessions/${sessionId}`);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to load session");
+      }
+      return res.json();
+    },
+  });
+
+  // Configure app mutation (marks as configured after OAuth)
+  const configureMutation = useMutation({
+    mutationFn: async ({
+      appName,
+      connectionId,
+    }: {
+      appName: string;
+      connectionId?: string;
+    }) => {
+      const res = await fetch(
+        `/api/user-sandbox/sessions/${sessionId}/configure`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app_name: appName,
+            connection_id: connectionId,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Configuration failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["user-sandbox-session", sessionId],
       });
-  }, [sessionId, onError]);
+    },
+  });
 
-  // Handle app connection
-  const handleConnect = async (appName: string) => {
-    setConfiguring(appName);
-    setError(null);
-
-    try {
-      // In production, this would trigger OAuth flow or show config modal
-      // For now, we just mark it as configured
-      await configureApp(sessionId, appName);
-
-      // Refresh status
-      const newStatus = await fetchSessionStatus(sessionId);
-      setStatus(newStatus);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Configuration failed");
-      onError?.(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setConfiguring(null);
-    }
-  };
-
-  // Handle completion
-  const handleComplete = async () => {
-    setCompleting(true);
-    setError(null);
-
-    try {
-      const result = await completeSetup(sessionId);
-
-      if (result.redirectUrl) {
-        window.location.href = result.redirectUrl;
+  // Complete session mutation
+  const completeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(
+        `/api/user-sandbox/sessions/${sessionId}/complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to complete");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.redirectUrl) {
+        window.location.href = data.redirectUrl;
       } else {
+        toast.success("Setup complete!");
+        queryClient.invalidateQueries({
+          queryKey: ["user-sandbox-session", sessionId],
+        });
         onComplete?.({
-          agentId: result.agentId,
-          redirectUrl: result.redirectUrl,
+          agentId: data.agentId,
+          redirectUrl: data.redirectUrl,
         });
       }
+    },
+    onError: (err) => {
+      const error =
+        err instanceof Error ? err : new Error("Failed to complete");
+      toast.error(error.message);
+      onError?.(error);
+    },
+  });
+
+  /**
+   * Handle connecting an app:
+   * 1. Provision the connection (create it in the org)
+   * 2. If OAuth required, authenticate with the MCP server
+   * 3. Mark as configured
+   */
+  const handleConnect = async (app: RequiredApp) => {
+    setConfiguringApp(app.app_name);
+
+    try {
+      // Step 1: Provision the connection
+      const provisionRes = await fetch(
+        `/api/user-sandbox/sessions/${sessionId}/provision`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ app_name: app.app_name }),
+        },
+      );
+
+      if (!provisionRes.ok) {
+        const data = await provisionRes.json();
+        throw new Error(data.error || "Failed to provision connection");
+      }
+
+      const provision: ProvisionResponse = await provisionRes.json();
+      const connectionId = provision.connection_id;
+
+      // Step 2: Check if connection needs authentication
+      // For HTTP/SSE connections, probe the connection to see if it requires auth
+      // OAuth discovery happens automatically - we don't need pre-configured oauth_config
+      const isRemoteConnection =
+        app.connection_type === "HTTP" ||
+        app.connection_type === "SSE" ||
+        app.connection_type === "Websocket";
+
+      if (isRemoteConnection) {
+        // Probe the connection to check if it requires authentication
+        const probeUrl = `/mcp/${connectionId}`;
+        const authStatus = await isConnectionAuthenticated({
+          url: probeUrl,
+          token: null,
+        });
+
+        // If not authenticated and supports OAuth, trigger OAuth flow
+        if (!authStatus.isAuthenticated && authStatus.supportsOAuth) {
+          toast.info("Opening authentication window...");
+
+          const authResult = await authenticateMcp({
+            connectionId,
+            clientName: app.title,
+            timeout: 300000, // 5 minute timeout for OAuth
+          });
+
+          if (authResult.error) {
+            throw new Error(authResult.error);
+          }
+
+          // Save OAuth tokens to the connection
+          if (authResult.tokenInfo) {
+            const tokenRes = await fetch(
+              `/api/connections/${connectionId}/oauth-token`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  accessToken: authResult.tokenInfo.accessToken,
+                  refreshToken: authResult.tokenInfo.refreshToken,
+                  expiresIn: authResult.tokenInfo.expiresIn,
+                  scope: authResult.tokenInfo.scope,
+                  clientId: authResult.tokenInfo.clientId,
+                  clientSecret: authResult.tokenInfo.clientSecret,
+                  tokenEndpoint: authResult.tokenInfo.tokenEndpoint,
+                }),
+              },
+            );
+
+            if (!tokenRes.ok) {
+              console.warn(
+                "Failed to save OAuth tokens, connection may need re-auth",
+              );
+            }
+          }
+        }
+        // If not authenticated but doesn't support OAuth, proceed anyway
+        // The user may need to configure manually
+      }
+
+      // Step 3: Mark as configured
+      await configureMutation.mutateAsync({
+        appName: app.app_name,
+        connectionId,
+      });
+
+      toast.success(`${app.title} connected successfully`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Completion failed");
-      onError?.(err instanceof Error ? err : new Error(String(err)));
+      console.error("Connection error:", err);
+      const error = err instanceof Error ? err : new Error("Failed to connect");
+      toast.error(error.message);
+      onError?.(error);
     } finally {
-      setCompleting(false);
+      setConfiguringApp(null);
     }
   };
 
-  // Check if all apps are configured
-  const allConfigured =
-    status?.apps.every((app) => app.status?.configured) ?? false;
+  const allConfigured = sessionData?.apps.every((app) => app.status.configured);
+  const isCompleted = sessionData?.session.status === "completed";
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "200px",
-          color: "#888",
-        }}
-      >
-        Loading...
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  if (!status) {
+  if (error) {
     return (
-      <div
-        style={{
-          padding: "20px",
-          textAlign: "center",
-          color: "#f87171",
-        }}
-      >
-        {error || "Failed to load session"}
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="size-12 rounded-full bg-destructive/10 flex items-center justify-center">
+                <AlertCircle className="size-6 text-destructive" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Session Error</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {error instanceof Error ? error.message : "Failed to load"}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
+  }
+
+  if (!sessionData) {
+    return null;
   }
 
   return (
-    <div
-      style={{
-        maxWidth: "500px",
-        margin: "0 auto",
-        padding: "40px 30px",
-        background: "rgba(255, 255, 255, 0.05)",
-        borderRadius: "16px",
-        backdropFilter: "blur(10px)",
-        border: "1px solid rgba(255, 255, 255, 0.1)",
-      }}
-    >
-      <h1
-        style={{
-          fontSize: "24px",
-          fontWeight: 600,
-          margin: "0 0 8px",
-          color: "#fff",
-        }}
-      >
-        {status.template.title}
-      </h1>
-
-      {status.template.description && (
-        <p
-          style={{
-            color: "#a0a0a0",
-            marginBottom: "32px",
-            lineHeight: 1.5,
-          }}
-        >
-          {status.template.description}
-        </p>
-      )}
-
-      {error && (
-        <div
-          style={{
-            padding: "12px 16px",
-            marginBottom: "16px",
-            background: "rgba(248, 113, 113, 0.1)",
-            border: "1px solid rgba(248, 113, 113, 0.3)",
-            borderRadius: "8px",
-            color: "#f87171",
-            fontSize: "14px",
-          }}
-        >
-          {error}
+    <div className="min-h-screen bg-background">
+      <Toaster />
+      <div className="max-w-lg mx-auto px-4 py-12">
+        {/* Header */}
+        <div className="text-center mb-8">
+          {sessionData.template.icon && (
+            <div className="size-16 mx-auto mb-4 rounded-xl bg-muted flex items-center justify-center overflow-hidden">
+              <img
+                src={sessionData.template.icon}
+                alt=""
+                className="size-10 object-contain"
+              />
+            </div>
+          )}
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {sessionData.template.title}
+          </h1>
+          {sessionData.template.description && (
+            <p className="text-muted-foreground mt-2">
+              {sessionData.template.description}
+            </p>
+          )}
         </div>
-      )}
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "12px",
-        }}
-      >
-        {status.apps.map((app) => (
-          <AppCard
-            key={app.app_name}
-            app={app}
-            onConnect={() => handleConnect(app.app_name)}
-            loading={configuring === app.app_name}
-          />
-        ))}
-
-        {allConfigured && status.apps.length > 0 && (
-          <button
-            onClick={handleComplete}
-            disabled={completing}
-            style={{
-              width: "100%",
-              marginTop: "20px",
-              padding: "16px",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              border: "none",
-              borderRadius: "8px",
-              color: "white",
-              fontWeight: 500,
-              cursor: completing ? "not-allowed" : "pointer",
-              opacity: completing ? 0.5 : 1,
-              fontSize: "16px",
-            }}
-          >
-            {completing ? "Completing..." : "Complete Setup"}
-          </button>
+        {/* Completed state */}
+        {isCompleted && (
+          <Card className="mb-6 border-green-500/20 bg-green-500/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <Check className="size-5 text-green-500" />
+                </div>
+                <div>
+                  <p className="font-medium">Setup Complete</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your integrations are ready to use.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
-      </div>
 
-      <div
-        style={{
-          marginTop: "24px",
-          paddingTop: "24px",
-          borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-          fontSize: "13px",
-          color: "#666",
-        }}
-      >
-        Session expires: {new Date(status.session.expires_at).toLocaleString()}
+        {/* Apps list */}
+        <div className="space-y-3">
+          {sessionData.apps.map((app) => (
+            <Card key={app.app_name}>
+              <CardContent className="py-4">
+                <div className="flex items-center gap-4">
+                  <div className="size-10 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                    {app.icon ? (
+                      <img
+                        src={app.icon}
+                        alt=""
+                        className="size-6 object-contain"
+                      />
+                    ) : (
+                      <span className="text-lg">📦</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{app.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {app.status.configured ? (
+                        <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                          <Check className="size-3" /> Connected
+                        </span>
+                      ) : app.requires_oauth ? (
+                        "Requires authentication"
+                      ) : (
+                        "Ready to connect"
+                      )}
+                    </p>
+                  </div>
+                  {!app.status.configured && !isCompleted && (
+                    <Button
+                      size="sm"
+                      onClick={() => handleConnect(app)}
+                      disabled={
+                        configuringApp !== null || completeMutation.isPending
+                      }
+                    >
+                      {configuringApp === app.app_name ? (
+                        <>
+                          <Loader2 className="size-4 mr-2 animate-spin" />
+                          Connecting...
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink className="size-4 mr-2" />
+                          Connect
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {app.status.configured && !isCompleted && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleConnect(app)}
+                      disabled={
+                        configuringApp !== null || completeMutation.isPending
+                      }
+                    >
+                      <RefreshCw className="size-4 mr-2" />
+                      Reconnect
+                    </Button>
+                  )}
+                  {isCompleted && (
+                    <div className="size-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                      <Check className="size-4 text-green-500" />
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Complete button */}
+        {allConfigured && !isCompleted && (
+          <div className="mt-6">
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={() => completeMutation.mutate()}
+              disabled={completeMutation.isPending}
+            >
+              {completeMutation.isPending ? (
+                <>
+                  <Loader2 className="size-4 mr-2 animate-spin" />
+                  Completing...
+                </>
+              ) : (
+                "Complete Setup"
+              )}
+            </Button>
+          </div>
+        )}
+
+        {/* Session info */}
+        <div className="mt-8 pt-6 border-t text-center">
+          <p className="text-xs text-muted-foreground">
+            Session expires:{" "}
+            {new Date(sessionData.session.expires_at).toLocaleString()}
+          </p>
+        </div>
       </div>
     </div>
   );
