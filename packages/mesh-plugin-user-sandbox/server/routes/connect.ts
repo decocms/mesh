@@ -25,11 +25,11 @@ import { validateSessionAccess, SessionAccessError } from "../security";
 import { completeSession } from "../services";
 
 /**
- * Generate a prefixed ID for connections
+ * Generate a prefixed ID for connections using crypto-grade randomness
  */
 function generateConnectionId(): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
+  const random = crypto.randomUUID().replace(/-/g, "").substring(0, 8);
   return `conn_${timestamp}${random}`;
 }
 

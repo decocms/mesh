@@ -20,11 +20,11 @@ import type {
 } from "../storage/types";
 
 /**
- * Generate a prefixed ID
+ * Generate a prefixed ID using crypto-grade randomness
  */
 function generatePrefixedId(prefix: string): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
+  const random = crypto.randomUUID().replace(/-/g, "").substring(0, 8);
   return `${prefix}_${timestamp}${random}`;
 }
 

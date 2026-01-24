@@ -85,9 +85,9 @@ async function findOrCreateVirtualMCP(
   const typedDb = db as Kysely<AgentDatabase>;
   const now = new Date().toISOString();
 
-  // Generate IDs for the new agent
-  const linkingId = `usa_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 10)}`;
-  const connectionId = `vir_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 10)}`;
+  // Generate IDs for the new agent using crypto-grade randomness
+  const linkingId = `usa_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
+  const connectionId = `vir_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
 
   // Step 1: Try to insert into the linking table with ON CONFLICT DO NOTHING
   // The UNIQUE constraint on (user_sandbox_id, external_user_id) ensures atomicity
