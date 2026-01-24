@@ -5,11 +5,13 @@ on:
     types: [opened]
     paths:
       - "apps/mesh/**"
+      - "packages/mesh-plugin-*/**"
   push:
     branches:
       - main
     paths:
       - "apps/mesh/**"
+      - "packages/mesh-plugin-*/**"
 
 permissions:
   contents: write

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/mesh/**"
+      - "packages/mesh-plugin-*/**"
   workflow_dispatch:
     inputs:
       deploy_to_production:
