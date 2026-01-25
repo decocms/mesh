@@ -29,6 +29,11 @@ import * as ProjectTools from "./projects";
 import * as TagTools from "./tags";
 import * as ThreadTools from "./thread";
 import * as UserTools from "./user";
+import * as UIWidgetTools from "./ui-widgets";
+import {
+  listUIWidgetResources,
+  getUIWidgetResource,
+} from "./ui-widgets/resources";
 import { ToolName } from "./registry";
 
 // Core tools - always available
@@ -128,6 +133,28 @@ const CORE_TOOLS = [
   ProjectTools.PROJECT_DELETE,
   ProjectTools.PROJECT_PLUGIN_CONFIG_GET,
   ProjectTools.PROJECT_PLUGIN_CONFIG_UPDATE,
+
+  // UI Widget tools (MCP Apps)
+  UIWidgetTools.UI_COUNTER,
+  UIWidgetTools.UI_METRIC,
+  UIWidgetTools.UI_PROGRESS,
+  UIWidgetTools.UI_GREETING,
+  UIWidgetTools.UI_CHART,
+  UIWidgetTools.UI_TIMER,
+  UIWidgetTools.UI_STATUS,
+  UIWidgetTools.UI_QUOTE,
+  UIWidgetTools.UI_SPARKLINE,
+  UIWidgetTools.UI_CODE,
+  UIWidgetTools.UI_CONFIRMATION,
+  UIWidgetTools.UI_JSON_VIEWER,
+  UIWidgetTools.UI_TABLE,
+  UIWidgetTools.UI_DIFF,
+  UIWidgetTools.UI_TODO,
+  UIWidgetTools.UI_MARKDOWN,
+  UIWidgetTools.UI_IMAGE,
+  UIWidgetTools.UI_FORM_RESULT,
+  UIWidgetTools.UI_ERROR,
+  UIWidgetTools.UI_NOTIFICATION,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime
@@ -230,6 +257,17 @@ export const managementMCP = async (ctx: MeshContext) => {
         }
       },
     );
+  }
+
+  // Register UI widget resources
+  const uiResources = listUIWidgetResources();
+  for (const r of uiResources) {
+    const resource = getUIWidgetResource(r.uri);
+    if (resource) {
+      server.resource(r.name, r.uri, { description: r.description, mimeType: r.mimeType }, async () => ({
+        contents: [{ uri: r.uri, mimeType: r.mimeType, text: resource.html }],
+      }));
+    }
   }
 
   return server;

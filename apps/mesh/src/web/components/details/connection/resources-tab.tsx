@@ -21,6 +21,7 @@ import {
   type UIToolsCallResult,
   type UIResourcesReadResult,
 } from "@/mcp-apps/types.ts";
+import { getUIWidgetResource } from "@/tools/ui-widgets/resources.ts";
 import { LayersTwo01, XClose } from "@untitledui/icons";
 
 /** Resource type for display - compatible with MCP Resource but with optional name */
@@ -397,6 +398,7 @@ function UIAppPreview({
             maxHeight={MCP_APP_DISPLAY_MODES.view.maxHeight}
             callTool={callTool}
             readResource={handleReadResource}
+            toolInput={getUIWidgetResource(resource.uri)?.exampleInput}
             className="border border-border rounded-lg"
           />
         )}

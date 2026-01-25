@@ -30,7 +30,8 @@ export type ToolCategory =
   | "Event Bus"
   | "Code Execution"
   | "Tags"
-  | "Projects";
+  | "Projects"
+  | "UI Widgets";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -120,6 +121,27 @@ const ALL_TOOL_NAMES = [
   "PROJECT_DELETE",
   "PROJECT_PLUGIN_CONFIG_GET",
   "PROJECT_PLUGIN_CONFIG_UPDATE",
+  // UI Widget tools
+  "UI_COUNTER",
+  "UI_METRIC",
+  "UI_PROGRESS",
+  "UI_GREETING",
+  "UI_CHART",
+  "UI_TIMER",
+  "UI_STATUS",
+  "UI_QUOTE",
+  "UI_SPARKLINE",
+  "UI_CODE",
+  "UI_CONFIRMATION",
+  "UI_JSON_VIEWER",
+  "UI_TABLE",
+  "UI_DIFF",
+  "UI_TODO",
+  "UI_MARKDOWN",
+  "UI_IMAGE",
+  "UI_FORM_RESULT",
+  "UI_ERROR",
+  "UI_NOTIFICATION",
 ] as const;
 
 /**
@@ -535,6 +557,107 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Update project plugin configuration",
     category: "Projects",
   },
+  // UI Widget tools
+  {
+    name: "UI_COUNTER",
+    description: "Interactive counter widget",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_METRIC",
+    description: "Key metric display with trend",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_PROGRESS",
+    description: "Visual progress bar",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_GREETING",
+    description: "Personalized greeting card",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_CHART",
+    description: "Animated bar chart",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_TIMER",
+    description: "Interactive timer",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_STATUS",
+    description: "Status badge indicator",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_QUOTE",
+    description: "Quote display with attribution",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_SPARKLINE",
+    description: "Compact trend chart",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_CODE",
+    description: "Code snippet display",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_CONFIRMATION",
+    description: "Confirmation dialog",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_JSON_VIEWER",
+    description: "JSON tree viewer",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_TABLE",
+    description: "Data table display",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_DIFF",
+    description: "Text diff viewer",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_TODO",
+    description: "Interactive todo list",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_MARKDOWN",
+    description: "Rendered markdown content",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_IMAGE",
+    description: "Image display with caption",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_FORM_RESULT",
+    description: "Form submission result",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_ERROR",
+    description: "Error display with details",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_NOTIFICATION",
+    description: "Notification banner",
+    category: "UI Widgets",
+  },
 ];
 
 /**
@@ -612,6 +735,27 @@ const TOOL_LABELS: Record<ToolName, string> = {
   PROJECT_DELETE: "Delete project",
   PROJECT_PLUGIN_CONFIG_GET: "View plugin config",
   PROJECT_PLUGIN_CONFIG_UPDATE: "Update plugin config",
+  // UI Widget tools
+  UI_COUNTER: "Interactive counter",
+  UI_METRIC: "Metric display",
+  UI_PROGRESS: "Progress bar",
+  UI_GREETING: "Greeting card",
+  UI_CHART: "Bar chart",
+  UI_TIMER: "Timer",
+  UI_STATUS: "Status badge",
+  UI_QUOTE: "Quote display",
+  UI_SPARKLINE: "Sparkline chart",
+  UI_CODE: "Code snippet",
+  UI_CONFIRMATION: "Confirmation dialog",
+  UI_JSON_VIEWER: "JSON viewer",
+  UI_TABLE: "Data table",
+  UI_DIFF: "Diff viewer",
+  UI_TODO: "Todo list",
+  UI_MARKDOWN: "Markdown content",
+  UI_IMAGE: "Image display",
+  UI_FORM_RESULT: "Form result",
+  UI_ERROR: "Error display",
+  UI_NOTIFICATION: "Notification",
 };
 
 // ============================================================================
@@ -635,6 +779,7 @@ export function getToolsByCategory() {
     "Code Execution": [],
     Tags: [],
     Projects: [],
+    "UI Widgets": [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {
