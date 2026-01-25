@@ -94,7 +94,7 @@ export async function processConversation(
     messages: nonSystemMessages,
     reasoning: "before-last-message",
     emptyMessages: "remove",
-    toolCalls: "none",
+    toolCalls: "all",
   }).slice(-config.windowSize);
 
   return {
