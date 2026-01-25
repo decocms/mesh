@@ -284,7 +284,7 @@ function filterSchemaByExecutionInput(
   schema: object,
   executionInput: Record<string, unknown>,
 ) {
-  const jsonSchema = schema as JsonSchema;
+  const jsonSchema = structuredClone(schema) as JsonSchema;
   const properties = jsonSchema.properties as
     | Record<string, JsonSchema>
     | undefined;
