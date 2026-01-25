@@ -35,7 +35,9 @@ export function useStepExecutionStatuses():
   const statuses: Record<string, StepExecutionStatus> = {};
 
   // Get completed step names from the execution
-  const successSteps = new Set(executionItem.completed_steps?.success ?? []);
+  const successSteps = new Set(
+    executionItem.completed_steps?.success?.map((step) => step.name) ?? [],
+  );
   const errorSteps = new Set(executionItem.completed_steps?.error ?? []);
 
   // Find the last completed step index to determine which step is currently running
