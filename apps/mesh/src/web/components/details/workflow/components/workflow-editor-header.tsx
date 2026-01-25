@@ -207,9 +207,15 @@ function RunWorkflowButton() {
   );
 
   const hasNoVirtualMcp = !selectedVirtualMcpId;
+  const noSteps = steps.length === 0;
 
   const isDisabled =
-    isDirty || hasEmptySteps || hasNoVirtualMcp || isPending || isCancelling;
+    isDirty ||
+    noSteps ||
+    hasEmptySteps ||
+    hasNoVirtualMcp ||
+    isPending ||
+    isCancelling;
 
   const isRunning = trackingExecutionIsRunning || isPending;
   const getTooltipMessage = () => {
@@ -217,6 +223,7 @@ function RunWorkflowButton() {
     if (isRunning) return "Workflow is currently running";
     if (isDirty) return "Save your changes before running";
     if (hasNoVirtualMcp) return "Select an Agent first";
+    if (noSteps) return "Add at least one step to the workflow";
     if (hasEmptySteps) return "Add at least one step to the workflow";
     return null;
   };

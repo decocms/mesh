@@ -12,12 +12,13 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/vanilla/shallow";
 import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
 import { useVirtualMCPs } from "@decocms/mesh-sdk";
+import { useCollectionWorkflow } from "..";
 
 type CurrentStepTab = "input" | "output" | "action" | "executions";
 export type StepType = "tool" | "code";
 
 interface State {
-  localWorkflow: Workflow;
+  originalWorkflow: Workflow;
   isAddingStep?: boolean | null;
   /** The type of step being added (set when user clicks add button) */
   addingStepType?: StepType | null;
@@ -54,7 +55,6 @@ interface Actions {
   toggleParentStepSelection: (stepName: string) => void;
   /** Confirm adding a code step with selected parent steps */
   confirmAddCodeStep: () => void;
-  setOriginalWorkflow: (workflow: Workflow) => void;
   setWorkflow: (workflow: Workflow) => void;
   /** Start replacing tool (store previous values for back button) */
   startReplacingTool: (toolName: string) => void;
@@ -241,7 +241,7 @@ const createWorkflowStore = (initialState: State) => {
           resetToOriginalWorkflow: () =>
             set((state) => ({
               ...state,
-              workflow: state.localWorkflow,
+              workflow: state.originalWorkflow,
             })),
           startAddingStep: (type: StepType) =>
             set((state) => ({
@@ -371,11 +371,6 @@ const createWorkflowStore = (initialState: State) => {
                 currentStepName: newName,
               };
             }),
-          setOriginalWorkflow: (workflow) =>
-            set((state) => ({
-              ...state,
-              localWorkflow: workflow,
-            })),
           setWorkflow: (workflow) =>
             set((state) => ({
               ...state,
@@ -406,7 +401,6 @@ const createWorkflowStore = (initialState: State) => {
           trackingExecutionId: state.trackingExecutionId,
           currentStepName: state.currentStepName,
           currentStepTab: state.currentStepTab,
-          localWorkflow: state.localWorkflow,
           isAddingStep: state.isAddingStep,
           addingStepType: state.addingStepType,
           selectedParentSteps: state.selectedParentSteps,
@@ -433,7 +427,7 @@ export function WorkflowStoreProvider({
   const [store] = useState(() =>
     createWorkflowStore({
       workflow: initialStateProps.workflow,
-      localWorkflow: initialStateProps.workflow,
+      originalWorkflow: initialStateProps.workflow,
       selectedVirtualMcpId: virtualMcps?.[0]?.id,
       isAddingStep: false,
       selectedParentSteps: [],
@@ -487,30 +481,45 @@ export function useWorkflowSteps() {
   return useWorkflow().steps;
 }
 
+/**
+ * Deep equality comparison. Returns true if values are deeply equal.
+ * Short-circuits on first difference for better performance.
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== typeof b) return false;
+
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+
+  if (typeof a === "object") {
+    const objA = a as Record<string, unknown>;
+    const objB = b as Record<string, unknown>;
+    const keysA = Object.keys(objA);
+    const keysB = Object.keys(objB);
+    if (keysA.length !== keysB.length) return false;
+    for (const key of keysA) {
+      if (!(key in objB) || !deepEqual(objA[key], objB[key])) return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
 export function useIsDirty() {
   const workflow = useWorkflow();
-  const localWorkflow = useWorkflowStore((state) => state.localWorkflow);
-
-  // Compare title, description, and steps (the user-editable properties)
-  const currentState = {
-    title: workflow.title,
-    description: workflow.description,
-    steps: workflow.steps.map((step) => ({
-      ...step,
-      outputSchema: undefined,
-    })),
-  };
-
-  const savedState = {
-    title: localWorkflow.title,
-    description: localWorkflow.description,
-    steps: localWorkflow.steps.map((step) => ({
-      ...step,
-      outputSchema: undefined,
-    })),
-  };
-
-  return JSON.stringify(currentState) !== JSON.stringify(savedState);
+  const { item: originalWorkflow } = useCollectionWorkflow({
+    itemId: workflow.id,
+  });
+  if (!originalWorkflow) return false;
+  return !deepEqual(workflow, originalWorkflow);
 }
 
 export function useTrackingExecutionId() {
