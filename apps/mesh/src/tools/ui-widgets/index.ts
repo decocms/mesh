@@ -31,8 +31,6 @@ export * from "./notification";
 
 // Shadcn-inspired widgets
 export * from "./avatar";
-export * from "./badge";
-export * from "./skeleton";
 export * from "./switch";
 export * from "./slider";
 export * from "./rating";

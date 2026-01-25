@@ -158,8 +158,6 @@ const CORE_TOOLS = [
 
   // Shadcn-inspired UI widgets
   UIWidgetTools.UI_AVATAR,
-  UIWidgetTools.UI_BADGE,
-  UIWidgetTools.UI_SKELETON,
   UIWidgetTools.UI_SWITCH,
   UIWidgetTools.UI_SLIDER,
   UIWidgetTools.UI_RATING,

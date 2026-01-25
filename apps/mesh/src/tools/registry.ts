@@ -144,8 +144,6 @@ const ALL_TOOL_NAMES = [
   "UI_NOTIFICATION",
   // Shadcn-inspired UI widgets
   "UI_AVATAR",
-  "UI_BADGE",
-  "UI_SKELETON",
   "UI_SWITCH",
   "UI_SLIDER",
   "UI_RATING",
@@ -676,16 +674,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "UI Widgets",
   },
   {
-    name: "UI_BADGE",
-    description: "Badge with variants",
-    category: "UI Widgets",
-  },
-  {
-    name: "UI_SKELETON",
-    description: "Loading placeholder",
-    category: "UI Widgets",
-  },
-  {
     name: "UI_SWITCH",
     description: "Toggle switch",
     category: "UI Widgets",
@@ -820,8 +808,6 @@ const TOOL_LABELS: Record<ToolName, string> = {
   UI_NOTIFICATION: "Notification",
   // Shadcn-inspired UI widgets
   UI_AVATAR: "User avatar",
-  UI_BADGE: "Status badge",
-  UI_SKELETON: "Loading skeleton",
   UI_SWITCH: "Toggle switch",
   UI_SLIDER: "Range slider",
   UI_RATING: "Star rating",
