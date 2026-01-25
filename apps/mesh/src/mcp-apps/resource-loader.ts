@@ -181,6 +181,11 @@ export class UIResourceLoader {
    * Add a resource to the cache
    */
   private addToCache(uri: string, content: UIResourceContent): void {
+    // Skip caching if maxCacheSize is 0 or negative
+    if (this.maxCacheSize <= 0) {
+      return;
+    }
+
     // Evict oldest entries if cache is full
     while (this.cache.size >= this.maxCacheSize) {
       const oldestKey = this.cache.keys().next().value;

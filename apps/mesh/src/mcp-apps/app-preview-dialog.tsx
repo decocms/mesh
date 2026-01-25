@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MCPAppRenderer } from "./mcp-app-renderer.tsx";
 import type { UIResourcesReadResult, UIToolsCallResult } from "./types.ts";
 import { UIResourceLoader, UIResourceLoadError } from "./resource-loader.ts";
@@ -68,35 +68,36 @@ export function AppPreviewDialog({
   const [html, setHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadStartedRef = useRef(false);
 
-  // Load the resource when dialog opens
-  const loadResource = async () => {
-    if (!open || html) return;
-
+  // Load resource when dialog opens (using ref to prevent duplicate loads)
+  if (open && !loadStartedRef.current && !html && !loading && !error) {
+    loadStartedRef.current = true;
     setLoading(true);
-    setError(null);
 
-    try {
-      const loader = new UIResourceLoader();
-      const content = await loader.load(uri, readResource);
-      setHtml(content.html);
-    } catch (err) {
-      console.error("Failed to load UI resource:", err);
-      if (err instanceof UIResourceLoadError) {
-        setError(err.message);
-      } else {
-        setError(
-          err instanceof Error ? err.message : "Failed to load resource",
-        );
+    (async () => {
+      try {
+        const loader = new UIResourceLoader();
+        const content = await loader.load(uri, readResource);
+        setHtml(content.html);
+      } catch (err) {
+        console.error("Failed to load UI resource:", err);
+        if (err instanceof UIResourceLoadError) {
+          setError(err.message);
+        } else {
+          setError(
+            err instanceof Error ? err.message : "Failed to load resource",
+          );
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
+    })();
+  }
 
-  // Load resource when dialog opens
-  if (open && !html && !loading && !error) {
-    loadResource();
+  // Reset load tracking when dialog closes
+  if (!open && loadStartedRef.current) {
+    loadStartedRef.current = false;
   }
 
   // Reset state when dialog closes

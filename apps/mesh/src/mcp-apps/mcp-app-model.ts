@@ -395,8 +395,12 @@ export class MCPAppModel {
             const success = await this.options.onOpenLink(params);
             result = { success } satisfies UIOpenLinkResult;
           } else {
-            // Default: open in new tab
-            window.open(params.url, params.target ?? "_blank");
+            // Default: open in new tab with security features
+            window.open(
+              params.url,
+              params.target ?? "_blank",
+              "noopener,noreferrer",
+            );
             result = { success: true } satisfies UIOpenLinkResult;
           }
           break;
