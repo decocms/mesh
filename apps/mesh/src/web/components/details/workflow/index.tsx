@@ -184,7 +184,6 @@ function formatDuration(milliseconds: number): string {
   if (milliseconds < 1000) {
     return `${milliseconds}ms`;
   }
-  console.log("milliseconds", milliseconds);
 
   const totalSeconds = milliseconds / 1000;
   const seconds = totalSeconds % 60;
@@ -205,7 +204,7 @@ function WorkflowExecutionBar() {
   const trackingExecutionId = useTrackingExecutionId();
 
   const duration = useExecutionDuration();
-  const formattedDuration = duration ? formatDuration(duration) : null;
+  const formattedDuration = duration != null ? formatDuration(duration) : null;
   return (
     <div className="h-10 bg-accent flex items-center justify-between border-b border-border">
       <div className="flex items-center h-full">
