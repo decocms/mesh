@@ -56,6 +56,18 @@ export interface AppPreviewDialogProps {
  *
  * Fetches the UI resource content and renders it in the MCPAppRenderer.
  */
+/**
+ * Component that triggers loading on mount (used to avoid render-time side effects)
+ */
+function LoadTrigger({ onLoad }: { onLoad: () => void }) {
+  const loadedRef = useRef(false);
+  if (!loadedRef.current) {
+    loadedRef.current = true;
+    queueMicrotask(onLoad);
+  }
+  return null;
+}
+
 export function AppPreviewDialog({
   open,
   onOpenChange,
@@ -68,46 +80,35 @@ export function AppPreviewDialog({
   const [html, setHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const loadStartedRef = useRef(false);
 
-  // Schedule resource load when dialog opens (deferred to avoid render-time state updates)
-  const shouldLoad =
-    open && !loadStartedRef.current && !html && !loading && !error;
-  if (shouldLoad) {
-    loadStartedRef.current = true;
-    // Defer state updates to after render using queueMicrotask
-    queueMicrotask(() => {
-      setLoading(true);
-      (async () => {
-        try {
-          const loader = new UIResourceLoader();
-          const content = await loader.load(uri, readResource);
-          setHtml(content.html);
-        } catch (err) {
-          console.error("Failed to load UI resource:", err);
-          if (err instanceof UIResourceLoadError) {
-            setError(err.message);
-          } else {
-            setError(
-              err instanceof Error ? err.message : "Failed to load resource",
-            );
-          }
-        } finally {
-          setLoading(false);
+  // Load resource content
+  const loadResource = () => {
+    setLoading(true);
+    setError(null);
+    (async () => {
+      try {
+        const loader = new UIResourceLoader();
+        const content = await loader.load(uri, readResource);
+        setHtml(content.html);
+      } catch (err) {
+        console.error("Failed to load UI resource:", err);
+        if (err instanceof UIResourceLoadError) {
+          setError(err.message);
+        } else {
+          setError(
+            err instanceof Error ? err.message : "Failed to load resource",
+          );
         }
-      })();
-    });
-  }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  };
 
-  // Reset load tracking when dialog closes
-  if (!open && loadStartedRef.current) {
-    loadStartedRef.current = false;
-  }
-
-  // Reset state when dialog closes
+  // Handle dialog close - resets state
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
-      // Reset state after a short delay to allow close animation
+      // Reset state after close animation
       setTimeout(() => {
         setHtml(null);
         setError(null);
@@ -115,6 +116,9 @@ export function AppPreviewDialog({
     }
     onOpenChange(newOpen);
   };
+
+  // Determine if we need to trigger a load
+  const needsLoad = open && !html && !loading && !error;
 
   // Wrapper for readResource to match the expected interface
   const handleReadResource = async (
@@ -130,6 +134,9 @@ export function AppPreviewDialog({
         <DialogHeader>
           <DialogTitle>{name || uri}</DialogTitle>
         </DialogHeader>
+
+        {/* Trigger load when dialog is open and content not loaded */}
+        {needsLoad && <LoadTrigger onLoad={loadResource} />}
 
         <div className="flex-1 min-h-0 overflow-auto">
           {loading && (
