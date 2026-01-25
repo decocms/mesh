@@ -237,7 +237,9 @@ function WorkflowExecutionBar() {
   );
 }
 
-export function WorkflowDetails({ onBack }: WorkflowDetailsProps) {
+export function WorkflowDetails({
+  onBack,
+}: Omit<WorkflowDetailsProps, "isUpdating">) {
   const { itemId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
