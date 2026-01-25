@@ -9,16 +9,19 @@ export const UI_CALENDAR = defineTool({
   name: "UI_CALENDAR",
   description: "Display a mini calendar",
   inputSchema: z.object({
-    month: z.coerce.number().min(1).max(12).describe("Month (1-12)"),
-    year: z.coerce.number().describe("Year"),
-    selected: z.array(z.number()).optional().describe("Selected day numbers"),
-    today: z.coerce.number().optional().describe("Today's day number"),
+    month: z.coerce.number().int().min(1).max(12).describe("Month (1-12)"),
+    year: z.coerce.number().int().describe("Year"),
+    selected: z
+      .array(z.coerce.number().int())
+      .optional()
+      .describe("Selected day numbers"),
+    today: z.coerce.number().int().optional().describe("Today's day number"),
   }),
   outputSchema: z.object({
-    month: z.number(),
-    year: z.number(),
-    selected: z.array(z.number()).optional(),
-    today: z.number().optional(),
+    month: z.number().int(),
+    year: z.number().int(),
+    selected: z.array(z.number().int()).optional(),
+    today: z.number().int().optional(),
     _meta: z.record(z.string(), z.unknown()).optional(),
   }),
   handler: async (input) => {
