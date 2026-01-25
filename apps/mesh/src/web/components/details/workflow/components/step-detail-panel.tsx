@@ -81,6 +81,9 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
   const { appendStep } = useWorkflowActions();
   // Sync outputSchema from tool if step has tool but no outputSchema
   useSyncOutputSchema(currentStep);
+  const trackingExecutionId = useTrackingExecutionId();
+  const { item: executionItem } =
+    usePollingWorkflowExecution(trackingExecutionId);
 
   if (!currentStep) {
     return (
@@ -102,6 +105,13 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
     );
   }
 
+  const currentStepName = currentStep?.name;
+  const isCompleted =
+    executionItem?.completed_steps?.success?.includes(currentStepName) ||
+    executionItem?.completed_steps?.error?.includes(currentStepName)
+      ? true
+      : false;
+
   return (
     <div
       className={cn(
@@ -111,9 +121,13 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
     >
       <StepHeader step={currentStep} />
       <InputSection step={currentStep} />
-      <OutputSection step={currentStep} />
-      <TransformCodeSection step={currentStep} />
-      <StepCodeSection step={currentStep} />
+      <OutputSection
+        key={isCompleted ? "open" : "closed"}
+        step={currentStep}
+        defaultOpen={isCompleted}
+      />
+      {!trackingExecutionId && <TransformCodeSection step={currentStep} />}
+      {!trackingExecutionId && <StepCodeSection step={currentStep} />}
     </div>
   );
 }
@@ -232,6 +246,12 @@ function InputSection({ step }: { step: Step }) {
     });
   };
 
+  const usedSchema = trackingExecutionId
+    ? filterSchemaByExecutionInput(
+        tool.inputSchema,
+        step.input as Record<string, unknown>,
+      )
+    : tool.inputSchema;
   return (
     <Accordion
       type="single"
@@ -247,8 +267,9 @@ function InputSection({ step }: { step: Step }) {
         </AccordionTrigger>
         <AccordionContent className="px-5 pt-2">
           <ToolInput
-            key={step.name}
-            inputSchema={tool.inputSchema as JsonSchema}
+            key={step.name + trackingExecutionId}
+            readOnly={!!trackingExecutionId}
+            inputSchema={usedSchema as JsonSchema}
             inputParams={step.input as Record<string, unknown>}
             setInputParams={handleInputChange}
             mentions={[]}
@@ -259,13 +280,39 @@ function InputSection({ step }: { step: Step }) {
   );
 }
 
+function filterSchemaByExecutionInput(
+  schema: object,
+  executionInput: Record<string, unknown>,
+) {
+  const jsonSchema = structuredClone(schema) as JsonSchema;
+  const properties = jsonSchema.properties as
+    | Record<string, JsonSchema>
+    | undefined;
+  if (!properties) {
+    return jsonSchema;
+  }
+
+  Object.keys(properties).forEach((key) => {
+    if (!executionInput[key]) {
+      delete properties[key];
+    }
+  });
+
+  return jsonSchema;
+}
+
 // ============================================================================
 // Output Section
 // ============================================================================
 
-function OutputSection({ step }: { step: Step }) {
+function OutputSection({
+  step,
+  defaultOpen,
+}: {
+  step: Step;
+  defaultOpen: boolean;
+}) {
   const outputSchema = step.outputSchema;
-  const [isOpen, setIsOpen] = useState(false);
   const trackingExecutionId = useTrackingExecutionId();
   const { item: executionItem } =
     usePollingWorkflowExecution(trackingExecutionId);
@@ -274,6 +321,7 @@ function OutputSection({ step }: { step: Step }) {
     executionItem?.completed_steps?.error?.includes(step.name)
       ? true
       : false;
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const { output, error } = useExecutionCompletedStep(
     trackingExecutionId,
     isCompleted ? step.name : undefined,
