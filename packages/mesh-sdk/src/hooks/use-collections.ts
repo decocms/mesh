@@ -289,7 +289,20 @@ export function useCollectionActions<T extends CollectionEntity>(
         arguments: {
           data,
         } as CollectionInsertInput<T>,
-      })) as { structuredContent?: unknown };
+      })) as {
+        structuredContent?: unknown;
+        isError?: boolean;
+        content?: unknown;
+      };
+
+      if (result.isError) {
+        throw new Error(
+          Array.isArray(result.content)
+            ? result.content[0]?.text
+            : String(result.content),
+        );
+      }
+
       const payload = extractPayload<CollectionInsertOutput<T>>(result);
 
       return payload.item;
