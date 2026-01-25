@@ -5,6 +5,7 @@
  * These are core framework widgets for rich interactive displays.
  */
 
+// Core widgets
 export * from "./counter";
 export * from "./metric";
 export * from "./progress";
@@ -15,7 +16,8 @@ export * from "./status";
 export * from "./quote";
 export * from "./sparkline";
 export * from "./code";
-// New widgets
+
+// Data display widgets
 export * from "./confirmation";
 export * from "./json-viewer";
 export * from "./table";
@@ -26,3 +28,15 @@ export * from "./image";
 export * from "./form-result";
 export * from "./error";
 export * from "./notification";
+
+// Shadcn-inspired widgets
+export * from "./avatar";
+export * from "./badge";
+export * from "./skeleton";
+export * from "./switch";
+export * from "./slider";
+export * from "./rating";
+export * from "./kbd";
+export * from "./stats-grid";
+export * from "./area-chart";
+export * from "./calendar";

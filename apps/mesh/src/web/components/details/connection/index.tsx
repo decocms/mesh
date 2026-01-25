@@ -15,12 +15,7 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import { Loading01 } from "@untitledui/icons";
-import {
-  useNavigate,
-  useParams,
-  useRouter,
-  useSearch,
-} from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { ViewLayout, ViewTabs } from "../layout";
 import { CollectionTab } from "./collection-tab";
@@ -65,7 +60,6 @@ function ConnectionInspectorViewWithConnection({
   }>;
   isLoadingTools: boolean;
 }) {
-  const router = useRouter();
   const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
 
   const authStatus = useMCPAuthStatus({
@@ -125,8 +119,15 @@ function ConnectionInspectorViewWithConnection({
     (c) => c.name === activeTabId,
   );
 
+  const handleBack = () => {
+    navigate({
+      to: "/$org/mcps",
+      params: { org },
+    });
+  };
+
   return (
-    <ViewLayout onBack={() => router.history.back()}>
+    <ViewLayout onBack={handleBack}>
       <ViewTabs>
         <ResourceTabs
           tabs={tabs}
