@@ -142,6 +142,17 @@ const ALL_TOOL_NAMES = [
   "UI_FORM_RESULT",
   "UI_ERROR",
   "UI_NOTIFICATION",
+  // Shadcn-inspired UI widgets
+  "UI_AVATAR",
+  "UI_BADGE",
+  "UI_SKELETON",
+  "UI_SWITCH",
+  "UI_SLIDER",
+  "UI_RATING",
+  "UI_KBD",
+  "UI_STATS_GRID",
+  "UI_AREA_CHART",
+  "UI_CALENDAR",
 ] as const;
 
 /**
@@ -658,6 +669,57 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Notification banner",
     category: "UI Widgets",
   },
+  // Shadcn-inspired UI widgets
+  {
+    name: "UI_AVATAR",
+    description: "User avatar with status",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_BADGE",
+    description: "Badge with variants",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_SKELETON",
+    description: "Loading placeholder",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_SWITCH",
+    description: "Toggle switch",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_SLIDER",
+    description: "Range slider",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_RATING",
+    description: "Star rating display",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_KBD",
+    description: "Keyboard shortcuts",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_STATS_GRID",
+    description: "Dashboard stats grid",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_AREA_CHART",
+    description: "Area chart with gradient",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_CALENDAR",
+    description: "Mini calendar",
+    category: "UI Widgets",
+  },
 ];
 
 /**
@@ -756,6 +818,17 @@ const TOOL_LABELS: Record<ToolName, string> = {
   UI_FORM_RESULT: "Form result",
   UI_ERROR: "Error display",
   UI_NOTIFICATION: "Notification",
+  // Shadcn-inspired UI widgets
+  UI_AVATAR: "User avatar",
+  UI_BADGE: "Status badge",
+  UI_SKELETON: "Loading skeleton",
+  UI_SWITCH: "Toggle switch",
+  UI_SLIDER: "Range slider",
+  UI_RATING: "Star rating",
+  UI_KBD: "Keyboard shortcuts",
+  UI_STATS_GRID: "Stats dashboard",
+  UI_AREA_CHART: "Area chart",
+  UI_CALENDAR: "Calendar",
 };
 
 // ============================================================================

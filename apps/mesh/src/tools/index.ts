@@ -155,6 +155,18 @@ const CORE_TOOLS = [
   UIWidgetTools.UI_FORM_RESULT,
   UIWidgetTools.UI_ERROR,
   UIWidgetTools.UI_NOTIFICATION,
+
+  // Shadcn-inspired UI widgets
+  UIWidgetTools.UI_AVATAR,
+  UIWidgetTools.UI_BADGE,
+  UIWidgetTools.UI_SKELETON,
+  UIWidgetTools.UI_SWITCH,
+  UIWidgetTools.UI_SLIDER,
+  UIWidgetTools.UI_RATING,
+  UIWidgetTools.UI_KBD,
+  UIWidgetTools.UI_STATS_GRID,
+  UIWidgetTools.UI_AREA_CHART,
+  UIWidgetTools.UI_CALENDAR,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime
