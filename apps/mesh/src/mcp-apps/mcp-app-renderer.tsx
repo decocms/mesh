@@ -196,7 +196,7 @@ export function MCPAppRenderer({
       style={{ height: `${height}px` }}
     >
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
           <div className="flex items-center gap-2 text-muted-foreground">
             <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
             <span className="text-sm">Loading app...</span>
@@ -207,7 +207,7 @@ export function MCPAppRenderer({
         ref={handleIframeRef}
         srcDoc={preparedHtml}
         sandbox="allow-scripts allow-forms"
-        className="w-full h-full border-0"
+        className={cn("w-full h-full border-0", isLoading && "invisible")}
         title={`MCP App: ${toolName ?? uri}`}
       />
     </div>
