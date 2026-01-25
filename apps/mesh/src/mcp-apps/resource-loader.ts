@@ -26,9 +26,9 @@ export class UIResourceLoadError extends Error {
   constructor(
     public readonly uri: string,
     public readonly reason: string,
-    public readonly cause?: unknown,
+    public override readonly cause?: unknown,
   ) {
-    super(`Failed to load UI resource ${uri}: ${reason}`);
+    super(`Failed to load UI resource ${uri}: ${reason}`, { cause });
     this.name = "UIResourceLoadError";
   }
 }
@@ -117,7 +117,7 @@ export class UIResourceLoader {
         throw new UIResourceLoadError(uri, "Resource returned no contents");
       }
 
-      const content = result.contents[0];
+      const content = result.contents[0]!;
 
       // Extract text content
       let html: string;
@@ -144,7 +144,7 @@ export class UIResourceLoader {
       const resourceContent: UIResourceContent = {
         html,
         mimeType,
-        uri: content.uri || uri,
+        uri: content.uri ?? uri,
       };
 
       // Cache the result

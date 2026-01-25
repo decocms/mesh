@@ -319,7 +319,7 @@ export const UI_WIDGET_RESOURCES: Record<string, UIWidgetResource> = {
   "ui://mesh/timer": {
     name: "Timer",
     description: "Countdown timer with start/pause controls",
-    exampleInput: { seconds: 0, label: "Focus Timer" },
+    exampleInput: { seconds: 300, label: "5 Minute Timer" },
     html: `<!DOCTYPE html>
 <html>
 <head>
@@ -327,6 +327,7 @@ export const UI_WIDGET_RESOURCES: Record<string, UIWidgetResource> = {
     ${baseCSS}
     .container { height: 100%; display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; gap: 16px; }
     .time { font-size: 32px; font-weight: 600; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+    .time.done { color: ${tokens.primary}; }
     .controls { display: flex; gap: 8px; }
     button { padding: 8px 16px; border: 1px solid ${tokens.border}; border-radius: 8px; background: ${tokens.bg}; font-size: 13px; color: ${tokens.textMuted}; cursor: pointer; transition: all 0.15s; }
     button:hover { background: ${tokens.bgSubtle}; color: ${tokens.text}; }
@@ -346,16 +347,27 @@ export const UI_WIDGET_RESOURCES: Record<string, UIWidgetResource> = {
     </div>
   </div>
   <script>
-    let seconds = 0, running = false, interval = null;
+    let seconds = 0, initialSeconds = 0, running = false, interval = null;
+    const timeEl = document.getElementById('time');
     function format(s) { const m = Math.floor(s / 60), sec = s % 60; return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0'); }
-    function update() { document.getElementById('time').textContent = format(seconds); }
-    function toggle() { running = !running; document.getElementById('toggle').textContent = running ? 'Pause' : 'Start'; if (running) interval = setInterval(() => { seconds++; update(); }, 1000); else clearInterval(interval); }
-    function reset() { seconds = 0; update(); }
+    function update() { timeEl.textContent = format(seconds); timeEl.classList.toggle('done', seconds === 0 && initialSeconds > 0); }
+    function toggle() {
+      if (seconds <= 0 && !running) return;
+      running = !running;
+      document.getElementById('toggle').textContent = running ? 'Pause' : 'Start';
+      if (running) {
+        interval = setInterval(() => {
+          if (seconds > 0) { seconds--; update(); }
+          if (seconds <= 0) { clearInterval(interval); running = false; document.getElementById('toggle').textContent = 'Start'; }
+        }, 1000);
+      } else { clearInterval(interval); }
+    }
+    function reset() { seconds = initialSeconds; running = false; clearInterval(interval); document.getElementById('toggle').textContent = 'Start'; update(); }
     window.addEventListener('message', e => {
       let msg; try { msg = JSON.parse(e.data); } catch { return; }
       if (msg.method === 'ui/initialize') {
         const input = msg.params?.toolInput || {};
-        if (input.seconds) { seconds = input.seconds; update(); }
+        if (input.seconds) { seconds = input.seconds; initialSeconds = input.seconds; update(); }
         parent.postMessage(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: {} }), '*');
       }
     });
