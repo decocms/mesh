@@ -111,27 +111,32 @@ export function MCPAppLoader({
   // Track if we've started loading to avoid duplicate loads
   const loadStartedRef = useRef(false);
 
-  // Load the MCP App HTML on mount
-  if (!loadStartedRef.current && !appHtml && !appLoading && !appError) {
+  // Schedule MCP App HTML load (deferred to avoid render-time state updates)
+  const shouldLoad =
+    !loadStartedRef.current && !appHtml && !appLoading && !appError;
+  if (shouldLoad) {
     loadStartedRef.current = true;
-    setAppLoading(true);
-
-    // Start async load
-    (async () => {
-      try {
-        const loader = new UIResourceLoader();
-        const content = await loader.load(uiResourceUri, async (uri) => {
-          const result = await readResource(uri);
-          return { contents: result.contents };
-        });
-        setAppHtml(content.html);
-      } catch (err) {
-        console.error("Failed to load MCP App:", err);
-        setAppError(err instanceof Error ? err.message : "Failed to load app");
-      } finally {
-        setAppLoading(false);
-      }
-    })();
+    // Defer state updates to after render using queueMicrotask
+    queueMicrotask(() => {
+      setAppLoading(true);
+      (async () => {
+        try {
+          const loader = new UIResourceLoader();
+          const content = await loader.load(uiResourceUri, async (uri) => {
+            const result = await readResource(uri);
+            return { contents: result.contents };
+          });
+          setAppHtml(content.html);
+        } catch (err) {
+          console.error("Failed to load MCP App:", err);
+          setAppError(
+            err instanceof Error ? err.message : "Failed to load app",
+          );
+        } finally {
+          setAppLoading(false);
+        }
+      })();
+    });
   }
 
   // For expanded mode, we'll use inline styles for viewport-based height

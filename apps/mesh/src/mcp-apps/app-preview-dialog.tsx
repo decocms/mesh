@@ -70,29 +70,33 @@ export function AppPreviewDialog({
   const [error, setError] = useState<string | null>(null);
   const loadStartedRef = useRef(false);
 
-  // Load resource when dialog opens (using ref to prevent duplicate loads)
-  if (open && !loadStartedRef.current && !html && !loading && !error) {
+  // Schedule resource load when dialog opens (deferred to avoid render-time state updates)
+  const shouldLoad =
+    open && !loadStartedRef.current && !html && !loading && !error;
+  if (shouldLoad) {
     loadStartedRef.current = true;
-    setLoading(true);
-
-    (async () => {
-      try {
-        const loader = new UIResourceLoader();
-        const content = await loader.load(uri, readResource);
-        setHtml(content.html);
-      } catch (err) {
-        console.error("Failed to load UI resource:", err);
-        if (err instanceof UIResourceLoadError) {
-          setError(err.message);
-        } else {
-          setError(
-            err instanceof Error ? err.message : "Failed to load resource",
-          );
+    // Defer state updates to after render using queueMicrotask
+    queueMicrotask(() => {
+      setLoading(true);
+      (async () => {
+        try {
+          const loader = new UIResourceLoader();
+          const content = await loader.load(uri, readResource);
+          setHtml(content.html);
+        } catch (err) {
+          console.error("Failed to load UI resource:", err);
+          if (err instanceof UIResourceLoadError) {
+            setError(err.message);
+          } else {
+            setError(
+              err instanceof Error ? err.message : "Failed to load resource",
+            );
+          }
+        } finally {
+          setLoading(false);
         }
-      } finally {
-        setLoading(false);
-      }
-    })();
+      })();
+    });
   }
 
   // Reset load tracking when dialog closes
