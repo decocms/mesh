@@ -10,7 +10,7 @@
  * Default CSP policy for MCP Apps
  *
  * Restrictions:
- * - default-src 'self': Only allow resources from the same origin (which is the srcdoc)
+ * - default-src 'none': Block all resources by default
  * - script-src 'unsafe-inline': Allow inline scripts (needed for the app to work)
  * - style-src 'unsafe-inline': Allow inline styles
  * - img-src 'self' data: blob:: Allow images from self, data URIs, and blob URLs
@@ -60,7 +60,10 @@ export function injectCSP(
 
   // If external connections are allowed, update connect-src
   if (options.allowExternalConnections) {
-    const hosts = options.allowedHosts?.join(" ") ?? "*";
+    const hosts =
+      options.allowedHosts && options.allowedHosts.length > 0
+        ? options.allowedHosts.join(" ")
+        : "*";
     csp = csp.replace("connect-src 'none'", `connect-src ${hosts}`);
   }
 

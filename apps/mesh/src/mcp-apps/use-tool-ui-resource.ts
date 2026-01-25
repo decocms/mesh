@@ -35,27 +35,18 @@ export function useToolUIResource(
 } {
   const { org } = useProjectContext();
 
-  // Get MCP client for the virtual MCP
-  // Note: useMCPClient uses Suspense, so it will throw if not ready
-  // We need to handle the case where virtualMcpId is null
-  let mcpClient: ReturnType<typeof useMCPClient> | null = null;
+  // Always call useMCPClient unconditionally with placeholder values when not ready
+  // The hook internally handles null/undefined cases
+  const mcpClient = useMCPClient({
+    connectionId: virtualMcpId ?? "",
+    orgId: org?.id ?? "",
+  });
 
-  try {
-    if (virtualMcpId && org?.id) {
-      mcpClient = useMCPClient({
-        connectionId: virtualMcpId,
-        orgId: org.id,
-      });
-    }
-  } catch {
-    // Client not ready yet (Suspense)
-    mcpClient = null;
-  }
-
-  // Get tools list
+  // Get tools list - use mcpClient directly but only enable when we have valid IDs
+  const hasValidIds = !!virtualMcpId && !!org?.id;
   const { data: toolsData, isLoading } = useMCPToolsListQuery({
     client: mcpClient,
-    enabled: !!mcpClient && !!toolName,
+    enabled: hasValidIds && !!toolName,
   });
 
   // Look up the tool by name and extract UI resource

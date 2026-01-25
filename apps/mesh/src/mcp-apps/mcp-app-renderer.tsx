@@ -82,6 +82,7 @@ export function MCPAppRenderer({
 }: MCPAppRendererProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const modelRef = useRef<MCPAppModel | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevBoundsRef = useRef({ minHeight, maxHeight });
   const [height, setHeight] = useState(minHeight);
   const [isLoading, setIsLoading] = useState(true);
@@ -110,6 +111,12 @@ export function MCPAppRenderer({
 
   // Set up the model when iframe is available
   const handleIframeRef = (iframe: HTMLIFrameElement | null) => {
+    // Clean up previous interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
     // Clean up previous model
     if (modelRef.current) {
       modelRef.current.dispose();
@@ -150,23 +157,24 @@ export function MCPAppRenderer({
         const state = model.getState();
         if (state === "ready") {
           setIsLoading(false);
+          // Clear interval once ready
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
         } else if (state === "error") {
           setIsLoading(false);
           setError("Failed to initialize MCP App");
+          // Clear interval on error
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
         }
       };
 
       // Check state periodically until ready
-      const interval = setInterval(() => {
-        checkState();
-        const state = model.getState();
-        if (state === "ready" || state === "error") {
-          clearInterval(interval);
-        }
-      }, 100);
-
-      // Cleanup interval on unmount
-      return () => clearInterval(interval);
+      intervalRef.current = setInterval(checkState, 100);
     } catch (err) {
       console.error("Failed to create MCP App model:", err);
       setError(err instanceof Error ? err.message : "Unknown error");

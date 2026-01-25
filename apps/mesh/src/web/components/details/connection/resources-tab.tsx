@@ -8,7 +8,7 @@ import { useConnection, useMCPClient } from "@decocms/mesh-sdk";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { ViewActions } from "@/web/components/details/layout";
 import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import {
@@ -309,35 +309,31 @@ function UIAppPreview({
   const [html, setHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadStartedRef = useRef(false);
 
-  // Load the resource
-  const loadResource = async () => {
-    if (html || loading) return;
-
+  // Load resource on mount (using ref to prevent duplicate loads)
+  if (!loadStartedRef.current && !html && !loading && !error) {
+    loadStartedRef.current = true;
     setLoading(true);
-    setError(null);
 
-    try {
-      const loader = new UIResourceLoader();
-      const content = await loader.load(resource.uri, readResource);
-      setHtml(content.html);
-    } catch (err) {
-      console.error("Failed to load UI resource:", err);
-      if (err instanceof UIResourceLoadError) {
-        setError(err.message);
-      } else {
-        setError(
-          err instanceof Error ? err.message : "Failed to load resource",
-        );
+    (async () => {
+      try {
+        const loader = new UIResourceLoader();
+        const content = await loader.load(resource.uri, readResource);
+        setHtml(content.html);
+      } catch (err) {
+        console.error("Failed to load UI resource:", err);
+        if (err instanceof UIResourceLoadError) {
+          setError(err.message);
+        } else {
+          setError(
+            err instanceof Error ? err.message : "Failed to load resource",
+          );
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Trigger load
-  if (!html && !loading && !error) {
-    loadResource();
+    })();
   }
 
   // Wrapper for readResource

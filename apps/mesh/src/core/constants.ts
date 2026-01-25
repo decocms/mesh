@@ -12,8 +12,6 @@ export const MCP_MESH_KEY = "mcp.mesh";
  *
  * When enabled, Mesh will render interactive UIs for tools
  * that declare UI resources via _meta["ui/resourceUri"].
- *
- * This is an experimental feature and is disabled by default.
  */
 export const MCP_APPS_ENABLED = true;
 
