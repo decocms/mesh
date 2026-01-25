@@ -83,8 +83,7 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
   useSyncOutputSchema(currentStep);
   const trackingExecutionId = useTrackingExecutionId();
   const { item: executionItem } =
-  usePollingWorkflowExecution(trackingExecutionId);
-
+    usePollingWorkflowExecution(trackingExecutionId);
 
   if (!currentStep) {
     return (
@@ -108,10 +107,10 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
 
   const currentStepName = currentStep?.name;
   const isCompleted =
-  executionItem?.completed_steps?.success?.includes(currentStepName) ||
-  executionItem?.completed_steps?.error?.includes(currentStepName)
-  ? true
-  : false;
+    executionItem?.completed_steps?.success?.includes(currentStepName) ||
+    executionItem?.completed_steps?.error?.includes(currentStepName)
+      ? true
+      : false;
 
   return (
     <div
@@ -122,7 +121,11 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
     >
       <StepHeader step={currentStep} />
       <InputSection step={currentStep} />
-      <OutputSection key={isCompleted ? "open" : "closed"} step={currentStep} defaultOpen={isCompleted} />
+      <OutputSection
+        key={isCompleted ? "open" : "closed"}
+        step={currentStep}
+        defaultOpen={isCompleted}
+      />
       {!trackingExecutionId && <TransformCodeSection step={currentStep} />}
       {!trackingExecutionId && <StepCodeSection step={currentStep} />}
     </div>
@@ -243,7 +246,12 @@ function InputSection({ step }: { step: Step }) {
     });
   };
 
-  const usedSchema = trackingExecutionId ? filterSchemaByExecutionInput(tool.inputSchema, step.input as Record<string, unknown>) : tool.inputSchema;
+  const usedSchema = trackingExecutionId
+    ? filterSchemaByExecutionInput(
+        tool.inputSchema,
+        step.input as Record<string, unknown>,
+      )
+    : tool.inputSchema;
   return (
     <Accordion
       type="single"
@@ -272,9 +280,14 @@ function InputSection({ step }: { step: Step }) {
   );
 }
 
-function filterSchemaByExecutionInput(schema: object, executionInput: Record<string, unknown>) {
+function filterSchemaByExecutionInput(
+  schema: object,
+  executionInput: Record<string, unknown>,
+) {
   const jsonSchema = schema as JsonSchema;
-  const properties = jsonSchema.properties as Record<string, JsonSchema> | undefined;
+  const properties = jsonSchema.properties as
+    | Record<string, JsonSchema>
+    | undefined;
   if (!properties) {
     return jsonSchema;
   }
@@ -292,16 +305,22 @@ function filterSchemaByExecutionInput(schema: object, executionInput: Record<str
 // Output Section
 // ============================================================================
 
-function OutputSection({ step, defaultOpen }: { step: Step; defaultOpen: boolean }) {
+function OutputSection({
+  step,
+  defaultOpen,
+}: {
+  step: Step;
+  defaultOpen: boolean;
+}) {
   const outputSchema = step.outputSchema;
   const trackingExecutionId = useTrackingExecutionId();
   const { item: executionItem } =
-  usePollingWorkflowExecution(trackingExecutionId);
+    usePollingWorkflowExecution(trackingExecutionId);
   const isCompleted =
-  executionItem?.completed_steps?.success?.includes(step.name) ||
-  executionItem?.completed_steps?.error?.includes(step.name)
-  ? true
-  : false;
+    executionItem?.completed_steps?.success?.includes(step.name) ||
+    executionItem?.completed_steps?.error?.includes(step.name)
+      ? true
+      : false;
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const { output, error } = useExecutionCompletedStep(
     trackingExecutionId,
@@ -318,7 +337,6 @@ function OutputSection({ step, defaultOpen }: { step: Step; defaultOpen: boolean
       : undefined;
 
   const propertyEntries = properties ? Object.entries(properties) : [];
-
 
   return (
     <div
