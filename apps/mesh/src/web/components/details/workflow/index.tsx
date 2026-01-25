@@ -16,7 +16,7 @@ import {
   ResizablePanelGroup,
 } from "@deco/ui/components/resizable.js";
 import { Button } from "@deco/ui/components/button.js";
-import { Eye, FileIcon, X } from "lucide-react";
+import { Clock, Eye, FileIcon, X } from "lucide-react";
 import { WorkflowEditorHeader } from "./components/workflow-editor-header";
 import { WorkflowStepsCanvas } from "./components/workflow-steps-canvas";
 import { ToolSidebar } from "./components/tool-sidebar";
@@ -33,12 +33,15 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { EmptyState } from "@deco/ui/components/empty-state.js";
+import { usePollingWorkflowExecution } from "./hooks";
+import { useRef, useState, useSyncExternalStore } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared hook for workflow/execution data
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useCollectionWorkflow({ itemId }: { itemId: string }) {
+  const [isUpdating, setIsUpdating] = useState(false);
   const { connectionId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
@@ -66,15 +69,21 @@ export function useCollectionWorkflow({ itemId }: { itemId: string }) {
   );
 
   const update = async (updates: Partial<Workflow>): Promise<void> => {
-    await actions.update.mutateAsync({
-      id: itemId,
-      data: updates,
-    });
+    setIsUpdating(true);
+    await actions.update
+      .mutateAsync({
+        id: itemId,
+        data: updates,
+      })
+      .finally(() => {
+        setIsUpdating(false);
+      });
   };
 
   return {
     item,
     update,
+    isUpdating,
   };
 }
 
@@ -84,6 +93,7 @@ interface WorkflowViewProps {
 
 interface WorkflowDetailsProps extends WorkflowViewProps {
   onUpdate: (updates: Partial<Workflow>) => Promise<void>;
+  isUpdating: boolean;
 }
 
 function WorkflowCode({
@@ -117,10 +127,84 @@ function WorkflowCode({
   );
 }
 
+function useExecutionDuration() {
+  const trackingExecutionId = useTrackingExecutionId();
+  const { item: executionItem } =
+    usePollingWorkflowExecution(trackingExecutionId);
+  const startAtEpochMs = executionItem?.start_at_epoch_ms;
+  const completedAtEpochMs = executionItem?.completed_at_epoch_ms;
+
+  const shouldSubscribe =
+    executionItem?.status === "running" &&
+    startAtEpochMs &&
+    !completedAtEpochMs;
+
+  const timeRef = useRef(Date.now());
+
+  const subscribe = (callback: () => void) => {
+    if (!shouldSubscribe) return () => {};
+
+    const interval = setInterval(() => {
+      timeRef.current = Date.now();
+      callback();
+    }, 50);
+
+    return () => clearInterval(interval);
+  };
+
+  const getSnapshot = () => {
+    return shouldSubscribe ? timeRef.current : 0;
+  };
+
+  const currentTime = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  // Calculate duration in real-time (directly in render, NOT in useMemo!)
+  const activeDuration =
+    completedAtEpochMs && startAtEpochMs
+      ? Math.max(0, completedAtEpochMs - startAtEpochMs)
+      : null;
+  let duration: number | null = null;
+  if (startAtEpochMs) {
+    const start = new Date(startAtEpochMs).getTime();
+    if (completedAtEpochMs) {
+      // If endTime exists, use it
+      const end = new Date(completedAtEpochMs).getTime();
+      duration = Math.max(0, end - start);
+    } else if (shouldSubscribe) {
+      // If no endTime but step is running, use currentTime for live duration
+      duration = Math.max(0, currentTime - start);
+    }
+    // Otherwise duration remains null (shows "-")
+  }
+
+  return duration ?? activeDuration;
+}
+
+function formatDuration(milliseconds: number): string {
+  if (milliseconds < 1000) {
+    return `${milliseconds}ms`;
+  }
+
+  const totalSeconds = milliseconds / 1000;
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds.toFixed(3)}s`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds.toFixed(3)}s`;
+  }
+  return `${seconds.toFixed(3)}s`;
+}
 function WorkflowExecutionBar() {
   const { setTrackingExecutionId } = useWorkflowActions();
   const trackingExecutionId = useTrackingExecutionId();
 
+  const duration = useExecutionDuration();
+  const formattedDuration = duration != null ? formatDuration(duration) : null;
   return (
     <div className="h-10 bg-accent flex items-center justify-between border-b border-border">
       <div className="flex items-center h-full">
@@ -133,7 +217,14 @@ function WorkflowExecutionBar() {
             #{trackingExecutionId}
           </span>
         </p>
+        <div className="flex items-center gap-1 ml-6">
+          <Clock className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            {formattedDuration}
+          </span>
+        </div>
       </div>
+
       <Button
         variant="ghost"
         size="xs"
@@ -145,11 +236,17 @@ function WorkflowExecutionBar() {
   );
 }
 
-export function WorkflowDetails({ onBack }: WorkflowDetailsProps) {
+export function WorkflowDetails({
+  onBack,
+}: Omit<WorkflowDetailsProps, "isUpdating">) {
   const { itemId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
-  const { item: workflow, update } = useCollectionWorkflow({ itemId });
+  const {
+    item: workflow,
+    update,
+    isUpdating,
+  } = useCollectionWorkflow({ itemId });
 
   const keyFlow = JSON.stringify(workflow);
 
@@ -176,11 +273,19 @@ export function WorkflowDetails({ onBack }: WorkflowDetailsProps) {
         currentStepTab: "input",
       }}
     >
-      <WorkflowStudio onBack={onBack} onUpdate={update} />
+      <WorkflowStudio
+        onBack={onBack}
+        onUpdate={update}
+        isUpdating={isUpdating}
+      />
     </WorkflowStoreProvider>
   );
 }
-function WorkflowStudio({ onBack, onUpdate }: WorkflowDetailsProps) {
+function WorkflowStudio({
+  onBack,
+  onUpdate,
+  isUpdating,
+}: WorkflowDetailsProps) {
   const workflow = useWorkflow();
   const trackingExecutionId = useTrackingExecutionId();
   const { viewMode, showExecutionsList } = useViewModeStore();
@@ -206,6 +311,7 @@ function WorkflowStudio({ onBack, onUpdate }: WorkflowDetailsProps) {
           title={workflow.title}
           description={workflow.description}
           onSave={handleSave}
+          isSaving={isUpdating}
         />
 
         {/* Tracking Execution Bar */}
