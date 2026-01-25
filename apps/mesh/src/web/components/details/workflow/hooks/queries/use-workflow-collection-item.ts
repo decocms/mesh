@@ -29,7 +29,6 @@ export function usePollingWorkflowExecution(executionId?: string) {
     toolArguments: {
       id: executionId,
     },
-    staleTime: 0,
     gcTime: 0,
     enabled: !!executionId,
     select: (result) =>

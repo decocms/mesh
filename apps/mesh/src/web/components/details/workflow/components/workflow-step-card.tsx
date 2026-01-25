@@ -50,11 +50,14 @@ export function WorkflowStepCard({
   const trackingExecutionId = useTrackingExecutionId();
   const { item: executionItem } =
     usePollingWorkflowExecution(trackingExecutionId);
-  const executionCompletedAt = executionItem?.completed_at_epoch_ms;
-  const isCompletedSuccessfully =
-    executionItem?.completed_steps?.success?.includes(step.name) ?? false;
-  const isCompletedWithError =
-    executionItem?.completed_steps?.error?.includes(step.name) ?? false;
+  const completedSteps = executionItem?.completed_steps;
+  const successSteps = completedSteps?.success;
+  const thisStep = successSteps?.find(
+    (completedStep) => completedStep.name === step.name,
+  );
+  const stepCompletedAt = thisStep?.completed_at_epoch_ms;
+  const isCompletedSuccessfully = thisStep != null;
+  const isCompletedWithError = completedSteps?.error?.includes(step.name);
 
   const isToolStep = "toolName" in step.action;
   const connectionId =
@@ -213,9 +216,7 @@ export function WorkflowStepCard({
 
         {/* Execution Status Badge */}
         {status === "success" && (
-          <SuccessBadge
-            completedAtEpochMs={executionCompletedAt as number | null}
-          />
+          <SuccessBadge completedAtEpochMs={stepCompletedAt as number | null} />
         )}
         {status === "error" && <ErrorBadge error={executionStatus?.error} />}
       </div>

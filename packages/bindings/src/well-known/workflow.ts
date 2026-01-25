@@ -205,7 +205,12 @@ export const WorkflowExecutionSchema = BaseCollectionEntitySchema.extend({
   completed_steps: z
     .object({
       success: z
-        .array(z.string())
+        .array(
+          z.object({
+            name: z.string(),
+            completed_at_epoch_ms: z.number(),
+          }),
+        )
         .describe("Names of the steps that were completed successfully"),
       error: z.array(z.string()).describe("Names of the steps that errored"),
     })

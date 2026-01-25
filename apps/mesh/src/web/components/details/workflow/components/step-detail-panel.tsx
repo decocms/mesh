@@ -107,8 +107,9 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
 
   const currentStepName = currentStep?.name;
   const isCompleted =
-    executionItem?.completed_steps?.success?.includes(currentStepName) ||
-    executionItem?.completed_steps?.error?.includes(currentStepName)
+    executionItem?.completed_steps?.success?.some(
+      (completedStep) => completedStep.name === currentStepName,
+    ) || executionItem?.completed_steps?.error?.includes(currentStepName)
       ? true
       : false;
 
@@ -317,8 +318,9 @@ function OutputSection({
   const { item: executionItem } =
     usePollingWorkflowExecution(trackingExecutionId);
   const isCompleted =
-    executionItem?.completed_steps?.success?.includes(step.name) ||
-    executionItem?.completed_steps?.error?.includes(step.name)
+    executionItem?.completed_steps?.success?.some(
+      (completedStep) => completedStep.name === step.name,
+    ) || executionItem?.completed_steps?.error?.includes(step.name)
       ? true
       : false;
   const [isOpen, setIsOpen] = useState(defaultOpen);
