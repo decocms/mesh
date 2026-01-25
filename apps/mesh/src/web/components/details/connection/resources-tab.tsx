@@ -503,15 +503,22 @@ export function ResourcesTab({
       throw new Error("MCP client not available");
     }
     const result = await mcpClient.callTool({ name, arguments: args });
+    const content = result.content as Array<{
+      type: string;
+      text?: string;
+      data?: string;
+      mimeType?: string;
+      uri?: string;
+    }>;
     return {
-      content: result.content.map((c) => ({
+      content: content.map((c) => ({
         type: c.type as "text" | "image" | "resource",
-        text: "text" in c ? (c.text as string) : undefined,
-        data: "data" in c ? (c.data as string) : undefined,
-        mimeType: "mimeType" in c ? (c.mimeType as string) : undefined,
-        uri: "uri" in c ? (c.uri as string) : undefined,
+        text: c.text,
+        data: c.data,
+        mimeType: c.mimeType,
+        uri: c.uri,
       })),
-      isError: result.isError,
+      isError: result.isError as boolean | undefined,
     };
   };
 
