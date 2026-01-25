@@ -42,12 +42,14 @@ interface WorkflowEditorHeaderProps {
   title: string;
   description?: string;
   onSave: () => void;
+  isSaving: boolean;
 }
 
 export function WorkflowEditorHeader({
   title,
   description,
   onSave,
+  isSaving,
 }: WorkflowEditorHeaderProps) {
   const routerState = useRouterState();
   const url = routerState.location.href;
@@ -131,10 +133,10 @@ export function WorkflowEditorHeader({
                       size="icon"
                       className="size-7 border border-input"
                       onClick={onSave}
-                      disabled={!isDirty}
+                      disabled={!isDirty || isSaving}
                       aria-label="Save workflow"
                     >
-                      <Save02 size={14} />
+                      {isSaving ? <Spinner size="xs" /> : <Save02 size={14} />}
                     </Button>
                   </span>
                 </TooltipTrigger>
