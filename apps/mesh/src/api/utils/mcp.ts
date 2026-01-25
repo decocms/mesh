@@ -80,6 +80,17 @@ export interface ToolDefinition {
 }
 
 /**
+ * Resource definition for MCP Apps UI resources
+ */
+export interface ResourceDefinition {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType: string;
+  content: string;
+}
+
+/**
  * Middleware for intercepting call tool requests
  * Wraps tool execution, allowing pre and post processing
  *
@@ -122,6 +133,7 @@ export interface McpServerConfig {
 class McpServerBuilder {
   private config: McpServerConfig;
   private tools: ToolDefinition[] = [];
+  private resources: ResourceDefinition[] = [];
   private callToolMiddlewares: CallToolMiddleware[] = [];
   // Cache JSON Schema conversions to avoid repeated z.toJSONSchema calls
   // which accumulate in Zod 4's __zod_globalRegistry and cause memory leaks
@@ -133,7 +145,7 @@ class McpServerBuilder {
   constructor(config: McpServerConfig) {
     this.config = {
       ...config,
-      capabilities: config.capabilities ?? { tools: {} },
+      capabilities: config.capabilities ?? { tools: {}, resources: {} },
     };
   }
 
@@ -171,6 +183,22 @@ class McpServerBuilder {
   }
 
   /**
+   * Add a resource to the server
+   */
+  withResource(resource: ResourceDefinition): this {
+    this.resources.push(resource);
+    return this;
+  }
+
+  /**
+   * Add multiple resources to the server
+   */
+  withResources(resources: ResourceDefinition[]): this {
+    this.resources.push(...resources);
+    return this;
+  }
+
+  /**
    * Add middleware for call tool requests
    * Middleware runs AFTER tool execution
    */
@@ -204,14 +232,35 @@ class McpServerBuilder {
         ): Promise<CallToolResult> => {
           try {
             const result = await tool.handler(args);
+
+            // Check if result contains _meta (for MCP Apps UI resources)
+            const resultObj = result as Record<string, unknown> | null;
+            const hasMeta =
+              resultObj &&
+              typeof resultObj === "object" &&
+              "_meta" in resultObj;
+            const meta = hasMeta
+              ? (resultObj._meta as Record<string, unknown>)
+              : undefined;
+
+            // Remove _meta from structuredContent to keep it clean
+            const structuredContent = hasMeta
+              ? Object.fromEntries(
+                  Object.entries(resultObj).filter(([k]) => k !== "_meta"),
+                )
+              : resultObj;
+
             return {
               content: [
                 {
                   type: "text" as const,
-                  text: JSON.stringify(result),
+                  text: JSON.stringify(structuredContent),
                 },
               ],
-              structuredContent: result as { [x: string]: unknown } | undefined,
+              structuredContent: structuredContent as
+                | { [x: string]: unknown }
+                | undefined,
+              ...(meta ? { _meta: meta } : {}),
             };
           } catch (error) {
             const err = error as Error;
@@ -265,6 +314,27 @@ class McpServerBuilder {
             outputSchema,
           },
           wrappedHandler,
+        );
+      }
+
+      // Register resources (for MCP Apps UI)
+      for (const resource of this.resources) {
+        server.resource(
+          resource.name,
+          resource.uri,
+          {
+            description: resource.description,
+            mimeType: resource.mimeType,
+          },
+          async () => ({
+            contents: [
+              {
+                uri: resource.uri,
+                mimeType: resource.mimeType,
+                text: resource.content,
+              },
+            ],
+          }),
         );
       }
 

@@ -155,7 +155,8 @@ export class MCPAppModel {
     // The iframe will load via srcdoc, and we'll initialize
     // when it sends a ready message or after a short delay
     iframe.addEventListener("load", () => {
-      this.initializeApp();
+      // Give the widget time to set up its message listener
+      setTimeout(() => this.initializeApp(), 100);
     });
 
     // If iframe is already loaded (e.g., from cache or fast load), initialize now
@@ -165,8 +166,8 @@ export class MCPAppModel {
         iframe.contentDocument?.readyState === "complete" ||
         iframe.contentWindow
       ) {
-        // Small delay to ensure the iframe's JS has executed
-        setTimeout(() => this.initializeApp(), 50);
+        // Longer delay to ensure the iframe's JS has executed
+        setTimeout(() => this.initializeApp(), 150);
       }
     } catch {
       // Cross-origin access denied - will rely on load event
@@ -254,12 +255,24 @@ export class MCPAppModel {
     };
   }
 
+  private initializeAttempts = 0;
+  private readonly maxInitializeAttempts = 3;
+
   private async initializeApp(): Promise<void> {
     if (this.state !== "loading" || !this.iframe) {
       return;
     }
 
     this.setState("initializing");
+    await this.attemptInitialize();
+  }
+
+  private async attemptInitialize(): Promise<void> {
+    if (!this.iframe || this.disposed) {
+      return;
+    }
+
+    this.initializeAttempts++;
 
     try {
       const params: UIInitializeParams = {
@@ -269,10 +282,11 @@ export class MCPAppModel {
         toolResult: this.options.toolResult,
       };
 
-      // Send initialize request
-      const result = await this.sendRequest<UIInitializeResult>(
+      // Send initialize request with shorter timeout for retries
+      const result = await this.sendRequestWithTimeout<UIInitializeResult>(
         "ui/initialize",
         params,
+        5000, // 5 second timeout per attempt
       );
 
       // App initialized successfully
@@ -283,8 +297,24 @@ export class MCPAppModel {
         // Could update display mode based on preferences
       }
     } catch (error) {
-      console.error("Failed to initialize MCP App:", error);
-      this.setState("error");
+      console.warn(
+        `Initialize attempt ${this.initializeAttempts} failed:`,
+        error,
+      );
+
+      // Retry if we haven't exceeded max attempts
+      if (this.initializeAttempts < this.maxInitializeAttempts) {
+        // Exponential backoff: 200ms, 400ms, 800ms...
+        const delay = 200 * Math.pow(2, this.initializeAttempts - 1);
+        setTimeout(() => this.attemptInitialize(), delay);
+      } else {
+        console.error(
+          "Failed to initialize MCP App after",
+          this.maxInitializeAttempts,
+          "attempts",
+        );
+        this.setState("error");
+      }
     }
   }
 
@@ -408,7 +438,11 @@ export class MCPAppModel {
     }
   }
 
-  private sendRequest<T>(method: string, params?: unknown): Promise<T> {
+  private sendRequestWithTimeout<T>(
+    method: string,
+    params: unknown,
+    timeoutMs: number,
+  ): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.iframe?.contentWindow) {
         reject(new Error("Iframe not available"));
@@ -434,7 +468,7 @@ export class MCPAppModel {
           this.pendingRequests.delete(id);
           reject(new Error(`Request ${method} timed out`));
         }
-      }, 30000);
+      }, timeoutMs);
 
       this.iframe.contentWindow.postMessage(JSON.stringify(request), "*");
     });
