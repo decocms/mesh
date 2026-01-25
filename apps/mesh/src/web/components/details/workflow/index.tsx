@@ -38,7 +38,7 @@ import { EmptyState } from "@deco/ui/components/empty-state.js";
 // Shared hook for workflow/execution data
 // ─────────────────────────────────────────────────────────────────────────────
 
-function useCollectionWorkflow({ itemId }: { itemId: string }) {
+export function useCollectionWorkflow({ itemId }: { itemId: string }) {
   const { connectionId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
@@ -183,13 +183,11 @@ export function WorkflowDetails({ onBack }: WorkflowDetailsProps) {
 function WorkflowStudio({ onBack, onUpdate }: WorkflowDetailsProps) {
   const workflow = useWorkflow();
   const trackingExecutionId = useTrackingExecutionId();
-  const { setOriginalWorkflow } = useWorkflowActions();
   const { viewMode, showExecutionsList } = useViewModeStore();
   const currentStep = useCurrentStep();
 
   const handleSave = async () => {
     await onUpdate(workflow);
-    setOriginalWorkflow(workflow);
   };
 
   const isToolStep = currentStep && "toolName" in currentStep.action;

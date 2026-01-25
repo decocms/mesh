@@ -38,9 +38,18 @@ export function usePollingWorkflowExecution(executionId?: string) {
     refetchInterval: executionId
       ? (query: unknown) => {
           const queryData = query as {
-            state?: { data?: ExecutionQueryResult };
+            state?: {
+              data?:
+                | { structuredContent?: ExecutionQueryResult }
+                | ExecutionQueryResult;
+            };
           };
-          const status = queryData.state?.data?.item?.status;
+          const rawData = queryData.state?.data;
+          const executionResult =
+            (rawData as { structuredContent?: ExecutionQueryResult })
+              ?.structuredContent ??
+            (rawData as ExecutionQueryResult | undefined);
+          const status = executionResult?.item?.status;
           if (status === "running" || status === "enqueued") {
             const interval = POLLING_INTERVALS[intervalIndexRef.current] ?? 1;
             intervalIndexRef.current =
