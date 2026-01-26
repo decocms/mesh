@@ -2,9 +2,9 @@ import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
 /**
- * In-Memory MCP Transport
+ * Loopback MCP Transport
  *
- * High-performance in-memory transport for MCP communication within the same process.
+ * High-performance loopback transport for MCP communication within the same process.
  * Uses direct callbacks with microtask scheduling to avoid serialization overhead
  * and minimize event loop impact.
  *
@@ -18,12 +18,12 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
  * ## Usage
  *
  * ```ts
- * import { createInMemoryTransportPair } from "@decocms/mesh-sdk";
+ * import { createLoopbackTransportPair } from "@decocms/mesh-sdk";
  * import { Client } from "@modelcontextprotocol/sdk/client/index.js";
  * import { Server } from "@modelcontextprotocol/sdk/server/index.js";
  *
  * const { client: clientTransport, server: serverTransport } =
- *   createInMemoryTransportPair();
+ *   createLoopbackTransportPair();
  *
  * const client = new Client({ name: "test-client", version: "1.0.0" });
  * const server = new Server({ name: "test-server", version: "1.0.0" });
@@ -31,7 +31,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
  * await server.connect(serverTransport);
  * await client.connect(clientTransport);
  *
- * // Now client and server can communicate in-memory
+ * // Now client and server can communicate via loopback
  * ```
  */
 
@@ -46,7 +46,7 @@ const MAX_QUEUE_SIZE = 10_000;
 /**
  * Internal channel that manages bidirectional message queues between client and server.
  */
-class InMemoryChannel {
+class LoopbackChannel {
   private clientQueue: JSONRPCMessage[] = [];
   private serverQueue: JSONRPCMessage[] = [];
   private clientClosed = false;
@@ -63,8 +63,8 @@ class InMemoryChannel {
    * This sets up both message delivery and close notifications.
    */
   registerTransports(
-    client: InMemoryClientTransport,
-    server: InMemoryServerTransport,
+    client: LoopbackClientTransport,
+    server: LoopbackServerTransport,
   ): void {
     this.clientTransport = client;
     this.serverTransport = server;
@@ -115,7 +115,7 @@ class InMemoryChannel {
     // Prevent unbounded memory growth
     if (queue.length >= MAX_QUEUE_SIZE) {
       throw new Error(
-        `InMemoryTransport: ${side} queue overflow (max ${MAX_QUEUE_SIZE} messages). ` +
+        `LoopbackTransport: ${side} queue overflow (max ${MAX_QUEUE_SIZE} messages). ` +
           "The receiver may not be processing messages fast enough.",
       );
     }
@@ -195,8 +195,8 @@ class InMemoryChannel {
 /**
  * Base transport implementation shared by client and server transports
  */
-abstract class BaseInMemoryTransport implements Transport {
-  protected channel: InMemoryChannel;
+abstract class BaseLoopbackTransport implements Transport {
+  protected channel: LoopbackChannel;
   protected side: TransportSide;
   protected started = false;
   protected closed = false;
@@ -204,7 +204,7 @@ abstract class BaseInMemoryTransport implements Transport {
   private _onerror?: (error: Error) => void;
   private _onclose?: () => void;
 
-  constructor(channel: InMemoryChannel, side: TransportSide) {
+  constructor(channel: LoopbackChannel, side: TransportSide) {
     this.channel = channel;
     this.side = side;
   }
@@ -238,13 +238,13 @@ abstract class BaseInMemoryTransport implements Transport {
   }
 
   /**
-   * Start the transport. For in-memory transports, this is a no-op
+   * Start the transport. For loopback transports, this is a no-op
    * but required by the Transport interface.
    */
   async start(): Promise<void> {
     if (this.started) {
       throw new Error(
-        `${this.side === "client" ? "InMemoryClientTransport" : "InMemoryServerTransport"} already started! If using Client/Server class, note that connect() calls start() automatically.`,
+        `${this.side === "client" ? "LoopbackClientTransport" : "LoopbackServerTransport"} already started! If using Client/Server class, note that connect() calls start() automatically.`,
       );
     }
     this.started = true;
@@ -295,12 +295,12 @@ abstract class BaseInMemoryTransport implements Transport {
   /**
    * Get reference to the opposite transport (set by factory)
    */
-  protected abstract getOppositeTransport(): BaseInMemoryTransport | undefined;
+  protected abstract getOppositeTransport(): BaseLoopbackTransport | undefined;
 
   /**
    * Set reference to opposite transport (called by factory)
    */
-  abstract setOppositeTransport(transport: BaseInMemoryTransport): void;
+  abstract setOppositeTransport(transport: BaseLoopbackTransport): void;
 
   /**
    * Internal method to deliver a message to this transport
@@ -320,22 +320,22 @@ abstract class BaseInMemoryTransport implements Transport {
 }
 
 /**
- * Client-side in-memory transport
+ * Client-side loopback transport
  */
-export class InMemoryClientTransport extends BaseInMemoryTransport {
-  private oppositeTransport?: InMemoryServerTransport;
+export class LoopbackClientTransport extends BaseLoopbackTransport {
+  private oppositeTransport?: LoopbackServerTransport;
 
-  constructor(channel: InMemoryChannel) {
+  constructor(channel: LoopbackChannel) {
     super(channel, "client");
   }
 
-  protected getOppositeTransport(): BaseInMemoryTransport | undefined {
+  protected getOppositeTransport(): BaseLoopbackTransport | undefined {
     return this.oppositeTransport;
   }
 
-  setOppositeTransport(transport: BaseInMemoryTransport): void {
-    if (!(transport instanceof InMemoryServerTransport)) {
-      throw new Error("Opposite transport must be InMemoryServerTransport");
+  setOppositeTransport(transport: BaseLoopbackTransport): void {
+    if (!(transport instanceof LoopbackServerTransport)) {
+      throw new Error("Opposite transport must be LoopbackServerTransport");
     }
     this.oppositeTransport = transport;
   }
@@ -352,22 +352,22 @@ export class InMemoryClientTransport extends BaseInMemoryTransport {
 }
 
 /**
- * Server-side in-memory transport
+ * Server-side loopback transport
  */
-export class InMemoryServerTransport extends BaseInMemoryTransport {
-  private oppositeTransport?: InMemoryClientTransport;
+export class LoopbackServerTransport extends BaseLoopbackTransport {
+  private oppositeTransport?: LoopbackClientTransport;
 
-  constructor(channel: InMemoryChannel) {
+  constructor(channel: LoopbackChannel) {
     super(channel, "server");
   }
 
-  protected getOppositeTransport(): BaseInMemoryTransport | undefined {
+  protected getOppositeTransport(): BaseLoopbackTransport | undefined {
     return this.oppositeTransport;
   }
 
-  setOppositeTransport(transport: BaseInMemoryTransport): void {
-    if (!(transport instanceof InMemoryClientTransport)) {
-      throw new Error("Opposite transport must be InMemoryClientTransport");
+  setOppositeTransport(transport: BaseLoopbackTransport): void {
+    if (!(transport instanceof LoopbackClientTransport)) {
+      throw new Error("Opposite transport must be LoopbackClientTransport");
     }
     this.oppositeTransport = transport;
   }
@@ -384,34 +384,34 @@ export class InMemoryServerTransport extends BaseInMemoryTransport {
 }
 
 /**
- * Result of creating an in-memory transport pair
+ * Result of creating a loopback transport pair
  */
-export interface InMemoryTransportPair {
+export interface LoopbackTransportPair {
   /**
    * Client-side transport (for MCP Client)
    */
-  client: InMemoryClientTransport;
+  client: LoopbackClientTransport;
   /**
    * Server-side transport (for MCP Server)
    */
-  server: InMemoryServerTransport;
+  server: LoopbackServerTransport;
   /**
    * Internal channel (for advanced use cases)
    */
-  channel: InMemoryChannel;
+  channel: LoopbackChannel;
 }
 
 /**
- * Create a pair of in-memory transports for client-server communication.
+ * Create a pair of loopback transports for client-server communication.
  *
  * Uses microtask scheduling for message delivery, which frees the event loop
  * and prevents deep recursion while maintaining message ordering.
  *
- * @returns A pair of transports connected via an in-memory channel
+ * @returns A pair of transports connected via a loopback channel
  *
  * @example
  * ```ts
- * const { client, server } = createInMemoryTransportPair();
+ * const { client, server } = createLoopbackTransportPair();
  *
  * const mcpClient = new Client({ name: "test", version: "1.0.0" });
  * const mcpServer = new Server({ name: "test", version: "1.0.0" });
@@ -419,13 +419,13 @@ export interface InMemoryTransportPair {
  * await mcpServer.connect(server);
  * await mcpClient.connect(client);
  *
- * // Now client and server can communicate in-memory
+ * // Now client and server can communicate via loopback
  * ```
  */
-export function createInMemoryTransportPair(): InMemoryTransportPair {
-  const channel = new InMemoryChannel();
-  const client = new InMemoryClientTransport(channel);
-  const server = new InMemoryServerTransport(channel);
+export function createLoopbackTransportPair(): LoopbackTransportPair {
+  const channel = new LoopbackChannel();
+  const client = new LoopbackClientTransport(channel);
+  const server = new LoopbackServerTransport(channel);
 
   // Register transports with channel (also links them for close notifications)
   channel.registerTransports(client, server);

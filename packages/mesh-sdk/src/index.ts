@@ -104,12 +104,6 @@ export {
   type BridgeTransportPair,
 } from "./lib/bridge-transport";
 
-// Server-client bridge
-export {
-  createServerFromClient,
-  type ServerFromClientOptions,
-} from "./lib/server-client-bridge";
-
 // In-memory transport
 export {
   createInMemoryTransportPair,
@@ -117,6 +111,14 @@ export {
   InMemoryServerTransport,
   type InMemoryTransportPair,
 } from "./lib/in-memory-transport";
+
+// Loopback transport
+export {
+  createLoopbackTransportPair,
+  LoopbackClientTransport,
+  LoopbackServerTransport,
+  type LoopbackTransportPair,
+} from "./lib/loopback-transport";
 
 // Server-client bridge
 export {
