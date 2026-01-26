@@ -217,6 +217,7 @@ export type MCPProxyClient = Client & {
     name: string,
     args: Record<string, unknown>,
   ) => Promise<Response>;
+  [Symbol.asyncDispose]: () => Promise<void>;
 };
 
 /**
@@ -585,11 +586,7 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     // Fall back to client for connections without indexed tools
-    try {
-      return await client.listTools();
-    } finally {
-      client?.close().catch(console.error);
-    }
+    return await client.listTools();
   };
 
   // If ctx.connectionId is set and different from current connection,
@@ -830,21 +827,13 @@ async function createMCPProxyDoNotUseDirectly(
       }
 
       throw error;
-    } finally {
-      client?.close().catch(console.error);
     }
   };
 
   // Read a specific resource from downstream connection
   const readResource = async (
     params: ReadResourceRequest["params"],
-  ): Promise<ReadResourceResult> => {
-    try {
-      return await client.readResource(params);
-    } finally {
-      client?.close().catch(console.error);
-    }
-  };
+  ): Promise<ReadResourceResult> => client.readResource(params);
 
   // List resource templates from downstream connection
   const listResourceTemplates =
@@ -860,8 +849,6 @@ async function createMCPProxyDoNotUseDirectly(
         }
 
         throw error;
-      } finally {
-        client?.close().catch(console.error);
       }
     };
 
@@ -878,21 +865,13 @@ async function createMCPProxyDoNotUseDirectly(
       }
 
       throw error;
-    } finally {
-      client?.close().catch(console.error);
     }
   };
 
   // Get a specific prompt from downstream connection
   const getPrompt = async (
     params: GetPromptRequest["params"],
-  ): Promise<GetPromptResult> => {
-    try {
-      return await client.getPrompt(params);
-    } finally {
-      client?.close().catch(console.error);
-    }
-  };
+  ): Promise<GetPromptResult> => client.getPrompt(params);
 
   return {
     callTool: (params: CallToolRequest["params"]) =>
@@ -910,6 +889,7 @@ async function createMCPProxyDoNotUseDirectly(
     getInstructions: () => client.getInstructions(),
     close: () => client.close(),
     callStreamableTool,
+    [Symbol.asyncDispose]: () => client.close(),
   } as MCPProxyClient;
 }
 

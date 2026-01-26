@@ -88,7 +88,7 @@ app.post("/:org/decopilot/stream", async (c) => {
 
     const [mcpClient, modelClient] = await Promise.all([
       (async () => {
-        if (agent.id === null) {
+        if (!agent.id) {
           const transport = createVirtualMcpTransport(
             c.req.raw,
             organization.id,
@@ -102,7 +102,7 @@ app.post("/:org/decopilot/stream", async (c) => {
           return client;
         }
 
-        return await ctx.createMCPProxy(agent.id!);
+        return await ctx.createMCPProxy(agent.id);
       })(),
       ctx.createMCPProxy(model.connectionId),
     ]);
