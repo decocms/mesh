@@ -68,9 +68,17 @@ function getBindingInfo(schema: Record<string, unknown>): {
     | Record<string, unknown>
     | undefined;
 
+  // Zod serializes z.literal([...]) as:
+  // - Single element: { const: element }
+  // - Multiple elements: { enum: [element1, element2, ...] }
+  // Check enum first (array), then const
+  const bindingSchema = Array.isArray(bindingProperty?.enum)
+    ? bindingProperty.enum
+    : bindingProperty?.const;
+
   return {
     bindingType: typeProperty?.const as string | undefined,
-    bindingSchema: bindingProperty?.const,
+    bindingSchema,
   };
 }
 
