@@ -691,14 +691,27 @@ type FactoryFunction = (
   options?: FactoryOptions,
 ) => Promise<MeshContext>;
 
-let createContextFn: FactoryFunction;
+// Use globalThis to persist context factory across HMR (hot module reload)
+// This prevents race conditions where ContextFactory.create() is called
+// before ContextFactory.set() during module reinitialization
+const CONTEXT_FACTORY_KEY = "__mesh_context_factory__";
+
+declare global {
+  var __mesh_context_factory__: FactoryFunction | undefined;
+}
 
 export const ContextFactory = {
   set: (fn: FactoryFunction) => {
-    createContextFn = fn;
+    globalThis[CONTEXT_FACTORY_KEY] = fn;
   },
   create: async (req?: Request, options?: FactoryOptions) => {
-    return await createContextFn(req, options);
+    const createFn = globalThis[CONTEXT_FACTORY_KEY];
+    if (!createFn) {
+      throw new Error(
+        "ContextFactory not initialized. This usually happens during HMR - the app is still initializing.",
+      );
+    }
+    return await createFn(req, options);
   },
 };
 
