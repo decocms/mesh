@@ -1,5 +1,5 @@
 /**
- * Stable Stdio Client Transport
+ * Stdio MCP Transport
  *
  * Wraps StdioClientTransport to provide a stable local MCP connection:
  * - Does NOT close the connection when close() is called (keeps process alive)
@@ -91,7 +91,7 @@ const connectionPool: Map<string, StableConnection> =
  */
 export async function getStableStdioClient(
   config: StableStdioConfig,
-  client?: Client,
+  client: Client,
 ): Promise<Client> {
   const existing = connectionPool.get(config.id);
 
@@ -143,23 +143,14 @@ export async function getStableStdioClient(
       });
 
       connection.transport = transport;
-
-      // Use provided client or create new one
-      const clientToUse =
-        client ??
-        new Client({
-          name: `mesh-stdio-${config.id}`,
-          version: "1.0.0",
-        });
-
-      connection.client = clientToUse;
+      connection.client = client;
 
       // Create stable wrapper that ignores close() calls
-      connection.stableClient = createStableClientWrapper(clientToUse);
+      connection.stableClient = createStableClientWrapper(client);
 
       // Handle unexpected close - mark for respawn
       // We want stable local MCP connection - respawn on close
-      clientToUse.onclose = () => {
+      client.onclose = () => {
         console.log(
           `[StableStdio] Connection closed unexpectedly: ${config.id}`,
         );
@@ -186,7 +177,7 @@ export async function getStableStdioClient(
 
       try {
         await Promise.race([
-          clientToUse.connect(transport),
+          client.connect(transport),
           new Promise<never>((_, reject) => {
             controller.signal.addEventListener("abort", () => {
               reject(new Error("Stdio connection timeout after 30s"));

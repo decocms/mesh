@@ -104,6 +104,12 @@ export {
   type InMemoryTransportPair,
 } from "./lib/in-memory-transport";
 
+// Transport composition
+export { composeTransports } from "./lib/transport-compose";
+
+// MCP server bridge
+export { createMcpServerBridge } from "./lib/mcp-server-bridge";
+
 // Query keys
 export { KEYS } from "./lib/query-keys";
 

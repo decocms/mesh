@@ -6,7 +6,7 @@
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@decocms/mesh-sdk";
+import { createConnectionClient } from "@/api/routes/proxy";
 import { consumeStream, stepCountIs, streamText, UIMessage } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
@@ -24,28 +24,12 @@ import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createModelProvider } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
-import { createVirtualMcpTransport } from "./transport";
 import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
 import { generateTitleInBackground } from "./title-generator";
 
 // ============================================================================
 // MCP Client Connection
 // ============================================================================
-
-/**
- * Create and connect an MCP client with tools loaded
- */
-async function createConnectedClient(config: {
-  transport: StreamableHTTPClientTransport;
-  monitoringProperties?: Record<string, string>;
-}) {
-  const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
-  await client.connect(config.transport);
-
-  const tools = await toolsFromMCP(client, config.monitoringProperties);
-
-  return { client, tools };
-}
 
 // ============================================================================
 // Request Validation
@@ -104,25 +88,33 @@ app.post("/:org/decopilot/stream", async (c) => {
       windowSize,
       threadId,
     } = await validateRequest(c);
-    const transport = createVirtualMcpTransport(
-      c.req.raw,
-      organization.id,
-      agent.id,
-    );
-    const lastMessage = messages[messages.length - 1];
+    if (!agent.id) {
+      throw new Error("Virtual MCP connection id is required");
+    }
 
-    // 2. Create MCP client and model provider in parallel
-    const [{ client: mcpClient, tools }, modelProvider] = await Promise.all([
-      createConnectedClient({
-        transport,
-        monitoringProperties: {},
-      }),
-      createModelProvider(ctx, {
-        organizationId: organization.id,
-        modelId: model.id,
-        connectionId: model.connectionId,
-        cheapModelId: lastMessage?.metadata?.cheapModelId ?? null,
-      }),
+    const connection = await ctx.storage.connections.findById(agent.id);
+    if (!connection) {
+      throw new Error(`Connection not found: ${agent.id}`);
+    }
+    if (connection.connection_type !== "VIRTUAL") {
+      throw new Error(
+        `Expected VIRTUAL connection, got ${connection.connection_type}`,
+      );
+    }
+
+    const lastMessage = messages[messages.length - 1];
+    const mcpClientPromise = createConnectionClient(connection, ctx);
+    const modelProviderPromise = createModelProvider(ctx, {
+      organizationId: organization.id,
+      modelId: model.id,
+      connectionId: model.connectionId,
+      cheapModelId: lastMessage?.metadata?.cheapModelId ?? null,
+    });
+
+    const mcpClient = await mcpClientPromise;
+    const [tools, modelProvider] = await Promise.all([
+      toolsFromMCP(mcpClient, {}),
+      modelProviderPromise,
     ]);
 
     client = mcpClient;

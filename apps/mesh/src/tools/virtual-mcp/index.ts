@@ -20,5 +20,5 @@ export type {
   VirtualMCPUpdateData,
 } from "./schema";
 
-// Re-export strategy type from aggregator (not from schema since it's not persisted)
-export type { AggregatorToolSelectionStrategy } from "../../aggregator/strategy";
+// Re-export strategy type from virtual-mcps (not from schema since it's not persisted)
+export type { VirtualMCPToolSelectionStrategy } from "../../mcp-clients/virtual-mcps";

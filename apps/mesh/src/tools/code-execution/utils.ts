@@ -10,7 +10,6 @@
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireOrganization } from "../../core/mesh-context";
-import { ProxyCollection } from "../../aggregator/proxy-collection";
 import type { ToolSelectionMode } from "../../storage/types";
 import { runCode, type RunCodeResult } from "../../sandbox/index";
 import type { ConnectionEntity } from "../connection/schema";
@@ -193,41 +192,64 @@ async function loadToolsFromConnections(
   selectionMode: ToolSelectionMode,
   ctx: MeshContext,
 ): Promise<ToolContext> {
-  // Create proxy collection
-  const proxies = await ProxyCollection.create(connections, ctx);
+  const proxyResults = await Promise.allSettled(
+    connections.map(async (entry) => {
+      const proxy = await ctx.createMCPProxy(entry.connection);
+      return { ...entry, proxy };
+    }),
+  );
+
+  const proxyEntries = proxyResults
+    .filter(
+      (
+        result,
+      ): result is PromiseFulfilledResult<
+        ConnectionWithSelection & {
+          proxy: Awaited<ReturnType<MeshContext["createMCPProxy"]>>;
+        }
+      > => result.status === "fulfilled",
+    )
+    .map((result) => result.value);
+
+  const proxyByConnection = new Map(
+    proxyEntries.map((entry) => [entry.connection.id, entry]),
+  );
 
   // Fetch tools from all connections in parallel
-  const results = await proxies.mapSettled(async (entry, connectionId) => {
-    try {
-      const result = await entry.proxy.client.listTools();
-      let tools = result.tools;
+  const results = await Promise.allSettled(
+    proxyEntries.map(async (entry) => {
+      const connectionId = entry.connection.id;
+      try {
+        const result = await entry.proxy.client.listTools();
+        let tools = result.tools;
 
-      // Apply selection based on mode
-      if (selectionMode === "exclusion") {
-        if (entry.selectedTools && entry.selectedTools.length > 0) {
-          const excludeSet = new Set(entry.selectedTools);
-          tools = tools.filter((t) => !excludeSet.has(t.name));
+        // Apply selection based on mode
+        if (selectionMode === "exclusion") {
+          if (entry.selectedTools && entry.selectedTools.length > 0) {
+            const excludeSet = new Set(entry.selectedTools);
+            tools = tools.filter((t) => !excludeSet.has(t.name));
+          }
+        } else {
+          if (entry.selectedTools && entry.selectedTools.length > 0) {
+            const selectedSet = new Set(entry.selectedTools);
+            tools = tools.filter((t) => selectedSet.has(t.name));
+          }
         }
-      } else {
-        if (entry.selectedTools && entry.selectedTools.length > 0) {
-          const selectedSet = new Set(entry.selectedTools);
-          tools = tools.filter((t) => selectedSet.has(t.name));
-        }
+
+        return {
+          connectionId,
+          connectionTitle: entry.connection.title,
+          tools,
+        };
+      } catch (error) {
+        console.error(
+          `[code-execution] Failed to list tools for connection ${connectionId}:`,
+          error,
+        );
+        return null;
       }
-
-      return {
-        connectionId,
-        connectionTitle: entry.connection.title,
-        tools,
-      };
-    } catch (error) {
-      console.error(
-        `[code-execution] Failed to list tools for connection ${connectionId}:`,
-        error,
-      );
-      return null;
-    }
-  });
+    }),
+  );
 
   // Deduplicate and build tools with connection metadata
   const seenNames = new Set<string>();
@@ -266,7 +288,7 @@ async function loadToolsFromConnections(
       };
     }
 
-    const proxyEntry = proxies.get(mapping.connectionId);
+    const proxyEntry = proxyByConnection.get(mapping.connectionId);
     if (!proxyEntry) {
       return {
         content: [
