@@ -240,7 +240,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       finalScopes.length > 0
     ) {
       try {
-        await using proxy = await ctx.createMCPProxy(id);
+        const proxy = await ctx.createMCPProxy(id);
         await proxy.callTool({
           name: "ON_MCP_CONFIGURATION",
           arguments: {
@@ -248,6 +248,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
             scopes: finalScopes,
           },
         });
+        await proxy.close().catch(console.error);
       } catch (error) {
         console.error("Failed to invoke ON_MCP_CONFIGURATION callback", error);
       }

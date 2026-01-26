@@ -217,7 +217,6 @@ export type MCPProxyClient = Client & {
     name: string,
     args: Record<string, unknown>,
   ) => Promise<Response>;
-  [Symbol.asyncDispose]: () => Promise<void>;
 };
 
 /**
@@ -586,7 +585,11 @@ async function createMCPProxyDoNotUseDirectly(
     }
 
     // Fall back to client for connections without indexed tools
-    return await client.listTools();
+    try {
+      return await client.listTools();
+    } finally {
+      client?.close().catch(console.error);
+    }
   };
 
   // If ctx.connectionId is set and different from current connection,
@@ -827,13 +830,21 @@ async function createMCPProxyDoNotUseDirectly(
       }
 
       throw error;
+    } finally {
+      client?.close().catch(console.error);
     }
   };
 
   // Read a specific resource from downstream connection
   const readResource = async (
     params: ReadResourceRequest["params"],
-  ): Promise<ReadResourceResult> => client.readResource(params);
+  ): Promise<ReadResourceResult> => {
+    try {
+      return await client.readResource(params);
+    } finally {
+      client?.close().catch(console.error);
+    }
+  };
 
   // List resource templates from downstream connection
   const listResourceTemplates =
@@ -849,6 +860,8 @@ async function createMCPProxyDoNotUseDirectly(
         }
 
         throw error;
+      } finally {
+        client?.close().catch(console.error);
       }
     };
 
@@ -865,13 +878,21 @@ async function createMCPProxyDoNotUseDirectly(
       }
 
       throw error;
+    } finally {
+      client?.close().catch(console.error);
     }
   };
 
   // Get a specific prompt from downstream connection
   const getPrompt = async (
     params: GetPromptRequest["params"],
-  ): Promise<GetPromptResult> => client.getPrompt(params);
+  ): Promise<GetPromptResult> => {
+    try {
+      return await client.getPrompt(params);
+    } finally {
+      client?.close().catch(console.error);
+    }
+  };
 
   return {
     callTool: (params: CallToolRequest["params"]) =>
@@ -889,7 +910,6 @@ async function createMCPProxyDoNotUseDirectly(
     getInstructions: () => client.getInstructions(),
     close: () => client.close(),
     callStreamableTool,
-    [Symbol.asyncDispose]: () => client.close(),
   } as MCPProxyClient;
 }
 
@@ -948,37 +968,10 @@ app.all("/:connectionId", async (c) => {
   const ctx = c.get("meshContext");
 
   try {
+    // Get client from proxy - this may throw auth errors for HTTP connections
+    let client: Client;
     try {
-      await using client = await ctx.createMCPProxy(connectionId);
-
-      // Create server from client using the bridge
-      const server = createServerFromClient(client, {
-        name: "mcp-mesh",
-        version: "1.0.0",
-      });
-
-      // Create transport
-      const transport = new WebStandardStreamableHTTPServerTransport({
-        enableJsonResponse:
-          c.req.raw.headers.get("Accept")?.includes("application/json") ??
-          false,
-      });
-
-      // Connect server to transport
-      await server.connect(transport);
-
-      // Handle request and cleanup
-      try {
-        return await transport.handleRequest(c.req.raw);
-      } finally {
-        // Close the transport
-        try {
-          await transport.close?.();
-        } catch {
-          // Ignore close errors - transport may already be closed
-        }
-        // Proxy will be automatically disposed via await using
-      }
+      client = await ctx.createMCPProxy(connectionId);
     } catch (error) {
       // Check if this is an auth error - if so, return appropriate 401
       // Note: This only applies to HTTP connections
@@ -999,6 +992,39 @@ app.all("/:connectionId", async (c) => {
         }
       }
       throw error;
+    }
+
+    // Create server from client using the bridge
+    const server = createServerFromClient(client, {
+      name: "mcp-mesh",
+      version: "1.0.0",
+    });
+
+    // Create transport
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      enableJsonResponse:
+        c.req.raw.headers.get("Accept")?.includes("application/json") ?? false,
+    });
+
+    // Connect server to transport
+    await server.connect(transport);
+
+    // Handle request and cleanup
+    try {
+      return await transport.handleRequest(c.req.raw);
+    } finally {
+      // Close the client
+      try {
+        await client.close();
+      } catch {
+        // Ignore close errors - client may already be closed
+      }
+      // Close the transport
+      try {
+        await transport.close?.();
+      } catch {
+        // Ignore close errors - transport may already be closed
+      }
     }
   } catch (error) {
     return handleError(error as Error, c);
@@ -1024,13 +1050,14 @@ app.all("/:connectionId/call-tool/:toolName", async (c) => {
   const ctx = c.get("meshContext");
 
   try {
-    await using client = await ctx.createMCPProxy(connectionId);
+    const client = await ctx.createMCPProxy(connectionId);
     const result = await client.callTool({
       name: toolName,
       arguments: await c.req.json(),
     });
 
-    // Client will be automatically disposed via await using
+    // Clean up client
+    await client.close().catch(() => {});
 
     if (result instanceof Response) {
       return result;
