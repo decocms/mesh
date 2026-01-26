@@ -108,3 +108,9 @@ export {
   type DeleteObjectsInput,
   type DeleteObjectsOutput,
 } from "./well-known/object-storage";
+
+// Re-export Perplexity AI binding types
+export {
+  PERPLEXITY_BINDING,
+  PerplexityBinding,
+} from "./well-known/perplexity";

@@ -7,6 +7,7 @@ import {
 import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
+import { PERPLEXITY_BINDING } from "@decocms/bindings";
 import { convertJsonSchemaToZod } from "zod-from-json-schema";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import {
@@ -23,6 +24,8 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
   WORKFLOW_EXECUTION: WORKFLOW_EXECUTION_BINDING,
   ASSISTANTS: ASSISTANTS_BINDING,
   MCP: MCP_BINDING,
+  PERPLEXITY: PERPLEXITY_BINDING,
+  "@DECO/PERPLEXITY": PERPLEXITY_BINDING,
 };
 
 /**
