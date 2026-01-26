@@ -4,7 +4,7 @@ import {
   type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
-import { CpuChip02, ChevronRight, Plus, Loading01 } from "@untitledui/icons";
+import { Users03, ChevronRight, Plus, Loading01 } from "@untitledui/icons";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 interface ConnectionVirtualMCPsSectionProps {
@@ -36,7 +36,7 @@ function VirtualMCPListItem({
         />
       ) : (
         <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-          <CpuChip02 size={16} className="text-primary" />
+          <Users03 size={16} className="text-primary" />
         </div>
       )}
       <span className="flex-1 text-sm font-medium text-foreground truncate">
@@ -120,7 +120,7 @@ function CreateVirtualMCPButton({
       {actions.create.isPending ? (
         <Loading01 size={20} className="animate-spin" />
       ) : (
-        <CpuChip02 size={20} />
+        <Users03 size={20} />
       )}
       Create an agent
     </Button>

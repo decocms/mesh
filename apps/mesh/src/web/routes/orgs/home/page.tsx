@@ -24,11 +24,11 @@ import {
 } from "@decocms/mesh-sdk";
 import {
   ClockRewind,
-  CpuChip02,
   MessageChatSquare,
   Pin01,
   Plus,
   Share07,
+  Users03,
 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
@@ -180,7 +180,7 @@ function HomeContent() {
                 icon={displayAgent.icon}
                 name={displayAgent.title}
                 size="md"
-                fallbackIcon={<CpuChip02 size={20} />}
+                fallbackIcon={<Users03 size={20} />}
                 className="size-12 rounded-xl border border-stone-200/60 shadow-sm aspect-square transition-opacity duration-200"
               />
             </div>

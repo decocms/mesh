@@ -32,7 +32,7 @@ import {
   CheckCircle,
   ChevronDown,
   Container,
-  CpuChip02,
+  Users03,
   Globe02,
   RefreshCcw01,
   Terminal,
@@ -98,7 +98,7 @@ function ConnectionFields({
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium">Type</span>
           <div className="flex items-center gap-2 h-10 px-3 border border-border rounded-lg bg-muted/50">
-            <CpuChip02 className="w-4 h-4 text-muted-foreground" />
+            <Users03 className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm">Virtual MCP</span>
           </div>
           <p className="text-xs text-muted-foreground">

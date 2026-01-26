@@ -69,7 +69,7 @@ import {
   Check,
   Code01,
   Copy01,
-  CpuChip02,
+  Users03,
   FlipBackward,
   InfoCircle,
   Lightbulb02,
@@ -567,7 +567,7 @@ function VirtualMCPSettingsTab({
                 name={form.watch("title") || "Agent"}
                 size="lg"
                 className="shrink-0 shadow-sm"
-                fallbackIcon={<CpuChip02 />}
+                fallbackIcon={<Users03 />}
               />
               <FormField
                 control={form.control}

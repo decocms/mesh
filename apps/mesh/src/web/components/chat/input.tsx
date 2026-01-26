@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   ArrowUp,
   ChevronDown,
-  CpuChip02,
+  Users03,
   Edit01,
   Stop,
   XCircle,
@@ -115,7 +115,8 @@ function VirtualMCPBadge({
               icon={virtualMcp.icon}
               name={virtualMcp.title}
               size="2xs"
-              fallbackIcon={virtualMcp.fallbackIcon ?? <CpuChip02 size={10} />}
+              className="bg-background rounded-sm"
+              fallbackIcon={virtualMcp.fallbackIcon ?? <Users03 size={10} />}
             />
             <span className="text-xs text-white font-normal">
               {virtualMcp.title}

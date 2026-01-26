@@ -19,7 +19,7 @@ import {
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useVirtualMCPs } from "@decocms/mesh-sdk";
-import { ChevronRight, CpuChip02 } from "@untitledui/icons";
+import { ChevronRight, Users03 } from "@untitledui/icons";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 /**
@@ -47,7 +47,7 @@ function AgentPreview({
       onClick={handleClick}
       className={cn(
         "flex flex-col items-center gap-3 p-2 rounded-lg",
-        "transition-colors hover:bg-accent/50",
+        "transition-colors hover:bg-accent/30",
         "cursor-pointer",
         "self-stretch",
       )}
@@ -56,7 +56,7 @@ function AgentPreview({
       <IntegrationIcon
         icon={agent.icon}
         name={agent.title}
-        fallbackIcon={<CpuChip02 size={20} />}
+        fallbackIcon={<Users03 size={20} />}
       />
       <p className="text-sm text-foreground text-center leading-tight line-clamp-2">
         {agent.title}
@@ -102,7 +102,7 @@ function SeeAllButton({
           type="button"
           className={cn(
             "flex flex-col items-center gap-3 p-2 rounded-lg",
-            "transition-colors hover:bg-accent/70",
+            "transition-colors hover:bg-accent/30",
             "cursor-pointer",
             "self-stretch",
           )}

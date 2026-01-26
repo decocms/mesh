@@ -6,10 +6,10 @@ import {
   BarChart10,
   Building02,
   Container,
-  CpuChip02,
   Home02,
   Settings01,
-  Users01,
+  Users03,
+  UserSquare,
   Zap,
 } from "@untitledui/icons";
 import { pluginRootSidebarItems } from "../index.tsx";
@@ -74,7 +74,7 @@ export function useProjectSidebarItems() {
     {
       key: "agents",
       label: "Agents",
-      icon: <CpuChip02 />,
+      icon: <Users03 />,
       onClick: () => navigate({ to: "/$org/agents", params: { org } }),
     },
     {
@@ -92,7 +92,7 @@ export function useProjectSidebarItems() {
     {
       key: "members",
       label: "Members",
-      icon: <Users01 />,
+      icon: <UserSquare />,
       onClick: () => navigate({ to: "/$org/members", params: { org } }),
     },
     {
