@@ -115,7 +115,7 @@ function AgentsListContent() {
   // Filter out the default Decopilot agent (it's not a real agent)
   const agents = virtualMcps
     .filter((agent) => !agent.id.startsWith("decopilot-"))
-    .slice(0, 4);
+    .slice(0, 2);
 
   // Create a map of connections by ID for quick lookup
   const connectionsMap = new Map(
