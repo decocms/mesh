@@ -174,6 +174,7 @@ app.post("/:org/decopilot/stream", async (c) => {
             model: modelToUse,
             userMessage,
             onTitle: (title) => {
+              console.log("title", title);
               newTitle = title;
               ctx.storage.threads
                 .update(memory.thread.id, { title })
