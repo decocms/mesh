@@ -504,7 +504,7 @@ app.post("/:org/v1/chat/completions", async (c) => {
     }
 
     // 7. Create LLM provider
-    const proxy = await ctx.createMCPProxy(connection);
+    await using proxy = await ctx.createMCPProxy(connection);
     const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
     const provider = createLLMProvider(llmBinding).languageModel(modelId);
 

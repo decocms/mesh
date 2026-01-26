@@ -194,7 +194,7 @@ async function loadToolsFromConnections(
   ctx: MeshContext,
 ): Promise<ToolContext> {
   // Create proxy collection
-  const proxies = await ProxyCollection.create(connections, ctx);
+  await using proxies = await ProxyCollection.create(connections, ctx);
 
   // Fetch tools from all connections in parallel
   const results = await proxies.mapSettled(async (entry, connectionId) => {

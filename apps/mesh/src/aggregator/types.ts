@@ -63,4 +63,5 @@ export interface AggregatorClient extends ServerClient {
     tool: string,
     args: Record<string, unknown>,
   ) => Promise<Response>;
+  [Symbol.asyncDispose]: () => Promise<void>;
 }

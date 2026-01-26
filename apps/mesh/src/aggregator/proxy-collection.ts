@@ -122,4 +122,16 @@ export class ProxyCollection {
   get size(): number {
     return this.proxies.size;
   }
+
+  /**
+   * Dispose of all proxies in the collection
+   * Closes all proxies in parallel, ignoring errors
+   */
+  async [Symbol.asyncDispose](): Promise<void> {
+    const closePromises: Promise<void>[] = [];
+    for (const [, entry] of this.proxies) {
+      closePromises.push(entry.proxy.close().catch(() => {}));
+    }
+    await Promise.all(closePromises);
+  }
 }

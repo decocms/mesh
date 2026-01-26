@@ -943,10 +943,37 @@ app.all("/:connectionId", async (c) => {
   const ctx = c.get("meshContext");
 
   try {
-    // Get client from proxy - this may throw auth errors for HTTP connections
-    let client: Client;
     try {
-      client = await ctx.createMCPProxy(connectionId);
+      await using client = await ctx.createMCPProxy(connectionId);
+
+      // Create server from client using the bridge
+      const server = createServerFromClient(client, {
+        name: "mcp-mesh",
+        version: "1.0.0",
+      });
+
+      // Create transport
+      const transport = new WebStandardStreamableHTTPServerTransport({
+        enableJsonResponse:
+          c.req.raw.headers.get("Accept")?.includes("application/json") ??
+          false,
+      });
+
+      // Connect server to transport
+      await server.connect(transport);
+
+      // Handle request and cleanup
+      try {
+        return await transport.handleRequest(c.req.raw);
+      } finally {
+        // Close the transport
+        try {
+          await transport.close?.();
+        } catch {
+          // Ignore close errors - transport may already be closed
+        }
+        // Proxy will be automatically disposed via await using
+      }
     } catch (error) {
       // Check if this is an auth error - if so, return appropriate 401
       // Note: This only applies to HTTP connections
@@ -967,39 +994,6 @@ app.all("/:connectionId", async (c) => {
         }
       }
       throw error;
-    }
-
-    // Create server from client using the bridge
-    const server = createServerFromClient(client, {
-      name: "mcp-mesh",
-      version: "1.0.0",
-    });
-
-    // Create transport
-    const transport = new WebStandardStreamableHTTPServerTransport({
-      enableJsonResponse:
-        c.req.raw.headers.get("Accept")?.includes("application/json") ?? false,
-    });
-
-    // Connect server to transport
-    await server.connect(transport);
-
-    // Handle request and cleanup
-    try {
-      return await transport.handleRequest(c.req.raw);
-    } finally {
-      // Close the client
-      try {
-        await client.close();
-      } catch {
-        // Ignore close errors - client may already be closed
-      }
-      // Close the transport
-      try {
-        await transport.close?.();
-      } catch {
-        // Ignore close errors - transport may already be closed
-      }
     }
   } catch (error) {
     return handleError(error as Error, c);
@@ -1025,14 +1019,13 @@ app.all("/:connectionId/call-tool/:toolName", async (c) => {
   const ctx = c.get("meshContext");
 
   try {
-    const client = await ctx.createMCPProxy(connectionId);
+    await using client = await ctx.createMCPProxy(connectionId);
     const result = await client.callTool({
       name: toolName,
       arguments: await c.req.json(),
     });
 
-    // Clean up client
-    await client.close().catch(() => {});
+    // Client will be automatically disposed via await using
 
     if (result instanceof Response) {
       return result;

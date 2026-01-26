@@ -56,14 +56,16 @@ interface RegistryItem {
 
 /** Mesh context with createMCPProxy - accepts any proxy-like object */
 interface MeshContextWithProxy {
-  createMCPProxy: (connectionId: string) => Promise<{
-    callTool: (params: {
-      name: string;
-      arguments?: Record<string, unknown>;
-    }) => Promise<unknown>;
-    listTools: () => Promise<{ tools: Array<{ name: string }> }>;
-    [key: string]: unknown; // Allow other Client methods
-  }>;
+  createMCPProxy: (connectionId: string) => Promise<
+    {
+      callTool: (params: {
+        name: string;
+        arguments?: Record<string, unknown>;
+      }) => Promise<unknown>;
+      listTools: () => Promise<{ tools: Array<{ name: string }> }>;
+      [Symbol.asyncDispose]: () => Promise<void>;
+    } & Record<string, unknown> // Allow other Client methods
+  >;
 }
 
 /** The metadata key used by MCP Mesh registry - must match apps/mesh/src/core/constants.ts */
@@ -274,7 +276,7 @@ async function lookupAppFromRegistry(
   selectedPrompts: string[] | null = null,
 ): Promise<RequiredApp> {
   // Create proxy to registry
-  const proxy = await ctx.createMCPProxy(registryId);
+  await using proxy = await ctx.createMCPProxy(registryId);
 
   // Find the LIST tool
   const toolsResult = await proxy.listTools();
