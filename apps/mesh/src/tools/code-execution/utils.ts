@@ -199,7 +199,7 @@ async function loadToolsFromConnections(
   // Fetch tools from all connections in parallel
   const results = await proxies.mapSettled(async (entry, connectionId) => {
     try {
-      const result = await entry.proxy.client.listTools();
+      const result = await entry.proxy.listTools();
       let tools = result.tools;
 
       // Apply selection based on mode
@@ -276,7 +276,7 @@ async function loadToolsFromConnections(
       };
     }
 
-    const result = await proxyEntry.proxy.client.callTool({
+    const result = await proxyEntry.proxy.callTool({
       name: mapping.originalName,
       arguments: args,
     });

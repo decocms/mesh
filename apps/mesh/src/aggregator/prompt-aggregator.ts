@@ -51,7 +51,7 @@ export class PromptAggregator {
     const results = await this.proxies.mapSettled(
       async (entry, connectionId) => {
         try {
-          const result = await entry.proxy.client.listPrompts();
+          const result = await entry.proxy.listPrompts();
           let prompts = result.prompts;
 
           // Apply selection based on mode
@@ -130,6 +130,6 @@ export class PromptAggregator {
       throw new Error(`Connection not found for prompt: ${params.name}`);
     }
 
-    return await proxyEntry.proxy.client.getPrompt(params);
+    return await proxyEntry.proxy.getPrompt(params);
   }
 }

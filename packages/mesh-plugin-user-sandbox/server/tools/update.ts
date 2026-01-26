@@ -14,18 +14,14 @@ import {
 import { getPluginStorage } from "./utils";
 import { lookupAppsFromRegistry } from "../utils/registry-lookup";
 
-/** MCP proxy client interface */
-interface MCPProxyClient {
+/** MCP proxy interface - now returns Client directly */
+interface MCPProxy {
   callTool: (params: {
     name: string;
     arguments?: Record<string, unknown>;
-  }) => Promise<{ structuredContent?: unknown } | unknown>;
+  }) => Promise<unknown>;
   listTools: () => Promise<{ tools: Array<{ name: string }> }>;
-}
-
-/** MCP proxy interface */
-interface MCPProxy {
-  client: MCPProxyClient;
+  [key: string]: unknown; // Allow other Client methods
 }
 
 export const USER_SANDBOX_UPDATE: ServerPluginToolDefinition = {

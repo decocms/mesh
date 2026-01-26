@@ -6,7 +6,6 @@
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@decocms/mesh-sdk";
 import { consumeStream, stepCountIs, streamText, UIMessage } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
@@ -22,30 +21,11 @@ import {
 } from "./constants";
 import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
-import { createModelProvider } from "./model-provider";
+import { createModelProviderFromProxy } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
 import { createVirtualMcpTransport } from "./transport";
 import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
 import { generateTitleInBackground } from "./title-generator";
-
-// ============================================================================
-// MCP Client Connection
-// ============================================================================
-
-/**
- * Create and connect an MCP client with tools loaded
- */
-async function createConnectedClient(config: {
-  transport: StreamableHTTPClientTransport;
-  monitoringProperties?: Record<string, string>;
-}) {
-  const client = new Client({ name: "mcp-mesh-proxy", version: "1.0.0" });
-  await client.connect(config.transport);
-
-  const tools = await toolsFromMCP(client, config.monitoringProperties);
-
-  return { client, tools };
-}
 
 // ============================================================================
 // Request Validation
@@ -104,21 +84,35 @@ app.post("/:org/decopilot/stream", async (c) => {
       windowSize,
       threadId,
     } = await validateRequest(c);
-    const transport = createVirtualMcpTransport(
-      c.req.raw,
-      organization.id,
-      agent.id,
-    );
     const lastMessage = messages[messages.length - 1];
 
+    const [mcpClient, modelClient] = await Promise.all([
+      (async () => {
+        if (agent.id === null) {
+          const transport = createVirtualMcpTransport(
+            c.req.raw,
+            organization.id,
+            agent.id,
+          );
+          const client = new Client({
+            name: "mcp-mesh-proxy",
+            version: "1.0.0",
+          });
+          await client.connect(transport);
+          return client;
+        }
+
+        return await ctx.createMCPProxy(agent.id!);
+      })(),
+      ctx.createMCPProxy(model.connectionId),
+    ]);
+
     // 2. Create MCP client and model provider in parallel
-    const [{ client: mcpClient, tools }, modelProvider] = await Promise.all([
-      createConnectedClient({
-        transport,
-        monitoringProperties: {},
-      }),
-      createModelProvider(ctx, {
-        organizationId: organization.id,
+    // When agent.id is provided, use createMCPProxy directly
+    // Otherwise, fallback to HTTP transport + client combo
+    const [mcpTools, modelProvider] = await Promise.all([
+      toolsFromMCP(mcpClient),
+      createModelProviderFromProxy(modelClient, {
         modelId: model.id,
         connectionId: model.connectionId,
         cheapModelId: lastMessage?.metadata?.cheapModelId ?? null,
@@ -161,7 +155,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       model: modelProvider.model,
       system: systemMessages,
       messages: prunedMessages,
-      tools,
+      tools: mcpTools,
       temperature,
       maxOutputTokens,
       abortSignal,

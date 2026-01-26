@@ -92,7 +92,7 @@ export class ResourceAggregator {
     const results = await this.proxies.mapSettled(
       async (entry, connectionId) => {
         try {
-          const result = await entry.proxy.client.listResources();
+          const result = await entry.proxy.listResources();
           let resources = result.resources;
 
           // Apply selection based on mode
@@ -183,6 +183,6 @@ export class ResourceAggregator {
       throw new Error(`Connection not found for resource: ${params.uri}`);
     }
 
-    return await proxyEntry.proxy.client.readResource(params);
+    return await proxyEntry.proxy.readResource(params);
   }
 }

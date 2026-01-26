@@ -7,7 +7,10 @@
 
 import { ContextFactory } from "@/core/context-factory";
 import { EventSubscriberBinding } from "@decocms/bindings";
-import { dangerouslyCreateSuperUserMCPProxy } from "../api/routes/proxy";
+import {
+  dangerouslyCreateSuperUserMCPProxy,
+  toServerClient,
+} from "../api/routes/proxy";
 import type { NotifySubscriberFn } from "./interface";
 
 /**
@@ -33,7 +36,7 @@ export function createNotifySubscriber(): NotifySubscriberFn {
 
       // Use the Event Subscriber binding - pass the whole proxy object
       // Same pattern as LanguageModelBinding.forClient(proxy) in models.ts
-      const client = EventSubscriberBinding.forClient(proxy);
+      const client = EventSubscriberBinding.forClient(toServerClient(proxy));
 
       // Call ON_EVENTS with the batch of events
       const result = await client.ON_EVENTS({ events });

@@ -6,34 +6,23 @@
 
 import { LanguageModelBinding } from "@decocms/bindings/llm";
 
-import type { MeshContext } from "@/core/mesh-context";
 import { createLLMProvider } from "../../llm-provider";
-import { getConnectionById } from "./helpers";
+import { toServerClient } from "../proxy";
+import type { MeshContext } from "@/core/mesh-context";
 import type { ModelProvider } from "./types";
 
 /**
- * Create a ModelProvider from a connection
+ * Create a ModelProvider from a proxy client
  */
-export async function createModelProvider(
-  ctx: MeshContext,
+export async function createModelProviderFromProxy(
+  proxy: Awaited<ReturnType<MeshContext["createMCPProxy"]>>,
   config: {
-    organizationId: string;
     modelId: string;
     connectionId: string;
     cheapModelId?: string | null;
   },
 ): Promise<ModelProvider> {
-  const connection = await getConnectionById(
-    ctx,
-    config.organizationId,
-    config.connectionId,
-  );
-  if (!connection) {
-    throw new Error(`Connection not found: ${config.connectionId}`);
-  }
-
-  const proxy = await ctx.createMCPProxy(connection);
-  const llmBinding = LanguageModelBinding.forClient(proxy);
+  const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
 
   const llmProvider = createLLMProvider(llmBinding);
   const model = llmProvider.languageModel(config.modelId);
