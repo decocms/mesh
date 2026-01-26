@@ -1,5 +1,4 @@
 import { IntegrationIcon } from "@/web/components/integration-icon";
-import { useThreads } from "@/web/hooks/use-chat-store";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
@@ -196,26 +195,13 @@ function ChatPanelContent() {
   );
 }
 
-function ChatPanelWithThreads() {
-  const { threads, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useThreads();
-  return (
-    <Chat.Provider
-      initialThreads={threads}
-      hasNextPage={hasNextPage}
-      isFetchingNextPage={isFetchingNextPage}
-      fetchNextPage={fetchNextPage}
-    >
-      <ChatPanelContent />
-    </Chat.Provider>
-  );
-}
-
 export function ChatPanel() {
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense fallback={<Chat.Skeleton />}>
-        <ChatPanelWithThreads />
+        <Chat.Provider>
+          <ChatPanelContent />
+        </Chat.Provider>
       </Suspense>
     </ErrorBoundary>
   );

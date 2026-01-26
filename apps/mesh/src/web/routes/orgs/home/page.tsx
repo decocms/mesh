@@ -11,7 +11,6 @@ import { TypewriterTitle } from "@/web/components/chat/typewriter-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { useThreads } from "@/web/hooks/use-chat-store.ts";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -273,25 +272,6 @@ function HomeChatErrorFallback({
   );
 }
 
-/**
- * Inner component that calls useThreads inside the Suspense boundary.
- * This ensures the suspense fallback is shown while threads are loading.
- */
-function HomeContentWithThreads() {
-  const { threads, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useThreads();
-  return (
-    <Chat.Provider
-      initialThreads={threads}
-      hasNextPage={hasNextPage}
-      isFetchingNextPage={isFetchingNextPage}
-      fetchNextPage={fetchNextPage}
-    >
-      <HomeContent />
-    </Chat.Provider>
-  );
-}
-
 export default function OrgHomePage() {
   return (
     <ErrorBoundary
@@ -300,7 +280,9 @@ export default function OrgHomePage() {
       )}
     >
       <Suspense fallback={<Chat.Skeleton />}>
-        <HomeContentWithThreads />
+        <Chat.Provider>
+          <HomeContent />
+        </Chat.Provider>
       </Suspense>
     </ErrorBoundary>
   );

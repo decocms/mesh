@@ -16,11 +16,9 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import {
-  useSuspenseInfiniteQuery
-} from "@tanstack/react-query";
-import type { Message, Thread } from "../components/chat/types.ts";
-import { KEYS } from "../lib/query-keys";
+import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import type { Message, Thread } from "./types.ts";
+import { KEYS } from "../../lib/query-keys";
 
 const THREADS_PAGE_SIZE = 50;
 
@@ -35,7 +33,6 @@ export function useThreads() {
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
-  const listToolName = "COLLECTION_THREADS_LIST";
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
     useSuspenseInfiniteQuery({
@@ -50,7 +47,7 @@ export function useThreads() {
         };
 
         const result = (await client.callTool({
-          name: listToolName,
+          name: "COLLECTION_THREADS_LIST",
           arguments: input,
         })) as { structuredContent?: unknown };
         const payload = (result.structuredContent ??

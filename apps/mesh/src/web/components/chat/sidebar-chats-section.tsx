@@ -21,9 +21,6 @@ import {
 import { Suspense, useState } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useNavigate } from "@tanstack/react-router";
-import { useThreads } from "@/web/hooks/use-chat-store";
-import { useLocalStorage } from "@/web/hooks/use-local-storage";
-import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useChat } from "./context";
 import type { Thread } from "./types.ts";
 
@@ -43,38 +40,14 @@ function ChatThreadItem({ thread }: { thread: Thread }) {
  * Replicates the logic from ThreadHistoryPopover but in sidebar format
  */
 function SidebarChatsSectionContent() {
-  const { org, locator } = useProjectContext();
+  const { org } = useProjectContext();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(true);
   const { state: sidebarState } = useSidebar();
   const isCollapsed = sidebarState === "collapsed";
 
-  // Get chat context
-  const {
-    threads: contextThreads,
-    activeThreadId: contextActiveThreadId,
-    setActiveThreadId: contextSetActiveThreadId,
-    hideThread,
-  } = useChat();
-
-  // Always call useThreads hook (React hooks rules)
-  const threadsData = useThreads();
-  const [storedActiveThreadId, setStoredActiveThreadId] =
-    useLocalStorage<string>(
-      LOCALSTORAGE_KEYS.assistantChatActiveThread(locator) + ":state",
-      "",
-    );
-
-  // Prefer threads from database (threadsData) over context, as context may be stale
-  const threads =
-    threadsData.threads.length > 0 ? threadsData.threads : contextThreads;
-  const activeThreadId = contextActiveThreadId ?? storedActiveThreadId;
-  const setActiveThreadId =
-    contextSetActiveThreadId ??
-    ((id: string) => {
-      setStoredActiveThreadId(id);
-      navigate({ to: "/$org", params: { org: org.slug } });
-    });
+  // Get threads directly from context (which now uses API data)
+  const { threads, activeThreadId, setActiveThreadId, hideThread } = useChat();
 
   const handleThreadClick = (threadId: string) => {
     setActiveThreadId(threadId);
