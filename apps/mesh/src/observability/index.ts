@@ -21,8 +21,10 @@ import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
 import { PrometheusExporter } from "@opentelemetry/exporter-prometheus";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
+import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
+import { RuntimeNodeInstrumentation } from "@opentelemetry/instrumentation-runtime-node";
+import { PgInstrumentation } from "@opentelemetry/instrumentation-pg";
+
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import type { MetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
@@ -194,9 +196,9 @@ const sdk = new NodeSDK({
   logRecordProcessors: [new BatchLogRecordProcessor(new OTLPLogExporter())],
   instrumentations: [
     // HTTP instrumentation for Node.js http/https modules
-    new HttpInstrumentation(),
-    // Undici instrumentation for native fetch (Node 18+)
-    new UndiciInstrumentation(),
+    new FetchInstrumentation(),
+    new RuntimeNodeInstrumentation(),
+    new PgInstrumentation(),
   ],
 });
 
