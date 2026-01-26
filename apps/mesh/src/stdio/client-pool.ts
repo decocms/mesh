@@ -9,9 +9,10 @@ import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
 /**
  * LRU Cache implementation using Map for connection pooling
+ * Stores promises to implement single-flight pattern (prevent duplicate connections)
  */
 class LRUCache {
-  private cache: Map<string, Client>;
+  private cache: Map<string, Promise<Client>>;
   private maxSize: number;
 
   constructor(maxSize: number = 100) {
@@ -19,17 +20,17 @@ class LRUCache {
     this.maxSize = maxSize;
   }
 
-  get(key: string): Client | undefined {
-    const client = this.cache.get(key);
-    if (client) {
+  get(key: string): Promise<Client> | undefined {
+    const promise = this.cache.get(key);
+    if (promise) {
       // Move to end (most recently used)
       this.cache.delete(key);
-      this.cache.set(key, client);
+      this.cache.set(key, promise);
     }
-    return client;
+    return promise;
   }
 
-  set(key: string, value: Client): void {
+  set(key: string, value: Promise<Client>): void {
     if (this.cache.has(key)) {
       this.cache.delete(key);
     } else if (this.cache.size >= this.maxSize) {
@@ -52,21 +53,24 @@ const lruCache = new LRUCache(100);
 
 /**
  * Get or create a client connection from the LRU pool
+ * Implements single-flight pattern: concurrent requests for the same key share the same connection promise
  *
  * @param transport - The transport to use for the connection
  * @param key - Unique key for the LRU cache (typically connectionId)
  * @returns The connected client
  */
-export async function getOrCreateClient<T extends Transport>(
+export function getOrCreateClient<T extends Transport>(
   transport: T,
   key: string,
 ): Promise<Client> {
-  // Check LRU cache for existing client
-  const cachedClient = lruCache.get(key);
-  if (cachedClient) {
-    return cachedClient;
+  // Check LRU cache for existing promise (single-flight pattern)
+  const cachedPromise = lruCache.get(key);
+  if (cachedPromise) {
+    return cachedPromise;
   }
 
+  // Create the connection promise immediately and store it
+  // This ensures concurrent requests for the same key get the same promise
   const client = new Client(
     {
       name: `outbound-client-${key}`,
@@ -88,10 +92,15 @@ export async function getOrCreateClient<T extends Transport>(
     lruCache.delete(key);
   };
 
-  await client.connect(transport, { timeout: 30_000 });
+  const clientPromise = client
+    .connect(transport, { timeout: 30_000 })
+    .then(() => client)
+    .catch((e) => {
+      lruCache.delete(key);
+      throw e;
+    });
 
-  // Add to LRU cache
-  lruCache.set(key, client);
+  lruCache.set(key, clientPromise);
 
-  return client;
+  return clientPromise;
 }
