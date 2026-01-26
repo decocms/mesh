@@ -44,7 +44,8 @@ function AgentCard({
           }
         : null;
     })
-    .filter((conn): conn is NonNullable<typeof conn> => conn !== null);
+    .filter((conn): conn is NonNullable<typeof conn> => conn !== null)
+    .slice(0, 3);
 
   const handleClick = () => {
     // Select the agent in the chat context
