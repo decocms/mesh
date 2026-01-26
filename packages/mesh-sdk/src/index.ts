@@ -96,13 +96,13 @@ export {
 // Streamable HTTP transport
 export { StreamableHTTPClientTransport } from "./lib/streamable-http-client-transport";
 
-// In-memory transport
+// Loopback transport
 export {
-  createInMemoryTransportPair,
-  InMemoryClientTransport,
-  InMemoryServerTransport,
-  type InMemoryTransportPair,
-} from "./lib/in-memory-transport";
+  createLoopbackTransportPair,
+  LoopbackClientTransport,
+  LoopbackServerTransport,
+  type LoopbackTransportPair,
+} from "./lib/loopback-transport";
 
 // Server-client bridge
 export {

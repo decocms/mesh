@@ -3,23 +3,23 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import {
-  createInMemoryTransportPair,
-  InMemoryClientTransport,
-  InMemoryServerTransport,
-} from "./in-memory-transport";
+  createLoopbackTransportPair,
+  LoopbackClientTransport,
+  LoopbackServerTransport,
+} from "./loopback-transport";
 
-describe("InMemoryTransport", () => {
-  describe("createInMemoryTransportPair", () => {
+describe("LoopbackTransport", () => {
+  describe("createLoopbackTransportPair", () => {
     it("should create a pair of transports", () => {
-      const { client, server, channel } = createInMemoryTransportPair();
+      const { client, server, channel } = createLoopbackTransportPair();
 
-      expect(client).toBeInstanceOf(InMemoryClientTransport);
-      expect(server).toBeInstanceOf(InMemoryServerTransport);
+      expect(client).toBeInstanceOf(LoopbackClientTransport);
+      expect(server).toBeInstanceOf(LoopbackServerTransport);
       expect(channel).toBeDefined();
     });
 
     it("should create transports with microtask scheduling", () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
       expect(client).toBeDefined();
       expect(server).toBeDefined();
     });
@@ -27,7 +27,7 @@ describe("InMemoryTransport", () => {
 
   describe("message delivery", () => {
     it("should deliver messages in order client->server", async () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
 
       const receivedMessages: JSONRPCMessage[] = [];
 
@@ -63,7 +63,7 @@ describe("InMemoryTransport", () => {
     });
 
     it("should deliver messages in order server->client", async () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
 
       const receivedMessages: JSONRPCMessage[] = [];
 
@@ -99,7 +99,7 @@ describe("InMemoryTransport", () => {
     });
 
     it("should batch multiple messages in a single microtask", async () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
 
       const receivedMessages: JSONRPCMessage[] = [];
       let flushCount = 0;
@@ -128,17 +128,17 @@ describe("InMemoryTransport", () => {
 
   describe("start()", () => {
     it("should allow starting client transport", async () => {
-      const { client } = createInMemoryTransportPair();
+      const { client } = createLoopbackTransportPair();
       await expect(client.start()).resolves.toBeUndefined();
     });
 
     it("should allow starting server transport", async () => {
-      const { server } = createInMemoryTransportPair();
+      const { server } = createLoopbackTransportPair();
       await expect(server.start()).resolves.toBeUndefined();
     });
 
     it("should throw if started twice", async () => {
-      const { client } = createInMemoryTransportPair();
+      const { client } = createLoopbackTransportPair();
       await client.start();
       await expect(client.start()).rejects.toThrow("already started");
     });
@@ -146,7 +146,7 @@ describe("InMemoryTransport", () => {
 
   describe("close()", () => {
     it("should close client transport and notify server", async () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
 
       await client.start();
       await server.start();
@@ -162,7 +162,7 @@ describe("InMemoryTransport", () => {
     });
 
     it("should close server transport and notify client", async () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
 
       await client.start();
       await server.start();
@@ -178,7 +178,7 @@ describe("InMemoryTransport", () => {
     });
 
     it("should prevent sending messages after close", async () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
 
       await client.start();
       await server.start();
@@ -211,7 +211,7 @@ describe("InMemoryTransport", () => {
     });
 
     it("should fire onclose exactly once", async () => {
-      const { client } = createInMemoryTransportPair();
+      const { client } = createLoopbackTransportPair();
 
       await client.start();
 
@@ -229,7 +229,7 @@ describe("InMemoryTransport", () => {
 
   describe("error handling", () => {
     it("should catch and forward errors from onmessage handler", async () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
 
       await server.start();
       await client.start();
@@ -253,7 +253,7 @@ describe("InMemoryTransport", () => {
     });
 
     it("should continue processing messages after error", async () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
 
       await server.start();
       await client.start();
@@ -289,7 +289,7 @@ describe("InMemoryTransport", () => {
   describe("integration with MCP SDK", () => {
     it("should work with MCP Client and Server", async () => {
       const { client: clientTransport, server: serverTransport } =
-        createInMemoryTransportPair();
+        createLoopbackTransportPair();
 
       const client = new Client({ name: "test-client", version: "1.0.0" });
       const server = new Server({ name: "test-server", version: "1.0.0" });
@@ -311,7 +311,7 @@ describe("InMemoryTransport", () => {
 
     it("should handle initialize handshake", async () => {
       const { client: clientTransport, server: serverTransport } =
-        createInMemoryTransportPair();
+        createLoopbackTransportPair();
 
       const client = new Client({ name: "test-client", version: "1.0.0" });
       const server = new Server({ name: "test-server", version: "1.0.0" });
@@ -333,7 +333,7 @@ describe("InMemoryTransport", () => {
 
   describe("send() before start()", () => {
     it("should allow sending messages before start (messages may be queued)", async () => {
-      const { client, server } = createInMemoryTransportPair();
+      const { client, server } = createLoopbackTransportPair();
 
       // Send message before starting - should not throw
       await expect(
