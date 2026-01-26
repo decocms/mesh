@@ -22,7 +22,7 @@
   "private": true,
   "scripts": {
     "link": "deco link -p 3000 -e MESH_URL -- bun run dev",
-    "dev": "bun run --cwd=apps/mesh dev",
+    "dev": "bun run --env-file=.env --cwd=apps/mesh dev",
     "fmt": "biome format --write",
     "lint": "oxlint",
     "check": "bun run --workspaces check",

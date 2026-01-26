@@ -31,6 +31,8 @@ const queryDurationHistogram = meter.createHistogram("db.query.duration", {
   unit: "ms",
 });
 
+const WELL_KNOWN_QUERY_ERRORS = ["PRAGMA busy_timeout = ?;"];
+
 const SLOW_QUERY_TRESHOLD_MS = 400;
 const log = (event: LogEvent) => {
   const attributes = {
@@ -48,7 +50,10 @@ const log = (event: LogEvent) => {
 
   queryDurationHistogram.record(event.queryDurationMillis, attributes);
 
-  if (event.level === "error") {
+  if (
+    event.level === "error" &&
+    !WELL_KNOWN_QUERY_ERRORS.includes(event.query.sql)
+  ) {
     console.error("Query failed:", {
       durationMs: event.queryDurationMillis,
       error: event.error,
