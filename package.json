@@ -43,10 +43,5 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ],
-  "dependencies": {
-    "@opentelemetry/api-logs": "^0.211.0",
-    "@opentelemetry/exporter-logs-otlp-proto": "^0.211.0",
-    "@opentelemetry/sdk-logs": "^0.211.0"
-  }
+  ]
 }
