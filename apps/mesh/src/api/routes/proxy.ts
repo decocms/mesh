@@ -16,7 +16,8 @@ import { extractConnectionPermissions } from "@/auth/configuration-scopes";
 import { once } from "@/common";
 import { getMonitoringConfig } from "@/core/config";
 import { refreshAccessToken } from "@/oauth/token-refresh";
-import { getStableStdioClient } from "@/stdio/stable-transport";
+import { createStdioTransport } from "@/stdio/transport-stdio";
+import { getOrCreateClient } from "@/stdio/client-pool";
 import { DownstreamTokenStorage } from "@/storage/downstream-token";
 import {
   ConnectionEntity,
@@ -449,19 +450,18 @@ async function createMCPProxyDoNotUseDirectly(
           throw new Error("STDIO connection missing parameters");
         }
 
-        // Get or create stable connection - respawns automatically if closed
-        // We want stable local MCP connection - don't spawn new process per request
-        return getStableStdioClient(
-          {
-            id: connectionId,
-            name: connection.title,
-            command: stdioParams.command,
-            args: stdioParams.args,
-            env: stdioParams.envVars,
-            cwd: stdioParams.cwd,
-          },
-          client,
-        );
+        // Create transport with stderr logging
+        const transport = createStdioTransport({
+          id: connectionId,
+          name: connection.title,
+          command: stdioParams.command,
+          args: stdioParams.args,
+          env: stdioParams.envVars,
+          cwd: stdioParams.cwd,
+        });
+
+        // Get or create client from LRU pool - automatically removed when connection closes
+        return getOrCreateClient(transport, connectionId);
       }
 
       case "HTTP":
