@@ -29,6 +29,27 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
 };
 
 /**
+ * Get a builtin binding by name.
+ * Handles case-insensitive lookup and @ prefix normalization.
+ *
+ * @param bindingName - Name like "@deco/perplexity", "perplexity", "LLMS", etc.
+ * @returns The binding name to pass to useBindingConnections, or undefined if not found
+ */
+export function getBuiltinBindingByName(
+  bindingName: string | undefined,
+): string | undefined {
+  if (!bindingName) return undefined;
+
+  // Try exact match first (uppercased)
+  const upperName = bindingName.toUpperCase();
+  if (BUILTIN_BINDINGS[upperName]) {
+    return upperName;
+  }
+
+  return undefined;
+}
+
+/**
  * Simplified binding definition format (JSON Schema based)
  */
 export interface BindingDefinition {

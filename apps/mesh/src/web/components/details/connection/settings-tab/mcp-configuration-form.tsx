@@ -1,5 +1,8 @@
 import { useConnections } from "@decocms/mesh-sdk";
-import { useBindingConnections } from "@/web/hooks/use-binding";
+import {
+  useBindingConnections,
+  getBuiltinBindingByName,
+} from "@/web/hooks/use-binding";
 import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
 import { useProjectContext } from "@decocms/mesh-sdk";
@@ -141,9 +144,17 @@ function BindingFieldWithDynamicSchema({
   const { bindingSchema: registrySchema } =
     useBindingSchemaFromRegistry(dynamicAppName);
 
+  // Check for builtin binding fallback (e.g., @deco/perplexity -> PERPLEXITY)
+  const builtinBindingName = getBuiltinBindingByName(dynamicAppName);
+
   const resolvedBinding = (() => {
-    if (needsDynamicResolution) {
+    // First try registry resolution for dynamic bindings
+    if (needsDynamicResolution && registrySchema) {
       return registrySchema;
+    }
+    // Fallback to builtin binding if registry doesn't have it
+    if (needsDynamicResolution && builtinBindingName) {
+      return builtinBindingName;
     }
     if (Array.isArray(bindingSchema)) {
       return bindingSchema as Array<{
