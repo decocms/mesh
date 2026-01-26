@@ -2,11 +2,86 @@ import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { CpuChip02, Plus, X } from "@untitledui/icons";
-import { Suspense } from "react";
+import { Suspense, useRef } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
 import { TypewriterTitle } from "./typewriter-title";
 import { useThreads } from "@/web/hooks/use-chat-store";
+import {
+  consumePendingFloatingMessage,
+  type PendingFloatingMessage,
+} from "./floating-chat-input";
+
+/**
+ * Hook to handle pending messages from the floating input.
+ * Checks for pending messages whenever the chat becomes visible and model is ready.
+ * Always starts a new thread for messages from the floating input.
+ */
+function usePendingFloatingMessage(
+  chatOpen: boolean,
+  selectedModel: unknown,
+  activeThreadId: string,
+  setActiveThreadId: (threadId: string) => void,
+  setVirtualMcpId: (id: string | null) => void,
+  setSelectedModel: (model: { id: string; connectionId: string }) => void,
+  sendMessage: (doc: PendingFloatingMessage["doc"]) => void,
+) {
+  const lastCheckedOpenRef = useRef(false);
+  const pendingMessageRef = useRef<PendingFloatingMessage | null>(null);
+  const pendingThreadIdRef = useRef<string | null>(null);
+  // Keep latest callbacks in refs to avoid stale closure issues
+  const sendMessageRef = useRef(sendMessage);
+  const setVirtualMcpIdRef = useRef(setVirtualMcpId);
+  const setSelectedModelRef = useRef(setSelectedModel);
+  sendMessageRef.current = sendMessage;
+  setVirtualMcpIdRef.current = setVirtualMcpId;
+  setSelectedModelRef.current = setSelectedModel;
+
+  // Check for pending message when chat opens (transitions from closed to open)
+  if (chatOpen && !lastCheckedOpenRef.current) {
+    lastCheckedOpenRef.current = true;
+    const pendingMessage = consumePendingFloatingMessage();
+    if (pendingMessage) {
+      // Store the message and create new thread - we'll send after re-render
+      const newThreadId = crypto.randomUUID();
+      pendingMessageRef.current = pendingMessage;
+      pendingThreadIdRef.current = newThreadId;
+      // Set the virtual MCP if one was selected in the floating input
+      if (pendingMessage.virtualMcpId) {
+        setVirtualMcpIdRef.current(pendingMessage.virtualMcpId);
+      }
+      // Set the model if one was selected in the floating input
+      if (pendingMessage.model) {
+        setSelectedModelRef.current({
+          id: pendingMessage.model.id,
+          connectionId: pendingMessage.model.connectionId,
+        });
+      }
+      setActiveThreadId(newThreadId);
+    }
+  }
+
+  // Send pending message after thread change has settled (thread ID matches)
+  if (
+    pendingMessageRef.current &&
+    pendingThreadIdRef.current &&
+    activeThreadId === pendingThreadIdRef.current &&
+    selectedModel
+  ) {
+    const messageToSend = pendingMessageRef.current;
+    pendingMessageRef.current = null;
+    pendingThreadIdRef.current = null;
+    // Use setTimeout to ensure we're after React's state updates
+    setTimeout(() => {
+      sendMessageRef.current(messageToSend.doc);
+    }, 0);
+  }
+
+  // Reset when chat closes so we can check again next time it opens
+  if (!chatOpen && lastCheckedOpenRef.current) {
+    lastCheckedOpenRef.current = false;
+  }
+}
 
 // Capybara avatar URL from decopilotAgent
 const CAPYBARA_AVATAR_URL =
@@ -14,16 +89,32 @@ const CAPYBARA_AVATAR_URL =
 
 function ChatPanelContent() {
   const { org } = useProjectContext();
-  const [, setOpen] = useDecoChatOpen();
+  const [chatOpen, setOpen] = useDecoChatOpen();
   const {
     selectedVirtualMcp,
+    setVirtualMcpId,
     modelsConnections,
     isChatEmpty,
     activeThreadId,
     setActiveThreadId,
     threads,
+    selectedModel,
+    setSelectedModel,
+    sendMessage,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
+
+  // Handle pending messages from floating input when chat opens (always new thread)
+  usePendingFloatingMessage(
+    chatOpen,
+    selectedModel,
+    activeThreadId,
+    setActiveThreadId,
+    setVirtualMcpId,
+    setSelectedModel,
+    sendMessage,
+  );
+
   if (modelsConnections.length === 0) {
     const title = "No model provider connected";
     const description =

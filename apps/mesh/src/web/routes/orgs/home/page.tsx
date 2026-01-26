@@ -76,7 +76,7 @@ function HomeContent() {
 
   return (
     <MetricsModeProvider>
-      <Chat>
+      <Chat className="bg-background">
         <Chat.Header>
           <Chat.Header.Left>
             {viewMode === "graph" ? (
@@ -149,7 +149,7 @@ function HomeContent() {
         ) : !isChatEmpty ? (
           <>
             <Chat.Main>
-              <Chat.Messages minHeightOffset={280} />
+              <Chat.Messages minHeightOffset={280} messageBackground="background" />
             </Chat.Main>
             <Chat.Footer>
               <Chat.Input />

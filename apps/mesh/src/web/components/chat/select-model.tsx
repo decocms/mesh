@@ -385,7 +385,7 @@ export interface ModelChangePayload {
 /**
  * Loading state for ModelSelectorContent
  */
-function ModelSelectorContentFallback() {
+export function ModelSelectorContentFallback() {
   return (
     <div className="flex flex-col md:flex-row h-[350px]">
       {/* Left column - model list with search */}
@@ -446,7 +446,7 @@ function ModelSelectorContentFallback() {
 /**
  * Modal content component for model selection
  */
-function ModelSelectorContent({
+export function ModelSelectorContent({
   selectedModel,
   onModelChange,
   onClose,

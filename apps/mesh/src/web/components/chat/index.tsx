@@ -96,7 +96,7 @@ function ChatRoot({
   return (
     <div
       className={cn(
-        "flex flex-col h-full w-full bg-sidebar transform-[translateZ(0)]",
+        "flex flex-col h-full w-full bg-muted transform-[translateZ(0)]",
         className,
       )}
     >
@@ -148,7 +148,13 @@ function ChatEmptyState({ children }: PropsWithChildren) {
   );
 }
 
-function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
+function ChatMessages({
+  minHeightOffset = 240,
+  messageBackground,
+}: {
+  minHeightOffset?: number;
+  messageBackground?: "muted" | "background";
+}) {
   const { messages, chatStatus: status } = useChat();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const messagePairs = useMessagePairs(messages);
@@ -169,6 +175,7 @@ function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
             isLastPair={index === messagePairs.length - 1}
             minHeightOffset={minHeightOffset}
             status={index === messagePairs.length - 1 ? status : undefined}
+            messageBackground={messageBackground}
           />
         ))}
         <div ref={sentinelRef} className="h-0" />
