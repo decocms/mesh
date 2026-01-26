@@ -21,6 +21,7 @@ interface MCPProxy {
     arguments?: Record<string, unknown>;
   }) => Promise<unknown>;
   listTools: () => Promise<{ tools: Array<{ name: string }> }>;
+  [Symbol.asyncDispose]: () => Promise<void>;
   [key: string]: unknown; // Allow other Client methods
 }
 
