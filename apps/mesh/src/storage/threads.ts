@@ -231,7 +231,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     updated_at: Date | string;
     created_by: string;
     updated_by: string | null;
-    hidden: boolean | null;
+    hidden: boolean | number | null;
   }): Thread {
     return {
       id: row.id,
@@ -248,7 +248,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
           : row.updated_at.toISOString(),
       createdBy: row.created_by,
       updatedBy: row.updated_by,
-      hidden: row.hidden,
+      hidden: !!row.hidden,
     };
   }
 

@@ -1,16 +1,17 @@
 import { IntegrationIcon } from "@/web/components/integration-icon";
+import { useThreads } from "@/web/hooks/use-chat-store";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
-import { useProjectContext } from "@decocms/mesh-sdk";
-import { CpuChip02, Plus, X } from "@untitledui/icons";
-import { Suspense } from "react";
+import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  getWellKnownDecopilotAgent,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
+import { ClockRewind, CpuChip02, Plus, X } from "@untitledui/icons";
+import { Suspense, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
+import { ThreadsView } from "./threads-sidebar";
 import { TypewriterTitle } from "./typewriter-title";
-import { useThreads } from "@/web/hooks/use-chat-store";
-
-// Capybara avatar URL from decopilotAgent
-const CAPYBARA_AVATAR_URL =
-  "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png";
 
 function ChatPanelContent() {
   const { org } = useProjectContext();
@@ -24,6 +25,12 @@ function ChatPanelContent() {
     threads,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
+  const [showThreadsOverlay, setShowThreadsOverlay] = useState(false);
+
+  // Use Decopilot as default agent
+  const defaultAgent = getWellKnownDecopilotAgent(org.id);
+  const displayAgent = selectedVirtualMcp ?? defaultAgent;
+
   if (modelsConnections.length === 0) {
     const title = "No model provider connected";
     const description =
@@ -33,12 +40,13 @@ function ChatPanelContent() {
       <Chat>
         <Chat.Header>
           <Chat.Header.Left>
-            <img
-              src={CAPYBARA_AVATAR_URL}
-              alt="Chat"
-              className="size-5 rounded"
+            <IntegrationIcon
+              icon={displayAgent.icon}
+              name={displayAgent.title}
+              size="xs"
+              className="size-5 rounded-md aspect-square shrink-0"
             />
-            <span className="text-sm font-medium">Chat</span>
+            <span className="text-sm font-medium">{displayAgent.title}</span>
           </Chat.Header.Left>
           <Chat.Header.Right>
             <button
@@ -69,76 +77,121 @@ function ChatPanelContent() {
   }
 
   return (
-    <Chat>
-      <Chat.Header>
-        <Chat.Header.Left>
-          {!isChatEmpty && activeThread?.title ? (
-            <TypewriterTitle
-              text={activeThread.title}
-              className="text-sm font-medium text-foreground"
-            />
-          ) : (
-            <span className="text-sm font-medium text-foreground">Chat</span>
-          )}
-        </Chat.Header.Left>
-        <Chat.Header.Right>
-          <button
-            type="button"
-            onClick={() => setActiveThreadId(crypto.randomUUID())}
-            className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
-            title="New chat"
-          >
-            <Plus
-              size={16}
-              className="text-muted-foreground group-hover:text-foreground transition-colors"
-            />
-          </button>
-          <Chat.ThreadHistoryPopover />
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent transition-colors group cursor-pointer"
-            title="Close chat"
-          >
-            <X
-              size={16}
-              className="text-muted-foreground group-hover:text-foreground transition-colors"
-            />
-          </button>
-        </Chat.Header.Right>
-      </Chat.Header>
-
-      <Chat.Main>
-        {isChatEmpty ? (
-          <Chat.EmptyState>
-            <div className="flex flex-col items-center gap-6 w-full px-4">
-              <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
-                <IntegrationIcon
-                  icon={selectedVirtualMcp?.icon ?? "/favicon.svg"}
-                  name={selectedVirtualMcp?.title || "Chat"}
-                  size="lg"
-                  fallbackIcon={<CpuChip02 size={32} />}
-                  className="size-[60px]! rounded-[18px]!"
-                />
-                <h3 className="text-xl font-medium text-foreground">
-                  {selectedVirtualMcp?.title || "Chat"}
-                </h3>
-                <div className="text-muted-foreground text-center text-sm max-w-md">
-                  {selectedVirtualMcp?.description ??
-                    "Ask anything about configuring model providers or using MCP Mesh."}
-                </div>
-              </div>
-              <Chat.IceBreakers />
-            </div>
-          </Chat.EmptyState>
-        ) : (
-          <Chat.Messages minHeightOffset={280} />
+    <Chat className="relative overflow-hidden">
+      {/* Chat view */}
+      <div
+        className={cn(
+          "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
+          showThreadsOverlay
+            ? "opacity-0 -translate-x-4 pointer-events-none"
+            : "opacity-100 translate-x-0",
         )}
-      </Chat.Main>
+      >
+        <Chat.Header>
+          <Chat.Header.Left>
+            <IntegrationIcon
+              icon={displayAgent.icon}
+              name={displayAgent.title}
+              size="xs"
+              className="size-5 rounded-md aspect-square shrink-0"
+            />
+            {!isChatEmpty && activeThread?.title ? (
+              <TypewriterTitle
+                text={activeThread.title}
+                className="text-sm font-medium text-foreground"
+              />
+            ) : (
+              <span className="text-sm font-medium text-foreground">
+                {displayAgent.title}
+              </span>
+            )}
+          </Chat.Header.Left>
+          <Chat.Header.Right>
+            <button
+              type="button"
+              onClick={() => setActiveThreadId(crypto.randomUUID())}
+              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
+              title="New chat"
+            >
+              <Plus
+                size={16}
+                className="text-muted-foreground group-hover:text-foreground transition-colors"
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowThreadsOverlay(true)}
+              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
+              title="Chat history"
+            >
+              <ClockRewind
+                size={16}
+                className="text-muted-foreground group-hover:text-foreground transition-colors"
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent transition-colors group cursor-pointer"
+              title="Close chat"
+            >
+              <X
+                size={16}
+                className="text-muted-foreground group-hover:text-foreground transition-colors"
+              />
+            </button>
+          </Chat.Header.Right>
+        </Chat.Header>
 
-      <Chat.Footer>
-        <Chat.Input />
-      </Chat.Footer>
+        <Chat.Main>
+          {isChatEmpty ? (
+            <Chat.EmptyState>
+              <div className="flex flex-col items-center gap-6 w-full px-4">
+                <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
+                  <IntegrationIcon
+                    icon={displayAgent.icon}
+                    name={displayAgent.title}
+                    size="lg"
+                    fallbackIcon={<CpuChip02 size={32} />}
+                    className="size-[60px]! rounded-[18px]!"
+                  />
+                  <h3 className="text-xl font-medium text-foreground">
+                    {displayAgent.title}
+                  </h3>
+                  <div className="text-muted-foreground text-center text-sm max-w-md">
+                    {displayAgent.description ??
+                      "Ask anything about configuring model providers or using MCP Mesh."}
+                  </div>
+                </div>
+                <Chat.IceBreakers />
+              </div>
+            </Chat.EmptyState>
+          ) : (
+            <Chat.Messages minHeightOffset={280} />
+          )}
+        </Chat.Main>
+
+        <Chat.Footer>
+          <Chat.Input />
+        </Chat.Footer>
+      </div>
+
+      {/* Threads view */}
+      <div
+        className={cn(
+          "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
+          showThreadsOverlay
+            ? "opacity-100 translate-x-0"
+            : "opacity-0 translate-x-4 pointer-events-none",
+        )}
+      >
+        <ThreadsView
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onThreadSelect={setActiveThreadId}
+          onClose={() => setShowThreadsOverlay(false)}
+        />
+      </div>
     </Chat>
   );
 }

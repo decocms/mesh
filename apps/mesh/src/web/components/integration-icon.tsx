@@ -70,7 +70,7 @@ function IntegrationIconStateful({
   return (
     <div
       className={cn(
-        "rounded-lg border border-border shrink-0 overflow-hidden",
+        "rounded-lg border border-border shrink-0 overflow-hidden aspect-square",
         SIZE_CLASSES[size],
         MIN_WIDTH_CLASSES[size],
         className,

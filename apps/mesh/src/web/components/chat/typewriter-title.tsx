@@ -33,7 +33,7 @@ export function TypewriterTitle({
 
   return (
     <span
-      className={cn(className, "block overflow-hidden")}
+      className={cn(className, "block overflow-hidden inline-flex")}
       key={text}
       style={
         {

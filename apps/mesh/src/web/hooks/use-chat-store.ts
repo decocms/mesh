@@ -5,21 +5,22 @@
  * Uses TanStack React Query for caching and mutations with idb-keyval for persistence.
  */
 
-import {
-  useSuspenseInfiniteQuery,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
-import { KEYS } from "../lib/query-keys";
-import {
-  useMCPClient,
-  useProjectContext,
-  SELF_MCP_ALIAS_ID,
-} from "@decocms/mesh-sdk";
-import type { Message, Thread } from "../components/chat/types.ts";
 import type {
   CollectionListInput,
   CollectionListOutput,
 } from "@decocms/bindings/collections";
+import type { CollectionEntity } from "@decocms/mesh-sdk";
+import {
+  SELF_MCP_ALIAS_ID,
+  useCollectionList,
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
+import {
+  useSuspenseInfiniteQuery
+} from "@tanstack/react-query";
+import type { Message, Thread } from "../components/chat/types.ts";
+import { KEYS } from "../lib/query-keys";
 
 const THREADS_PAGE_SIZE = 50;
 
@@ -90,37 +91,23 @@ export function useThreads() {
  * @returns Suspense query result with messages array
  */
 export function useThreadMessages(threadId: string | null) {
-  const { locator, org } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
-  const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
 
-  const { data } = useSuspenseQuery({
-    queryKey: KEYS.threadMessages(locator, threadId ?? ""),
-    queryFn: async () => {
-      try {
-        if (!threadId || !client) {
-          return [];
-        }
-        const input: CollectionListInput & { threadId: string | null } = {
-          threadId,
-          limit: 100,
-          offset: 0,
-        };
-        const result = (await client.callTool({
-          name: listToolName,
-          arguments: input,
-        })) as { structuredContent?: unknown };
-        const payload = (result.structuredContent ??
-          result) as CollectionListOutput<Message>;
-        return payload.items ?? [];
-      } catch {
-        return [];
-      }
+  // Use type assertion since ThreadMessageEntity doesn't extend CollectionEntity
+  // but the runtime behavior works correctly
+  const data = useCollectionList<CollectionEntity & Message>(
+    org.id,
+    "THREAD_MESSAGES",
+    client,
+    {
+      filters: threadId ? [{ column: "threadId", value: threadId }] : [],
+      pageSize: 100,
     },
-    staleTime: 0,
-  });
+  ) as Message[] | undefined;
+
   return data ?? [];
 }
