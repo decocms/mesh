@@ -1,51 +1,31 @@
 /**
  * Agents List Component for Home Page
  *
- * Displays a list of agents (Virtual MCPs) with their icon, name, description, and connections.
- * Only shows when the organization has agents.
+ * Displays a horizontal scrollable list of agents (Virtual MCPs) with their icon and name.
+ * Shows up to 6 agents max with a "See all" button to navigate to the full agents list.
  */
 
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { useConnections, useVirtualMCPs } from "@decocms/mesh-sdk";
-import { Card } from "@deco/ui/components/card.tsx";
+import { useVirtualMCPs } from "@decocms/mesh-sdk";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { CpuChip02 } from "@untitledui/icons";
+import { CpuChip02, ChevronRight } from "@untitledui/icons";
 import { Suspense } from "react";
-import { cn } from "@deco/ui/lib/utils.ts";
 import { useChat } from "@/web/components/chat/context";
+import { Link, useParams } from "@tanstack/react-router";
 
 /**
- * Individual agent card component
+ * Individual agent item component
  */
-function AgentCard({
+function AgentItem({
   agent,
-  connectionsMap,
 }: {
   agent: {
     id: string;
     title: string;
-    description: string | null;
     icon?: string | null;
-    connections: Array<{ connection_id: string }>;
   };
-  connectionsMap: Map<string, { title: string; icon: string | null }>;
 }) {
   const { setVirtualMcpId } = useChat();
-
-  // Get connection details for this agent
-  const agentConnections = agent.connections
-    .map((conn) => {
-      const connection = connectionsMap.get(conn.connection_id);
-      return connection
-        ? {
-            id: conn.connection_id,
-            title: connection.title,
-            icon: connection.icon,
-          }
-        : null;
-    })
-    .filter((conn): conn is NonNullable<typeof conn> => conn !== null)
-    .slice(0, 3);
 
   const handleClick = () => {
     // Select the agent in the chat context
@@ -53,55 +33,24 @@ function AgentCard({
   };
 
   return (
-    <Card
-      className="cursor-pointer transition-colors hover:bg-muted/50 group"
+    <button
+      type="button"
       onClick={handleClick}
+      className="flex flex-col items-center gap-2 min-w-[80px] max-w-[80px] group"
     >
-      <div className="flex flex-col gap-3 p-6 relative">
-        {/* Header: Icon + Connections in top right */}
-        <div className="flex items-start justify-between gap-2">
-          <IntegrationIcon
-            icon={agent.icon}
-            name={agent.title}
-            size="sm"
-            className="size-[40px] shrink-0 shadow-sm aspect-square"
-            fallbackIcon={<CpuChip02 />}
-          />
-          {/* Connections - Icons only in top right, overlapping */}
-          {agentConnections.length > 0 && (
-            <div className="flex items-center justify-end -space-x-1.5">
-              {agentConnections.map((conn, index) => (
-                <div
-                  key={conn.id}
-                  className="relative size-7 rounded-lg border border-stone-300 bg-background flex items-center justify-center overflow-hidden"
-                  style={{ zIndex: agentConnections.length - index }}
-                >
-                  <IntegrationIcon
-                    icon={conn.icon}
-                    name={conn.title}
-                    size="xs"
-                    className="size-5 shrink-0 aspect-square border-0 rounded-sm"
-                    fallbackIcon={<CpuChip02 size={12} />}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Title and Description below icon */}
-        <div className="flex flex-col gap-1">
-          <h3 className="text-base font-medium text-foreground truncate">
-            {agent.title}
-          </h3>
-          {agent.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {agent.description}
-            </p>
-          )}
-        </div>
+      <div className="size-[56px] rounded-xl transition-transform group-hover:scale-105">
+        <IntegrationIcon
+          icon={agent.icon}
+          name={agent.title}
+          size="sm"
+          className="size-full shrink-0 shadow-sm aspect-square"
+          fallbackIcon={<CpuChip02 />}
+        />
       </div>
-    </Card>
+      <span className="text-sm text-foreground text-center line-clamp-2 w-full leading-tight">
+        {agent.title}
+      </span>
+    </button>
   );
 }
 
@@ -110,47 +59,46 @@ function AgentCard({
  */
 function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
-  const connections = useConnections();
+  const { org } = useParams({ strict: false });
 
   // Filter out the default Decopilot agent (it's not a real agent)
-  const agents = virtualMcps
-    .filter((agent) => !agent.id.startsWith("decopilot-"))
-    .slice(0, 2);
-
-  // Create a map of connections by ID for quick lookup
-  const connectionsMap = new Map(
-    connections.map((conn) => [
-      conn.id,
-      { title: conn.title, icon: conn.icon },
-    ]),
+  const allAgents = virtualMcps.filter(
+    (agent) => !agent.id.startsWith("decopilot-"),
   );
+
+  // Show max 6 agents
+  const agents = allAgents.slice(0, 6);
 
   // Don't render if no agents
   if (agents.length === 0) {
     return null;
   }
 
-  // Calculate optimal grid columns based on agent count
-  const getGridCols = () => {
-    if (agents.length === 1) return "grid-cols-1";
-    if (agents.length === 2) return "grid-cols-2";
-    if (agents.length <= 4) return "grid-cols-2";
-    return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
-  };
+  const hasMore = allAgents.length > 6;
 
   return (
-    <div className="w-full max-w-[800px]">
+    <div className="w-full">
       <h2 className="text-sm font-medium text-muted-foreground mb-4">
         Recently used agents
       </h2>
-      <div className={cn("grid gap-4", getGridCols())}>
+      <div className="flex items-center gap-4 overflow-x-auto pb-2 -mx-2 px-2">
         {agents.map((agent) => (
-          <AgentCard
-            key={agent.id}
-            agent={agent}
-            connectionsMap={connectionsMap}
-          />
+          <AgentItem key={agent.id} agent={agent} />
         ))}
+        {hasMore && (
+          <Link
+            to="/$org/agents"
+            params={{ org: org || "" }}
+            className="flex flex-col items-center justify-center gap-2 min-w-[80px] max-w-[80px] group"
+          >
+            <div className="size-[56px] rounded-xl bg-muted flex items-center justify-center transition-colors group-hover:bg-muted/80">
+              <ChevronRight className="size-6 text-muted-foreground" />
+            </div>
+            <span className="text-sm text-foreground text-center leading-tight">
+              See all
+            </span>
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -161,29 +109,17 @@ function AgentsListContent() {
  */
 function AgentsListSkeleton() {
   return (
-    <div className="w-full max-w-[800px]">
+    <div className="w-full">
       <Skeleton className="h-5 w-40 mb-4" />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i} className="p-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-start gap-4">
-                <Skeleton className="size-12 rounded-lg shrink-0" />
-                <div className="flex flex-col gap-2 flex-1">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-4 w-full" />
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Skeleton className="h-4 w-24" />
-                <div className="flex flex-wrap gap-2">
-                  <Skeleton className="h-6 w-20" />
-                  <Skeleton className="h-6 w-24" />
-                  <Skeleton className="h-6 w-16" />
-                </div>
-              </div>
-            </div>
-          </Card>
+      <div className="flex items-center gap-4 overflow-x-auto pb-2 -mx-2 px-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex flex-col items-center gap-2 min-w-[80px] max-w-[80px]"
+          >
+            <Skeleton className="size-[56px] rounded-xl" />
+            <Skeleton className="h-4 w-full" />
+          </div>
         ))}
       </div>
     </div>
