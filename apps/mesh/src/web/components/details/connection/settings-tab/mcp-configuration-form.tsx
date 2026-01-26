@@ -144,8 +144,8 @@ function BindingFieldWithDynamicSchema({
   const { bindingSchema: registrySchema } =
     useBindingSchemaFromRegistry(dynamicAppName);
 
-  // Check for builtin binding fallback (e.g., @deco/perplexity -> PERPLEXITY)
-  const builtinBindingName = getBuiltinBindingByName(dynamicAppName);
+  // Check for builtin binding fallback (e.g., @deco/perplexity-ai -> PERPLEXITY_BINDING)
+  const builtinBinding = getBuiltinBindingByName(dynamicAppName);
 
   const resolvedBinding = (() => {
     // First try registry resolution for dynamic bindings
@@ -153,8 +153,8 @@ function BindingFieldWithDynamicSchema({
       return registrySchema;
     }
     // Fallback to builtin binding if registry doesn't have it
-    if (needsDynamicResolution && builtinBindingName) {
-      return builtinBindingName;
+    if (needsDynamicResolution && builtinBinding) {
+      return builtinBinding;
     }
     if (Array.isArray(bindingSchema)) {
       return bindingSchema as Array<{

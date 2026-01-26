@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { type Binder, createBindingChecker } from "@decocms/bindings";
 import {
   BaseCollectionEntitySchema,
@@ -29,24 +30,34 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
 };
 
 /**
- * Get a builtin binding by name.
+ * Get a builtin binding by name as BindingDefinition[] for use in UI.
  * Handles case-insensitive lookup and @ prefix normalization.
  *
- * @param bindingName - Name like "@deco/perplexity", "perplexity", "LLMS", etc.
- * @returns The binding name to pass to useBindingConnections, or undefined if not found
+ * @param bindingName - Name like "@deco/perplexity-ai", "LLMS", etc.
+ * @returns The binding as BindingDefinition[] to pass to BindingSelector, or undefined if not found
  */
 export function getBuiltinBindingByName(
   bindingName: string | undefined,
-): string | undefined {
+): BindingDefinition[] | undefined {
   if (!bindingName) return undefined;
 
   // Try exact match first (uppercased)
   const upperName = bindingName.toUpperCase();
-  if (BUILTIN_BINDINGS[upperName]) {
-    return upperName;
-  }
+  const binding = BUILTIN_BINDINGS[upperName];
 
-  return undefined;
+  if (!binding) return undefined;
+
+  // Convert Binder (Zod-based) to BindingDefinition[] (JSON Schema-based)
+  // This ensures hasBindingSchema is true in BindingSelector, bypassing app_name filter
+  return binding.map((tool) => ({
+    name: tool.name,
+    inputSchema: tool.inputSchema
+      ? (zodToJsonSchema(tool.inputSchema) as Record<string, unknown>)
+      : undefined,
+    outputSchema: tool.outputSchema
+      ? (zodToJsonSchema(tool.outputSchema) as Record<string, unknown>)
+      : undefined,
+  }));
 }
 
 /**
