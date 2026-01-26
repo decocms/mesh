@@ -96,13 +96,13 @@ export {
 // Streamable HTTP transport
 export { StreamableHTTPClientTransport } from "./lib/streamable-http-client-transport";
 
-// Loopback transport
+// Bridge transport
 export {
-  createLoopbackTransportPair,
-  LoopbackClientTransport,
-  LoopbackServerTransport,
-  type LoopbackTransportPair,
-} from "./lib/loopback-transport";
+  createBridgeTransportPair,
+  BridgeClientTransport,
+  BridgeServerTransport,
+  type BridgeTransportPair,
+} from "./lib/bridge-transport";
 
 // Server-client bridge
 export {

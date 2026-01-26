@@ -2,9 +2,9 @@ import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
 /**
- * Loopback MCP Transport
+ * Bridge MCP Transport
  *
- * High-performance loopback transport for MCP communication within the same process.
+ * High-performance bridge transport for MCP communication within the same process.
  * Uses direct callbacks with microtask scheduling to avoid serialization overhead
  * and minimize event loop impact.
  *
@@ -18,12 +18,12 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
  * ## Usage
  *
  * ```ts
- * import { createLoopbackTransportPair } from "@decocms/mesh-sdk";
+ * import { createBridgeTransportPair } from "@decocms/mesh-sdk";
  * import { Client } from "@modelcontextprotocol/sdk/client/index.js";
  * import { Server } from "@modelcontextprotocol/sdk/server/index.js";
  *
  * const { client: clientTransport, server: serverTransport } =
- *   createLoopbackTransportPair();
+ *   createBridgeTransportPair();
  *
  * const client = new Client({ name: "test-client", version: "1.0.0" });
  * const server = new Server({ name: "test-server", version: "1.0.0" });
@@ -31,7 +31,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
  * await server.connect(serverTransport);
  * await client.connect(clientTransport);
  *
- * // Now client and server can communicate via loopback
+ * // Now client and server can communicate via bridge
  * ```
  */
 
@@ -46,7 +46,7 @@ const MAX_QUEUE_SIZE = 10_000;
 /**
  * Internal channel that manages bidirectional message queues between client and server.
  */
-class LoopbackChannel {
+class BridgeChannel {
   private clientQueue: JSONRPCMessage[] = [];
   private serverQueue: JSONRPCMessage[] = [];
   private clientClosed = false;
@@ -63,8 +63,8 @@ class LoopbackChannel {
    * This sets up both message delivery and close notifications.
    */
   registerTransports(
-    client: LoopbackClientTransport,
-    server: LoopbackServerTransport,
+    client: BridgeClientTransport,
+    server: BridgeServerTransport,
   ): void {
     this.clientTransport = client;
     this.serverTransport = server;
@@ -115,7 +115,7 @@ class LoopbackChannel {
     // Prevent unbounded memory growth
     if (queue.length >= MAX_QUEUE_SIZE) {
       throw new Error(
-        `LoopbackTransport: ${side} queue overflow (max ${MAX_QUEUE_SIZE} messages). ` +
+        `BridgeTransport: ${side} queue overflow (max ${MAX_QUEUE_SIZE} messages). ` +
           "The receiver may not be processing messages fast enough.",
       );
     }
@@ -195,8 +195,8 @@ class LoopbackChannel {
 /**
  * Base transport implementation shared by client and server transports
  */
-abstract class BaseLoopbackTransport implements Transport {
-  protected channel: LoopbackChannel;
+abstract class BaseBridgeTransport implements Transport {
+  protected channel: BridgeChannel;
   protected side: TransportSide;
   protected started = false;
   protected closed = false;
@@ -204,7 +204,7 @@ abstract class BaseLoopbackTransport implements Transport {
   private _onerror?: (error: Error) => void;
   private _onclose?: () => void;
 
-  constructor(channel: LoopbackChannel, side: TransportSide) {
+  constructor(channel: BridgeChannel, side: TransportSide) {
     this.channel = channel;
     this.side = side;
   }
@@ -238,13 +238,13 @@ abstract class BaseLoopbackTransport implements Transport {
   }
 
   /**
-   * Start the transport. For loopback transports, this is a no-op
+   * Start the transport. For bridge transports, this is a no-op
    * but required by the Transport interface.
    */
   async start(): Promise<void> {
     if (this.started) {
       throw new Error(
-        `${this.side === "client" ? "LoopbackClientTransport" : "LoopbackServerTransport"} already started! If using Client/Server class, note that connect() calls start() automatically.`,
+        `${this.side === "client" ? "BridgeClientTransport" : "BridgeServerTransport"} already started! If using Client/Server class, note that connect() calls start() automatically.`,
       );
     }
     this.started = true;
@@ -295,12 +295,12 @@ abstract class BaseLoopbackTransport implements Transport {
   /**
    * Get reference to the opposite transport (set by factory)
    */
-  protected abstract getOppositeTransport(): BaseLoopbackTransport | undefined;
+  protected abstract getOppositeTransport(): BaseBridgeTransport | undefined;
 
   /**
    * Set reference to opposite transport (called by factory)
    */
-  abstract setOppositeTransport(transport: BaseLoopbackTransport): void;
+  abstract setOppositeTransport(transport: BaseBridgeTransport): void;
 
   /**
    * Internal method to deliver a message to this transport
@@ -320,22 +320,22 @@ abstract class BaseLoopbackTransport implements Transport {
 }
 
 /**
- * Client-side loopback transport
+ * Client-side bridge transport
  */
-export class LoopbackClientTransport extends BaseLoopbackTransport {
-  private oppositeTransport?: LoopbackServerTransport;
+export class BridgeClientTransport extends BaseBridgeTransport {
+  private oppositeTransport?: BridgeServerTransport;
 
-  constructor(channel: LoopbackChannel) {
+  constructor(channel: BridgeChannel) {
     super(channel, "client");
   }
 
-  protected getOppositeTransport(): BaseLoopbackTransport | undefined {
+  protected getOppositeTransport(): BaseBridgeTransport | undefined {
     return this.oppositeTransport;
   }
 
-  setOppositeTransport(transport: BaseLoopbackTransport): void {
-    if (!(transport instanceof LoopbackServerTransport)) {
-      throw new Error("Opposite transport must be LoopbackServerTransport");
+  setOppositeTransport(transport: BaseBridgeTransport): void {
+    if (!(transport instanceof BridgeServerTransport)) {
+      throw new Error("Opposite transport must be BridgeServerTransport");
     }
     this.oppositeTransport = transport;
   }
@@ -352,22 +352,22 @@ export class LoopbackClientTransport extends BaseLoopbackTransport {
 }
 
 /**
- * Server-side loopback transport
+ * Server-side bridge transport
  */
-export class LoopbackServerTransport extends BaseLoopbackTransport {
-  private oppositeTransport?: LoopbackClientTransport;
+export class BridgeServerTransport extends BaseBridgeTransport {
+  private oppositeTransport?: BridgeClientTransport;
 
-  constructor(channel: LoopbackChannel) {
+  constructor(channel: BridgeChannel) {
     super(channel, "server");
   }
 
-  protected getOppositeTransport(): BaseLoopbackTransport | undefined {
+  protected getOppositeTransport(): BaseBridgeTransport | undefined {
     return this.oppositeTransport;
   }
 
-  setOppositeTransport(transport: BaseLoopbackTransport): void {
-    if (!(transport instanceof LoopbackClientTransport)) {
-      throw new Error("Opposite transport must be LoopbackClientTransport");
+  setOppositeTransport(transport: BaseBridgeTransport): void {
+    if (!(transport instanceof BridgeClientTransport)) {
+      throw new Error("Opposite transport must be BridgeClientTransport");
     }
     this.oppositeTransport = transport;
   }
@@ -384,34 +384,34 @@ export class LoopbackServerTransport extends BaseLoopbackTransport {
 }
 
 /**
- * Result of creating a loopback transport pair
+ * Result of creating a bridge transport pair
  */
-export interface LoopbackTransportPair {
+export interface BridgeTransportPair {
   /**
    * Client-side transport (for MCP Client)
    */
-  client: LoopbackClientTransport;
+  client: BridgeClientTransport;
   /**
    * Server-side transport (for MCP Server)
    */
-  server: LoopbackServerTransport;
+  server: BridgeServerTransport;
   /**
    * Internal channel (for advanced use cases)
    */
-  channel: LoopbackChannel;
+  channel: BridgeChannel;
 }
 
 /**
- * Create a pair of loopback transports for client-server communication.
+ * Create a pair of bridge transports for client-server communication.
  *
  * Uses microtask scheduling for message delivery, which frees the event loop
  * and prevents deep recursion while maintaining message ordering.
  *
- * @returns A pair of transports connected via a loopback channel
+ * @returns A pair of transports connected via a bridge channel
  *
  * @example
  * ```ts
- * const { client, server } = createLoopbackTransportPair();
+ * const { client, server } = createBridgeTransportPair();
  *
  * const mcpClient = new Client({ name: "test", version: "1.0.0" });
  * const mcpServer = new Server({ name: "test", version: "1.0.0" });
@@ -419,13 +419,13 @@ export interface LoopbackTransportPair {
  * await mcpServer.connect(server);
  * await mcpClient.connect(client);
  *
- * // Now client and server can communicate via loopback
+ * // Now client and server can communicate via bridge
  * ```
  */
-export function createLoopbackTransportPair(): LoopbackTransportPair {
-  const channel = new LoopbackChannel();
-  const client = new LoopbackClientTransport(channel);
-  const server = new LoopbackServerTransport(channel);
+export function createBridgeTransportPair(): BridgeTransportPair {
+  const channel = new BridgeChannel();
+  const client = new BridgeClientTransport(channel);
+  const server = new BridgeServerTransport(channel);
 
   // Register transports with channel (also links them for close notifications)
   channel.registerTransports(client, server);

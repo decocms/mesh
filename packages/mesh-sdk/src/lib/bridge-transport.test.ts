@@ -3,23 +3,23 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import {
-  createLoopbackTransportPair,
-  LoopbackClientTransport,
-  LoopbackServerTransport,
-} from "./loopback-transport";
+  createBridgeTransportPair,
+  BridgeClientTransport,
+  BridgeServerTransport,
+} from "./bridge-transport";
 
-describe("LoopbackTransport", () => {
-  describe("createLoopbackTransportPair", () => {
+describe("BridgeTransport", () => {
+  describe("createBridgeTransportPair", () => {
     it("should create a pair of transports", () => {
-      const { client, server, channel } = createLoopbackTransportPair();
+      const { client, server, channel } = createBridgeTransportPair();
 
-      expect(client).toBeInstanceOf(LoopbackClientTransport);
-      expect(server).toBeInstanceOf(LoopbackServerTransport);
+      expect(client).toBeInstanceOf(BridgeClientTransport);
+      expect(server).toBeInstanceOf(BridgeServerTransport);
       expect(channel).toBeDefined();
     });
 
     it("should create transports with microtask scheduling", () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
       expect(client).toBeDefined();
       expect(server).toBeDefined();
     });
@@ -27,7 +27,7 @@ describe("LoopbackTransport", () => {
 
   describe("message delivery", () => {
     it("should deliver messages in order client->server", async () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
 
       const receivedMessages: JSONRPCMessage[] = [];
 
@@ -63,7 +63,7 @@ describe("LoopbackTransport", () => {
     });
 
     it("should deliver messages in order server->client", async () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
 
       const receivedMessages: JSONRPCMessage[] = [];
 
@@ -99,7 +99,7 @@ describe("LoopbackTransport", () => {
     });
 
     it("should batch multiple messages in a single microtask", async () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
 
       const receivedMessages: JSONRPCMessage[] = [];
       let flushCount = 0;
@@ -128,17 +128,17 @@ describe("LoopbackTransport", () => {
 
   describe("start()", () => {
     it("should allow starting client transport", async () => {
-      const { client } = createLoopbackTransportPair();
+      const { client } = createBridgeTransportPair();
       await expect(client.start()).resolves.toBeUndefined();
     });
 
     it("should allow starting server transport", async () => {
-      const { server } = createLoopbackTransportPair();
+      const { server } = createBridgeTransportPair();
       await expect(server.start()).resolves.toBeUndefined();
     });
 
     it("should throw if started twice", async () => {
-      const { client } = createLoopbackTransportPair();
+      const { client } = createBridgeTransportPair();
       await client.start();
       await expect(client.start()).rejects.toThrow("already started");
     });
@@ -146,7 +146,7 @@ describe("LoopbackTransport", () => {
 
   describe("close()", () => {
     it("should close client transport and notify server", async () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
 
       await client.start();
       await server.start();
@@ -162,7 +162,7 @@ describe("LoopbackTransport", () => {
     });
 
     it("should close server transport and notify client", async () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
 
       await client.start();
       await server.start();
@@ -178,7 +178,7 @@ describe("LoopbackTransport", () => {
     });
 
     it("should prevent sending messages after close", async () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
 
       await client.start();
       await server.start();
@@ -211,7 +211,7 @@ describe("LoopbackTransport", () => {
     });
 
     it("should fire onclose exactly once", async () => {
-      const { client } = createLoopbackTransportPair();
+      const { client } = createBridgeTransportPair();
 
       await client.start();
 
@@ -229,7 +229,7 @@ describe("LoopbackTransport", () => {
 
   describe("error handling", () => {
     it("should catch and forward errors from onmessage handler", async () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
 
       await server.start();
       await client.start();
@@ -253,7 +253,7 @@ describe("LoopbackTransport", () => {
     });
 
     it("should continue processing messages after error", async () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
 
       await server.start();
       await client.start();
@@ -289,7 +289,7 @@ describe("LoopbackTransport", () => {
   describe("integration with MCP SDK", () => {
     it("should work with MCP Client and Server", async () => {
       const { client: clientTransport, server: serverTransport } =
-        createLoopbackTransportPair();
+        createBridgeTransportPair();
 
       const client = new Client({ name: "test-client", version: "1.0.0" });
       const server = new Server({ name: "test-server", version: "1.0.0" });
@@ -311,7 +311,7 @@ describe("LoopbackTransport", () => {
 
     it("should handle initialize handshake", async () => {
       const { client: clientTransport, server: serverTransport } =
-        createLoopbackTransportPair();
+        createBridgeTransportPair();
 
       const client = new Client({ name: "test-client", version: "1.0.0" });
       const server = new Server({ name: "test-server", version: "1.0.0" });
@@ -333,7 +333,7 @@ describe("LoopbackTransport", () => {
 
   describe("send() before start()", () => {
     it("should allow sending messages before start (messages may be queued)", async () => {
-      const { client, server } = createLoopbackTransportPair();
+      const { client, server } = createBridgeTransportPair();
 
       // Send message before starting - should not throw
       await expect(

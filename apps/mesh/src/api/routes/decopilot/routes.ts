@@ -150,6 +150,9 @@ app.post("/:org/decopilot/stream", async (c) => {
     const shouldGenerateTitle = prunedMessages.length === 1;
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
     let newTitle: string | null = null;
+
+    console.log("shouldGenerateTitle", shouldGenerateTitle);
+
     // 4. Main stream
     const result = streamText({
       model: modelProvider.model,
@@ -173,6 +176,7 @@ app.post("/:org/decopilot/stream", async (c) => {
             model: modelToUse,
             userMessage,
             onTitle: (title) => {
+              console.log("title", title);
               newTitle = title;
               ctx.storage.threads
                 .update(memory.thread.id, { title })
