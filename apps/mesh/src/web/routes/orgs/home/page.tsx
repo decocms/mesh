@@ -24,6 +24,7 @@ import {
 } from "@decocms/mesh-sdk";
 import {
   ClockRewind,
+  CpuChip02,
   MessageChatSquare,
   Pin01,
   Plus,
@@ -179,6 +180,7 @@ function HomeContent() {
                 icon={displayAgent.icon}
                 name={displayAgent.title}
                 size="md"
+                fallbackIcon={<CpuChip02 size={20} />}
                 className="size-12 rounded-xl border border-stone-200/60 shadow-sm aspect-square transition-opacity duration-200"
               />
             </div>
