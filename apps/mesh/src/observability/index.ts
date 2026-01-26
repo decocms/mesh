@@ -248,7 +248,15 @@ const emitLog = (
       if (arg instanceof Error) {
         return `${arg.name}: ${arg.message}`;
       }
-      return typeof arg === "object" ? JSON.stringify(arg) : String(arg);
+      if (typeof arg === "object") {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          // Handle circular structures, BigInt, or other non-serializable values
+          return "[Object]";
+        }
+      }
+      return String(arg);
     })
     .join(" ");
 
