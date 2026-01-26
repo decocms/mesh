@@ -22,7 +22,7 @@
   "private": true,
   "scripts": {
     "link": "deco link -p 3000 -e MESH_URL -- bun run dev",
-    "dev": "bun run --cwd=apps/mesh dev",
+    "dev": "bun run --env-file=.env --cwd=apps/mesh dev",
     "fmt": "biome format --write",
     "lint": "oxlint",
     "check": "bun run --workspaces check",
@@ -43,5 +43,10 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "@opentelemetry/api-logs": "^0.211.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.211.0",
+    "@opentelemetry/sdk-logs": "^0.211.0"
+  }
 }

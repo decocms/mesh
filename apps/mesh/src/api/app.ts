@@ -24,7 +24,12 @@ import {
 import type { MeshContext } from "../core/mesh-context";
 import { getDb, type MeshDatabase } from "../database";
 import { createEventBus, type EventBus } from "../event-bus";
-import { meter, prometheusExporter, tracer } from "../observability";
+import {
+  meter,
+  prometheusExporter,
+  tracer,
+  tracingMiddleware,
+} from "../observability";
 import authRoutes from "./routes/auth";
 import decopilotRoutes from "./routes/decopilot";
 import downstreamTokenRoutes from "./routes/downstream-token";
@@ -175,6 +180,9 @@ export function createApp(options: CreateAppOptions = {}) {
         process.env.NODE_ENV !== "production" || getCookie(c, "debug") === "1",
     }),
   );
+
+  // OpenTelemetry tracing middleware
+  app.use("*", tracingMiddleware);
 
   // CORS middleware
   app.use(

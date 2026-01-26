@@ -6,8 +6,6 @@
  * with ML-based services like Microsoft Presidio.
  */
 
-import { tracer } from "../observability";
-
 // ============================================================================
 // Redactor Interface
 // ============================================================================
@@ -59,73 +57,41 @@ export class RegexRedactor implements Redactor {
   ];
 
   redact(data: unknown): unknown {
-    return tracer.startActiveSpan("redactor.redact", (span) => {
-      try {
-        if (data === null || data === undefined) {
-          return data;
-        }
+    if (data === null || data === undefined) {
+      return data;
+    }
 
-        // Handle strings
-        if (typeof data === "string") {
-          span.setAttribute("data.type", "string");
-          return this.redactString(data);
-        }
+    // Handle strings
+    if (typeof data === "string") {
+      return this.redactString(data);
+    }
 
-        // Handle arrays
-        if (Array.isArray(data)) {
-          span.setAttribute("data.type", "array");
-          span.setAttribute("data.length", data.length);
-          return data.map((item) => this.redact(item));
-        }
+    // Handle arrays
+    if (Array.isArray(data)) {
+      return data.map((item) => this.redact(item));
+    }
 
-        // Handle objects
-        if (typeof data === "object") {
-          span.setAttribute("data.type", "object");
-          const redacted: Record<string, unknown> = {};
-          for (const [key, value] of Object.entries(data)) {
-            // Redact both key and value
-            const redactedKey = this.redactString(key);
-            redacted[redactedKey] = this.redact(value);
-          }
-          return redacted;
-        }
-
-        // Return primitives as-is (numbers, booleans, etc.)
-        span.setAttribute("data.type", typeof data);
-        return data;
-      } finally {
-        span.end();
+    // Handle objects
+    if (typeof data === "object") {
+      const redacted: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(data)) {
+        // Redact both key and value
+        const redactedKey = this.redactString(key);
+        redacted[redactedKey] = this.redact(value);
       }
-    });
+      return redacted;
+    }
+    // Return primitives as-is (numbers, booleans, etc.)
+    return data;
   }
 
   redactString(text: string): string {
-    return tracer.startActiveSpan("redactor.redactString", (span) => {
-      try {
-        span.setAttribute("text.length", text.length);
-        let redacted = text;
-        let redactionCount = 0;
+    let redacted = text;
 
-        for (const pattern of this.patterns) {
-          const matches = text.match(pattern.regex);
-          if (matches) {
-            redactionCount += matches.length;
-            span.setAttribute(
-              `redaction.${pattern.type}.count`,
-              matches.length,
-            );
-          }
-          redacted = redacted.replace(
-            pattern.regex,
-            `[REDACTED:${pattern.type}]`,
-          );
-        }
+    for (const pattern of this.patterns) {
+      redacted = redacted.replace(pattern.regex, `[REDACTED:${pattern.type}]`);
+    }
 
-        span.setAttribute("redaction.total_count", redactionCount);
-        return redacted;
-      } finally {
-        span.end();
-      }
-    });
+    return redacted;
   }
 }
