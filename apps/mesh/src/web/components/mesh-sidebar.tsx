@@ -11,13 +11,11 @@ export function MeshSidebar() {
     <NavigationSidebar
       navigationItems={sidebarItems}
       additionalContent={
-        <>
-          <ErrorBoundary>
-            <Suspense fallback={null}>
-              <SidebarItemsSection />
-            </Suspense>
-          </ErrorBoundary>
-        </>
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <SidebarItemsSection />
+          </Suspense>
+        </ErrorBoundary>
       }
     />
   );

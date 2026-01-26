@@ -36,8 +36,8 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
-import { useThreadMessages } from "../../hooks/use-chat-store";
 import { useContext as useContextHook } from "../../hooks/use-context";
+import { useThreadMessages, useThreads } from "./use-threads";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { authClient } from "../../lib/auth-client";
@@ -505,26 +505,22 @@ const ChatContext = createContext<ChatContextValue | null>(null);
  * Provider component for chat context
  * Consolidates all chat-related state: interaction, threads, virtual MCP, model, and chat session
  */
-export function ChatProvider({
-  children,
-  initialThreads,
-  hasNextPage,
-  isFetchingNextPage,
-  fetchNextPage,
-}: PropsWithChildren & {
-  initialThreads: Thread[];
-  hasNextPage?: boolean;
-  isFetchingNextPage?: boolean;
-  fetchNextPage?: () => void;
-}) {
+export function ChatProvider({ children }: PropsWithChildren) {
   const { locator, org } = useProjectContext();
-  const [stateThreads, setStateThreads] = useLocalStorage<Thread[]>(
-    LOCALSTORAGE_KEYS.assistantChatThreads(locator),
-    initialThreads,
-  );
-  const [stateActiveThreadId, setStateActiveThreadId] = useLocalStorage<string>(
-    LOCALSTORAGE_KEYS.assistantChatActiveThread(locator) + ":state",
-    initialThreads[0]?.id ?? crypto.randomUUID(),
+
+  // Get threads from the API
+  const {
+    threads,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    refetch: refetchThreads,
+  } = useThreads();
+
+  // Only store active thread ID in localStorage (not the threads themselves)
+  const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
+    LOCALSTORAGE_KEYS.assistantChatActiveThread(locator),
+    threads[0]?.id ?? crypto.randomUUID(),
   );
   // ===========================================================================
   // 1. HOOKS - Call all hooks and derive state from them
@@ -556,7 +552,7 @@ export function ChatProvider({
   const modelsConnections = useModelConnections();
   const [selectedModel, setModel] = useModelState(locator, modelsConnections);
   // Always fetch messages for the active thread - if it's truly new, the query returns empty
-  const initialMessages = useThreadMessages(stateActiveThreadId);
+  const initialMessages = useThreadMessages(activeThreadId);
 
   // Context prompt
   const contextPrompt = useContextHook(storedSelectedVirtualMcpId);
@@ -580,7 +576,6 @@ export function ChatProvider({
 
   const onFinish = async ({
     finishReason,
-    messages: finishMessages,
     isAbort,
     isDisconnect,
     isError,
@@ -597,60 +592,9 @@ export function ChatProvider({
       return;
     }
 
-    // Only add the assistant message - user message was already added before sendMessage
-    const newMessages = finishMessages.slice(-1).filter(Boolean) as Message[];
-
-    if (newMessages.length !== 1) {
-      console.warn("[chat] Expected 1 message, got", newMessages.length);
-      return;
-    }
-
-    const title = finishMessages.find((message) => message.metadata?.title)
-      ?.metadata?.title;
-
-    const isNewThread =
-      stateThreads.findIndex((thread) => thread.id === stateActiveThreadId) ===
-      -1;
-
-    if (isNewThread) {
-      setStateThreads((prevThreads) => {
-        const existingThread = prevThreads.find(
-          (thread) => thread.id === stateActiveThreadId,
-        );
-        if (existingThread) {
-          return prevThreads;
-        }
-        const now = new Date().toISOString();
-        const firstMessageCreatedAt =
-          newMessages[0]?.metadata?.created_at ?? now;
-        const parsedFirstMessageCreatedAt =
-          typeof firstMessageCreatedAt === "string"
-            ? firstMessageCreatedAt
-            : new Date(firstMessageCreatedAt).toISOString();
-        return [
-          ...prevThreads,
-          {
-            id: stateActiveThreadId,
-            title: title ?? "New Thread",
-            createdAt: parsedFirstMessageCreatedAt,
-            updatedAt: parsedFirstMessageCreatedAt,
-          },
-        ];
-      });
-    } else {
-      // Update existing thread's updatedAt (and title if available)
-      setStateThreads((prevThreads) =>
-        prevThreads.map((thread) =>
-          thread.id === stateActiveThreadId
-            ? {
-                ...thread,
-                updatedAt: new Date().toISOString(),
-                ...(title && { title }),
-              }
-            : thread,
-        ),
-      );
-    }
+    // Refetch threads to get the updated list from the API
+    // The backend handles thread creation/updates when messages are saved
+    await refetchThreads();
   };
 
   const onError = (error: Error) => {
@@ -662,7 +606,7 @@ export function ChatProvider({
   // ===========================================================================
 
   const chat = useAIChat<UIMessage<Metadata>>({
-    id: stateActiveThreadId,
+    id: activeThreadId,
     messages: initialMessages,
     transport,
     onFinish,
@@ -697,18 +641,16 @@ export function ChatProvider({
         hidden: true,
       });
       if (updatedThread) {
-        const willHideCurrentThread = threadId === stateActiveThreadId;
-        const firstDifferentThread = stateThreads.find(
-          (thread) => thread.id !== threadId,
-        );
+        const willHideCurrentThread = threadId === activeThreadId;
         if (willHideCurrentThread) {
-          setStateActiveThreadId(
-            firstDifferentThread?.id ?? crypto.randomUUID(),
+          // Find a different thread to switch to
+          const firstDifferentThread = threads.find(
+            (thread) => thread.id !== threadId,
           );
+          setActiveThreadId(firstDifferentThread?.id ?? crypto.randomUUID());
         }
-        setStateThreads((prevThreads) =>
-          prevThreads.filter((thread) => thread.id !== threadId),
-        );
+        // Refetch threads to get the updated list from the API
+        await refetchThreads();
       }
     } catch (error) {
       const err = error as Error;
@@ -745,7 +687,7 @@ export function ChatProvider({
     const messageMetadata: Metadata = {
       tiptapDoc,
       created_at: new Date().toISOString(),
-      thread_id: stateActiveThreadId,
+      thread_id: activeThreadId,
       cheapModelId: selectedModel.cheapModelId,
       agent: {
         id: selectedVirtualMcp?.id ?? null,
@@ -797,10 +739,10 @@ export function ChatProvider({
     clearTiptapDoc,
     resetInteraction,
 
-    // Thread management
-    activeThreadId: stateActiveThreadId,
-    threads: stateThreads,
-    setActiveThreadId: setStateActiveThreadId,
+    // Thread management (using API data directly)
+    activeThreadId,
+    threads,
+    setActiveThreadId,
     hideThread,
 
     // Thread pagination

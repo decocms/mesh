@@ -85,7 +85,6 @@ export interface Thread {
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
   hidden?: boolean;
-  virtualMcpId?: string; // Associate thread with specific virtual MCP
 }
 
 export type Message = UIMessage<Metadata>;

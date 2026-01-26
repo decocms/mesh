@@ -13,8 +13,13 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useVirtualMCPs, type VirtualMCPEntity } from "@decocms/mesh-sdk";
-import { Check, CpuChip02, SearchMd } from "@untitledui/icons";
+import {
+  getWellKnownDecopilotAgent,
+  useProjectContext,
+  useVirtualMCPs,
+  type VirtualMCPEntity,
+} from "@decocms/mesh-sdk";
+import { Check, ChevronDown, CpuChip02, SearchMd } from "@untitledui/icons";
 import {
   useEffect,
   useRef,
@@ -49,7 +54,7 @@ function VirtualMCPItemContent({
         name={virtualMcp.title}
         size="sm"
         fallbackIcon={virtualMcp.fallbackIcon ?? <CpuChip02 />}
-        className="size-10 rounded-xl border border-stone-200/60 shadow-sm shrink-0"
+        className="rounded-xl border border-stone-200/60 shadow-sm shrink-0 aspect-square"
       />
 
       {/* Text Content */}
@@ -211,10 +216,29 @@ export function VirtualMCPSelector({
 }: VirtualMCPSelectorProps) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const { org } = useProjectContext();
 
   // Use provided virtual MCPs or fetch from hook
   const virtualMcpsFromHook = useVirtualMCPs();
   const virtualMcps = virtualMcpsProp ?? virtualMcpsFromHook;
+
+  // Get default Decopilot agent info
+  const defaultAgent = getWellKnownDecopilotAgent(org.id);
+
+  const selectedVirtualMcp = selectedVirtualMcpId
+    ? virtualMcps.find((g) => g.id === selectedVirtualMcpId)
+    : null;
+
+  const selected = selectedVirtualMcp ?? defaultAgent;
+
+  const handleVirtualMcpChange = (virtualMcpId: string) => {
+    onVirtualMcpChange(virtualMcpId);
+    setOpen(false);
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+  };
 
   // Focus search input when dialog opens
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -227,50 +251,6 @@ export function VirtualMCPSelector({
     }
   }, [open]);
 
-  const selectedVirtualMcp = selectedVirtualMcpId
-    ? virtualMcps.find((g) => g.id === selectedVirtualMcpId)
-    : null;
-
-  const handleVirtualMcpChange = (virtualMcpId: string) => {
-    onVirtualMcpChange(virtualMcpId);
-    setOpen(false);
-  };
-
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-  };
-
-  const triggerButton = (
-    <button
-      type="button"
-      disabled={disabled}
-      className={cn(
-        "flex items-center justify-center p-1 rounded-md transition-colors shrink-0",
-        disabled
-          ? "cursor-not-allowed opacity-50"
-          : "cursor-pointer hover:bg-accent",
-        className,
-      )}
-      aria-label={placeholder}
-    >
-      {selectedVirtualMcp ? (
-        <IntegrationIcon
-          icon={selectedVirtualMcp.icon}
-          name={selectedVirtualMcp.title}
-          size="xs"
-          fallbackIcon={<CpuChip02 size={12} />}
-          className="size-5 rounded-md"
-        />
-      ) : (
-        <img
-          src="/favicon.svg"
-          alt="Default Agent"
-          className="size-5 rounded-md"
-        />
-      )}
-    </button>
-  );
-
   return (
     <Popover
       open={disabled ? false : open}
@@ -279,7 +259,35 @@ export function VirtualMCPSelector({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                disabled={disabled}
+                className={cn(
+                  "flex items-center gap-1.5 px-1.5 py-1 rounded-md transition-colors shrink-0",
+                  disabled
+                    ? "cursor-not-allowed opacity-50"
+                    : "cursor-pointer hover:bg-accent",
+                  className,
+                )}
+                aria-label={placeholder}
+              >
+                <IntegrationIcon
+                  icon={selected.icon}
+                  name={selected.title}
+                  size="xs"
+                  fallbackIcon={<CpuChip02 size={12} />}
+                  className="rounded-md shrink-0 aspect-square"
+                />
+                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 hidden sm:inline-block">
+                  {selected.title}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className="text-muted-foreground opacity-50 shrink-0"
+                />
+              </button>
+            </PopoverTrigger>
           </TooltipTrigger>
           {showTooltip && !open && (
             <TooltipContent side="top" className="text-xs">

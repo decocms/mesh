@@ -4,34 +4,50 @@
  * List all messages for a specific thread.
  */
 
-import { z } from "zod";
+import {
+  CollectionListInputSchema,
+  createCollectionListOutputSchema,
+  type WhereExpression,
+} from "@decocms/bindings/collections";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
 import { ThreadMessageEntitySchema } from "./schema";
 
 /**
- * Input schema for listing thread messages
+ * Extract threadId from where clause
  */
-const ListMessagesInputSchema = z.object({
-  threadId: z.string().describe("ID of the thread to list messages for"),
-  limit: z.number().optional().describe("Maximum number of messages to return"),
-  offset: z.number().optional().describe("Number of messages to skip"),
-});
+function extractThreadIdFromWhere(
+  where: WhereExpression | undefined,
+): string | null {
+  if (!where) return null;
+  if (
+    "field" in where &&
+    where.field[0] === "threadId" &&
+    where.operator === "eq"
+  ) {
+    return String(where.value);
+  }
+  if ("conditions" in where) {
+    for (const condition of where.conditions) {
+      const found = extractThreadIdFromWhere(condition);
+      if (found) return found;
+    }
+  }
+  return null;
+}
 
 /**
  * Output schema for thread messages list
  */
-const ListMessagesOutputSchema = z.object({
-  items: z.array(ThreadMessageEntitySchema).describe("List of thread messages"),
-  totalCount: z.number().describe("Total number of messages in the thread"),
-  hasMore: z.boolean().describe("Whether there are more messages available"),
-});
+const ListMessagesOutputSchema = createCollectionListOutputSchema(
+  ThreadMessageEntitySchema,
+);
 
 export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
   name: "COLLECTION_THREAD_MESSAGES_LIST",
   description: "List all messages for a specific thread",
 
-  inputSchema: ListMessagesInputSchema,
+  inputSchema: CollectionListInputSchema,
   outputSchema: ListMessagesOutputSchema,
 
   handler: async (input, ctx) => {
@@ -39,8 +55,14 @@ export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
 
     await ctx.access.check();
 
+    // Extract threadId from where clause
+    const threadId = extractThreadIdFromWhere(input.where);
+    if (!threadId) {
+      throw new Error("threadId filter is required in where clause");
+    }
+
     // First verify the thread exists and belongs to the organization
-    const thread = await ctx.storage.threads.get(input.threadId);
+    const thread = await ctx.storage.threads.get(threadId);
     if (!thread || thread.organizationId !== organization.id) {
       throw new Error("Thread not found in organization");
     }
@@ -49,7 +71,7 @@ export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
     const limit = input.limit ?? 100;
 
     const { messages, total } = await ctx.storage.threads.listMessages(
-      input.threadId,
+      threadId,
       { limit, offset },
     );
 
