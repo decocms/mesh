@@ -73,6 +73,7 @@ export function usePollingWorkflowExecution(executionId?: string) {
 export function useExecutionCompletedStep(
   executionId?: string,
   stepName?: string,
+  options?: { refetchInterval?: number | false; enabled?: boolean },
 ) {
   const { org } = useProjectContext();
   const connection = useWorkflowBindingConnection();
@@ -81,6 +82,8 @@ export function useExecutionCompletedStep(
     connectionId: connection.id,
     orgId: org.id,
   });
+
+  const isEnabled = (options?.enabled ?? true) && !!executionId && !!stepName;
 
   const { data, isLoading } = useMCPToolCallQuery<{
     output: unknown | null;
@@ -92,7 +95,8 @@ export function useExecutionCompletedStep(
       executionId: executionId,
       stepId: stepName,
     },
-    enabled: !!executionId && !!stepName,
+    enabled: isEnabled,
+    refetchInterval: options?.refetchInterval,
     select: (result) =>
       ((result as { structuredContent?: unknown }).structuredContent ??
         result) as { output: unknown | null; error: string | null },

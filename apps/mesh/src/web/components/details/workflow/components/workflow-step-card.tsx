@@ -1,13 +1,13 @@
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
-  DotsHorizontal,
-  Tool01,
-  Check,
-  XClose,
-  Loading01,
   AlertOctagon,
   Calendar,
+  Check,
+  DotsHorizontal,
+  Loading01,
+  Tool01,
+  XClose,
 } from "@untitledui/icons";
 import { Code } from "lucide-react";
 import type { Step } from "@decocms/bindings/workflow";
@@ -19,9 +19,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { Trash2, Copy } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import type { StepExecutionStatus } from "../hooks/derived/use-step-execution-status";
-import { usePollingWorkflowExecution } from "../hooks/queries/use-workflow-collection-item";
+import {
+  useExecutionCompletedStep,
+  usePollingWorkflowExecution,
+} from "../hooks/queries/use-workflow-collection-item";
 import { useTrackingExecutionId } from "../stores/workflow";
 
 interface WorkflowStepCardProps {
@@ -50,6 +53,7 @@ export function WorkflowStepCard({
   const trackingExecutionId = useTrackingExecutionId();
   const { item: executionItem } =
     usePollingWorkflowExecution(trackingExecutionId);
+
   const completedSteps = executionItem?.completed_steps;
   const successSteps = completedSteps?.success;
   const thisStep = successSteps?.find(
@@ -88,6 +92,59 @@ export function WorkflowStepCard({
   const lineNumberColor = getLineNumberColor(status);
   const connectorColor = getConnectorColor(status);
 
+  function resolveRefPath(
+    values: unknown,
+    refPath: string,
+  ): unknown[] | undefined {
+    const parts = refPath.split(".");
+    // Skip the first part (step name) since targetOutput is already the output of that step
+    const pathParts = parts.slice(1);
+
+    if (pathParts.length === 0) {
+      // No nested path, return the entire output
+      return Array.isArray(values) ? values : undefined;
+    }
+
+    // Traverse the remaining path
+    let result: unknown = values;
+    for (const part of pathParts) {
+      if (result === null || result === undefined) {
+        return undefined;
+      }
+      if (typeof result === "object") {
+        result = (result as Record<string, unknown>)[part];
+      } else {
+        return undefined;
+      }
+    }
+    return Array.isArray(result) ? result : undefined;
+  }
+
+  const isForEachStep = step.forEach !== undefined;
+  const targetRef = step.forEach?.ref;
+  const targetStep = targetRef?.replace("@", "").split(".")[0];
+  const isExecutionRunning =
+    executionItem?.status === "running" || executionItem?.status === "enqueued";
+  // Check if the target step has completed before querying for its output
+  const isTargetStepCompleted = successSteps?.some(
+    (completedStep) => completedStep.name === targetStep,
+  );
+  const { output: targetOutput } = useExecutionCompletedStep(
+    trackingExecutionId,
+    targetStep,
+    {
+      refetchInterval: isExecutionRunning ? 500 : false,
+      enabled: isTargetStepCompleted,
+    },
+  );
+  const refPath = targetRef?.replace("@", "");
+  const refValue = refPath ? resolveRefPath(targetOutput, refPath) : undefined;
+  const completedForEachItems = executionItem?.completed_steps?.success?.filter(
+    (completedStep) => {
+      const regex = new RegExp(`^${step.name}\\[\\d+\\]$`);
+      return regex.test(completedStep.name);
+    },
+  );
   return (
     <div
       className={cn(
@@ -159,8 +216,15 @@ export function WorkflowStepCard({
             {getStepDisplayName(step)}
           </span>
 
-          {/* Status Icon on the right */}
-          {isTracking && <HeaderStatusIcon status={status} />}
+          <div className="flex items-center gap-2">
+            {isForEachStep && refValue && refValue.length > 0 && (
+              <span className="text-xs font-mono opacity-75 h-8 flex items-center">
+                {`${completedForEachItems?.length ?? 0} / ${refValue.length}`}
+              </span>
+            )}
+            {/* Status Icon on the right */}
+            {isTracking && <HeaderStatusIcon status={status} />}
+          </div>
 
           {/* Actions Menu - only show when not tracking */}
           {!isTracking && (
@@ -405,7 +469,7 @@ function getOutputSchemaProperties(step: Step): string[] {
   const schema = step.outputSchema;
   if (!schema || typeof schema !== "object") return [];
 
-  const properties = (schema as Record<string, unknown>).properties;
+  const properties = schema.properties ?? schema.items?.properties;
   if (!properties || typeof properties !== "object") return [];
 
   // Get top-level property names
