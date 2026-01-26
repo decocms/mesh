@@ -6,36 +6,35 @@
  */
 
 import {
-  trace,
-  metrics,
   context,
   createContextKey,
-  SpanStatusCode,
+  metrics,
+  trace,
   type Attributes,
   type Context,
+  type Exception,
   type Link,
   type Span,
   type SpanKind,
-  type Exception,
 } from "@opentelemetry/api";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
+import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
+import { PrometheusExporter } from "@opentelemetry/exporter-prometheus";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
+import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
+import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
+import type { MetricReader } from "@opentelemetry/sdk-metrics";
+import { NodeSDK } from "@opentelemetry/sdk-node";
 import {
   SamplingDecision,
   SamplingResult,
 } from "@opentelemetry/sdk-trace-base";
-import { logs, SeverityNumber } from "@opentelemetry/api-logs";
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { PrometheusExporter } from "@opentelemetry/exporter-prometheus";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
-import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
-import type { MetricReader } from "@opentelemetry/sdk-metrics";
-import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
-import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 
 // Constants
-export const DEBUG_QS = "__d";
-export const REQUEST_CONTEXT_KEY = createContextKey("Current request");
-export const HEAD_SAMPLER_RATIO = 0.1; // 10% sampling by default
+const DEBUG_QS = "__d";
+const REQUEST_CONTEXT_KEY = createContextKey("Current request");
+const HEAD_SAMPLER_RATIO = 0.1; // 10% sampling by default
 
 // Sampler types - inline to avoid module resolution issues
 interface Sampler {
@@ -84,7 +83,7 @@ export const setCorrelationIdHeader = (
  * Debug Sampler - always samples when __d query param or x-trace-debug-id header is present
  * Falls back to inner sampler (10% ratio) otherwise
  */
-export class DebugSampler implements Sampler {
+class DebugSampler implements Sampler {
   constructor(protected inner?: Sampler) {}
 
   shouldSample(
@@ -217,7 +216,7 @@ export const meter = metrics.getMeter("mesh", "1.0.0");
 /**
  * Get logger instance
  */
-export const logger = logs.getLogger("mesh", "1.0.0");
+const logger = logs.getLogger("mesh", "1.0.0");
 
 /**
  * Helper to emit a log record with current trace context
@@ -299,7 +298,7 @@ export const withRequest = (req: Request): Context => {
 /**
  * Export context utilities for setting request context
  */
-export { context, SpanStatusCode, type Span, type Exception };
+export { type Exception, type Span };
 
 /**
  * Export tracing middleware
