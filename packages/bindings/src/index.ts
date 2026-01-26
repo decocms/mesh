@@ -114,3 +114,9 @@ export {
   PERPLEXITY_BINDING,
   PerplexityBinding,
 } from "./well-known/perplexity";
+
+// Re-export Firecrawl binding types
+export {
+  FIRECRAWL_BINDING,
+  FirecrawlBinding,
+} from "./well-known/firecrawl";
