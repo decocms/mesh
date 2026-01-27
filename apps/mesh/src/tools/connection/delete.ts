@@ -8,26 +8,10 @@ import {
   CollectionDeleteInputSchema,
   createCollectionDeleteOutputSchema,
 } from "@decocms/bindings/collections";
-import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
+import { isDevAssetsConnection } from "./dev-assets";
 import { ConnectionEntitySchema } from "./schema";
-
-/**
- * Check if a connection is a fixed/non-deletable connection.
- * Fixed connections are system-managed and cannot be deleted by users.
- */
-function isFixedConnection(
-  connectionId: string,
-  organizationId: string,
-): boolean {
-  // Dev-assets connection is fixed (non-deletable in dev mode)
-  if (connectionId === WellKnownOrgMCPId.DEV_ASSETS(organizationId)) {
-    return true;
-  }
-
-  return false;
-}
 
 export const COLLECTION_CONNECTIONS_DELETE = defineTool({
   name: "COLLECTION_CONNECTIONS_DELETE",
@@ -47,7 +31,7 @@ export const COLLECTION_CONNECTIONS_DELETE = defineTool({
     await ctx.access.check();
 
     // Check if this is a fixed connection that cannot be deleted
-    if (isFixedConnection(input.id, organization.id)) {
+    if (isDevAssetsConnection(input.id, organization.id)) {
       throw new Error(
         "This connection is a fixed system connection and cannot be deleted",
       );
