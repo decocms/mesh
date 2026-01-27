@@ -15,6 +15,22 @@ import { z } from "zod";
 import { type ConnectionEntity, type ToolDefinition } from "./schema";
 
 /**
+ * Cached tool definitions for dev-assets connection.
+ * Computed once at module load time to avoid repeated z.toJSONSchema conversions.
+ */
+const DEV_ASSETS_TOOLS: ToolDefinition[] = OBJECT_STORAGE_BINDING.map(
+  (binding: (typeof OBJECT_STORAGE_BINDING)[number]) => ({
+    name: binding.name,
+    description: `${binding.name} operation for local file storage`,
+    inputSchema: z.toJSONSchema(binding.inputSchema) as Record<string, unknown>,
+    outputSchema: z.toJSONSchema(binding.outputSchema) as Record<
+      string,
+      unknown
+    >,
+  }),
+);
+
+/**
  * Check if we're running in dev mode
  */
 export function isDevMode(): boolean {
@@ -42,22 +58,6 @@ export function createDevAssetsConnectionEntity(
 ): ConnectionEntity {
   const connectionData = getWellKnownDevAssetsConnection(baseUrl, orgId);
 
-  // Convert OBJECT_STORAGE_BINDING to tool definitions
-  const tools: ToolDefinition[] = OBJECT_STORAGE_BINDING.map(
-    (binding: (typeof OBJECT_STORAGE_BINDING)[number]) => ({
-      name: binding.name,
-      description: `${binding.name} operation for local file storage`,
-      inputSchema: z.toJSONSchema(binding.inputSchema) as Record<
-        string,
-        unknown
-      >,
-      outputSchema: z.toJSONSchema(binding.outputSchema) as Record<
-        string,
-        unknown
-      >,
-    }),
-  );
-
   const now = new Date().toISOString();
 
   return {
@@ -79,7 +79,7 @@ export function createDevAssetsConnectionEntity(
     configuration_state: null,
     configuration_scopes: null,
     metadata: connectionData.metadata ?? null,
-    tools,
+    tools: DEV_ASSETS_TOOLS,
     bindings: ["OBJECT_STORAGE"],
     status: "active",
   };
