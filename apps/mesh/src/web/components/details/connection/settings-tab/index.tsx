@@ -16,7 +16,7 @@ import {
   type StdioConnectionParameters,
   type HttpConnectionParameters,
 } from "@decocms/mesh-sdk";
-import { authenticateMcp } from "@/web/lib/mcp-oauth";
+import { authenticateMcp, openOAuthPopup } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -507,10 +507,22 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   };
 
   const handleAuthenticate = async () => {
+    // Open popup synchronously in click handler to avoid popup blocker (Safari/iOS)
+    const popupWindow = openOAuthPopup();
+    if (!popupWindow) {
+      toast.error(
+        "Popup was blocked. Please allow popups for this site and try again.",
+      );
+      return;
+    }
+
     const { token, tokenInfo, error } = await authenticateMcp({
       connectionId: connection.id,
+      popupWindow,
     });
     if (error || !token) {
+      // Close the popup if authentication failed
+      popupWindow.close();
       toast.error(`Authentication failed: ${error}`);
       return;
     }

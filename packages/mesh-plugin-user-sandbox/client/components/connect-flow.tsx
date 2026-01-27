@@ -18,7 +18,11 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@deco/ui/components/sonner.tsx";
-import { authenticateMcp, isConnectionAuthenticated } from "@decocms/mesh-sdk";
+import {
+  authenticateMcp,
+  isConnectionAuthenticated,
+  openOAuthPopup,
+} from "@decocms/mesh-sdk";
 import { KEYS } from "../lib/query-keys";
 
 // ============================================================================
@@ -191,6 +195,19 @@ export function ConnectFlow({
   const handleConnect = async (app: RequiredApp) => {
     setConfiguringApp(app.app_name);
 
+    // Pre-open popup window synchronously in click handler to avoid popup blocker (Safari/iOS)
+    // We'll close it if OAuth isn't needed, or use it if it is
+    const isRemoteConnection =
+      app.connection_type === "HTTP" ||
+      app.connection_type === "SSE" ||
+      app.connection_type === "Websocket";
+
+    let popupWindow: Window | null = null;
+    if (isRemoteConnection) {
+      popupWindow = openOAuthPopup();
+      // Note: we don't throw if popup is blocked here - OAuth might not be needed
+    }
+
     try {
       // Step 1: Provision the connection
       const provisionRes = await fetch(
@@ -213,10 +230,6 @@ export function ConnectFlow({
       // Step 2: Check if connection needs authentication
       // For HTTP/SSE connections, probe the connection to see if it requires auth
       // OAuth discovery happens automatically - we don't need pre-configured oauth_config
-      const isRemoteConnection =
-        app.connection_type === "HTTP" ||
-        app.connection_type === "SSE" ||
-        app.connection_type === "Websocket";
 
       if (isRemoteConnection) {
         // Probe the connection to check if it requires authentication
@@ -228,12 +241,20 @@ export function ConnectFlow({
 
         // If not authenticated and supports OAuth, trigger OAuth flow
         if (!authStatus.isAuthenticated && authStatus.supportsOAuth) {
+          // Check if popup was blocked
+          if (!popupWindow) {
+            throw new Error(
+              "Popup was blocked. Please allow popups for this site and try again.",
+            );
+          }
+
           toast.info("Opening authentication window...");
 
           const authResult = await authenticateMcp({
             connectionId,
             clientName: app.title,
             timeout: 300000, // 5 minute timeout for OAuth
+            popupWindow,
           });
 
           if (authResult.error) {
@@ -267,6 +288,9 @@ export function ConnectFlow({
               );
             }
           }
+        } else {
+          // OAuth not needed, close the pre-opened popup
+          popupWindow?.close();
         }
         // If not authenticated but doesn't support OAuth, proceed anyway
         // The user may need to configure manually
@@ -280,6 +304,8 @@ export function ConnectFlow({
 
       toast.success(`${app.title} connected successfully`);
     } catch (err) {
+      // Close popup on error
+      popupWindow?.close();
       console.error("Connection error:", err);
       const error = err instanceof Error ? err : new Error("Failed to connect");
       toast.error(error.message);
