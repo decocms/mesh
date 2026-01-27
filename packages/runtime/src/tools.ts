@@ -395,19 +395,30 @@ export interface OAuthConfig {
   /**
    * Generates the authorization URL where users should be redirected
    * @param callbackUrl - The URL the OAuth provider will redirect back to with the code
+   * @param env - Optional environment variables (for accessing credentials)
    * @returns The full authorization URL to redirect the user to
    */
-  authorizationUrl: (callbackUrl: string) => string;
+  authorizationUrl: (callbackUrl: string, env?: any) => string;
   /**
    * Exchanges the authorization code for access tokens
    * Called when the OAuth callback is received with a code
+   * @param oauthParams - OAuth parameters including code and redirect_uri
+   * @param env - Optional environment variables (for accessing credentials)
    */
-  exchangeCode: (oauthParams: OAuthParams) => Promise<OAuthTokenResponse>;
+  exchangeCode: (
+    oauthParams: OAuthParams,
+    env?: any,
+  ) => Promise<OAuthTokenResponse>;
   /**
    * Refreshes the access token using a refresh token
    * Called when the client requests a new access token with grant_type=refresh_token
+   * @param refreshToken - The refresh token
+   * @param env - Optional environment variables (for accessing credentials)
    */
-  refreshToken?: (refreshToken: string) => Promise<OAuthTokenResponse>;
+  refreshToken?: (
+    refreshToken: string,
+    env?: any,
+  ) => Promise<OAuthTokenResponse>;
   /**
    * Optional: persistence for dynamic client registration (RFC7591)
    * If not provided, clients are accepted without validation

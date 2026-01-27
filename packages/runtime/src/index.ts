@@ -292,17 +292,17 @@ export const withRuntime = <
 
       // Authorization endpoint - redirects to external OAuth provider
       if (url.pathname === "/authorize") {
-        return oauthHandlers.handleAuthorize(req);
+        return oauthHandlers.handleAuthorize(req, env);
       }
 
       // OAuth callback - receives code from external OAuth provider
       if (url.pathname === "/oauth/callback") {
-        return oauthHandlers.handleOAuthCallback(req);
+        return oauthHandlers.handleOAuthCallback(req, env);
       }
 
       // Token endpoint - exchanges code for tokens
       if (url.pathname === "/token" && req.method === "POST") {
-        return oauthHandlers.handleToken(req);
+        return oauthHandlers.handleToken(req, env);
       }
 
       // Dynamic client registration (RFC7591)

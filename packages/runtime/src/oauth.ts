@@ -130,7 +130,7 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
    * Handle authorization request - redirects to external OAuth provider
    * Stateless: encodes all needed info in the state parameter
    */
-  const handleAuthorize = (req: Request): Response => {
+  const handleAuthorize = (req: Request, env?: any): Response => {
     const url = forceHttps(new URL(req.url));
     const redirectUri = url.searchParams.get("redirect_uri");
     const responseType = url.searchParams.get("response_type");
@@ -178,7 +178,7 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
     callbackUrl.searchParams.set("state", encodedState);
 
     // Get the external authorization URL from the config
-    const externalAuthUrl = oauth.authorizationUrl(callbackUrl.toString());
+    const externalAuthUrl = oauth.authorizationUrl(callbackUrl.toString(), env);
 
     // Redirect to external OAuth provider
     return Response.redirect(externalAuthUrl, 302);
@@ -188,7 +188,10 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
    * Handle OAuth callback from external provider
    * Stateless: decodes state to get redirect info, encodes token in code
    */
-  const handleOAuthCallback = async (req: Request): Promise<Response> => {
+  const handleOAuthCallback = async (
+    req: Request,
+    env?: any,
+  ): Promise<Response> => {
     const url = forceHttps(new URL(req.url));
     const code = url.searchParams.get("code");
     const encodedState = url.searchParams.get("state");
@@ -238,7 +241,7 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
         code,
         redirect_uri: cleanRedirectUri,
       };
-      const tokenResponse = await oauth.exchangeCode(oauthParams);
+      const tokenResponse = await oauth.exchangeCode(oauthParams, env);
 
       // Encode the token in our own code (stateless)
       const codePayload: CodePayload = {
@@ -282,7 +285,7 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
    * Supports both authorization_code and refresh_token grant types
    * Stateless: token is encoded in the code
    */
-  const handleToken = async (req: Request): Promise<Response> => {
+  const handleToken = async (req: Request, env?: any): Promise<Response> => {
     try {
       const contentType = req.headers.get("content-type") ?? "";
       let body: Record<string, string>;
@@ -319,7 +322,7 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
         }
 
         // Call the external provider to refresh the token
-        const newTokenResponse = await oauth.refreshToken(refresh_token);
+        const newTokenResponse = await oauth.refreshToken(refresh_token, env);
 
         const tokenResponse: Record<string, unknown> = {
           access_token: newTokenResponse.access_token,
