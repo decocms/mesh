@@ -72,8 +72,9 @@ function verifySignature(
 
 /**
  * Get content type from file extension
+ * Exported for use by dev-assets-mcp.ts
  */
-function getContentType(key: string): string {
+export function getContentType(key: string): string {
   const ext = key.split(".").pop()?.toLowerCase() || "";
   const contentTypes: Record<string, string> = {
     // Images

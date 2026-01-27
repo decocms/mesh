@@ -32,6 +32,7 @@ import { z } from "zod";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireOrganization } from "../../core/mesh-context";
 import { mcpServer, type ToolDefinition } from "../utils/mcp";
+import { getContentType } from "./dev-assets";
 
 // Base directory for dev assets (relative to cwd)
 const DEV_ASSETS_BASE_DIR = "./data/assets";
@@ -316,30 +317,8 @@ function createDevAssetsTools(
 
         const fileStat = await stat(filePath);
 
-        // Infer content type from extension
-        const ext = input.key.split(".").pop()?.toLowerCase() || "";
-        const contentTypes: Record<string, string> = {
-          jpg: "image/jpeg",
-          jpeg: "image/jpeg",
-          png: "image/png",
-          gif: "image/gif",
-          webp: "image/webp",
-          svg: "image/svg+xml",
-          pdf: "application/pdf",
-          json: "application/json",
-          txt: "text/plain",
-          html: "text/html",
-          css: "text/css",
-          js: "application/javascript",
-          ts: "application/typescript",
-          mp4: "video/mp4",
-          webm: "video/webm",
-          mp3: "audio/mpeg",
-          wav: "audio/wav",
-        };
-
         return {
-          contentType: contentTypes[ext] || "application/octet-stream",
+          contentType: getContentType(input.key),
           contentLength: fileStat.size,
           lastModified: fileStat.mtime.toISOString(),
           etag: generateEtag(filePath, fileStat.mtime, fileStat.size),
