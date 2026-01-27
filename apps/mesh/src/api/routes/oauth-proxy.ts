@@ -102,11 +102,51 @@ async function checkOriginSupportsOAuth(
           return wwwAuth;
         }
       }
+
+      // Fallback: Check if server has OAuth metadata endpoints even without WWW-Authenticate.
+      // Some servers like ClickHouse support OAuth but don't include WWW-Authenticate header.
+      const hasOAuthMetadata = await checkHasOAuthMetadata(connectionUrl);
+      if (hasOAuthMetadata) {
+        // Return a synthetic WWW-Authenticate value to indicate OAuth is supported
+        return 'Bearer realm="mcp"';
+      }
     }
 
     return null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Check if origin server has OAuth metadata endpoints available.
+ * This is a fallback for servers that support OAuth but don't include WWW-Authenticate header.
+ */
+async function checkHasOAuthMetadata(connectionUrl: string): Promise<boolean> {
+  try {
+    const connUrl = new URL(connectionUrl);
+
+    // Try authorization server metadata at origin root first (most common)
+    const authServerUrl = new URL(
+      "/.well-known/oauth-authorization-server",
+      connUrl.origin,
+    );
+    const authServerRes = await fetch(authServerUrl.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+
+    if (authServerRes.ok) {
+      const data = (await authServerRes.json()) as Record<string, unknown>;
+      // Verify it looks like valid authorization server metadata
+      if (data.authorization_endpoint || data.token_endpoint || data.issuer) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
   }
 }
 
@@ -374,7 +414,40 @@ const protectedResourceMetadataHandler = async (c: {
     // Parse the response and rewrite URLs to point to our proxy
     const data = (await response.json()) as Record<string, unknown>;
 
-    // Rewrite the resource and authorization_servers fields
+    // Detect if origin returned Authorization Server Metadata (RFC 8414) instead of
+    // Protected Resource Metadata (RFC 9728). Some servers like ClickHouse incorrectly
+    // return auth server metadata at the protected resource endpoint.
+    // Auth server metadata has 'issuer' but not 'resource', while protected resource
+    // metadata should have 'resource'.
+    const isAuthServerMetadata =
+      "issuer" in data &&
+      !("resource" in data) &&
+      ("authorization_endpoint" in data || "token_endpoint" in data);
+
+    if (isAuthServerMetadata) {
+      // Server returned auth server metadata instead of protected resource metadata.
+      // Generate clean synthetic protected resource metadata that points to our proxy.
+      // We don't spread the original data to avoid polluting the response with
+      // unexpected fields that could confuse MCP SDK clients.
+      const syntheticData = {
+        resource: proxyResourceUrl,
+        authorization_servers: [proxyAuthServer],
+        bearer_methods_supported: ["header"],
+        scopes_supported:
+          "scopes_supported" in data &&
+          Array.isArray(data.scopes_supported) &&
+          data.scopes_supported.length > 0
+            ? data.scopes_supported
+            : ["*"],
+      };
+
+      return new Response(JSON.stringify(syntheticData), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Origin returned proper protected resource metadata - rewrite URLs to our proxy
     const rewrittenData = {
       ...data,
       resource: proxyResourceUrl,
