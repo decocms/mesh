@@ -1,0 +1,120 @@
+/**
+ * Fetch Instrumentation for Bun
+ *
+ * Wraps global fetch to add OpenTelemetry tracing for outbound HTTP requests.
+ * Propagates trace context via W3C Trace Context headers.
+ *
+ * Note: This is needed because Bun's fetch doesn't use undici,
+ * so @opentelemetry/instrumentation-undici doesn't work.
+ */
+
+import {
+  context,
+  propagation,
+  SpanKind,
+  SpanStatusCode,
+  type Exception,
+} from "@opentelemetry/api";
+import { tracer } from "../index";
+
+// Store original fetch before wrapping
+const originalFetch = globalThis.fetch;
+
+/**
+ * Instrumented fetch that creates spans for outbound requests
+ * and propagates trace context.
+ */
+async function instrumentedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  // Parse URL from input
+  let url: URL;
+  let method: string;
+
+  if (input instanceof Request) {
+    url = new URL(input.url);
+    method = init?.method ?? input.method;
+  } else if (input instanceof URL) {
+    url = input;
+    method = init?.method ?? "GET";
+  } else {
+    url = new URL(input);
+    method = init?.method ?? "GET";
+  }
+
+  // Create span name: "HTTP METHOD host"
+  const spanName = `${method} ${url.host}`;
+
+  return tracer.startActiveSpan(
+    spanName,
+    {
+      kind: SpanKind.CLIENT,
+      attributes: {
+        "http.request.method": method,
+        "url.full": url.href,
+        "url.scheme": url.protocol.replace(":", ""),
+        "url.path": url.pathname,
+        "url.query": url.search || undefined,
+        "server.address": url.hostname,
+        "server.port": url.port ? Number(url.port) : undefined,
+      },
+    },
+    async (span) => {
+      try {
+        // Prepare headers with trace context propagation
+        const headers = new Headers(
+          init?.headers ?? (input instanceof Request ? input.headers : {}),
+        );
+
+        // Inject trace context into headers (W3C Trace Context)
+        propagation.inject(context.active(), headers, {
+          set: (carrier: Headers, key: string, value: string) =>
+            carrier.set(key, value),
+        });
+
+        // Create new init with propagated headers
+        const instrumentedInit: RequestInit = {
+          ...init,
+          headers,
+        };
+
+        // Make the actual fetch call with original fetch
+        const response = await originalFetch(input, instrumentedInit);
+
+        // Record response attributes
+        span.setAttribute("http.response.status_code", response.status);
+
+        // Set span status based on response
+        if (response.status >= 400) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: `HTTP ${response.status}`,
+          });
+        } else {
+          span.setStatus({ code: SpanStatusCode.OK });
+        }
+
+        return response;
+      } catch (error) {
+        // Record exception and set error status
+        span.recordException(error as Exception);
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error instanceof Error ? error.message : "Fetch failed",
+        });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
+}
+
+/**
+ * Enable fetch instrumentation by replacing global fetch
+ */
+export function enableFetchInstrumentation(): void {
+  // @ts-expect-error - Bun's fetch has extra properties like preconnect
+  globalThis.fetch = instrumentedFetch;
+}

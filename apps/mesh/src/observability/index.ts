@@ -21,9 +21,8 @@ import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
 import { PrometheusExporter } from "@opentelemetry/exporter-prometheus";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
 import { RuntimeNodeInstrumentation } from "@opentelemetry/instrumentation-runtime-node";
-import { PgInstrumentation } from "@opentelemetry/instrumentation-pg";
+import { enableFetchInstrumentation } from "./instrumentations/fetch";
 
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import type { MetricReader } from "@opentelemetry/sdk-metrics";
@@ -194,16 +193,15 @@ const sdk = new NodeSDK({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sampler: headSampler,
   logRecordProcessors: [new BatchLogRecordProcessor(new OTLPLogExporter())],
-  instrumentations: [
-    // HTTP instrumentation for Node.js http/https modules
-    new FetchInstrumentation(),
-    new RuntimeNodeInstrumentation(),
-    new PgInstrumentation(),
-  ],
+  instrumentations: [new RuntimeNodeInstrumentation()],
 });
 
 // Start SDK to enable metric collection and tracing
 sdk.start();
+
+// Enable custom Bun fetch instrumentation (must be after SDK start)
+// This wraps global fetch with tracing since Bun's fetch doesn't use undici
+enableFetchInstrumentation();
 
 /**
  * Get tracer instance
