@@ -10,7 +10,6 @@ import {
 } from "@decocms/bindings/collections";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
-import { isDevAssetsConnection } from "./dev-assets";
 import { ConnectionEntitySchema } from "./schema";
 
 export const COLLECTION_CONNECTIONS_DELETE = defineTool({
@@ -30,13 +29,6 @@ export const COLLECTION_CONNECTIONS_DELETE = defineTool({
     // Check authorization
     await ctx.access.check();
 
-    // Check if this is a fixed connection that cannot be deleted
-    if (isDevAssetsConnection(input.id, organization.id)) {
-      throw new Error(
-        "This connection is a fixed system connection and cannot be deleted",
-      );
-    }
-
     // Fetch connection before deleting to return the entity
     const connection = await ctx.storage.connections.findById(input.id);
     if (!connection) {
@@ -48,7 +40,7 @@ export const COLLECTION_CONNECTIONS_DELETE = defineTool({
       throw new Error("Connection not found in organization");
     }
 
-    // Additional check: if the connection has metadata.isFixed, block deletion
+    // Block deletion of fixed system connections (e.g., dev-assets in dev mode)
     const metadata = connection.metadata as Record<string, unknown> | null;
     if (metadata?.isFixed === true) {
       throw new Error(
