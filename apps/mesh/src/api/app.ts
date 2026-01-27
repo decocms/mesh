@@ -579,10 +579,9 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // Dev-only routes (local file storage MCP for testing object-storage plugin)
   if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { mountDevRoutes } =
-      require("./routes/dev-only") as typeof import("./routes/dev-only");
-    mountDevRoutes(app, mcpAuth);
+    import("./routes/dev-only").then(({ mountDevRoutes }) => {
+      mountDevRoutes(app, mcpAuth);
+    });
   }
 
   // Virtual MCP / Agent routes (must be before proxy to match /mcp/gateway and /mcp/virtual-mcp before /mcp/:connectionId)

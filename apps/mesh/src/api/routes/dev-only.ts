@@ -10,14 +10,19 @@
  * USAGE (in app.ts):
  * ```
  * if (process.env.NODE_ENV !== "production") {
- *   const { mountDevRoutes } = require("./routes/dev-only");
+ *   const { mountDevRoutes } = await import("./routes/dev-only");
  *   mountDevRoutes(app, mcpAuth);
  * }
  * ```
  */
 
-import type { MiddlewareHandler, Hono, Context } from "hono";
+import type { Context, Hono, MiddlewareHandler } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
+import devAssetsMcpRoutes, {
+  callDevAssetsTool,
+  handleDevAssetsMcpRequest,
+} from "./dev-assets-mcp";
+import devAssetsFileRoutes from "./dev-assets";
 
 /**
  * Mount all dev-only routes on the app
@@ -31,15 +36,6 @@ export function mountDevRoutes(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mcpAuth: MiddlewareHandler<any>,
 ) {
-  // Import the route handlers (using require for sync loading)
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const devAssetsMcpRoutes = require("./dev-assets-mcp").default;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const devAssetsFileRoutes = require("./dev-assets").default;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { handleDevAssetsMcpRequest, callDevAssetsTool } =
-    require("./dev-assets-mcp") as typeof import("./dev-assets-mcp");
-
   // Handle {org_id}_dev-assets connection ID pattern -> forward to dev-assets MCP
   // This allows the frontend to use the connection ID while routing to the dev MCP
   app.all(
