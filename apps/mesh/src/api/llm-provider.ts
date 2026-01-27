@@ -104,6 +104,70 @@ export interface LLMProvider extends ProviderV2 {
 }
 
 /**
+ * Convert AI SDK v6 callOptions to LLM binding format.
+ * Main differences:
+ * - AI SDK v6 tool-call uses `input: object`, binding expects `input: string` (JSON)
+ * - AI SDK v6 tool-result uses `output: { type, value }`, binding expects same format
+ */
+function convertCallOptionsForBinding(
+  options: LanguageModelV2CallOptions,
+): Parameters<LLMBindingClient["LLM_DO_GENERATE"]>[0]["callOptions"] {
+  const { prompt, ...rest } = options;
+
+  const convertedPrompt = prompt.map((msg) => {
+    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+      return {
+        ...msg,
+        content: msg.content.map((part) => {
+          if (part.type === "tool-call" && typeof part.input !== "string") {
+            // AI SDK v6 passes input as object, binding expects string
+            return {
+              ...part,
+              input: JSON.stringify(part.input),
+            };
+          }
+          return part;
+        }),
+      };
+    }
+    if (msg.role === "tool" && Array.isArray(msg.content)) {
+      return {
+        ...msg,
+        content: msg.content.map((part) => {
+          if (part.type === "tool-result") {
+            // Ensure output is in the correct format { type: "text", value: string }
+            const output = (part as { output?: unknown }).output;
+            let formattedOutput = output;
+            if (!output || typeof output !== "object") {
+              // If no output or not an object, wrap in text format
+              formattedOutput = {
+                type: "text",
+                value:
+                  typeof output === "string"
+                    ? output
+                    : JSON.stringify(output ?? ""),
+              };
+            }
+            return {
+              ...part,
+              output: formattedOutput,
+              result: (part as { result?: unknown }).result,
+            };
+          }
+          return part;
+        }),
+      };
+    }
+    return msg;
+  });
+
+  return {
+    ...rest,
+    prompt: convertedPrompt,
+  } as Parameters<LLMBindingClient["LLM_DO_GENERATE"]>[0]["callOptions"];
+}
+
+/**
  * Creates an AI SDK compatible provider for the given LLM binding
  * @param binding - The binding client to create the provider from
  * @returns The provider
@@ -135,9 +199,7 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
         supportedUrls,
         doGenerate: async (options: LanguageModelV2CallOptions) => {
           const response = await binding.LLM_DO_GENERATE({
-            callOptions: options as Parameters<
-              LLMBindingClient["LLM_DO_GENERATE"]
-            >[0]["callOptions"],
+            callOptions: convertCallOptionsForBinding(options),
             modelId,
           });
           const formattedTimestamp = response.response?.timestamp
@@ -159,7 +221,7 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
         },
         doStream: async (options: LanguageModelV2CallOptions) => {
           const response = await binding.LLM_DO_STREAM({
-            callOptions: options as Parameters<
+            callOptions: convertCallOptionsForBinding(options) as Parameters<
               LLMBindingClient["LLM_DO_STREAM"]
             >[0]["callOptions"],
             modelId,
