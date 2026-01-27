@@ -72,6 +72,21 @@ const connectRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/connect.tsx")),
 });
 
+/**
+ * Store invite route - deep links to store apps without knowing the org slug
+ * After login, redirects to the user's first org and first registry
+ */
+const storeInviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/store/$appName",
+  component: lazyRouteComponent(() => import("./routes/store-invite.tsx")),
+  validateSearch: z.lazy(() =>
+    z.object({
+      serverName: z.string().optional(),
+    }),
+  ),
+});
+
 const shellLayout = createRoute({
   getParentRoute: () => rootRoute,
   id: "shell",
@@ -296,6 +311,7 @@ const routeTree = rootRoute.addChildren([
   betterAuthRoutes,
   oauthCallbackRoute,
   connectRoute,
+  storeInviteRoute,
 ]);
 
 const router = createRouter({

@@ -1,6 +1,13 @@
-import { Navigate } from "@tanstack/react-router";
+import { Navigate, useRouterState } from "@tanstack/react-router";
 import { AuthLoading, SignedIn, SignedOut } from "@daveyplate/better-auth-ui";
 import { SplashScreen } from "@/web/components/splash-screen";
+
+function RedirectToLogin() {
+  const routerState = useRouterState();
+  const currentUrl = routerState.location.href;
+
+  return <Navigate to="/login" search={{ next: currentUrl }} replace />;
+}
 
 export default function RequiredAuthLayout({
   children,
@@ -16,7 +23,7 @@ export default function RequiredAuthLayout({
       <SignedIn>{children}</SignedIn>
 
       <SignedOut>
-        <Navigate to="/login" replace />
+        <RedirectToLogin />
       </SignedOut>
     </>
   );
