@@ -9,7 +9,6 @@ export {
   authenticateMcp,
   handleOAuthCallback,
   isConnectionAuthenticated,
-  openOAuthPopup,
   type McpOAuthProviderOptions,
   type OAuthTokenInfo,
   type AuthenticateMcpResult,

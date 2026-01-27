@@ -68,12 +68,6 @@ export interface McpOAuthProviderOptions {
   scope?: string | string[];
   /** Window mode: "popup" (default) or "tab" (for devices that block popups) */
   windowMode?: OAuthWindowMode;
-  /**
-   * Pre-opened popup window. Pass this to avoid popup blockers in Safari.
-   * The popup should be opened synchronously in the click handler before calling authenticateMcp.
-   * Example: const popup = window.open('about:blank', 'mcp-oauth', 'popup=yes,width=600,height=700');
-   */
-  popupWindow?: Window | null;
 }
 
 /**
@@ -85,7 +79,6 @@ class McpOAuthProvider implements OAuthClientProvider {
   private _clientMetadata: OAuthClientMetadata;
   private _redirectUrl: string;
   private _windowMode: OAuthWindowMode;
-  private _popupWindow: Window | null;
 
   // In-memory storage for OAuth flow data
   private _state: string | null = null;
@@ -98,7 +91,6 @@ class McpOAuthProvider implements OAuthClientProvider {
     this._redirectUrl =
       options.callbackUrl ?? `${window.location.origin}/oauth/callback`;
     this._windowMode = options.windowMode ?? "popup";
-    this._popupWindow = options.popupWindow ?? null;
 
     // Build scope string if provided
     const scopeStr = options.scope
@@ -165,15 +157,7 @@ class McpOAuthProvider implements OAuthClientProvider {
         window.location.href = authorizationUrl.toString();
       }
     } else {
-      // Check if we have a pre-opened popup (avoids popup blocker in Safari)
-      if (this._popupWindow && !this._popupWindow.closed) {
-        // Navigate the pre-opened popup to the auth URL
-        this._popupWindow.location.href = authorizationUrl.toString();
-        this._popupWindow.focus();
-        return;
-      }
-
-      // Open in popup (default) - may be blocked if not in direct click handler
+      // Open in popup (default)
       const width = 600;
       const height = 700;
       const left = window.screenX + (window.outerWidth - width) / 2;
@@ -221,38 +205,6 @@ class McpOAuthProvider implements OAuthClientProvider {
 }
 
 /**
- * Default popup window dimensions and features
- */
-const POPUP_WIDTH = 600;
-const POPUP_HEIGHT = 700;
-
-/**
- * Open a popup window for OAuth authentication.
- * Call this synchronously in your click handler to avoid popup blockers.
- *
- * @returns The popup window, or null if blocked
- * @example
- * const handleAuth = () => {
- *   const popup = openOAuthPopup();
- *   if (!popup) {
- *     alert('Please allow popups for this site');
- *     return;
- *   }
- *   await authenticateMcp({ connectionId, popupWindow: popup });
- * };
- */
-export function openOAuthPopup(): Window | null {
-  const left = window.screenX + (window.outerWidth - POPUP_WIDTH) / 2;
-  const top = window.screenY + (window.outerHeight - POPUP_HEIGHT) / 2;
-
-  return window.open(
-    "about:blank",
-    "mcp-oauth",
-    `width=${POPUP_WIDTH},height=${POPUP_HEIGHT},left=${left},top=${top},popup=yes`,
-  );
-}
-
-/**
  * Full OAuth token info for persistence
  */
 export interface OAuthTokenInfo {
@@ -296,7 +248,6 @@ interface FullTokenResult {
  * @param params.timeout - Timeout in ms (default 120000)
  * @param params.scope - OAuth scopes to request
  * @param params.windowMode - "popup" (default) or "tab" (for devices that block popups)
- * @param params.popupWindow - Pre-opened popup window to avoid popup blockers (open synchronously in click handler)
  */
 export async function authenticateMcp(params: {
   connectionId: string;
@@ -310,14 +261,6 @@ export async function authenticateMcp(params: {
   scope?: string | string[];
   /** Window mode: "popup" (default) or "tab" (for devices that block popups). Tab mode uses localStorage for cross-tab communication. */
   windowMode?: OAuthWindowMode;
-  /**
-   * Pre-opened popup window to avoid popup blockers in Safari and other browsers.
-   * Open the popup synchronously in the click handler before calling authenticateMcp:
-   * @example
-   * const popup = window.open('about:blank', 'mcp-oauth', 'popup=yes,width=600,height=700');
-   * await authenticateMcp({ connectionId, popupWindow: popup });
-   */
-  popupWindow?: Window | null;
 }): Promise<AuthenticateMcpResult> {
   const baseUrl = params.meshUrl ?? window.location.origin;
   const serverUrl = new URL(`/mcp/${params.connectionId}`, baseUrl);
@@ -328,7 +271,6 @@ export async function authenticateMcp(params: {
     callbackUrl: params.callbackUrl,
     scope: params.scope,
     windowMode: params.windowMode,
-    popupWindow: params.popupWindow,
   });
 
   try {
