@@ -38,7 +38,7 @@ const FirecrawlScrapeInputSchema = z.object({
   waitFor: z.number().optional(),
   timeout: z.number().optional(),
   mobile: z.boolean().optional(),
-  actions: z.array(z.record(z.unknown())).optional(),
+  actions: z.array(z.record(z.string(), z.unknown())).optional(),
 });
 
 /**
@@ -82,7 +82,7 @@ const FirecrawlSearchInputSchema = z.object({
 const FirecrawlExtractInputSchema = z.object({
   urls: z.array(z.string()).describe("URLs to extract from"),
   prompt: z.string().optional(),
-  schema: z.record(z.unknown()).optional(),
+  schema: z.record(z.string(), z.unknown()).optional(),
   enableWebSearch: z.boolean().optional(),
 });
 

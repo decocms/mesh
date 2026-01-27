@@ -120,3 +120,17 @@ export {
   FIRECRAWL_BINDING,
   FirecrawlBinding,
 } from "./well-known/firecrawl";
+
+// Re-export Local FS binding types
+export { LOCAL_FS_BINDING } from "./well-known/local-fs";
+export type {
+  LocalFsBinding,
+  FileReadInput,
+  FileReadOutput,
+  FileWriteInput,
+  FileWriteOutput,
+  FileDeleteInput,
+  FileDeleteOutput,
+  ListDirectoryInput,
+  ListDirectoryOutput,
+} from "./well-known/local-fs";

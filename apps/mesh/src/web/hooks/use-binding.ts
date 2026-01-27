@@ -8,7 +8,11 @@ import {
 import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
-import { PERPLEXITY_BINDING, FIRECRAWL_BINDING } from "@decocms/bindings";
+import {
+  PERPLEXITY_BINDING,
+  FIRECRAWL_BINDING,
+  LOCAL_FS_BINDING,
+} from "@decocms/bindings";
 import { convertJsonSchemaToZod } from "zod-from-json-schema";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import {
@@ -29,6 +33,8 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
   "@DECO/PERPLEXITY-AI": PERPLEXITY_BINDING,
   FIRECRAWL: FIRECRAWL_BINDING,
   "@DECO/FIRECRAWL": FIRECRAWL_BINDING,
+  "LOCAL-FS": LOCAL_FS_BINDING,
+  "@DECO/LOCAL-FS": LOCAL_FS_BINDING,
 };
 
 /**
