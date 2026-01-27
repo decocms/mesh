@@ -14,15 +14,86 @@ import {
   type WhereExpression,
 } from "@decocms/bindings/collections";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
+import { OBJECT_STORAGE_BINDING } from "@decocms/bindings/object-storage";
+import {
+  getWellKnownDevAssetsConnection,
+  WellKnownOrgMCPId,
+} from "@decocms/mesh-sdk";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
-import { type ConnectionEntity, ConnectionEntitySchema } from "./schema";
+import {
+  type ConnectionEntity,
+  ConnectionEntitySchema,
+  type ToolDefinition,
+} from "./schema";
 
 const BUILTIN_BINDING_CHECKERS: Record<string, Binder> = {
   LLM: LANGUAGE_MODEL_BINDING,
   ASSISTANTS: ASSISTANTS_BINDING,
+  OBJECT_STORAGE: OBJECT_STORAGE_BINDING,
 };
+
+/**
+ * Check if we're running in dev mode
+ */
+function isDevMode(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
+/**
+ * Create a dev-assets connection entity for local file storage.
+ * This is injected in dev mode to provide object storage functionality
+ * without requiring an external S3 bucket.
+ */
+function createDevAssetsConnectionEntity(
+  orgId: string,
+  baseUrl: string,
+): ConnectionEntity {
+  const connectionData = getWellKnownDevAssetsConnection(baseUrl, orgId);
+
+  // Convert OBJECT_STORAGE_BINDING to tool definitions
+  const tools: ToolDefinition[] = OBJECT_STORAGE_BINDING.map(
+    (binding: (typeof OBJECT_STORAGE_BINDING)[number]) => ({
+      name: binding.name,
+      description: `${binding.name} operation for local file storage`,
+      inputSchema: z.toJSONSchema(binding.inputSchema) as Record<
+        string,
+        unknown
+      >,
+      outputSchema: z.toJSONSchema(binding.outputSchema) as Record<
+        string,
+        unknown
+      >,
+    }),
+  );
+
+  const now = new Date().toISOString();
+
+  return {
+    id: connectionData.id ?? WellKnownOrgMCPId.DEV_ASSETS(orgId),
+    title: connectionData.title,
+    description: connectionData.description ?? null,
+    icon: connectionData.icon ?? null,
+    app_name: connectionData.app_name ?? null,
+    app_id: connectionData.app_id ?? null,
+    organization_id: orgId,
+    created_by: "system",
+    created_at: now,
+    updated_at: now,
+    connection_type: connectionData.connection_type,
+    connection_url: connectionData.connection_url ?? null,
+    connection_token: null,
+    connection_headers: null,
+    oauth_config: null,
+    configuration_state: null,
+    configuration_scopes: null,
+    metadata: connectionData.metadata ?? null,
+    tools,
+    bindings: ["OBJECT_STORAGE"],
+    status: "active",
+  };
+}
 
 /**
  * Convert SQL LIKE pattern to regex pattern by tokenizing
@@ -230,6 +301,22 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       : undefined;
 
     const connections = await ctx.storage.connections.list(organization.id);
+
+    // In dev mode, inject the dev-assets connection for local file storage
+    // This provides object storage functionality without requiring an external S3 bucket
+    if (isDevMode()) {
+      const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+      const devAssetsId = WellKnownOrgMCPId.DEV_ASSETS(organization.id);
+
+      // Only add if not already in the list (shouldn't be, but just in case)
+      if (!connections.some((c) => c.id === devAssetsId)) {
+        const devAssetsConnection = createDevAssetsConnectionEntity(
+          organization.id,
+          baseUrl,
+        );
+        connections.unshift(devAssetsConnection);
+      }
+    }
 
     // Filter out VIRTUAL connections (they are agents, not regular connections)
     // VIRTUAL connections are managed through the Virtual MCP / Agents UI

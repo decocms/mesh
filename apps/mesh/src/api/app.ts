@@ -32,6 +32,8 @@ import {
 } from "../observability";
 import authRoutes from "./routes/auth";
 import decopilotRoutes from "./routes/decopilot";
+import devAssetsMcpRoutes from "./routes/dev-assets-mcp";
+import devAssetsRoutes from "./routes/dev-assets";
 import downstreamTokenRoutes from "./routes/downstream-token";
 import virtualMcpRoutes from "./routes/gateway";
 import oauthProxyRoutes, {
@@ -576,6 +578,18 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/mcp/gateway/:virtualMcpId?", mcpAuth);
   app.use("/mcp/virtual-mcp/:virtualMcpId?", mcpAuth);
   app.use("/mcp/self", mcpAuth);
+
+  // Dev-only routes: Dev Assets MCP and file serving
+  // Only mount in development mode (NODE_ENV !== "production")
+  if (process.env.NODE_ENV !== "production") {
+    // Dev Assets MCP requires authentication
+    app.use("/mcp/dev-assets", mcpAuth);
+    app.route("/mcp/dev-assets", devAssetsMcpRoutes);
+
+    // Dev Assets file serving routes (presigned URL handlers)
+    // These are public but use signed URLs for security
+    app.route("/api/dev-assets", devAssetsRoutes);
+  }
 
   // Virtual MCP / Agent routes (must be before proxy to match /mcp/gateway and /mcp/virtual-mcp before /mcp/:connectionId)
   // /mcp/gateway/:virtualMcpId (backward compat) or /mcp/virtual-mcp/:virtualMcpId

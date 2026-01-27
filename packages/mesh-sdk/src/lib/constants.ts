@@ -21,6 +21,8 @@ export const WellKnownOrgMCPId = {
   REGISTRY: (org: string) => `${org}_registry`,
   /** Community MCP registry */
   COMMUNITY_REGISTRY: (org: string) => `${org}_community-registry`,
+  /** Dev Assets MCP - local file storage for development */
+  DEV_ASSETS: (org: string) => `${org}_dev-assets`,
 };
 
 /**
@@ -29,6 +31,13 @@ export const WellKnownOrgMCPId = {
  * The endpoint is exposed at /mcp/self.
  */
 export const SELF_MCP_ALIAS_ID = "self";
+
+/**
+ * Frontend connection ID for the dev-assets MCP endpoint.
+ * Use this constant when calling object storage tools from the frontend in dev mode.
+ * The endpoint is exposed at /mcp/dev-assets.
+ */
+export const DEV_ASSETS_MCP_ALIAS_ID = "dev-assets";
 
 /**
  * Get well-known connection definition for the Deco Store registry.
@@ -116,6 +125,43 @@ export function getWellKnownSelfConnection(
     metadata: {
       isDefault: true,
       type: "self",
+    },
+  };
+}
+
+/**
+ * Get well-known connection definition for Dev Assets MCP.
+ * This is a dev-only MCP that provides local file storage at /data/assets/<org_id>/.
+ * It implements the OBJECT_STORAGE_BINDING interface.
+ *
+ * @param baseUrl - The base URL for the MCP server (e.g., "http://localhost:3000")
+ * @param orgId - The organization ID
+ * @returns ConnectionCreateData for the Dev Assets MCP
+ */
+export function getWellKnownDevAssetsConnection(
+  baseUrl: string,
+  orgId: string,
+): ConnectionCreateData {
+  return {
+    id: WellKnownOrgMCPId.DEV_ASSETS(orgId),
+    title: "Local Files",
+    description:
+      "Local file storage for development. Files are stored in /data/assets/.",
+    connection_type: "HTTP",
+    connection_url: `${baseUrl}/mcp/${DEV_ASSETS_MCP_ALIAS_ID}`,
+    // Folder icon
+    icon: "https://api.iconify.design/lucide:folder.svg?color=%23888",
+    app_name: "@deco/dev-assets-mcp",
+    app_id: null,
+    connection_token: null,
+    connection_headers: null,
+    oauth_config: null,
+    configuration_state: null,
+    configuration_scopes: null,
+    metadata: {
+      isFixed: true,
+      devOnly: true,
+      type: "dev-assets",
     },
   };
 }
