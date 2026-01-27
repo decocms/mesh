@@ -174,7 +174,7 @@ class McpOAuthProvider implements OAuthClientProvider {
         const tab = window.open(authorizationUrl.toString(), "_blank");
         if (!tab) {
           // Last resort: redirect current window
-          // Note: This will navigate away from the current page
+          // Note: This will navigate away from the current page.
           window.location.href = authorizationUrl.toString();
         }
       }
