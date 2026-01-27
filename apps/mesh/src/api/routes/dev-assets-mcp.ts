@@ -483,6 +483,65 @@ function createDevAssetsTools(
 // ============================================================================
 
 /**
+ * Handle a dev-assets MCP request with a given context
+ * Exported for use by the connection ID pattern handler
+ */
+export async function handleDevAssetsMcpRequest(
+  req: Request,
+  ctx: MeshContext,
+  baseUrl: string,
+): Promise<Response> {
+  const tools = createDevAssetsTools(ctx, baseUrl);
+
+  const server = mcpServer({
+    name: "dev-assets-mcp",
+    version: "1.0.0",
+  })
+    .withTools(tools)
+    .build();
+
+  return server.fetch(req);
+}
+
+/**
+ * Call a dev-assets tool directly
+ * Exported for use by the call-tool endpoint pattern handler
+ */
+export async function callDevAssetsTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  ctx: MeshContext,
+  baseUrl: string,
+): Promise<{ content: unknown; isError?: boolean }> {
+  const tools = createDevAssetsTools(ctx, baseUrl);
+  const tool = tools.find((t) => t.name === toolName);
+
+  if (!tool) {
+    return {
+      content: [{ type: "text", text: `Tool not found: ${toolName}` }],
+      isError: true,
+    };
+  }
+
+  try {
+    const result = await tool.handler(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: error instanceof Error ? error.message : String(error),
+        },
+      ],
+      isError: true,
+    };
+  }
+}
+
+/**
  * Dev Assets MCP endpoint
  *
  * Route: POST /mcp/dev-assets
@@ -495,16 +554,7 @@ app.all("/", async (c) => {
   const url = new URL(c.req.url);
   const baseUrl = `${url.protocol}//${url.host}`;
 
-  const tools = createDevAssetsTools(ctx, baseUrl);
-
-  const server = mcpServer({
-    name: "dev-assets-mcp",
-    version: "1.0.0",
-  })
-    .withTools(tools)
-    .build();
-
-  return server.fetch(c.req.raw);
+  return handleDevAssetsMcpRequest(c.req.raw, ctx, baseUrl);
 });
 
 export default app;

@@ -582,6 +582,40 @@ export function createApp(options: CreateAppOptions = {}) {
   // Dev-only routes: Dev Assets MCP and file serving
   // Only mount in development mode (NODE_ENV !== "production")
   if (process.env.NODE_ENV !== "production") {
+    // Handle {org_id}_dev-assets connection ID pattern -> forward to dev-assets MCP
+    // This allows the frontend to use the connection ID while routing to the dev MCP
+    app.all("/mcp/:connectionId{.*_dev-assets$}", mcpAuth, async (c) => {
+      const { handleDevAssetsMcpRequest } = await import(
+        "./routes/dev-assets-mcp"
+      );
+      const ctx = c.get("meshContext");
+      const url = new URL(c.req.url);
+      const baseUrl = `${url.protocol}//${url.host}`;
+      return handleDevAssetsMcpRequest(c.req.raw, ctx, baseUrl);
+    });
+
+    // Handle call-tool endpoint for dev-assets connections
+    app.all(
+      "/mcp/:connectionId{.*_dev-assets$}/call-tool/:toolName",
+      mcpAuth,
+      async (c) => {
+        const { callDevAssetsTool } = await import("./routes/dev-assets-mcp");
+        const ctx = c.get("meshContext");
+        const url = new URL(c.req.url);
+        const baseUrl = `${url.protocol}//${url.host}`;
+        const toolName = c.req.param("toolName");
+        const args = (await c.req.json()) as Record<string, unknown>;
+
+        const result = await callDevAssetsTool(toolName, args, ctx, baseUrl);
+
+        if (result.isError) {
+          return c.json(result.content, 500);
+        }
+
+        return c.json(result.content);
+      },
+    );
+
     // Dev Assets MCP requires authentication
     app.use("/mcp/dev-assets", mcpAuth);
     app.route("/mcp/dev-assets", devAssetsMcpRoutes);

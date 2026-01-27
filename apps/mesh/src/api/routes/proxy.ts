@@ -1062,6 +1062,23 @@ app.all("/", async (c) => {
 });
 
 /**
+ * Handle dev-assets MCP connection pattern
+ *
+ * Route: POST /mcp/{orgId}_dev-assets
+ * Forwards to the dev-assets MCP endpoint when in dev mode
+ */
+app.all("/:connectionId{.*_dev-assets$}", async (c) => {
+  // Only available in dev mode
+  if (process.env.NODE_ENV === "production") {
+    return c.json({ error: "Not found" }, 404);
+  }
+
+  // Import dev-assets handler dynamically to avoid loading in production
+  const { default: devAssetsMcpRoutes } = await import("./dev-assets-mcp");
+  return devAssetsMcpRoutes.fetch(c.req.raw, c.env);
+});
+
+/**
  * Proxy MCP request to a downstream connection
  *
  * Route: POST /mcp/:connectionId
