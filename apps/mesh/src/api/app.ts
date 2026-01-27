@@ -32,8 +32,6 @@ import {
 } from "../observability";
 import authRoutes from "./routes/auth";
 import decopilotRoutes from "./routes/decopilot";
-import devAssetsMcpRoutes from "./routes/dev-assets-mcp";
-import devAssetsRoutes from "./routes/dev-assets";
 import downstreamTokenRoutes from "./routes/downstream-token";
 import virtualMcpRoutes from "./routes/gateway";
 import oauthProxyRoutes, {
@@ -579,50 +577,12 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/mcp/virtual-mcp/:virtualMcpId?", mcpAuth);
   app.use("/mcp/self", mcpAuth);
 
-  // Dev-only routes: Dev Assets MCP and file serving
-  // Only mount in development mode (NODE_ENV !== "production")
+  // Dev-only routes (local file storage MCP for testing object-storage plugin)
   if (process.env.NODE_ENV !== "production") {
-    // Handle {org_id}_dev-assets connection ID pattern -> forward to dev-assets MCP
-    // This allows the frontend to use the connection ID while routing to the dev MCP
-    app.all("/mcp/:connectionId{.*_dev-assets$}", mcpAuth, async (c) => {
-      const { handleDevAssetsMcpRequest } = await import(
-        "./routes/dev-assets-mcp"
-      );
-      const ctx = c.get("meshContext");
-      const url = new URL(c.req.url);
-      const baseUrl = `${url.protocol}//${url.host}`;
-      return handleDevAssetsMcpRequest(c.req.raw, ctx, baseUrl);
-    });
-
-    // Handle call-tool endpoint for dev-assets connections
-    app.all(
-      "/mcp/:connectionId{.*_dev-assets$}/call-tool/:toolName",
-      mcpAuth,
-      async (c) => {
-        const { callDevAssetsTool } = await import("./routes/dev-assets-mcp");
-        const ctx = c.get("meshContext");
-        const url = new URL(c.req.url);
-        const baseUrl = `${url.protocol}//${url.host}`;
-        const toolName = c.req.param("toolName");
-        const args = (await c.req.json()) as Record<string, unknown>;
-
-        const result = await callDevAssetsTool(toolName, args, ctx, baseUrl);
-
-        if (result.isError) {
-          return c.json(result.content, 500);
-        }
-
-        return c.json(result.content);
-      },
-    );
-
-    // Dev Assets MCP requires authentication
-    app.use("/mcp/dev-assets", mcpAuth);
-    app.route("/mcp/dev-assets", devAssetsMcpRoutes);
-
-    // Dev Assets file serving routes (presigned URL handlers)
-    // These are public but use signed URLs for security
-    app.route("/api/dev-assets", devAssetsRoutes);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { mountDevRoutes } =
+      require("./routes/dev-only") as typeof import("./routes/dev-only");
+    mountDevRoutes(app, mcpAuth);
   }
 
   // Virtual MCP / Agent routes (must be before proxy to match /mcp/gateway and /mcp/virtual-mcp before /mcp/:connectionId)
