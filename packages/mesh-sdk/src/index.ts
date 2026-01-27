@@ -103,22 +103,6 @@ export {
   type BridgeTransportPair,
 } from "./lib/bridge-transport";
 
-// In-memory transport
-export {
-  createInMemoryTransportPair,
-  InMemoryClientTransport,
-  InMemoryServerTransport,
-  type InMemoryTransportPair,
-} from "./lib/in-memory-transport";
-
-// Loopback transport
-export {
-  createLoopbackTransportPair,
-  LoopbackClientTransport,
-  LoopbackServerTransport,
-  type LoopbackTransportPair,
-} from "./lib/loopback-transport";
-
 // Server-client bridge
 export {
   createServerFromClient,
