@@ -15,7 +15,6 @@ import type {
   VirtualMCPStoragePort,
   VirtualMCPUpdateData,
 } from "./ports";
-import type { ToolSelectionMode } from "../tools/virtual-mcp/schema";
 import type { Database } from "./types";
 
 /** Raw database row type for connections (VIRTUAL type) */
@@ -266,7 +265,6 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
         ? JSON.stringify(data.metadata)
         : null;
     }
-    // Note: tool_selection_mode is no longer stored in DB, ignored
 
     // Update the connection
     await this.db
@@ -356,8 +354,6 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       organization_id: row.organization_id,
       title: row.title,
       description: row.description,
-      // tool_selection_mode is no longer stored - always default to inclusion
-      tool_selection_mode: "inclusion" as ToolSelectionMode,
       icon: row.icon,
       status,
       created_at: createdAt,

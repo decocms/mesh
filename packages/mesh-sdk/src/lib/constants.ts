@@ -239,12 +239,11 @@ export function getWellKnownDecopilotAgent(
     title: "Decopilot",
     description: "Default agent that aggregates all organization connections",
     icon: "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png",
-    tool_selection_mode: "exclusion",
     status: "active",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     created_by: "system",
     updated_by: undefined,
-    connections: [], // Empty = no exclusions, include all connections
+    connections: [], // Empty connections array - gateway.ts will populate with all org connections
   };
 }

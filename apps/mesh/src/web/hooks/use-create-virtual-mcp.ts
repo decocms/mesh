@@ -50,7 +50,6 @@ export function useCreateVirtualMCP(
       description:
         "Agents let you securely expose integrated tools to the outside world.",
       status: "active",
-      tool_selection_mode: "inclusion",
       connections: [],
     });
 

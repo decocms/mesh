@@ -90,7 +90,6 @@ export {
   type VirtualMCPCreateData,
   type VirtualMCPUpdateData,
   type VirtualMCPConnection,
-  type ToolSelectionMode,
 } from "./types";
 
 // Streamable HTTP transport

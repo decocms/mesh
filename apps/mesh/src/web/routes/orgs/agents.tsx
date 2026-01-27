@@ -131,18 +131,6 @@ function OrgAgentsContent() {
       sortable: true,
     },
     {
-      id: "mode",
-      header: "Mode",
-      accessor: (virtualMcp) => (
-        <Badge variant="outline" className="text-xs">
-          {virtualMcp.tool_selection_mode === "exclusion"
-            ? "Exclude"
-            : "Include"}
-        </Badge>
-      ),
-      cellClassName: "w-[100px]",
-    },
-    {
       id: "connections",
       header: "Connections",
       render: (virtualMcp) => (
@@ -316,12 +304,6 @@ function OrgAgentsContent() {
                       <span>
                         {virtualMcp.connections.length} connection
                         {virtualMcp.connections.length !== 1 ? "s" : ""}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        {virtualMcp.tool_selection_mode === "exclusion"
-                          ? "Exclude"
-                          : "Include"}
                       </span>
                     </div>
                   }

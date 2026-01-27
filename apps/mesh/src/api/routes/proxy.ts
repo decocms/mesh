@@ -11,7 +11,7 @@
  * - Supports StreamableHTTP and STDIO transports
  */
 
-import { createMCPAggregatorFromEntity } from "@/aggregator";
+import { createMCPAggregatorFromEntity } from "@/mcp-clients/virtual-mcp";
 import { extractConnectionPermissions } from "@/auth/configuration-scopes";
 import { once } from "@/common";
 import { getMonitoringConfig } from "@/core/config";
@@ -520,41 +520,15 @@ async function createMCPProxyDoNotUseDirectly(
           throw new Error(`Virtual MCP not found: ${virtualMcpId}`);
         }
 
-        // Create aggregator client from virtual MCP entity
-        const aggregator = await createMCPAggregatorFromEntity(
+        // Create client from virtual MCP entity
+        const client = await createMCPAggregatorFromEntity(
           virtualMcp,
           ctx,
           "passthrough",
         );
 
-        // Return a client-like interface wrapping the aggregator
-        // This makes VIRTUAL connections work seamlessly with the rest of the proxy
-        return {
-          callTool: (params: {
-            name: string;
-            arguments?: Record<string, unknown>;
-          }) => aggregator.client.callTool(params),
-          listTools: () => aggregator.client.listTools(),
-          listResources: () => aggregator.client.listResources(),
-          readResource: (params: { uri: string }) =>
-            aggregator.client.readResource(params),
-          listResourceTemplates: () =>
-            aggregator.client.listResourceTemplates(),
-          listPrompts: () => aggregator.client.listPrompts(),
-          getPrompt: (params: {
-            name: string;
-            arguments?: Record<string, string>;
-          }) => aggregator.client.getPrompt(params),
-          close: async () => {
-            // Aggregator doesn't need explicit cleanup
-          },
-          getServerCapabilities: () => ({
-            tools: {},
-            resources: {},
-            prompts: {},
-          }),
-          getInstructions: () => virtualMcp.metadata?.instructions ?? undefined,
-        } as unknown as Client;
+        // Return the client directly - it already implements the Client interface
+        return client;
       }
 
       default:

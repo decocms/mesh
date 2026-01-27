@@ -120,7 +120,6 @@ export type {
   VirtualMCPEntity,
   VirtualMCPCreateData,
   VirtualMCPUpdateData,
-  ToolSelectionMode,
 } from "../tools/virtual-mcp/schema";
 
 export interface VirtualMCPStoragePort {

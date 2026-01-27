@@ -38,8 +38,11 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
-import { createMCPAggregatorFromEntity } from "../../aggregator";
-import { parseStrategyFromMode } from "../../aggregator/strategy";
+import {
+  createMCPAggregatorFromEntity,
+  parseStrategyFromMode,
+} from "../../mcp-clients/virtual-mcp";
+import { parseVirtualUrl } from "../../tools/connection/schema";
 import { getWellKnownDecopilotAgent } from "@decocms/mesh-sdk";
 import type { Env } from "../env";
 
@@ -121,9 +124,40 @@ export async function handleVirtualMcpRequest(
     const mode = c.req.query("mode");
     const strategy = parseStrategyFromMode(mode);
 
-    // Create aggregator from entity
-    await using aggregatorClient = await createMCPAggregatorFromEntity(
-      virtualMcp,
+    // Handle Decopilot agent (well-known agent that aggregates all org connections)
+    // For Decopilot, we need to gather all active connections and populate the connections array
+    let processedVirtualMcp = virtualMcp;
+    if (virtualMcp.id.startsWith("decopilot-")) {
+      // Fetch all active connections for the organization
+      const allConnections = await ctx.storage.connections.list(
+        virtualMcp.organization_id,
+      );
+      // Filter out inactive connections and self-referencing VIRTUAL connections
+      const activeConnections = allConnections.filter((c) => {
+        if (c.status !== "active") return false;
+        // Skip VIRTUAL connections that reference this virtual MCP (self-reference)
+        if (c.connection_type === "VIRTUAL") {
+          const referencedVirtualMcpId = parseVirtualUrl(c.connection_url);
+          if (referencedVirtualMcpId === virtualMcp.id) return false;
+        }
+        return true;
+      });
+
+      // Build connections array with all tools/resources/prompts (null = include all)
+      processedVirtualMcp = {
+        ...virtualMcp,
+        connections: activeConnections.map((c) => ({
+          connection_id: c.id,
+          selected_tools: null, // null = all tools
+          selected_resources: null, // null = all resources
+          selected_prompts: null, // null = all prompts
+        })),
+      };
+    }
+
+    // Create client from entity
+    await using client = await createMCPAggregatorFromEntity(
+      processedVirtualMcp,
       ctx,
       strategy,
     );
@@ -153,7 +187,7 @@ export async function handleVirtualMcpRequest(
     server.server.setRequestHandler(
       ListToolsRequestSchema,
       async (_request: ListToolsRequest): Promise<ListToolsResult> => {
-        return aggregatorClient.client.listTools();
+        return client.listTools();
       },
     );
 
@@ -161,9 +195,7 @@ export async function handleVirtualMcpRequest(
     server.server.setRequestHandler(
       CallToolRequestSchema,
       async (request: CallToolRequest): Promise<CallToolResult> => {
-        return (await aggregatorClient.client.callTool(
-          request.params,
-        )) as CallToolResult;
+        return (await client.callTool(request.params)) as CallToolResult;
       },
     );
 
@@ -171,7 +203,7 @@ export async function handleVirtualMcpRequest(
     server.server.setRequestHandler(
       ListResourcesRequestSchema,
       async (): Promise<ListResourcesResult> => {
-        return aggregatorClient.client.listResources();
+        return client.listResources();
       },
     );
 
@@ -179,7 +211,7 @@ export async function handleVirtualMcpRequest(
     server.server.setRequestHandler(
       ReadResourceRequestSchema,
       async (request: ReadResourceRequest): Promise<ReadResourceResult> => {
-        return aggregatorClient.client.readResource(request.params);
+        return client.readResource(request.params);
       },
     );
 
@@ -187,7 +219,7 @@ export async function handleVirtualMcpRequest(
     server.server.setRequestHandler(
       ListResourceTemplatesRequestSchema,
       async (): Promise<ListResourceTemplatesResult> => {
-        return aggregatorClient.client.listResourceTemplates();
+        return client.listResourceTemplates();
       },
     );
 
@@ -195,7 +227,7 @@ export async function handleVirtualMcpRequest(
     server.server.setRequestHandler(
       ListPromptsRequestSchema,
       async (): Promise<ListPromptsResult> => {
-        return aggregatorClient.client.listPrompts();
+        return client.listPrompts();
       },
     );
 
@@ -203,7 +235,7 @@ export async function handleVirtualMcpRequest(
     server.server.setRequestHandler(
       GetPromptRequestSchema,
       async (request: GetPromptRequest): Promise<GetPromptResult> => {
-        return aggregatorClient.client.getPrompt(request.params);
+        return client.getPrompt(request.params);
       },
     );
 
@@ -217,7 +249,7 @@ export async function handleVirtualMcpRequest(
       } catch {
         // Ignore close errors
       }
-      // AggregatorClient will be automatically disposed via await using
+      // Client will be automatically disposed via await using
     }
   } catch (error) {
     const err = error as Error;

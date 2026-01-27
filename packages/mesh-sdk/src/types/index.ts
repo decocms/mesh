@@ -23,5 +23,4 @@ export {
   type VirtualMCPCreateData,
   type VirtualMCPUpdateData,
   type VirtualMCPConnection,
-  type ToolSelectionMode,
 } from "./virtual-mcp";
