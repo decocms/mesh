@@ -18,6 +18,7 @@ import { OBJECT_STORAGE_BINDING } from "@decocms/bindings/object-storage";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
+import { getBaseUrl } from "../../core/server-constants";
 import { requireOrganization } from "../../core/mesh-context";
 import { createDevAssetsConnectionEntity, isDevMode } from "./dev-assets";
 import { type ConnectionEntity, ConnectionEntitySchema } from "./schema";
@@ -238,7 +239,7 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
     // In dev mode, inject the dev-assets connection for local file storage
     // This provides object storage functionality without requiring an external S3 bucket
     if (isDevMode()) {
-      const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+      const baseUrl = getBaseUrl();
       const devAssetsId = WellKnownOrgMCPId.DEV_ASSETS(organization.id);
 
       // Only add if not already in the list (shouldn't be, but just in case)

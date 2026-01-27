@@ -10,6 +10,7 @@ import {
 } from "@decocms/bindings/collections";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
+import { getBaseUrl } from "../../core/server-constants";
 import {
   createDevAssetsConnectionEntity,
   isDevAssetsConnection,
@@ -40,9 +41,8 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
 
     // In dev mode, check if this is the dev-assets connection
     if (isDevMode() && isDevAssetsConnection(input.id, organization.id)) {
-      const baseUrl = process.env.BASE_URL || "http://localhost:3000";
       return {
-        item: createDevAssetsConnectionEntity(organization.id, baseUrl),
+        item: createDevAssetsConnectionEntity(organization.id, getBaseUrl()),
       };
     }
 
