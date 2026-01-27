@@ -17,6 +17,7 @@ import {
   streamText,
   tool,
   type JSONSchema7,
+  type LanguageModel,
   type ModelMessage,
   type ToolSet,
 } from "ai";
@@ -162,6 +163,8 @@ const ChatCompletionRequestSchema = z.object({
   user: z.string().optional(),
 });
 
+type ChatCompletionRequest = z.infer<typeof ChatCompletionRequestSchema>;
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -240,6 +243,17 @@ function safeParseToolArguments(
  * @throws {MessageConversionError} if tool call arguments contain invalid JSON
  */
 function convertToAISDKMessages(messages: OpenAIMessage[]): ModelMessage[] {
+  // Build a map of tool_call_id -> toolName from assistant messages
+  // This is needed because OpenAI tool messages don't include the tool name
+  const toolCallIdToName: Record<string, string> = {};
+  for (const msg of messages) {
+    if (msg.role === "assistant" && msg.tool_calls) {
+      for (const tc of msg.tool_calls) {
+        toolCallIdToName[tc.id] = tc.function.name;
+      }
+    }
+  }
+
   return messages.map((msg): ModelMessage => {
     switch (msg.role) {
       case "system":
@@ -262,14 +276,14 @@ function convertToAISDKMessages(messages: OpenAIMessage[]): ModelMessage[] {
 
       case "assistant":
         if (msg.tool_calls && msg.tool_calls.length > 0) {
-          // AI SDK expects tool-call parts with specific structure
+          // AI SDK v6 expects tool-call parts with 'input' (not 'args')
           return {
             role: "assistant",
             content: msg.tool_calls.map((tc) => ({
               type: "tool-call" as const,
               toolCallId: tc.id,
               toolName: tc.function.name,
-              args: safeParseToolArguments(
+              input: safeParseToolArguments(
                 tc.function.arguments,
                 tc.id,
                 tc.function.name,
@@ -280,15 +294,18 @@ function convertToAISDKMessages(messages: OpenAIMessage[]): ModelMessage[] {
         return { role: "assistant", content: msg.content ?? "" };
 
       case "tool":
-        // AI SDK expects tool-result parts
+        // AI SDK v6 expects tool-result parts with 'output' (not 'result')
+        // Look up the tool name from the preceding assistant message's tool_calls
+        const toolName = toolCallIdToName[msg.tool_call_id] ?? "unknown";
+        // AI SDK v6 expects output as { type: 'text', value: string }
         return {
           role: "tool",
           content: [
             {
               type: "tool-result" as const,
               toolCallId: msg.tool_call_id,
-              toolName: "",
-              content: msg.content,
+              toolName,
+              output: { type: "text", value: msg.content },
             },
           ],
         } as unknown as ModelMessage;
@@ -389,6 +406,48 @@ async function checkConnectionPermission(
   );
 
   await accessControl.check("*");
+}
+
+/**
+ * Build common options for generateText/streamText
+ */
+function buildGenerateOptions(
+  provider: LanguageModel,
+  messages: ModelMessage[],
+  tools: ToolSet | undefined,
+  request: ChatCompletionRequest,
+  providerOptions: Record<string, unknown> | undefined,
+  abortSignal: AbortSignal,
+) {
+  const baseOptions = {
+    model: provider,
+    messages,
+    tools,
+    temperature: request.temperature,
+    maxTokens: request.max_tokens,
+    topP: request.top_p,
+    frequencyPenalty: request.frequency_penalty,
+    presencePenalty: request.presence_penalty,
+    stopSequences: request.stop
+      ? Array.isArray(request.stop)
+        ? request.stop
+        : [request.stop]
+      : undefined,
+    abortSignal,
+  };
+
+  return providerOptions ? { ...baseOptions, providerOptions } : baseOptions;
+}
+
+/**
+ * Convert AI SDK finish reason to OpenAI format
+ */
+function convertFinishReason(
+  reason: string | undefined,
+): "stop" | "length" | "tool_calls" {
+  if (reason === "tool-calls") return "tool_calls";
+  if (reason === "length") return "length";
+  return "stop";
 }
 
 // ============================================================================
@@ -503,58 +562,44 @@ app.post("/:org/v1/chat/completions", async (c) => {
       );
     }
 
-    // 7. Create LLM provider
-    await using proxy = await ctx.createMCPProxy(connection);
-    const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
-    const provider = createLLMProvider(llmBinding).languageModel(modelId);
-
-    // 8. Convert messages, tools, and response format
+    // 7. Convert messages, tools, and response format (before proxy creation)
     const messages = convertToAISDKMessages(request.messages);
     const tools = request.tools
       ? convertToAISDKTools(request.tools)
       : undefined;
     const providerOptions = convertResponseFormat(request.response_format);
 
-    // 9. Prepare common options
+    // 8. Prepare completion metadata
     const completionId = generateCompletionId();
     const created = Math.floor(Date.now() / 1000);
 
-    // Base options without providerOptions
-    const baseOptions = {
-      model: provider,
-      messages,
-      tools,
-      temperature: request.temperature,
-      maxTokens: request.max_tokens,
-      topP: request.top_p,
-      frequencyPenalty: request.frequency_penalty,
-      presencePenalty: request.presence_penalty,
-      stopSequences: request.stop
-        ? Array.isArray(request.stop)
-          ? request.stop
-          : [request.stop]
-        : undefined,
-      abortSignal: c.req.raw.signal,
-    };
-
-    // Add providerOptions for response_format if specified
-    const commonOptions = providerOptions
-      ? { ...baseOptions, providerOptions }
-      : baseOptions;
-
-    // 10. Handle streaming vs non-streaming
+    // 9. Handle streaming vs non-streaming
+    // NOTE: Proxy must be created INSIDE each branch to keep it alive for the duration of the operation
     if (request.stream) {
       return streamSSE(c, async (stream) => {
+        // Create proxy inside the streaming callback so it stays alive
+        await using proxy = await ctx.createMCPProxy(connection);
+        const llmBinding = LanguageModelBinding.forClient(
+          toServerClient(proxy),
+        );
+        const provider = createLLMProvider(llmBinding).languageModel(modelId);
+
+        const options = buildGenerateOptions(
+          provider,
+          messages,
+          tools,
+          request,
+          providerOptions,
+          c.req.raw.signal,
+        );
+
         try {
-          // Type assertion needed due to AI SDK type complexity
           const result = streamText(
-            commonOptions as Parameters<typeof streamText>[0],
+            options as Parameters<typeof streamText>[0],
           );
 
           let sentRole = false;
           let toolCallIndex = 0;
-          const toolCallIds: Record<string, { index: number; name: string }> =
-            {};
 
           for await (const part of result.fullStream) {
             // Send initial role delta
@@ -597,12 +642,7 @@ app.post("/:org/v1/chat/completions", async (c) => {
                 }),
               });
             } else if (part.type === "tool-call") {
-              // Tool call start
               const idx = toolCallIndex++;
-              toolCallIds[part.toolCallId] = {
-                index: idx,
-                name: part.toolName,
-              };
 
               await stream.writeSSE({
                 data: JSON.stringify({
@@ -632,15 +672,6 @@ app.post("/:org/v1/chat/completions", async (c) => {
                 }),
               });
             } else if (part.type === "finish") {
-              const finishReason =
-                part.finishReason === "tool-calls"
-                  ? "tool_calls"
-                  : part.finishReason === "stop"
-                    ? "stop"
-                    : part.finishReason === "length"
-                      ? "length"
-                      : "stop";
-
               await stream.writeSSE({
                 data: JSON.stringify({
                   id: completionId,
@@ -651,7 +682,7 @@ app.post("/:org/v1/chat/completions", async (c) => {
                     {
                       index: 0,
                       delta: {},
-                      finish_reason: finishReason,
+                      finish_reason: convertFinishReason(part.finishReason),
                     },
                   ],
                   usage: part.totalUsage
@@ -682,9 +713,21 @@ app.post("/:org/v1/chat/completions", async (c) => {
       });
     } else {
       // Non-streaming response
-      // Type assertion needed due to AI SDK type complexity
+      await using proxy = await ctx.createMCPProxy(connection);
+      const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
+      const provider = createLLMProvider(llmBinding).languageModel(modelId);
+
+      const options = buildGenerateOptions(
+        provider,
+        messages,
+        tools,
+        request,
+        providerOptions,
+        c.req.raw.signal,
+      );
+
       const result = await generateText(
-        commonOptions as Parameters<typeof generateText>[0],
+        options as Parameters<typeof generateText>[0],
       );
 
       // Build response message
@@ -708,21 +751,11 @@ app.post("/:org/v1/chat/completions", async (c) => {
           type: "function" as const,
           function: {
             name: tc.toolName,
-            // toolCalls can have different shapes, use 'input' for the args
             arguments: JSON.stringify("input" in tc ? tc.input : {}),
           },
         }));
         responseMessage.content = null;
       }
-
-      const finishReason =
-        result.finishReason === "tool-calls"
-          ? "tool_calls"
-          : result.finishReason === "stop"
-            ? "stop"
-            : result.finishReason === "length"
-              ? "length"
-              : "stop";
 
       return c.json({
         id: completionId,
@@ -733,7 +766,7 @@ app.post("/:org/v1/chat/completions", async (c) => {
           {
             index: 0,
             message: responseMessage,
-            finish_reason: finishReason,
+            finish_reason: convertFinishReason(result.finishReason),
           },
         ],
         usage: {
