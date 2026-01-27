@@ -14,6 +14,7 @@ import {
   useProjectContext,
   useVirtualMCPs,
   SELF_MCP_ALIAS_ID,
+  useConnections,
 } from "@decocms/mesh-sdk";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type {
@@ -35,6 +36,7 @@ import {
   useReducer,
 } from "react";
 import { toast } from "sonner";
+import { useBindingConnections } from "../../hooks/use-binding";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useThreadMessages, useThreads } from "./use-threads";
@@ -123,6 +125,9 @@ interface ChatContextValue {
   clearChatError: () => void;
   finishReason: string | null;
   clearFinishReason: () => void;
+
+  // Binding availability
+  hasTranscriptionBinding: boolean;
 }
 
 // ============================================================================
@@ -554,6 +559,14 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Always fetch messages for the active thread - if it's truly new, the query returns empty
   const initialMessages = useThreadMessages(activeThreadId);
 
+  // Binding detection for transcription feature
+  const allConnections = useConnections();
+  const transcriptionConnections = useBindingConnections({
+    connections: allConnections,
+    binding: "TRANSCRIPTION",
+  });
+  const hasTranscriptionBinding = transcriptionConnections.length > 0;
+
   // Context prompt
   const contextPrompt = useContextHook(storedSelectedVirtualMcpId);
 
@@ -772,6 +785,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     clearChatError: chat.clearError,
     finishReason: chatState.finishReason,
     clearFinishReason,
+
+    // Binding availability
+    hasTranscriptionBinding,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
