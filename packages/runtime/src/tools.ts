@@ -349,6 +349,11 @@ export interface OAuthParams {
   code: string;
   code_verifier?: string;
   code_challenge_method?: "S256" | "plain";
+  /**
+   * The redirect_uri used in the authorization request (without state/extra params).
+   * This is the clean callback URL that should be used for token exchange.
+   */
+  redirect_uri?: string;
 }
 
 export interface OAuthTokenResponse {
@@ -398,6 +403,11 @@ export interface OAuthConfig {
    * Called when the OAuth callback is received with a code
    */
   exchangeCode: (oauthParams: OAuthParams) => Promise<OAuthTokenResponse>;
+  /**
+   * Refreshes the access token using a refresh token
+   * Called when the client requests a new access token with grant_type=refresh_token
+   */
+  refreshToken?: (refreshToken: string) => Promise<OAuthTokenResponse>;
   /**
    * Optional: persistence for dynamic client registration (RFC7591)
    * If not provided, clients are accepted without validation
@@ -850,16 +860,46 @@ export const createMCPServer = <
     await server.connect(transport);
 
     try {
-      return await transport.handleRequest(req);
-    } finally {
-      // CRITICAL: Close transport to prevent memory leaks
-      // Without this, ReadableStream/WritableStream controllers accumulate
-      // causing thousands of stream objects to be retained in memory
+      const response = await transport.handleRequest(req);
+
+      // Check if this is a streaming response (SSE or streamable tool)
+      // SSE responses have text/event-stream content-type
+      // Note: response.body is always non-null for all HTTP responses, so we can't use it to detect streaming
+      const contentType = response.headers.get("content-type");
+      const isStreaming =
+        contentType?.includes("text/event-stream") ||
+        contentType?.includes("application/json-rpc");
+
+      // Only close transport for non-streaming responses
+      if (!isStreaming) {
+        console.debug(
+          "[MCP Transport] Closing transport for non-streaming response",
+        );
+        try {
+          await transport.close?.();
+        } catch {
+          // Ignore close errors
+        }
+      } else {
+        console.debug(
+          "[MCP Transport] Keeping transport open for streaming response (Content-Type: %s)",
+          contentType,
+        );
+      }
+
+      return response;
+    } catch (error) {
+      // On error, always try to close transport to prevent leaks
+      console.debug(
+        "[MCP Transport] Closing transport due to error:",
+        error instanceof Error ? error.message : error,
+      );
       try {
         await transport.close?.();
       } catch {
-        // Ignore close errors - transport may already be closed
+        // Ignore close errors
       }
+      throw error;
     }
   };
 

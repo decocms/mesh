@@ -56,11 +56,16 @@ interface PendingAuthState {
   clientState?: string;
   codeChallenge?: string;
   codeChallengeMethod?: string;
+  /** The clean callback URL used for OAuth (without state param) - used in token exchange */
+  oauthCallbackUri?: string;
 }
 
 interface CodePayload {
   accessToken: string;
   tokenType: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  scope?: string;
   codeChallenge?: string;
   codeChallengeMethod?: string;
 }
@@ -154,17 +159,22 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
       );
     }
 
-    // Encode pending auth state
+    // Build callback URL pointing to our internal callback (without state yet)
+    const callbackUrl = forceHttps(new URL(`${url.origin}/oauth/callback`));
+    // Store the clean callback URL for token exchange
+    const oauthCallbackUri = callbackUrl.toString();
+
+    // Encode pending auth state (including the clean callback URL)
     const pendingState: PendingAuthState = {
       redirectUri,
       clientState: clientState ?? undefined,
       codeChallenge: codeChallenge ?? undefined,
       codeChallengeMethod: codeChallengeMethod ?? undefined,
+      oauthCallbackUri,
     };
     const encodedState = encodeState(pendingState);
 
-    // Build callback URL pointing to our internal callback
-    const callbackUrl = forceHttps(new URL(`${url.origin}/oauth/callback`));
+    // Add state to callback URL
     callbackUrl.searchParams.set("state", encodedState);
 
     // Get the external authorization URL from the config
@@ -217,14 +227,26 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
     }
 
     try {
+      // Use the clean redirect_uri from the state (same URL used in authorization request)
+      // This ensures the exact same URL is used for token exchange
+      const cleanRedirectUri =
+        pending.oauthCallbackUri ??
+        forceHttps(new URL(`${url.origin}/oauth/callback`)).toString();
+
       // Exchange code with external provider
-      const oauthParams: OAuthParams = { code };
+      const oauthParams: OAuthParams = {
+        code,
+        redirect_uri: cleanRedirectUri,
+      };
       const tokenResponse = await oauth.exchangeCode(oauthParams);
 
       // Encode the token in our own code (stateless)
       const codePayload: CodePayload = {
         accessToken: tokenResponse.access_token,
         tokenType: tokenResponse.token_type,
+        refreshToken: tokenResponse.refresh_token,
+        expiresIn: tokenResponse.expires_in,
+        scope: tokenResponse.scope,
         codeChallenge: pending.codeChallenge,
         codeChallengeMethod: pending.codeChallengeMethod,
       };
@@ -257,6 +279,7 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
 
   /**
    * Handle token exchange - decodes our code to get the actual token
+   * Supports both authorization_code and refresh_token grant types
    * Stateless: token is encoded in the code
    */
   const handleToken = async (req: Request): Promise<Response> => {
@@ -271,13 +294,63 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
         body = await req.json();
       }
 
-      const { code, code_verifier, grant_type } = body;
+      const { code, code_verifier, grant_type, refresh_token } = body;
 
+      // Handle refresh_token grant type
+      if (grant_type === "refresh_token") {
+        if (!refresh_token) {
+          return Response.json(
+            {
+              error: "invalid_request",
+              error_description: "refresh_token is required",
+            },
+            { status: 400 },
+          );
+        }
+
+        if (!oauth.refreshToken) {
+          return Response.json(
+            {
+              error: "unsupported_grant_type",
+              error_description: "refresh_token grant not supported",
+            },
+            { status: 400 },
+          );
+        }
+
+        // Call the external provider to refresh the token
+        const newTokenResponse = await oauth.refreshToken(refresh_token);
+
+        const tokenResponse: Record<string, unknown> = {
+          access_token: newTokenResponse.access_token,
+          token_type: newTokenResponse.token_type,
+        };
+
+        if (newTokenResponse.refresh_token) {
+          tokenResponse.refresh_token = newTokenResponse.refresh_token;
+        }
+        if (newTokenResponse.expires_in !== undefined) {
+          tokenResponse.expires_in = newTokenResponse.expires_in;
+        }
+        if (newTokenResponse.scope) {
+          tokenResponse.scope = newTokenResponse.scope;
+        }
+
+        return Response.json(tokenResponse, {
+          headers: {
+            "Cache-Control": "no-store",
+            Pragma: "no-cache",
+          },
+        });
+      }
+
+      // Handle authorization_code grant type
       if (grant_type !== "authorization_code") {
         return Response.json(
           {
             error: "unsupported_grant_type",
-            error_description: "Only authorization_code supported",
+            error_description:
+              "Only authorization_code and refresh_token supported",
           },
           { status: 400 },
         );
@@ -339,19 +412,29 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
         }
       }
 
-      // Return the actual token
-      return Response.json(
-        {
-          access_token: payload.accessToken,
-          token_type: payload.tokenType,
+      // Return the actual token with all fields
+      const tokenResponse: Record<string, unknown> = {
+        access_token: payload.accessToken,
+        token_type: payload.tokenType,
+      };
+
+      // Include optional fields if present
+      if (payload.refreshToken) {
+        tokenResponse.refresh_token = payload.refreshToken;
+      }
+      if (payload.expiresIn !== undefined) {
+        tokenResponse.expires_in = payload.expiresIn;
+      }
+      if (payload.scope) {
+        tokenResponse.scope = payload.scope;
+      }
+
+      return Response.json(tokenResponse, {
+        headers: {
+          "Cache-Control": "no-store",
+          Pragma: "no-cache",
         },
-        {
-          headers: {
-            "Cache-Control": "no-store",
-            Pragma: "no-cache",
-          },
-        },
-      );
+      });
     } catch (err) {
       console.error("Token exchange error:", err);
       return Response.json(
