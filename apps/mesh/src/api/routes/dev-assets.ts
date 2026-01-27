@@ -154,6 +154,10 @@ app.get("/:orgId/*", async (c) => {
   }
 
   const expires = parseInt(expiresStr, 10);
+  if (!Number.isFinite(expires)) {
+    return c.json({ error: "Invalid expires parameter" }, 400);
+  }
+
   const now = Math.floor(Date.now() / 1000);
 
   // Check expiration
@@ -219,6 +223,10 @@ app.put("/:orgId/*", async (c) => {
   }
 
   const expires = parseInt(expiresStr, 10);
+  if (!Number.isFinite(expires)) {
+    return c.json({ error: "Invalid expires parameter" }, 400);
+  }
+
   const now = Math.floor(Date.now() / 1000);
 
   // Check expiration
