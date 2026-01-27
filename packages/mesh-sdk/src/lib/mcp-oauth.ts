@@ -274,6 +274,10 @@ export async function authenticateMcp(params: {
     windowMode: params.windowMode,
   });
 
+  // Object to hold the abort function - using an object wrapper so TypeScript
+  // properly tracks mutations inside closures
+  const oauthAbort: { fn: ((error: Error) => void) | null } = { fn: null };
+
   try {
     // Wait for OAuth callback message from popup and handle token exchange
     // Uses both postMessage (primary) and localStorage (fallback for when opener is lost)
@@ -299,6 +303,14 @@ export async function authenticateMcp(params: {
           } catch {
             // Ignore storage errors
           }
+        };
+
+        // Expose abort function so we can clean up if auth() throws
+        oauthAbort.fn = (error: Error) => {
+          if (resolved) return;
+          resolved = true;
+          cleanup();
+          reject(error);
         };
 
         const processCallback = async (data: {
@@ -409,6 +421,10 @@ export async function authenticateMcp(params: {
       },
     );
 
+    // Attach a no-op catch to prevent unhandled rejection if auth() throws
+    // (we'll abort the promise properly in the catch block, but this is a safety net)
+    oauthCompletePromise.catch(() => {});
+
     // Start the auth flow
     const result: AuthResult = await auth(provider, { serverUrl });
 
@@ -451,6 +467,11 @@ export async function authenticateMcp(params: {
       error: null,
     };
   } catch (error) {
+    // Abort the OAuth promise to trigger cleanup (clear timeout, remove event listeners)
+    // This prevents unhandled promise rejections and lingering listeners
+    if (oauthAbort.fn) {
+      oauthAbort.fn(error instanceof Error ? error : new Error(String(error)));
+    }
     return {
       token: null,
       tokenInfo: null,
