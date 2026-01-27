@@ -118,16 +118,3 @@ export function enableFetchInstrumentation(): void {
   // @ts-expect-error - Bun's fetch has extra properties like preconnect
   globalThis.fetch = instrumentedFetch;
 }
-
-/**
- * Disable fetch instrumentation by restoring original fetch
- */
-export function disableFetchInstrumentation(): void {
-  globalThis.fetch = originalFetch;
-}
-
-/**
- * Get the original uninstrumented fetch
- * Useful for internal calls that shouldn't be traced (e.g., OTLP export)
- */
-export const uninstrumentedFetch = originalFetch;

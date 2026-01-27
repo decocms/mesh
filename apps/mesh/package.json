@@ -60,8 +60,6 @@
     "@opentelemetry/exporter-logs-otlp-proto": "^0.211.0",
     "@opentelemetry/exporter-prometheus": "^0.208.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.207.0",
-    "@opentelemetry/instrumentation-fetch": "^0.207.0",
-    "@opentelemetry/instrumentation-pg": "^0.63.0",
     "@opentelemetry/instrumentation-runtime-node": "^0.24.0",
     "@opentelemetry/sdk-logs": "^0.211.0",
     "@opentelemetry/sdk-metrics": "^2.2.0",
