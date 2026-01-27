@@ -6,6 +6,7 @@ on:
     paths:
       - "apps/mesh/**"
       - "packages/mesh-plugin-*/**"
+      - "packages/mesh-sdk/**"
   workflow_dispatch:
     inputs:
       deploy_to_production:
