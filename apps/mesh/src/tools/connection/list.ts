@@ -16,6 +16,7 @@ import {
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings/object-storage";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
+import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
 import { createDevAssetsConnectionEntity, isDevMode } from "./dev-assets";
