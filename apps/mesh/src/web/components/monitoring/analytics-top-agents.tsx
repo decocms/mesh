@@ -6,7 +6,7 @@
 
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { CpuChip02 } from "@untitledui/icons";
+import { Users03 } from "@untitledui/icons";
 import {
   useMCPClient,
   useMCPToolCall,
@@ -233,7 +233,7 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
                   icon={virtualMcp.icon}
                   name={virtualMcp.title}
                   size="xs"
-                  fallbackIcon={<CpuChip02 />}
+                  fallbackIcon={<Users03 />}
                   className="shrink-0"
                 />
                 <span className="text-xs font-medium text-foreground truncate min-w-0 w-32">

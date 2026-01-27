@@ -5,7 +5,7 @@ import {
   getWellKnownDecopilotAgent,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { ClockRewind, CpuChip02, Plus, X } from "@untitledui/icons";
+import { ClockRewind, Users03, Plus, X } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
@@ -151,7 +151,7 @@ function ChatPanelContent() {
                     icon={displayAgent.icon}
                     name={displayAgent.title}
                     size="lg"
-                    fallbackIcon={<CpuChip02 size={32} />}
+                    fallbackIcon={<Users03 size={32} />}
                     className="size-[60px]! rounded-[18px]!"
                   />
                   <h3 className="text-xl font-medium text-foreground">

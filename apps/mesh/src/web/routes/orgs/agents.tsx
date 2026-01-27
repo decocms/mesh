@@ -38,7 +38,7 @@ import {
   Eye,
   Trash01,
   Loading01,
-  CpuChip02,
+  Users03,
 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useReducer } from "react";
@@ -101,7 +101,7 @@ function OrgAgentsContent() {
           name={virtualMcp.title}
           size="sm"
           className="shrink-0 shadow-sm"
-          fallbackIcon={<CpuChip02 size={16} />}
+          fallbackIcon={<Users03 size={16} />}
         />
       ),
       cellClassName: "w-16 shrink-0",
@@ -284,7 +284,7 @@ function OrgAgentsContent() {
         <div className="flex-1 overflow-auto p-5">
           {virtualMcps.length === 0 ? (
             <EmptyState
-              image={<CpuChip02 size={36} className="text-muted-foreground" />}
+              image={<Users03 size={36} className="text-muted-foreground" />}
               title={listState.search ? "No agents found" : "No agents yet"}
               description={
                 listState.search
@@ -304,7 +304,7 @@ function OrgAgentsContent() {
                     icon: virtualMcp.icon,
                     status: virtualMcp.status,
                   }}
-                  fallbackIcon={<CpuChip02 />}
+                  fallbackIcon={<Users03 />}
                   onClick={() =>
                     navigate({
                       to: "/$org/agents/$agentId",
@@ -391,17 +391,13 @@ function OrgAgentsContent() {
           emptyState={
             listState.search ? (
               <EmptyState
-                image={
-                  <CpuChip02 size={36} className="text-muted-foreground" />
-                }
+                image={<Users03 size={36} className="text-muted-foreground" />}
                 title="No agents found"
                 description={`No agents match "${listState.search}"`}
               />
             ) : (
               <EmptyState
-                image={
-                  <CpuChip02 size={36} className="text-muted-foreground" />
-                }
+                image={<Users03 size={36} className="text-muted-foreground" />}
                 title="No agents yet"
                 description="Create an agent to aggregate tools from multiple Connections."
               />

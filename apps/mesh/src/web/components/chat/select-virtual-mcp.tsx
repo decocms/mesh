@@ -19,7 +19,7 @@ import {
   useVirtualMCPs,
   type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
-import { Check, ChevronDown, CpuChip02, SearchMd } from "@untitledui/icons";
+import { Check, ChevronDown, SearchMd, Users03 } from "@untitledui/icons";
 import {
   useEffect,
   useRef,
@@ -53,8 +53,8 @@ function VirtualMCPItemContent({
         icon={virtualMcp.icon}
         name={virtualMcp.title}
         size="sm"
-        fallbackIcon={virtualMcp.fallbackIcon ?? <CpuChip02 />}
-        className="rounded-xl border border-stone-200/60 shadow-sm shrink-0 aspect-square"
+        fallbackIcon={virtualMcp.fallbackIcon ?? <Users03 />}
+        className="rounded-xl border border-border shadow-sm shrink-0 aspect-square"
       />
 
       {/* Text Content */}
@@ -276,7 +276,7 @@ export function VirtualMCPSelector({
                   icon={selected.icon}
                   name={selected.title}
                   size="xs"
-                  fallbackIcon={<CpuChip02 size={12} />}
+                  fallbackIcon={<Users03 size={12} />}
                   className="rounded-md shrink-0 aspect-square"
                 />
                 <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 hidden sm:inline-block">
