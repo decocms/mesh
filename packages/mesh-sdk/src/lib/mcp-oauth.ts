@@ -153,8 +153,7 @@ class McpOAuthProvider implements OAuthClientProvider {
       // Open in new tab - uses localStorage for cross-tab communication
       const tab = window.open(authorizationUrl.toString(), "_blank");
       if (!tab) {
-        // Fallback: navigate current window (will lose state, but works)
-        window.location.href = authorizationUrl.toString();
+        throw new Error("Tab was blocked");
       }
     } else {
       // Open in popup (default)
@@ -173,9 +172,7 @@ class McpOAuthProvider implements OAuthClientProvider {
         // Popup was blocked - fallback to new tab (uses localStorage for communication)
         const tab = window.open(authorizationUrl.toString(), "_blank");
         if (!tab) {
-          // Last resort: redirect current window
-          // Note: This will navigate away from the current page.
-          window.location.href = authorizationUrl.toString();
+          throw new Error("Popup was blocked");
         }
       }
     }
