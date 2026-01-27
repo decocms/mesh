@@ -11,7 +11,6 @@ import { jsonSchema, JSONSchema7, JSONValue, tool, ToolSet } from "ai";
 import type { Context } from "hono";
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
-import type { ConnectionEntity } from "@/tools/connection/schema";
 import { MCP_TOOL_CALL_TIMEOUT_MS } from "../proxy";
 
 /**
@@ -41,33 +40,9 @@ export function ensureUser(ctx: MeshContext): string {
 }
 
 /**
- * Get connection by ID with organization and status validation
- */
-export async function getConnectionById(
-  ctx: MeshContext,
-  organizationId: string,
-  connectionId: string,
-): Promise<ConnectionEntity | null> {
-  const connection = await ctx.storage.connections.findById(connectionId);
-  if (!connection) return null;
-  if (connection.organization_id !== organizationId) {
-    throw new Error("Connection does not belong to organization");
-  }
-  if (connection.status !== "active") {
-    throw new Error(
-      `Connection is ${connection.status.toUpperCase()}, not active`,
-    );
-  }
-  return connection;
-}
-
-/**
  * Convert MCP tools to AI SDK ToolSet
  */
-export async function toolsFromMCP(
-  client: Client,
-  properties?: Record<string, string>,
-): Promise<ToolSet> {
+export async function toolsFromMCP(client: Client): Promise<ToolSet> {
   const list = await client.listTools();
 
   const toolEntries = list.tools.map((t) => {
@@ -83,15 +58,10 @@ export async function toolsFromMCP(
           ? jsonSchema(outputSchema as JSONSchema7)
           : undefined,
         execute: (input, options) => {
-          const argsWithMeta =
-            properties && Object.keys(properties).length > 0
-              ? { ...input, _meta: { properties } }
-              : input;
-
           return client.callTool(
             {
               name: t.name,
-              arguments: argsWithMeta as Record<string, unknown>,
+              arguments: input as Record<string, unknown>,
             },
             CallToolResultSchema,
             { signal: options.abortSignal, timeout: MCP_TOOL_CALL_TIMEOUT_MS },

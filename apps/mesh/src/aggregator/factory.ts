@@ -72,6 +72,7 @@ async function createMCPAggregator(
       getPrompt: prompts.get.bind(prompts),
     },
     callStreamableTool: tools.callStreamable.bind(tools),
+    [Symbol.asyncDispose]: () => proxies[Symbol.asyncDispose](),
   };
 }
 

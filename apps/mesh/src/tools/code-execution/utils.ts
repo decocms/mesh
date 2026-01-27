@@ -194,12 +194,12 @@ async function loadToolsFromConnections(
   ctx: MeshContext,
 ): Promise<ToolContext> {
   // Create proxy collection
-  const proxies = await ProxyCollection.create(connections, ctx);
+  await using proxies = await ProxyCollection.create(connections, ctx);
 
   // Fetch tools from all connections in parallel
   const results = await proxies.mapSettled(async (entry, connectionId) => {
     try {
-      const result = await entry.proxy.client.listTools();
+      const result = await entry.proxy.listTools();
       let tools = result.tools;
 
       // Apply selection based on mode
@@ -276,7 +276,7 @@ async function loadToolsFromConnections(
       };
     }
 
-    const result = await proxyEntry.proxy.client.callTool({
+    const result = await proxyEntry.proxy.callTool({
       name: mapping.originalName,
       arguments: args,
     });

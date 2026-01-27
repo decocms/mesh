@@ -14,11 +14,6 @@
   "engines": {
     "node": ">=24.0.0"
   },
-  "overrides": {
-    "@modelcontextprotocol/sdk": "1.25.2",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.0.4"
-  },
   "private": true,
   "scripts": {
     "link": "deco link -p 3000 -e MESH_URL -- bun run dev",

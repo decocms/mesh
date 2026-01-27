@@ -54,23 +54,18 @@ interface RegistryItem {
   };
 }
 
-/** MCP proxy client interface */
-interface MCPProxyClient {
-  callTool: (params: {
-    name: string;
-    arguments?: Record<string, unknown>;
-  }) => Promise<{ structuredContent?: unknown } | unknown>;
-  listTools: () => Promise<{ tools: Array<{ name: string }> }>;
-}
-
-/** MCP proxy interface */
-interface MCPProxy {
-  client: MCPProxyClient;
-}
-
-/** Mesh context with createMCPProxy */
+/** Mesh context with createMCPProxy - accepts any proxy-like object */
 interface MeshContextWithProxy {
-  createMCPProxy: (connectionId: string) => Promise<MCPProxy>;
+  createMCPProxy: (connectionId: string) => Promise<
+    {
+      callTool: (params: {
+        name: string;
+        arguments?: Record<string, unknown>;
+      }) => Promise<unknown>;
+      listTools: () => Promise<{ tools: Array<{ name: string }> }>;
+      [Symbol.asyncDispose]: () => Promise<void>;
+    } & Record<string, unknown> // Allow other Client methods
+  >;
 }
 
 /** The metadata key used by MCP Mesh registry - must match apps/mesh/src/core/constants.ts */
@@ -281,10 +276,10 @@ async function lookupAppFromRegistry(
   selectedPrompts: string[] | null = null,
 ): Promise<RequiredApp> {
   // Create proxy to registry
-  const proxy = await ctx.createMCPProxy(registryId);
+  await using proxy = await ctx.createMCPProxy(registryId);
 
   // Find the LIST tool
-  const toolsResult = await proxy.client.listTools();
+  const toolsResult = await proxy.listTools();
   const listToolName = findListToolName(toolsResult.tools);
 
   if (!listToolName) {
@@ -292,7 +287,7 @@ async function lookupAppFromRegistry(
   }
 
   // Call LIST with appName filter
-  const result = await proxy.client.callTool({
+  const result = await proxy.callTool({
     name: listToolName,
     arguments: { where: { appName } },
   });

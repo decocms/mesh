@@ -122,7 +122,7 @@ export async function handleVirtualMcpRequest(
     const strategy = parseStrategyFromMode(mode);
 
     // Create aggregator from entity
-    const aggregatorClient = await createMCPAggregatorFromEntity(
+    await using aggregatorClient = await createMCPAggregatorFromEntity(
       virtualMcp,
       ctx,
       strategy,
@@ -217,6 +217,7 @@ export async function handleVirtualMcpRequest(
       } catch {
         // Ignore close errors
       }
+      // AggregatorClient will be automatically disposed via await using
     }
   } catch (error) {
     const err = error as Error;

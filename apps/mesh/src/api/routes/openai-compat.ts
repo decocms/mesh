@@ -10,6 +10,7 @@
  */
 
 import { LanguageModelBinding } from "@decocms/bindings/llm";
+import { toServerClient } from "./proxy";
 import {
   generateText,
   jsonSchema,
@@ -503,8 +504,8 @@ app.post("/:org/v1/chat/completions", async (c) => {
     }
 
     // 7. Create LLM provider
-    const proxy = await ctx.createMCPProxy(connection);
-    const llmBinding = LanguageModelBinding.forClient(proxy);
+    await using proxy = await ctx.createMCPProxy(connection);
+    const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
     const provider = createLLMProvider(llmBinding).languageModel(modelId);
 
     // 8. Convert messages, tools, and response format

@@ -40,7 +40,7 @@ export class ResourceTemplateAggregator {
     const results = await this.proxies.mapSettled(
       async (entry, connectionId) => {
         try {
-          const result = await entry.proxy.client.listResourceTemplates();
+          const result = await entry.proxy.listResourceTemplates();
           return { connectionId, templates: result.resourceTemplates };
         } catch (error) {
           if (

@@ -96,6 +96,20 @@ export {
 // Streamable HTTP transport
 export { StreamableHTTPClientTransport } from "./lib/streamable-http-client-transport";
 
+// Bridge transport
+export {
+  createBridgeTransportPair,
+  BridgeClientTransport,
+  BridgeServerTransport,
+  type BridgeTransportPair,
+} from "./lib/bridge-transport";
+
+// Server-client bridge
+export {
+  createServerFromClient,
+  type ServerFromClientOptions,
+} from "./lib/server-client-bridge";
+
 // Query keys
 export { KEYS } from "./lib/query-keys";
 

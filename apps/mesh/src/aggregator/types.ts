@@ -17,13 +17,13 @@ import type {
   ReadResourceRequest,
   ReadResourceResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { createMCPProxy } from "../api/routes/proxy";
 import type { ToolSelectionMode } from "../storage/types";
 import type { ConnectionEntity } from "../tools/connection/schema";
 import type { AggregatorToolSelectionStrategy } from "./strategy";
+import type { MCPProxyClient } from "../api/routes/proxy";
 
 /** Proxy type returned by createMCPProxy */
-export type MCPProxy = Awaited<ReturnType<typeof createMCPProxy>>;
+export type MCPProxy = MCPProxyClient;
 
 /** Entry in the ProxyCollection */
 export interface ProxyEntry {
@@ -63,4 +63,5 @@ export interface AggregatorClient extends ServerClient {
     tool: string,
     args: Record<string, unknown>,
   ) => Promise<Response>;
+  [Symbol.asyncDispose]: () => Promise<void>;
 }

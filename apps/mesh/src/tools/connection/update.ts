@@ -240,8 +240,8 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       finalScopes.length > 0
     ) {
       try {
-        const proxy = await ctx.createMCPProxy(id);
-        await proxy.client.callTool({
+        await using proxy = await ctx.createMCPProxy(id);
+        await proxy.callTool({
           name: "ON_MCP_CONFIGURATION",
           arguments: {
             state: finalState,
