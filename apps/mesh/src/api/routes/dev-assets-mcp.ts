@@ -508,6 +508,3 @@ app.all("/", async (c) => {
 });
 
 export default app;
-
-// Export for use in connection injection
-export { DEV_ASSETS_BASE_DIR, getOrgAssetsDir };
