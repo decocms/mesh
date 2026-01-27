@@ -266,7 +266,10 @@ async function createMCPProxyDoNotUseDirectly(
 
     // Issue short-lived JWT with configuration permissions
     // JWT can be decoded directly by downstream to access payload
-    const userId = ctx.auth.user?.id ?? ctx.auth.apiKey?.userId;
+    const userId =
+      ctx.auth.user?.id ??
+      ctx.auth.apiKey?.userId ??
+      (superUser ? connection.created_by : undefined);
     if (!userId) {
       console.error("User ID required to issue configuration token");
       return;

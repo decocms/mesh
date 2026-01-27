@@ -26,10 +26,7 @@ export function createNotifySubscriber(): NotifySubscriberFn {
       const ctx = await ContextFactory.create();
 
       // Create MCP proxy for the subscriber connection
-      const proxy = await dangerouslyCreateSuperUserMCPProxy(connectionId, {
-        ...ctx,
-        auth: { ...ctx.auth, user: { id: "notify-worker" } },
-      });
+      const proxy = await dangerouslyCreateSuperUserMCPProxy(connectionId, ctx);
 
       // Use the Event Subscriber binding - pass the whole proxy object
       // Same pattern as LanguageModelBinding.forClient(proxy) in models.ts
