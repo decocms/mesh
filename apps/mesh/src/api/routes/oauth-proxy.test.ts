@@ -387,6 +387,61 @@ describe("OAuth Proxy Routes", () => {
       // Should pass through the 404 since origin doesn't support OAuth
       expect(res.status).toBe(404);
     });
+
+    test("generates clean synthetic metadata when origin returns auth server metadata at protected resource endpoint (ClickHouse-style)", async () => {
+      // Some servers like ClickHouse incorrectly return Authorization Server Metadata (RFC 8414)
+      // at the protected resource endpoint instead of Protected Resource Metadata (RFC 9728).
+      // We need to detect this and generate clean synthetic metadata.
+      mockConnectionStorage({
+        connection_url: "https://mcp.clickhouse.cloud/mcp",
+      });
+
+      // Mock ClickHouse-style response: auth server metadata at protected resource endpoint
+      global.fetch = mock(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              // This is auth server metadata (RFC 8414), NOT protected resource metadata!
+              issuer: "https://mcp.clickhouse.cloud",
+              authorization_endpoint: "https://mcp.clickhouse.cloud/authorize",
+              token_endpoint: "https://mcp.clickhouse.cloud/token",
+              response_types_supported: ["code"],
+              grant_types_supported: ["authorization_code", "refresh_token"],
+              scopes_supported: ["openid", "profile", "email"],
+              registration_endpoint: "https://mcp.clickhouse.cloud/register",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+      ) as unknown as typeof fetch;
+
+      const res = await app.request(
+        "http://localhost:3000/.well-known/oauth-protected-resource/mcp/conn_123",
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        resource: string;
+        authorization_servers: string[];
+        bearer_methods_supported: string[];
+        scopes_supported: string[];
+        issuer?: string;
+        authorization_endpoint?: string;
+      };
+
+      // Should have clean RFC 9728 Protected Resource Metadata
+      expect(body.resource).toBe("http://localhost:3000/mcp/conn_123");
+      expect(body.authorization_servers).toEqual([
+        "http://localhost:3000/oauth-proxy/conn_123",
+      ]);
+      expect(body.bearer_methods_supported).toEqual(["header"]);
+      // Should preserve scopes from origin
+      expect(body.scopes_supported).toEqual(["openid", "profile", "email"]);
+
+      // Should NOT have auth server metadata fields that would confuse MCP SDK
+      expect(body.issuer).toBeUndefined();
+      expect(body.authorization_endpoint).toBeUndefined();
+    });
   });
 
   describe("Authorization Server Metadata Proxy", () => {
