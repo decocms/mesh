@@ -28,6 +28,7 @@ import {
 } from "better-auth/plugins/organization/access";
 
 import { config } from "@/core/config";
+import { getBaseUrl } from "@/core/server-constants";
 import { createAccessControl, Role } from "@decocms/better-auth/plugins/access";
 import { getDatabaseUrl, getDbDialect } from "../database";
 import { createEmailSender, findEmailProvider } from "./email-providers";
@@ -127,7 +128,7 @@ if (
 
     sendInvitationEmail = async (data) => {
       const inviterName = data.inviter.user?.name || data.inviter.user?.email;
-      const acceptUrl = `${process.env.BASE_URL || "http://localhost:3000"}/auth/accept-invitation?invitationId=${data.invitation.id}`;
+      const acceptUrl = `${getBaseUrl()}/auth/accept-invitation?invitationId=${data.invitation.id}`;
 
       await sendEmail({
         to: data.email,
@@ -277,7 +278,7 @@ const database = getDbDialect(databaseUrl);
  */
 export const auth = betterAuth({
   // Base URL for OAuth - will be overridden by request context
-  baseURL: process.env.BASE_URL || "http://localhost:3000",
+  baseURL: getBaseUrl(),
 
   // Better Auth can use the dialect directly
   database,

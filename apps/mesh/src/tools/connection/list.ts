@@ -14,14 +14,19 @@ import {
   type WhereExpression,
 } from "@decocms/bindings/collections";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
+import { OBJECT_STORAGE_BINDING } from "@decocms/bindings/object-storage";
+import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
+import { getBaseUrl } from "../../core/server-constants";
 import { requireOrganization } from "../../core/mesh-context";
+import { createDevAssetsConnectionEntity, isDevMode } from "./dev-assets";
 import { type ConnectionEntity, ConnectionEntitySchema } from "./schema";
 
 const BUILTIN_BINDING_CHECKERS: Record<string, Binder> = {
   LLM: LANGUAGE_MODEL_BINDING,
   ASSISTANTS: ASSISTANTS_BINDING,
+  OBJECT_STORAGE: OBJECT_STORAGE_BINDING,
 };
 
 /**
@@ -230,6 +235,22 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       : undefined;
 
     const connections = await ctx.storage.connections.list(organization.id);
+
+    // In dev mode, inject the dev-assets connection for local file storage
+    // This provides object storage functionality without requiring an external S3 bucket
+    if (isDevMode()) {
+      const baseUrl = getBaseUrl();
+      const devAssetsId = WellKnownOrgMCPId.DEV_ASSETS(organization.id);
+
+      // Only add if not already in the list (shouldn't be, but just in case)
+      if (!connections.some((c) => c.id === devAssetsId)) {
+        const devAssetsConnection = createDevAssetsConnectionEntity(
+          organization.id,
+          baseUrl,
+        );
+        connections.unshift(devAssetsConnection);
+      }
+    }
 
     // Filter out VIRTUAL connections (they are agents, not regular connections)
     // VIRTUAL connections are managed through the Virtual MCP / Agents UI

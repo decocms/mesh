@@ -10,6 +10,12 @@ import {
 } from "@decocms/bindings/collections";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
+import { getBaseUrl } from "../../core/server-constants";
+import {
+  createDevAssetsConnectionEntity,
+  isDevAssetsConnection,
+  isDevMode,
+} from "./dev-assets";
 import { ConnectionEntitySchema } from "./schema";
 
 /**
@@ -33,7 +39,14 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
     // Check authorization
     await ctx.access.check();
 
-    // Get connection
+    // In dev mode, check if this is the dev-assets connection
+    if (isDevMode() && isDevAssetsConnection(input.id, organization.id)) {
+      return {
+        item: createDevAssetsConnectionEntity(organization.id, getBaseUrl()),
+      };
+    }
+
+    // Get connection from database
     const connection = await ctx.storage.connections.findById(input.id);
 
     // Verify connection exists and belongs to the current organization

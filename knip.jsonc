@@ -18,7 +18,9 @@
         "src/cli.ts",
         "src/web/index.tsx!",
         "migrations/**/*.ts",
-        "scripts/**/*.ts"
+        "scripts/**/*.ts",
+        // Dev-only module loaded via require() - needs explicit entry
+        "src/api/routes/dev-only.ts"
       ],
       "ignore": ["src/api/index.ts"]
     },

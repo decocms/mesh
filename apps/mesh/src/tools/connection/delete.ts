@@ -40,6 +40,14 @@ export const COLLECTION_CONNECTIONS_DELETE = defineTool({
       throw new Error("Connection not found in organization");
     }
 
+    // Block deletion of fixed system connections (e.g., dev-assets in dev mode)
+    const metadata = connection.metadata as Record<string, unknown> | null;
+    if (metadata?.isFixed === true) {
+      throw new Error(
+        "This connection is a fixed system connection and cannot be deleted",
+      );
+    }
+
     // Delete connection
     await ctx.storage.connections.delete(input.id);
 

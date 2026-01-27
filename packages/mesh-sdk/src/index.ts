@@ -115,12 +115,15 @@ export {
 export {
   // Frontend self MCP ID
   SELF_MCP_ALIAS_ID,
+  // Frontend dev-assets MCP ID
+  DEV_ASSETS_MCP_ALIAS_ID,
   // Org-scoped MCP ID generators
   WellKnownOrgMCPId,
   // Connection factory functions
   getWellKnownRegistryConnection,
   getWellKnownCommunityRegistryConnection,
   getWellKnownSelfConnection,
+  getWellKnownDevAssetsConnection,
   getWellKnownOpenRouterConnection,
   getWellKnownMcpStudioConnection,
   // Virtual MCP factory functions

@@ -13,6 +13,7 @@ import type { Meter, Tracer } from "@opentelemetry/api";
 import type { Kysely } from "kysely";
 import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
+import { getBaseUrl } from "./server-constants";
 import { ConnectionStorage } from "../storage/connection";
 import { VirtualMCPStorage } from "../storage/virtual-mcp";
 import { SqlMonitoringStorage } from "../storage/monitoring";
@@ -772,9 +773,10 @@ export function createMeshContextFactory(
     // Organization from Better Auth (OAuth session or API key metadata)
     const organization = authResult.organization;
 
-    // Derive base URL from request
-    const url = req ? new URL(req.url) : new URL("http://localhost:3000");
-    const baseUrl = process.env.BASE_URL ?? `${url.protocol}//${url.host}`;
+    // Derive base URL from request or fallback to configured base URL
+    const baseUrl = req
+      ? (process.env.BASE_URL ?? `${new URL(req.url).origin}`)
+      : getBaseUrl();
 
     // Create AccessControl instance with bound auth client
     const access = new AccessControl(
