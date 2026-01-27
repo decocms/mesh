@@ -266,6 +266,11 @@ async function createMCPProxyDoNotUseDirectly(
 
     // Issue short-lived JWT with configuration permissions
     // JWT can be decoded directly by downstream to access payload
+    // TODO: The superUser fallback to connection.created_by is a workaround for background
+    // processes (e.g., event-triggered handlers) that need a userId but aren't acting as a
+    // real user. This causes monitoring to incorrectly attribute actions to the connection
+    // creator. Better solution: create a dedicated "Decopilot" service user per organization
+    // for automated actions, so they're properly distinguished from real user activity.
     const userId =
       ctx.auth.user?.id ??
       ctx.auth.apiKey?.userId ??
