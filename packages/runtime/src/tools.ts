@@ -859,10 +859,48 @@ export const createMCPServer = <
 
     await server.connect(transport);
 
-    // NOTE: Do NOT close transport here for SSE responses
-    // The response is a ReadableStream that must stay open until the client finishes reading
-    // The transport will close naturally when the stream ends
-    return await transport.handleRequest(req);
+    try {
+      const response = await transport.handleRequest(req);
+
+      // Check if this is a streaming response (SSE or streamable tool)
+      // SSE responses have text/event-stream content-type
+      // Note: response.body is always non-null for all HTTP responses, so we can't use it to detect streaming
+      const contentType = response.headers.get("content-type");
+      const isStreaming =
+        contentType?.includes("text/event-stream") ||
+        contentType?.includes("application/json-rpc");
+
+      // Only close transport for non-streaming responses
+      if (!isStreaming) {
+        console.debug(
+          "[MCP Transport] Closing transport for non-streaming response",
+        );
+        try {
+          await transport.close?.();
+        } catch {
+          // Ignore close errors
+        }
+      } else {
+        console.debug(
+          "[MCP Transport] Keeping transport open for streaming response (Content-Type: %s)",
+          contentType,
+        );
+      }
+
+      return response;
+    } catch (error) {
+      // On error, always try to close transport to prevent leaks
+      console.debug(
+        "[MCP Transport] Closing transport due to error:",
+        error instanceof Error ? error.message : error,
+      );
+      try {
+        await transport.close?.();
+      } catch {
+        // Ignore close errors
+      }
+      throw error;
+    }
   };
 
   const callTool: CallTool = async ({ toolCallId, toolCallInput }) => {
