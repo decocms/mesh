@@ -170,9 +170,13 @@ class McpOAuthProvider implements OAuthClientProvider {
       );
 
       if (!popup) {
-        throw new Error(
-          "OAuth popup was blocked. Please allow popups for this site and try again.",
-        );
+        // Popup was blocked - fallback to new tab (uses localStorage for communication)
+        const tab = window.open(authorizationUrl.toString(), "_blank");
+        if (!tab) {
+          // Last resort: redirect current window
+          // Note: This will navigate away from the current page
+          window.location.href = authorizationUrl.toString();
+        }
       }
     }
   }
