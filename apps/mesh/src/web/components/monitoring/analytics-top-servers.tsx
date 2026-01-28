@@ -5,22 +5,16 @@
  */
 
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { Container } from "@untitledui/icons";
-import {
-  useConnections,
-  useMCPClient,
-  useMCPToolCall,
-  useProjectContext,
-  SELF_MCP_ALIAS_ID,
-} from "@decocms/mesh-sdk";
+import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@deco/ui/components/toggle-group.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
-import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
-import type { MonitoringLogsWithVirtualMCPResponse } from "./index";
+import { Container } from "@untitledui/icons";
+import { useMonitoringLogs } from "./hooks.ts";
 
 export type MetricsMode = "requests" | "errors" | "latency";
 
@@ -30,20 +24,6 @@ interface ServerMetric {
   errors: number;
   errorRate: number;
   avgLatencyMs: number;
-}
-
-function getLast24HoursDateRange() {
-  // Round to the nearest 5 minutes to avoid infinite re-suspending
-  // (otherwise millisecond changes in Date cause new query keys each render)
-  const now = Date.now();
-  const fiveMinutes = 5 * 60 * 1000;
-  const roundedNow = Math.floor(now / fiveMinutes) * fiveMinutes;
-  const endDate = new Date(roundedNow);
-  const startDate = new Date(roundedNow - 24 * 60 * 60 * 1000);
-  return {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-  };
 }
 
 function aggregateServerMetrics(
@@ -134,25 +114,10 @@ function TopServersContent({
 }: TopServersContentProps) {
   const { org } = useProjectContext();
   const navigate = useNavigate();
-  const dateRange = getLast24HoursDateRange();
 
   const connections = useConnections({ pageSize: 100 }) ?? [];
 
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  const { data: logsData } =
-    useMCPToolCall<MonitoringLogsWithVirtualMCPResponse>({
-      client,
-      toolName: "MONITORING_LOGS_LIST",
-      toolArguments: { ...dateRange, limit: 10, offset: 0 },
-      staleTime: 30_000,
-      select: (result) =>
-        ((result as { structuredContent?: unknown }).structuredContent ??
-          result) as MonitoringLogsWithVirtualMCPResponse,
-    });
+  const { data: logsData } = useMonitoringLogs();
 
   const logs = logsData?.logs ?? [];
 

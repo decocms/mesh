@@ -5,19 +5,14 @@
  */
 
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { Container } from "@untitledui/icons";
-import {
-  useConnections,
-  useMCPClient,
-  useMCPToolCall,
-  useProjectContext,
-  SELF_MCP_ALIAS_ID,
-} from "@decocms/mesh-sdk";
-import { ChartContainer, ChartTooltip } from "@deco/ui/components/chart.tsx";
-import { useNavigate } from "@tanstack/react-router";
-import { Line, LineChart } from "recharts";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
-import type { BaseMonitoringLog, BaseMonitoringLogsResponse } from "./index";
+import { ChartContainer, ChartTooltip } from "@deco/ui/components/chart.tsx";
+import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
+import { useNavigate } from "@tanstack/react-router";
+import { Container } from "@untitledui/icons";
+import { Line, LineChart } from "recharts";
+import { useMonitoringLogs } from "./hooks";
+import type { BaseMonitoringLog } from "./index";
 
 type MetricsMode = "requests" | "errors" | "latency";
 
@@ -26,20 +21,6 @@ interface BucketData {
   ts: number;
   label: string;
   [toolName: string]: string | number;
-}
-
-function getLast24HoursDateRange() {
-  // Round to the nearest 5 minutes to avoid infinite re-suspending
-  // (otherwise millisecond changes in Date cause new query keys each render)
-  const now = Date.now();
-  const fiveMinutes = 5 * 60 * 1000;
-  const roundedNow = Math.floor(now / fiveMinutes) * fiveMinutes;
-  const endDate = new Date(roundedNow);
-  const startDate = new Date(roundedNow - 24 * 60 * 60 * 1000);
-  return {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-  };
 }
 
 function buildStackedToolBuckets(
@@ -128,23 +109,9 @@ interface TopToolsContentProps {
 function TopToolsContent(_props: TopToolsContentProps) {
   const { org } = useProjectContext();
   const navigate = useNavigate();
-  const dateRange = getLast24HoursDateRange();
   const connections = useConnections() ?? [];
 
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  const { data: logsData } = useMCPToolCall<BaseMonitoringLogsResponse>({
-    client,
-    toolName: "MONITORING_LOGS_LIST",
-    toolArguments: { ...dateRange, limit: 20, offset: 0 },
-    staleTime: 30_000,
-    select: (result) =>
-      ((result as { structuredContent?: unknown }).structuredContent ??
-        result) as BaseMonitoringLogsResponse,
-  });
+  const { data: logsData, dateRange } = useMonitoringLogs();
 
   const logs = logsData?.logs ?? [];
   const start = new Date(dateRange.startDate);
