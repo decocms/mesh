@@ -526,8 +526,12 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
             }),
             outputSchema: z.object({}),
             execute: async (input) => {
-              const state = (input.context as { state: unknown })
-                .state as z.infer<TSchema>;
+              // CRITICAL: Get state from MESH_REQUEST_CONTEXT - this has the RESOLVED bindings
+              // input.context.state contains raw IDs (e.g., "L6F1w8FEquRtVzSQyrvZYzhdal3hinEV_self")
+              // env.MESH_REQUEST_CONTEXT.state contains resolved clients (e.g., actual connection strings)
+              const env = input.runtimeContext.env;
+              const state = env.MESH_REQUEST_CONTEXT?.state as z.infer<TSchema>;
+
               await onChange?.(input.runtimeContext.env, {
                 state,
                 scopes: (input.context as { scopes: string[] }).scopes,
