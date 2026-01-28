@@ -9,12 +9,14 @@ import {
   Binder,
   connectionImplementsBinding,
   PluginConnectionEntity,
-  PluginContextProvider,
   PluginContext,
   PluginContextPartial,
   PluginSession,
 } from "@decocms/bindings";
-import type { PluginRenderHeaderProps } from "@decocms/bindings/plugins";
+import {
+  PluginContextProvider,
+  type PluginRenderHeaderProps,
+} from "@decocms/bindings/plugins";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import {
   useConnections,

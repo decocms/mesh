@@ -11,10 +11,12 @@
  */
 
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { usePluginContext } from "@decocms/bindings";
-import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
+import {
+  OBJECT_STORAGE_BINDING,
+  type ListObjectsOutput,
+} from "@decocms/bindings";
+import { usePluginContext } from "@decocms/bindings/plugins";
 import { KEYS } from "../lib/query-keys";
-import type { ListObjectsOutput } from "@decocms/bindings";
 
 const DEFAULT_PAGE_SIZE = 100;
 
