@@ -122,7 +122,7 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
   const virtualMcpsWithMetrics = virtualMcps
     .map((virtualMcp) => ({
       virtualMcp,
-      metric: metricsMap.get(virtualMcp.id),
+      metric: metricsMap.get(virtualMcp.id ?? ""),
     }))
     .filter(
       (
@@ -190,9 +190,9 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
             );
             return (
               <div
-                key={virtualMcp.id}
+                key={virtualMcp.id ?? "default"}
                 className="group cursor-pointer flex items-center gap-2"
-                onClick={() => handleVirtualMcpClick(virtualMcp.id)}
+                onClick={() => handleVirtualMcpClick(virtualMcp.id ?? "")}
               >
                 <IntegrationIcon
                   icon={virtualMcp.icon}

@@ -5,7 +5,12 @@ import { useViewMode } from "@deco/ui/hooks/use-view-mode.ts";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
 import { useDeferredValue, useState } from "react";
 
-export interface UseListStateOptions<T extends BaseCollectionEntity> {
+// Custom collection entity type that allows nullable IDs
+export type ListStateEntity = Omit<BaseCollectionEntity, "id"> & {
+  id: string | null;
+};
+
+export interface UseListStateOptions<T extends ListStateEntity> {
   /** Organization/namespace for storage keys */
   namespace: string;
   /** Resource name for storage keys (e.g., "connections", "models") */
@@ -16,7 +21,7 @@ export interface UseListStateOptions<T extends BaseCollectionEntity> {
   defaultViewMode?: "table" | "cards";
 }
 
-export interface ListState<T extends BaseCollectionEntity> {
+export interface ListState<T extends ListStateEntity> {
   // Search
   search: string;
   searchTerm: string;
@@ -43,7 +48,7 @@ export interface ListState<T extends BaseCollectionEntity> {
  * Hook to consolidate list UI state (search, filters, sorting, view mode)
  * with localStorage persistence for applicable state.
  */
-export function useListState<T extends BaseCollectionEntity>(
+export function useListState<T extends ListStateEntity>(
   options: UseListStateOptions<T>,
 ): ListState<T> {
   const {

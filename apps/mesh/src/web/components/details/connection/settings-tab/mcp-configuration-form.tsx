@@ -337,10 +337,10 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
     );
     const currentValue = (formData?.value as string) || "";
 
-    const handleBindingChange = (newValue: string) => {
+    const handleBindingChange = (newValue: string | null) => {
       const newFieldData = {
         ...formData,
-        value: newValue,
+        value: newValue ?? "",
         ...(bindingType && { __type: bindingType }),
       };
       formContext?.onFieldChange(fieldPath, newFieldData);

@@ -11,25 +11,13 @@
  * - Supports StreamableHTTP and STDIO transports
  */
 
-import { createMCPAggregatorFromEntity } from "@/mcp-clients/virtual-mcp";
-import { extractConnectionPermissions } from "@/auth/configuration-scopes";
-import { once } from "@/common";
 import { getMonitoringConfig } from "@/core/config";
-import { refreshAccessToken } from "@/oauth/token-refresh";
-import { createStdioTransport } from "@/stdio/transport-stdio";
-import { getOrCreateClient } from "@/stdio/client-pool";
-import { DownstreamTokenStorage } from "@/storage/downstream-token";
-import {
-  ConnectionEntity,
-  type HttpConnectionParameters,
-  isStdioParameters,
-  parseVirtualUrl,
-} from "@/tools/connection/schema";
+import { createClient } from "@/mcp-clients";
+import { buildRequestHeaders } from "@/mcp-clients/outbound/headers";
+import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { ServerClient } from "@decocms/bindings/mcp";
 import { createServerFromClient } from "@decocms/mesh-sdk";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import {
   type CallToolRequest,
@@ -47,11 +35,10 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Context, Hono } from "hono";
-import { issueMeshToken } from "../../auth/jwt";
 import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
 import { compose } from "../utils/compose";
-import { handleVirtualMcpRequest } from "./gateway";
+import { handleVirtualMcpRequest } from "./virtual-mcp";
 import { handleAuthError } from "./oauth-proxy";
 import {
   createProxyMonitoringMiddleware,
@@ -261,285 +248,8 @@ async function createMCPProxyDoNotUseDirectly(
     throw new Error(`Connection inactive: ${connection.status}`);
   }
 
-  // Lazy token issuance - only issue when buildRequestHeaders is called
-  let configurationToken: string | undefined;
-
-  const callerConnectionId = ctx.auth.user?.connectionId;
-
-  /**
-   * Issue configuration JWT lazily (only when needed)
-   * This avoids issuing tokens when creating proxies that may never be used.
-   * Uses `once` to prevent race conditions - concurrent calls share the same promise.
-   */
-  const ensureConfigurationToken = once(async (): Promise<void> => {
-    // Extract connection permissions from configuration state and scopes
-    // Format: "KEY::SCOPE" where KEY is in state and state[KEY].value is a connection ID
-    // Result: { [connectionId]: [scopes...] }
-    const permissions = extractConnectionPermissions(
-      connection.configuration_state as Record<string, unknown> | null,
-      connection.configuration_scopes,
-    );
-
-    // Issue short-lived JWT with configuration permissions
-    // JWT can be decoded directly by downstream to access payload
-    // TODO: The superUser fallback to connection.created_by is a workaround for background
-    // processes (e.g., event-triggered handlers) that need a userId but aren't acting as a
-    // real user. This causes monitoring to incorrectly attribute actions to the connection
-    // creator. Better solution: create a dedicated "Decopilot" service user per organization
-    // for automated actions, so they're properly distinguished from real user activity.
-    const userId =
-      ctx.auth.user?.id ??
-      ctx.auth.apiKey?.userId ??
-      (superUser ? connection.created_by : undefined);
-    if (!userId) {
-      console.error("User ID required to issue configuration token");
-      return;
-    }
-
-    try {
-      configurationToken = await issueMeshToken({
-        sub: userId,
-        user: { id: userId },
-        metadata: {
-          state: connection.configuration_state ?? undefined,
-          meshUrl: process.env.MESH_URL ?? ctx.baseUrl,
-          connectionId,
-          organizationId: ctx.organization?.id,
-        },
-        permissions,
-      });
-    } catch (error) {
-      console.error("Failed to issue configuration token:", error);
-      // Continue without configuration token - downstream will fail if it requires it
-    }
-  });
-
-  // Build request headers - reusable for both client and direct fetch
-  // Now issues token lazily on first call
-  // Also handles token refresh for downstream OAuth tokens
-  const buildRequestHeaders = async (): Promise<Record<string, string>> => {
-    // Ensure configuration token is issued (lazy)
-    await ensureConfigurationToken();
-
-    const headers: Record<string, string> = {
-      ...(callerConnectionId ? { "x-caller-id": callerConnectionId } : {}),
-      ...(ctx.metadata.wellKnownForwardableHeaders ?? {}),
-      "x-request-id": ctx.metadata.requestId,
-    };
-
-    // Try to get cached token from downstream_tokens first
-    // This supports OAuth token refresh for connections that use OAuth
-    let accessToken: string | null = null;
-
-    const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
-    const cachedToken = await tokenStorage.get(connectionId);
-
-    if (cachedToken) {
-      const canRefresh =
-        !!cachedToken.refreshToken && !!cachedToken.tokenEndpoint;
-      // If we can refresh, treat "expiring soon" as expired to proactively refresh.
-      // If we cannot refresh, only treat as expired at actual expiry (no buffer),
-      // otherwise short-lived tokens would be deleted immediately.
-      const isExpired = tokenStorage.isExpired(
-        cachedToken,
-        canRefresh ? 5 * 60 * 1000 : 0,
-      );
-
-      if (isExpired) {
-        // Try to refresh if we have refresh capability
-        if (canRefresh) {
-          console.log(
-            `[Proxy] Token expired for ${connectionId}, attempting refresh`,
-          );
-          const refreshResult = await refreshAccessToken(cachedToken);
-
-          if (refreshResult.success && refreshResult.accessToken) {
-            // Save refreshed token
-            await tokenStorage.upsert({
-              connectionId,
-              accessToken: refreshResult.accessToken,
-              refreshToken:
-                refreshResult.refreshToken ?? cachedToken.refreshToken,
-              scope: refreshResult.scope ?? cachedToken.scope,
-              expiresAt: refreshResult.expiresIn
-                ? new Date(Date.now() + refreshResult.expiresIn * 1000)
-                : null,
-              clientId: cachedToken.clientId,
-              clientSecret: cachedToken.clientSecret,
-              tokenEndpoint: cachedToken.tokenEndpoint,
-            });
-
-            accessToken = refreshResult.accessToken;
-            console.log(`[Proxy] Token refreshed for ${connectionId}`);
-          } else {
-            // Refresh failed - token is invalid
-            // Delete the cached token so user gets prompted to re-auth
-            await tokenStorage.delete(connectionId);
-            console.error(
-              `[Proxy] Token refresh failed for ${connectionId}: ${refreshResult.error}`,
-            );
-          }
-        } else {
-          // Token expired but no refresh capability - delete it
-          await tokenStorage.delete(connectionId);
-          console.log(
-            `[Proxy] Token expired without refresh capability for ${connectionId}`,
-          );
-        }
-      } else {
-        // Token is still valid
-        accessToken = cachedToken.accessToken;
-      }
-    }
-
-    // Fall back to connection token if no cached token
-    if (!accessToken && connection.connection_token) {
-      accessToken = connection.connection_token;
-    }
-
-    // Add authorization header if we have a token
-    if (accessToken) {
-      headers["Authorization"] = `Bearer ${accessToken}`;
-    }
-
-    // Add configuration token if issued
-    if (configurationToken) {
-      headers["x-mesh-token"] = configurationToken;
-    }
-
-    return headers;
-  };
-
-  // Determine connection type and extract parameters
-  const isStdio = connection.connection_type === "STDIO";
-  const stdioParams = isStdioParameters(connection.connection_headers)
-    ? connection.connection_headers
-    : null;
-  const httpParams = !isStdio
-    ? (connection.connection_headers as HttpConnectionParameters | null)
-    : null;
-
-  // Create client factory for downstream MCP based on connection_type
-  const createClient = async () => {
-    const client = new Client(
-      { name: "mcp-mesh-proxy", version: "1.0.0" },
-      {
-        capabilities: {
-          tasks: {
-            list: {},
-            cancel: {},
-            requests: { tool: { call: {} } },
-          },
-        },
-      },
-    );
-
-    switch (connection.connection_type) {
-      case "STDIO": {
-        // Block STDIO connections in production unless explicitly allowed
-        if (
-          process.env.NODE_ENV === "production" &&
-          process.env.UNSAFE_ALLOW_STDIO_TRANSPORT !== "true"
-        ) {
-          throw new Error(
-            "STDIO connections are disabled in production. Set UNSAFE_ALLOW_STDIO_TRANSPORT=true to enable.",
-          );
-        }
-
-        if (!stdioParams) {
-          throw new Error("STDIO connection missing parameters");
-        }
-
-        // Create transport with stderr logging
-        const transport = createStdioTransport({
-          id: connectionId,
-          name: connection.title,
-          command: stdioParams.command,
-          args: stdioParams.args,
-          env: stdioParams.envVars,
-          cwd: stdioParams.cwd,
-        });
-
-        // Get or create client from LRU pool - automatically removed when connection closes
-        return getOrCreateClient(transport, connectionId);
-      }
-
-      case "HTTP":
-      case "Websocket": {
-        if (!connection.connection_url) {
-          throw new Error(
-            `${connection.connection_type} connection missing URL`,
-          );
-        }
-
-        const headers = await buildRequestHeaders();
-        if (httpParams?.headers) {
-          Object.assign(headers, httpParams.headers);
-        }
-
-        const transport = new StreamableHTTPClientTransport(
-          new URL(connection.connection_url),
-          { requestInit: { headers } },
-        );
-
-        await client.connect(transport);
-        return client;
-      }
-
-      case "SSE": {
-        if (!connection.connection_url) {
-          throw new Error("SSE connection missing URL");
-        }
-
-        const headers = await buildRequestHeaders();
-        if (httpParams?.headers) {
-          Object.assign(headers, httpParams.headers);
-        }
-
-        const transport = new SSEClientTransport(
-          new URL(connection.connection_url),
-          { requestInit: { headers } },
-        );
-
-        await client.connect(transport);
-        return client;
-      }
-
-      case "VIRTUAL": {
-        // Parse virtual MCP ID from URL: virtual://$id
-        const virtualMcpId = parseVirtualUrl(connection.connection_url);
-        if (!virtualMcpId) {
-          throw new Error(
-            "VIRTUAL connection missing virtual MCP ID in connection_url",
-          );
-        }
-
-        // Load virtual MCP entity
-        const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
-        if (!virtualMcp) {
-          throw new Error(`Virtual MCP not found: ${virtualMcpId}`);
-        }
-
-        // Create client from virtual MCP entity
-        const client = await createMCPAggregatorFromEntity(
-          virtualMcp,
-          ctx,
-          "passthrough",
-        );
-
-        // Return the client directly - it already implements the Client interface
-        return client;
-      }
-
-      default:
-        throw new Error(
-          `Unknown connection type: ${connection.connection_type}`,
-        );
-    }
-  };
-
   // Create client early - needed for listTools and other operations
-  const client = await createClient();
+  const client = await createClient(connection, ctx, superUser);
 
   // List tools from downstream connection
   // Uses indexed tools if available, falls back to client for connections without cached tools
@@ -703,10 +413,11 @@ async function createMCPProxyDoNotUseDirectly(
     );
 
     return callStreamableToolPipeline(request, async (): Promise<Response> => {
-      const headers = await buildRequestHeaders();
+      const headers = await buildRequestHeaders(connection, ctx, superUser);
 
       // Add custom headers from connection_headers
-      if (httpParams?.headers) {
+      const httpParams = connection.connection_headers;
+      if (httpParams && "headers" in httpParams) {
         Object.assign(headers, httpParams.headers);
       }
 
@@ -923,7 +634,7 @@ app.all("/:connectionId", async (c) => {
 
   try {
     try {
-      await using client = await ctx.createMCPProxy(connectionId);
+      const client = await ctx.createMCPProxy(connectionId);
 
       // Create server from client using the bridge
       const server = createServerFromClient(client, {
@@ -951,7 +662,6 @@ app.all("/:connectionId", async (c) => {
         } catch {
           // Ignore close errors - transport may already be closed
         }
-        // Proxy will be automatically disposed via await using
       }
     } catch (error) {
       // Check if this is an auth error - if so, return appropriate 401
@@ -998,13 +708,11 @@ app.all("/:connectionId/call-tool/:toolName", async (c) => {
   const ctx = c.get("meshContext");
 
   try {
-    await using client = await ctx.createMCPProxy(connectionId);
+    const client = await ctx.createMCPProxy(connectionId);
     const result = await client.callTool({
       name: toolName,
       arguments: await c.req.json(),
     });
-
-    // Client will be automatically disposed via await using
 
     if (result instanceof Response) {
       return result;

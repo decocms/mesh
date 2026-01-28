@@ -60,7 +60,7 @@ export function useCreateVirtualMCP(
       });
     }
 
-    return { id: virtualMcp.id, virtualMcp };
+    return { id: virtualMcp.id!, virtualMcp }; // ID is guaranteed to be non-null for created virtual MCPs
   };
 
   return {

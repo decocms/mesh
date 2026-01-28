@@ -22,7 +22,7 @@ import {
   type ToolContext,
 } from "../../tools/code-execution/utils";
 import { BaseSelection } from "./base-selection";
-import type { AggregatorOptions } from "./types";
+import type { VirtualClientOptions } from "./types";
 
 const RUN_CODE_INPUT_SCHEMA = z.object({
   code: z
@@ -45,7 +45,7 @@ const RUN_CODE_INPUT_JSON_SCHEMA = z.toJSONSchema(
  * Extends BaseSelection and adds GATEWAY_RUN_CODE meta-tool.
  */
 export class CodeExecutionClient extends BaseSelection {
-  constructor(options: AggregatorOptions, ctx: any) {
+  constructor(options: VirtualClientOptions, ctx: any) {
     super(options, ctx);
   }
 
@@ -74,7 +74,7 @@ export class CodeExecutionClient extends BaseSelection {
 
     const cache = await this._cachedTools;
     // Filter out CODE_EXECUTION_* tools to avoid duplication
-    const filteredTools = filterCodeExecutionTools(cache.tools);
+    const filteredTools = filterCodeExecutionTools(cache.data);
 
     // Create filtered context for runCodeWithTools
     const filteredContext: ToolContext = {
@@ -82,7 +82,6 @@ export class CodeExecutionClient extends BaseSelection {
       callTool: async (name: string, innerArgs: Record<string, unknown>) => {
         return this.routeToolCall({ name, arguments: innerArgs });
       },
-      categories: cache.categories,
     };
 
     // Use shared run code logic

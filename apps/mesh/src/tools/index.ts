@@ -18,7 +18,7 @@ import * as CodeExecutionTools from "./code-execution";
 import * as ConnectionTools from "./connection";
 import * as DatabaseTools from "./database";
 import * as EventBusTools from "./eventbus";
-import * as VirtualMCPTools from "./virtual-mcp";
+import * as VirtualMCPTools from "./virtual";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
 import * as ThreadTools from "./thread";

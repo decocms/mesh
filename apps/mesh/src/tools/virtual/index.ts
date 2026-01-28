@@ -20,4 +20,4 @@ export type {
 } from "./schema";
 
 // Re-export strategy type from virtual-mcp client (not from schema since it's not persisted)
-export type { AggregatorToolSelectionStrategy } from "../../mcp-clients/virtual-mcp/types";
+export type { ToolSelectionStrategy } from "../../mcp-clients/virtual-mcp/types";

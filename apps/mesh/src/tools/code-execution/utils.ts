@@ -13,7 +13,7 @@ import { requireOrganization } from "../../core/mesh-context";
 import type { ProxyEntry } from "../../mcp-clients/virtual-mcp/types";
 import { runCode, type RunCodeResult } from "../../sandbox/index";
 import type { ConnectionEntity } from "../connection/schema";
-import type { VirtualMCPEntity } from "../virtual-mcp/schema";
+import type { VirtualMCPEntity } from "../virtual/schema";
 
 // ============================================================================
 // Types
@@ -44,8 +44,6 @@ export interface ToolContext {
     name: string,
     args: Record<string, unknown>,
   ) => Promise<CallToolResult>;
-  /** Connection categories for descriptions */
-  categories: string[];
 }
 
 /** Tool description for describe tools output */
@@ -115,12 +113,6 @@ async function getAllOrgConnections(
 // ============================================================================
 // Tool Loading
 // ============================================================================
-
-/** Maps tool name -> { connectionId, originalName } */
-interface ToolMapping {
-  connectionId: string;
-  originalName: string;
-}
 
 /**
  * Load tools from connections and create tool context
@@ -196,14 +188,12 @@ async function loadToolsFromConnections(
   // Deduplicate and build tools with connection metadata
   const seenNames = new Set<string>();
   const allTools: ToolWithConnection[] = [];
-  const mappings = new Map<string, ToolMapping>();
-  const categories = new Set<string>();
+  const mappings = new Map<string, string>(); // tool name -> connectionId
 
   for (const result of results) {
     if (result.status !== "fulfilled" || !result.value) continue;
 
     const { connectionId, connectionTitle, tools } = result.value;
-    categories.add(connectionTitle);
 
     for (const tool of tools) {
       if (seenNames.has(tool.name)) continue;
@@ -213,7 +203,7 @@ async function loadToolsFromConnections(
         ...tool,
         _meta: { connectionId, connectionTitle },
       });
-      mappings.set(tool.name, { connectionId, originalName: tool.name });
+      mappings.set(tool.name, connectionId);
     }
   }
 
@@ -222,15 +212,15 @@ async function loadToolsFromConnections(
     name: string,
     args: Record<string, unknown>,
   ): Promise<CallToolResult> => {
-    const mapping = mappings.get(name);
-    if (!mapping) {
+    const connectionId = mappings.get(name);
+    if (!connectionId) {
       return {
         content: [{ type: "text", text: `Tool not found: ${name}` }],
         isError: true,
       };
     }
 
-    const proxyEntry = proxyMap.get(mapping.connectionId);
+    const proxyEntry = proxyMap.get(connectionId);
     if (!proxyEntry) {
       return {
         content: [
@@ -241,7 +231,7 @@ async function loadToolsFromConnections(
     }
 
     const result = await proxyEntry.proxy.callTool({
-      name: mapping.originalName,
+      name,
       arguments: args,
     });
 
@@ -258,7 +248,6 @@ async function loadToolsFromConnections(
   return {
     tools: allTools,
     callTool,
-    categories: Array.from(categories).sort(),
   };
 }
 
@@ -278,7 +267,10 @@ export async function getToolsWithConnections(
 
   // Check if we're in a Virtual MCP (agent) context
   if (ctx.connectionId) {
-    const virtualMcp = await ctx.storage.virtualMcps.findById(ctx.connectionId);
+    const virtualMcp = await ctx.storage.virtualMcps.findById(
+      ctx.connectionId,
+      ctx.organization?.id,
+    );
     if (virtualMcp) {
       // connectionId points to a VIRTUAL connection - use its child connections
       connections = await resolveVirtualMCPConnections(virtualMcp, ctx);
@@ -315,7 +307,7 @@ function calculateScore(terms: string[], tool: ToolWithConnection): number {
   let score = 0;
   const nameLower = tool.name.toLowerCase();
   const descLower = (tool.description ?? "").toLowerCase();
-  const connLower = tool._meta.connectionTitle.toLowerCase();
+  const connLower = (tool._meta?.connectionTitle ?? "").toLowerCase();
 
   for (const term of terms) {
     if (nameLower === term) {
@@ -386,7 +378,7 @@ export function describeTools(
     tools: foundTools.map((t) => ({
       name: t.name,
       description: t.description,
-      connection: t._meta.connectionTitle,
+      connection: t._meta?.connectionTitle ?? "",
       inputSchema: t.inputSchema,
       outputSchema: t.outputSchema,
     })),

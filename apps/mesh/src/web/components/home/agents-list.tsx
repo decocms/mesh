@@ -75,7 +75,7 @@ function SeeAllButton({
 }: {
   virtualMcps: VirtualMCPInfo[];
   selectedVirtualMcpId?: string | null;
-  onVirtualMcpChange: (virtualMcpId: string) => void;
+  onVirtualMcpChange: (virtualMcpId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -90,7 +90,7 @@ function SeeAllButton({
     }
   }, [open]);
 
-  const handleVirtualMcpChange = (virtualMcpId: string) => {
+  const handleVirtualMcpChange = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
     setOpen(false);
   };
@@ -142,7 +142,9 @@ function AgentsListContent() {
 
   // Filter out the default Decopilot agent (it's not a real agent)
   const agents = virtualMcps
-    .filter((agent) => !agent.id.startsWith("decopilot-"))
+    .filter(
+      (agent): agent is typeof agent & { id: string } => agent.id !== null,
+    )
     .slice(0, 6);
 
   // Don't render if no agents
@@ -165,7 +167,7 @@ function AgentsListContent() {
       </h2>
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
         {agents.map((agent) => (
-          <AgentPreview key={agent.id} agent={agent} />
+          <AgentPreview key={agent.id ?? "default"} agent={agent} />
         ))}
         <SeeAllButton
           virtualMcps={virtualMcpsInfo}

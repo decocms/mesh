@@ -8,53 +8,38 @@
 import { MCPProxyClient } from "@/api/routes/proxy";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
-  ErrorCode,
-  McpError,
   type CallToolRequest,
   type CallToolResult,
   type GetPromptRequest,
   type GetPromptResult,
   type ListPromptsResult,
   type ListResourcesResult,
-  type ListResourceTemplatesResult,
   type ListToolsResult,
   type Prompt,
   type ReadResourceRequest,
   type ReadResourceResult,
   type Resource,
-  type ResourceTemplate,
 } from "@modelcontextprotocol/sdk/types.js";
 import { lazy } from "../../common";
 import type { MeshContext } from "../../core/mesh-context";
 import type { ToolWithConnection } from "../../tools/code-execution/utils";
 import type { ConnectionEntity } from "../../tools/connection/schema";
-import type { VirtualMCPConnection } from "../../tools/virtual-mcp/schema";
-import type { AggregatorOptions } from "./types";
+import type { VirtualMCPConnection } from "../../tools/virtual/schema";
+import type { VirtualClientOptions } from "./types";
 
-/** Maps tool name -> { connectionId, originalName } */
-interface ToolMapping {
-  connectionId: string;
-  originalName: string;
+interface Cache<T> {
+  data: T[];
+  mappings: Map<string, string>; // key -> connectionId
 }
 
 /** Cached tool data structure */
-interface ToolCache {
-  tools: ToolWithConnection[];
-  mappings: Map<string, ToolMapping>;
-  categories: string[];
-}
+interface ToolCache extends Cache<ToolWithConnection> {}
 
 /** Cached resource data structure */
-interface ResourceCache {
-  resources: Resource[];
-  mappings: Map<string, string>; // uri -> connectionId
-}
+interface ResourceCache extends Cache<Resource> {}
 
 /** Cached prompt data structure */
-interface PromptCache {
-  prompts: Prompt[];
-  mappings: Map<string, string>; // name -> connectionId
-}
+interface PromptCache extends Cache<Prompt> {}
 
 /**
  * Create a map of connection ID to proxy entry
@@ -104,14 +89,13 @@ async function disposeProxyMap(
 export class PassthroughClient extends Client {
   protected _cachedTools: Promise<ToolCache>;
   protected _cachedResources: Promise<ResourceCache>;
-  protected _cachedResourceTemplates: Promise<ResourceTemplate[]>;
   protected _cachedPrompts: Promise<PromptCache>;
   protected _clients: Promise<Map<string, MCPProxyClient>>;
   protected _connections: Map<string, ConnectionEntity>;
   protected _selectionMap: Map<string, VirtualMCPConnection>;
 
   constructor(
-    protected options: AggregatorOptions,
+    protected options: VirtualClientOptions,
     protected ctx: MeshContext,
   ) {
     super(
@@ -151,238 +135,73 @@ export class PassthroughClient extends Client {
     );
 
     // Initialize lazy caches - all share the same ProxyCollection
-    this._cachedTools = lazy(() => this.loadTools());
-    this._cachedResources = lazy(() => this.loadResources());
-    this._cachedPrompts = lazy(() => this.loadPrompts());
-    this._cachedResourceTemplates = lazy(() => this.loadResourceTemplates());
+    this._cachedTools = lazy(() => this.loadCache("tools"));
+    this._cachedResources = lazy(() => this.loadCache("resources"));
+    this._cachedPrompts = lazy(() => this.loadCache("prompts"));
   }
 
-  /**
-   * Load tools from all connections
-   */
-  private async loadTools(): Promise<ToolCache> {
+  private async loadCache<T>(
+    target: "tools" | "resources" | "prompts",
+  ): Promise<Cache<T>> {
     const clients = await this._clients;
 
-    // Fetch tools from all connections in parallel
-    const results = await Promise.allSettled(
+    const results = await Promise.all(
       Array.from(clients.entries()).map(async ([connectionId, client]) => {
         try {
-          const connection = this._connections.get(connectionId);
+          let data =
+            target === "tools"
+              ? await client.listTools().then((r) => r.tools)
+              : target === "resources"
+                ? await client.listResources().then((r) => r.resources)
+                : await client.listPrompts().then((r) => r.prompts);
 
-          if (!connection) {
-            return null;
-          }
-
-          const result = await client.listTools();
-          let tools = result.tools;
-
-          // Apply inclusion filtering: if selectedTools is specified, filter to only those tools
           const selected = this._selectionMap.get(connectionId);
-          if (!!selected?.selected_tools?.length) {
-            const selectedSet = new Set(selected.selected_tools);
-            tools = tools.filter((t) => selectedSet.has(t.name));
+          if (!!selected?.[`selected_${target}`]?.length) {
+            const selectedSet = new Set(selected[`selected_${target}`]);
+            data = data.filter((item: any) => selectedSet.has(item.name));
           }
 
-          return {
-            connectionId,
-            connectionTitle: connection.title,
-            tools,
-          };
+          return { connectionId, data };
         } catch (error) {
-          if (
-            !(error instanceof McpError) ||
-            error.code !== ErrorCode.MethodNotFound
-          ) {
-            console.error(
-              `[PassthroughClient] Failed to list tools ${connectionId}: (defaulting to null)`,
-              error,
-            );
-          }
+          console.error(
+            `[PassthroughClient] Failed to load cache for connection ${connectionId}:`,
+            error,
+          );
           return null;
         }
       }),
     );
 
-    // Deduplicate and build tools with connection metadata
-    const seenNames = new Set<string>();
-    const allTools: ToolWithConnection[] = [];
-    const mappings = new Map<string, ToolMapping>();
-    const categories = new Set<string>();
-
-    for (const result of results) {
-      if (result.status !== "fulfilled" || !result.value) continue;
-
-      const { connectionId, connectionTitle, tools } = result.value;
-      categories.add(connectionTitle);
-
-      for (const tool of tools) {
-        if (seenNames.has(tool.name)) continue;
-        seenNames.add(tool.name);
-
-        allTools.push({
-          ...tool,
-          _meta: { connectionId, connectionTitle },
-        });
-        mappings.set(tool.name, { connectionId, originalName: tool.name });
-      }
-    }
-
-    return {
-      tools: allTools,
-      mappings,
-      categories: Array.from(categories).sort(),
-    };
-  }
-
-  /**
-   * Load resources from all connections
-   */
-  private async loadResources(): Promise<ResourceCache> {
-    const clients = await this._clients;
-
-    // Fetch resources from all connections in parallel
-    const results = await Promise.allSettled(
-      Array.from(clients.entries()).map(async ([connectionId, client]) => {
-        try {
-          const result = await client.listResources();
-          let resources = result.resources;
-
-          // Apply inclusion filtering: if selectedResources is specified, filter to only those resources
-          const selected = this._selectionMap.get(connectionId);
-          if (!!selected?.selected_resources?.length) {
-            const selectedSet = new Set(selected.selected_resources);
-            resources = resources.filter((r) => selectedSet.has(r.uri));
-          }
-
-          return { connectionId, resources };
-        } catch (error) {
-          if (
-            !(error instanceof McpError) ||
-            error.code !== ErrorCode.MethodNotFound
-          ) {
-            console.error(
-              `[PassthroughClient] Failed to list resources for connection ${connectionId}: (defaulting to empty array)`,
-              error,
-            );
-          }
-          return { connectionId, resources: [] as Resource[] };
-        }
-      }),
-    );
-
-    // Build resource URI -> connection mapping (first-wins deduplication)
-    const seenUris = new Set<string>();
-    const allResources: Resource[] = [];
+    const flattened: T[] = [];
     const mappings = new Map<string, string>();
 
     for (const result of results) {
-      if (result.status !== "fulfilled") continue;
+      if (!result) continue;
 
-      const { connectionId, resources } = result.value;
-      for (const resource of resources) {
-        if (seenUris.has(resource.uri)) continue;
-        seenUris.add(resource.uri);
+      const { connectionId, data } = result;
+      const connection = this._connections.get(connectionId);
+      const connectionTitle = connection?.title ?? "";
 
-        allResources.push(resource);
-        mappings.set(resource.uri, connectionId);
+      for (const item of data as any[]) {
+        const key = item.name;
+
+        if (mappings.has(key)) continue;
+
+        const transformedItem = {
+          ...item,
+          _meta: {
+            connectionId,
+            connectionTitle,
+            ...item?._meta,
+          },
+        };
+
+        flattened.push(transformedItem);
+        mappings.set(key, connectionId);
       }
     }
 
-    return { resources: allResources, mappings };
-  }
-
-  /**
-   * Load resource templates from all connections
-   */
-  private async loadResourceTemplates(): Promise<ResourceTemplate[]> {
-    const clients = await this._clients;
-
-    // Fetch resource templates from all connections in parallel
-    const results = await Promise.allSettled(
-      Array.from(clients.entries()).map(async ([connectionId, client]) => {
-        try {
-          const result = await client.listResourceTemplates();
-          return { connectionId, templates: result.resourceTemplates };
-        } catch (error) {
-          if (
-            !(error instanceof McpError) ||
-            error.code !== ErrorCode.MethodNotFound
-          ) {
-            console.error(
-              `[PassthroughClient] Failed to list resource templates for connection ${connectionId}: (defaulting to empty array)`,
-              error,
-            );
-          }
-          return { connectionId, templates: [] as ResourceTemplate[] };
-        }
-      }),
-    );
-
-    // Aggregate all resource templates
-    const allTemplates: ResourceTemplate[] = [];
-
-    for (const result of results) {
-      if (result.status !== "fulfilled") continue;
-
-      const { templates } = result.value;
-      for (const template of templates) {
-        allTemplates.push(template);
-      }
-    }
-
-    return allTemplates;
-  }
-
-  /**
-   * Load prompts from all connections
-   */
-  private async loadPrompts(): Promise<PromptCache> {
-    const clients = await this._clients;
-
-    // Fetch prompts from all connections in parallel
-    const results = await Promise.allSettled(
-      Array.from(clients.entries()).map(async ([connectionId, client]) => {
-        try {
-          const result = await client.listPrompts();
-          let prompts = result.prompts;
-
-          // Apply inclusion filtering: if selectedPrompts is specified, filter to only those prompts
-          const selected = this._selectionMap.get(connectionId);
-          if (!!selected?.selected_prompts?.length) {
-            const selectedSet = new Set(selected.selected_prompts);
-            prompts = prompts.filter((p) => selectedSet.has(p.name));
-          }
-
-          return { connectionId, prompts };
-        } catch (error) {
-          console.error(
-            `[PassthroughClient] Failed to list prompts for connection ${connectionId}:`,
-            error,
-          );
-          return { connectionId, prompts: [] as Prompt[] };
-        }
-      }),
-    );
-
-    // Build prompt name -> connection mapping (first-wins, like tools)
-    const seenNames = new Set<string>();
-    const allPrompts: Prompt[] = [];
-    const mappings = new Map<string, string>();
-
-    for (const result of results) {
-      if (result.status !== "fulfilled") continue;
-
-      const { connectionId, prompts } = result.value;
-      for (const prompt of prompts) {
-        if (seenNames.has(prompt.name)) continue;
-        seenNames.add(prompt.name);
-
-        allPrompts.push(prompt);
-        mappings.set(prompt.name, connectionId);
-      }
-    }
-
-    return { prompts: allPrompts, mappings };
+    return { data: flattened, mappings };
   }
 
   /**
@@ -391,7 +210,7 @@ export class PassthroughClient extends Client {
   override async listTools(): Promise<ListToolsResult> {
     const cache = await this._cachedTools;
     return {
-      tools: cache.tools,
+      tools: cache.data,
     };
   }
 
@@ -406,15 +225,15 @@ export class PassthroughClient extends Client {
       this._clients,
     ]);
 
-    const mapping = cache.mappings.get(params.name);
-    if (!mapping) {
+    const connectionId = cache.mappings.get(params.name);
+    if (!connectionId) {
       return {
         content: [{ type: "text", text: `Tool not found: ${params.name}` }],
         isError: true,
       };
     }
 
-    const client = clients.get(mapping.connectionId);
+    const client = clients.get(connectionId);
     if (!client) {
       return {
         content: [
@@ -428,7 +247,7 @@ export class PassthroughClient extends Client {
     }
 
     const result = await client.callTool({
-      name: mapping.originalName,
+      name: params.name,
       arguments: params.arguments ?? {},
     });
 
@@ -440,7 +259,7 @@ export class PassthroughClient extends Client {
    */
   override async listResources(): Promise<ListResourcesResult> {
     const cache = await this._cachedResources;
-    return { resources: cache.resources };
+    return { resources: cache.data };
   }
 
   /**
@@ -468,19 +287,11 @@ export class PassthroughClient extends Client {
   }
 
   /**
-   * List all aggregated resource templates
-   */
-  override async listResourceTemplates(): Promise<ListResourceTemplatesResult> {
-    const templates = await this._cachedResourceTemplates;
-    return { resourceTemplates: templates };
-  }
-
-  /**
    * List all aggregated prompts
    */
   override async listPrompts(): Promise<ListPromptsResult> {
     const cache = await this._cachedPrompts;
-    return { prompts: cache.prompts };
+    return { prompts: cache.data };
   }
 
   /**
@@ -520,11 +331,11 @@ export class PassthroughClient extends Client {
     ]);
 
     // For direct tools, route to underlying proxy for streaming
-    const mapping = cache.mappings.get(name);
-    if (mapping) {
-      const client = clients.get(mapping.connectionId);
+    const connectionId = cache.mappings.get(name);
+    if (connectionId) {
+      const client = clients.get(connectionId);
       if (client) {
-        return client.callStreamableTool(mapping.originalName, args);
+        return client.callStreamableTool(name, args);
       }
     }
 

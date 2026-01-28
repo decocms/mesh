@@ -20,7 +20,7 @@ import {
   type ToolWithConnection,
 } from "../../tools/code-execution/utils";
 import { BaseSelection } from "./base-selection";
-import type { AggregatorOptions } from "./types";
+import type { VirtualClientOptions } from "./types";
 
 type CallToolInput = {
   name: string;
@@ -64,7 +64,7 @@ function getCallToolSchema(toolNames: string[]): {
  * Extends BaseSelection and adds GATEWAY_CALL_TOOL meta-tool.
  */
 export class SmartToolSelectionClient extends BaseSelection {
-  constructor(options: AggregatorOptions, ctx: any) {
+  constructor(options: VirtualClientOptions, ctx: any) {
     super(options, ctx);
   }
 
@@ -74,7 +74,7 @@ export class SmartToolSelectionClient extends BaseSelection {
   private async getCallTool(): Promise<Tool> {
     const cache = await this._cachedTools;
     // Filter out CODE_EXECUTION_* tools to avoid duplication
-    const filteredTools = filterCodeExecutionTools(cache.tools);
+    const filteredTools = filterCodeExecutionTools(cache.data);
     const toolNames = filteredTools.map((t: ToolWithConnection) => t.name);
     const { jsonSchema } = getCallToolSchema(toolNames);
 
@@ -94,7 +94,7 @@ export class SmartToolSelectionClient extends BaseSelection {
   ): Promise<CallToolResult> {
     const cache = await this._cachedTools;
     // Filter out CODE_EXECUTION_* tools to avoid duplication
-    const filteredTools = filterCodeExecutionTools(cache.tools);
+    const filteredTools = filterCodeExecutionTools(cache.data);
     const toolNames = filteredTools.map((t: ToolWithConnection) => t.name);
     const { schema: inputSchema } = getCallToolSchema(toolNames);
 

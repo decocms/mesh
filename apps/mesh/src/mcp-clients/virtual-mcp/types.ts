@@ -5,15 +5,12 @@
  */
 
 import type { ConnectionEntity } from "../../tools/connection/schema";
-import type { VirtualMCPConnection } from "../../tools/virtual-mcp/schema";
+import type { VirtualMCPConnection } from "../../tools/virtual/schema";
 import type { MCPProxyClient } from "../../api/routes/proxy";
-
-/** Proxy type returned by createMCPProxy */
-export type MCPProxy = MCPProxyClient;
 
 /** Entry in the proxy map (connection ID -> proxy entry) */
 export interface ProxyEntry {
-  proxy: MCPProxy;
+  proxy: MCPProxyClient;
   connection: ConnectionEntity;
 }
 
@@ -23,16 +20,15 @@ export interface ProxyEntry {
  * - "smart_tool_selection": Smart tool selection behavior
  * - "code_execution": Code execution behavior
  */
-export type AggregatorToolSelectionStrategy =
+export type ToolSelectionStrategy =
   | "passthrough"
   | "smart_tool_selection"
   | "code_execution";
 
 /** Options for creating an aggregator */
-export interface AggregatorOptions {
+export interface VirtualClientOptions {
   connections: ConnectionEntity[];
   selected: VirtualMCPConnection[];
-  strategy: AggregatorToolSelectionStrategy;
 }
 
 /**
@@ -40,7 +36,7 @@ export interface AggregatorOptions {
  */
 export function parseStrategyFromMode(
   mode: string | undefined,
-): AggregatorToolSelectionStrategy {
+): ToolSelectionStrategy {
   switch (mode) {
     case "smart_tool_selection":
       return "smart_tool_selection";

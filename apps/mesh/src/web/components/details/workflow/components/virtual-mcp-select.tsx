@@ -38,11 +38,13 @@ export function VirtualMCPSelect({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {virtualMcps.map((virtualMcp) => (
-          <SelectItem key={virtualMcp.id} value={virtualMcp.id}>
-            {virtualMcp.title}
-          </SelectItem>
-        ))}
+        {virtualMcps
+          .filter((v) => v.id !== null)
+          .map((virtualMcp) => (
+            <SelectItem key={virtualMcp.id} value={virtualMcp.id!}>
+              {virtualMcp.title}
+            </SelectItem>
+          ))}
       </SelectContent>
     </Select>
   );

@@ -9,6 +9,7 @@
 
 import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { getWellKnownDecopilotVirtualMCP } from "@decocms/mesh-sdk";
 import type {
   VirtualMCPCreateData,
   VirtualMCPEntity,
@@ -113,7 +114,40 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     return virtualMcp;
   }
 
-  async findById(id: string): Promise<VirtualMCPEntity | null> {
+  async findById(
+    id: string | null,
+    organizationId?: string,
+  ): Promise<VirtualMCPEntity | null> {
+    // Handle null ID - return Decopilot agent with all org connections
+    if (id === null) {
+      if (!organizationId) {
+        throw new Error(
+          "organizationId is required when id is null (Decopilot agent)",
+        );
+      }
+
+      // Get all active connections for the organization
+      const connections = await this.db
+        .selectFrom("connections")
+        .selectAll()
+        .where("organization_id", "=", organizationId)
+        .where("status", "!=", "inactive")
+        .where("status", "!=", "error")
+        .execute();
+
+      // Return Decopilot agent with connections populated
+      return {
+        ...getWellKnownDecopilotVirtualMCP(organizationId),
+        connections: connections.map((c) => ({
+          connection_id: c.id,
+          selected_tools: null, // null = all tools
+          selected_resources: null, // null = all resources
+          selected_prompts: null, // null = all prompts
+        })),
+      };
+    }
+
+    // Normal database lookup for string IDs
     return this.findByIdInternal(this.db, id);
   }
 

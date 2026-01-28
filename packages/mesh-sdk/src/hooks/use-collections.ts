@@ -32,8 +32,11 @@ import { KEYS } from "../lib/query-keys";
 
 /**
  * Collection entity base type that matches the collection binding pattern
+ * Note: id can be nullable for synthetic entities like Decopilot agent
  */
-export type CollectionEntity = BaseCollectionEntity;
+export type CollectionEntity = Omit<BaseCollectionEntity, "id"> & {
+  id: string | null;
+};
 
 /**
  * Filter definition for collection queries (matches @deco/ui Filter shape)

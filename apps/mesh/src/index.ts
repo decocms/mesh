@@ -38,7 +38,7 @@ const handleAssets = createAssetHandler({
 });
 
 // Create the Hono app
-const app = createApp();
+const app = await createApp();
 
 console.log("");
 console.log(`${green}✓${reset} ${bold}Ready${reset}`);

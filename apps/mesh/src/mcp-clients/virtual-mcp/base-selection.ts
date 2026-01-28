@@ -21,7 +21,7 @@ import {
   type ToolWithConnection,
 } from "../../tools/code-execution/utils";
 import { PassthroughClient } from "./passthrough-client";
-import type { AggregatorOptions } from "./types";
+import type { VirtualClientOptions } from "./types";
 
 // ============================================================================
 // Cached JSON Schemas (avoid repeated z.toJSONSchema calls)
@@ -54,21 +54,17 @@ const DESCRIBE_INPUT_JSON_SCHEMA = z.toJSONSchema(
  * Provides SEARCH and DESCRIBE meta-tools for tool discovery.
  */
 export class BaseSelection extends PassthroughClient {
-  constructor(options: AggregatorOptions, ctx: any) {
+  constructor(options: VirtualClientOptions, ctx: any) {
     super(options, ctx);
   }
 
   /**
    * Get the search tool definition with dynamic description
    */
-  private getSearchTool(categories: string[], totalTools: number): Tool {
-    const categoryList =
-      categories.length > 0
-        ? ` Available categories: ${categories.join(", ")}.`
-        : "";
+  private getSearchTool(totalTools: number): Tool {
     return {
       name: "GATEWAY_SEARCH_TOOLS",
-      description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas. Use this to discover tools before calling GATEWAY_DESCRIBE_TOOLS for detailed schemas.${categoryList} Total tools: ${totalTools}.`,
+      description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas. Use this to discover tools before calling GATEWAY_DESCRIBE_TOOLS for detailed schemas. Total tools: ${totalTools}.`,
       inputSchema: SEARCH_INPUT_JSON_SCHEMA,
     };
   }
@@ -98,7 +94,7 @@ export class BaseSelection extends PassthroughClient {
 
     const cache = await this._cachedTools;
     // Filter out CODE_EXECUTION_* tools to avoid duplication
-    const filteredTools = filterCodeExecutionTools(cache.tools);
+    const filteredTools = filterCodeExecutionTools(cache.data);
 
     // Use shared search logic
     const results = searchTools(
@@ -130,7 +126,7 @@ export class BaseSelection extends PassthroughClient {
 
     const cache = await this._cachedTools;
     // Filter out CODE_EXECUTION_* tools to avoid duplication
-    const filteredTools = filterCodeExecutionTools(cache.tools);
+    const filteredTools = filterCodeExecutionTools(cache.data);
 
     // Use shared describe logic
     const result = describeTools(parsed.data.tools, filteredTools);
@@ -146,13 +142,10 @@ export class BaseSelection extends PassthroughClient {
   override async listTools(): Promise<ListToolsResult> {
     const cache = await this._cachedTools;
     // Filter out CODE_EXECUTION_* tools to avoid duplication
-    const filteredTools = filterCodeExecutionTools(cache.tools);
+    const filteredTools = filterCodeExecutionTools(cache.data);
 
     return {
-      tools: [
-        this.getSearchTool(cache.categories, filteredTools.length),
-        this.getDescribeTool(),
-      ],
+      tools: [this.getSearchTool(filteredTools.length), this.getDescribeTool()],
     };
   }
 

@@ -224,17 +224,17 @@ export function getWellKnownMcpStudioConnection(): ConnectionCreateData {
 }
 
 /**
- * Get well-known Decopilot Agent virtual MCP entity.
+ * Get well-known Decopilot Virtual MCP entity.
  * This is the default agent that aggregates ALL org connections.
  *
  * @param organizationId - Organization ID
- * @returns VirtualMCPEntity representing the Decopilot agent
+ * @returns VirtualMCPEntity representing the Decopilot agent (with null id)
  */
-export function getWellKnownDecopilotAgent(
+export function getWellKnownDecopilotVirtualMCP(
   organizationId: string,
 ): VirtualMCPEntity {
   return {
-    id: `decopilot-${organizationId}`,
+    id: null,
     organization_id: organizationId,
     title: "Decopilot",
     description: "Default agent that aggregates all organization connections",

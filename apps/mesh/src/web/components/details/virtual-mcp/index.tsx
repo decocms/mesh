@@ -382,7 +382,8 @@ function VirtualMCPShareModal({
   virtualMcpUrl.searchParams.set("mode", mode);
 
   // Server name for IDE integrations
-  const serverName = virtualMcp.title || `agent-${virtualMcp.id.slice(0, 8)}`;
+  const serverName =
+    virtualMcp.title || `agent-${virtualMcp.id?.slice(0, 8) ?? "default"}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

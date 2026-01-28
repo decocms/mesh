@@ -140,5 +140,5 @@ export {
   getWellKnownOpenRouterConnection,
   getWellKnownMcpStudioConnection,
   // Virtual MCP factory functions
-  getWellKnownDecopilotAgent,
+  getWellKnownDecopilotVirtualMCP,
 } from "./lib/constants";

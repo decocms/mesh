@@ -15,7 +15,7 @@ import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
 import { getBaseUrl } from "./server-constants";
 import { ConnectionStorage } from "../storage/connection";
-import { VirtualMCPStorage } from "../storage/virtual-mcp";
+import { VirtualMCPStorage } from "../storage/virtual";
 import { SqlMonitoringStorage } from "../storage/monitoring";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { Database, Permission } from "../storage/types";
@@ -386,6 +386,7 @@ import { createMCPProxy } from "@/api/routes/proxy";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { SqlThreadStorage } from "@/storage/threads";
+import { createClientPool } from "@/mcp-clients/outbound/client-pool";
 
 /**
  * Fetch role permissions from the database
@@ -716,9 +717,9 @@ const wellKnownForwardableHeaders = ["x-hub-signature-256"];
  * The factory creates storage adapters once (singleton pattern) and
  * returns a function that creates MeshContext from Hono Context
  */
-export function createMeshContextFactory(
+export async function createMeshContextFactory(
   config: MeshContextConfig,
-): FactoryFunction {
+): Promise<FactoryFunction> {
   // Create vault instance for credential encryption
   const vault = new CredentialVault(config.encryption.key);
 
@@ -735,6 +736,9 @@ export function createMeshContextFactory(
     // Note: API keys (tokens) managed by Better Auth API Key plugin
     // Note: Token revocation handled by Better Auth (deleteApiKey)
   };
+
+  // Create client pool once (singleton pattern) - shared across all requests
+  await using clientPool = createClientPool();
 
   // Return factory function
   return async (
@@ -826,6 +830,7 @@ export function createMeshContextFactory(
       createMCPProxy: async (conn: string | ConnectionEntity) => {
         return await createMCPProxy(conn, ctx);
       },
+      getOrCreateClient: clientPool,
     };
 
     return ctx;

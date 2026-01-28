@@ -61,7 +61,7 @@ function VirtualMCPBadge({
   const { org } = useProjectContext();
 
   const virtualMcp = virtualMcps.find((g) => g.id === virtualMcpId);
-  if (!virtualMcp) return null;
+  if (!virtualMcp || virtualMcpId === null) return null; // Don't show badge for Decopilot
 
   // Focus search input when popover opens
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -88,7 +88,7 @@ function VirtualMCPBadge({
     });
   };
 
-  const handleVirtualMcpChange = (newVirtualMcpId: string) => {
+  const handleVirtualMcpChange = (newVirtualMcpId: string | null) => {
     onVirtualMcpChange(newVirtualMcpId);
     setOpen(false);
   };
@@ -302,7 +302,7 @@ export function ChatInput() {
         )}
       >
         {/* Virtual MCP Badge Header */}
-        {selectedVirtualMcp && (
+        {selectedVirtualMcp && selectedVirtualMcp.id !== null && (
           <VirtualMCPBadge
             virtualMcpId={selectedVirtualMcp.id}
             virtualMcps={virtualMcps}

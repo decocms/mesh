@@ -10,4 +10,4 @@ export { createApp, type CreateAppOptions } from "./app";
 // Default app instance for production use
 // This runs createApp() immediately on module load
 import { createApp } from "./app";
-export default createApp();
+export default await createApp();

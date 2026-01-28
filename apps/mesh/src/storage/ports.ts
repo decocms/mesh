@@ -10,7 +10,7 @@ import type {
   VirtualMCPEntity,
   VirtualMCPCreateData,
   VirtualMCPUpdateData,
-} from "../tools/virtual-mcp/schema";
+} from "../tools/virtual/schema";
 import type {
   MonitoringLog,
   OrganizationSettings,
@@ -120,7 +120,7 @@ export type {
   VirtualMCPEntity,
   VirtualMCPCreateData,
   VirtualMCPUpdateData,
-} from "../tools/virtual-mcp/schema";
+} from "../tools/virtual/schema";
 
 export interface VirtualMCPStoragePort {
   create(
@@ -128,7 +128,10 @@ export interface VirtualMCPStoragePort {
     userId: string,
     data: VirtualMCPCreateData,
   ): Promise<VirtualMCPEntity>;
-  findById(id: string): Promise<VirtualMCPEntity | null>;
+  findById(
+    id: string | null,
+    organizationId?: string,
+  ): Promise<VirtualMCPEntity | null>;
   list(organizationId: string): Promise<VirtualMCPEntity[]>;
   listByConnectionId(
     organizationId: string,
