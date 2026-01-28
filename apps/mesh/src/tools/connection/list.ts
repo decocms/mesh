@@ -189,10 +189,16 @@ function applyOrderBy(
 }
 
 /**
- * Extended input schema with optional binding parameter
+ * Extended input schema with optional binding and include_virtual parameters
  */
 const ConnectionListInputSchema = CollectionListInputSchema.extend({
   binding: z.union([z.object({}).passthrough(), z.string()]).optional(),
+  include_virtual: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether to include VIRTUAL connections in the results. Defaults to false.",
+    ),
 });
 
 /**
@@ -234,7 +240,10 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       ? createBindingChecker(bindingDefinition)
       : undefined;
 
-    const connections = await ctx.storage.connections.list(organization.id);
+    // By default, exclude VIRTUAL connections unless explicitly requested
+    const connections = await ctx.storage.connections.list(organization.id, {
+      includeVirtual: input.include_virtual ?? false,
+    });
 
     // In dev mode, inject the dev-assets connection for local file storage
     // This provides object storage functionality without requiring an external S3 bucket
@@ -252,16 +261,10 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       }
     }
 
-    // Filter out VIRTUAL connections (they are agents, not regular connections)
-    // VIRTUAL connections are managed through the Virtual MCP / Agents UI
-    const nonVirtualConnections = connections.filter(
-      (c) => c.connection_type !== "VIRTUAL",
-    );
-
     // Filter connections by binding if specified (tools are pre-populated at create/update time)
     let filteredConnections = bindingChecker
       ? await Promise.all(
-          nonVirtualConnections.map(async (connection) => {
+          connections.map(async (connection) => {
             if (!connection.tools || connection.tools.length === 0) {
               return null;
             }
@@ -281,7 +284,7 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
         ).then((results) =>
           results.filter((c): c is ConnectionEntity => c !== null),
         )
-      : nonVirtualConnections;
+      : connections;
 
     // Apply where filter if specified
     if (input.where) {
