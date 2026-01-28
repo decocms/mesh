@@ -56,7 +56,7 @@ async function createProxyMap(
         const proxy = await ctx.createMCPProxy(connection);
         return [connection.id, proxy] as const;
       } catch (error) {
-        console.error(
+        console.warn(
           `[aggregator] Failed to create proxy for connection ${connection.id}:`,
           error,
         );
