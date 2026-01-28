@@ -1,38 +1,32 @@
 import {
   VirtualMCPEntitySchema,
   type VirtualMCPEntity,
-} from "@/tools/virtual-mcp/schema";
+} from "@/tools/virtual/schema";
+import { useChat } from "@/web/components/chat/context";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import {
-  KEYS,
-  listPrompts,
-  listResources,
-  useConnection,
-  useProjectContext,
-  useVirtualMCP,
-  useVirtualMCPActions,
-} from "@decocms/mesh-sdk";
-import { useQueries } from "@tanstack/react-query";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
-import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
-import { Switch } from "@deco/ui/components/switch.tsx";
-import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   Collapsible,
   CollapsibleTrigger,
 } from "@deco/ui/components/collapsible.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
+import { Switch } from "@deco/ui/components/switch.tsx";
+import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
+import {
+  useConnection,
+  useVirtualMCP,
+  useVirtualMCPActions,
+} from "@decocms/mesh-sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   useNavigate,
@@ -157,16 +151,13 @@ function SkillItem({
 
 function AgentDetailViewWithData({
   virtualMcp,
-  virtualMcpId,
 }: {
   virtualMcp: VirtualMCPEntity;
-  virtualMcpId: string;
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
   const router = useRouter();
   const actions = useVirtualMCPActions();
-  const { locator } = useProjectContext();
 
   // Dialog states
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
@@ -180,20 +171,17 @@ function AgentDetailViewWithData({
 
   // Auto-open chat with this agent selected
   const [, setChatOpen] = useDecoChatOpen();
-  const [, setSelectedVirtualMcpId] = useLocalStorage<string | null>(
-    `${locator}:selected-virtual-mcp-id`,
-    null,
-  );
+  const { setVirtualMcpId } = useChat();
 
   // Open chat on mount (without selecting the agent)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     setChatOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- setters are unstable, only run on virtualMcpId change
-  }, [virtualMcpId]);
+    setVirtualMcpId(virtualMcp.id);
+  }, [virtualMcp.id]);
 
   const handleTestAgent = () => {
-    setSelectedVirtualMcpId(virtualMcpId);
+    setVirtualMcpId(virtualMcp.id);
     setChatOpen(true);
   };
 
@@ -210,7 +198,7 @@ function AgentDetailViewWithData({
       const formData = form.getValues();
 
       const data = await actions.update.mutateAsync({
-        id: virtualMcpId,
+        id: virtualMcp.id,
         data: formData,
       });
 
@@ -239,9 +227,8 @@ function AgentDetailViewWithData({
   const handleConnectionSave = async (selections: ConnectionSelection[]) => {
     try {
       await actions.update.mutateAsync({
-        id: virtualMcpId,
+        id: virtualMcp.id,
         data: {
-          tool_selection_mode: "inclusion",
           connections: selections.map((sel) => ({
             connection_id: sel.connectionId,
             selected_tools: sel.selectedTools,
@@ -264,78 +251,84 @@ function AgentDetailViewWithData({
   return (
     <ViewLayout onBack={() => router.history.back()}>
       <ViewActions>
-        <TooltipProvider>
-          {hasFormChanges && (
-            <>
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <span className="inline-block">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="size-7 border border-input"
-                      disabled={isSaving}
-                      onClick={handleCancel}
-                      aria-label="Cancel"
-                    >
-                      <FlipBackward size={14} />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Cancel</TooltipContent>
-              </Tooltip>
+        {hasFormChanges && (
+          <>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 border border-input"
+                    disabled={isSaving}
+                    onClick={handleCancel}
+                    aria-label="Cancel"
+                  >
+                    <FlipBackward size={14} />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Cancel</TooltipContent>
+            </Tooltip>
 
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <span className="inline-block">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="size-7 border border-input"
-                      disabled={isSaving}
-                      onClick={handleSave}
-                      aria-label="Save"
-                    >
-                      {isSaving ? (
-                        <Loading01 size={14} className="animate-spin" />
-                      ) : (
-                        <Save01 size={14} />
-                      )}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Save</TooltipContent>
-              </Tooltip>
-            </>
-          )}
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 border border-input"
+                    disabled={isSaving}
+                    onClick={handleSave}
+                    aria-label="Save"
+                  >
+                    {isSaving ? (
+                      <Loading01 size={14} className="animate-spin" />
+                    ) : (
+                      <Save01 size={14} />
+                    )}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Save</TooltipContent>
+            </Tooltip>
+          </>
+        )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 gap-1.5 px-2 border border-input"
-            onClick={handleTestAgent}
-          >
-            <Play size={14} />
-            Test Agent
-          </Button>
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <span className="inline-block">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 px-2 border border-input"
+                onClick={handleTestAgent}
+                aria-label="Test Agent"
+              >
+                <Play size={14} />
+                Test Agent
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Test this agent in chat</TooltipContent>
+        </Tooltip>
 
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-7 border border-input"
-                  onClick={() => setShareDialogOpen(true)}
-                  aria-label="Share"
-                >
-                  <Share07 size={14} />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Share</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <span className="inline-block">
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 border border-input"
+                onClick={() => setShareDialogOpen(true)}
+                aria-label="Share"
+              >
+                <Share07 size={14} />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Share</TooltipContent>
+        </Tooltip>
 
         <PinToSidebarButton
           title={virtualMcp.title}
@@ -533,10 +526,8 @@ function AgentDetailViewWithData({
       <ConnectionSelectionDialog
         open={connectionDialogOpen}
         onOpenChange={setConnectionDialogOpen}
-        connectionId={editingConnectionId}
+        defaultSelectedConnectionId={editingConnectionId}
         virtualMcp={virtualMcp}
-        connectionPrompts={new Map()}
-        connectionResources={new Map()}
         onSave={handleConnectionSave}
       />
 
@@ -585,12 +576,7 @@ function AgentDetailViewContent() {
     );
   }
 
-  return (
-    <AgentDetailViewWithData
-      virtualMcp={virtualMcp}
-      virtualMcpId={virtualMcpId}
-    />
-  );
+  return <AgentDetailViewWithData virtualMcp={virtualMcp} />;
 }
 
 export default function AgentDetailView() {

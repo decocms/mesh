@@ -1,5 +1,4 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { isDecopilot, useProjectContext } from "@decocms/mesh-sdk";
 import { getAgentColor } from "@/web/utils/agent-color";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -8,34 +7,41 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { isDecopilot, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   AlertTriangle,
   ArrowUp,
   ChevronDown,
-  Users03,
   Edit01,
   Stop,
+  Users03,
   XCircle,
 } from "@untitledui/icons";
 import type { FormEvent } from "react";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type MouseEvent,
+} from "react";
 import { useChat } from "./context";
-import { isTiptapDocEmpty } from "./tiptap/utils";
 import { ChatHighlight } from "./index";
+import { ModelSelector } from "./select-model";
 import {
   VirtualMCPPopoverContent,
   VirtualMCPSelector,
   type VirtualMCPInfo,
 } from "./select-virtual-mcp";
-import { ModelSelector } from "./select-model";
+import { FileUploadButton } from "./tiptap/file";
 import {
-  TiptapProvider,
   TiptapInput,
+  TiptapProvider,
   type TiptapInputHandle,
 } from "./tiptap/input";
-import { FileUploadButton } from "./tiptap/file";
+import { isTiptapDocEmpty } from "./tiptap/utils";
 import { UsageStats } from "./usage-stats";
 
 // ============================================================================
@@ -59,6 +65,7 @@ function VirtualMCPBadge({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { org } = useProjectContext();
+  const [_isPending, startTransition] = useTransition();
 
   const virtualMcp = virtualMcps.find((g) => g.id === virtualMcpId);
   if (!virtualMcp || isDecopilot(virtualMcpId)) return null; // Don't show badge for Decopilot
@@ -89,8 +96,10 @@ function VirtualMCPBadge({
   };
 
   const handleVirtualMcpChange = (newVirtualMcpId: string | null) => {
-    onVirtualMcpChange(newVirtualMcpId);
     setOpen(false);
+    startTransition(() => {
+      onVirtualMcpChange(newVirtualMcpId);
+    });
   };
 
   return (
