@@ -10,6 +10,10 @@ import { isDecopilot } from "@decocms/mesh-sdk";
 import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { VirtualMCPEntity } from "../../tools/virtual/schema";
+import {
+  isVirtualTool,
+  type VirtualToolDefinition,
+} from "../../tools/virtual-tool/schema";
 import { CodeExecutionClient } from "./code-execution";
 import { PassthroughClient } from "./passthrough-client";
 import { SmartToolSelectionClient } from "./smart-tool-selection";
@@ -69,11 +73,27 @@ export async function createVirtualClientFrom(
   // Inclusion mode: use only the connections specified in virtual MCP
   const connectionIds = virtualMcp.connections.map((c) => c.connection_id);
 
-  // Load all connections in parallel
+  // Load all connections in parallel, plus the VIRTUAL connection itself for virtual tools
   const connectionPromises = connectionIds.map((connId) =>
     ctx.storage.connections.findById(connId),
   );
+
+  // Also load the VIRTUAL connection to get virtual tools (if id is available)
+  const virtualMcpConnection = virtualMcp.id
+    ? await ctx.storage.connections.findById(virtualMcp.id)
+    : null;
+
   const allConnections = await Promise.all(connectionPromises);
+
+  // Extract virtual tools from the VIRTUAL connection's tools column
+  const virtualTools: VirtualToolDefinition[] = [];
+  if (virtualMcpConnection?.tools) {
+    for (const tool of virtualMcpConnection.tools) {
+      if (isVirtualTool(tool)) {
+        virtualTools.push(tool as VirtualToolDefinition);
+      }
+    }
+  }
 
   // Filter out inactive connections and self-referencing VIRTUAL connections
   const loadedConnections = allConnections.filter(
@@ -87,6 +107,7 @@ export async function createVirtualClientFrom(
   const options: VirtualClientOptions = {
     connections: loadedConnections,
     virtualMcp,
+    virtualTools: virtualTools.length > 0 ? virtualTools : undefined,
   };
 
   // Create the appropriate client based on strategy
