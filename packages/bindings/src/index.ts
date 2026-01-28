@@ -17,7 +17,7 @@ export {
   type ConnectionForBinding,
 } from "./core/binder";
 
-// Re-export plugin context types and provider
+// Re-export plugin context types (not the React provider - use @decocms/bindings/plugins for that)
 export {
   type PluginContext,
   type PluginContextPartial,
@@ -26,13 +26,6 @@ export {
   type PluginSession,
   type TypedToolCaller,
 } from "./core/plugin-context";
-
-export {
-  PluginContextProvider,
-  usePluginContext,
-  type PluginContextProviderProps,
-  type UsePluginContextOptions,
-} from "./core/plugin-context-provider";
 
 // Re-export registry binding types
 export {

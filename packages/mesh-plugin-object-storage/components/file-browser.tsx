@@ -7,8 +7,8 @@
  */
 
 import { useState, useRef, lazy, Suspense } from "react";
-import { usePluginContext } from "@decocms/bindings";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
+import { usePluginContext } from "@decocms/bindings/plugins";
 import { useObjects } from "../hooks/use-objects";
 import {
   getFileName,

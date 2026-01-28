@@ -6,8 +6,8 @@
  * Image files show lazy-loaded previews using presigned URLs.
  */
 
-import { usePluginContext } from "@decocms/bindings";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
+import { usePluginContext } from "@decocms/bindings/plugins";
 import { useObjects, type ObjectItem } from "../hooks/use-objects";
 import { getFileName, getFileIcon, formatFileSize } from "../lib/utils";
 import { Button } from "@deco/ui/components/button.tsx";

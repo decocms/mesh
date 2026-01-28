@@ -95,3 +95,11 @@ export {
   type RouteIds,
   type RouteById,
 } from "./plugin-router";
+
+// Re-export plugin context provider and hook (React components)
+export {
+  PluginContextProvider,
+  usePluginContext,
+  type PluginContextProviderProps,
+  type UsePluginContextOptions,
+} from "./plugin-context-provider";
