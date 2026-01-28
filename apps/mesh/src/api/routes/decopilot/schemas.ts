@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import { DEFAULT_WINDOW_SIZE } from "./constants";
 
 const UIMessageSchema = z.looseObject({
   id: z.string().optional(),
@@ -14,7 +15,7 @@ const UIMessageSchema = z.looseObject({
 });
 
 const MemoryConfigSchema = z.object({
-  windowSize: z.number().optional(),
+  windowSize: z.number().default(DEFAULT_WINDOW_SIZE),
   threadId: z.string(),
 });
 
@@ -25,6 +26,11 @@ export const StreamRequestSchema = z.object({
     .object({
       id: z.string(),
       connectionId: z.string(),
+      fastId: z
+        .string()
+        .optional()
+        .nullable()
+        .describe("ID of a fast/cheap model for background operations"),
       capabilities: z
         .object({
           vision: z.boolean().optional(),
@@ -54,7 +60,7 @@ export const StreamRequestSchema = z.object({
     .loose(),
   agent: z.object({ id: z.string() }).loose(),
   stream: z.boolean().optional(),
-  temperature: z.number().optional(),
+  temperature: z.number().default(0.5),
   thread_id: z.string().optional(),
 });
 
