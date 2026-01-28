@@ -2,7 +2,7 @@ name: Release Tagging
 
 on:
   pull_request_target:
-    types: [opened]
+    types: [opened, synchronize]
     paths:
       - "apps/mesh/**"
       - "packages/mesh-plugin-*/**"
@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   tag-discussion:
-    if: github.event_name == 'pull_request_target' && github.event.action == 'opened'
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -28,6 +28,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.ref }}
           repository: ${{ github.event.pull_request.base.repo.full_name }}
+
+      - name: Find existing Release Options comment
+        uses: peter-evans/find-comment@v3
+        id: find_comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: "## Release Options"
 
       - name: Calculate new versions
         id: calculate_versions
@@ -76,6 +83,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find_comment.outputs.comment-id }}
+          edit-mode: replace
           body: |
             ## Release Options
 
