@@ -199,9 +199,7 @@ export function ChatPanel() {
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.Provider>
-          <ChatPanelContent />
-        </Chat.Provider>
+        <ChatPanelContent />
       </Suspense>
     </ErrorBoundary>
   );

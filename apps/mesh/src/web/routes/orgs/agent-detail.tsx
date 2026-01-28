@@ -1,5 +1,5 @@
-import VirtualMCPInspectorView from "@/web/components/details/virtual-mcp";
+import AgentDetailView from "@/web/components/details/agent/agent-detail-view";
 
 export default function AgentLayout() {
-  return <VirtualMCPInspectorView />;
+  return <AgentDetailView />;
 }
