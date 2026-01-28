@@ -23,6 +23,11 @@ import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
 import * as ThreadTools from "./thread";
 import * as UserTools from "./user";
+import * as UIWidgetTools from "./ui-widgets";
+import {
+  listUIWidgetResources,
+  getUIWidgetResource,
+} from "./ui-widgets/resources";
 import { ToolName } from "./registry";
 
 // Core tools - always available
@@ -89,6 +94,38 @@ const CORE_TOOLS = [
   ThreadTools.COLLECTION_THREADS_UPDATE,
   ThreadTools.COLLECTION_THREADS_DELETE,
   ThreadTools.COLLECTION_THREAD_MESSAGES_LIST,
+
+  // UI Widget tools (MCP Apps)
+  UIWidgetTools.UI_COUNTER,
+  UIWidgetTools.UI_METRIC,
+  UIWidgetTools.UI_PROGRESS,
+  UIWidgetTools.UI_GREETING,
+  UIWidgetTools.UI_CHART,
+  UIWidgetTools.UI_TIMER,
+  UIWidgetTools.UI_STATUS,
+  UIWidgetTools.UI_QUOTE,
+  UIWidgetTools.UI_SPARKLINE,
+  UIWidgetTools.UI_CODE,
+  UIWidgetTools.UI_CONFIRMATION,
+  UIWidgetTools.UI_JSON_VIEWER,
+  UIWidgetTools.UI_TABLE,
+  UIWidgetTools.UI_DIFF,
+  UIWidgetTools.UI_TODO,
+  UIWidgetTools.UI_MARKDOWN,
+  UIWidgetTools.UI_IMAGE,
+  UIWidgetTools.UI_FORM_RESULT,
+  UIWidgetTools.UI_ERROR,
+  UIWidgetTools.UI_NOTIFICATION,
+
+  // Shadcn-inspired UI widgets
+  UIWidgetTools.UI_AVATAR,
+  UIWidgetTools.UI_SWITCH,
+  UIWidgetTools.UI_SLIDER,
+  UIWidgetTools.UI_RATING,
+  UIWidgetTools.UI_KBD,
+  UIWidgetTools.UI_STATS_GRID,
+  UIWidgetTools.UI_AREA_CHART,
+  UIWidgetTools.UI_CALENDAR,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime
@@ -143,6 +180,18 @@ export const managementMCP = async (ctx: MeshContext) => {
     },
   }));
 
+  // Get UI widget resources
+  const uiResources = listUIWidgetResources().map((r) => {
+    const resource = getUIWidgetResource(r.uri);
+    return {
+      uri: r.uri,
+      name: r.name,
+      description: r.description,
+      mimeType: r.mimeType,
+      content: resource?.html ?? "",
+    };
+  });
+
   // Create and use MCP server with builder pattern
   const server = mcpServer({
     name: "mcp-mesh-management",
@@ -150,6 +199,7 @@ export const managementMCP = async (ctx: MeshContext) => {
   })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .withTools(tools as any)
+    .withResources(uiResources)
     .build();
 
   // Handle the incoming MCP message

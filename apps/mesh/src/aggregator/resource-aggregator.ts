@@ -96,26 +96,32 @@ export class ResourceAggregator {
           let resources = result.resources;
 
           // Apply selection based on mode
+          // Note: ui:// resources (MCP Apps) are always included regardless of selection mode
           if (this.options.selectionMode === "exclusion") {
-            // Exclusion mode: exclude matching resources
+            // Exclusion mode: exclude matching resources (but always keep ui:// resources)
             if (entry.selectedResources && entry.selectedResources.length > 0) {
               resources = resources.filter(
-                (r) => !matchesAnyPattern(r.uri, entry.selectedResources!),
+                (r) =>
+                  r.uri.startsWith("ui://") ||
+                  !matchesAnyPattern(r.uri, entry.selectedResources!),
               );
             }
             // If selectedResources is null/empty in exclusion mode, include all resources
           } else {
             // Inclusion mode: include only selected resources
             // Resources require explicit selection (patterns or URIs)
+            // Exception: ui:// resources (MCP Apps) are always included
             if (
               !entry.selectedResources ||
               entry.selectedResources.length === 0
             ) {
-              // No resources selected = no resources from this connection
-              resources = [];
+              // No resources selected = only include ui:// resources
+              resources = resources.filter((r) => r.uri.startsWith("ui://"));
             } else {
-              resources = resources.filter((r) =>
-                matchesAnyPattern(r.uri, entry.selectedResources!),
+              resources = resources.filter(
+                (r) =>
+                  r.uri.startsWith("ui://") ||
+                  matchesAnyPattern(r.uri, entry.selectedResources!),
               );
             }
           }

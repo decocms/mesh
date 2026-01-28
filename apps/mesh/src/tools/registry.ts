@@ -27,7 +27,8 @@ export type ToolCategory =
   | "Users"
   | "API Keys"
   | "Event Bus"
-  | "Code Execution";
+  | "Code Execution"
+  | "UI Widgets";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -89,6 +90,36 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_THREADS_UPDATE",
   "COLLECTION_THREADS_DELETE",
   "COLLECTION_THREAD_MESSAGES_LIST",
+  // UI Widget tools
+  "UI_COUNTER",
+  "UI_METRIC",
+  "UI_PROGRESS",
+  "UI_GREETING",
+  "UI_CHART",
+  "UI_TIMER",
+  "UI_STATUS",
+  "UI_QUOTE",
+  "UI_SPARKLINE",
+  "UI_CODE",
+  "UI_CONFIRMATION",
+  "UI_JSON_VIEWER",
+  "UI_TABLE",
+  "UI_DIFF",
+  "UI_TODO",
+  "UI_MARKDOWN",
+  "UI_IMAGE",
+  "UI_FORM_RESULT",
+  "UI_ERROR",
+  "UI_NOTIFICATION",
+  // Shadcn-inspired UI widgets
+  "UI_AVATAR",
+  "UI_SWITCH",
+  "UI_SLIDER",
+  "UI_RATING",
+  "UI_KBD",
+  "UI_STATS_GRID",
+  "UI_AREA_CHART",
+  "UI_CALENDAR",
 ] as const;
 
 /**
@@ -376,6 +407,148 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "List thread messages",
     category: "Threads",
   },
+  // UI Widget tools
+  {
+    name: "UI_COUNTER",
+    description: "Interactive counter widget",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_METRIC",
+    description: "Key metric display with trend",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_PROGRESS",
+    description: "Visual progress bar",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_GREETING",
+    description: "Personalized greeting card",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_CHART",
+    description: "Animated bar chart",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_TIMER",
+    description: "Interactive timer",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_STATUS",
+    description: "Status badge indicator",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_QUOTE",
+    description: "Quote display with attribution",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_SPARKLINE",
+    description: "Compact trend chart",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_CODE",
+    description: "Code snippet display",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_CONFIRMATION",
+    description: "Confirmation dialog",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_JSON_VIEWER",
+    description: "JSON tree viewer",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_TABLE",
+    description: "Data table display",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_DIFF",
+    description: "Text diff viewer",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_TODO",
+    description: "Interactive todo list",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_MARKDOWN",
+    description: "Rendered markdown content",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_IMAGE",
+    description: "Image display with caption",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_FORM_RESULT",
+    description: "Form submission result",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_ERROR",
+    description: "Error display with details",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_NOTIFICATION",
+    description: "Notification banner",
+    category: "UI Widgets",
+  },
+  // Shadcn-inspired UI widgets
+  {
+    name: "UI_AVATAR",
+    description: "User avatar with status",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_SWITCH",
+    description: "Toggle switch",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_SLIDER",
+    description: "Range slider",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_RATING",
+    description: "Star rating display",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_KBD",
+    description: "Keyboard shortcuts",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_STATS_GRID",
+    description: "Dashboard stats grid",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_AREA_CHART",
+    description: "Area chart with gradient",
+    category: "UI Widgets",
+  },
+  {
+    name: "UI_CALENDAR",
+    description: "Mini calendar",
+    category: "UI Widgets",
+  },
 ];
 
 /**
@@ -429,6 +602,36 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_THREADS_UPDATE: "Update threads",
   COLLECTION_THREADS_DELETE: "Delete threads",
   COLLECTION_THREAD_MESSAGES_LIST: "List thread messages",
+  // UI Widget tools
+  UI_COUNTER: "Interactive counter",
+  UI_METRIC: "Metric display",
+  UI_PROGRESS: "Progress bar",
+  UI_GREETING: "Greeting card",
+  UI_CHART: "Bar chart",
+  UI_TIMER: "Timer",
+  UI_STATUS: "Status badge",
+  UI_QUOTE: "Quote display",
+  UI_SPARKLINE: "Sparkline chart",
+  UI_CODE: "Code snippet",
+  UI_CONFIRMATION: "Confirmation dialog",
+  UI_JSON_VIEWER: "JSON viewer",
+  UI_TABLE: "Data table",
+  UI_DIFF: "Diff viewer",
+  UI_TODO: "Todo list",
+  UI_MARKDOWN: "Markdown content",
+  UI_IMAGE: "Image display",
+  UI_FORM_RESULT: "Form result",
+  UI_ERROR: "Error display",
+  UI_NOTIFICATION: "Notification",
+  // Shadcn-inspired UI widgets
+  UI_AVATAR: "User avatar",
+  UI_SWITCH: "Toggle switch",
+  UI_SLIDER: "Range slider",
+  UI_RATING: "Star rating",
+  UI_KBD: "Keyboard shortcuts",
+  UI_STATS_GRID: "Stats dashboard",
+  UI_AREA_CHART: "Area chart",
+  UI_CALENDAR: "Calendar",
 };
 
 // ============================================================================
@@ -449,6 +652,7 @@ export function getToolsByCategory() {
     "API Keys": [],
     "Event Bus": [],
     "Code Execution": [],
+    "UI Widgets": [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

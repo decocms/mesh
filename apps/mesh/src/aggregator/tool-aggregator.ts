@@ -118,7 +118,7 @@ export class ToolAggregator {
 
         allTools.push({
           ...tool,
-          _meta: { connectionId, connectionTitle },
+          _meta: { ...tool._meta, connectionId, connectionTitle },
         });
         mappings.set(tool.name, { connectionId, originalName: tool.name });
       }
@@ -152,7 +152,25 @@ export class ToolAggregator {
         arguments: args,
       });
 
-      return result as CallToolResult;
+      // Inject connectionId into the result's _meta so the frontend knows
+      // which connection to use for reading associated resources (e.g., MCP Apps)
+      const resultWithMeta = result as CallToolResult & {
+        _meta?: Record<string, unknown>;
+      };
+      if (resultWithMeta._meta) {
+        resultWithMeta._meta = {
+          ...resultWithMeta._meta,
+          connectionId: mapping.connectionId,
+        };
+      } else if (
+        resultWithMeta._meta === undefined &&
+        "ui/resourceUri" in (result as Record<string, unknown>)
+      ) {
+        // If _meta doesn't exist but there's a ui/resourceUri at root level (shouldn't happen but be safe)
+        resultWithMeta._meta = { connectionId: mapping.connectionId };
+      }
+
+      return resultWithMeta as CallToolResult;
     };
 
     // Apply the strategy to transform tools

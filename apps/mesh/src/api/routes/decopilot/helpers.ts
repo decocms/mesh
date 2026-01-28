@@ -79,9 +79,24 @@ export async function toolsFromMCP(client: Client): Promise<ToolSet> {
             };
           }
           if ("structuredContent" in output) {
-            return {
+            // Include _meta if present in the output
+            const result: { type: "json"; value: JSONValue } = {
               type: "json",
               value: output.structuredContent as JSONValue,
+            };
+            if ("_meta" in output && output._meta) {
+              (result.value as Record<string, unknown>)._meta = output._meta;
+            }
+            return result;
+          }
+          // For content type, wrap in an object that includes _meta
+          if ("_meta" in output && output._meta) {
+            return {
+              type: "json",
+              value: {
+                content: output.content,
+                _meta: output._meta,
+              } as JSONValue,
             };
           }
           return { type: "content", value: output.content as any };

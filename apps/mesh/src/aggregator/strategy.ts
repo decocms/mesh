@@ -176,11 +176,18 @@ function createSearchTool(ctx: StrategyContext): ToolWithHandler {
       );
       return jsonResult({
         query: parsed.data.query,
-        results: results.map((t) => ({
-          name: t.name,
-          description: t.description,
-          connection: t._meta.connectionTitle,
-        })),
+        results: results.map((t) => {
+          const meta = t._meta as Record<string, unknown>;
+          return {
+            name: t.name,
+            description: t.description,
+            connection: t._meta.connectionTitle,
+            // Include UI resource URI if the tool has an associated MCP App
+            ...(meta?.["ui/resourceUri"]
+              ? { uiResourceUri: meta["ui/resourceUri"] as string }
+              : {}),
+          };
+        }),
         totalAvailable: filteredTools.length,
       });
     },
