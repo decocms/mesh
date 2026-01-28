@@ -118,9 +118,9 @@ export class PassthroughClient extends Client {
       },
     );
 
-    // Build selection map from options.selected
-    this._selectionMap = new Map<string, VirtualMCPConnection>();
-    for (const selected of options.selected) {
+    // Build selection map from options.virtualMcp.connections
+    this._selectionMap = new Map();
+    for (const selected of options.virtualMcp.connections) {
       this._selectionMap.set(selected.connection_id, selected);
     }
 
@@ -365,5 +365,12 @@ export class PassthroughClient extends Client {
       await disposeProxyMap(clients);
     }
     await super.close();
+  }
+
+  /**
+   * Get server instructions from virtual MCP metadata
+   */
+  override getInstructions(): string | undefined {
+    return this.options.virtualMcp.metadata?.instructions;
   }
 }

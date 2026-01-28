@@ -86,7 +86,7 @@ export async function createVirtualClientFrom(
   // Build aggregator options
   const options: VirtualClientOptions = {
     connections: loadedConnections,
-    selected: virtualMcp.connections,
+    virtualMcp,
   };
 
   // Create the appropriate client based on strategy

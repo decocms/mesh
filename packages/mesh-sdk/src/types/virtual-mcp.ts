@@ -40,12 +40,7 @@ export type VirtualMCPConnection = z.infer<typeof VirtualMCPConnectionSchema>;
  */
 export const VirtualMCPEntitySchema = z.object({
   // Base collection entity fields
-  id: z
-    .string()
-    .nullable()
-    .describe(
-      "Unique identifier for the virtual MCP (null for synthetic Decopilot agent)",
-    ),
+  id: z.string().describe("Unique identifier for the virtual MCP"),
   title: z.string().describe("Human-readable name for the virtual MCP"),
   description: z.string().nullable().describe("Description of the virtual MCP"),
   icon: z.string().nullable().describe("Icon URL for the virtual MCP"),

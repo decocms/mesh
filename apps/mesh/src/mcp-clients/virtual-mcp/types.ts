@@ -5,7 +5,7 @@
  */
 
 import type { ConnectionEntity } from "../../tools/connection/schema";
-import type { VirtualMCPConnection } from "../../tools/virtual/schema";
+import type { VirtualMCPEntity } from "../../tools/virtual/schema";
 import type { MCPProxyClient } from "../../api/routes/proxy";
 
 /** Entry in the proxy map (connection ID -> proxy entry) */
@@ -28,7 +28,7 @@ export type ToolSelectionStrategy =
 /** Options for creating an aggregator */
 export interface VirtualClientOptions {
   connections: ConnectionEntity[];
-  selected: VirtualMCPConnection[];
+  virtualMcp: VirtualMCPEntity;
 }
 
 /**
