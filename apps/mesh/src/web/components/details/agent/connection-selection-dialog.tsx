@@ -19,38 +19,27 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ChevronDown, Tool01, CubeOutline, File02 } from "@untitledui/icons";
 import { useState } from "react";
+import { useConnections } from "@decocms/mesh-sdk";
 
 export interface ConnectionSelection {
   connectionId: string;
   selectedTools: string[];
   selectedResources: string[];
   selectedPrompts: string[];
+  totalToolsCount: number;
 }
-
-export type ToolSelectionMode = "inclusion" | "exclusion";
 
 interface ConnectionSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   connectionId: string | null;
   virtualMcp: VirtualMCPEntity;
-  allConnections: Array<{
-    id: string;
-    title: string;
-    description?: string | null;
-    icon?: string | null;
-    tools?: Array<{ name: string; description?: string }> | null;
-  }>;
   connectionPrompts: Map<string, Array<{ name: string; description?: string }>>;
   connectionResources: Map<
     string,
     Array<{ uri: string; name?: string; description?: string }>
   >;
-  toolSelectionMode: ToolSelectionMode;
-  onSave: (
-    selections: ConnectionSelection[],
-    toolSelectionMode: ToolSelectionMode,
-  ) => void;
+  onSave: (selections: ConnectionSelection[]) => void;
 }
 
 export function ConnectionSelectionDialog({
@@ -58,23 +47,16 @@ export function ConnectionSelectionDialog({
   onOpenChange,
   connectionId,
   virtualMcp,
-  allConnections,
   connectionPrompts,
   connectionResources,
-  toolSelectionMode: initialToolSelectionMode,
   onSave,
 }: ConnectionSelectionDialogProps) {
+  const allConnections = useConnections({});
   // Search for connections
   const [connectionSearch, setConnectionSearch] = useState("");
 
-  // Selection mode (include vs exclude)
-  const [selectionMode, setSelectionMode] = useState<ToolSelectionMode>(
-    initialToolSelectionMode,
-  );
-
-  // Checkbox variant based on selection mode
-  const checkboxVariant: CheckboxVariant =
-    selectionMode === "exclusion" ? "exclude" : "default";
+  // Checkbox variant - always use default for inclusion mode
+  const checkboxVariant: CheckboxVariant = "default";
 
   // Selected connection to show in right panel
   const [selectedConnectionId, setSelectedConnectionId] = useState<
@@ -294,16 +276,19 @@ export function ConnectionSelectionDialog({
         sel.resources.size > 0 ||
         sel.prompts.size > 0
       ) {
+        const connection = allConnections.find((c) => c.id === connId);
+        const totalToolsCount = connection?.tools?.length ?? 0;
         allSelections.push({
           connectionId: connId,
           selectedTools: Array.from(sel.tools),
           selectedResources: Array.from(sel.resources),
           selectedPrompts: Array.from(sel.prompts),
+          totalToolsCount,
         });
       }
     }
 
-    onSave(allSelections, selectionMode);
+    onSave(allSelections);
   };
 
   // Build selections from virtualMcp
@@ -336,7 +321,6 @@ export function ConnectionSelectionDialog({
       setSelections(buildSelectionsFromVirtualMcp());
       setSelectedConnectionId(connectionId ?? null);
       setConnectionSearch("");
-      setSelectionMode(initialToolSelectionMode);
     }
     onOpenChange(newOpen);
   };
@@ -376,45 +360,6 @@ export function ConnectionSelectionDialog({
         <div className="flex-1 flex overflow-hidden min-h-0 flex-col sm:flex-row">
           {/* Left Sidebar - Connections List */}
           <div className="w-full sm:w-72 sm:border-r border-b sm:border-b-0 border-border flex flex-col bg-background sm:h-full max-h-[40vh] sm:max-h-full">
-            {/* Mode Selector */}
-            <div className="flex items-center justify-center gap-1 px-4 py-3 border-b border-border">
-              <button
-                type="button"
-                onClick={() => setSelectionMode("inclusion")}
-                className={cn(
-                  "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors",
-                  selectionMode === "inclusion"
-                    ? "bg-primary/5 text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                )}
-              >
-                <Checkbox
-                  checked={selectionMode === "inclusion"}
-                  className="pointer-events-none size-3.5"
-                  tabIndex={-1}
-                />
-                Included
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectionMode("exclusion")}
-                className={cn(
-                  "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors",
-                  selectionMode === "exclusion"
-                    ? "bg-destructive/5 text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                )}
-              >
-                <Checkbox
-                  variant="exclude"
-                  checked={selectionMode === "exclusion"}
-                  className="pointer-events-none size-3.5"
-                  tabIndex={-1}
-                />
-                Excluded
-              </button>
-            </div>
-
             {/* Search */}
             <CollectionSearch
               value={connectionSearch}

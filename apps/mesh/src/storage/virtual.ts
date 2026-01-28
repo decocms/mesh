@@ -121,8 +121,37 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     id: string | null,
     organizationId?: string,
   ): Promise<VirtualMCPEntity | null> {
+    // Handle null ID - return Decopilot agent with all org connections
+    if (id === null) {
+      if (!organizationId) {
+        throw new Error(
+          "organizationId is required when id is null (Decopilot agent)",
+        );
+      }
+
+      // Get all active connections for the organization
+      const connections = await this.db
+        .selectFrom("connections")
+        .selectAll()
+        .where("organization_id", "=", organizationId)
+        .where("status", "!=", "inactive")
+        .where("status", "!=", "error")
+        .execute();
+
+      // Return Decopilot agent with connections populated
+      return {
+        ...getWellKnownDecopilotVirtualMCP(organizationId),
+        connections: connections.map((c) => ({
+          connection_id: c.id,
+          selected_tools: null, // null = all tools
+          selected_resources: null, // null = all resources
+          selected_prompts: null, // null = all prompts
+        })),
+      };
+    }
+
     // Handle Decopilot ID - return Decopilot agent with all org connections
-    if (id && isDecopilot(id)) {
+    if (isDecopilot(id)) {
       // Extract orgId from decopilot_{orgId} pattern or use provided organizationId
       const orgIdMatch = id.match(/^decopilot_(.+)$/);
       let resolvedOrgId: string;
@@ -148,35 +177,6 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       // Return Decopilot agent with connections populated
       return {
         ...getWellKnownDecopilotVirtualMCP(resolvedOrgId),
-        connections: connections.map((c) => ({
-          connection_id: c.id,
-          selected_tools: null, // null = all tools
-          selected_resources: null, // null = all resources
-          selected_prompts: null, // null = all prompts
-        })),
-      };
-    }
-
-    // Handle null ID - treat as Decopilot for backward compatibility
-    if (!id) {
-      if (!organizationId) {
-        throw new Error(
-          "organizationId is required when id is null (Decopilot agent)",
-        );
-      }
-
-      // Get all active connections for the organization
-      const connections = await this.db
-        .selectFrom("connections")
-        .selectAll()
-        .where("organization_id", "=", organizationId)
-        .where("status", "!=", "inactive")
-        .where("status", "!=", "error")
-        .execute();
-
-      // Return Decopilot agent with connections populated
-      return {
-        ...getWellKnownDecopilotVirtualMCP(organizationId),
         connections: connections.map((c) => ({
           connection_id: c.id,
           selected_tools: null, // null = all tools

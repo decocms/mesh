@@ -78,13 +78,14 @@ export async function handleVirtualMcpRequest(
     if (virtualMcp.status !== "active") {
       return c.json(
         {
-          error: `Agent is inactive: ${virtualMcp.id ?? "Decopilot"}`,
+          error: `Agent is inactive: ${virtualMcp.id ?? "Decopilot (default)"}`,
         },
         503,
       );
     }
 
     // Set connection context (Virtual MCPs are now connections)
+    // Note: virtualMcp.id can be null for Decopilot agent, but connectionId should be set for routing
     ctx.connectionId = virtualMcp.id ?? undefined;
 
     // Set organization context
@@ -131,7 +132,17 @@ export async function handleVirtualMcpRequest(
     await server.connect(transport);
 
     // Handle the incoming MCP message
-    return await transport.handleRequest(c.req.raw);
+    // CRITICAL: Use try/finally to ensure transport is closed
+    try {
+      return await transport.handleRequest(c.req.raw);
+    } finally {
+      try {
+        await transport.close?.();
+      } catch {
+        // Ignore close errors
+      }
+      // Client will be automatically disposed via await using
+    }
   } catch (error) {
     const err = error as Error;
     console.error("[virtual-mcp] Error handling virtual MCP request:", err);

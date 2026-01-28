@@ -7,16 +7,17 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import {
+  KEYS,
+  listPrompts,
+  listResources,
+  useConnection,
+  useProjectContext,
   useVirtualMCP,
   useVirtualMCPActions,
-} from "@/web/hooks/collections/use-virtual-mcp";
-import { useConnections } from "@/web/hooks/collections/use-connection";
-import { useConnectionsPrompts } from "@/web/hooks/use-connection-prompts";
-import { useConnectionsResources } from "@/web/hooks/use-connection-resources";
-import { useVirtualMCPSystemPrompt } from "@/web/hooks/use-virtual-mcp-system-prompt";
+} from "@decocms/mesh-sdk";
+import { useQueries } from "@tanstack/react-query";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
-import { useProjectContext } from "@/web/providers/project-context-provider";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -53,7 +54,7 @@ import {
   Share07,
   Tool01,
 } from "@untitledui/icons";
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -62,36 +63,63 @@ import { VirtualMCPShareModal } from "../virtual-mcp";
 import {
   ConnectionSelectionDialog,
   type ConnectionSelection,
-  type ToolSelectionMode,
 } from "./connection-selection-dialog";
 
 // Form validation schema
-const agentFormSchema = VirtualMCPEntitySchema.pick({
+const AgentFormSchema = VirtualMCPEntitySchema.pick({
   title: true,
   description: true,
   status: true,
+  metadata: true,
 }).extend({
   title: z.string().min(1, "Name is required").max(255),
 });
 
-type AgentFormData = z.infer<typeof agentFormSchema>;
+type AgentFormData = z.infer<typeof AgentFormSchema>;
+
+/**
+ * Connection Icon Preview Component - Shows a connection icon
+ */
+function ConnectionIconPreview({ connection_id }: { connection_id: string }) {
+  const connection = useConnection(connection_id);
+
+  if (!connection) return null;
+
+  return (
+    <div className="shrink-0 bg-background ring-1 ring-background rounded-lg">
+      <IntegrationIcon
+        icon={connection.icon}
+        name={connection.title}
+        size="xs"
+      />
+    </div>
+  );
+}
 
 /**
  * Skill Item Component - Shows a connection with inline badges
  */
 function SkillItem({
-  connection,
-  toolCount,
-  resourceCount,
-  promptCount,
+  connection_id,
+  selected_tools,
+  selected_resources,
+  selected_prompts,
   onClick,
 }: {
-  connection: { id: string; title: string; icon?: string | null };
-  toolCount: number;
-  resourceCount: number;
-  promptCount: number;
+  connection_id: string;
+  selected_tools: string[] | null;
+  selected_resources: string[] | null;
+  selected_prompts: string[] | null;
   onClick: () => void;
 }) {
+  const connection = useConnection(connection_id);
+
+  if (!connection) return null;
+
+  const toolCount = selected_tools?.length ?? 0;
+  const resourceCount = selected_resources?.length ?? 0;
+  const promptCount = selected_prompts?.length ?? 0;
+
   return (
     <div
       onClick={onClick}
@@ -169,31 +197,10 @@ function AgentDetailViewWithData({
     setChatOpen(true);
   };
 
-  // Fetch all connections
-  const allConnections = useConnections({});
-  const connectionMap = new Map(allConnections.map((c) => [c.id, c]));
-
-  // Get connection IDs
-  const connectionIds = allConnections.map((c) => c.id);
-
-  // Fetch prompts and resources
-  const { promptsMap: connectionPrompts } =
-    useConnectionsPrompts(connectionIds);
-  const { resourcesMap: connectionResources } =
-    useConnectionsResources(connectionIds);
-
-  // System prompt
-  const [systemPrompt, setSystemPrompt] =
-    useVirtualMCPSystemPrompt(virtualMcpId);
-
   // Form setup
   const form = useForm<AgentFormData>({
-    resolver: zodResolver(agentFormSchema),
-    defaultValues: {
-      title: virtualMcp.title,
-      description: virtualMcp.description,
-      status: virtualMcp.status,
-    },
+    resolver: zodResolver(AgentFormSchema),
+    defaultValues: virtualMcp,
   });
 
   const hasFormChanges = form.formState.isDirty;
@@ -202,16 +209,12 @@ function AgentDetailViewWithData({
     try {
       const formData = form.getValues();
 
-      await actions.update.mutateAsync({
+      const data = await actions.update.mutateAsync({
         id: virtualMcpId,
-        data: {
-          title: formData.title,
-          description: formData.description,
-          status: formData.status,
-        },
+        data: formData,
       });
 
-      form.reset(formData);
+      form.reset(data);
       toast.success("Agent saved successfully");
     } catch (error) {
       console.error("Failed to save agent:", error);
@@ -220,11 +223,7 @@ function AgentDetailViewWithData({
   };
 
   const handleCancel = () => {
-    form.reset({
-      title: virtualMcp.title,
-      description: virtualMcp.description,
-      status: virtualMcp.status,
-    });
+    form.reset(virtualMcp);
   };
 
   const handleAddConnection = () => {
@@ -237,34 +236,18 @@ function AgentDetailViewWithData({
     setConnectionDialogOpen(true);
   };
 
-  const handleConnectionSave = async (
-    selections: ConnectionSelection[],
-    toolSelectionMode: ToolSelectionMode,
-  ) => {
+  const handleConnectionSave = async (selections: ConnectionSelection[]) => {
     try {
-      // Build new connections from all selections
-      const newConnections = selections.map((sel) => {
-        const connection = connectionMap.get(sel.connectionId);
-        const allTools = connection?.tools?.map((t) => t.name) ?? [];
-        const hasAllTools =
-          allTools.length > 0 &&
-          allTools.every((tool) => sel.selectedTools.includes(tool));
-
-        return {
-          connection_id: sel.connectionId,
-          selected_tools: hasAllTools ? null : sel.selectedTools,
-          selected_resources:
-            sel.selectedResources.length === 0 ? null : sel.selectedResources,
-          selected_prompts:
-            sel.selectedPrompts.length === 0 ? null : sel.selectedPrompts,
-        };
-      });
-
       await actions.update.mutateAsync({
         id: virtualMcpId,
         data: {
-          connections: newConnections,
-          tool_selection_mode: toolSelectionMode,
+          tool_selection_mode: "inclusion",
+          connections: selections.map((sel) => ({
+            connection_id: sel.connectionId,
+            selected_tools: sel.selectedTools,
+            selected_resources: sel.selectedResources,
+            selected_prompts: sel.selectedPrompts,
+          })),
         },
       });
 
@@ -440,24 +423,12 @@ function AgentDetailViewWithData({
                         transitionDuration: skillsOpen ? "0ms" : "200ms",
                       }}
                     >
-                      {virtualMcp.connections.slice(0, 4).map((conn) => {
-                        const connection = connectionMap.get(
-                          conn.connection_id,
-                        );
-                        if (!connection) return null;
-                        return (
-                          <div
-                            key={conn.connection_id}
-                            className="shrink-0 bg-background ring-1 ring-background rounded-lg"
-                          >
-                            <IntegrationIcon
-                              icon={connection.icon}
-                              name={connection.title}
-                              size="xs"
-                            />
-                          </div>
-                        );
-                      })}
+                      {virtualMcp.connections.slice(0, 4).map((conn) => (
+                        <ConnectionIconPreview
+                          key={conn.connection_id}
+                          connection_id={conn.connection_id}
+                        />
+                      ))}
                     </div>
                     {/* Plus button that expands to "+ Add" when open */}
                     <div
@@ -522,53 +493,16 @@ function AgentDetailViewWithData({
               <div className="min-h-0 overflow-hidden">
                 <div className="overflow-y-auto max-h-[300px] mask-[linear-gradient(to_bottom,black_calc(100%-40px),transparent_100%)]">
                   <div className="flex flex-col gap-2 px-6 pb-4 pt-2">
-                    {virtualMcp.connections.map((conn) => {
-                      const connection = connectionMap.get(conn.connection_id);
-                      if (!connection) return null;
-
-                      const isExclusion =
-                        virtualMcp.tool_selection_mode === "exclusion";
-                      const totalTools = connection.tools?.length ?? 0;
-                      const totalResources =
-                        connectionResources.get(conn.connection_id)?.length ??
-                        0;
-                      const totalPrompts =
-                        connectionPrompts.get(conn.connection_id)?.length ?? 0;
-
-                      const selectedToolCount =
-                        conn.selected_tools === null
-                          ? totalTools
-                          : conn.selected_tools.length;
-                      const selectedResourceCount =
-                        conn.selected_resources?.length ?? 0;
-                      const selectedPromptCount =
-                        conn.selected_prompts?.length ?? 0;
-
-                      // In exclusion mode, exposed = total - selected
-                      // In inclusion mode, exposed = selected
-                      const toolCount = isExclusion
-                        ? totalTools - selectedToolCount
-                        : selectedToolCount;
-                      const resourceCount = isExclusion
-                        ? totalResources - selectedResourceCount
-                        : selectedResourceCount;
-                      const promptCount = isExclusion
-                        ? totalPrompts - selectedPromptCount
-                        : selectedPromptCount;
-
-                      return (
-                        <SkillItem
-                          key={conn.connection_id}
-                          connection={connection}
-                          toolCount={toolCount}
-                          resourceCount={resourceCount}
-                          promptCount={promptCount}
-                          onClick={() =>
-                            handleEditConnection(conn.connection_id)
-                          }
-                        />
-                      );
-                    })}
+                    {virtualMcp.connections.map((conn) => (
+                      <SkillItem
+                        key={conn.connection_id}
+                        connection_id={conn.connection_id}
+                        selected_tools={conn.selected_tools}
+                        selected_resources={conn.selected_resources}
+                        selected_prompts={conn.selected_prompts}
+                        onClick={() => handleEditConnection(conn.connection_id)}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -581,8 +515,13 @@ function AgentDetailViewWithData({
               Instructions
             </p>
             <Textarea
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
+              value={virtualMcp.metadata?.instructions ?? ""}
+              onChange={(e) =>
+                form.setValue("metadata", {
+                  ...virtualMcp.metadata,
+                  instructions: e.target.value,
+                })
+              }
               placeholder="Write instructions here..."
               className="min-h-[200px] resize-none text-sm placeholder:text-muted-foreground/50 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
             />
@@ -596,10 +535,8 @@ function AgentDetailViewWithData({
         onOpenChange={setConnectionDialogOpen}
         connectionId={editingConnectionId}
         virtualMcp={virtualMcp}
-        allConnections={allConnections}
-        connectionPrompts={connectionPrompts}
-        connectionResources={connectionResources}
-        toolSelectionMode={virtualMcp.tool_selection_mode ?? "inclusion"}
+        connectionPrompts={new Map()}
+        connectionResources={new Map()}
         onSave={handleConnectionSave}
       />
 
