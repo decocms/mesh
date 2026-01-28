@@ -516,11 +516,13 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
         : (row.updated_at as string);
 
     // Filter for virtual tools and convert to entity format
+    // Preserve the original array index for consistent IDs with getVirtualTool
     return tools
-      .filter((tool) => isVirtualTool(tool))
-      .map((tool, index) =>
+      .map((tool, originalIndex) => ({ tool, originalIndex }))
+      .filter(({ tool }) => isVirtualTool(tool))
+      .map(({ tool, originalIndex }) =>
         fromVirtualToolDefinition(
-          `${virtualMcpId}:${tool.name}:${index}`,
+          `${virtualMcpId}:${tool.name}:${originalIndex}`,
           tool as VirtualToolDefinition,
           createdAt,
           updatedAt,

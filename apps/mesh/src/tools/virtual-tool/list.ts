@@ -2,7 +2,7 @@
  * COLLECTION_VIRTUAL_TOOLS_LIST Tool
  *
  * List all virtual tools for a Virtual MCP with collection binding compliance.
- * Supports filtering, sorting, and pagination.
+ * Supports pagination via limit/offset.
  */
 
 import { z } from "zod";
