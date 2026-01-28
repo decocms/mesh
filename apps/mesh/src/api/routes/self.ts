@@ -22,12 +22,6 @@ const app = new Hono<{ Variables: Variables }>();
  * Exposes all PROJECT_* and CONNECTION_* tools via MCP protocol
  */
 app.all("/", async (c) => {
-  if (c.req.method === "GET") {
-    return c.text("Method not allowed", 405, {
-      "Content-Type": "text/plain",
-    });
-  }
-
   const mcp = await managementMCP(c.get("meshContext"));
   return mcp.fetch(c.req.raw);
 });
