@@ -792,8 +792,8 @@ function MonitoringDashboardContent({
     label: conn.title || conn.id,
   }));
   const virtualMcpOptions = allVirtualMcps.map((vm) => ({
-    value: vm.id,
-    label: vm.title || vm.id,
+    value: vm.id ?? "",
+    label: vm.title ?? "Decopilot",
   }));
 
   const { pageSize, streamingRefetchInterval } = MONITORING_CONFIG;

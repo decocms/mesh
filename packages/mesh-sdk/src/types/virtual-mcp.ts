@@ -8,20 +8,7 @@
 import { z } from "zod";
 
 /**
- * Tool selection mode schema
- * - "inclusion": Include selected tools/connections (default behavior)
- * - "exclusion": Exclude selected tools/connections (inverse filter)
- */
-const ToolSelectionModeSchema = z
-  .enum(["inclusion", "exclusion"])
-  .describe(
-    "Tool selection mode: 'inclusion' = include selected (default), 'exclusion' = exclude selected",
-  );
-
-export type ToolSelectionMode = z.infer<typeof ToolSelectionModeSchema>;
-
-/**
- * Virtual MCP connection schema - defines which connection and tools/resources/prompts are included/excluded
+ * Virtual MCP connection schema - defines which connection and tools/resources/prompts are included
  */
 const VirtualMCPConnectionSchema = z.object({
   connection_id: z.string().describe("Connection ID"),
@@ -29,19 +16,19 @@ const VirtualMCPConnectionSchema = z.object({
     .array(z.string())
     .nullable()
     .describe(
-      "Selected tool names. With 'inclusion' mode: null = all tools included. With 'exclusion' mode: null = entire connection excluded",
+      "Selected tool names. null = all tools included, array = only these tools included",
     ),
   selected_resources: z
     .array(z.string())
     .nullable()
     .describe(
-      "Selected resource URIs or patterns. Supports * and ** wildcards for pattern matching. With 'inclusion' mode: null = all resources included.",
+      "Selected resource URIs or patterns. Supports * and ** wildcards for pattern matching. null = all resources included, array = only these resources included",
     ),
   selected_prompts: z
     .array(z.string())
     .nullable()
     .describe(
-      "Selected prompt names. With 'inclusion' mode: null = all prompts included. With 'exclusion' mode: null = entire connection excluded.",
+      "Selected prompt names. null = all prompts included, array = only these prompts included",
     ),
 });
 
@@ -56,11 +43,7 @@ export const VirtualMCPEntitySchema = z.object({
   id: z.string().describe("Unique identifier for the virtual MCP"),
   title: z.string().describe("Human-readable name for the virtual MCP"),
   description: z.string().nullable().describe("Description of the virtual MCP"),
-  icon: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("Icon URL for the virtual MCP"),
+  icon: z.string().nullable().describe("Icon URL for the virtual MCP"),
   created_at: z.string().describe("When the virtual MCP was created"),
   updated_at: z.string().describe("When the virtual MCP was last updated"),
   created_by: z.string().describe("User ID who created the virtual MCP"),
@@ -73,9 +56,6 @@ export const VirtualMCPEntitySchema = z.object({
   organization_id: z
     .string()
     .describe("Organization ID this virtual MCP belongs to"),
-  tool_selection_mode: ToolSelectionModeSchema.describe(
-    "Tool selection mode: 'inclusion' = include selected, 'exclusion' = exclude selected",
-  ),
   status: z.enum(["active", "inactive"]).describe("Current status"),
   // Metadata (stored in connections.metadata)
   metadata: z
@@ -88,9 +68,7 @@ export const VirtualMCPEntitySchema = z.object({
   // Nested connections
   connections: z
     .array(VirtualMCPConnectionSchema)
-    .describe(
-      "Connections with their selected tools (behavior depends on tool_selection_mode)",
-    ),
+    .describe("Connections with their selected tools, resources, and prompts"),
 });
 
 /**
@@ -108,9 +86,6 @@ export const VirtualMCPCreateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("Optional description"),
-  tool_selection_mode: ToolSelectionModeSchema.optional()
-    .default("inclusion")
-    .describe("Tool selection mode (defaults to 'inclusion')"),
   icon: z.string().nullable().optional().describe("Optional icon URL"),
   status: z
     .enum(["active", "inactive"])
@@ -168,9 +143,6 @@ export const VirtualMCPUpdateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("New description (null to clear)"),
-  tool_selection_mode: ToolSelectionModeSchema.optional().describe(
-    "New tool selection mode",
-  ),
   icon: z
     .string()
     .nullable()
@@ -193,21 +165,21 @@ export const VirtualMCPUpdateDataSchema = z.object({
           .nullable()
           .optional()
           .describe(
-            "Selected tool names (null/undefined = all tools or full exclusion)",
+            "Selected tool names (null/undefined = all tools included)",
           ),
         selected_resources: z
           .array(z.string())
           .nullable()
           .optional()
           .describe(
-            "Selected resource URIs or patterns with * and ** wildcards (null/undefined = all resources)",
+            "Selected resource URIs or patterns with * and ** wildcards (null/undefined = all resources included)",
           ),
         selected_prompts: z
           .array(z.string())
           .nullable()
           .optional()
           .describe(
-            "Selected prompt names (null/undefined = all prompts or full exclusion)",
+            "Selected prompt names (null/undefined = all prompts included)",
           ),
       }),
     )

@@ -56,16 +56,15 @@ interface RegistryItem {
 
 /** Mesh context with createMCPProxy - accepts any proxy-like object */
 interface MeshContextWithProxy {
-  createMCPProxy: (connectionId: string) => Promise<
-    {
-      callTool: (params: {
-        name: string;
-        arguments?: Record<string, unknown>;
-      }) => Promise<unknown>;
-      listTools: () => Promise<{ tools: Array<{ name: string }> }>;
-      [Symbol.asyncDispose]: () => Promise<void>;
-    } & Record<string, unknown> // Allow other Client methods
-  >;
+  createMCPProxy: (connectionId: string) => Promise<{
+    callTool: (params: {
+      name: string;
+      arguments?: Record<string, unknown>;
+    }) => Promise<unknown>;
+    listTools: () => Promise<{ tools: Array<{ name: string }> }>;
+    close: () => Promise<void>;
+    [key: string]: unknown; // Allow other Client methods
+  }>;
 }
 
 /** The metadata key used by MCP Mesh registry - must match apps/mesh/src/core/constants.ts */
@@ -276,44 +275,48 @@ async function lookupAppFromRegistry(
   selectedPrompts: string[] | null = null,
 ): Promise<RequiredApp> {
   // Create proxy to registry
-  await using proxy = await ctx.createMCPProxy(registryId);
+  const proxy = await ctx.createMCPProxy(registryId);
 
-  // Find the LIST tool
-  const toolsResult = await proxy.listTools();
-  const listToolName = findListToolName(toolsResult.tools);
+  try {
+    // Find the LIST tool
+    const toolsResult = await proxy.listTools();
+    const listToolName = findListToolName(toolsResult.tools);
 
-  if (!listToolName) {
-    throw new Error(`Registry "${registryId}" does not have a LIST tool`);
+    if (!listToolName) {
+      throw new Error(`Registry "${registryId}" does not have a LIST tool`);
+    }
+
+    // Call LIST with appName filter
+    const result = await proxy.callTool({
+      name: listToolName,
+      arguments: { where: { appName } },
+    });
+
+    // Extract items from response
+    const structuredResult =
+      (result as { structuredContent?: unknown }).structuredContent ?? result;
+    const items = extractItemsFromResponse<RegistryItem>(structuredResult);
+
+    const registryItem = items[0];
+    if (!registryItem) {
+      throw new Error(`App "${appName}" not found in registry "${registryId}"`);
+    }
+
+    // Extract RequiredApp data
+    const appData = extractRequiredAppFromRegistryItem(
+      registryItem,
+      selectedTools,
+      selectedResources,
+      selectedPrompts,
+    );
+
+    return {
+      app_name: appName,
+      ...appData,
+    };
+  } finally {
+    await proxy.close().catch(console.error);
   }
-
-  // Call LIST with appName filter
-  const result = await proxy.callTool({
-    name: listToolName,
-    arguments: { where: { appName } },
-  });
-
-  // Extract items from response
-  const structuredResult =
-    (result as { structuredContent?: unknown }).structuredContent ?? result;
-  const items = extractItemsFromResponse<RegistryItem>(structuredResult);
-
-  const registryItem = items[0];
-  if (!registryItem) {
-    throw new Error(`App "${appName}" not found in registry "${registryId}"`);
-  }
-
-  // Extract RequiredApp data
-  const appData = extractRequiredAppFromRegistryItem(
-    registryItem,
-    selectedTools,
-    selectedResources,
-    selectedPrompts,
-  );
-
-  return {
-    app_name: appName,
-    ...appData,
-  };
 }
 
 /**

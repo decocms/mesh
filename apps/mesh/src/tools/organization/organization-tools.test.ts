@@ -224,6 +224,7 @@ const createMockContext = (
       timestamp: new Date(),
     },
     createMCPProxy: vi.fn().mockResolvedValue({}),
+    getOrCreateClient: vi.fn().mockResolvedValue({}),
   };
 };
 

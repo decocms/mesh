@@ -5,7 +5,10 @@
  * This module provides constants and factory functions for creating standard MCP connections.
  */
 
-import type { ConnectionCreateData } from "../types/connection";
+import type {
+  ConnectionCreateData,
+  ConnectionEntity,
+} from "../types/connection";
 import type { VirtualMCPEntity } from "../types/virtual-mcp";
 
 /**
@@ -224,27 +227,63 @@ export function getWellKnownMcpStudioConnection(): ConnectionCreateData {
 }
 
 /**
- * Get well-known Decopilot Agent virtual MCP entity.
+ * Get well-known Decopilot Virtual MCP entity.
  * This is the default agent that aggregates ALL org connections.
  *
  * @param organizationId - Organization ID
  * @returns VirtualMCPEntity representing the Decopilot agent
  */
-export function getWellKnownDecopilotAgent(
+export function getWellKnownDecopilotVirtualMCP(
   organizationId: string,
 ): VirtualMCPEntity {
   return {
-    id: `decopilot-${organizationId}`,
+    id: `decopilot_${organizationId}`,
     organization_id: organizationId,
     title: "Decopilot",
     description: "Default agent that aggregates all organization connections",
     icon: "https://assets.decocache.com/decocms/fd07a578-6b1c-40f1-bc05-88a3b981695d/f7fc4ffa81aec04e37ae670c3cd4936643a7b269.png",
-    tool_selection_mode: "exclusion",
     status: "active",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     created_by: "system",
     updated_by: undefined,
-    connections: [], // Empty = no exclusions, include all connections
+    connections: [], // Empty connections array - gateway.ts will populate with all org connections
+  };
+}
+
+/**
+ * Check if a connection or virtual MCP ID is the Decopilot agent.
+ *
+ * @param id - Connection or virtual MCP ID to check
+ * @returns true if the ID matches the Decopilot pattern (decopilot_{orgId})
+ */
+export function isDecopilot(id: string | null | undefined): boolean {
+  if (!id) return false;
+  return id.startsWith("decopilot_");
+}
+
+export function getWellKnownDecopilotConnection(
+  organizationId: string,
+): ConnectionEntity {
+  const virtual = getWellKnownDecopilotVirtualMCP(organizationId);
+
+  return {
+    ...virtual,
+    id: virtual.id!,
+    connection_type: "VIRTUAL",
+    connection_url: `virtual://${virtual.id}`,
+    app_name: "decopilot",
+    app_id: "decopilot",
+    connection_token: null,
+    connection_headers: null,
+    oauth_config: null,
+    configuration_state: null,
+    configuration_scopes: null,
+    metadata: {
+      isDefault: true,
+      type: "decopilot",
+    },
+    tools: [],
+    bindings: [],
   };
 }

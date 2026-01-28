@@ -1,5 +1,5 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { isDecopilot, useProjectContext } from "@decocms/mesh-sdk";
 import { getAgentColor } from "@/web/utils/agent-color";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -61,7 +61,7 @@ function VirtualMCPBadge({
   const { org } = useProjectContext();
 
   const virtualMcp = virtualMcps.find((g) => g.id === virtualMcpId);
-  if (!virtualMcp) return null;
+  if (!virtualMcp || isDecopilot(virtualMcpId)) return null; // Don't show badge for Decopilot
 
   // Focus search input when popover opens
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -88,7 +88,7 @@ function VirtualMCPBadge({
     });
   };
 
-  const handleVirtualMcpChange = (newVirtualMcpId: string) => {
+  const handleVirtualMcpChange = (newVirtualMcpId: string | null) => {
     onVirtualMcpChange(newVirtualMcpId);
     setOpen(false);
   };
@@ -302,14 +302,16 @@ export function ChatInput() {
         )}
       >
         {/* Virtual MCP Badge Header */}
-        {selectedVirtualMcp && (
-          <VirtualMCPBadge
-            virtualMcpId={selectedVirtualMcp.id}
-            virtualMcps={virtualMcps}
-            onVirtualMcpChange={setVirtualMcpId}
-            disabled={isStreaming}
-          />
-        )}
+        {selectedVirtualMcp &&
+          selectedVirtualMcp.id &&
+          !isDecopilot(selectedVirtualMcp.id) && (
+            <VirtualMCPBadge
+              virtualMcpId={selectedVirtualMcp.id}
+              virtualMcps={virtualMcps}
+              onVirtualMcpChange={setVirtualMcpId}
+              disabled={isStreaming}
+            />
+          )}
 
         {/* Inner container with the input */}
         <div className="p-0.5">

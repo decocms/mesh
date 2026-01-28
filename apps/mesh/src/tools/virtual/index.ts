@@ -13,12 +13,11 @@ export { COLLECTION_VIRTUAL_MCP_DELETE } from "./delete";
 
 // Re-export schema types (only types, not runtime schemas)
 export type {
-  ToolSelectionMode,
   VirtualMCPConnection,
   VirtualMCPEntity,
   VirtualMCPCreateData,
   VirtualMCPUpdateData,
 } from "./schema";
 
-// Re-export strategy type from aggregator (not from schema since it's not persisted)
-export type { AggregatorToolSelectionStrategy } from "../../aggregator/strategy";
+// Re-export strategy type from virtual-mcp client (not from schema since it's not persisted)
+export type { ToolSelectionStrategy } from "../../mcp-clients/virtual-mcp/types";

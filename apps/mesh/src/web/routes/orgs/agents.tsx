@@ -9,6 +9,7 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import {
+  isDecopilot,
   useProjectContext,
   useVirtualMCPs,
   useVirtualMCPActions,
@@ -84,6 +85,8 @@ function OrgAgentsContent() {
     const id = dialogState.virtualMcp.id;
     dispatch({ type: "close" });
 
+    if (!id || isDecopilot(id)) return; // Can't delete Decopilot
+
     try {
       await actions.delete.mutateAsync(id);
     } catch {
@@ -129,18 +132,6 @@ function OrgAgentsContent() {
       cellClassName: "flex-1 min-w-0",
       wrap: true,
       sortable: true,
-    },
-    {
-      id: "mode",
-      header: "Mode",
-      accessor: (virtualMcp) => (
-        <Badge variant="outline" className="text-xs">
-          {virtualMcp.tool_selection_mode === "exclusion"
-            ? "Exclude"
-            : "Include"}
-        </Badge>
-      ),
-      cellClassName: "w-[100px]",
     },
     {
       id: "connections",
@@ -296,9 +287,9 @@ function OrgAgentsContent() {
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {virtualMcps.map((virtualMcp) => (
                 <ConnectionCard
-                  key={virtualMcp.id}
+                  key={virtualMcp.id ?? "default"}
                   connection={{
-                    id: virtualMcp.id,
+                    id: virtualMcp.id ?? "",
                     title: virtualMcp.title,
                     description: virtualMcp.description,
                     icon: virtualMcp.icon,
@@ -316,12 +307,6 @@ function OrgAgentsContent() {
                       <span>
                         {virtualMcp.connections.length} connection
                         {virtualMcp.connections.length !== 1 ? "s" : ""}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        {virtualMcp.tool_selection_mode === "exclusion"
-                          ? "Exclude"
-                          : "Include"}
                       </span>
                     </div>
                   }

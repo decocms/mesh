@@ -195,7 +195,7 @@ export type ConnectionUpdateData = z.infer<typeof ConnectionUpdateDataSchema>;
 export function isStdioParameters(
   params: ConnectionParameters | null | undefined,
 ): params is StdioConnectionParameters {
-  return params !== null && params !== undefined && "command" in params;
+  return !!params && "command" in params;
 }
 
 /**

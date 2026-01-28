@@ -38,7 +38,7 @@ export const CODE_EXECUTION_SEARCH_TOOLS = defineTool({
       results: results.map((t) => ({
         name: t.name,
         description: t.description,
-        connection: t._meta.connectionTitle,
+        connection: t._meta?.connectionTitle ?? "",
       })),
       totalAvailable: toolContext.tools.length,
     };

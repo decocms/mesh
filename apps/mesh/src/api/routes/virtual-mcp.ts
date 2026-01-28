@@ -14,33 +14,14 @@
  * - Supports exclusion strategy for inverse tool selection
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createServerFromClient } from "@decocms/mesh-sdk";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import {
-  CallToolRequestSchema,
-  GetPromptRequestSchema,
-  ListPromptsRequestSchema,
-  ListResourcesRequestSchema,
-  ListResourceTemplatesRequestSchema,
-  ListToolsRequestSchema,
-  ReadResourceRequestSchema,
-  type CallToolRequest,
-  type CallToolResult,
-  type GetPromptRequest,
-  type GetPromptResult,
-  type ListPromptsResult,
-  type ListResourcesResult,
-  type ListResourceTemplatesResult,
-  type ListToolsRequest,
-  type ListToolsResult,
-  type ReadResourceRequest,
-  type ReadResourceResult,
-} from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
-import { createMCPAggregatorFromEntity } from "../../aggregator";
-import { parseStrategyFromMode } from "../../aggregator/strategy";
-import { getWellKnownDecopilotAgent } from "@decocms/mesh-sdk";
+import {
+  createVirtualClientFrom,
+  parseStrategyFromMode,
+} from "../../mcp-clients/virtual-mcp";
 import type { Env } from "../env";
 
 // Define Hono variables type
@@ -81,11 +62,10 @@ export async function handleVirtualMcpRequest(
             .then((org) => org?.id)
         : null;
 
-    const virtualMcp = virtualMcpId
-      ? await ctx.storage.virtualMcps.findById(virtualMcpId)
-      : organizationId
-        ? getWellKnownDecopilotAgent(organizationId)
-        : null;
+    const virtualMcp = await ctx.storage.virtualMcps.findById(
+      virtualMcpId ?? null,
+      organizationId ?? undefined,
+    );
 
     if (!virtualMcp) {
       return c.json({ error: "Agent not found" }, 404);
@@ -96,11 +76,16 @@ export async function handleVirtualMcpRequest(
     }
 
     if (virtualMcp.status !== "active") {
-      return c.json({ error: `Agent is inactive: ${virtualMcp.id}` }, 503);
+      return c.json(
+        {
+          error: `Agent is inactive: ${virtualMcp.id ?? "Decopilot"}`,
+        },
+        503,
+      );
     }
 
     // Set connection context (Virtual MCPs are now connections)
-    ctx.connectionId = virtualMcp.id;
+    ctx.connectionId = virtualMcp.id ?? undefined;
 
     // Set organization context
     const organization = await ctx.db
@@ -118,20 +103,16 @@ export async function handleVirtualMcpRequest(
     }
 
     // Parse strategy from query string mode parameter (defaults to passthrough)
-    const mode = c.req.query("mode");
-    const strategy = parseStrategyFromMode(mode);
+    const strategy = parseStrategyFromMode(c.req.query("mode"));
 
-    // Create aggregator from entity
-    await using aggregatorClient = await createMCPAggregatorFromEntity(
-      virtualMcp,
-      ctx,
-      strategy,
-    );
+    // Create client from entity
+    const client = await createVirtualClientFrom(virtualMcp, ctx, strategy);
 
-    // Create MCP server
-    const server = new McpServer(
+    // Create server from client using the bridge
+    const server = createServerFromClient(
+      client,
       {
-        name: `mcp-virtual-mcp-${virtualMcp.title}`,
+        name: `mcp-virtual-mcp-${virtualMcp.title ?? "Decopilot"}`,
         version: "1.0.0",
       },
       {
@@ -149,76 +130,8 @@ export async function handleVirtualMcpRequest(
     // Connect server to transport
     await server.connect(transport);
 
-    // Handle list_tools
-    server.server.setRequestHandler(
-      ListToolsRequestSchema,
-      async (_request: ListToolsRequest): Promise<ListToolsResult> => {
-        return aggregatorClient.client.listTools();
-      },
-    );
-
-    // Handle call_tool
-    server.server.setRequestHandler(
-      CallToolRequestSchema,
-      async (request: CallToolRequest): Promise<CallToolResult> => {
-        return (await aggregatorClient.client.callTool(
-          request.params,
-        )) as CallToolResult;
-      },
-    );
-
-    // Handle list_resources
-    server.server.setRequestHandler(
-      ListResourcesRequestSchema,
-      async (): Promise<ListResourcesResult> => {
-        return aggregatorClient.client.listResources();
-      },
-    );
-
-    // Handle read_resource
-    server.server.setRequestHandler(
-      ReadResourceRequestSchema,
-      async (request: ReadResourceRequest): Promise<ReadResourceResult> => {
-        return aggregatorClient.client.readResource(request.params);
-      },
-    );
-
-    // Handle list_resource_templates
-    server.server.setRequestHandler(
-      ListResourceTemplatesRequestSchema,
-      async (): Promise<ListResourceTemplatesResult> => {
-        return aggregatorClient.client.listResourceTemplates();
-      },
-    );
-
-    // Handle list_prompts
-    server.server.setRequestHandler(
-      ListPromptsRequestSchema,
-      async (): Promise<ListPromptsResult> => {
-        return aggregatorClient.client.listPrompts();
-      },
-    );
-
-    // Handle get_prompt
-    server.server.setRequestHandler(
-      GetPromptRequestSchema,
-      async (request: GetPromptRequest): Promise<GetPromptResult> => {
-        return aggregatorClient.client.getPrompt(request.params);
-      },
-    );
-
     // Handle the incoming MCP message
-    // CRITICAL: Use try/finally to ensure transport is closed
-    try {
-      return await transport.handleRequest(c.req.raw);
-    } finally {
-      try {
-        await transport.close?.();
-      } catch {
-        // Ignore close errors
-      }
-      // AggregatorClient will be automatically disposed via await using
-    }
+    return await transport.handleRequest(c.req.raw);
   } catch (error) {
     const err = error as Error;
     console.error("[virtual-mcp] Error handling virtual MCP request:", err);

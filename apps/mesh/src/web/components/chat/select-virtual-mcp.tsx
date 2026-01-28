@@ -14,7 +14,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
-  getWellKnownDecopilotAgent,
+  getWellKnownDecopilotVirtualMCP,
   useProjectContext,
   useVirtualMCPs,
   type VirtualMCPEntity,
@@ -30,7 +30,11 @@ import {
 import { useCreateVirtualMCP } from "../../hooks/use-create-virtual-mcp";
 
 export interface VirtualMCPInfo
-  extends Pick<VirtualMCPEntity, "id" | "title" | "description" | "icon"> {
+  extends Omit<
+    Pick<VirtualMCPEntity, "id" | "title" | "description" | "icon">,
+    "id"
+  > {
+  id: string | null;
   fallbackIcon?: ReactNode; // Icon to use when icon is not available
 }
 
@@ -82,7 +86,7 @@ function VirtualMCPItemContent({
 export interface VirtualMCPPopoverContentProps {
   virtualMcps: VirtualMCPInfo[];
   selectedVirtualMcpId?: string | null;
-  onVirtualMcpChange: (virtualMcpId: string) => void;
+  onVirtualMcpChange: (virtualMcpId: string | null) => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
@@ -117,7 +121,7 @@ export function VirtualMCPPopoverContent({
     });
   })();
 
-  const handleSelect = (virtualMcpId: string) => {
+  const handleSelect = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
     setSearchTerm("");
   };
@@ -190,7 +194,7 @@ export function VirtualMCPPopoverContent({
 
 export interface VirtualMCPSelectorProps {
   selectedVirtualMcpId?: string | null;
-  onVirtualMcpChange: (virtualMcpId: string) => void;
+  onVirtualMcpChange: (virtualMcpId: string | null) => void;
   virtualMcps?: VirtualMCPInfo[];
   variant?: "borderless" | "bordered";
   className?: string;
@@ -223,7 +227,7 @@ export function VirtualMCPSelector({
   const virtualMcps = virtualMcpsProp ?? virtualMcpsFromHook;
 
   // Get default Decopilot agent info
-  const defaultAgent = getWellKnownDecopilotAgent(org.id);
+  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
 
   const selectedVirtualMcp = selectedVirtualMcpId
     ? virtualMcps.find((g) => g.id === selectedVirtualMcpId)
@@ -231,7 +235,7 @@ export function VirtualMCPSelector({
 
   const selected = selectedVirtualMcp ?? defaultAgent;
 
-  const handleVirtualMcpChange = (virtualMcpId: string) => {
+  const handleVirtualMcpChange = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
     setOpen(false);
   };

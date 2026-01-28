@@ -41,13 +41,6 @@ import {
   RadioGroupItem,
 } from "@deco/ui/components/radio-group.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@deco/ui/components/select.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
@@ -102,7 +95,6 @@ const virtualMcpFormSchema = VirtualMCPEntitySchema.pick({
   title: true,
   description: true,
   status: true,
-  tool_selection_mode: true,
   metadata: true,
 }).extend({
   title: z.string().min(1, "Name is required").max(255),
@@ -390,7 +382,8 @@ function VirtualMCPShareModal({
   virtualMcpUrl.searchParams.set("mode", mode);
 
   // Server name for IDE integrations
-  const serverName = virtualMcp.title || `agent-${virtualMcp.id.slice(0, 8)}`;
+  const serverName =
+    virtualMcp.title || `agent-${virtualMcp.id?.slice(0, 8) ?? "default"}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -635,69 +628,7 @@ function VirtualMCPSettingsTab({
 
           {/* Configuration section */}
           <div className="flex flex-col gap-4 p-5 border-b border-border">
-            {/* Selection Mode */}
-            <FormField
-              control={form.control}
-              name="tool_selection_mode"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between gap-3">
-                    <FormLabel className="mb-0">Selection Mode</FormLabel>
-                    <div className="flex items-center gap-1.5">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-7"
-                              aria-label="Selection mode help"
-                            >
-                              <InfoCircle
-                                size={14}
-                                className="text-muted-foreground"
-                              />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="left" className="max-w-sm">
-                            <div className="text-xs space-y-1">
-                              <div>
-                                <strong>Include:</strong> Only selected items
-                                are exposed.
-                              </div>
-                              <div>
-                                <strong>Exclude:</strong> All items except
-                                selected ones are exposed.
-                              </div>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="inclusion">
-                            Include Selected
-                          </SelectItem>
-                          <SelectItem value="exclusion">
-                            Exclude Selected
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Selection mode removed - always inclusion mode now */}
           </div>
 
           {/* System Prompt section */}
@@ -900,7 +831,6 @@ function VirtualMCPInspectorViewWithData({
       title: virtualMcp.title,
       description: virtualMcp.description,
       status: virtualMcp.status,
-      tool_selection_mode: virtualMcp.tool_selection_mode ?? "inclusion",
       metadata: virtualMcp.metadata ?? { instructions: "" },
     },
   });
@@ -924,7 +854,6 @@ function VirtualMCPInspectorViewWithData({
         title: formData.title,
         description: formData.description,
         status: formData.status,
-        tool_selection_mode: formData.tool_selection_mode,
         metadata: formData.metadata,
         connections: newConnections,
       };
@@ -950,7 +879,6 @@ function VirtualMCPInspectorViewWithData({
       title: virtualMcp.title,
       description: virtualMcp.description,
       status: virtualMcp.status,
-      tool_selection_mode: virtualMcp.tool_selection_mode ?? "inclusion",
       metadata: virtualMcp.metadata ?? { instructions: "" },
     });
 

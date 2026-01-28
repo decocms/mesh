@@ -50,7 +50,6 @@ export function useCreateVirtualMCP(
       description:
         "Agents let you securely expose integrated tools to the outside world.",
       status: "active",
-      tool_selection_mode: "inclusion",
       connections: [],
     });
 
@@ -61,7 +60,7 @@ export function useCreateVirtualMCP(
       });
     }
 
-    return { id: virtualMcp.id, virtualMcp };
+    return { id: virtualMcp.id!, virtualMcp }; // ID is guaranteed to be non-null for created virtual MCPs
   };
 
   return {

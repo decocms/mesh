@@ -19,7 +19,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import {
-  getWellKnownDecopilotAgent,
+  getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import {
@@ -64,7 +64,7 @@ function HomeContent() {
   const greeting = getTimeBasedGreeting();
 
   // Use Decopilot as default agent
-  const defaultAgent = getWellKnownDecopilotAgent(org.id);
+  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
 
   // Show empty state when no LLM binding is found

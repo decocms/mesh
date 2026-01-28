@@ -9,13 +9,16 @@
 
 import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import {
+  getWellKnownDecopilotVirtualMCP,
+  isDecopilot,
+} from "@decocms/mesh-sdk";
 import type {
   VirtualMCPCreateData,
   VirtualMCPEntity,
   VirtualMCPStoragePort,
   VirtualMCPUpdateData,
 } from "./ports";
-import type { ToolSelectionMode } from "../tools/virtual-mcp/schema";
 import type { Database } from "./types";
 
 /** Raw database row type for connections (VIRTUAL type) */
@@ -114,7 +117,76 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     return virtualMcp;
   }
 
-  async findById(id: string): Promise<VirtualMCPEntity | null> {
+  async findById(
+    id: string | null,
+    organizationId?: string,
+  ): Promise<VirtualMCPEntity | null> {
+    // Handle Decopilot ID - return Decopilot agent with all org connections
+    if (id && isDecopilot(id)) {
+      // Extract orgId from decopilot_{orgId} pattern or use provided organizationId
+      const orgIdMatch = id.match(/^decopilot_(.+)$/);
+      let resolvedOrgId: string;
+      if (organizationId) {
+        resolvedOrgId = organizationId;
+      } else if (orgIdMatch && orgIdMatch[1]) {
+        resolvedOrgId = orgIdMatch[1];
+      } else {
+        throw new Error(
+          `Invalid Decopilot ID format: ${id}. Expected decopilot_{orgId} or provide organizationId`,
+        );
+      }
+
+      // Get all active connections for the organization
+      const connections = await this.db
+        .selectFrom("connections")
+        .selectAll()
+        .where("organization_id", "=", resolvedOrgId)
+        .where("status", "!=", "inactive")
+        .where("status", "!=", "error")
+        .execute();
+
+      // Return Decopilot agent with connections populated
+      return {
+        ...getWellKnownDecopilotVirtualMCP(resolvedOrgId),
+        connections: connections.map((c) => ({
+          connection_id: c.id,
+          selected_tools: null, // null = all tools
+          selected_resources: null, // null = all resources
+          selected_prompts: null, // null = all prompts
+        })),
+      };
+    }
+
+    // Handle null ID - treat as Decopilot for backward compatibility
+    if (!id) {
+      if (!organizationId) {
+        throw new Error(
+          "organizationId is required when id is null (Decopilot agent)",
+        );
+      }
+
+      // Get all active connections for the organization
+      const connections = await this.db
+        .selectFrom("connections")
+        .selectAll()
+        .where("organization_id", "=", organizationId)
+        .where("status", "!=", "inactive")
+        .where("status", "!=", "error")
+        .execute();
+
+      // Return Decopilot agent with connections populated
+      return {
+        ...getWellKnownDecopilotVirtualMCP(organizationId),
+        connections: connections.map((c) => ({
+          connection_id: c.id,
+          selected_tools: null, // null = all tools
+          selected_resources: null, // null = all resources
+          selected_prompts: null, // null = all prompts
+        })),
+      };
+    }
+
+    // Normal database lookup for string IDs
     return this.findByIdInternal(this.db, id);
   }
 
@@ -266,7 +338,6 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
         ? JSON.stringify(data.metadata)
         : null;
     }
-    // Note: tool_selection_mode is no longer stored in DB, ignored
 
     // Update the connection
     await this.db
@@ -356,8 +427,6 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       organization_id: row.organization_id,
       title: row.title,
       description: row.description,
-      // tool_selection_mode is no longer stored - always default to inclusion
-      tool_selection_mode: "inclusion" as ToolSelectionMode,
       icon: row.icon,
       status,
       created_at: createdAt,

@@ -2,7 +2,7 @@ import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
-  getWellKnownDecopilotAgent,
+  getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { ClockRewind, Users03, Plus, X } from "@untitledui/icons";
@@ -27,7 +27,7 @@ function ChatPanelContent() {
   const [showThreadsOverlay, setShowThreadsOverlay] = useState(false);
 
   // Use Decopilot as default agent
-  const defaultAgent = getWellKnownDecopilotAgent(org.id);
+  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
 
   if (modelsConnections.length === 0) {

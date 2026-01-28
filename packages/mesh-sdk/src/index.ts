@@ -90,7 +90,6 @@ export {
   type VirtualMCPCreateData,
   type VirtualMCPUpdateData,
   type VirtualMCPConnection,
-  type ToolSelectionMode,
 } from "./types";
 
 // Streamable HTTP transport
@@ -141,5 +140,8 @@ export {
   getWellKnownOpenRouterConnection,
   getWellKnownMcpStudioConnection,
   // Virtual MCP factory functions
-  getWellKnownDecopilotAgent,
+  getWellKnownDecopilotVirtualMCP,
+  getWellKnownDecopilotConnection,
+  // Decopilot utilities
+  isDecopilot,
 } from "./lib/constants";

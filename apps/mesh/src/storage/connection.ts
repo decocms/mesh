@@ -16,6 +16,10 @@ import type {
 } from "../tools/connection/schema";
 import { isStdioParameters } from "../tools/connection/schema";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import {
+  getWellKnownDecopilotConnection,
+  isDecopilot,
+} from "@decocms/mesh-sdk";
 import type { ConnectionStoragePort } from "./ports";
 import type { Database } from "./types";
 
@@ -97,6 +101,26 @@ export class ConnectionStorage implements ConnectionStoragePort {
     id: string,
     organizationId?: string,
   ): Promise<ConnectionEntity | null> {
+    // Handle Decopilot ID - return Decopilot connection entity
+    if (isDecopilot(id)) {
+      if (!organizationId) {
+        // Extract orgId from decopilot_{orgId} pattern
+        const orgIdMatch = id.match(/^decopilot_(.+)$/);
+        if (!orgIdMatch) {
+          throw new Error(
+            `Invalid Decopilot ID format: ${id}. Expected decopilot_{orgId}`,
+          );
+        }
+        organizationId = orgIdMatch[1];
+      }
+      if (!organizationId) {
+        throw new Error(
+          `Organization ID is required for Decopilot connection: ${id}`,
+        );
+      }
+      return getWellKnownDecopilotConnection(organizationId);
+    }
+
     let query = this.db
       .selectFrom("connections")
       .selectAll()

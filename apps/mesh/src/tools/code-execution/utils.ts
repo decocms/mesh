@@ -10,11 +10,10 @@
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireOrganization } from "../../core/mesh-context";
-import { ProxyCollection } from "../../aggregator/proxy-collection";
-import type { ToolSelectionMode } from "../../storage/types";
+import type { ProxyEntry } from "../../mcp-clients/virtual-mcp/types";
 import { runCode, type RunCodeResult } from "../../sandbox/index";
 import type { ConnectionEntity } from "../connection/schema";
-import type { VirtualMCPEntity } from "../virtual-mcp/schema";
+import type { VirtualMCPEntity } from "../virtual/schema";
 
 // ============================================================================
 // Types
@@ -45,8 +44,6 @@ export interface ToolContext {
     name: string,
     args: Record<string, unknown>,
   ) => Promise<CallToolResult>;
-  /** Connection categories for descriptions */
-  categories: string[];
 }
 
 /** Tool description for describe tools output */
@@ -63,96 +60,34 @@ export interface ToolDescription {
 // ============================================================================
 
 /**
- * Resolve virtual MCP connections with exclusion/inclusion logic
+ * Resolve virtual MCP connections (inclusion mode only)
  */
 async function resolveVirtualMCPConnections(
   virtualMcp: VirtualMCPEntity,
   ctx: MeshContext,
 ): Promise<ConnectionWithSelection[]> {
-  let connections: ConnectionWithSelection[];
+  // Inclusion mode: use only the connections specified in virtual MCP
+  const connectionIds = virtualMcp.connections.map((c) => c.connection_id);
+  const loadedConnections: ConnectionEntity[] = [];
 
-  if (virtualMcp.tool_selection_mode === "exclusion") {
-    // Exclusion mode: list ALL org connections, then apply exclusion filter
-    const allConnections = await ctx.storage.connections.list(
-      virtualMcp.organization_id,
-    );
-    const activeConnections = allConnections.filter(
-      (c: ConnectionEntity) => c.status === "active",
-    );
-
-    // Build a map of connection exclusions
-    const exclusionMap = new Map<
-      string,
-      {
-        selectedTools: string[] | null;
-        selectedResources: string[] | null;
-        selectedPrompts: string[] | null;
-      }
-    >();
-    for (const vmcpConn of virtualMcp.connections) {
-      exclusionMap.set(vmcpConn.connection_id, {
-        selectedTools: vmcpConn.selected_tools,
-        selectedResources: vmcpConn.selected_resources,
-        selectedPrompts: vmcpConn.selected_prompts,
-      });
+  for (const connId of connectionIds) {
+    const conn = await ctx.storage.connections.findById(connId);
+    if (conn && conn.status === "active") {
+      loadedConnections.push(conn);
     }
-
-    connections = [];
-    for (const conn of activeConnections) {
-      const exclusionEntry = exclusionMap.get(conn.id);
-
-      if (exclusionEntry === undefined) {
-        // Connection NOT in virtualMcp.connections -> include all
-        connections.push({
-          connection: conn,
-          selectedTools: null,
-          selectedResources: null,
-          selectedPrompts: null,
-        });
-      } else if (
-        (exclusionEntry.selectedTools === null ||
-          exclusionEntry.selectedTools.length === 0) &&
-        (exclusionEntry.selectedResources === null ||
-          exclusionEntry.selectedResources.length === 0) &&
-        (exclusionEntry.selectedPrompts === null ||
-          exclusionEntry.selectedPrompts.length === 0)
-      ) {
-        // Connection in virtualMcp.connections with all null/empty -> exclude entire connection
-        // Skip this connection
-      } else {
-        // Connection in virtualMcp.connections with specific exclusions
-        connections.push({
-          connection: conn,
-          selectedTools: exclusionEntry.selectedTools,
-          selectedResources: exclusionEntry.selectedResources,
-          selectedPrompts: exclusionEntry.selectedPrompts,
-        });
-      }
-    }
-  } else {
-    // Inclusion mode (default): use only the connections specified in virtual MCP
-    const connectionIds = virtualMcp.connections.map((c) => c.connection_id);
-    const loadedConnections: ConnectionEntity[] = [];
-
-    for (const connId of connectionIds) {
-      const conn = await ctx.storage.connections.findById(connId);
-      if (conn && conn.status === "active") {
-        loadedConnections.push(conn);
-      }
-    }
-
-    connections = loadedConnections.map((conn: ConnectionEntity) => {
-      const vmcpConn = virtualMcp.connections.find(
-        (c) => c.connection_id === conn.id,
-      );
-      return {
-        connection: conn,
-        selectedTools: vmcpConn?.selected_tools ?? null,
-        selectedResources: vmcpConn?.selected_resources ?? null,
-        selectedPrompts: vmcpConn?.selected_prompts ?? null,
-      };
-    });
   }
+
+  const connections = loadedConnections.map((conn: ConnectionEntity) => {
+    const vmcpConn = virtualMcp.connections.find(
+      (c) => c.connection_id === conn.id,
+    );
+    return {
+      connection: conn,
+      selectedTools: vmcpConn?.selected_tools ?? null,
+      selectedResources: vmcpConn?.selected_resources ?? null,
+      selectedPrompts: vmcpConn?.selected_prompts ?? null,
+    };
+  });
 
   return connections;
 }
@@ -179,67 +114,86 @@ async function getAllOrgConnections(
 // Tool Loading
 // ============================================================================
 
-/** Maps tool name -> { connectionId, originalName } */
-interface ToolMapping {
-  connectionId: string;
-  originalName: string;
-}
-
 /**
  * Load tools from connections and create tool context
  */
 async function loadToolsFromConnections(
   connections: ConnectionWithSelection[],
-  selectionMode: ToolSelectionMode,
   ctx: MeshContext,
 ): Promise<ToolContext> {
-  // Create proxy collection
-  await using proxies = await ProxyCollection.create(connections, ctx);
+  // Build selection map from connections
+  const selectionMap = new Map<string, ConnectionWithSelection>();
+  for (const connWithSelection of connections) {
+    selectionMap.set(connWithSelection.connection.id, connWithSelection);
+  }
+
+  // Extract just the connection entities
+  const connectionEntities = connections.map((c) => c.connection);
+
+  // Create proxy map
+  const proxyMap = new Map<string, ProxyEntry>();
+  const proxyResults = await Promise.allSettled(
+    connectionEntities.map(async (connection) => {
+      try {
+        const proxy = await ctx.createMCPProxy(connection);
+        return {
+          connection,
+          proxy,
+        };
+      } catch (error) {
+        console.error(
+          `[code-execution] Failed to create proxy for connection ${connection.id}:`,
+          error,
+        );
+        return null;
+      }
+    }),
+  );
+
+  for (const result of proxyResults) {
+    if (result.status === "fulfilled" && result.value) {
+      proxyMap.set(result.value.connection.id, result.value);
+    }
+  }
 
   // Fetch tools from all connections in parallel
-  const results = await proxies.mapSettled(async (entry, connectionId) => {
-    try {
-      const result = await entry.proxy.listTools();
-      let tools = result.tools;
+  const results = await Promise.allSettled(
+    Array.from(proxyMap.entries()).map(async ([connectionId, entry]) => {
+      try {
+        const result = await entry.proxy.listTools();
+        let tools = result.tools;
 
-      // Apply selection based on mode
-      if (selectionMode === "exclusion") {
-        if (entry.selectedTools && entry.selectedTools.length > 0) {
-          const excludeSet = new Set(entry.selectedTools);
-          tools = tools.filter((t) => !excludeSet.has(t.name));
-        }
-      } else {
-        if (entry.selectedTools && entry.selectedTools.length > 0) {
-          const selectedSet = new Set(entry.selectedTools);
+        // Apply inclusion filtering: if selectedTools is specified, filter to only those tools
+        const selected = selectionMap.get(connectionId);
+        if (selected?.selectedTools && selected.selectedTools.length > 0) {
+          const selectedSet = new Set(selected.selectedTools);
           tools = tools.filter((t) => selectedSet.has(t.name));
         }
-      }
 
-      return {
-        connectionId,
-        connectionTitle: entry.connection.title,
-        tools,
-      };
-    } catch (error) {
-      console.error(
-        `[code-execution] Failed to list tools for connection ${connectionId}:`,
-        error,
-      );
-      return null;
-    }
-  });
+        return {
+          connectionId,
+          connectionTitle: entry.connection.title,
+          tools,
+        };
+      } catch (error) {
+        console.error(
+          `[code-execution] Failed to list tools for connection ${connectionId}:`,
+          error,
+        );
+        return null;
+      }
+    }),
+  );
 
   // Deduplicate and build tools with connection metadata
   const seenNames = new Set<string>();
   const allTools: ToolWithConnection[] = [];
-  const mappings = new Map<string, ToolMapping>();
-  const categories = new Set<string>();
+  const mappings = new Map<string, string>(); // tool name -> connectionId
 
   for (const result of results) {
     if (result.status !== "fulfilled" || !result.value) continue;
 
     const { connectionId, connectionTitle, tools } = result.value;
-    categories.add(connectionTitle);
 
     for (const tool of tools) {
       if (seenNames.has(tool.name)) continue;
@@ -249,7 +203,7 @@ async function loadToolsFromConnections(
         ...tool,
         _meta: { connectionId, connectionTitle },
       });
-      mappings.set(tool.name, { connectionId, originalName: tool.name });
+      mappings.set(tool.name, connectionId);
     }
   }
 
@@ -258,15 +212,15 @@ async function loadToolsFromConnections(
     name: string,
     args: Record<string, unknown>,
   ): Promise<CallToolResult> => {
-    const mapping = mappings.get(name);
-    if (!mapping) {
+    const connectionId = mappings.get(name);
+    if (!connectionId) {
       return {
         content: [{ type: "text", text: `Tool not found: ${name}` }],
         isError: true,
       };
     }
 
-    const proxyEntry = proxies.get(mapping.connectionId);
+    const proxyEntry = proxyMap.get(connectionId);
     if (!proxyEntry) {
       return {
         content: [
@@ -277,17 +231,23 @@ async function loadToolsFromConnections(
     }
 
     const result = await proxyEntry.proxy.callTool({
-      name: mapping.originalName,
+      name,
       arguments: args,
     });
 
     return result as CallToolResult;
   };
 
+  // Dispose of proxies when done
+  const closePromises: Promise<void>[] = [];
+  for (const [, entry] of proxyMap) {
+    closePromises.push(entry.proxy.close().catch(() => {}));
+  }
+  await Promise.all(closePromises);
+
   return {
     tools: allTools,
     callTool,
-    categories: Array.from(categories).sort(),
   };
 }
 
@@ -304,15 +264,16 @@ export async function getToolsWithConnections(
   const organization = requireOrganization(ctx);
 
   let connections: ConnectionWithSelection[];
-  let selectionMode: ToolSelectionMode = "inclusion";
 
   // Check if we're in a Virtual MCP (agent) context
   if (ctx.connectionId) {
-    const virtualMcp = await ctx.storage.virtualMcps.findById(ctx.connectionId);
+    const virtualMcp = await ctx.storage.virtualMcps.findById(
+      ctx.connectionId,
+      ctx.organization?.id,
+    );
     if (virtualMcp) {
       // connectionId points to a VIRTUAL connection - use its child connections
       connections = await resolveVirtualMCPConnections(virtualMcp, ctx);
-      selectionMode = virtualMcp.tool_selection_mode;
     } else {
       // Not a virtual MCP - use all org connections
       connections = await getAllOrgConnections(organization.id, ctx);
@@ -322,7 +283,7 @@ export async function getToolsWithConnections(
     connections = await getAllOrgConnections(organization.id, ctx);
   }
 
-  return loadToolsFromConnections(connections, selectionMode, ctx);
+  return loadToolsFromConnections(connections, ctx);
 }
 
 // ============================================================================
@@ -346,7 +307,7 @@ function calculateScore(terms: string[], tool: ToolWithConnection): number {
   let score = 0;
   const nameLower = tool.name.toLowerCase();
   const descLower = (tool.description ?? "").toLowerCase();
-  const connLower = tool._meta.connectionTitle.toLowerCase();
+  const connLower = (tool._meta?.connectionTitle ?? "").toLowerCase();
 
   for (const term of terms) {
     if (nameLower === term) {
@@ -417,7 +378,7 @@ export function describeTools(
     tools: foundTools.map((t) => ({
       name: t.name,
       description: t.description,
-      connection: t._meta.connectionTitle,
+      connection: t._meta?.connectionTitle ?? "",
       inputSchema: t.inputSchema,
       outputSchema: t.outputSchema,
     })),

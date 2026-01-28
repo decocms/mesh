@@ -33,7 +33,7 @@ import {
 import authRoutes from "./routes/auth";
 import decopilotRoutes from "./routes/decopilot";
 import downstreamTokenRoutes from "./routes/downstream-token";
-import virtualMcpRoutes from "./routes/gateway";
+import virtualMcpRoutes from "./routes/virtual-mcp";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,
@@ -141,7 +141,7 @@ export interface CreateAppOptions {
  * Create a configured Hono app instance
  * Allows injecting a custom database for testing
  */
-export function createApp(options: CreateAppOptions = {}) {
+export async function createApp(options: CreateAppOptions = {}) {
   const database = options.database ?? getDb();
 
   // Stop any existing event bus worker (cleanup during HMR)
@@ -491,21 +491,20 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // Create context factory with the provided database and event bus
   // Context factory only needs the Kysely instance, not the full MeshDatabase
-  ContextFactory.set(
-    createMeshContextFactory({
-      db: database.db,
-      databaseType: database.type,
-      auth,
-      encryption: {
-        key: process.env.ENCRYPTION_KEY || "",
-      },
-      observability: {
-        tracer,
-        meter,
-      },
-      eventBus,
-    }),
-  );
+  const factory = await createMeshContextFactory({
+    db: database.db,
+    databaseType: database.type,
+    auth,
+    encryption: {
+      key: process.env.ENCRYPTION_KEY || "",
+    },
+    observability: {
+      tracer,
+      meter,
+    },
+    eventBus,
+  });
+  ContextFactory.set(factory);
 
   // Start the event bus worker (async - resets stuck deliveries from previous crashes)
   Promise.resolve(eventBus.start()).then(() => {

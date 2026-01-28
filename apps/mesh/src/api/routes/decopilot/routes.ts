@@ -5,7 +5,6 @@
  * Uses Memory and ModelProvider abstractions.
  */
 
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { consumeStream, stepCountIs, streamText, UIMessage } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
@@ -14,6 +13,7 @@ import { HTTPException } from "hono/http-exception";
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
+import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
@@ -23,9 +23,8 @@ import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createModelProviderFromProxy } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
-import { createVirtualMcpTransport } from "./transport";
-import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
 import { generateTitleInBackground } from "./title-generator";
+import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 
 // ============================================================================
 // Request Validation
@@ -70,10 +69,9 @@ async function validateRequest(
 const app = new Hono<{ Variables: { meshContext: MeshContext } }>();
 
 app.post("/:org/decopilot/stream", async (c) => {
-  const ctx = c.get("meshContext");
-  let client: Client | null = null;
-
   try {
+    const ctx = c.get("meshContext");
+
     // 1. Validate request
     const {
       organization,
@@ -84,32 +82,27 @@ app.post("/:org/decopilot/stream", async (c) => {
       windowSize,
       threadId,
     } = await validateRequest(c);
+
     const lastMessage = messages[messages.length - 1];
 
-    const [mcpClient, modelClient] = await Promise.all([
-      (async () => {
-        if (!agent.id) {
-          const transport = createVirtualMcpTransport(
-            c.req.raw,
-            organization.id,
-            agent.id,
-          );
-          const client = new Client({
-            name: "mcp-mesh-proxy",
-            version: "1.0.0",
-          });
-          await client.connect(transport);
-          return client;
-        }
-
-        return await ctx.createMCPProxy(agent.id);
-      })(),
+    // Create virtual MCP client and model provider in parallel
+    // For virtual MCPs (agents), we need to use storage.virtualMcps.findById which handles null
+    const [virtualMcp, modelClient] = await Promise.all([
+      ctx.storage.virtualMcps.findById(agent.id ?? null, organization.id),
       ctx.createMCPProxy(model.connectionId),
     ]);
 
-    // 2. Create MCP client and model provider in parallel
-    // When agent.id is provided, use createMCPProxy directly
-    // Otherwise, fallback to HTTP transport + client combo
+    if (!virtualMcp) {
+      throw new Error("Agent not found");
+    }
+
+    const mcpClient = await createVirtualClientFrom(
+      virtualMcp,
+      ctx,
+      "code_execution",
+    );
+
+    // 2. Extract tools from virtual MCP client and create model provider
     const [mcpTools, modelProvider] = await Promise.all([
       toolsFromMCP(mcpClient),
       createModelProviderFromProxy(modelClient, {
@@ -119,16 +112,10 @@ app.post("/:org/decopilot/stream", async (c) => {
       }),
     ]);
 
-    client = mcpClient;
-
     // CRITICAL: Register abort handler to ensure client cleanup on disconnect
     // Without this, when client disconnects mid-stream, onFinish/onError are NOT called
     // and the MCP client + transport streams leak (TextDecoderStream, 256KB buffers)
     const abortSignal = c.req.raw.signal;
-    const abortHandler = () => {
-      client?.close().catch(console.error);
-    };
-    abortSignal.addEventListener("abort", abortHandler, { once: true });
 
     // Get server instructions if available (for virtual MCP agents)
     const serverInstructions = mcpClient.getInstructions();
@@ -191,13 +178,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       },
       onError: async (error) => {
         console.error("[decopilot:stream] Error", error);
-        abortSignal.removeEventListener("abort", abortHandler);
-        await client?.close().catch(console.error);
         throw error;
-      },
-      onFinish: async () => {
-        abortSignal.removeEventListener("abort", abortHandler);
-        await client?.close().catch(console.error);
       },
     });
 
@@ -305,26 +286,26 @@ app.post("/:org/decopilot/stream", async (c) => {
         });
       },
     });
-  } catch (error) {
-    await client?.close().catch(console.error);
-    const err = error as Error;
-
+  } catch (err) {
     console.error("[decopilot:stream] Error", err);
 
-    if (error instanceof HTTPException) {
-      return c.json({ error: err.message }, error.status);
+    if (err instanceof HTTPException) {
+      return c.json({ error: err.message }, err.status);
     }
 
-    if (err.name === "AbortError") {
+    if (err instanceof Error && err.name === "AbortError") {
       console.warn("[decopilot:stream] Aborted", { error: err.message });
       return c.json({ error: "Request aborted" }, 400);
     }
 
     console.error("[decopilot:stream] Failed", {
-      error: err.message,
-      stack: err.stack,
+      error: err instanceof Error ? err.message : JSON.stringify(err),
+      stack: err instanceof Error ? err.stack : undefined,
     });
-    return c.json({ error: err.message }, 500);
+    return c.json(
+      { error: err instanceof Error ? err.message : JSON.stringify(err) },
+      500,
+    );
   }
 });
 

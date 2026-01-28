@@ -333,7 +333,7 @@ export async function handleAuthError({
   );
 }
 
-export const fixProtocol = (url: URL) => {
+const fixProtocol = (url: URL) => {
   const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (!isLocal) {
     // force http if not local
