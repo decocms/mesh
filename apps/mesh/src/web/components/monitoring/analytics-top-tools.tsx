@@ -7,10 +7,7 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
 import { ChartContainer, ChartTooltip } from "@deco/ui/components/chart.tsx";
-import {
-  useConnections,
-  useProjectContext
-} from "@decocms/mesh-sdk";
+import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { Container } from "@untitledui/icons";
 import { Line, LineChart } from "recharts";

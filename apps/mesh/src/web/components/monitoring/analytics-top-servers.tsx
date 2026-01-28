@@ -11,10 +11,7 @@ import {
   ToggleGroupItem,
 } from "@deco/ui/components/toggle-group.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import {
-  useConnections,
-  useProjectContext
-} from "@decocms/mesh-sdk";
+import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { Container } from "@untitledui/icons";
 import { useMonitoringLogs } from "./hooks.ts";

@@ -1,4 +1,9 @@
-import { SELF_MCP_ALIAS_ID, useMCPClient, useMCPToolCall, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  SELF_MCP_ALIAS_ID,
+  useMCPClient,
+  useMCPToolCall,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import type { MonitoringLogsWithVirtualMCPResponse } from ".";
 
 function getLast24HoursDateRange() {
@@ -16,25 +21,25 @@ function getLast24HoursDateRange() {
 }
 
 export function useMonitoringLogs() {
-    const dateRange = getLast24HoursDateRange();
-    const { org } = useProjectContext();
-    const client = useMCPClient({
-        connectionId: SELF_MCP_ALIAS_ID,
-        orgId: org.id,
-    });
+  const dateRange = getLast24HoursDateRange();
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
 
-    const query = useMCPToolCall<MonitoringLogsWithVirtualMCPResponse>({
-        client,
-        toolName: "MONITORING_LOGS_LIST",
-        toolArguments: { ...dateRange, limit: 2000, offset: 0 },
-        staleTime: 30_000,
-        select: (result) =>
-            ((result as { structuredContent?: unknown }).structuredContent ??
-                result) as MonitoringLogsWithVirtualMCPResponse,
-    });
+  const query = useMCPToolCall<MonitoringLogsWithVirtualMCPResponse>({
+    client,
+    toolName: "MONITORING_LOGS_LIST",
+    toolArguments: { ...dateRange, limit: 2000, offset: 0 },
+    staleTime: 30_000,
+    select: (result) =>
+      ((result as { structuredContent?: unknown }).structuredContent ??
+        result) as MonitoringLogsWithVirtualMCPResponse,
+  });
 
-    return {
-        ...query,
-        dateRange,
-    }
+  return {
+    ...query,
+    dateRange,
+  };
 }

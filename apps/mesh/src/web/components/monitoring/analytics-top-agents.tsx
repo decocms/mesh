@@ -5,17 +5,11 @@
  */
 
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { Users03 } from "@untitledui/icons";
-import {
-  useMCPClient,
-  useMCPToolCall,
-  useProjectContext,
-  useVirtualMCPs,
-  SELF_MCP_ALIAS_ID,
-} from "@decocms/mesh-sdk";
-import { useNavigate } from "@tanstack/react-router";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { useProjectContext, useVirtualMCPs } from "@decocms/mesh-sdk";
+import { useNavigate } from "@tanstack/react-router";
+import { Users03 } from "@untitledui/icons";
 import { useMonitoringLogs } from "./hooks.ts";
 
 type MetricsMode = "requests" | "errors" | "latency";
