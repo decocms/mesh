@@ -53,7 +53,7 @@ export class ProxyCollection {
             };
           } catch (error) {
             console.error(
-              `[aggregator] Failed to create proxy for connection ${connection.id}:`,
+              `[aggregator] Failed to create proxy for connection ${connection.id}, name: ${connection.app_name}:`,
               error,
             );
             return null;
