@@ -307,11 +307,11 @@ export function ChatInput() {
           !isDecopilot(selectedVirtualMcp.id) && (
             <VirtualMCPBadge
               virtualMcpId={selectedVirtualMcp.id}
-            virtualMcps={virtualMcps}
-            onVirtualMcpChange={setVirtualMcpId}
-            disabled={isStreaming}
-          />
-        )}
+              virtualMcps={virtualMcps}
+              onVirtualMcpChange={setVirtualMcpId}
+              disabled={isStreaming}
+            />
+          )}
 
         {/* Inner container with the input */}
         <div className="p-0.5">
