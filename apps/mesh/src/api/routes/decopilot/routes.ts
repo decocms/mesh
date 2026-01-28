@@ -10,10 +10,10 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
-import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
+import type { MeshContext } from "@/core/mesh-context";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
-import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
+import { Metadata } from "@/web/components/chat/types";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
@@ -30,19 +30,9 @@ import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 // Request Validation
 // ============================================================================
 
-interface ValidatedRequest {
-  organization: OrganizationScope;
-  model: ChatModelConfig;
-  agent: { id: string | null | undefined };
-  messages: UIMessage<Metadata>[];
-  temperature: number;
-  windowSize: number;
-  threadId: string | null | undefined;
-}
-
 async function validateRequest(
   c: Context<{ Variables: { meshContext: MeshContext } }>,
-): Promise<ValidatedRequest> {
+) {
   const organization = ensureOrganization(c);
   const rawPayload = await c.req.json();
 
@@ -53,12 +43,7 @@ async function validateRequest(
 
   return {
     organization,
-    model: parseResult.data.model,
-    agent: parseResult.data.agent,
-    messages: parseResult.data.messages as unknown as UIMessage<Metadata>[],
-    temperature: parseResult.data.temperature ?? 0.5,
-    windowSize: parseResult.data.memory?.windowSize ?? DEFAULT_WINDOW_SIZE,
-    threadId: parseResult.data.thread_id ?? parseResult.data.memory?.threadId,
+    ...parseResult.data,
   };
 }
 
@@ -79,11 +64,12 @@ app.post("/:org/decopilot/stream", async (c) => {
       agent,
       messages,
       temperature,
-      windowSize,
-      threadId,
+      memory: memoryConfig,
+      thread_id,
     } = await validateRequest(c);
 
-    const lastMessage = messages[messages.length - 1];
+    const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
+    const threadId = thread_id ?? memoryConfig?.threadId;
 
     // Create virtual MCP client and model provider in parallel
     // For virtual MCPs (agents), we need to use storage.virtualMcps.findById which handles null
@@ -108,7 +94,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       createModelProviderFromProxy(modelClient, {
         modelId: model.id,
         connectionId: model.connectionId,
-        cheapModelId: lastMessage?.metadata?.cheapModelId ?? null,
+        fastId: model.fastId ?? null,
       }),
     ]);
 
@@ -129,7 +115,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         organizationId: organization.id,
         threadId,
         windowSize,
-        messages,
+        messages: messages as unknown as UIMessage<Metadata>[],
         systemPrompts: [systemPrompt],
         model,
       });
@@ -222,7 +208,9 @@ app.post("/:org/decopilot/stream", async (c) => {
         responseMessage,
       }) => {
         if (isAborted) {
-          const userMsg = messages[messages.length - 1];
+          const userMsg = messages[
+            messages.length - 1
+          ] as unknown as UIMessage<Metadata>;
           const assistantMsg = responseMessage;
           const assistantMsgParts = assistantMsg?.parts ?? [];
           const userMsgParts = userMsg?.parts ?? [];
@@ -233,8 +221,8 @@ app.post("/:org/decopilot/stream", async (c) => {
             {
               id: generatePrefixedId("msg"),
               role: "user",
-              parts: userMsgParts,
-              metadata: userMsg?.metadata,
+              parts: userMsgParts as UIMessage<Metadata>["parts"],
+              metadata: userMsg?.metadata as Metadata | undefined,
             },
             {
               id: generatePrefixedId("msg"),

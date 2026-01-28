@@ -19,15 +19,15 @@ export async function createModelProviderFromProxy(
   config: {
     modelId: string;
     connectionId: string;
-    cheapModelId?: string | null;
+    fastId?: string | null;
   },
 ): Promise<ModelProvider> {
   const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
 
   const llmProvider = createLLMProvider(llmBinding);
   const model = llmProvider.languageModel(config.modelId);
-  const cheapModel = config.cheapModelId
-    ? llmProvider.languageModel(config.cheapModelId)
+  const cheapModel = config.fastId
+    ? llmProvider.languageModel(config.fastId)
     : undefined;
 
   return {

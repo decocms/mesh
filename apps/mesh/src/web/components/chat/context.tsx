@@ -179,7 +179,7 @@ const useModelState = (
   const [modelState, setModelState] = useLocalStorage<{
     id: string;
     connectionId: string;
-    cheapModelId?: string | null;
+    fastId?: string | null;
   } | null>(LOCALSTORAGE_KEYS.chatSelectedModel(locator), null);
 
   // Determine connectionId to use (from stored selection or first available)
@@ -212,7 +212,7 @@ const useModelState = (
           limits: selectedModel.limits,
           capabilities: selectedModel.capabilities,
           connectionId: modelsConnection.id,
-          cheapModelId: cheapestModel?.id,
+          fastId: cheapestModel?.id,
         }
       : null;
 
@@ -692,7 +692,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
       tiptapDoc,
       created_at: new Date().toISOString(),
       thread_id: activeThreadId,
-      cheapModelId: selectedModel.cheapModelId,
       agent: {
         id: selectedVirtualMcp?.id ?? decopilotId,
       },
@@ -715,6 +714,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
           text: selectedModel.capabilities?.includes("text") ?? undefined,
           tools: selectedModel.capabilities?.includes("tools") ?? undefined,
         },
+        fastId: selectedModel.fastId,
       },
     };
 

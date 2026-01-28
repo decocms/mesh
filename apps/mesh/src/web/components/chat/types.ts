@@ -8,6 +8,7 @@ import type { UIMessage } from "ai";
 export interface ChatModelConfig {
   id: string;
   connectionId: string;
+  fastId?: string | null;
   provider?: string | null;
   limits?: {
     contextWindow?: number;
@@ -51,7 +52,7 @@ export type TiptapNode = JSONContent;
 // ============================================================================
 
 export interface Metadata {
-  cheapModelId?: string | null;
+  fastId?: string | null;
   reasoning_start_at?: string | Date;
   reasoning_end_at?: string | Date;
   model?: ChatModelConfig;
