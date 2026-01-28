@@ -141,7 +141,7 @@ async function loadToolsFromConnections(
           proxy,
         };
       } catch (error) {
-        console.error(
+        console.warn(
           `[code-execution] Failed to create proxy for connection ${connection.id}:`,
           error,
         );
