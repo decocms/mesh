@@ -141,4 +141,7 @@ export {
   getWellKnownMcpStudioConnection,
   // Virtual MCP factory functions
   getWellKnownDecopilotVirtualMCP,
+  getWellKnownDecopilotConnection,
+  // Decopilot utilities
+  isDecopilot,
 } from "./lib/constants";

@@ -9,6 +9,7 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import {
+  isDecopilot,
   useProjectContext,
   useVirtualMCPs,
   useVirtualMCPActions,
@@ -84,7 +85,7 @@ function OrgAgentsContent() {
     const id = dialogState.virtualMcp.id;
     dispatch({ type: "close" });
 
-    if (!id) return; // Can't delete Decopilot
+    if (!id || isDecopilot(id)) return; // Can't delete Decopilot
 
     try {
       await actions.delete.mutateAsync(id);

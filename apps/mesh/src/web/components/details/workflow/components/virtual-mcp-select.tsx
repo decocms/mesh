@@ -1,4 +1,7 @@
-import { useVirtualMCPs as useVirtualMCPsCollection } from "@decocms/mesh-sdk";
+import {
+  isDecopilot,
+  useVirtualMCPs as useVirtualMCPsCollection,
+} from "@decocms/mesh-sdk";
 import {
   Select,
   SelectContent,
@@ -39,7 +42,7 @@ export function VirtualMCPSelect({
       </SelectTrigger>
       <SelectContent>
         {virtualMcps
-          .filter((v) => v.id !== null)
+          .filter((v) => v.id !== null && !isDecopilot(v.id))
           .map((virtualMcp) => (
             <SelectItem key={virtualMcp.id} value={virtualMcp.id!}>
               {virtualMcp.title}

@@ -18,7 +18,7 @@ import {
 } from "@deco/ui/components/popover.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useVirtualMCPs } from "@decocms/mesh-sdk";
+import { isDecopilot, useVirtualMCPs } from "@decocms/mesh-sdk";
 import { ChevronRight, Users03 } from "@untitledui/icons";
 import { Suspense, useEffect, useRef, useState } from "react";
 
@@ -143,7 +143,8 @@ function AgentsListContent() {
   // Filter out the default Decopilot agent (it's not a real agent)
   const agents = virtualMcps
     .filter(
-      (agent): agent is typeof agent & { id: string } => agent.id !== null,
+      (agent): agent is typeof agent & { id: string } =>
+        agent.id !== null && !isDecopilot(agent.id),
     )
     .slice(0, 6);
 

@@ -13,6 +13,7 @@ import { HTTPException } from "hono/http-exception";
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
+import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
@@ -22,7 +23,6 @@ import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createModelProviderFromProxy } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
-import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
 import { generateTitleInBackground } from "./title-generator";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 

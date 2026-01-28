@@ -4,7 +4,7 @@
  * - On success: caches the result, subsequent calls return cached promise
  * - On failure: clears cache, next call will retry
  */
-export function once<T>(factory: () => Promise<T>): () => Promise<T> {
+function once<T>(factory: () => Promise<T>): () => Promise<T> {
   let promise: Promise<T> | null = null;
 
   return () => {

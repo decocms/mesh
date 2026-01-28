@@ -2,6 +2,7 @@ import type {
   CallToolRequest,
   CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
+import { isDecopilot } from "@decocms/mesh-sdk";
 import type { MeshContext } from "../../core/mesh-context";
 
 type CallToolMiddleware = (
@@ -167,6 +168,9 @@ async function logProxyMonitoringEvent(args: {
   const { ctx, enabled } = args;
   const organizationId = args.organizationId ?? ctx.organization?.id;
   if (!enabled || !organizationId) return;
+
+  // Skip monitoring for decopilot connections (they don't exist in the database)
+  if (isDecopilot(args.connectionId)) return;
 
   // Extract properties from _meta.properties in tool arguments
   const metaProperties = extractMetaProperties(

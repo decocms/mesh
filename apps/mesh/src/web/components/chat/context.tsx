@@ -10,6 +10,7 @@ import { useChat as useAIChat } from "@ai-sdk/react";
 import type { CollectionUpdateOutput } from "@decocms/bindings/collections";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
 import {
+  getWellKnownDecopilotVirtualMCP,
   useMCPClient,
   useProjectContext,
   useVirtualMCPs,
@@ -568,6 +569,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     ? (virtualMcps.find((g) => g.id === storedSelectedVirtualMcpId) ?? null)
     : null;
 
+  // Get decopilot ID for when no agent is explicitly selected (default agent)
+  const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
+
   const transport = createModelsTransport(org.slug);
 
   // ===========================================================================
@@ -690,7 +694,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       thread_id: activeThreadId,
       cheapModelId: selectedModel.cheapModelId,
       agent: {
-        id: selectedVirtualMcp?.id ?? null,
+        id: selectedVirtualMcp?.id ?? decopilotId,
       },
       user: {
         avatar: user?.image ?? undefined,

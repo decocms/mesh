@@ -52,7 +52,7 @@ export const StreamRequestSchema = z.object({
         .optional(),
     })
     .loose(),
-  agent: z.object({ id: z.string().nullable() }).loose(),
+  agent: z.object({ id: z.string() }).loose(),
   stream: z.boolean().optional(),
   temperature: z.number().optional(),
   thread_id: z.string().optional(),

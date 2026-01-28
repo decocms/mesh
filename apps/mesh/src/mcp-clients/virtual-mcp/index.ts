@@ -6,6 +6,7 @@
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { isDecopilot } from "@decocms/mesh-sdk";
 import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { VirtualMCPEntity } from "../../tools/virtual/schema";
@@ -23,7 +24,7 @@ function isSelfReferencingVirtual(
   virtualMcpId: string | null,
 ): boolean {
   if (connection.connection_type !== "VIRTUAL") return false;
-  if (virtualMcpId === null) return false; // Decopilot agent can't self-reference
+  if (!virtualMcpId || isDecopilot(virtualMcpId)) return false; // Decopilot agent can't self-reference
   return connection.id === virtualMcpId;
 }
 

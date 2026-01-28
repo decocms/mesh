@@ -78,14 +78,13 @@ export async function handleVirtualMcpRequest(
     if (virtualMcp.status !== "active") {
       return c.json(
         {
-          error: `Agent is inactive: ${virtualMcp.id ?? "Decopilot (default)"}`,
+          error: `Agent is inactive: ${virtualMcp.id ?? "Decopilot"}`,
         },
         503,
       );
     }
 
     // Set connection context (Virtual MCPs are now connections)
-    // Note: virtualMcp.id can be null for Decopilot agent, but connectionId should be set for routing
     ctx.connectionId = virtualMcp.id ?? undefined;
 
     // Set organization context

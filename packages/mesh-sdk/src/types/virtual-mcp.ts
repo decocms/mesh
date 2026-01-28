@@ -48,11 +48,7 @@ export const VirtualMCPEntitySchema = z.object({
     ),
   title: z.string().describe("Human-readable name for the virtual MCP"),
   description: z.string().nullable().describe("Description of the virtual MCP"),
-  icon: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("Icon URL for the virtual MCP"),
+  icon: z.string().nullable().describe("Icon URL for the virtual MCP"),
   created_at: z.string().describe("When the virtual MCP was created"),
   updated_at: z.string().describe("When the virtual MCP was last updated"),
   created_by: z.string().describe("User ID who created the virtual MCP"),

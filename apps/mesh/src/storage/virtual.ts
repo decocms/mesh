@@ -9,7 +9,10 @@
 
 import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
-import { getWellKnownDecopilotVirtualMCP } from "@decocms/mesh-sdk";
+import {
+  getWellKnownDecopilotVirtualMCP,
+  isDecopilot,
+} from "@decocms/mesh-sdk";
 import type {
   VirtualMCPCreateData,
   VirtualMCPEntity,
@@ -118,8 +121,44 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     id: string | null,
     organizationId?: string,
   ): Promise<VirtualMCPEntity | null> {
-    // Handle null ID - return Decopilot agent with all org connections
-    if (id === null) {
+    // Handle Decopilot ID - return Decopilot agent with all org connections
+    if (id && isDecopilot(id)) {
+      // Extract orgId from decopilot_{orgId} pattern or use provided organizationId
+      const orgIdMatch = id.match(/^decopilot_(.+)$/);
+      let resolvedOrgId: string;
+      if (organizationId) {
+        resolvedOrgId = organizationId;
+      } else if (orgIdMatch && orgIdMatch[1]) {
+        resolvedOrgId = orgIdMatch[1];
+      } else {
+        throw new Error(
+          `Invalid Decopilot ID format: ${id}. Expected decopilot_{orgId} or provide organizationId`,
+        );
+      }
+
+      // Get all active connections for the organization
+      const connections = await this.db
+        .selectFrom("connections")
+        .selectAll()
+        .where("organization_id", "=", resolvedOrgId)
+        .where("status", "!=", "inactive")
+        .where("status", "!=", "error")
+        .execute();
+
+      // Return Decopilot agent with connections populated
+      return {
+        ...getWellKnownDecopilotVirtualMCP(resolvedOrgId),
+        connections: connections.map((c) => ({
+          connection_id: c.id,
+          selected_tools: null, // null = all tools
+          selected_resources: null, // null = all resources
+          selected_prompts: null, // null = all prompts
+        })),
+      };
+    }
+
+    // Handle null ID - treat as Decopilot for backward compatibility
+    if (!id) {
       if (!organizationId) {
         throw new Error(
           "organizationId is required when id is null (Decopilot agent)",

@@ -156,7 +156,7 @@ export class PassthroughClient extends Client {
                 : await client.listPrompts().then((r) => r.prompts);
 
           const selected = this._selectionMap.get(connectionId);
-          if (!!selected?.[`selected_${target}`]?.length) {
+          if (selected?.[`selected_${target}`]?.length) {
             const selectedSet = new Set(selected[`selected_${target}`]);
             data = data.filter((item: any) => selectedSet.has(item.name));
           }
