@@ -14,7 +14,7 @@
  * - Supports exclusion strategy for inverse tool selection
  */
 
-import { createServerFromClient } from "@decocms/mesh-sdk";
+import { createServerFromClient, getDecopilotId } from "@decocms/mesh-sdk";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
@@ -62,12 +62,18 @@ export async function handleVirtualMcpRequest(
             .then((org) => org?.id)
         : null;
 
-    if (!virtualMcpId) {
+    const virtualId = virtualMcpId
+      ? virtualMcpId
+      : organizationId
+        ? getDecopilotId(organizationId)
+        : null;
+
+    if (!virtualId) {
       return c.json({ error: "Agent ID or organization ID is required" }, 400);
     }
 
     const virtualMcp = await ctx.storage.virtualMcps.findById(
-      virtualMcpId,
+      virtualId,
       organizationId ?? undefined,
     );
 
