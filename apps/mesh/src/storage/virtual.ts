@@ -383,6 +383,8 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     const status: "active" | "inactive" =
       row.status === "active" ? "active" : "inactive";
 
+    const metadata = this.parseJson<{ instructions?: string }>(row.metadata);
+
     return {
       id: row.id,
       organization_id: row.organization_id,
@@ -394,7 +396,10 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       updated_at: updatedAt,
       created_by: row.created_by,
       updated_by: undefined, // connections table doesn't have updated_by
-      metadata: this.parseJson<{ instructions?: string }>(row.metadata),
+      metadata: {
+        ...metadata,
+        instructions: metadata?.instructions ?? null,
+      },
       connections: aggregationRows.map((agg) => ({
         connection_id: agg.child_connection_id,
         selected_tools: this.parseJson<string[]>(agg.selected_tools),

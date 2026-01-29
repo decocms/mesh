@@ -247,6 +247,7 @@ export function getWellKnownDecopilotVirtualMCP(
     updated_at: new Date().toISOString(),
     created_by: "system",
     updated_by: undefined,
+    metadata: { instructions: null },
     connections: [], // Empty connections array - gateway.ts will populate with all org connections
   };
 }
