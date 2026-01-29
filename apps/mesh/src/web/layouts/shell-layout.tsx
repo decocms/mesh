@@ -146,19 +146,22 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
  */
 function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
   const [chatOpen] = useDecoChatOpen();
-  const shouldShowChat = chatOpen && !disableChat;
 
   return (
     <ResizablePanelGroup direction="horizontal">
       <ResizablePanel className="bg-background">
         <Outlet />
       </ResizablePanel>
-      {!disableChat && <ResizableHandle withHandle={shouldShowChat} />}
-      <PersistentResizablePanel
-        className={cn(shouldShowChat ? "max-w-none" : "max-w-0")}
-      >
-        <ChatPanel />
-      </PersistentResizablePanel>
+      {!disableChat && (
+        <>
+          <ResizableHandle withHandle={chatOpen} />
+          <PersistentResizablePanel
+            className={cn(chatOpen ? "max-w-none" : "max-w-0")}
+          >
+            <ChatPanel />
+          </PersistentResizablePanel>
+        </>
+      )}
     </ResizablePanelGroup>
   );
 }
