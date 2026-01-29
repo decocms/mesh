@@ -123,7 +123,6 @@ function SelectionItem({
         )}
       </div>
       <Checkbox
-        variant="default"
         checked={isSelected}
         onCheckedChange={onToggle}
         disabled={disabled}
@@ -178,7 +177,6 @@ function SelectionTab({
             </span>
           </div>
           <Checkbox
-            variant="default"
             checked={selections === null}
             onCheckedChange={onToggleAll}
             disabled={disabled}
@@ -359,7 +357,6 @@ function ConnectionSidebarItem({
         )}
       </div>
       <Checkbox
-        variant="default"
         checked={hasSelections}
         onCheckedChange={onToggleAll}
         onClick={(e) => e.stopPropagation()}
