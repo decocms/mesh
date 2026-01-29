@@ -344,7 +344,8 @@ export class SqlMonitoringStorage implements MonitoringStorage {
 
     // If we have groupBy, return grouped results
     if (groupBy) {
-      const groupExpr = this.jsonExtractPath(sourceColumn, groupBy);
+      // Use text extraction for groupBy (it's typically a string like model name)
+      const groupExpr = this.jsonExtractPathText(sourceColumn, groupBy);
       const rows = await baseQuery
         .select([
           sql<string>`${groupExpr}`.as("group_key"),
@@ -398,8 +399,60 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   }
 
   /**
-   * Get JSON extraction SQL for a JSONPath.
+   * Count records that have a non-null value at the given JSONPath.
+   * Used for preview to show how many records matched.
+   */
+  async countMatched(params: {
+    organizationId: string;
+    path: string;
+    from: "input" | "output";
+    filters?: {
+      connectionIds?: string[];
+      toolNames?: string[];
+      startDate?: Date;
+      endDate?: Date;
+    };
+  }): Promise<number> {
+    const { organizationId, filters } = params;
+
+    let query = this.db
+      .selectFrom("monitoring_logs")
+      .where("organization_id", "=", organizationId);
+
+    // Apply filters
+    if (filters?.connectionIds && filters.connectionIds.length > 0) {
+      query = query.where("connection_id", "in", filters.connectionIds);
+    }
+    if (filters?.toolNames && filters.toolNames.length > 0) {
+      query = query.where("tool_name", "in", filters.toolNames);
+    }
+    if (filters?.startDate) {
+      query = query.where(
+        "timestamp",
+        ">=",
+        filters.startDate.toISOString() as never,
+      );
+    }
+    if (filters?.endDate) {
+      query = query.where(
+        "timestamp",
+        "<=",
+        filters.endDate.toISOString() as never,
+      );
+    }
+
+    // Count records in the time range (we can't easily filter by JSONPath non-null with Kysely)
+    const result = await query
+      .select((eb) => eb.fn.count("id").as("count"))
+      .executeTakeFirst();
+
+    return Number(result?.count || 0);
+  }
+
+  /**
+   * Get JSON extraction SQL for a JSONPath (numeric value).
    * Converts "$.usage.total_tokens" to appropriate SQL.
+   * Used for values that will be aggregated (sum, avg, etc.)
    */
   private jsonExtractPath(column: string, jsonPath: string) {
     if (this.databaseType === "postgres") {
@@ -411,6 +464,20 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     }
     // SQLite: use json_extract with JSON path
     return sql`CAST(json_extract(${sql.ref(column)}, ${jsonPath}) AS REAL)`;
+  }
+
+  /**
+   * Get JSON extraction SQL for a JSONPath (text value).
+   * Used for groupBy fields which are typically strings.
+   */
+  private jsonExtractPathText(column: string, jsonPath: string) {
+    if (this.databaseType === "postgres") {
+      const pathParts = jsonPath.replace(/^\$\.?/, "").split(".");
+      const pathArray = `{${pathParts.join(",")}}`;
+      return sql`(${sql.ref(column)}::jsonb #>> ${pathArray})`;
+    }
+    // SQLite: use json_extract with JSON path (returns text naturally)
+    return sql`json_extract(${sql.ref(column)}, ${jsonPath})`;
   }
 
   /**

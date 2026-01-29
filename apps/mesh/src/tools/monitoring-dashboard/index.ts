@@ -10,3 +10,4 @@ export { MONITORING_DASHBOARD_LIST } from "./list";
 export { MONITORING_DASHBOARD_UPDATE } from "./update";
 export { MONITORING_DASHBOARD_DELETE } from "./delete";
 export { MONITORING_DASHBOARD_QUERY } from "./query";
+export { MONITORING_WIDGET_PREVIEW } from "./preview";

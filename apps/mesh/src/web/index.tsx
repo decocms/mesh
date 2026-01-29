@@ -157,6 +157,14 @@ const orgMonitoringRoute = createRoute({
   ),
 });
 
+const dashboardEditRoute = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/monitoring/dashboards/$dashboardId/edit",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/monitoring-dashboard-edit.tsx"),
+  ),
+});
+
 const orgStoreRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org/store",
@@ -296,6 +304,7 @@ const shellRouteTree = shellLayout.addChildren([
   orgAgentsRoute,
   agentDetailRoute,
   orgMonitoringRoute,
+  dashboardEditRoute,
   orgStoreRouteWithChildren,
   orgSettingsRoute,
   orgSettingsPluginsRoute,
