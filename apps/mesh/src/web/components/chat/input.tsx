@@ -20,12 +20,7 @@ import {
   XCircle,
 } from "@untitledui/icons";
 import type { FormEvent } from "react";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type MouseEvent
-} from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useChat } from "./context";
 import { ChatHighlight } from "./index";
 import { ModelSelector } from "./select-model";
