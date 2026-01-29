@@ -70,6 +70,7 @@ const ALL_TOOL_NAMES = [
   "MONITORING_DASHBOARD_UPDATE",
   "MONITORING_DASHBOARD_DELETE",
   "MONITORING_DASHBOARD_QUERY",
+  "MONITORING_WIDGET_PREVIEW",
   // API Key tools
   "API_KEY_CREATE",
   "API_KEY_LIST",
@@ -304,6 +305,11 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Monitoring",
   },
   {
+    name: "MONITORING_WIDGET_PREVIEW",
+    description: "Preview widget aggregation",
+    category: "Monitoring",
+  },
+  {
     name: "API_KEY_CREATE",
     description: "Create API key",
     category: "API Keys",
@@ -452,6 +458,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
   MONITORING_DASHBOARD_UPDATE: "Update dashboards",
   MONITORING_DASHBOARD_DELETE: "Delete dashboards",
   MONITORING_DASHBOARD_QUERY: "Query dashboard data",
+  MONITORING_WIDGET_PREVIEW: "Preview widget query",
   API_KEY_CREATE: "Create API key",
   API_KEY_LIST: "List API keys",
   API_KEY_UPDATE: "Update API key",

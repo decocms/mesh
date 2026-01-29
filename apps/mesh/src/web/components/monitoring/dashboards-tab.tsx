@@ -15,9 +15,8 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
-import { Plus, BarChart07, Trash01 } from "@untitledui/icons";
+import { Plus, BarChart07, Trash01, Edit05 } from "@untitledui/icons";
 import { DashboardView } from "./dashboard-view";
-import { CreateDashboardModal } from "./create-dashboard-modal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +29,7 @@ import {
 } from "@deco/ui/components/alert-dialog.tsx";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 
 // ============================================================================
 // Types
@@ -59,6 +59,7 @@ interface DashboardListResponse {
 function DashboardListContent() {
   const { org, locator } = useProjectContext();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -67,9 +68,9 @@ function DashboardListContent() {
   const [selectedDashboardId, setSelectedDashboardId] = useState<string | null>(
     null,
   );
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const { data } = useSuspenseQuery({
     queryKey: KEYS.monitoringDashboards(locator),
@@ -86,6 +87,56 @@ function DashboardListContent() {
   });
 
   const dashboards = data?.dashboards ?? [];
+
+  const handleCreate = async () => {
+    if (!client) return;
+    setIsCreating(true);
+
+    try {
+      // Create empty dashboard
+      const result = (await client.callTool({
+        name: "MONITORING_DASHBOARD_CREATE",
+        arguments: {
+          name: "Untitled Dashboard",
+          widgets: [
+            {
+              id: crypto.randomUUID(),
+              name: "New Widget",
+              type: "metric",
+              source: { path: "$.usage.total_tokens", from: "output" },
+              aggregation: { fn: "sum" },
+            },
+          ],
+        },
+      })) as { structuredContent?: { id: string } };
+
+      const dashboardId = (
+        result.structuredContent ?? (result as unknown as { id: string })
+      ).id;
+
+      queryClient.invalidateQueries({
+        queryKey: KEYS.monitoringDashboards(locator),
+      });
+
+      // Navigate to edit page
+      navigate({
+        to: "/$org/monitoring/dashboards/$dashboardId/edit",
+        params: { org: org.slug, dashboardId },
+      });
+    } catch (error) {
+      toast.error("Failed to create dashboard");
+      console.error(error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleEdit = (dashboardId: string) => {
+    navigate({
+      to: "/$org/monitoring/dashboards/$dashboardId/edit",
+      params: { org: org.slug, dashboardId },
+    });
+  };
 
   const handleDelete = async (id: string) => {
     if (!client) return;
@@ -117,6 +168,7 @@ function DashboardListContent() {
       <DashboardView
         dashboardId={selectedDashboardId}
         onBack={() => setSelectedDashboardId(null)}
+        onEdit={() => handleEdit(selectedDashboardId)}
       />
     );
   }
@@ -132,9 +184,9 @@ function DashboardListContent() {
             monitoring data
           </p>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)} size="sm">
+        <Button onClick={handleCreate} size="sm" disabled={isCreating}>
           <Plus size={16} className="mr-1.5" />
-          New Dashboard
+          {isCreating ? "Creating..." : "New Dashboard"}
         </Button>
       </div>
 
@@ -145,7 +197,7 @@ function DashboardListContent() {
           description="Create a dashboard to aggregate and visualize your monitoring data"
           image={<BarChart07 size={48} className="text-muted-foreground/50" />}
           actions={
-            <Button onClick={() => setIsCreateModalOpen(true)} size="sm">
+            <Button onClick={handleCreate} size="sm" disabled={isCreating}>
               <Plus size={16} className="mr-1.5" />
               Create Dashboard
             </Button>
@@ -168,6 +220,17 @@ function DashboardListContent() {
                   <h3 className="font-medium truncate">{dashboard.name}</h3>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(dashboard.id);
+                    }}
+                  >
+                    <Edit05 size={14} />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -197,16 +260,6 @@ function DashboardListContent() {
           ))}
         </div>
       )}
-
-      {/* Create Dashboard Modal */}
-      <CreateDashboardModal
-        open={isCreateModalOpen}
-        onOpenChange={setIsCreateModalOpen}
-        onCreated={(id) => {
-          setIsCreateModalOpen(false);
-          setSelectedDashboardId(id);
-        }}
-      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog

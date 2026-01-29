@@ -69,6 +69,7 @@ const CORE_TOOLS = [
   MonitoringDashboardTools.MONITORING_DASHBOARD_UPDATE,
   MonitoringDashboardTools.MONITORING_DASHBOARD_DELETE,
   MonitoringDashboardTools.MONITORING_DASHBOARD_QUERY,
+  MonitoringDashboardTools.MONITORING_WIDGET_PREVIEW,
 
   // API Key tools
   ApiKeyTools.API_KEY_CREATE,

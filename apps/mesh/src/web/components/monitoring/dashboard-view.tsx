@@ -18,7 +18,7 @@ import {
 import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
-import { ArrowLeft, RefreshCw01 } from "@untitledui/icons";
+import { ArrowLeft, RefreshCw01, Edit05 } from "@untitledui/icons";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -329,9 +329,14 @@ function DashboardViewContent({
 interface DashboardViewProps {
   dashboardId: string;
   onBack: () => void;
+  onEdit?: () => void;
 }
 
-export function DashboardView({ dashboardId, onBack }: DashboardViewProps) {
+export function DashboardView({
+  dashboardId,
+  onBack,
+  onEdit,
+}: DashboardViewProps) {
   const queryClient = useQueryClient();
   const [timeRange, setTimeRange] = useState<TimeRangeValue>({
     from: "now-24h",
@@ -355,6 +360,12 @@ export function DashboardView({ dashboardId, onBack }: DashboardViewProps) {
           Back to Dashboards
         </Button>
         <div className="flex items-center gap-2">
+          {onEdit && (
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Edit05 size={14} className="mr-1.5" />
+              Edit
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handleRefresh}>
             <RefreshCw01 size={14} className="mr-1.5" />
             Refresh
