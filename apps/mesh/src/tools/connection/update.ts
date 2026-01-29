@@ -231,16 +231,34 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     };
     const connection = await ctx.storage.connections.update(id, updatePayload);
 
-    // Invoke ON_MCP_CONFIGURATION callback if configuration was updated
-    // Ignore errors but await for the response before responding
-    if (
-      (data.configuration_state !== undefined ||
-        data.configuration_scopes !== undefined) &&
-      finalState &&
-      finalScopes.length > 0
-    ) {
-      try {
-        await using proxy = await ctx.createMCPProxy(id);
+    // Invoke ON_MCP_CONFIGURATION callback to trigger onChange handlers
+    // If no scopes saved, fetch from MCP_CONFIGURATION first
+    try {
+      await using proxy = await ctx.createMCPProxy(id);
+
+      // If no scopes, try to fetch from MCP_CONFIGURATION
+      if (finalScopes.length === 0) {
+        const mcpConfig = (await proxy.callTool({
+          name: "MCP_CONFIGURATION",
+          arguments: {},
+        })) as { scopes?: string[] };
+
+        if (mcpConfig?.scopes && mcpConfig.scopes.length > 0) {
+          finalScopes = mcpConfig.scopes;
+          // Update connection with fetched scopes
+          await ctx.storage.connections.update(id, {
+            configuration_scopes: finalScopes,
+          });
+        }
+      }
+
+      // Initialize empty state if we have scopes but no state
+      if (finalScopes.length > 0 && !finalState) {
+        finalState = {};
+      }
+
+      // Call ON_MCP_CONFIGURATION if we have state and scopes
+      if (finalState && finalScopes.length > 0) {
         await proxy.callTool({
           name: "ON_MCP_CONFIGURATION",
           arguments: {
@@ -248,10 +266,11 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
             scopes: finalScopes,
           },
         });
-        await proxy.close().catch(console.error);
-      } catch (error) {
-        console.error("Failed to invoke ON_MCP_CONFIGURATION callback", error);
       }
+
+      await proxy.close().catch(console.error);
+    } catch (error) {
+      console.error("Failed to invoke ON_MCP_CONFIGURATION callback", error);
     }
 
     return {

@@ -26,7 +26,7 @@ interface LogRowProps {
   isFirst: boolean;
   isExpanded: boolean;
   connection: Connection | undefined;
-  virtualMcpName: string; // já resolvido pelo pai
+  virtualMcpName: string; // already resolved by parent
   onToggle: () => void;
   lastLogRef?: (node: HTMLDivElement | null) => void;
 }
