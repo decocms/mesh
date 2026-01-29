@@ -87,7 +87,11 @@ function createMethodNotFoundFallback(notSupportedMessage: string) {
         <div className="space-y-2">
           <h3 className="text-lg font-medium">Something went wrong</h3>
           <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            {error?.message || "An unexpected error occurred"}
+            {error?.message
+              ? error.message.length > 200
+                ? `${error.message.slice(0, 200)}...`
+                : error.message
+              : "An unexpected error occurred"}
           </p>
         </div>
       </div>
@@ -427,6 +431,188 @@ function ConnectionsList({
   );
 }
 
+// Connection Details Content Component
+function ConnectionDetailsContent({
+  currentConnection,
+  activeTab,
+  selectedId,
+  formData,
+  toggleTool,
+  toggleResource,
+  togglePrompt,
+  toggleAllTools,
+  toggleAllResources,
+  toggleAllPrompts,
+  onTabChange,
+}: {
+  currentConnection: {
+    id: string;
+    title: string;
+    description?: string | null;
+    icon?: string | null;
+  };
+  activeTab: "tools" | "resources" | "prompts";
+  selectedId: string;
+  formData: FormData;
+  toggleTool: (
+    connId: string,
+    toolName: string,
+    allToolNames: string[],
+  ) => void;
+  toggleResource: (
+    connId: string,
+    name: string,
+    allResourceNames: string[],
+  ) => void;
+  togglePrompt: (
+    connId: string,
+    name: string,
+    allPromptNames: string[],
+  ) => void;
+  toggleAllTools: (connId: string) => void;
+  toggleAllResources: (connId: string) => void;
+  toggleAllPrompts: (connId: string) => void;
+  onTabChange: (value: "tools" | "resources" | "prompts") => void;
+}) {
+  return (
+    <>
+      {/* Header */}
+      <div className="p-6 border-b border-border shrink-0">
+        <div className="flex items-center gap-3">
+          <IntegrationIcon
+            icon={currentConnection.icon}
+            name={currentConnection.title}
+            size="md"
+            className="shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold truncate">
+              {currentConnection.title}
+            </h2>
+            {currentConnection.description && (
+              <p className="text-sm text-muted-foreground truncate">
+                {currentConnection.description}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Content - Tabs */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) =>
+            onTabChange(value as "tools" | "resources" | "prompts")
+          }
+          variant="underline"
+          className="flex-1 flex flex-col overflow-hidden"
+        >
+          <TabsList variant="underline" className="shrink-0 px-6">
+            <TabsTrigger value="tools" variant="underline" className="gap-2">
+              <Tool01 size={16} />
+              Tools
+            </TabsTrigger>
+            <TabsTrigger
+              value="resources"
+              variant="underline"
+              className="gap-2"
+            >
+              <CubeOutline size={16} />
+              Resources
+            </TabsTrigger>
+            <TabsTrigger value="prompts" variant="underline" className="gap-2">
+              <File02 size={16} />
+              Prompts
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="tools" className="flex-1 overflow-hidden mt-0">
+            <ErrorBoundary
+              fallback={createMethodNotFoundFallback(
+                "Tools not supported by this server",
+              )}
+            >
+              <Suspense fallback={<LoadingSpinner />}>
+                <ToolsTab
+                  connectionId={selectedId}
+                  selections={
+                    // IMPORTANT: Do NOT use ?? here!
+                    // null means "all selected" (must be preserved)
+                    // undefined means "connection not configured" (default to [])
+                    // [] means "none selected"
+                    // Using ?? would convert null to [], losing the "all selected" state
+                    formData[selectedId] ? formData[selectedId]!.tools : []
+                  }
+                  onToggle={(toolName, allToolNames) =>
+                    toggleTool(selectedId, toolName, allToolNames)
+                  }
+                  onToggleAll={() => toggleAllTools(selectedId)}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          </TabsContent>
+
+          <TabsContent
+            value="resources"
+            className="flex-1 overflow-hidden mt-0"
+          >
+            <ErrorBoundary
+              fallback={createMethodNotFoundFallback(
+                "Resources not supported by this server",
+              )}
+            >
+              <Suspense fallback={<LoadingSpinner />}>
+                <ResourcesTab
+                  connectionId={selectedId}
+                  selections={
+                    // IMPORTANT: Do NOT use ?? here!
+                    // null means "all selected" (must be preserved)
+                    // undefined means "connection not configured" (default to [])
+                    // [] means "none selected"
+                    // Using ?? would convert null to [], losing the "all selected" state
+                    formData[selectedId] ? formData[selectedId]!.resources : []
+                  }
+                  onToggle={(name, allResourceNames) =>
+                    toggleResource(selectedId, name, allResourceNames)
+                  }
+                  onToggleAll={() => toggleAllResources(selectedId)}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          </TabsContent>
+
+          <TabsContent value="prompts" className="flex-1 overflow-hidden mt-0">
+            <ErrorBoundary
+              fallback={createMethodNotFoundFallback(
+                "Prompts not supported by this server",
+              )}
+            >
+              <Suspense fallback={<LoadingSpinner />}>
+                <PromptsTab
+                  connectionId={selectedId}
+                  selections={
+                    // IMPORTANT: Do NOT use ?? here!
+                    // null means "all selected" (must be preserved)
+                    // undefined means "connection not configured" (default to [])
+                    // [] means "none selected"
+                    // Using ?? would convert null to [], losing the "all selected" state
+                    formData[selectedId] ? formData[selectedId]!.prompts : []
+                  }
+                  onToggle={(name, allPromptNames) =>
+                    togglePrompt(selectedId, name, allPromptNames)
+                  }
+                  onToggleAll={() => toggleAllPrompts(selectedId)}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </>
+  );
+}
+
 interface DependencySelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -721,191 +907,25 @@ export function DependencySelectionDialog({
           {/* Right Content - Tools/Resources/Prompts */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {currentConnection && dialogState.selectedId ? (
-              <>
-                {/* Header */}
-                <div className="p-6 border-b border-border shrink-0">
-                  <div className="flex items-center gap-3">
-                    <IntegrationIcon
-                      icon={currentConnection.icon}
-                      name={currentConnection.title}
-                      size="md"
-                      className="shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h2 className="text-lg font-semibold truncate">
-                        {currentConnection.title}
-                      </h2>
-                      {currentConnection.description && (
-                        <p className="text-sm text-muted-foreground truncate">
-                          {currentConnection.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Content - Tabs */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <Tabs
-                    value={dialogState.activeTab}
-                    onValueChange={(value) =>
-                      dispatch({
-                        type: "SET_ACTIVE_TAB",
-                        payload: value as "tools" | "resources" | "prompts",
-                      })
-                    }
-                    variant="underline"
-                    className="flex-1 flex flex-col overflow-hidden"
-                  >
-                    <TabsList variant="underline" className="shrink-0 px-6">
-                      <TabsTrigger
-                        value="tools"
-                        variant="underline"
-                        className="gap-2"
-                      >
-                        <Tool01 size={16} />
-                        Tools
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="resources"
-                        variant="underline"
-                        className="gap-2"
-                      >
-                        <CubeOutline size={16} />
-                        Resources
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="prompts"
-                        variant="underline"
-                        className="gap-2"
-                      >
-                        <File02 size={16} />
-                        Prompts
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent
-                      value="tools"
-                      className="flex-1 overflow-hidden mt-0"
-                    >
-                      <ErrorBoundary
-                        fallback={createMethodNotFoundFallback(
-                          "Tools not supported by this server",
-                        )}
-                      >
-                        <Suspense fallback={<LoadingSpinner />}>
-                          <ToolsTab
-                            connectionId={dialogState.selectedId!}
-                            selections={
-                              // IMPORTANT: Do NOT use ?? here!
-                              // null means "all selected" (must be preserved)
-                              // undefined means "connection not configured" (default to [])
-                              // [] means "none selected"
-                              // Using ?? would convert null to [], losing the "all selected" state
-                              dialogState.selectedId &&
-                              formData[dialogState.selectedId]
-                                ? formData[dialogState.selectedId]!.tools
-                                : []
-                            }
-                            onToggle={(toolName, allToolNames) =>
-                              dialogState.selectedId &&
-                              toggleTool(
-                                dialogState.selectedId,
-                                toolName,
-                                allToolNames,
-                              )
-                            }
-                            onToggleAll={() =>
-                              dialogState.selectedId &&
-                              toggleAllTools(dialogState.selectedId)
-                            }
-                          />
-                        </Suspense>
-                      </ErrorBoundary>
-                    </TabsContent>
-
-                    <TabsContent
-                      value="resources"
-                      className="flex-1 overflow-hidden mt-0"
-                    >
-                      <ErrorBoundary
-                        fallback={createMethodNotFoundFallback(
-                          "Resources not supported by this server",
-                        )}
-                      >
-                        <Suspense fallback={<LoadingSpinner />}>
-                          <ResourcesTab
-                            connectionId={dialogState.selectedId!}
-                            selections={
-                              // IMPORTANT: Do NOT use ?? here!
-                              // null means "all selected" (must be preserved)
-                              // undefined means "connection not configured" (default to [])
-                              // [] means "none selected"
-                              // Using ?? would convert null to [], losing the "all selected" state
-                              dialogState.selectedId &&
-                              formData[dialogState.selectedId]
-                                ? formData[dialogState.selectedId]!.resources
-                                : []
-                            }
-                            onToggle={(name, allResourceNames) =>
-                              dialogState.selectedId &&
-                              toggleResource(
-                                dialogState.selectedId,
-                                name,
-                                allResourceNames,
-                              )
-                            }
-                            onToggleAll={() =>
-                              dialogState.selectedId &&
-                              toggleAllResources(dialogState.selectedId)
-                            }
-                          />
-                        </Suspense>
-                      </ErrorBoundary>
-                    </TabsContent>
-
-                    <TabsContent
-                      value="prompts"
-                      className="flex-1 overflow-hidden mt-0"
-                    >
-                      <ErrorBoundary
-                        fallback={createMethodNotFoundFallback(
-                          "Prompts not supported by this server",
-                        )}
-                      >
-                        <Suspense fallback={<LoadingSpinner />}>
-                          <PromptsTab
-                            connectionId={dialogState.selectedId!}
-                            selections={
-                              // IMPORTANT: Do NOT use ?? here!
-                              // null means "all selected" (must be preserved)
-                              // undefined means "connection not configured" (default to [])
-                              // [] means "none selected"
-                              // Using ?? would convert null to [], losing the "all selected" state
-                              dialogState.selectedId &&
-                              formData[dialogState.selectedId]
-                                ? formData[dialogState.selectedId]!.prompts
-                                : []
-                            }
-                            onToggle={(name, allPromptNames) =>
-                              dialogState.selectedId &&
-                              togglePrompt(
-                                dialogState.selectedId,
-                                name,
-                                allPromptNames,
-                              )
-                            }
-                            onToggleAll={() =>
-                              dialogState.selectedId &&
-                              toggleAllPrompts(dialogState.selectedId)
-                            }
-                          />
-                        </Suspense>
-                      </ErrorBoundary>
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              </>
+              <ConnectionDetailsContent
+                key={dialogState.selectedId}
+                currentConnection={currentConnection}
+                activeTab={dialogState.activeTab}
+                selectedId={dialogState.selectedId}
+                formData={formData}
+                toggleTool={toggleTool}
+                toggleResource={toggleResource}
+                togglePrompt={togglePrompt}
+                toggleAllTools={toggleAllTools}
+                toggleAllResources={toggleAllResources}
+                toggleAllPrompts={toggleAllPrompts}
+                onTabChange={(value) =>
+                  dispatch({
+                    type: "SET_ACTIVE_TAB",
+                    payload: value,
+                  })
+                }
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
                 Select a connection to view its tools, resources, and prompts
