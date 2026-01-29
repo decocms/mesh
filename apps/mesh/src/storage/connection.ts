@@ -102,23 +102,10 @@ export class ConnectionStorage implements ConnectionStoragePort {
     organizationId?: string,
   ): Promise<ConnectionEntity | null> {
     // Handle Decopilot ID - return Decopilot connection entity
-    if (isDecopilot(id)) {
-      if (!organizationId) {
-        // Extract orgId from decopilot_{orgId} pattern
-        const orgIdMatch = id.match(/^decopilot_(.+)$/);
-        if (!orgIdMatch) {
-          throw new Error(
-            `Invalid Decopilot ID format: ${id}. Expected decopilot_{orgId}`,
-          );
-        }
-        organizationId = orgIdMatch[1];
-      }
-      if (!organizationId) {
-        throw new Error(
-          `Organization ID is required for Decopilot connection: ${id}`,
-        );
-      }
-      return getWellKnownDecopilotConnection(organizationId);
+    const decopilotOrgId = isDecopilot(id);
+    if (decopilotOrgId) {
+      const resolvedOrgId = organizationId ?? decopilotOrgId;
+      return getWellKnownDecopilotConnection(resolvedOrgId);
     }
 
     let query = this.db

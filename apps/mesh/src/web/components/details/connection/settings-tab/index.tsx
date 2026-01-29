@@ -623,24 +623,20 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   return (
     <>
       <ViewActions>
+        <Button
+          onClick={handleSave}
+          disabled={!hasAnyChanges || isUpdating}
+          size="sm"
+          className="h-7"
+        >
+          {isUpdating && <Loading01 size={16} className="mr-2 animate-spin" />}
+          Save Changes
+        </Button>
         <PinToSidebarButton
           title={`${connection.title}: Settings`}
           url={url}
           icon={connection.icon ?? "settings"}
         />
-        {hasAnyChanges && (
-          <Button
-            onClick={handleSave}
-            disabled={isUpdating}
-            size="sm"
-            className="h-7"
-          >
-            {isUpdating && (
-              <Loading01 size={16} className="mr-2 animate-spin" />
-            )}
-            Save Changes
-          </Button>
-        )}
       </ViewActions>
 
       <div className="flex h-full">

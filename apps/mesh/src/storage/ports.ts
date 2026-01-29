@@ -129,7 +129,7 @@ export interface VirtualMCPStoragePort {
     data: VirtualMCPCreateData,
   ): Promise<VirtualMCPEntity>;
   findById(
-    id: string | null,
+    id: string,
     organizationId?: string,
   ): Promise<VirtualMCPEntity | null>;
   list(organizationId: string): Promise<VirtualMCPEntity[]>;

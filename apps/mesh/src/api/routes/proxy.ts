@@ -221,6 +221,12 @@ export function toServerClient(client: MCPProxyClient): ServerClient {
   };
 }
 
+const DEFAULT_SERVER_CAPABILITIES = {
+  tools: {},
+  resources: {},
+  prompts: {},
+};
+
 async function createMCPProxyDoNotUseDirectly(
   connectionIdOrConnection: string | ConnectionEntity,
   ctx: MeshContext,
@@ -558,6 +564,11 @@ async function createMCPProxyDoNotUseDirectly(
     params: GetPromptRequest["params"],
   ): Promise<GetPromptResult> => client.getPrompt(params);
 
+  // We are currently exposing the underlying client with tools/resources/prompts capabilities
+  // This way we have an uniform API the frontend can leverage from.
+  // Frontend connects to mesh. It's garatee that all mcps have the necessary capabilities. The UI works consistently.
+  const getServerCapabilities = () => DEFAULT_SERVER_CAPABILITIES;
+
   return {
     callTool: (params: CallToolRequest["params"]) =>
       executeToolCall({
@@ -570,7 +581,7 @@ async function createMCPProxyDoNotUseDirectly(
     listResourceTemplates,
     listPrompts,
     getPrompt,
-    getServerCapabilities: () => client.getServerCapabilities(),
+    getServerCapabilities,
     getInstructions: () => client.getInstructions(),
     close: () => client.close(),
     callStreamableTool,
@@ -653,16 +664,7 @@ app.all("/:connectionId", async (c) => {
       await server.connect(transport);
 
       // Handle request and cleanup
-      try {
-        return await transport.handleRequest(c.req.raw);
-      } finally {
-        // Close the transport
-        try {
-          await transport.close?.();
-        } catch {
-          // Ignore close errors - transport may already be closed
-        }
-      }
+      return await transport.handleRequest(c.req.raw);
     } catch (error) {
       // Check if this is an auth error - if so, return appropriate 401
       // Note: This only applies to HTTP connections

@@ -11,8 +11,8 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import type { MeshContext } from "@/core/mesh-context";
+import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
-
 import { Metadata } from "@/web/components/chat/types";
 import {
   DECOPILOT_BASE_PROMPT,
@@ -24,7 +24,6 @@ import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createModelProviderFromProxy } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
 import { generateTitleInBackground } from "./title-generator";
-import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 
 // ============================================================================
 // Request Validation
@@ -72,9 +71,8 @@ app.post("/:org/decopilot/stream", async (c) => {
     const threadId = thread_id ?? memoryConfig?.threadId;
 
     // Create virtual MCP client and model provider in parallel
-    // For virtual MCPs (agents), we need to use storage.virtualMcps.findById which handles null
     const [virtualMcp, modelClient] = await Promise.all([
-      ctx.storage.virtualMcps.findById(agent.id ?? null, organization.id),
+      ctx.storage.virtualMcps.findById(agent.id, organization.id),
       ctx.createMCPProxy(model.connectionId),
     ]);
 

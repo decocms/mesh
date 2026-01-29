@@ -62,8 +62,12 @@ export async function handleVirtualMcpRequest(
             .then((org) => org?.id)
         : null;
 
+    if (!virtualMcpId) {
+      return c.json({ error: "Agent ID or organization ID is required" }, 400);
+    }
+
     const virtualMcp = await ctx.storage.virtualMcps.findById(
-      virtualMcpId ?? null,
+      virtualMcpId,
       organizationId ?? undefined,
     );
 
@@ -85,6 +89,7 @@ export async function handleVirtualMcpRequest(
     }
 
     // Set connection context (Virtual MCPs are now connections)
+    // Note: virtualMcp.id can be null for Decopilot agent, but connectionId should be set for routing
     ctx.connectionId = virtualMcp.id ?? undefined;
 
     // Set organization context
@@ -130,7 +135,6 @@ export async function handleVirtualMcpRequest(
     // Connect server to transport
     await server.connect(transport);
 
-    // Handle the incoming MCP message
     return await transport.handleRequest(c.req.raw);
   } catch (error) {
     const err = error as Error;

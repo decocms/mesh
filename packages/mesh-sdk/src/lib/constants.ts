@@ -237,7 +237,7 @@ export function getWellKnownDecopilotVirtualMCP(
   organizationId: string,
 ): VirtualMCPEntity {
   return {
-    id: `decopilot_${organizationId}`,
+    id: getDecopilotId(organizationId),
     organization_id: organizationId,
     title: "Decopilot",
     description: "Default agent that aggregates all organization connections",
@@ -252,14 +252,30 @@ export function getWellKnownDecopilotVirtualMCP(
 }
 
 /**
+ * Decopilot ID prefix constant
+ */
+const DECOPILOT_PREFIX = "decopilot_";
+
+/**
  * Check if a connection or virtual MCP ID is the Decopilot agent.
  *
  * @param id - Connection or virtual MCP ID to check
- * @returns true if the ID matches the Decopilot pattern (decopilot_{orgId})
+ * @returns The organization ID if the ID matches the Decopilot pattern (decopilot_{orgId}), null otherwise
  */
-export function isDecopilot(id: string | null | undefined): boolean {
-  if (!id) return false;
-  return id.startsWith("decopilot_");
+export function isDecopilot(id: string | null | undefined): string | null {
+  if (!id) return null;
+  if (!id.startsWith(DECOPILOT_PREFIX)) return null;
+  return id.slice(DECOPILOT_PREFIX.length) || null;
+}
+
+/**
+ * Get the Decopilot ID for a given organization.
+ *
+ * @param organizationId - Organization ID
+ * @returns The Decopilot ID in the format `decopilot_{organizationId}`
+ */
+export function getDecopilotId(organizationId: string): string {
+  return `${DECOPILOT_PREFIX}${organizationId}`;
 }
 
 export function getWellKnownDecopilotConnection(

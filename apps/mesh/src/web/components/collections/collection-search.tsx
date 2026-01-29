@@ -10,6 +10,7 @@ interface CollectionSearchProps {
   className?: string;
   /** Show a subtle loading spinner when searching in background */
   isSearching?: boolean;
+  disabled?: boolean;
 }
 
 /**
@@ -29,12 +30,18 @@ export function CollectionSearch({
   onKeyDown,
   className,
   isSearching,
+  disabled,
 }: CollectionSearchProps) {
   return (
     <div
       className={cn("shrink-0 w-full border-b border-border h-12", className)}
     >
-      <label className="flex items-center gap-2.5 h-12 px-4 cursor-text">
+      <label
+        className={cn(
+          "flex items-center gap-2.5 h-12 px-4",
+          disabled ? "cursor-not-allowed opacity-50" : "cursor-text",
+        )}
+      >
         {isSearching ? (
           <Loading01
             size={16}
@@ -48,6 +55,7 @@ export function CollectionSearch({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
+          disabled={disabled}
           className="flex-1 border-0 shadow-none focus-visible:ring-0 px-0 h-full text-sm placeholder:text-muted-foreground/50 bg-transparent"
         />
       </label>

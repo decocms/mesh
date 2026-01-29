@@ -1,5 +1,6 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import Placeholder from "@tiptap/extension-placeholder";
+import type { EditorView } from "@tiptap/pm/view";
 import {
   EditorContent,
   EditorContext,
@@ -7,11 +8,10 @@ import {
   useEditor,
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import type { EditorView } from "@tiptap/pm/view";
 import type { Ref } from "react";
-import { useEffect, useImperativeHandle, useRef } from "react";
-import type { VirtualMCPInfo } from "../select-virtual-mcp";
+import { Suspense, useEffect, useImperativeHandle, useRef } from "react";
 import type { SelectedModelState } from "../select-model";
+import type { VirtualMCPInfo } from "../select-virtual-mcp";
 import type { Metadata } from "../types.ts";
 import { FileNode, FileUploader } from "./file";
 import { MentionNode } from "./mention";
@@ -184,10 +184,14 @@ export function TiptapInput({
       />
 
       {/* Render prompts dropdown menu (includes dialog) */}
-      <PromptsMention editor={editor} virtualMcpId={virtualMcpId} />
+      <Suspense fallback={null}>
+        <PromptsMention editor={editor} virtualMcpId={virtualMcpId} />
+      </Suspense>
 
       {/* Render resources dropdown menu */}
-      <ResourcesMention editor={editor} virtualMcpId={virtualMcpId} />
+      <Suspense fallback={null}>
+        <ResourcesMention editor={editor} virtualMcpId={virtualMcpId} />
+      </Suspense>
 
       {/* Render file upload handler */}
       <FileUploader editor={editor} selectedModel={selectedModel} />
