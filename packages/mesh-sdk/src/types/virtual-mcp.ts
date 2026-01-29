@@ -72,8 +72,9 @@ export const VirtualMCPEntitySchema = z.object({
   // Normalize null/undefined to { instructions: null } for consistent form tracking
   metadata: z
     .object({
-      instructions: z.string().nullish().describe("MCP server instructions"),
+      instructions: z.string().nullable().describe("MCP server instructions"),
     })
+    .loose()
     .describe("Additional metadata including MCP server instructions"),
   // Nested connections
   connections: z
