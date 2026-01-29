@@ -746,7 +746,7 @@ const MonitoringLogsTable = Object.assign(MonitoringLogsTableContent, {
 // ============================================================================
 
 interface MonitoringDashboardContentProps {
-  tab: "logs" | "analytics";
+  tab: "logs" | "analytics" | "dashboards";
   dateRange: DateRange;
   displayDateRange: DateRange;
   connectionIds: string[];

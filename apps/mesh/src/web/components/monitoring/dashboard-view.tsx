@@ -210,13 +210,6 @@ function DashboardViewContent({
     orgId: org.id,
   });
 
-  // Parse time range
-  const fromResult = expressionToDate(timeRange.from);
-  const toResult = expressionToDate(timeRange.to);
-  const startDate =
-    fromResult.date || new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const endDate = toResult.date || new Date();
-
   // Fetch dashboard details
   const { data: dashboard } = useSuspenseQuery({
     queryKey: KEYS.monitoringDashboardDetails(locator, dashboardId),
@@ -231,15 +224,25 @@ function DashboardViewContent({
   });
 
   // Fetch query results
+  // IMPORTANT: Use expression strings in the key (not computed dates) to avoid
+  // infinite re-fetching when expressions like "now" are used
   const { data: queryData, isRefetching } = useSuspenseQuery({
     queryKey: KEYS.monitoringDashboardQuery(
       locator,
       dashboardId,
-      startDate.toISOString(),
-      endDate.toISOString(),
+      timeRange.from,
+      timeRange.to,
     ),
     queryFn: async () => {
       if (!client) throw new Error("MCP client not available");
+
+      // Parse time range inside queryFn (not during render)
+      const fromResult = expressionToDate(timeRange.from);
+      const toResult = expressionToDate(timeRange.to);
+      const startDate =
+        fromResult.date || new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const endDate = toResult.date || new Date();
+
       const result = (await client.callTool({
         name: "MONITORING_DASHBOARD_QUERY",
         arguments: {
