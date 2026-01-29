@@ -11,7 +11,7 @@ export const USER_SANDBOX_GET: ServerPluginToolDefinition = {
   name: "USER_SANDBOX_GET",
   description: "Get a user sandbox by ID",
   inputSchema: UserSandboxGetInputSchema,
-  outputSchema: UserSandboxEntitySchema.nullable(),
+  outputSchema: UserSandboxEntitySchema,
 
   handler: async (input, ctx) => {
     const typedInput = input as z.infer<typeof UserSandboxGetInputSchema>;
