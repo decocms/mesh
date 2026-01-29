@@ -459,7 +459,7 @@ export function ConnectionSettingsFormUI({
                     <FormControl>
                       <Input
                         {...field}
-                        className="h-auto text-lg! font-medium leading-7 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                        className="h-auto py-0.5 text-lg! font-medium leading-7 px-2 -mx-2 border-transparent hover:bg-input/25 focus:border-input bg-transparent transition-all"
                         placeholder="Connection Name"
                       />
                     </FormControl>
@@ -477,7 +477,7 @@ export function ConnectionSettingsFormUI({
                     <Input
                       {...field}
                       value={field.value || ""}
-                      className="h-auto text-base text-muted-foreground leading-6 px-0 border-transparent hover:border-input focus:border-input bg-transparent transition-all"
+                      className="h-auto py-0.5 text-base text-muted-foreground leading-6 px-2 -mx-2 border-transparent hover:bg-input/25 focus:border-input bg-transparent transition-all"
                       placeholder="Add a description..."
                     />
                   </FormControl>

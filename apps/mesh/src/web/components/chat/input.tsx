@@ -1,5 +1,4 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { isDecopilot, useProjectContext } from "@decocms/mesh-sdk";
 import { getAgentColor } from "@/web/utils/agent-color";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -8,34 +7,40 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { isDecopilot, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   AlertTriangle,
   ArrowUp,
   ChevronDown,
-  Users03,
   Edit01,
   Stop,
+  Users03,
   XCircle,
 } from "@untitledui/icons";
 import type { FormEvent } from "react";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent
+} from "react";
 import { useChat } from "./context";
-import { isTiptapDocEmpty } from "./tiptap/utils";
 import { ChatHighlight } from "./index";
+import { ModelSelector } from "./select-model";
 import {
   VirtualMCPPopoverContent,
   VirtualMCPSelector,
   type VirtualMCPInfo,
 } from "./select-virtual-mcp";
-import { ModelSelector } from "./select-model";
+import { FileUploadButton } from "./tiptap/file";
 import {
-  TiptapProvider,
   TiptapInput,
+  TiptapProvider,
   type TiptapInputHandle,
 } from "./tiptap/input";
-import { FileUploadButton } from "./tiptap/file";
+import { isTiptapDocEmpty } from "./tiptap/utils";
 import { UsageStats } from "./usage-stats";
 
 // ============================================================================
@@ -302,16 +307,14 @@ export function ChatInput() {
         )}
       >
         {/* Virtual MCP Badge Header */}
-        {selectedVirtualMcp &&
-          selectedVirtualMcp.id &&
-          !isDecopilot(selectedVirtualMcp.id) && (
-            <VirtualMCPBadge
-              virtualMcpId={selectedVirtualMcp.id}
-              virtualMcps={virtualMcps}
-              onVirtualMcpChange={setVirtualMcpId}
-              disabled={isStreaming}
-            />
-          )}
+        {selectedVirtualMcp?.id && !isDecopilot(selectedVirtualMcp.id) && (
+          <VirtualMCPBadge
+            onVirtualMcpChange={setVirtualMcpId}
+            virtualMcpId={selectedVirtualMcp.id}
+            virtualMcps={virtualMcps}
+            disabled={isStreaming}
+          />
+        )}
 
         {/* Inner container with the input */}
         <div className="p-0.5">
