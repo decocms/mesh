@@ -68,13 +68,7 @@ export function createServerFromClient(
   options?: ServerFromClientOptions,
 ): McpServer {
   // Get capabilities from client if not provided
-  const clientCapabilities = client.getServerCapabilities();
-  const capabilities = options?.capabilities ??
-    clientCapabilities ?? {
-      tools: {},
-      resources: {},
-      prompts: {},
-    };
+  const capabilities = options?.capabilities ?? client.getServerCapabilities();
 
   // Get instructions from client if not provided
   const instructions = options?.instructions ?? client.getInstructions();
@@ -97,7 +91,7 @@ export function createServerFromClient(
   );
 
   // Resources handlers (only if capabilities include resources)
-  if (capabilities.resources) {
+  if (capabilities?.resources) {
     server.server.setRequestHandler(ListResourcesRequestSchema, () =>
       client.listResources(),
     );
@@ -112,7 +106,7 @@ export function createServerFromClient(
   }
 
   // Prompts handlers (only if capabilities include prompts)
-  if (capabilities.prompts) {
+  if (capabilities?.prompts) {
     server.server.setRequestHandler(ListPromptsRequestSchema, () =>
       client.listPrompts(),
     );

@@ -1,3 +1,5 @@
+import { Chat } from "@/web/components/chat/index";
+import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { InboxButton } from "@/web/components/inbox-button";
 import { MeshSidebar } from "@/web/components/mesh-sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
@@ -8,14 +10,8 @@ import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
-import {
-  ProjectContextProvider,
-  ProjectContextProviderProps,
-} from "@decocms/mesh-sdk";
 import { AppTopbar } from "@deco/ui/components/app-topbar.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { MessageChatSquare } from "@untitledui/icons";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -28,11 +24,16 @@ import {
   SidebarProvider,
 } from "@deco/ui/components/sidebar.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
+import {
+  ORG_ADMIN_PROJECT_SLUG,
+  ProjectContextProvider,
+  ProjectContextProviderProps,
+} from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
-import { PropsWithChildren, Suspense, useTransition, useRef } from "react";
+import { MessageChatSquare } from "@untitledui/icons";
+import { PropsWithChildren, Suspense, useRef, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
-import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 
 function Topbar({
   showSidebarToggle = false,
@@ -145,19 +146,22 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
  */
 function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
   const [chatOpen] = useDecoChatOpen();
-  const shouldShowChat = chatOpen && !disableChat;
 
   return (
     <ResizablePanelGroup direction="horizontal">
       <ResizablePanel className="bg-background">
         <Outlet />
       </ResizablePanel>
-      {!disableChat && <ResizableHandle withHandle={shouldShowChat} />}
-      <PersistentResizablePanel
-        className={cn(shouldShowChat ? "max-w-none" : "max-w-0")}
-      >
-        <ChatPanel />
-      </PersistentResizablePanel>
+      {!disableChat && (
+        <>
+          <ResizableHandle withHandle={chatOpen} />
+          <PersistentResizablePanel
+            className={cn(chatOpen ? "max-w-none" : "max-w-0")}
+          >
+            <ChatPanel />
+          </PersistentResizablePanel>
+        </>
+      )}
     </ResizablePanelGroup>
   );
 }
@@ -215,20 +219,22 @@ function ShellLayoutContent() {
             showDecoChat
             disableDecoChat={isHomeRoute}
           />
-          <SidebarLayout
-            className="flex-1 bg-sidebar"
-            style={
-              {
-                "--sidebar-width": "13rem",
-                "--sidebar-width-mobile": "11rem",
-              } as Record<string, string>
-            }
-          >
-            <MeshSidebar />
-            <SidebarInset className="pt-12">
-              <ChatPanels disableChat={isHomeRoute} />
-            </SidebarInset>
-          </SidebarLayout>
+          <Chat.Provider>
+            <SidebarLayout
+              className="flex-1 bg-sidebar"
+              style={
+                {
+                  "--sidebar-width": "13rem",
+                  "--sidebar-width-mobile": "11rem",
+                } as Record<string, string>
+              }
+            >
+              <MeshSidebar />
+              <SidebarInset className="pt-12">
+                <ChatPanels disableChat={isHomeRoute} />
+              </SidebarInset>
+            </SidebarLayout>
+          </Chat.Provider>
         </div>
       </PersistentSidebarProvider>
     </ProjectContextProvider>

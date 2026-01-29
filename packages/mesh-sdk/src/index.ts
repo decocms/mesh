@@ -144,4 +144,5 @@ export {
   getWellKnownDecopilotConnection,
   // Decopilot utilities
   isDecopilot,
+  getDecopilotId,
 } from "./lib/constants";

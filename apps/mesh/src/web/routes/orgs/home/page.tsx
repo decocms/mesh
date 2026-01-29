@@ -282,9 +282,7 @@ export default function OrgHomePage() {
       )}
     >
       <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.Provider>
-          <HomeContent />
-        </Chat.Provider>
+        <HomeContent />
       </Suspense>
     </ErrorBoundary>
   );
