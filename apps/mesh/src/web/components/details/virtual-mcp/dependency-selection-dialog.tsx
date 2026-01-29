@@ -454,7 +454,11 @@ function ConnectionDetailsContent({
   activeTab: "tools" | "resources" | "prompts";
   selectedId: string;
   formData: FormData;
-  toggleTool: (connId: string, toolName: string, allToolNames: string[]) => void;
+  toggleTool: (
+    connId: string,
+    toolName: string,
+    allToolNames: string[],
+  ) => void;
   toggleResource: (
     connId: string,
     name: string,
@@ -505,11 +509,7 @@ function ConnectionDetailsContent({
           className="flex-1 flex flex-col overflow-hidden"
         >
           <TabsList variant="underline" className="shrink-0 px-6">
-            <TabsTrigger
-              value="tools"
-              variant="underline"
-              className="gap-2"
-            >
+            <TabsTrigger value="tools" variant="underline" className="gap-2">
               <Tool01 size={16} />
               Tools
             </TabsTrigger>
@@ -521,20 +521,13 @@ function ConnectionDetailsContent({
               <CubeOutline size={16} />
               Resources
             </TabsTrigger>
-            <TabsTrigger
-              value="prompts"
-              variant="underline"
-              className="gap-2"
-            >
+            <TabsTrigger value="prompts" variant="underline" className="gap-2">
               <File02 size={16} />
               Prompts
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent
-            value="tools"
-            className="flex-1 overflow-hidden mt-0"
-          >
+          <TabsContent value="tools" className="flex-1 overflow-hidden mt-0">
             <ErrorBoundary
               fallback={createMethodNotFoundFallback(
                 "Tools not supported by this server",
@@ -589,10 +582,7 @@ function ConnectionDetailsContent({
             </ErrorBoundary>
           </TabsContent>
 
-          <TabsContent
-            value="prompts"
-            className="flex-1 overflow-hidden mt-0"
-          >
+          <TabsContent value="prompts" className="flex-1 overflow-hidden mt-0">
             <ErrorBoundary
               fallback={createMethodNotFoundFallback(
                 "Prompts not supported by this server",
