@@ -371,6 +371,6 @@ export class PassthroughClient extends Client {
    * Get server instructions from virtual MCP metadata
    */
   override getInstructions(): string | undefined {
-    return this.options.virtualMcp.metadata?.instructions;
+    return this.options.virtualMcp.metadata?.instructions ?? undefined;
   }
 }

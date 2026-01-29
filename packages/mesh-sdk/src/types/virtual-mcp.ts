@@ -35,6 +35,17 @@ const VirtualMCPConnectionSchema = z.object({
 export type VirtualMCPConnection = z.infer<typeof VirtualMCPConnectionSchema>;
 
 /**
+ * Virtual MCP connection schema for input (Create/Update) - fields can be optional
+ */
+const VirtualMCPConnectionInputSchema = VirtualMCPConnectionSchema.extend({
+  selected_tools: VirtualMCPConnectionSchema.shape.selected_tools.optional(),
+  selected_resources:
+    VirtualMCPConnectionSchema.shape.selected_resources.optional(),
+  selected_prompts:
+    VirtualMCPConnectionSchema.shape.selected_prompts.optional(),
+});
+
+/**
  * Virtual MCP entity schema - single source of truth
  * Compliant with collections binding pattern
  */
@@ -58,12 +69,12 @@ export const VirtualMCPEntitySchema = z.object({
     .describe("Organization ID this virtual MCP belongs to"),
   status: z.enum(["active", "inactive"]).describe("Current status"),
   // Metadata (stored in connections.metadata)
+  // Normalize null/undefined to { instructions: null } for consistent form tracking
   metadata: z
     .object({
-      instructions: z.string().optional().describe("MCP server instructions"),
+      instructions: z.string().nullable().describe("MCP server instructions"),
     })
-    .nullable()
-    .optional()
+    .loose()
     .describe("Additional metadata including MCP server instructions"),
   // Nested connections
   connections: z
@@ -94,38 +105,17 @@ export const VirtualMCPCreateDataSchema = z.object({
     .describe("Initial status"),
   metadata: z
     .object({
-      instructions: z.string().optional().describe("MCP server instructions"),
+      instructions: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("MCP server instructions"),
     })
     .nullable()
     .optional()
     .describe("Additional metadata including MCP server instructions"),
   connections: z
-    .array(
-      z.object({
-        connection_id: z.string().describe("Connection ID"),
-        selected_tools: z
-          .array(z.string())
-          .nullable()
-          .optional()
-          .describe(
-            "Selected tool names (null/undefined = all tools or full exclusion)",
-          ),
-        selected_resources: z
-          .array(z.string())
-          .nullable()
-          .optional()
-          .describe(
-            "Selected resource URIs or patterns with * and ** wildcards (null/undefined = all resources)",
-          ),
-        selected_prompts: z
-          .array(z.string())
-          .nullable()
-          .optional()
-          .describe(
-            "Selected prompt names (null/undefined = all prompts or full exclusion)",
-          ),
-      }),
-    )
+    .array(VirtualMCPConnectionInputSchema)
     .describe(
       "Connections to include/exclude (can be empty for exclusion mode)",
     ),
@@ -151,38 +141,17 @@ export const VirtualMCPUpdateDataSchema = z.object({
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
   metadata: z
     .object({
-      instructions: z.string().optional().describe("MCP server instructions"),
+      instructions: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("MCP server instructions"),
     })
     .nullable()
     .optional()
     .describe("Additional metadata including MCP server instructions"),
   connections: z
-    .array(
-      z.object({
-        connection_id: z.string().describe("Connection ID"),
-        selected_tools: z
-          .array(z.string())
-          .nullable()
-          .optional()
-          .describe(
-            "Selected tool names (null/undefined = all tools included)",
-          ),
-        selected_resources: z
-          .array(z.string())
-          .nullable()
-          .optional()
-          .describe(
-            "Selected resource URIs or patterns with * and ** wildcards (null/undefined = all resources included)",
-          ),
-        selected_prompts: z
-          .array(z.string())
-          .nullable()
-          .optional()
-          .describe(
-            "Selected prompt names (null/undefined = all prompts included)",
-          ),
-      }),
-    )
+    .array(VirtualMCPConnectionInputSchema)
     .optional()
     .describe("New connections (replaces existing)"),
 });

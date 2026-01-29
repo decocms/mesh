@@ -1,6 +1,8 @@
 // Shared utility functions for handling tool/resource/prompt selections
 // across virtual MCP and agent components
 
+import type { VirtualMCPConnection } from "@decocms/mesh-sdk/types";
+
 /**
  * SelectionValue state meanings:
  * - null: all items explicitly selected (e.g., clicked "Select All")
@@ -21,12 +23,11 @@ export interface ConnectionFormValue {
   prompts: SelectionValue;
 }
 
-export interface ConnectionSelection {
-  connection_id: string;
-  selected_tools: string[] | null;
-  selected_resources: string[] | null;
-  selected_prompts: string[] | null;
-}
+/**
+ * Connection selection type - re-exported from SDK for convenience
+ * @deprecated Use VirtualMCPConnection from @decocms/mesh-sdk/types instead
+ */
+export type ConnectionSelection = VirtualMCPConnection;
 
 /**
  * Get the count of selected items

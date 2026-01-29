@@ -1,7 +1,4 @@
-import {
-  VirtualMCPEntitySchema,
-  type VirtualMCPEntity,
-} from "@/tools/virtual/schema";
+import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { useChat } from "@/web/components/chat/context";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -50,24 +47,12 @@ import {
 } from "@untitledui/icons";
 import { Suspense, useEffect, useReducer } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
 import { ViewActions, ViewLayout } from "../layout";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { getSelectionCount } from "./selection-utils";
+import type { VirtualMCPConnection } from "@decocms/mesh-sdk/types";
+import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
-
-// Form validation schema
-const VirtualMcpFormSchema = VirtualMCPEntitySchema.pick({
-  title: true,
-  description: true,
-  status: true,
-  metadata: true,
-  connections: true,
-}).extend({
-  title: z.string().min(1, "Name is required").max(255),
-});
-
-type VirtualMcpFormData = z.infer<typeof VirtualMcpFormSchema>;
 
 type DialogState = {
   shareDialogOpen: boolean;
@@ -136,11 +121,10 @@ function SkillItem({
   selected_resources,
   selected_prompts,
   onClick,
-}: {
-  connection_id: string;
-  selected_tools: string[] | null;
-  selected_resources: string[] | null;
-  selected_prompts: string[] | null;
+}: Pick<
+  VirtualMCPConnection,
+  "connection_id" | "selected_tools" | "selected_resources" | "selected_prompts"
+> & {
   onClick: () => void;
 }) {
   const connection = useConnection(connection_id);
