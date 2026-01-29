@@ -31,7 +31,7 @@ import {
   Tool01,
 } from "@untitledui/icons";
 import { Suspense, useReducer } from "react";
-import type { UseFormReturn } from "react-hook-form";
+import type { VirtualMCPConnection } from "@decocms/mesh-sdk/types";
 import {
   ALL_ITEMS_SELECTED,
   getSelectionSummaryFromRecord,
@@ -39,6 +39,7 @@ import {
   type ConnectionFormValue,
   type SelectionValue,
 } from "./selection-utils";
+import type { VirtualMcpFormReturn } from "./types";
 
 // Form types
 type FormData = Record<string, ConnectionFormValue>;
@@ -430,35 +431,12 @@ interface DependencySelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedId: string | null;
-  form: UseFormReturn<{
-    title: string;
-    description: string | null;
-    status: "active" | "inactive";
-    metadata: { instructions?: string | null };
-    connections: Array<{
-      connection_id: string;
-      selected_tools: string[] | null;
-      selected_resources: string[] | null;
-      selected_prompts: string[] | null;
-    }>;
-  }>;
-  connections: Array<{
-    connection_id: string;
-    selected_tools: string[] | null;
-    selected_resources: string[] | null;
-    selected_prompts: string[] | null;
-  }>;
+  form: VirtualMcpFormReturn;
+  connections: VirtualMCPConnection[];
 }
 
 // Helper: Convert connections array to Record for easier manipulation
-function connectionsToRecord(
-  connections: Array<{
-    connection_id: string;
-    selected_tools: string[] | null;
-    selected_resources: string[] | null;
-    selected_prompts: string[] | null;
-  }>,
-): FormData {
+function connectionsToRecord(connections: VirtualMCPConnection[]): FormData {
   const formData: FormData = {};
   for (const conn of connections) {
     formData[conn.connection_id] = {
@@ -471,12 +449,7 @@ function connectionsToRecord(
 }
 
 // Helper: Convert Record back to connections array
-function recordToConnections(formData: FormData): Array<{
-  connection_id: string;
-  selected_tools: string[] | null;
-  selected_resources: string[] | null;
-  selected_prompts: string[] | null;
-}> {
+function recordToConnections(formData: FormData): VirtualMCPConnection[] {
   return Object.entries(formData).map(([connId, sel]) => ({
     connection_id: connId,
     selected_tools: sel.tools,
