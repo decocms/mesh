@@ -1,17 +1,233 @@
 /**
  * Database Migration Runner
  *
- * Runs Kysely migrations to create/update database schema
+ * Runs migrations in three phases:
+ * 1. Better Auth migrations (if not skipped)
+ * 2. Core Kysely migrations (numbered 001-xxx)
+ * 3. Plugin migrations (separate tracking table, runs after core)
+ *
+ * Plugin migrations use a separate `plugin_migrations` table to avoid
+ * ordering conflicts with Kysely's strict alphabetical ordering.
  */
 
-import { Migrator, type Kysely } from "kysely";
+import { Migrator, sql, type Kysely } from "kysely";
 import migrations from "../../migrations";
 import { runSeed, type SeedName } from "../../migrations/seeds";
 import { migrateBetterAuth } from "../auth/migrate";
+import { collectPluginMigrations } from "../core/plugin-loader";
 import { closeDatabase, getDb, type MeshDatabase } from "./index";
 import type { Database } from "../storage/types";
 
 export { runSeed, type SeedName };
+
+// ============================================================================
+// Plugin Migration System
+// ============================================================================
+
+/**
+ * Check if a table exists in the database
+ */
+async function tableExists(
+  db: Kysely<Database>,
+  dbType: "sqlite" | "postgres",
+  tableName: string,
+): Promise<boolean> {
+  const query =
+    dbType === "sqlite"
+      ? sql<{ name: string }>`
+          SELECT name FROM sqlite_master 
+          WHERE type='table' AND name=${tableName}
+        `
+      : sql<{ table_name: string }>`
+          SELECT table_name FROM information_schema.tables 
+          WHERE table_schema='public' AND table_name=${tableName}
+        `;
+
+  const result = await query.execute(db);
+  return result.rows.length > 0;
+}
+
+/**
+ * Create the plugin_migrations table if it doesn't exist
+ */
+async function ensurePluginMigrationsTable(
+  db: Kysely<Database>,
+  dbType: "sqlite" | "postgres",
+): Promise<void> {
+  if (await tableExists(db, dbType, "plugin_migrations")) {
+    return;
+  }
+
+  console.log("📦 Creating plugin_migrations table...");
+  await sql`
+    CREATE TABLE plugin_migrations (
+      plugin_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      PRIMARY KEY (plugin_id, name)
+    )
+  `.execute(db);
+}
+
+/**
+ * Migrate existing plugin migrations from kysely_migration to plugin_migrations.
+ *
+ * This handles databases that had plugin migrations in Kysely's table with
+ * various naming schemes (e.g., "pluginId/001-xxx", "~plugins/pluginId/001-xxx",
+ * "999~plugins/pluginId/001-xxx").
+ */
+async function migrateExistingPluginRecords(
+  db: Kysely<Database>,
+  dbType: "sqlite" | "postgres",
+): Promise<void> {
+  if (!(await tableExists(db, dbType, "kysely_migration"))) {
+    return; // Fresh database
+  }
+
+  // Find plugin migrations in kysely_migration table using various old formats
+  const oldRecords = await sql<{ name: string; timestamp: string }>`
+    SELECT name, timestamp FROM kysely_migration 
+    WHERE name LIKE '%/%'
+  `.execute(db);
+
+  if (oldRecords.rows.length === 0) {
+    return; // No plugin migrations to migrate
+  }
+
+  console.log(
+    `🔄 Migrating ${oldRecords.rows.length} plugin migration record(s) to new system...`,
+  );
+
+  for (const { name, timestamp } of oldRecords.rows) {
+    // Extract plugin ID and migration name from various formats:
+    // - "pluginId/001-xxx"
+    // - "~plugins/pluginId/001-xxx"
+    // - "999~plugins/pluginId/001-xxx"
+    let pluginPart = name;
+
+    // Strip any prefix before ~plugins/
+    if (name.includes("~plugins/")) {
+      pluginPart = name.substring(
+        name.indexOf("~plugins/") + "~plugins/".length,
+      );
+    }
+
+    // Now pluginPart is "pluginId/migrationName"
+    const slashIndex = pluginPart.indexOf("/");
+    if (slashIndex === -1) {
+      console.warn(`   ⚠️  Skipping malformed plugin migration: ${name}`);
+      continue;
+    }
+
+    const pluginId = pluginPart.substring(0, slashIndex);
+    const migrationName = pluginPart.substring(slashIndex + 1);
+
+    // Insert into new table (ignore if already exists)
+    try {
+      await sql`
+        INSERT INTO plugin_migrations (plugin_id, name, timestamp)
+        VALUES (${pluginId}, ${migrationName}, ${timestamp})
+      `.execute(db);
+      console.log(`   Migrated: ${pluginId}/${migrationName}`);
+    } catch {
+      // Already exists, skip
+    }
+
+    // Remove from kysely_migration
+    await sql`
+      DELETE FROM kysely_migration WHERE name = ${name}
+    `.execute(db);
+  }
+}
+
+/**
+ * Run pending plugin migrations.
+ *
+ * Each plugin's migrations are tracked independently in the plugin_migrations table.
+ * Migrations are run in order within each plugin (sorted by name).
+ */
+async function runPluginMigrations(
+  db: Kysely<Database>,
+  dbType: "sqlite" | "postgres",
+): Promise<void> {
+  const pluginMigrations = collectPluginMigrations();
+
+  if (pluginMigrations.length === 0) {
+    return; // No plugins with migrations
+  }
+
+  // Ensure the plugin_migrations table exists
+  await ensurePluginMigrationsTable(db, dbType);
+
+  // Migrate any existing records from the old system
+  await migrateExistingPluginRecords(db, dbType);
+
+  // Get already executed migrations
+  const executed = await sql<{ plugin_id: string; name: string }>`
+    SELECT plugin_id, name FROM plugin_migrations
+  `.execute(db);
+  const executedSet = new Set(
+    executed.rows.map((r) => `${r.plugin_id}/${r.name}`),
+  );
+
+  // Group migrations by plugin
+  const migrationsByPlugin = new Map<
+    string,
+    Array<{
+      name: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      up: (db: any) => Promise<void>;
+    }>
+  >();
+
+  for (const { pluginId, migration } of pluginMigrations) {
+    if (!migrationsByPlugin.has(pluginId)) {
+      migrationsByPlugin.set(pluginId, []);
+    }
+    migrationsByPlugin.get(pluginId)!.push({
+      name: migration.name,
+      up: migration.up,
+    });
+  }
+
+  // Run pending migrations for each plugin
+  let totalPending = 0;
+
+  for (const [pluginId, pluginMigrationList] of migrationsByPlugin) {
+    // Sort by name to ensure consistent order
+    pluginMigrationList.sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const migration of pluginMigrationList) {
+      const key = `${pluginId}/${migration.name}`;
+      if (executedSet.has(key)) {
+        continue; // Already executed
+      }
+
+      if (totalPending === 0) {
+        console.log("🔌 Running plugin migrations...");
+      }
+      totalPending++;
+
+      console.log(`   Running: ${key}`);
+      await migration.up(db);
+
+      // Record as executed
+      const timestamp = new Date().toISOString();
+      await sql`
+        INSERT INTO plugin_migrations (plugin_id, name, timestamp)
+        VALUES (${pluginId}, ${migration.name}, ${timestamp})
+      `.execute(db);
+    }
+  }
+
+  if (totalPending > 0) {
+    console.log(`✅ ${totalPending} plugin migration(s) completed`);
+  }
+}
+
+// ============================================================================
+// Core Migration System
+// ============================================================================
 
 /**
  * Migration options
@@ -112,9 +328,13 @@ export async function migrateToLatest<T = unknown>(
   };
 
   try {
+    // Phase 1: Run core Kysely migrations
     console.log("📊 Running Kysely migrations...");
     await runKyselyMigrations(database.db);
-    console.log("🎉 All Kysely migrations completed successfully");
+    console.log("🎉 Core migrations completed successfully");
+
+    // Phase 2: Run plugin migrations (separate tracking)
+    await runPluginMigrations(database.db, database.type);
 
     // Run seed if specified
     let seedResult: T | undefined;
