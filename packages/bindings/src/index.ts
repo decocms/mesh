@@ -134,3 +134,13 @@ export type {
   ListDirectoryInput,
   ListDirectoryOutput,
 } from "./well-known/local-fs";
+
+// Re-export MCP Filesystem binding (official @modelcontextprotocol/server-filesystem compatible)
+export { MCP_FILESYSTEM_BINDING } from "./well-known/mcp-filesystem";
+export type {
+  McpFilesystemBinding,
+  ReadFileInput,
+  ReadFileOutput,
+  WriteFileInput,
+  WriteFileOutput,
+} from "./well-known/mcp-filesystem";

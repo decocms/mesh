@@ -12,6 +12,8 @@ import {
   PERPLEXITY_BINDING,
   FIRECRAWL_BINDING,
   LOCAL_FS_BINDING,
+  OBJECT_STORAGE_BINDING,
+  MCP_FILESYSTEM_BINDING,
 } from "@decocms/bindings";
 import { convertJsonSchemaToZod } from "zod-from-json-schema";
 import type { ConnectionEntity } from "@/tools/connection/schema";
@@ -35,6 +37,12 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
   "@DECO/FIRECRAWL": FIRECRAWL_BINDING,
   "LOCAL-FS": LOCAL_FS_BINDING,
   "@DECO/LOCAL-FS": LOCAL_FS_BINDING,
+  "OBJECT-STORAGE": OBJECT_STORAGE_BINDING,
+  "@DECO/OBJECT-STORAGE": OBJECT_STORAGE_BINDING,
+  // Official MCP filesystem compatible binding
+  "MCP-FILESYSTEM": MCP_FILESYSTEM_BINDING,
+  "@DECO/MCP-FILESYSTEM": MCP_FILESYSTEM_BINDING,
+  FILESYSTEM: MCP_FILESYSTEM_BINDING,
 };
 
 /**
