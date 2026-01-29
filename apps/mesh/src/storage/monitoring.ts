@@ -9,8 +9,40 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { RegexRedactor } from "../monitoring/redactor";
 import type { MonitoringStorage, PropertyFilters } from "./ports";
-import type { Database, MonitoringLog } from "./types";
+import type { AggregationFunction, Database, MonitoringLog } from "./types";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+
+// ============================================================================
+// Aggregation Types
+// ============================================================================
+
+export interface AggregationParams {
+  organizationId: string;
+  path: string; // JSONPath to extract, e.g., "$.usage.total_tokens"
+  from: "input" | "output";
+  aggregation: AggregationFunction;
+  groupBy?: string; // Optional JSONPath for grouping
+  interval?: string; // For timeseries: "1h", "1d"
+  filters?: {
+    connectionIds?: string[];
+    virtualMcpIds?: string[];
+    toolNames?: string[];
+    startDate?: Date;
+    endDate?: Date;
+  };
+}
+
+export interface AggregationResult {
+  value: number | null;
+  groups?: Array<{
+    key: string;
+    value: number;
+  }>;
+  timeseries?: Array<{
+    timestamp: string;
+    value: number;
+  }>;
+}
 
 // ============================================================================
 // Monitoring Storage Implementation
@@ -249,6 +281,225 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       errorRate: totalCalls > 0 ? errorCount / totalCalls : 0,
       avgDurationMs,
     };
+  }
+
+  // ============================================================================
+  // Aggregation Methods (for Dashboard Widgets)
+  // ============================================================================
+
+  /**
+   * Extract JSON value using JSONPath and aggregate across logs.
+   * Supports groupBy for breakdown and interval for timeseries.
+   */
+  async aggregate(params: AggregationParams): Promise<AggregationResult> {
+    const {
+      organizationId,
+      path,
+      from,
+      aggregation,
+      groupBy,
+      interval,
+      filters,
+    } = params;
+
+    // Determine which column to extract from
+    const sourceColumn = from === "input" ? "input" : "output";
+
+    // Build base query with filters
+    let baseQuery = this.db
+      .selectFrom("monitoring_logs")
+      .where("organization_id", "=", organizationId);
+
+    // Apply additional filters
+    if (filters?.connectionIds && filters.connectionIds.length > 0) {
+      baseQuery = baseQuery.where("connection_id", "in", filters.connectionIds);
+    }
+    if (filters?.virtualMcpIds && filters.virtualMcpIds.length > 0) {
+      baseQuery = baseQuery.where(
+        "virtual_mcp_id",
+        "in",
+        filters.virtualMcpIds,
+      );
+    }
+    if (filters?.toolNames && filters.toolNames.length > 0) {
+      baseQuery = baseQuery.where("tool_name", "in", filters.toolNames);
+    }
+    if (filters?.startDate) {
+      baseQuery = baseQuery.where(
+        "timestamp",
+        ">=",
+        filters.startDate.toISOString() as never,
+      );
+    }
+    if (filters?.endDate) {
+      baseQuery = baseQuery.where(
+        "timestamp",
+        "<=",
+        filters.endDate.toISOString() as never,
+      );
+    }
+
+    // Get JSON extraction expression
+    const valueExpr = this.jsonExtractPath(sourceColumn, path);
+
+    // If we have groupBy, return grouped results
+    if (groupBy) {
+      const groupExpr = this.jsonExtractPath(sourceColumn, groupBy);
+      const rows = await baseQuery
+        .select([
+          sql<string>`${groupExpr}`.as("group_key"),
+          this.aggregationExpression(aggregation, valueExpr).as("agg_value"),
+        ])
+        .groupBy(sql`${groupExpr}`)
+        .execute();
+
+      return {
+        value: null,
+        groups: rows
+          .filter((row) => row.group_key !== null)
+          .map((row) => ({
+            key: String(row.group_key),
+            value: Number(row.agg_value) || 0,
+          })),
+      };
+    }
+
+    // If we have interval, return timeseries
+    if (interval) {
+      const bucketExpr = this.timeBucketExpression(interval);
+      const rows = await baseQuery
+        .select([
+          bucketExpr.as("time_bucket"),
+          this.aggregationExpression(aggregation, valueExpr).as("agg_value"),
+        ])
+        .groupBy(sql`time_bucket`)
+        .orderBy(sql`time_bucket`)
+        .execute();
+
+      return {
+        value: null,
+        timeseries: rows.map((row) => ({
+          timestamp: String(row.time_bucket),
+          value: Number(row.agg_value) || 0,
+        })),
+      };
+    }
+
+    // Simple aggregation without grouping
+    const result = await baseQuery
+      .select([
+        this.aggregationExpression(aggregation, valueExpr).as("agg_value"),
+      ])
+      .executeTakeFirst();
+
+    return {
+      value: result ? Number(result.agg_value) || 0 : null,
+    };
+  }
+
+  /**
+   * Get JSON extraction SQL for a JSONPath.
+   * Converts "$.usage.total_tokens" to appropriate SQL.
+   */
+  private jsonExtractPath(column: string, jsonPath: string) {
+    if (this.databaseType === "postgres") {
+      // PostgreSQL: use jsonb extraction operators
+      // For nested paths like $.usage.total_tokens, use #>>
+      const pathParts = jsonPath.replace(/^\$\.?/, "").split(".");
+      const pathArray = `{${pathParts.join(",")}}`;
+      return sql`(${sql.ref(column)}::jsonb #>> ${pathArray})::numeric`;
+    }
+    // SQLite: use json_extract with JSON path
+    return sql`CAST(json_extract(${sql.ref(column)}, ${jsonPath}) AS REAL)`;
+  }
+
+  /**
+   * Get aggregation SQL expression.
+   */
+  private aggregationExpression(
+    fn: AggregationFunction,
+    valueExpr: ReturnType<typeof sql>,
+  ) {
+    switch (fn) {
+      case "sum":
+        return sql`COALESCE(SUM(${valueExpr}), 0)`;
+      case "avg":
+        return sql`COALESCE(AVG(${valueExpr}), 0)`;
+      case "min":
+        return sql`MIN(${valueExpr})`;
+      case "max":
+        return sql`MAX(${valueExpr})`;
+      case "count":
+        return sql`COUNT(${valueExpr})`;
+      case "last":
+        // For "last", we'd need a subquery - simplified to max for now
+        return sql`MAX(${valueExpr})`;
+      default:
+        return sql`SUM(${valueExpr})`;
+    }
+  }
+
+  /**
+   * Get time bucket expression for timeseries grouping.
+   */
+  private timeBucketExpression(interval: string) {
+    // Parse interval like "1h", "1d", "15m"
+    const match = interval.match(/^(\d+)([mhd])$/);
+    if (!match) {
+      throw new Error(
+        `Invalid interval format: ${interval}. Use format like "1h", "1d", "15m"`,
+      );
+    }
+
+    const [, amountStr, unit] = match;
+    if (!amountStr || !unit) {
+      throw new Error(`Invalid interval format: ${interval}`);
+    }
+    const amount = parseInt(amountStr, 10);
+
+    if (this.databaseType === "postgres") {
+      // PostgreSQL: use date_trunc or custom bucketing
+      let truncUnit: string;
+      switch (unit) {
+        case "m":
+          truncUnit = "minute";
+          break;
+        case "h":
+          truncUnit = "hour";
+          break;
+        case "d":
+          truncUnit = "day";
+          break;
+        default:
+          truncUnit = "hour";
+      }
+      if (amount === 1) {
+        return sql`date_trunc(${truncUnit}, timestamp::timestamp)`;
+      }
+      // For non-1 intervals, use epoch-based bucketing
+      const secondsPerUnit = unit === "m" ? 60 : unit === "h" ? 3600 : 86400;
+      const bucketSeconds = amount * secondsPerUnit;
+      return sql`to_timestamp(floor(extract(epoch from timestamp::timestamp) / ${bucketSeconds}) * ${bucketSeconds})`;
+    }
+
+    // SQLite: use strftime for bucketing
+    switch (unit) {
+      case "m":
+        if (amount === 1) {
+          return sql`strftime('%Y-%m-%d %H:%M:00', timestamp)`;
+        }
+        // For multi-minute buckets, round down
+        return sql`strftime('%Y-%m-%d %H:', timestamp) || printf('%02d', (cast(strftime('%M', timestamp) as integer) / ${amount}) * ${amount}) || ':00'`;
+      case "h":
+        if (amount === 1) {
+          return sql`strftime('%Y-%m-%d %H:00:00', timestamp)`;
+        }
+        return sql`strftime('%Y-%m-%d ', timestamp) || printf('%02d', (cast(strftime('%H', timestamp) as integer) / ${amount}) * ${amount}) || ':00:00'`;
+      case "d":
+        return sql`strftime('%Y-%m-%d 00:00:00', timestamp)`;
+      default:
+        return sql`strftime('%Y-%m-%d %H:00:00', timestamp)`;
+    }
   }
 
   // ============================================================================

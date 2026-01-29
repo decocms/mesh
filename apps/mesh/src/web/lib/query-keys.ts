@@ -143,6 +143,25 @@ export const KEYS = {
   monitoringLogsInfinite: (locator: string, paramsKey: string) =>
     ["monitoring", "logs-infinite", locator, paramsKey] as const,
 
+  // Monitoring dashboards
+  monitoringDashboards: (locator: ProjectLocator) =>
+    ["monitoring", "dashboards", locator] as const,
+  monitoringDashboardDetails: (locator: ProjectLocator, dashboardId: string) =>
+    ["monitoring", "dashboard", locator, dashboardId] as const,
+  monitoringDashboardQuery: (
+    locator: ProjectLocator,
+    dashboardId: string,
+    startDate: string,
+    endDate: string,
+  ) =>
+    [
+      "monitoringDashboardQuery",
+      locator,
+      dashboardId,
+      startDate,
+      endDate,
+    ] as const,
+
   // Virtual MCP prompts (for ice breakers in chat)
   // null virtualMcpId means default virtual MCP
   virtualMcpPrompts: (virtualMcpId: string | null, orgId: string) =>
