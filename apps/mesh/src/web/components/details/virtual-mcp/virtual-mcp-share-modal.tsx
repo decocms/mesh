@@ -205,9 +205,9 @@ export function VirtualMCPShareModal({
   };
 
   // Build URL with mode query parameter
-  // Virtual MCPs (agents) are accessed via the virtual-mcp endpoint
+  // Virtual MCPs (agents) are accessed via the /mcp/:connectionId endpoint
   const virtualMcpUrl = new URL(
-    `/mcp/virtual-mcp/${virtualMcp.id}`,
+    `/mcp/${virtualMcp.id}`,
     window.location.origin,
   );
   virtualMcpUrl.searchParams.set("mode", mode);

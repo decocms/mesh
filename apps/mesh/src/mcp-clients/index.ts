@@ -9,7 +9,7 @@ import type { MeshContext } from "@/core/mesh-context";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { createOutboundClient } from "./outbound";
-import { createVirtualClient } from "./virtual-mcp";
+import { createVirtualClient, type ToolSelectionStrategy } from "./virtual-mcp";
 
 /**
  * Create an MCP client from a connection entity
@@ -20,16 +20,17 @@ import { createVirtualClient } from "./virtual-mcp";
  *
  * @param connection - Connection entity from database
  * @param ctx - Mesh context for creating clients
- * @param superUser - Whether to use superuser mode for background processes
+ * @param options - Options object with superUser flag and optional strategy
  * @returns Client instance connected to the MCP server
  */
 export async function createClient(
   connection: ConnectionEntity,
   ctx: MeshContext,
-  superUser = false,
+  options: { superUser?: boolean; strategy?: ToolSelectionStrategy } = {},
 ): Promise<Client> {
+  const { superUser = false, strategy = "passthrough" } = options;
   if (connection.connection_type === "VIRTUAL") {
-    return createVirtualClient(connection, ctx);
+    return createVirtualClient(connection, ctx, strategy);
   }
   return createOutboundClient(connection, ctx, superUser);
 }

@@ -18,12 +18,9 @@ This is how you create a curated endpoint for clients without exposing every too
 
 ## Endpoint
 
-- `POST /mcp/gateway/:gatewayId`
+- `POST /mcp/:connectionId` (where `connectionId` is the Agent's connection ID)
 
-You can also omit `:gatewayId` and rely on the organization's default Agent by providing one of these headers:
-
-- `x-org-id`, or
-- `x-org-slug`
+Agents are virtual MCPs stored as connections with `connection_type = 'VIRTUAL'`. They use the same endpoint pattern as regular connections. Supports `?mode=` query parameter for tool selection strategy (passthrough, smart_tool_selection, code_execution).
 
 ## Selection modes
 
