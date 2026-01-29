@@ -434,7 +434,7 @@ interface DependencySelectionDialogProps {
     title: string;
     description: string | null;
     status: "active" | "inactive";
-    metadata?: { instructions?: string } | null;
+    metadata: { instructions?: string | null };
     connections: Array<{
       connection_id: string;
       selected_tools: string[] | null;
