@@ -676,7 +676,7 @@ function MonitoringLogsTableContent({
       <div className="flex-1 overflow-auto">
         <div className="min-w-[600px] md:min-w-0 bg-background">
           <Table className="w-full border-collapse">
-            <TableHeader className="sticky top-0 z-20 border-b-0 bg-muted">
+            <TableHeader className="border-b-0 z-20">
               <TableRow className="h-9 hover:bg-transparent border-b border-border">
                 {/* Expand Icon Column */}
                 <TableHead className="w-10 md:w-12 px-2 md:px-4" />

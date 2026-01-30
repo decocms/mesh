@@ -1404,64 +1404,66 @@ function OrgMcpsContent() {
             )}
           </div>
         ) : (
-          <CollectionTableWrapper
-            columns={columns}
-            data={connections}
-            isLoading={false}
-            sortKey={listState.sortKey}
-            sortDirection={listState.sortDirection}
-            onSort={listState.handleSort}
-            onRowClick={(connection) =>
-              navigate({
-                to: "/$org/mcps/$connectionId",
-                params: { org: org.slug, connectionId: connection.id },
-              })
-            }
-            emptyState={
-              listState.search ? (
-                <EmptyState
-                  image={
-                    <img
-                      src="/emptystate-mcp.svg"
-                      alt=""
-                      width={400}
-                      height={178}
-                      aria-hidden="true"
-                    />
-                  }
-                  title="No Connections found"
-                  description={`No Connections match "${listState.search}"`}
-                />
-              ) : (
-                <EmptyState
-                  image={
-                    <img
-                      src="/emptystate-mcp.svg"
-                      alt=""
-                      width={400}
-                      height={178}
-                      aria-hidden="true"
-                    />
-                  }
-                  title="No Connections found"
-                  description="Create a connection to get started."
-                  actions={
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        navigate({
-                          to: "/$org/store",
-                          params: { org: org.slug },
-                        })
-                      }
-                    >
-                      Browse Store
-                    </Button>
-                  }
-                />
-              )
-            }
-          />
+          <div className="h-full flex flex-col overflow-hidden">
+            <CollectionTableWrapper
+              columns={columns}
+              data={connections}
+              isLoading={false}
+              sortKey={listState.sortKey}
+              sortDirection={listState.sortDirection}
+              onSort={listState.handleSort}
+              onRowClick={(connection) =>
+                navigate({
+                  to: "/$org/mcps/$connectionId",
+                  params: { org: org.slug, connectionId: connection.id },
+                })
+              }
+              emptyState={
+                listState.search ? (
+                  <EmptyState
+                    image={
+                      <img
+                        src="/emptystate-mcp.svg"
+                        alt=""
+                        width={400}
+                        height={178}
+                        aria-hidden="true"
+                      />
+                    }
+                    title="No Connections found"
+                    description={`No Connections match "${listState.search}"`}
+                  />
+                ) : (
+                  <EmptyState
+                    image={
+                      <img
+                        src="/emptystate-mcp.svg"
+                        alt=""
+                        width={400}
+                        height={178}
+                        aria-hidden="true"
+                      />
+                    }
+                    title="No Connections found"
+                    description="Create a connection to get started."
+                    actions={
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          navigate({
+                            to: "/$org/store",
+                            params: { org: org.slug },
+                          })
+                        }
+                      >
+                        Browse Store
+                      </Button>
+                    }
+                  />
+                )
+              }
+            />
+          </div>
         )}
       </Page.Content>
     </Page>

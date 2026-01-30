@@ -68,80 +68,77 @@ export function CollectionTable<T = Record<string, unknown>>({
   }
 
   return (
-    <div className="w-full bg-background min-w-0">
-      <UITable className="w-full border-collapse">
-        <TableHeader className="sticky top-0 z-10 border-b-0 bg-muted">
-          <TableRow className="h-9 hover:bg-transparent border-b border-border">
-            {columns.map((col, idx) => {
-              const isActiveSort = sortKey === col.id;
-              return (
-                <TableHead
-                  key={col.id}
-                  className={cn(
-                    getHeaderClass(idx, columns.length),
-                    "group transition-colors select-none",
-                    col.sortable && "hover:bg-accent cursor-pointer",
-                    col.rowClassName,
-                    col.cellClassName,
-                  )}
-                  onClick={
-                    col.sortable && onSort ? () => onSort(col.id) : undefined
-                  }
-                >
-                  <span className="flex items-center gap-1">
-                    {col.header}
-                    {col.sortable && renderSortIcon(col.id, isActiveSort)}
-                  </span>
-                </TableHead>
-              );
-            })}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((row, i) => {
-            const extraClasses = rowClassName?.(row);
-
+    <UITable className="w-full border-collapse">
+      <TableHeader className="border-b-0">
+        <TableRow className="h-9 hover:bg-transparent border-b border-border">
+          {columns.map((col, idx) => {
+            const isActiveSort = sortKey === col.id;
             return (
-              <TableRow
-                key={i}
-                data-row-index={i}
+              <TableHead
+                key={col.id}
                 className={cn(
-                  "group/data-row transition-colors border-b-0 hover:bg-accent/50",
-                  onRowClick ? "cursor-pointer" : "",
-                  extraClasses,
+                  getHeaderClass(idx, columns.length),
+                  "group transition-colors select-none",
+                  col.sortable && "hover:bg-accent cursor-pointer",
+                  col.rowClassName,
+                  col.cellClassName,
                 )}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                onClick={
+                  col.sortable && onSort ? () => onSort(col.id) : undefined
+                }
               >
-                {columns.map((col) => (
-                  <TableCell
-                    key={col.id}
-                    className={cn(
-                      "px-5 py-4 h-16 align-middle text-sm text-foreground",
-                      col.cellClassName,
-                      col.wrap ? "whitespace-normal wrap-break-word" : "",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        col.wrap ? "w-full" : "min-w-0 w-full",
-                        !col.wrap &&
-                          "truncate overflow-hidden whitespace-nowrap",
-                      )}
-                    >
-                      {col.render
-                        ? col.render(row)
-                        : col.accessor
-                          ? col.accessor(row)
-                          : null}
-                    </div>
-                  </TableCell>
-                ))}
-              </TableRow>
+                <span className="flex items-center gap-1">
+                  {col.header}
+                  {col.sortable && renderSortIcon(col.id, isActiveSort)}
+                </span>
+              </TableHead>
             );
           })}
-        </TableBody>
-      </UITable>
-    </div>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data.map((row, i) => {
+          const extraClasses = rowClassName?.(row);
+
+          return (
+            <TableRow
+              key={i}
+              data-row-index={i}
+              className={cn(
+                "group/data-row transition-colors border-b-0 hover:bg-accent/50",
+                onRowClick ? "cursor-pointer" : "",
+                extraClasses,
+              )}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+            >
+              {columns.map((col) => (
+                <TableCell
+                  key={col.id}
+                  className={cn(
+                    "px-5 py-4 h-16 align-middle text-sm text-foreground",
+                    col.cellClassName,
+                    col.wrap ? "whitespace-normal wrap-break-word" : "",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      col.wrap ? "w-full" : "min-w-0 w-full",
+                      !col.wrap && "truncate overflow-hidden whitespace-nowrap",
+                    )}
+                  >
+                    {col.render
+                      ? col.render(row)
+                      : col.accessor
+                        ? col.accessor(row)
+                        : null}
+                  </div>
+                </TableCell>
+              ))}
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </UITable>
   );
 }
 

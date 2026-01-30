@@ -379,39 +379,41 @@ function OrgAgentsContent() {
             )}
           </div>
         ) : (
-          <CollectionTableWrapper
-            columns={columns}
-            data={virtualMcps}
-            isLoading={false}
-            sortKey={listState.sortKey}
-            sortDirection={listState.sortDirection}
-            onSort={listState.handleSort}
-            onRowClick={(virtualMcp) =>
-              navigate({
-                to: "/$org/agents/$agentId",
-                params: { org: org.slug, agentId: virtualMcp.id },
-              })
-            }
-            emptyState={
-              listState.search ? (
-                <EmptyState
-                  image={
-                    <Users03 size={36} className="text-muted-foreground" />
-                  }
-                  title="No agents found"
-                  description={`No agents match "${listState.search}"`}
-                />
-              ) : (
-                <EmptyState
-                  image={
-                    <Users03 size={36} className="text-muted-foreground" />
-                  }
-                  title="No agents yet"
-                  description="Create an agent to aggregate tools from multiple Connections."
-                />
-              )
-            }
-          />
+          <div className="h-full flex flex-col overflow-hidden">
+            <CollectionTableWrapper
+              columns={columns}
+              data={virtualMcps}
+              isLoading={false}
+              sortKey={listState.sortKey}
+              sortDirection={listState.sortDirection}
+              onSort={listState.handleSort}
+              onRowClick={(virtualMcp) =>
+                navigate({
+                  to: "/$org/agents/$agentId",
+                  params: { org: org.slug, agentId: virtualMcp.id },
+                })
+              }
+              emptyState={
+                listState.search ? (
+                  <EmptyState
+                    image={
+                      <Users03 size={36} className="text-muted-foreground" />
+                    }
+                    title="No agents found"
+                    description={`No agents match "${listState.search}"`}
+                  />
+                ) : (
+                  <EmptyState
+                    image={
+                      <Users03 size={36} className="text-muted-foreground" />
+                    }
+                    title="No agents yet"
+                    description="Create an agent to aggregate tools from multiple Connections."
+                  />
+                )
+              }
+            />
+          </div>
         )}
       </Page.Content>
     </Page>
