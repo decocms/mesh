@@ -1,6 +1,12 @@
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
+import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { Page } from "@/web/components/page";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
@@ -885,7 +891,7 @@ function OrgMcpsContent() {
   );
 
   return (
-    <CollectionPage>
+    <Page>
       <Dialog
         open={isCreating || dialogState.mode === "editing"}
         onOpenChange={handleDialogClose}
@@ -1252,22 +1258,34 @@ function OrgMcpsContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Collection Header */}
-      <CollectionHeader
-        title="Connections"
-        viewMode={listState.viewMode}
-        onViewModeChange={listState.setViewMode}
-        sortKey={listState.sortKey}
-        sortDirection={listState.sortDirection}
-        onSort={listState.handleSort}
-        sortOptions={[
-          { id: "title", label: "Name" },
-          { id: "description", label: "Description" },
-          { id: "connection_type", label: "Type" },
-          { id: "status", label: "Status" },
-        ]}
-        ctaButton={ctaButton}
-      />
+      {/* Page Header */}
+      <Page.Header>
+        <Page.Header.Left>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>Connections</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </Page.Header.Left>
+        <Page.Header.Right>
+          <CollectionDisplayButton
+            viewMode={listState.viewMode}
+            onViewModeChange={listState.setViewMode}
+            sortKey={listState.sortKey}
+            sortDirection={listState.sortDirection}
+            onSort={listState.handleSort}
+            sortOptions={[
+              { id: "title", label: "Name" },
+              { id: "description", label: "Description" },
+              { id: "connection_type", label: "Type" },
+              { id: "status", label: "Status" },
+            ]}
+          />
+          {ctaButton}
+        </Page.Header.Right>
+      </Page.Header>
 
       {/* Search Bar */}
       <CollectionSearch
@@ -1283,168 +1301,172 @@ function OrgMcpsContent() {
       />
 
       {/* Content: Cards or Table */}
-      {listState.viewMode === "cards" ? (
-        <div className="flex-1 overflow-auto p-5">
-          {connections.length === 0 ? (
-            <EmptyState
-              image={
-                <img
-                  src="/emptystate-mcp.svg"
-                  alt=""
-                  width={336}
-                  height={320}
-                  aria-hidden="true"
-                />
-              }
-              title={
-                listState.search
-                  ? "No Connections found"
-                  : "No Connections found"
-              }
-              description={
-                listState.search
-                  ? `No Connections match "${listState.search}"`
-                  : "Create a connection to get started."
-              }
-              actions={
-                !listState.search && (
-                  <Button
-                    variant="outline"
+      <Page.Content>
+        {listState.viewMode === "cards" ? (
+          <div className="flex-1 overflow-auto p-5">
+            {connections.length === 0 ? (
+              <EmptyState
+                image={
+                  <img
+                    src="/emptystate-mcp.svg"
+                    alt=""
+                    width={336}
+                    height={320}
+                    aria-hidden="true"
+                  />
+                }
+                title={
+                  listState.search
+                    ? "No Connections found"
+                    : "No Connections found"
+                }
+                description={
+                  listState.search
+                    ? `No Connections match "${listState.search}"`
+                    : "Create a connection to get started."
+                }
+                actions={
+                  !listState.search && (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        navigate({
+                          to: "/$org/store",
+                          params: { org: org.slug },
+                        })
+                      }
+                    >
+                      Browse Store
+                    </Button>
+                  )
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {connections.map((connection) => (
+                  <ConnectionCard
+                    key={connection.id}
+                    connection={connection}
+                    fallbackIcon={<Container />}
                     onClick={() =>
                       navigate({
-                        to: "/$org/store",
-                        params: { org: org.slug },
+                        to: "/$org/mcps/$connectionId",
+                        params: { org: org.slug, connectionId: connection.id },
                       })
                     }
-                  >
-                    Browse Store
-                  </Button>
+                    headerActions={
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <DotsVertical size={20} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate({
+                                to: "/$org/mcps/$connectionId",
+                                params: {
+                                  org: org.slug,
+                                  connectionId: connection.id,
+                                },
+                              });
+                            }}
+                          >
+                            <Eye size={16} />
+                            Open
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dispatch({ type: "delete", connection });
+                            }}
+                          >
+                            <Trash01 size={16} />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="h-full flex flex-col overflow-hidden">
+            <CollectionTableWrapper
+              columns={columns}
+              data={connections}
+              isLoading={false}
+              sortKey={listState.sortKey}
+              sortDirection={listState.sortDirection}
+              onSort={listState.handleSort}
+              onRowClick={(connection) =>
+                navigate({
+                  to: "/$org/mcps/$connectionId",
+                  params: { org: org.slug, connectionId: connection.id },
+                })
+              }
+              emptyState={
+                listState.search ? (
+                  <EmptyState
+                    image={
+                      <img
+                        src="/emptystate-mcp.svg"
+                        alt=""
+                        width={400}
+                        height={178}
+                        aria-hidden="true"
+                      />
+                    }
+                    title="No Connections found"
+                    description={`No Connections match "${listState.search}"`}
+                  />
+                ) : (
+                  <EmptyState
+                    image={
+                      <img
+                        src="/emptystate-mcp.svg"
+                        alt=""
+                        width={400}
+                        height={178}
+                        aria-hidden="true"
+                      />
+                    }
+                    title="No Connections found"
+                    description="Create a connection to get started."
+                    actions={
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          navigate({
+                            to: "/$org/store",
+                            params: { org: org.slug },
+                          })
+                        }
+                      >
+                        Browse Store
+                      </Button>
+                    }
+                  />
                 )
               }
             />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {connections.map((connection) => (
-                <ConnectionCard
-                  key={connection.id}
-                  connection={connection}
-                  fallbackIcon={<Container />}
-                  onClick={() =>
-                    navigate({
-                      to: "/$org/mcps/$connectionId",
-                      params: { org: org.slug, connectionId: connection.id },
-                    })
-                  }
-                  headerActions={
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <DotsVertical size={20} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate({
-                              to: "/$org/mcps/$connectionId",
-                              params: {
-                                org: org.slug,
-                                connectionId: connection.id,
-                              },
-                            });
-                          }}
-                        >
-                          <Eye size={16} />
-                          Open
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            dispatch({ type: "delete", connection });
-                          }}
-                        >
-                          <Trash01 size={16} />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <CollectionTableWrapper
-          columns={columns}
-          data={connections}
-          isLoading={false}
-          sortKey={listState.sortKey}
-          sortDirection={listState.sortDirection}
-          onSort={listState.handleSort}
-          onRowClick={(connection) =>
-            navigate({
-              to: "/$org/mcps/$connectionId",
-              params: { org: org.slug, connectionId: connection.id },
-            })
-          }
-          emptyState={
-            listState.search ? (
-              <EmptyState
-                image={
-                  <img
-                    src="/emptystate-mcp.svg"
-                    alt=""
-                    width={400}
-                    height={178}
-                    aria-hidden="true"
-                  />
-                }
-                title="No Connections found"
-                description={`No Connections match "${listState.search}"`}
-              />
-            ) : (
-              <EmptyState
-                image={
-                  <img
-                    src="/emptystate-mcp.svg"
-                    alt=""
-                    width={400}
-                    height={178}
-                    aria-hidden="true"
-                  />
-                }
-                title="No Connections found"
-                description="Create a connection to get started."
-                actions={
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      navigate({
-                        to: "/$org/store",
-                        params: { org: org.slug },
-                      })
-                    }
-                  >
-                    Browse Store
-                  </Button>
-                }
-              />
-            )
-          }
-        />
-      )}
-    </CollectionPage>
+          </div>
+        )}
+      </Page.Content>
+    </Page>
   );
 }
 

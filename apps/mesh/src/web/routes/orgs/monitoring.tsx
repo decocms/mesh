@@ -4,9 +4,14 @@
  * Displays tool call monitoring logs and statistics for the organization.
  */
 
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { Page } from "@/web/components/page";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { MONITORING_CONFIG } from "@/web/components/monitoring/config.ts";
@@ -74,6 +79,13 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import { AnalyticsTab } from "@/web/components/monitoring/analytics-tab.tsx";
+import {
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@deco/ui/components/table.tsx";
 
 // ============================================================================
 // Stats Component
@@ -663,65 +675,67 @@ function MonitoringLogsTableContent({
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex-1 overflow-auto">
         <div className="min-w-[600px] md:min-w-0 bg-background">
-          {/* Table Header */}
-          <div className="flex items-center h-9 border-b border-border sticky top-0 z-20 before:absolute before:inset-0 before:bg-background before:z-[-1] after:absolute after:inset-0 after:bg-muted/30 after:z-[-1]">
-            {/* Expand Icon Column */}
-            <div className="w-10 md:w-12 px-2 md:px-4" />
+          <Table className="w-full border-collapse">
+            <TableHeader className="border-b-0 z-20">
+              <TableRow className="h-9 hover:bg-transparent border-b border-border">
+                {/* Expand Icon Column */}
+                <TableHead className="w-10 md:w-12 px-2 md:px-4" />
 
-            {/* Connection Icon Column */}
-            <div className="w-5" />
+                {/* Connection Icon Column */}
+                <TableHead className="w-5" />
 
-            {/* Tool/Connection Column */}
-            <div className="flex-1 pr-2 md:pr-4 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              Tool / Connection
-            </div>
+                {/* Tool/Connection Column */}
+                <TableHead className="pr-2 md:pr-4 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                  Tool / Connection
+                </TableHead>
 
-            {/* Agent Column */}
-            <div className="w-24 md:w-32 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              Agent
-            </div>
+                {/* Agent Column */}
+                <TableHead className="w-24 md:w-32 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                  Agent
+                </TableHead>
 
-            {/* User name Column */}
-            <div className="w-20 md:w-24 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              User Name
-            </div>
+                {/* User name Column */}
+                <TableHead className="w-20 md:w-24 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                  User Name
+                </TableHead>
 
-            {/* Date Column */}
-            <div className="w-20 md:w-24 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              Date
-            </div>
+                {/* Date Column */}
+                <TableHead className="w-20 md:w-24 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                  Date
+                </TableHead>
 
-            {/* Time Column */}
-            <div className="w-20 md:w-28 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-              Time
-            </div>
+                {/* Time Column */}
+                <TableHead className="w-20 md:w-28 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                  Time
+                </TableHead>
 
-            {/* Duration Column */}
-            <div className="w-16 md:w-20 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide text-right">
-              Latency
-            </div>
+                {/* Duration Column */}
+                <TableHead className="w-16 md:w-20 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide text-right">
+                  Latency
+                </TableHead>
 
-            {/* Status Column */}
-            <div className="w-16 md:w-24 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide text-right pr-3 md:pr-5">
-              Status
-            </div>
-          </div>
-
-          {/* Table Body */}
-          {filteredLogs.map((log, index) => (
-            <LogRow
-              key={log.id}
-              log={log}
-              isFirst={index === 0}
-              isExpanded={expandedRows.has(log.id)}
-              connection={connectionMap.get(log.connectionId)}
-              virtualMcpName={log.virtualMcpName ?? ""}
-              onToggle={() => toggleRow(log)}
-              lastLogRef={
-                index === filteredLogs.length - 1 ? lastLogRef : undefined
-              }
-            />
-          ))}
+                {/* Status Column */}
+                <TableHead className="w-16 md:w-24 px-2 md:px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide text-right pr-3 md:pr-5">
+                  Status
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredLogs.map((log, index) => (
+                <LogRow
+                  key={log.id}
+                  log={log}
+                  isExpanded={expandedRows.has(log.id)}
+                  connection={connectionMap.get(log.connectionId)}
+                  virtualMcpName={log.virtualMcpName ?? ""}
+                  onToggle={() => toggleRow(log)}
+                  lastLogRef={
+                    index === filteredLogs.length - 1 ? lastLogRef : undefined
+                  }
+                />
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </div>
     </div>
@@ -870,10 +884,18 @@ function MonitoringDashboardContent({
 
   return (
     <>
-      <CollectionHeader
-        title="Monitoring"
-        ctaButton={
-          tab === "logs" ? (
+      <Page.Header>
+        <Page.Header.Left>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>Monitoring</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </Page.Header.Left>
+        {tab === "logs" && (
+          <Page.Header.Right>
             <div className="flex flex-wrap items-center gap-2">
               {/* Filters Button */}
               <FiltersPopover
@@ -914,9 +936,9 @@ function MonitoringDashboardContent({
                 onChange={onTimeRangeChange}
               />
             </div>
-          ) : null
-        }
-      />
+          </Page.Header.Right>
+        )}
+      </Page.Header>
 
       {/* Tabs */}
       <div className="px-5 py-3 border-b border-border">
@@ -1046,35 +1068,51 @@ export default function MonitoringDashboard() {
     activeFiltersCount += validPropertyFilters.length;
 
   return (
-    <CollectionPage>
+    <Page>
       <ErrorBoundary
         fallback={
           <>
-            <CollectionHeader title="Monitoring" />
-            <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-[0.5px] bg-border shrink-0 border-b">
-                <div className="bg-background p-5 text-sm text-muted-foreground">
-                  Failed to load monitoring data
+            <Page.Header>
+              <Page.Header.Left>
+                <h1 className="text-sm font-medium text-foreground">
+                  Monitoring
+                </h1>
+              </Page.Header.Left>
+            </Page.Header>
+            <Page.Content>
+              <div className="flex flex-col overflow-auto md:overflow-hidden h-full">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-[0.5px] bg-border shrink-0 border-b">
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load monitoring data
+                  </div>
+                </div>
+                <div className="flex-1 flex items-center justify-center">
+                  <EmptyState
+                    title="Failed to load logs"
+                    description="There was an error loading the monitoring data. Please try again."
+                  />
                 </div>
               </div>
-              <div className="flex-1 flex items-center justify-center">
-                <EmptyState
-                  title="Failed to load logs"
-                  description="There was an error loading the monitoring data. Please try again."
-                />
-              </div>
-            </div>
+            </Page.Content>
           </>
         }
       >
         <Suspense
           fallback={
             <>
-              <CollectionHeader title="Monitoring" />
-              <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
-                <MonitoringStats.Skeleton />
-                <MonitoringLogsTable.Skeleton />
-              </div>
+              <Page.Header>
+                <Page.Header.Left>
+                  <h1 className="text-sm font-medium text-foreground">
+                    Monitoring
+                  </h1>
+                </Page.Header.Left>
+              </Page.Header>
+              <Page.Content>
+                <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
+                  <MonitoringStats.Skeleton />
+                  <MonitoringLogsTable.Skeleton />
+                </div>
+              </Page.Content>
             </>
           }
         >
@@ -1099,6 +1137,6 @@ export default function MonitoringDashboard() {
           />
         </Suspense>
       </ErrorBoundary>
-    </CollectionPage>
+    </Page>
   );
 }

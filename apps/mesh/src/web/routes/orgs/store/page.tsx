@@ -1,4 +1,10 @@
-import { CollectionHeader } from "@/web/components/collections/collection-header";
+import { Page } from "@/web/components/page";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { StoreDiscovery } from "@/web/components/store";
 import { StoreRegistrySelect } from "@/web/components/store/store-registry-select";
 import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-empty-state";
@@ -81,10 +87,18 @@ export default function StorePage() {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <CollectionHeader
-        title="Store"
-        ctaButton={
+    <Page>
+      <Page.Header>
+        <Page.Header.Left>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>Store</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </Page.Header.Left>
+        <Page.Header.Right>
           <StoreRegistrySelect
             wellKnownRegistries={availableWellKnownRegistries}
             registries={registryOptions}
@@ -93,11 +107,11 @@ export default function StorePage() {
             onAddWellKnown={async (registry) => addNewKnownRegistry(registry)}
             placeholder="Select store..."
           />
-        }
-      />
+        </Page.Header.Right>
+      </Page.Header>
 
       {/* Content Section */}
-      <div className="h-full flex flex-col overflow-hidden">
+      <Page.Content>
         <Suspense
           fallback={
             <div className="flex flex-col items-center justify-center h-full">
@@ -125,7 +139,7 @@ export default function StorePage() {
             </div>
           )}
         </Suspense>
-      </div>
-    </div>
+      </Page.Content>
+    </Page>
   );
 }

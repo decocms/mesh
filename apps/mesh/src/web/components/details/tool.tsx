@@ -20,7 +20,20 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { Loading01 } from "@untitledui/icons";
-import { useParams, useRouterState, useSearch } from "@tanstack/react-router";
+import {
+  Link,
+  useParams,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@deco/ui/components/breadcrumb.tsx";
 import {
   AlertCircle,
   Box,
@@ -94,7 +107,6 @@ function ToolDetailsContent({
       key={`${connectionId}:${toolName}`}
       toolName={toolName}
       connectionId={connectionId}
-      onBack={onBack}
     />
   );
 }
@@ -102,11 +114,9 @@ function ToolDetailsContent({
 function ToolDetailsAuthenticated({
   toolName,
   connectionId,
-  onBack,
 }: {
   toolName: string;
   connectionId: string;
-  onBack: () => void;
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
@@ -286,8 +296,44 @@ function ToolDetailsAuthenticated({
     setStats(null);
   };
 
+  const displayToolName = tool?.name ?? beautifyToolName(toolName);
+
+  const breadcrumb = (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to="/$org/mcps" params={{ org: org.slug }}>
+              Connections
+            </Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        {connection && (
+          <>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link
+                  to="/$org/mcps/$connectionId"
+                  params={{ org: org.slug, connectionId }}
+                  search={{ tab: "tools" }}
+                >
+                  {connection.title}
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+          </>
+        )}
+        <BreadcrumbItem>
+          <BreadcrumbPage>{displayToolName}</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+
   return (
-    <ViewLayout onBack={onBack}>
+    <ViewLayout breadcrumb={breadcrumb}>
       <ViewActions>
         <PinToSidebarButton
           title={tool?.name ?? beautifyToolName(toolName)}

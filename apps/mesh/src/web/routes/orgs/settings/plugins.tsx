@@ -1,5 +1,4 @@
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
+import { Page } from "@/web/components/page";
 import {
   useOrganizationSettings,
   useOrganizationSettingsActions,
@@ -15,16 +14,14 @@ import {
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
-import { ArrowLeft } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
 import { sourcePlugins } from "../../../plugins";
 import { pluginRootSidebarItems } from "../../../index";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
 export default function PluginsSettings() {
   const { org } = useProjectContext();
-  const navigate = useNavigate();
   const orgSettings = useOrganizationSettings(org.id);
   const { update } = useOrganizationSettingsActions(org.id);
 
@@ -106,9 +103,9 @@ export default function PluginsSettings() {
   };
 
   return (
-    <CollectionPage>
-      <CollectionHeader
-        title={
+    <Page>
+      <Page.Header>
+        <Page.Header.Left>
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
@@ -124,22 +121,10 @@ export default function PluginsSettings() {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-        }
-        leftElement={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 text-muted-foreground"
-            onClick={() =>
-              navigate({ to: "/$org/settings", params: { org: org.slug } })
-            }
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
-        }
-      />
+        </Page.Header.Left>
+      </Page.Header>
 
-      <div className="flex-1 overflow-auto">
+      <Page.Content>
         <div className="flex h-full">
           <div className="flex-1 overflow-auto">
             <div className="p-5 max-w-2xl">
@@ -218,7 +203,7 @@ export default function PluginsSettings() {
             </div>
           </div>
         </div>
-      </div>
-    </CollectionPage>
+      </Page.Content>
+    </Page>
   );
 }
