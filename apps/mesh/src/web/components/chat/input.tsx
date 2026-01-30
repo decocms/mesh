@@ -6,8 +6,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { isDecopilot, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  getWellKnownDecopilotVirtualMCP,
+  isDecopilot,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -23,6 +32,7 @@ import type { FormEvent } from "react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useChat } from "./context";
 import { ChatHighlight } from "./index";
+import { ModeSelector } from "./select-mode";
 import { ModelSelector } from "./select-model";
 import {
   VirtualMCPPopoverContent,
@@ -37,6 +47,82 @@ import {
 } from "./tiptap/input";
 import { isTiptapDocEmpty } from "./tiptap/utils";
 import { UsageStats } from "./usage-stats";
+
+// ============================================================================
+// DecopilotIconButton - Icon button for Decopilot (similar to FileUploadButton)
+// ============================================================================
+
+interface DecopilotIconButtonProps {
+  onVirtualMcpChange: (virtualMcpId: string | null) => void;
+  virtualMcps: VirtualMCPInfo[];
+  disabled?: boolean;
+}
+
+function DecopilotIconButton({
+  onVirtualMcpChange,
+  virtualMcps,
+  disabled = false,
+}: DecopilotIconButtonProps) {
+  const [open, setOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { org } = useProjectContext();
+
+  const decopilot = getWellKnownDecopilotVirtualMCP(org.id);
+
+  // Filter out Decopilot from the list
+  const filteredVirtualMcps = virtualMcps.filter(
+    (virtualMcp) => !virtualMcp.id || !isDecopilot(virtualMcp.id),
+  );
+
+  // Focus search input when popover opens
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
+    }
+  }, [open]);
+
+  const handleVirtualMcpChange = (virtualMcpId: string | null) => {
+    onVirtualMcpChange(virtualMcpId);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-full"
+              disabled={disabled}
+            >
+              <Users03 size={16} />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        {!open && <TooltipContent side="top">Decopilot</TooltipContent>}
+      </Tooltip>
+      <PopoverContent
+        className="w-[550px] p-0 overflow-hidden"
+        align="start"
+        side="top"
+        sideOffset={8}
+      >
+        <VirtualMCPPopoverContent
+          virtualMcps={filteredVirtualMcps}
+          selectedVirtualMcpId={decopilot.id}
+          onVirtualMcpChange={handleVirtualMcpChange}
+          searchInputRef={searchInputRef}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ============================================================================
 // VirtualMCPBadge - Internal component for displaying selected virtual MCP
@@ -189,6 +275,8 @@ export function ChatInput() {
     modelsConnections,
     selectedModel,
     setSelectedModel,
+    selectedMode,
+    setSelectedMode,
     messages,
     isStreaming,
     sendMessage,
@@ -340,18 +428,29 @@ export function ChatInput() {
 
               {/* Bottom Actions Row */}
               <div className="flex items-center justify-between p-2.5">
-                {/* Left Actions (selectors) */}
+                {/* Left Actions (agent selector and usage stats) */}
                 <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                  {/* VirtualMCPSelector only shown when default is selected (no badge) */}
-                  {!selectedVirtualMcp && (
+                  {/* Always show selector button - DecopilotIconButton for Decopilot, VirtualMCPSelector for others */}
+                  {selectedVirtualMcp && isDecopilot(selectedVirtualMcp.id) ? (
+                    <DecopilotIconButton
+                      onVirtualMcpChange={setVirtualMcpId}
+                      virtualMcps={virtualMcps}
+                      disabled={isStreaming}
+                    />
+                  ) : (
                     <VirtualMCPSelector
-                      selectedVirtualMcpId={null}
+                      selectedVirtualMcpId={selectedVirtualMcp?.id ?? null}
                       onVirtualMcpChange={setVirtualMcpId}
                       virtualMcps={virtualMcps}
                       placeholder="Agent"
                       disabled={isStreaming}
                     />
                   )}
+                  <UsageStats messages={messages} />
+                </div>
+
+                {/* Right Actions (model, mode, file upload, send button) */}
+                <div className="flex items-center gap-1">
                   <ModelSelector
                     selectedModel={selectedModel ?? undefined}
                     onModelChange={setSelectedModel}
@@ -359,11 +458,13 @@ export function ChatInput() {
                     placeholder="Model"
                     variant="borderless"
                   />
-                  <UsageStats messages={messages} />
-                </div>
-
-                {/* Right Actions (send button) */}
-                <div className="flex items-center gap-1">
+                  <ModeSelector
+                    selectedMode={selectedMode}
+                    onModeChange={setSelectedMode}
+                    placeholder="Mode"
+                    variant="borderless"
+                    disabled={isStreaming}
+                  />
                   <FileUploadButton
                     selectedModel={selectedModel}
                     isStreaming={isStreaming}
