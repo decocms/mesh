@@ -165,7 +165,7 @@ function ChatPanelContent() {
               </div>
             </Chat.EmptyState>
           ) : (
-            <Chat.Messages minHeightOffset={240} />
+            <Chat.Messages />
           )}
         </Chat.Main>
 

@@ -57,16 +57,10 @@ export function useMessagePairs(
 interface MessagePairProps {
   pair: MessagePair;
   isLastPair: boolean;
-  minHeightOffset?: number;
   status?: ChatStatus;
 }
 
-export function MessagePair({
-  pair,
-  isLastPair,
-  minHeightOffset,
-  status,
-}: MessagePairProps) {
+export function MessagePair({ pair, isLastPair, status }: MessagePairProps) {
   const pairRef = useRef<HTMLDivElement>(null);
 
   const scrollToPair = () => {
@@ -78,15 +72,19 @@ export function MessagePair({
     }
   };
 
+  const handlePairRef = (node: HTMLDivElement | null) => {
+    pairRef.current = node;
+
+    if (isLastPair) {
+      node?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
     <div
-      ref={pairRef}
+      ref={handlePairRef}
       className="flex flex-col pb-2"
-      style={
-        isLastPair && minHeightOffset
-          ? { minHeight: `calc(100vh - ${minHeightOffset}px)` }
-          : undefined
-      }
+      style={isLastPair ? { minHeight: `calc(100vh - 240px)` } : undefined}
     >
       {/* Sticky overlay to prevent scrolling content from appearing above the user message */}
       <div

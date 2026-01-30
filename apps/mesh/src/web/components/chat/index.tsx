@@ -61,7 +61,7 @@ function ChatEmptyState({ children }: PropsWithChildren) {
   );
 }
 
-function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
+function ChatMessages() {
   const { messages, chatStatus: status } = useChat();
   const messagePairs = useMessagePairs(messages);
 
@@ -73,7 +73,6 @@ function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
             key={`pair-${pair.user.id}`}
             pair={pair}
             isLastPair={index === messagePairs.length - 1}
-            minHeightOffset={minHeightOffset}
             status={index === messagePairs.length - 1 ? status : undefined}
           />
         ))}
