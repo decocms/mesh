@@ -165,7 +165,7 @@ function HomeContent() {
       {!isChatEmpty ? (
         <>
           <Chat.Main>
-            <Chat.Messages minHeightOffset={280} />
+            <Chat.Messages minHeightOffset={230} />
           </Chat.Main>
           <Chat.Footer>
             <Chat.Input />

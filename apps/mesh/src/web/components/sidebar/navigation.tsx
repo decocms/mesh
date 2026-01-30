@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -7,19 +6,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "./sidebar.tsx";
-import { Skeleton } from "./skeleton.tsx";
-
-export interface NavigationSidebarItem {
-  key: string;
-  label: string;
-  icon: ReactNode;
-  onClick: () => void;
-  isActive?: boolean;
-}
+} from "@deco/ui/components/sidebar.tsx";
+import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+import type { ReactNode } from "react";
+import type { NavigationSidebarItem } from "./types";
 
 interface NavigationSidebarProps {
   navigationItems: NavigationSidebarItem[];
+  header?: ReactNode;
   footer?: ReactNode;
   additionalContent?: ReactNode;
   variant?: "sidebar" | "floating" | "inset";
@@ -32,6 +26,7 @@ interface NavigationSidebarProps {
  */
 export function NavigationSidebar({
   navigationItems,
+  header,
   footer,
   additionalContent,
   variant = "sidebar",
@@ -39,6 +34,7 @@ export function NavigationSidebar({
 }: NavigationSidebarProps) {
   return (
     <Sidebar variant={variant} collapsible={collapsible}>
+      {header}
       <SidebarContent className="flex-1 overflow-x-hidden">
         <SidebarGroup className="font-medium">
           <SidebarGroupContent>
