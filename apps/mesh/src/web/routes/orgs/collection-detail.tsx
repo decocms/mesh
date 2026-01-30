@@ -8,7 +8,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import { Loading01, Container } from "@untitledui/icons";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useParams, useRouter } from "@tanstack/react-router";
 import { Suspense, type ComponentType } from "react";
 import {
   WorkflowExecutionDetailsView,
@@ -17,6 +17,7 @@ import {
 
 interface CollectionDetailsProps {
   itemId: string;
+  onBack: () => void;
   onUpdate: (updates: Record<string, unknown>) => Promise<void>;
 }
 
@@ -31,24 +32,45 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
 };
 
 function ToolDetailsContent() {
+  const router = useRouter();
   const params = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
 
   const itemId = decodeURIComponent(params.itemId);
 
-  return <ToolDetailsView itemId={itemId} />;
+  const handleBack = () => {
+    router.history.back();
+  };
+
+  const handleUpdate = async (_updates: Record<string, unknown>) => {
+    // Tools don't use collections, so updates are handled by ToolDetailsView
+    // This is a no-op for tools since they don't have collection-based updates
+    return Promise.resolve();
+  };
+
+  return (
+    <ToolDetailsView
+      itemId={itemId}
+      onBack={handleBack}
+      onUpdate={handleUpdate}
+    />
+  );
 }
 
 function CollectionDetailsContent() {
+  const router = useRouter();
   const params = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
-  const navigate = useNavigate();
 
   const connectionId = params.connectionId;
   const collectionName = decodeURIComponent(params.collectionName);
   const itemId = decodeURIComponent(params.itemId);
+
+  const handleBack = () => {
+    router.history.back();
+  };
 
   const scopeKey = connectionId ?? "no-connection";
 
@@ -69,17 +91,6 @@ function CollectionDetailsContent() {
     // Success/error toasts are handled by the mutation's onSuccess/onError
   };
 
-  const handleGoBack = () => {
-    navigate({
-      to: "/$org/mcps/$connectionId/$collectionName",
-      params: {
-        org: org.slug,
-        connectionId: connectionId ?? "",
-        collectionName: collectionName,
-      },
-    });
-  };
-
   // Check for well-known collections (case insensitive, singular/plural)
   const normalizedCollectionName = collectionName?.toLowerCase();
 
@@ -88,7 +99,13 @@ function CollectionDetailsContent() {
     WELL_KNOWN_VIEW_DETAILS[normalizedCollectionName];
 
   if (ViewComponent) {
-    return <ViewComponent itemId={itemId} onUpdate={handleUpdate} />;
+    return (
+      <ViewComponent
+        itemId={itemId}
+        onBack={handleBack}
+        onUpdate={handleUpdate}
+      />
+    );
   }
 
   return (
@@ -97,7 +114,7 @@ function CollectionDetailsContent() {
       title="No component defined"
       description="No component for this collection was defined"
       buttonProps={{
-        onClick: handleGoBack,
+        onClick: handleBack,
         children: "Go back",
       }}
     />
