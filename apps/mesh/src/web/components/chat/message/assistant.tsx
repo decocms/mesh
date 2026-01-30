@@ -84,7 +84,6 @@ function ThoughtSummary({
 }) {
   const seconds = (duration / 1000).toFixed(1);
   const [isExpanded, setIsExpanded] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const lastPartRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new parts arrive or text updates during streaming
@@ -147,10 +146,7 @@ function ThoughtSummary({
           {isStreaming && (
             <div className="absolute top-0 left-0 right-0 h-16 bg-linear-to-b from-background to-transparent pointer-events-none z-10" />
           )}
-          <div
-            ref={scrollRef}
-            className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 h-[100px] overflow-y-auto"
-          >
+          <div className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 h-[100px] overflow-y-auto">
             {parts.map((part, index) => {
               const isLast = index === parts.length - 1;
               return (
