@@ -13,6 +13,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { UserPanel } from "./user-panel";
 import { OrgPanel } from "./org-panel";
+import { UserSettingsDialog } from "@/web/components/user-settings-dialog";
 
 interface MeshAccountSwitcherProps {
   isCollapsed?: boolean;
@@ -31,6 +32,7 @@ export function MeshAccountSwitcher({
   );
 
   const [open, setOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const user = session?.user;
   const userImage = (user as { image?: string } | undefined)?.image;
@@ -91,7 +93,10 @@ export function MeshAccountSwitcher({
             <UserPanel
               user={user}
               userImage={userImage}
-              onSettingsOpenChange={() => setOpen(false)}
+              onOpenSettings={() => {
+                setSettingsOpen(true);
+                setOpen(false);
+              }}
             />
           )}
           <OrgPanel
@@ -102,6 +107,15 @@ export function MeshAccountSwitcher({
           />
         </PopoverContent>
       </Popover>
+
+      {user && settingsOpen && user.email && (
+        <UserSettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          user={{ ...user, name: user.name ?? undefined, email: user.email }}
+          userImage={userImage}
+        />
+      )}
     </>
   );
 }
