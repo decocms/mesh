@@ -43,6 +43,7 @@ import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-c
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
+import type { ToolSelectionStrategy } from "@/mcp-clients/virtual-mcp/types";
 import type { ChatMessage } from "./index";
 import {
   type ModelChangePayload,
@@ -111,6 +112,10 @@ interface ChatContextValue {
   modelsConnections: ReturnType<typeof useModelConnections>;
   selectedModel: SelectedModelState | null;
   setSelectedModel: (model: ModelChangePayload) => void;
+
+  // Mode state
+  selectedMode: ToolSelectionStrategy;
+  setSelectedMode: (mode: ToolSelectionStrategy) => void;
 
   // Chat state
   messages: ChatMessage[];
@@ -552,6 +557,14 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Model state
   const modelsConnections = useModelConnections();
   const [selectedModel, setModel] = useModelState(locator, modelsConnections);
+
+  // Mode state
+  const [selectedMode, setSelectedMode] =
+    useLocalStorage<ToolSelectionStrategy>(
+      LOCALSTORAGE_KEYS.chatSelectedMode(locator),
+      "code_execution",
+    );
+
   // Always fetch messages for the active thread - if it's truly new, the query returns empty
   const initialMessages = useThreadMessages(activeThreadId);
 
@@ -694,6 +707,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       thread_id: activeThreadId,
       agent: {
         id: selectedVirtualMcp?.id ?? decopilotId,
+        mode: selectedMode,
       },
       user: {
         avatar: user?.image ?? undefined,
@@ -763,6 +777,10 @@ export function ChatProvider({ children }: PropsWithChildren) {
     modelsConnections,
     selectedModel,
     setSelectedModel,
+
+    // Mode state
+    selectedMode,
+    setSelectedMode,
 
     // Chat session state
     messages: chat.messages,

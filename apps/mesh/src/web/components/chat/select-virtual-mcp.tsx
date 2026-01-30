@@ -14,12 +14,11 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
-  getWellKnownDecopilotVirtualMCP,
-  useProjectContext,
+  isDecopilot,
   useVirtualMCPs,
   type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
-import { Check, ChevronDown, SearchMd, Users03 } from "@untitledui/icons";
+import { Check, SearchMd, Users03 } from "@untitledui/icons";
 import {
   useEffect,
   useRef,
@@ -108,12 +107,17 @@ export function VirtualMCPPopoverContent({
     navigateOnCreate: true,
   });
 
-  // Filter virtual MCPs based on search term
+  // Filter virtual MCPs based on search term and exclude Decopilot
   const filteredVirtualMcps = (() => {
-    if (!searchTerm.trim()) return virtualMcps;
+    // First filter out Decopilot
+    const nonDecopilotMcps = virtualMcps.filter(
+      (virtualMcp) => !virtualMcp.id || !isDecopilot(virtualMcp.id),
+    );
+
+    if (!searchTerm.trim()) return nonDecopilotMcps;
 
     const search = searchTerm.toLowerCase();
-    return virtualMcps.filter((virtualMcp) => {
+    return nonDecopilotMcps.filter((virtualMcp) => {
       return (
         virtualMcp.title.toLowerCase().includes(search) ||
         virtualMcp.description?.toLowerCase().includes(search)
@@ -220,20 +224,19 @@ export function VirtualMCPSelector({
 }: VirtualMCPSelectorProps) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const { org } = useProjectContext();
 
   // Use provided virtual MCPs or fetch from hook
   const virtualMcpsFromHook = useVirtualMCPs();
-  const virtualMcps = virtualMcpsProp ?? virtualMcpsFromHook;
+  const allVirtualMcps = virtualMcpsProp ?? virtualMcpsFromHook;
 
-  // Get default Decopilot agent info
-  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
+  // Filter out Decopilot from the list
+  const virtualMcps = allVirtualMcps.filter(
+    (virtualMcp) => !virtualMcp.id || !isDecopilot(virtualMcp.id),
+  );
 
   const selectedVirtualMcp = selectedVirtualMcpId
-    ? virtualMcps.find((g) => g.id === selectedVirtualMcpId)
+    ? allVirtualMcps.find((g) => g.id === selectedVirtualMcpId)
     : null;
-
-  const selected = selectedVirtualMcp ?? defaultAgent;
 
   const handleVirtualMcpChange = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
@@ -268,7 +271,7 @@ export function VirtualMCPSelector({
                 type="button"
                 disabled={disabled}
                 className={cn(
-                  "flex items-center gap-1.5 px-1.5 py-1 rounded-md transition-colors shrink-0",
+                  "flex items-center justify-center size-8 rounded-full transition-colors shrink-0",
                   disabled
                     ? "cursor-not-allowed opacity-50"
                     : "cursor-pointer hover:bg-accent",
@@ -276,20 +279,17 @@ export function VirtualMCPSelector({
                 )}
                 aria-label={placeholder}
               >
-                <IntegrationIcon
-                  icon={selected.icon}
-                  name={selected.title}
-                  size="xs"
-                  fallbackIcon={<Users03 size={12} />}
-                  className="rounded-md shrink-0 aspect-square"
-                />
-                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors truncate min-w-0 hidden sm:inline-block">
-                  {selected.title}
-                </span>
-                <ChevronDown
-                  size={14}
-                  className="text-muted-foreground opacity-50 shrink-0"
-                />
+                {selectedVirtualMcp ? (
+                  <IntegrationIcon
+                    icon={selectedVirtualMcp.icon}
+                    name={selectedVirtualMcp.title}
+                    size="xs"
+                    fallbackIcon={<Users03 size={16} />}
+                    className="rounded-md shrink-0 aspect-square"
+                  />
+                ) : (
+                  <Users03 size={16} />
+                )}
               </button>
             </PopoverTrigger>
           </TooltipTrigger>

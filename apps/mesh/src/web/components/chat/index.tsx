@@ -16,6 +16,7 @@ export { useChat } from "./context";
 export { ModelSelector } from "./select-model";
 export type { ModelChangePayload, SelectedModelState } from "./select-model";
 export type { VirtualMCPInfo } from "./select-virtual-mcp";
+export type { ToolSelectionStrategy } from "@/mcp-clients/virtual-mcp/types";
 
 export type ChatMessage = UIMessage<Metadata>;
 
@@ -69,12 +70,17 @@ function ChatRoot({
   className,
   children,
 }: PropsWithChildren<{ className?: string }>) {
+  // Detect if className contains bg-background
+  const hasBackgroundClass = className?.includes("bg-background");
+  const surfaceBg = hasBackgroundClass ? "var(--background)" : "var(--muted)";
+
   return (
     <div
       className={cn(
-        "flex flex-col h-full w-full bg-sidebar transform-[translateZ(0)]",
+        "flex flex-col h-full w-full bg-muted transform-[translateZ(0)]",
         className,
       )}
+      style={{ "--chat-surface": surfaceBg } as React.CSSProperties}
     >
       {children}
     </div>

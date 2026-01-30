@@ -94,7 +94,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     const mcpClient = await createVirtualClientFrom(
       virtualMcp,
       ctx,
-      "code_execution",
+      agent.mode,
     );
 
     // 2. Extract tools from virtual MCP client and create model provider
@@ -186,7 +186,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       messageMetadata: ({ part }): Metadata => {
         if (part.type === "start") {
           return {
-            agent: { id: agent.id ?? null },
+            agent: { id: agent.id ?? null, mode: agent.mode },
             model: { id: model.id, connectionId: model.connectionId },
             created_at: new Date(),
             thread_id: memory.thread.id,

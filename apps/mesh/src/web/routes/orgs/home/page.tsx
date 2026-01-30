@@ -78,7 +78,7 @@ function HomeContent() {
   }
 
   return (
-    <Chat>
+    <Chat className="bg-background">
       <Page.Header className="flex-none">
         <Page.Header.Left className="gap-2">
           {!isChatEmpty && activeThread?.title ? (
@@ -244,7 +244,7 @@ function HomeChatErrorFallback({
     error?.message?.toLowerCase().includes("unauthorized");
 
   return (
-    <Chat>
+    <Chat className="bg-background">
       <Page.Header className="flex-none">
         <Page.Header.Left className="gap-2">
           <span className="text-sm font-medium text-foreground">Chat</span>
@@ -282,7 +282,7 @@ export default function OrgHomePage() {
         <HomeChatErrorFallback error={error} onRetry={resetError} />
       )}
     >
-      <Suspense fallback={<Chat.Skeleton />}>
+      <Suspense fallback={<Chat.Skeleton className="bg-background" />}>
         <HomeContent />
       </Suspense>
     </ErrorBoundary>
