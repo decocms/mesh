@@ -186,7 +186,7 @@ interface MessageAssistantProps<T extends Metadata> {
   message: UIMessage<T> | null;
   status?: "streaming" | "submitted" | "ready" | "error";
   className?: string;
-  isLast?: boolean;
+  isLast: boolean;
 }
 
 interface MessagePartProps {
