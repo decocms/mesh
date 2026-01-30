@@ -5,8 +5,8 @@ import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { ClockRewind, Users03, Plus, X } from "@untitledui/icons";
-import { Suspense, useState } from "react";
+import { ClockRewind, Plus, Users03, X } from "@untitledui/icons";
+import { Suspense, useState, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
 import { ThreadsView } from "./threads-sidebar";
@@ -25,10 +25,17 @@ function ChatPanelContent() {
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
   const [showThreadsOverlay, setShowThreadsOverlay] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   // Use Decopilot as default agent
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
+
+  const handleNewThread = () => {
+    startTransition(() => {
+      setActiveThreadId(crypto.randomUUID());
+    });
+  };
 
   if (modelsConnections.length === 0) {
     const title = "No model provider connected";
@@ -80,10 +87,12 @@ function ChatPanelContent() {
       {/* Chat view */}
       <div
         className={cn(
-          "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
+          "absolute inset-0 flex flex-col transition-all ease-in-out",
           showThreadsOverlay
-            ? "opacity-0 -translate-x-4 pointer-events-none"
-            : "opacity-100 translate-x-0",
+            ? "duration-300 opacity-0 -translate-x-4 pointer-events-none"
+            : isPending
+              ? "duration-200 opacity-0 pointer-events-none"
+              : "duration-300 opacity-100 translate-x-0",
         )}
       >
         <Chat.Header>
@@ -108,8 +117,9 @@ function ChatPanelContent() {
           <Chat.Header.Right>
             <button
               type="button"
-              onClick={() => setActiveThreadId(crypto.randomUUID())}
-              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
+              onClick={handleNewThread}
+              disabled={isPending}
+              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title="New chat"
             >
               <Plus
