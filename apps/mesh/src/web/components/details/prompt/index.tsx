@@ -7,7 +7,6 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import { Button } from "@deco/ui/components/button.tsx";
 import {
   Form,
   FormControl,
@@ -16,19 +15,13 @@ import {
 } from "@deco/ui/components/form.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { PromptSchema } from "@decocms/bindings/prompt";
-import { FlipBackward, Save02 } from "@untitledui/icons";
 import { useRouterState } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 import { ViewActions, ViewLayout, ViewTabs } from "../layout";
+import { SaveActions } from "@/web/components/save-actions";
 
 type Prompt = z.infer<typeof PromptSchema>;
 
@@ -231,46 +224,13 @@ function PromptDetailContent({
       </ViewTabs>
 
       <ViewActions>
+        <SaveActions
+          onSave={() => void saveAndLock()}
+          onUndo={resetToInitial}
+          isDirty={form.formState.isDirty}
+          isSaving={isSaving}
+        />
         <PinToSidebarButton title={prompt.title} url={url} icon="description" />
-        <TooltipProvider>
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-7 border border-input"
-                  disabled={!form.formState.isDirty || isSaving}
-                  onClick={resetToInitial}
-                  aria-label="Cancel"
-                >
-                  <FlipBackward size={14} />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Cancel</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        <TooltipProvider>
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-7 border border-input"
-                  disabled={!form.formState.isDirty || isSaving}
-                  onClick={() => void saveAndLock()}
-                  aria-label="Save"
-                >
-                  <Save02 size={14} />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Save</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
       </ViewActions>
 
       <div className="h-full">

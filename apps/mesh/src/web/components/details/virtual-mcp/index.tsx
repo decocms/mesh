@@ -38,11 +38,9 @@ import {
   CpuChip02,
   CubeOutline,
   File02,
-  FlipBackward,
   Loading01,
   Play,
   Plus,
-  Save01,
   Share07,
   Tool01,
 } from "@untitledui/icons";
@@ -57,6 +55,7 @@ import {
 import { Suspense, useEffect, useReducer } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { ViewActions, ViewLayout } from "../layout";
+import { SaveActions } from "@/web/components/save-actions";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { getSelectionCount } from "./selection-utils";
 import type { VirtualMCPConnection } from "@decocms/mesh-sdk/types";
@@ -310,46 +309,12 @@ function VirtualMcpDetailViewWithData({
   return (
     <ViewLayout breadcrumb={breadcrumb}>
       <ViewActions>
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <span className="inline-block">
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-7 border border-input"
-                disabled={!hasFormChanges || isSaving}
-                onClick={handleCancel}
-                aria-label="Cancel"
-              >
-                <FlipBackward size={14} />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Cancel</TooltipContent>
-        </Tooltip>
-
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <span className="inline-block">
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-7 border border-input"
-                disabled={!hasFormChanges || isSaving}
-                onClick={handleSave}
-                aria-label="Save"
-              >
-                {isSaving ? (
-                  <Loading01 size={14} className="animate-spin" />
-                ) : (
-                  <Save01 size={14} />
-                )}
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Save</TooltipContent>
-        </Tooltip>
-
+        <SaveActions
+          onSave={handleSave}
+          onUndo={handleCancel}
+          isDirty={hasFormChanges}
+          isSaving={isSaving}
+        />
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>
             <span className="inline-block">
