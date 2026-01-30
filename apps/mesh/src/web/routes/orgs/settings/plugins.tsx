@@ -14,16 +14,14 @@ import {
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
-import { ArrowLeft } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
 import { sourcePlugins } from "../../../plugins";
 import { pluginRootSidebarItems } from "../../../index";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
 export default function PluginsSettings() {
   const { org } = useProjectContext();
-  const navigate = useNavigate();
   const orgSettings = useOrganizationSettings(org.id);
   const { update } = useOrganizationSettingsActions(org.id);
 
@@ -108,16 +106,6 @@ export default function PluginsSettings() {
     <Page>
       <Page.Header>
         <Page.Header.Left>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 text-muted-foreground"
-            onClick={() =>
-              navigate({ to: "/$org/settings", params: { org: org.slug } })
-            }
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>

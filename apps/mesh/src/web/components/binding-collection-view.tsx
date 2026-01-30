@@ -2,6 +2,12 @@ import { CollectionTab } from "@/web/components/details/connection/collection-ta
 import { BindingCollectionEmptyState } from "@/web/components/binding-collection-empty-state";
 import { Page } from "@/web/components/page";
 import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
+import {
   useBindingConnections,
   useCollectionBindings,
 } from "@/web/hooks/use-binding";
@@ -65,7 +71,13 @@ export function BindingCollectionView({
     <Page>
       <Page.Header>
         <Page.Header.Left>
-          <h1 className="text-sm font-medium text-foreground">{title}</h1>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>{title}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         </Page.Header.Left>
       </Page.Header>
 

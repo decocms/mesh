@@ -1,4 +1,10 @@
 import { Page } from "@/web/components/page";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { StoreDiscovery } from "@/web/components/store";
 import { StoreRegistrySelect } from "@/web/components/store/store-registry-select";
 import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-empty-state";
@@ -84,7 +90,13 @@ export default function StorePage() {
     <Page>
       <Page.Header>
         <Page.Header.Left>
-          <h1 className="text-sm font-medium text-foreground">Store</h1>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>Store</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         </Page.Header.Left>
         <Page.Header.Right>
           <StoreRegistrySelect

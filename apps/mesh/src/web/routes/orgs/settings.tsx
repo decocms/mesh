@@ -1,4 +1,10 @@
 import { Page } from "@/web/components/page";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
@@ -239,7 +245,13 @@ export default function OrgSettings() {
     <Page>
       <Page.Header>
         <Page.Header.Left>
-          <h1 className="text-sm font-medium text-foreground">Settings</h1>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>Settings</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         </Page.Header.Left>
       </Page.Header>
 

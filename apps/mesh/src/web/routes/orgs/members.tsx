@@ -1,6 +1,12 @@
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { Page } from "@/web/components/page";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { ManageRolesDialog } from "@/web/components/manage-roles-dialog";
 import { EmptyState } from "@/web/components/empty-state.tsx";
@@ -845,7 +851,13 @@ function OrgMembersContent() {
 
       <Page.Header>
         <Page.Header.Left>
-          <h1 className="text-sm font-medium text-foreground">Members</h1>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>Members</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         </Page.Header.Left>
         <Page.Header.Right>
           <CollectionDisplayButton
