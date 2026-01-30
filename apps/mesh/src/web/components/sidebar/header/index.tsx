@@ -1,15 +1,11 @@
+import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { Button } from "@deco/ui/components/button.tsx";
 import {
   SidebarHeader as SidebarHeaderUI,
   SidebarMenu,
   SidebarMenuItem,
   useSidebar,
 } from "@deco/ui/components/sidebar.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import {
-  ChevronLeftDouble,
-  ChevronRightDouble,
-  SearchSm,
-} from "@untitledui/icons";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
   Tooltip,
@@ -17,11 +13,21 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  ChevronLeftDouble,
+  ChevronRightDouble,
+  MessageChatSquare,
+} from "@untitledui/icons";
 import { MeshAccountSwitcher } from "./account-switcher";
 
 export function MeshSidebarHeader() {
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const [isChatOpen, setChatOpen] = useDecoChatOpen();
+
+  const toggleChat = () => {
+    setChatOpen((prev) => !prev);
+  };
 
   return (
     <SidebarHeaderUI className="h-12 gap-0 pt-0">
@@ -29,13 +35,13 @@ export function MeshSidebarHeader() {
         <SidebarMenuItem>
           <div className="flex items-center justify-between w-full h-12">
             {/* Left side: Account Switcher */}
-            <div className="group relative flex items-center justify-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+            <div className="group/account-switcher relative flex items-center justify-center gap-1.5 min-w-0 flex-1 overflow-hidden">
               {/* Account switcher - hidden when collapsed and hovering */}
               <div
                 className={cn(
                   "w-full min-w-0",
                   isCollapsed &&
-                    "group-hover:opacity-0 group-hover:pointer-events-none transition-opacity",
+                    "group-hover/account-switcher:opacity-0 group-hover/account-switcher:pointer-events-none transition-opacity",
                 )}
               >
                 <MeshAccountSwitcher isCollapsed={isCollapsed} />
@@ -47,7 +53,7 @@ export function MeshSidebarHeader() {
                 className={cn(
                   "absolute inset-0 m-auto size-7 hover:bg-sidebar-accent transition-opacity",
                   isCollapsed
-                    ? "opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto"
+                    ? "opacity-0 group-hover/account-switcher:opacity-100 pointer-events-none group-hover/account-switcher:pointer-events-auto"
                     : "opacity-0 pointer-events-none",
                 )}
                 onClick={toggleSidebar}
@@ -58,7 +64,7 @@ export function MeshSidebarHeader() {
               </Button>
             </div>
 
-            {/* Right side: Collapse and Search icons */}
+            {/* Right side: Collapse and Decopilot toggle icons */}
             <div
               className={cn(
                 "flex items-center gap-0.5 shrink-0",
@@ -86,14 +92,21 @@ export function MeshSidebarHeader() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-7 hover:bg-sidebar-accent"
-                    aria-label="Search"
+                    className={cn(
+                      "size-7 hover:bg-sidebar-accent",
+                      isChatOpen && "bg-sidebar-accent",
+                    )}
+                    onClick={toggleChat}
+                    aria-label="Toggle Decopilot"
                     disabled={isCollapsed}
                   >
-                    <SearchSm size={11} className="text-muted-foreground" />
+                    <MessageChatSquare
+                      size={11}
+                      className="text-muted-foreground"
+                    />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">Search</TooltipContent>
+                <TooltipContent side="bottom">Toggle Decopilot</TooltipContent>
               </Tooltip>
             </div>
           </div>

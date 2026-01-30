@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -7,9 +6,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+import type { ReactNode } from "react";
 import type { NavigationSidebarItem } from "./types";
 
 interface NavigationSidebarProps {
@@ -36,7 +35,6 @@ export function NavigationSidebar({
   return (
     <Sidebar variant={variant} collapsible={collapsible}>
       {header}
-      {header && <SidebarSeparator />}
       <SidebarContent className="flex-1 overflow-x-hidden">
         <SidebarGroup className="font-medium">
           <SidebarGroupContent>
