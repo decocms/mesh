@@ -38,7 +38,7 @@ export function UserPanel({
     try {
       await navigator.clipboard.writeText(userInfo);
       toast.success("User info copied to clipboard");
-    } catch (error) {
+    } catch {
       toast.error("Failed to copy user info to clipboard");
     }
   };
