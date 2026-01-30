@@ -309,6 +309,12 @@ function VirtualMcpDetailViewWithData({
   return (
     <ViewLayout breadcrumb={breadcrumb}>
       <ViewActions>
+        <SaveActions
+          onSave={handleSave}
+          onUndo={handleCancel}
+          isDirty={hasFormChanges}
+          isSaving={isSaving}
+        />
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>
             <span className="inline-block">
@@ -346,12 +352,6 @@ function VirtualMcpDetailViewWithData({
           <TooltipContent side="bottom">Share</TooltipContent>
         </Tooltip>
 
-        <SaveActions
-          onSave={handleSave}
-          onUndo={handleCancel}
-          isDirty={hasFormChanges}
-          isSaving={isSaving}
-        />
         <PinToSidebarButton
           title={virtualMcp.title}
           url={url}

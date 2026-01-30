@@ -83,6 +83,14 @@ export function WorkflowEditorHeader({
       <ViewActions>
         {!trackingExecutionId && (
           <>
+            <SaveActions
+              onSave={onSave}
+              onUndo={resetToOriginalWorkflow}
+              isDirty={isDirty}
+              isSaving={isSaving}
+              saveLabel="Save workflow"
+              undoLabel="Reset changes"
+            />
             <Suspense fallback={<Spinner size="xs" />}>
               <VirtualMCPSelect
                 selectedVirtualMcpId={selectedVirtualMcpId}
@@ -101,14 +109,6 @@ export function WorkflowEditorHeader({
               ]}
             />
 
-            <SaveActions
-              onSave={onSave}
-              onUndo={resetToOriginalWorkflow}
-              isDirty={isDirty}
-              isSaving={isSaving}
-              saveLabel="Save workflow"
-              undoLabel="Reset changes"
-            />
             <PinToSidebarButton title={title} url={url} icon="workflow" />
 
             <TooltipProvider>

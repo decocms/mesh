@@ -18,13 +18,17 @@ export function SaveActions({
   saveLabel = "Save",
   undoLabel = "Undo",
 }: SaveActionsProps) {
+  if (!isDirty) {
+    return null;
+  }
+
   return (
     <>
       <Button
         variant="outline"
         size="sm"
         onClick={onUndo}
-        disabled={!isDirty || isSaving}
+        disabled={isSaving}
         aria-label={undoLabel}
       >
         <FlipBackward size={14} />
@@ -34,7 +38,7 @@ export function SaveActions({
         variant="default"
         size="sm"
         onClick={onSave}
-        disabled={!isDirty || isSaving}
+        disabled={isSaving}
         aria-label={saveLabel}
       >
         {isSaving ? (
