@@ -309,18 +309,22 @@ function ToolDetailsAuthenticated({
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbLink asChild>
-            <Link
-              to="/$org/mcps/$connectionId"
-              params={{ org: org.slug, connectionId }}
-              search={{ tab: "tools" }}
-            >
-              Tools
-            </Link>
-          </BreadcrumbLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator />
+        {connection && (
+          <>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link
+                  to="/$org/mcps/$connectionId"
+                  params={{ org: org.slug, connectionId }}
+                  search={{ tab: "tools" }}
+                >
+                  {connection.title}
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+          </>
+        )}
         <BreadcrumbItem>
           <BreadcrumbPage>{displayToolName}</BreadcrumbPage>
         </BreadcrumbItem>
