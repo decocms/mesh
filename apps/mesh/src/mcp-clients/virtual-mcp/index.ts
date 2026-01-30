@@ -33,11 +33,13 @@ function isSelfReferencingVirtual(
  *
  * @param connection - Connection entity with VIRTUAL type
  * @param ctx - Mesh context for creating proxies
+ * @param strategy - Tool selection strategy (defaults to passthrough)
  * @returns Client instance with aggregated tools, resources, and prompts
  */
 export async function createVirtualClient(
   connection: ConnectionEntity,
   ctx: MeshContext,
+  strategy: ToolSelectionStrategy = "passthrough",
 ): Promise<Client> {
   // Virtual MCP ID is the connection ID
   const virtualMcpId = connection.id;
@@ -49,7 +51,7 @@ export async function createVirtualClient(
   }
 
   // Create client from virtual MCP entity
-  return createVirtualClientFrom(virtualMcp, ctx, "passthrough");
+  return createVirtualClientFrom(virtualMcp, ctx, strategy);
 }
 
 /**

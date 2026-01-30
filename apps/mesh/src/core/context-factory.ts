@@ -827,8 +827,11 @@ export async function createMeshContextFactory(
         ),
       },
       eventBus: config.eventBus,
-      createMCPProxy: async (conn: string | ConnectionEntity) => {
-        return await createMCPProxy(conn, ctx);
+      createMCPProxy: async (
+        conn: string | ConnectionEntity,
+        strategy?: Parameters<typeof createMCPProxy>[2],
+      ) => {
+        return await createMCPProxy(conn, ctx, strategy);
       },
       getOrCreateClient: clientPool,
     };

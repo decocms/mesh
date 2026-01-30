@@ -314,6 +314,7 @@ export interface MeshContext {
   // Utility for creating MCP Proxies
   createMCPProxy: (
     conn: Parameters<typeof createMCPProxy>[0],
+    strategy?: Parameters<typeof createMCPProxy>[2],
   ) => ReturnType<typeof createMCPProxy>;
 
   // Client pool for STDIO connection reuse (LRU cache)

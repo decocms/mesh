@@ -272,7 +272,7 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
       gatewayId: string,
       strategy?: VirtualMCPtoolSelectionStrategy,
     ): string => {
-      const url = new URL(`/mcp/gateway/${gatewayId}`, baseUrl);
+      const url = new URL(`/mcp/${gatewayId}`, baseUrl);
       if (strategy) {
         url.searchParams.set("mode", strategy);
       }
