@@ -32,11 +32,15 @@ export function UserPanel({
 }: UserPanelProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const handleCopyUserInfo = () => {
+  const handleCopyUserInfo = async () => {
     if (!user) return;
     const userInfo = `ID: ${user.id}\nName: ${user.name || "N/A"}\nEmail: ${user.email}`;
-    navigator.clipboard.writeText(userInfo);
-    toast.success("User info copied to clipboard");
+    try {
+      await navigator.clipboard.writeText(userInfo);
+      toast.success("User info copied to clipboard");
+    } catch (error) {
+      toast.error("Failed to copy user info to clipboard");
+    }
   };
 
   return (
