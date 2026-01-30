@@ -48,6 +48,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { authenticateMcp } from "@/web/lib/mcp-oauth";
+import { KEYS } from "@/web/lib/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { MonacoCodeEditor } from "./workflow/components/monaco-editor";
@@ -144,8 +145,9 @@ function ToolDetailsContent({
     }
 
     // Invalidate auth status query to refresh
+    const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
     queryClient.invalidateQueries({
-      queryKey: ["mcp-auth-status", connectionId],
+      queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
     });
   };
 
