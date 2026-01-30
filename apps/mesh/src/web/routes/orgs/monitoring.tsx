@@ -894,8 +894,8 @@ function MonitoringDashboardContent({
             </BreadcrumbList>
           </Breadcrumb>
         </Page.Header.Left>
-        <Page.Header.Right>
-          {tab === "logs" ? (
+        {tab === "logs" && (
+          <Page.Header.Right>
             <div className="flex flex-wrap items-center gap-2">
               {/* Filters Button */}
               <FiltersPopover
@@ -936,8 +936,8 @@ function MonitoringDashboardContent({
                 onChange={onTimeRangeChange}
               />
             </div>
-          ) : null}
-        </Page.Header.Right>
+          </Page.Header.Right>
+        )}
       </Page.Header>
 
       {/* Tabs */}

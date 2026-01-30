@@ -8,7 +8,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import { Loading01, Container } from "@untitledui/icons";
-import { useParams } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { Suspense, type ComponentType } from "react";
 import {
   WorkflowExecutionDetailsView,
@@ -44,6 +44,7 @@ function CollectionDetailsContent() {
   const params = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
+  const navigate = useNavigate();
 
   const connectionId = params.connectionId;
   const collectionName = decodeURIComponent(params.collectionName);
@@ -68,6 +69,17 @@ function CollectionDetailsContent() {
     // Success/error toasts are handled by the mutation's onSuccess/onError
   };
 
+  const handleGoBack = () => {
+    navigate({
+      to: "/$org/mcps/$connectionId/$collectionName",
+      params: {
+        org: org.slug,
+        connectionId: connectionId ?? "",
+        collectionName: collectionName,
+      },
+    });
+  };
+
   // Check for well-known collections (case insensitive, singular/plural)
   const normalizedCollectionName = collectionName?.toLowerCase();
 
@@ -85,9 +97,7 @@ function CollectionDetailsContent() {
       title="No component defined"
       description="No component for this collection was defined"
       buttonProps={{
-        onClick: () => {
-          // Navigation handled by breadcrumb
-        },
+        onClick: handleGoBack,
         children: "Go back",
       }}
     />

@@ -42,10 +42,13 @@ import {
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import {
   useConnection,
+  useConnectionActions,
   useMCPClient,
   useMCPToolsListQuery,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import { authenticateMcp } from "@/web/lib/mcp-oauth";
+import { useQueryClient } from "@tanstack/react-query";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { MonacoCodeEditor } from "./workflow/components/monaco-editor";
 
@@ -71,15 +74,87 @@ function ToolDetailsContent({
   const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
   });
+  const connectionActions = useConnectionActions();
+  const queryClient = useQueryClient();
+
+  const handleAuthenticate = async () => {
+    const { token, tokenInfo, error } = await authenticateMcp({
+      connectionId: connectionId,
+    });
+    if (error || !token) {
+      toast.error(`Authentication failed: ${error}`);
+      return;
+    }
+
+    // Save token via new API (supports refresh tokens)
+    if (tokenInfo) {
+      try {
+        const response = await fetch(
+          `/api/connections/${connectionId}/oauth-token`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              accessToken: tokenInfo.accessToken,
+              refreshToken: tokenInfo.refreshToken,
+              expiresIn: tokenInfo.expiresIn,
+              scope: tokenInfo.scope,
+              clientId: tokenInfo.clientId,
+              clientSecret: tokenInfo.clientSecret,
+              tokenEndpoint: tokenInfo.tokenEndpoint,
+            }),
+          },
+        );
+        if (!response.ok) {
+          console.error("Failed to save OAuth token:", await response.text());
+          // Fall back to connection_token update
+          await connectionActions.update.mutateAsync({
+            id: connectionId,
+            data: { connection_token: token },
+          });
+        } else {
+          // Refresh tools after auth so bindings (e.g. LLMS) become available immediately.
+          try {
+            await connectionActions.update.mutateAsync({
+              id: connectionId,
+              data: {},
+            });
+          } catch (err) {
+            console.warn(
+              "Failed to refresh connection tools after OAuth:",
+              err,
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Error saving OAuth token:", err);
+        // Fall back to connection_token update
+        await connectionActions.update.mutateAsync({
+          id: connectionId,
+          data: { connection_token: token },
+        });
+      }
+    } else {
+      // Fall back to connection_token update if no tokenInfo
+      await connectionActions.update.mutateAsync({
+        id: connectionId,
+        data: { connection_token: token },
+      });
+    }
+
+    // Invalidate auth status query to refresh
+    queryClient.invalidateQueries({
+      queryKey: ["mcp-auth-status", connectionId],
+    });
+  };
 
   if (!authStatus.isAuthenticated) {
     return (
       <div className="flex h-full items-center justify-center">
         {authStatus.supportsOAuth ? (
           <OAuthAuthenticationState
-            onAuthenticate={() => {
-              // Authentication handled by OAuth flow
-            }}
+            onAuthenticate={handleAuthenticate}
             buttonText="Go back to authenticate"
           />
         ) : (
