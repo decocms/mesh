@@ -12,6 +12,7 @@ import type { Metadata } from "../types.ts";
 import { UsageStats } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
+import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
 
 type ThinkingStage = "planning" | "thinking";
 
@@ -84,13 +85,16 @@ function ThoughtSummary({
 }) {
   const seconds = (duration / 1000).toFixed(1);
   const [isExpanded, setIsExpanded] = useState(false);
-  const lastPartRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when new parts arrive or text updates during streaming
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  // Auto-scroll within the thought summary container when new parts arrive
+  // Uses scrollTop instead of scrollIntoView to avoid conflicts with parent scrolling
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- Content change tracking requires useEffect
   useEffect(() => {
-    if (isStreaming && lastPartRef.current) {
-      lastPartRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (isStreaming && scrollContainerRef.current) {
+      // Scroll to bottom of the internal container
+      scrollContainerRef.current.scrollTop =
+        scrollContainerRef.current.scrollHeight;
     }
   }, [parts, isStreaming]);
 
@@ -146,13 +150,14 @@ function ThoughtSummary({
           {isStreaming && (
             <div className="absolute top-0 left-0 right-0 h-16 bg-linear-to-b from-background to-transparent pointer-events-none z-10" />
           )}
-          <div className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 h-[100px] overflow-y-auto">
+          <div
+            ref={scrollContainerRef}
+            className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 h-[100px] overflow-y-auto"
+          >
             {parts.map((part, index) => {
-              const isLast = index === parts.length - 1;
               return (
                 <div
                   key={`${id}-reasoning-${index}`}
-                  ref={isLast ? lastPartRef : null}
                   className="text-muted-foreground markdown-sm pb-2"
                 >
                   <MemoizedMarkdown
@@ -181,6 +186,7 @@ interface MessageAssistantProps<T extends Metadata> {
   message: UIMessage<T> | null;
   status?: "streaming" | "submitted" | "ready" | "error";
   className?: string;
+  isLast?: boolean;
 }
 
 interface MessagePartProps {
@@ -290,6 +296,7 @@ export function MessageAssistant<T extends Metadata>({
   message,
   status,
   className,
+  isLast = false,
 }: MessageAssistantProps<T>) {
   const isStreaming = status === "streaming";
   const isSubmitted = status === "submitted";
@@ -327,7 +334,7 @@ export function MessageAssistant<T extends Metadata>({
             />
           )}
           {message.parts.map((part, index) => {
-            const isLast = index === message.parts.length - 1;
+            const isLastPart = index === message.parts.length - 1;
             const nextPart = message.parts[index + 1];
             const prevPart = message.parts[index - 1];
 
@@ -344,7 +351,7 @@ export function MessageAssistant<T extends Metadata>({
                 key={`${message.id}-${index}`}
                 part={part}
                 id={message.id}
-                usageStats={isLast && <UsageStats messages={[message]} />}
+                usageStats={isLastPart && <UsageStats messages={[message]} />}
                 isFollowedByToolCall={nextIsToolCall}
                 isFirstToolCallInSequence={isFirstToolCallInSequence}
                 isLastToolCallInSequence={isLastToolCallInSequence}
@@ -358,6 +365,8 @@ export function MessageAssistant<T extends Metadata>({
       ) : (
         <EmptyAssistantState />
       )}
+      {/* Smart auto-scroll sentinel - only rendered for the last message during streaming */}
+      {isLast && isStreaming && <SmartAutoScroll parts={message?.parts} />}
     </Container>
   );
 }

@@ -2,8 +2,7 @@ import type { UseChatHelpers } from "@ai-sdk/react";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { X } from "@untitledui/icons";
 import type { UIMessage } from "ai";
-import type { PropsWithChildren, ReactNode, RefObject } from "react";
-import { useEffect, useRef, useTransition } from "react";
+import type { PropsWithChildren, ReactNode } from "react";
 import { ChatProvider, useChat } from "./context";
 import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
@@ -21,50 +20,6 @@ export type { ToolSelectionStrategy } from "@/mcp-clients/virtual-mcp/types";
 export type ChatMessage = UIMessage<Metadata>;
 
 export type ChatStatus = UseChatHelpers<UIMessage<Metadata>>["status"];
-
-function useChatAutoScroll({
-  messageCount,
-  chatStatus,
-  sentinelRef,
-}: {
-  messageCount: number;
-  chatStatus: ChatStatus;
-  sentinelRef: RefObject<HTMLDivElement | null>;
-}) {
-  const [_, startTransition] = useTransition();
-
-  // Periodic scrolling during streaming (low priority)
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- Interval lifecycle management requires useEffect
-  useEffect(() => {
-    if (chatStatus !== "streaming") {
-      return;
-    }
-
-    const intervalId = setInterval(() => {
-      startTransition(() => {
-        sentinelRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      });
-    }, 500);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [chatStatus, sentinelRef]);
-
-  // Scroll to the sentinel when the message count changes
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- Interval lifecycle management requires useEffect
-  useEffect(() => {
-    startTransition(() => {
-      sentinelRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-  }, [messageCount, sentinelRef]);
-}
 
 function ChatRoot({
   className,
@@ -108,14 +63,7 @@ function ChatEmptyState({ children }: PropsWithChildren) {
 
 function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
   const { messages, chatStatus: status } = useChat();
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const messagePairs = useMessagePairs(messages);
-
-  useChatAutoScroll({
-    messageCount: messagePairs.length,
-    chatStatus: status,
-    sentinelRef,
-  });
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-y-auto h-full overflow-x-hidden">
@@ -129,7 +77,6 @@ function ChatMessages({ minHeightOffset = 240 }: { minHeightOffset?: number }) {
             status={index === messagePairs.length - 1 ? status : undefined}
           />
         ))}
-        <div ref={sentinelRef} className="h-0" />
       </div>
     </div>
   );

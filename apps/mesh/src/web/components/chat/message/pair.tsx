@@ -97,7 +97,11 @@ export function MessagePair({
         <MessageUser message={pair.user} onScrollToPair={scrollToPair} />
       </div>
       {/* Single MessageAssistant - handles all states internally */}
-      <MessageAssistant message={pair.assistant} status={status} />
+      <MessageAssistant
+        message={pair.assistant}
+        status={status}
+        isLast={isLastPair}
+      />
     </div>
   );
 }
