@@ -1,11 +1,7 @@
-import { useState } from "react";
 import { authClient } from "@/web/lib/auth-client";
-import { UserSettingsDialog } from "@/web/components/user-settings-dialog";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
-  UserCircle,
-  Lock01,
   Settings04,
   BookOpen01,
   LogOut02,
@@ -22,16 +18,10 @@ interface UserPanelProps {
     email?: string | null;
   };
   userImage?: string;
-  onSettingsOpenChange: (open: boolean) => void;
+  onOpenSettings: () => void;
 }
 
-export function UserPanel({
-  user,
-  userImage,
-  onSettingsOpenChange,
-}: UserPanelProps) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
+export function UserPanel({ user, userImage, onOpenSettings }: UserPanelProps) {
   const handleCopyUserInfo = async () => {
     if (!user) return;
     const userInfo = `ID: ${user.id}\nName: ${user.name || "N/A"}\nEmail: ${user.email}`;
@@ -71,22 +61,7 @@ export function UserPanel({
 
         {/* Menu Items */}
         <div className="p-1 flex flex-col">
-          <MenuItem
-            onClick={() => {
-              onSettingsOpenChange(false);
-              setSettingsOpen(true);
-            }}
-          >
-            <UserCircle size={18} />
-            Profile
-          </MenuItem>
-
-          <MenuItem>
-            <Lock01 size={18} />
-            Security & Access
-          </MenuItem>
-
-          <MenuItem>
+          <MenuItem onClick={onOpenSettings}>
             <Settings04 size={18} />
             Preferences
           </MenuItem>
@@ -121,15 +96,6 @@ export function UserPanel({
           </MenuItem>
         </div>
       </div>
-
-      {user && settingsOpen && user.email && (
-        <UserSettingsDialog
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-          user={{ ...user, name: user.name ?? undefined, email: user.email }}
-          userImage={userImage}
-        />
-      )}
     </>
   );
 }
