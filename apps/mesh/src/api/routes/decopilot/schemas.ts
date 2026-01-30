@@ -58,7 +58,12 @@ export const StreamRequestSchema = z.object({
         .optional(),
     })
     .loose(),
-  agent: z.object({ id: z.string() }).loose(),
+  agent: z
+    .object({
+      id: z.string(),
+      mode: z.enum(["passthrough", "smart_tool_selection", "code_execution"]),
+    })
+    .loose(),
   stream: z.boolean().optional(),
   temperature: z.number().default(0.5),
   thread_id: z.string().optional(),
