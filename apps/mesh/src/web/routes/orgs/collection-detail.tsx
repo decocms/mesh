@@ -8,7 +8,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import { Loading01, Container } from "@untitledui/icons";
-import { useParams, useRouter } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { Suspense, type ComponentType } from "react";
 import {
   WorkflowExecutionDetailsView,
@@ -17,7 +17,6 @@ import {
 
 interface CollectionDetailsProps {
   itemId: string;
-  onBack: () => void;
   onUpdate: (updates: Record<string, unknown>) => Promise<void>;
 }
 
@@ -32,34 +31,16 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
 };
 
 function ToolDetailsContent() {
-  const router = useRouter();
   const params = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
 
   const itemId = decodeURIComponent(params.itemId);
 
-  const handleBack = () => {
-    router.history.back();
-  };
-
-  const handleUpdate = async (_updates: Record<string, unknown>) => {
-    // Tools don't use collections, so updates are handled by ToolDetailsView
-    // This is a no-op for tools since they don't have collection-based updates
-    return Promise.resolve();
-  };
-
-  return (
-    <ToolDetailsView
-      itemId={itemId}
-      onBack={handleBack}
-      onUpdate={handleUpdate}
-    />
-  );
+  return <ToolDetailsView itemId={itemId} />;
 }
 
 function CollectionDetailsContent() {
-  const router = useRouter();
   const params = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
@@ -67,10 +48,6 @@ function CollectionDetailsContent() {
   const connectionId = params.connectionId;
   const collectionName = decodeURIComponent(params.collectionName);
   const itemId = decodeURIComponent(params.itemId);
-
-  const handleBack = () => {
-    router.history.back();
-  };
 
   const scopeKey = connectionId ?? "no-connection";
 
@@ -99,13 +76,7 @@ function CollectionDetailsContent() {
     WELL_KNOWN_VIEW_DETAILS[normalizedCollectionName];
 
   if (ViewComponent) {
-    return (
-      <ViewComponent
-        itemId={itemId}
-        onBack={handleBack}
-        onUpdate={handleUpdate}
-      />
-    );
+    return <ViewComponent itemId={itemId} onUpdate={handleUpdate} />;
   }
 
   return (
@@ -114,7 +85,9 @@ function CollectionDetailsContent() {
       title="No component defined"
       description="No component for this collection was defined"
       buttonProps={{
-        onClick: handleBack,
+        onClick: () => {
+          // Navigation handled by breadcrumb
+        },
         children: "Go back",
       }}
     />

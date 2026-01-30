@@ -43,9 +43,12 @@ function PageHeader({
 
   return (
     <div
-      className={cn("shrink-0 w-full border-b border-border h-12", className)}
+      className={cn(
+        "shrink-0 w-full border-b border-border h-12 overflow-x-auto",
+        className,
+      )}
     >
-      <div className="flex items-center justify-between gap-3 h-12 px-4">
+      <div className="flex items-center justify-between gap-3 h-12 px-4 min-w-max">
         {left}
         {right}
       </div>
@@ -59,7 +62,12 @@ function PageHeaderLeft({
   className,
 }: PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={cn("flex items-center gap-2 min-w-0 flex-1", className)}>
+    <div
+      className={cn(
+        "flex items-center gap-2 flex-shrink-0 overflow-hidden",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -71,7 +79,12 @@ function PageHeaderRight({
   className,
 }: PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={cn("flex items-center gap-2 flex-none", className)}>
+    <div
+      className={cn(
+        "flex items-center gap-2 flex-shrink-0 overflow-hidden border-l border-border pl-3",
+        className,
+      )}
+    >
       {children}
     </div>
   );

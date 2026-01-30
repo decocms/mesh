@@ -64,11 +64,9 @@ const beautifyToolName = (toolName: string) => {
 function ToolDetailsContent({
   toolName,
   connectionId,
-  onBack,
 }: {
   toolName: string;
   connectionId: string;
-  onBack: () => void;
 }) {
   const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
@@ -79,7 +77,9 @@ function ToolDetailsContent({
       <div className="flex h-full items-center justify-center">
         {authStatus.supportsOAuth ? (
           <OAuthAuthenticationState
-            onAuthenticate={() => onBack()}
+            onAuthenticate={() => {
+              // Authentication handled by OAuth flow
+            }}
             buttonText="Go back to authenticate"
           />
         ) : (
@@ -94,7 +94,6 @@ function ToolDetailsContent({
       key={`${connectionId}:${toolName}`}
       toolName={toolName}
       connectionId={connectionId}
-      onBack={onBack}
     />
   );
 }
@@ -102,11 +101,9 @@ function ToolDetailsContent({
 function ToolDetailsAuthenticated({
   toolName,
   connectionId,
-  onBack,
 }: {
   toolName: string;
   connectionId: string;
-  onBack: () => void;
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
@@ -287,7 +284,7 @@ function ToolDetailsAuthenticated({
   };
 
   return (
-    <ViewLayout onBack={onBack}>
+    <ViewLayout>
       <ViewActions>
         <PinToSidebarButton
           title={tool?.name ?? beautifyToolName(toolName)}
@@ -590,10 +587,7 @@ function ToolDetailsAuthenticated({
   );
 }
 
-export function ToolDetailsView({
-  itemId: toolName,
-  onBack,
-}: ToolDetailsViewProps) {
+export function ToolDetailsView({ itemId: toolName }: { itemId: string }) {
   const params = useParams({ strict: false });
   const connectionId = params.connectionId;
 
@@ -620,11 +614,7 @@ export function ToolDetailsView({
         </div>
       }
     >
-      <ToolDetailsContent
-        toolName={toolName}
-        connectionId={connectionId}
-        onBack={onBack}
-      />
+      <ToolDetailsContent toolName={toolName} connectionId={connectionId} />
     </Suspense>
   );
 }

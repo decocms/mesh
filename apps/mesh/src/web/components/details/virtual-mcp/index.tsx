@@ -21,14 +21,15 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import {
   useConnection,
+  useProjectContext,
   useVirtualMCP,
   useVirtualMCPActions,
 } from "@decocms/mesh-sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  Link,
   useNavigate,
   useParams,
-  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
 import {
@@ -45,6 +46,14 @@ import {
   Share07,
   Tool01,
 } from "@untitledui/icons";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { Suspense, useEffect, useReducer } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { ViewActions, ViewLayout } from "../layout";
@@ -212,9 +221,9 @@ function VirtualMcpDetailViewWithData({
 }: {
   virtualMcp: VirtualMCPEntity;
 }) {
+  const { org } = useProjectContext();
   const routerState = useRouterState();
   const url = routerState.location.href;
-  const router = useRouter();
   const actions = useVirtualMCPActions();
 
   // Form setup
@@ -280,8 +289,26 @@ function VirtualMcpDetailViewWithData({
 
   const isSaving = actions.update.isPending;
 
+  const breadcrumb = (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to="/$org/agents" params={{ org: org.slug }}>
+              Agents
+            </Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>{virtualMcp.title}</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+
   return (
-    <ViewLayout onBack={() => router.history.back()}>
+    <ViewLayout breadcrumb={breadcrumb}>
       <ViewActions>
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>

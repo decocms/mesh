@@ -10,6 +10,14 @@ import {
   type MCPServerData,
   type PublisherInfo,
 } from "@/web/components/store/mcp-server-detail";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
 import {
@@ -35,7 +43,12 @@ import {
   extractSchemaVersion,
 } from "@/web/utils/registry-utils";
 import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
-import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearch,
+} from "@tanstack/react-router";
 import { InfoCircle } from "@untitledui/icons";
 import {
   Component,
@@ -613,10 +626,28 @@ function StoreMCPServerDetailContent() {
   const hasPackages = (selectedItem?.server?.packages?.length ?? 0) > 0;
   const canInstall = hasRemotes || hasPackages;
 
+  const breadcrumb = (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to="/$org/store" params={{ org: org.slug }}>
+              Store
+            </Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>{data.name}</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+
   return (
     <div className="flex flex-col h-full border-l border-border">
       {/* Header */}
-      <MCPServerDetailHeader onBack={handleBackClick} />
+      <MCPServerDetailHeader breadcrumb={breadcrumb} />
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto h-full">

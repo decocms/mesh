@@ -133,11 +133,9 @@ function PromptEditForm({ form }: { form: PromptForm }) {
 function PromptDetailContent({
   providerId,
   promptId,
-  onBack,
 }: {
   providerId: string;
   promptId: string;
-  onBack: () => void;
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
@@ -213,7 +211,7 @@ function PromptDetailContent({
   }
 
   return (
-    <ViewLayout onBack={onBack}>
+    <ViewLayout>
       <ViewTabs>
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-medium text-foreground truncate">
@@ -284,11 +282,12 @@ function PromptDetailContent({
 
 export interface PromptDetailsViewProps {
   itemId: string;
-  onBack: () => void;
   onUpdate: (updates: Record<string, unknown>) => Promise<void>;
 }
 
-export function PromptDetailsView({ itemId, onBack }: PromptDetailsViewProps) {
+export function PromptDetailsView({
+  itemId,
+}: Omit<PromptDetailsViewProps, "onUpdate">) {
   const connectionId = getConnectionIdFromPathname();
 
   if (!connectionId) {
@@ -305,11 +304,7 @@ export function PromptDetailsView({ itemId, onBack }: PromptDetailsViewProps) {
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
-        <PromptDetailContent
-          providerId={connectionId}
-          promptId={itemId}
-          onBack={onBack}
-        />
+        <PromptDetailContent providerId={connectionId} promptId={itemId} />
       </Suspense>
     </ErrorBoundary>
   );

@@ -3,6 +3,14 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useCollectionBindings } from "@/web/hooks/use-binding";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@deco/ui/components/breadcrumb.tsx";
+import {
   useConnection,
   useConnectionActions,
   useProjectContext,
@@ -16,9 +24,9 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import { Loading01 } from "@untitledui/icons";
 import {
+  Link,
   useNavigate,
   useParams,
-  useRouter,
   useSearch,
 } from "@tanstack/react-router";
 import { Suspense } from "react";
@@ -65,7 +73,6 @@ function ConnectionInspectorViewWithConnection({
   }>;
   isLoadingTools: boolean;
 }) {
-  const router = useRouter();
   const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
 
   const authStatus = useMCPAuthStatus({
@@ -125,8 +132,26 @@ function ConnectionInspectorViewWithConnection({
     (c) => c.name === activeTabId,
   );
 
+  const breadcrumb = (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to="/$org/mcps" params={{ org }}>
+              Connections
+            </Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>{connection.title}</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+
   return (
-    <ViewLayout onBack={() => router.history.back()}>
+    <ViewLayout breadcrumb={breadcrumb}>
       <ViewTabs>
         <ResourceTabs
           tabs={tabs}
