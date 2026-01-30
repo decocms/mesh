@@ -79,7 +79,7 @@ function HomeContent() {
 
   return (
     <Chat className="bg-background">
-      <Page.Header className="flex-none bg-background">
+      <Page.Header className="flex-none">
         <Page.Header.Left className="gap-2">
           {!isChatEmpty && activeThread?.title ? (
             <TypewriterTitle
@@ -245,7 +245,7 @@ function HomeChatErrorFallback({
 
   return (
     <Chat className="bg-background">
-      <Page.Header className="flex-none bg-background">
+      <Page.Header className="flex-none">
         <Page.Header.Left className="gap-2">
           <span className="text-sm font-medium text-foreground">Chat</span>
         </Page.Header.Left>
