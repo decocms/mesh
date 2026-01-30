@@ -6,12 +6,13 @@ import {
   Target04,
 } from "@untitledui/icons";
 import type { ToolUIPart, UIMessage } from "ai";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MemoizedMarkdown } from "../markdown.tsx";
 import type { Metadata } from "../types.ts";
 import { UsageStats } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
+import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
 
 type ThinkingStage = "planning" | "thinking";
 
@@ -75,74 +76,98 @@ function ThoughtSummary({
   duration,
   parts,
   id,
+  isStreaming,
 }: {
   duration: number;
   parts: ReasoningPart[];
   id: string;
+  isStreaming: boolean;
 }) {
   const seconds = (duration / 1000).toFixed(1);
-  const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Parts are already filtered to reasoning parts
-  const isReasoningStreaming = parts.some((part) => part.state === "streaming");
+  // Auto-scroll within the thought summary container when new parts arrive
+  // Uses scrollTop instead of scrollIntoView to avoid conflicts with parent scrolling
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- Content change tracking requires useEffect
+  useEffect(() => {
+    if (isStreaming && scrollContainerRef.current) {
+      // Scroll to bottom of the internal container
+      scrollContainerRef.current.scrollTop =
+        scrollContainerRef.current.scrollHeight;
+    }
+  }, [parts, isStreaming]);
 
-  // Auto-expand when reasoning is streaming
-  const shouldShowContent = isReasoningStreaming || isExpanded;
+  // Always expanded while streaming, collapsible when done
+  const shouldShowContent = isStreaming || isExpanded;
 
   return (
     <div className="flex flex-col mb-2">
       <button
         type="button"
-        onClick={() => !isReasoningStreaming && setIsExpanded(!isExpanded)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onClick={() => !isStreaming && setIsExpanded(!isExpanded)}
         className={cn(
-          "flex items-center gap-1.5 py-2 opacity-60 transition-opacity",
-          !isReasoningStreaming && "cursor-pointer hover:opacity-100",
-          isReasoningStreaming && "cursor-default",
+          "group/thought-summary flex items-center gap-1.5 py-2 opacity-60 transition-opacity",
+          !isStreaming && "cursor-pointer hover:opacity-100",
+          isStreaming && "cursor-default",
         )}
       >
         <span className="flex items-center gap-1.5">
-          {isReasoningStreaming ? (
+          {isStreaming ? (
             <Stars01
               className="text-muted-foreground shrink-0 shimmer"
               size={14}
             />
-          ) : isHovered ? (
-            <ChevronRight
-              className={cn(
-                "text-muted-foreground transition-transform shrink-0",
-                isExpanded && "rotate-90",
-              )}
-              size={14}
-            />
           ) : (
-            <Lightbulb01 className="text-muted-foreground shrink-0" size={14} />
+            <span className="relative w-[14px] h-[14px] shrink-0">
+              <ChevronRight
+                className={cn(
+                  "absolute inset-0 text-muted-foreground transition-transform",
+                  isExpanded && "rotate-90",
+                  "opacity-0 group-hover/thought-summary:opacity-100",
+                )}
+                size={14}
+              />
+              <Lightbulb01
+                className="absolute inset-0 text-muted-foreground shrink-0 opacity-100 group-hover/thought-summary:opacity-0 transition-opacity"
+                size={14}
+              />
+            </span>
           )}
           <span
             className={cn(
               "text-[15px] text-muted-foreground",
-              isReasoningStreaming && "shimmer",
+              isStreaming && "shimmer",
             )}
           >
-            {isReasoningStreaming ? "Thinking..." : `Thought for ${seconds}s`}
+            {isStreaming ? "Thinking..." : `Thought for ${seconds}s`}
           </span>
         </span>
       </button>
       {shouldShowContent && (
-        <div className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 max-h-[300px] overflow-y-auto">
-          {parts.map((part, index) => (
-            <div
-              key={`${id}-reasoning-${index}`}
-              className="text-muted-foreground markdown-sm pb-2"
-            >
-              <MemoizedMarkdown
-                id={`${id}-reasoning-${index}`}
-                text={part.text}
-              />
-            </div>
-          ))}
+        <div className="relative">
+          {/* Gradient overlay - only while streaming */}
+          {isStreaming && (
+            <div className="absolute top-0 left-0 right-0 h-16 bg-linear-to-b from-background to-transparent pointer-events-none z-10" />
+          )}
+          <div
+            ref={scrollContainerRef}
+            className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 h-[100px] overflow-y-auto"
+          >
+            {parts.map((part, index) => {
+              return (
+                <div
+                  key={`${id}-reasoning-${index}`}
+                  className="text-muted-foreground markdown-sm pb-2"
+                >
+                  <MemoizedMarkdown
+                    id={`${id}-reasoning-${index}`}
+                    text={part.text}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -161,6 +186,7 @@ interface MessageAssistantProps<T extends Metadata> {
   message: UIMessage<T> | null;
   status?: "streaming" | "submitted" | "ready" | "error";
   className?: string;
+  isLast: boolean;
 }
 
 interface MessagePartProps {
@@ -270,6 +296,7 @@ export function MessageAssistant<T extends Metadata>({
   message,
   status,
   className,
+  isLast = false,
 }: MessageAssistantProps<T>) {
   const isStreaming = status === "streaming";
   const isSubmitted = status === "submitted";
@@ -303,10 +330,11 @@ export function MessageAssistant<T extends Metadata>({
               duration={duration}
               parts={reasoningParts}
               id={message.id}
+              isStreaming={isStreaming}
             />
           )}
           {message.parts.map((part, index) => {
-            const isLast = index === message.parts.length - 1;
+            const isLastPart = index === message.parts.length - 1;
             const nextPart = message.parts[index + 1];
             const prevPart = message.parts[index - 1];
 
@@ -323,7 +351,7 @@ export function MessageAssistant<T extends Metadata>({
                 key={`${message.id}-${index}`}
                 part={part}
                 id={message.id}
-                usageStats={isLast && <UsageStats messages={[message]} />}
+                usageStats={isLastPart && <UsageStats messages={[message]} />}
                 isFollowedByToolCall={nextIsToolCall}
                 isFirstToolCallInSequence={isFirstToolCallInSequence}
                 isLastToolCallInSequence={isLastToolCallInSequence}
@@ -337,6 +365,8 @@ export function MessageAssistant<T extends Metadata>({
       ) : (
         <EmptyAssistantState />
       )}
+      {/* Smart auto-scroll sentinel - only rendered for the last message during streaming */}
+      {isLast && isStreaming && <SmartAutoScroll parts={message?.parts} />}
     </Container>
   );
 }
