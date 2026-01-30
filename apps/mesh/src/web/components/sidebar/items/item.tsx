@@ -3,21 +3,19 @@ import { X, File06 } from "@untitledui/icons";
 import {
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@deco/ui/components/sidebar.tsx";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { useNavigate } from "@tanstack/react-router";
-import { PropsWithChildren, Suspense } from "react";
 import {
   useOrganizationSettings,
   useOrganizationSettingsActions,
-} from "../hooks/collections/use-organization-settings";
+} from "@/web/hooks/collections/use-organization-settings";
 import { useProjectContext } from "@decocms/mesh-sdk";
 
-/**
- * Individual sidebar item
- */
-function SidebarItemListItem({ item }: { item: SidebarItem }) {
+interface SidebarItemListItemProps {
+  item: SidebarItem;
+}
+
+export function SidebarItemListItem({ item }: SidebarItemListItemProps) {
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const settings = useOrganizationSettings(org.id);
@@ -75,73 +73,5 @@ function SidebarItemListItem({ item }: { item: SidebarItem }) {
         />
       </SidebarMenuButton>
     </SidebarMenuItem>
-  );
-}
-
-/**
- * Sidebar items section content - renders above Recent Threads
- * Only shows when there are pinned sidebar items
- */
-function SidebarItemsSectionContent() {
-  const { org } = useProjectContext();
-  const settings = useOrganizationSettings(org.id);
-
-  const sidebarItems = settings?.sidebar_items;
-
-  if (!sidebarItems?.length) {
-    return null;
-  }
-
-  return (
-    <SidebarItemLayout>
-      {sidebarItems.map((item) => (
-        <SidebarItemListItem key={item.url} item={item} />
-      ))}
-    </SidebarItemLayout>
-  );
-}
-
-/**
- * Skeleton for loading sidebar item entries
- */
-function SidebarItemSkeleton() {
-  return (
-    <SidebarMenuItem>
-      <div className="flex items-center gap-2 px-4 py-2">
-        <Skeleton className="h-4 flex-1" />
-      </div>
-    </SidebarMenuItem>
-  );
-}
-
-function SidebarItemLayout({ children }: PropsWithChildren) {
-  return (
-    <>
-      <SidebarSeparator className="my-2 -ml-1" />
-      <SidebarMenuItem>
-        <div className="group-data-[collapsible=icon]:hidden px-2 py-0 text-xs font-medium h-6 text-muted-foreground flex items-center justify-between">
-          <span className="whitespace-nowrap">Pinned Views</span>
-        </div>
-      </SidebarMenuItem>
-      {children}
-    </>
-  );
-}
-
-/**
- * Sidebar items section - renders above Recent Threads
- */
-export function SidebarItemsSection() {
-  return (
-    <Suspense
-      fallback={
-        <SidebarItemLayout>
-          <SidebarItemSkeleton />
-          <SidebarItemSkeleton />
-        </SidebarItemLayout>
-      }
-    >
-      <SidebarItemsSectionContent />
-    </Suspense>
   );
 }

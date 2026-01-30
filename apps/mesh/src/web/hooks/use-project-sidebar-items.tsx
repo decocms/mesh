@@ -1,6 +1,6 @@
 import { Locator } from "@decocms/mesh-sdk";
 import { useProjectContext } from "@decocms/mesh-sdk";
-import { NavigationSidebarItem } from "@deco/ui/components/navigation-sidebar.js";
+import type { NavigationSidebarItem } from "@/web/components/sidebar/types";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
