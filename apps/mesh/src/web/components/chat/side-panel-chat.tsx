@@ -47,12 +47,6 @@ function ChatPanelContent() {
       <Chat>
         <Page.Header className="flex-none">
           <Page.Header.Left className="gap-2">
-            <IntegrationIcon
-              icon={displayAgent.icon}
-              name={displayAgent.title}
-              size="xs"
-              className="size-5 rounded-md aspect-square shrink-0"
-            />
             <span className="text-sm font-medium">{displayAgent.title}</span>
           </Page.Header.Left>
           <Page.Header.Right className="gap-1">
@@ -98,12 +92,6 @@ function ChatPanelContent() {
       >
         <Page.Header className="flex-none">
           <Page.Header.Left className="gap-2">
-            <IntegrationIcon
-              icon={displayAgent.icon}
-              name={displayAgent.title}
-              size="xs"
-              className="size-5 rounded-md aspect-square shrink-0"
-            />
             {!isChatEmpty && activeThread?.title ? (
               <TypewriterTitle
                 text={activeThread.title}
