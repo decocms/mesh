@@ -2,16 +2,8 @@ import type { UseChatHelpers } from "@ai-sdk/react";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { X } from "@untitledui/icons";
 import type { UIMessage } from "ai";
-import type {
-  PropsWithChildren,
-  ReactNode,
-  RefObject,
-} from "react";
-import {
-  useEffect,
-  useRef,
-  useTransition,
-} from "react";
+import type { PropsWithChildren, ReactNode, RefObject } from "react";
+import { useEffect, useRef, useTransition } from "react";
 import { ChatProvider, useChat } from "./context";
 import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
@@ -88,7 +80,6 @@ function ChatRoot({
     </div>
   );
 }
-
 
 function ChatMain({
   children,

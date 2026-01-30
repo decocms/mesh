@@ -17,21 +17,34 @@ function findChild<T>(
 }
 
 // Root page container
-function PageRoot({ children, className }: PropsWithChildren<{ className?: string }>) {
+function PageRoot({
+  children,
+  className,
+}: PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={cn("flex flex-col h-full bg-background overflow-hidden", className)}>
+    <div
+      className={cn(
+        "flex flex-col h-full bg-background overflow-hidden",
+        className,
+      )}
+    >
       {children}
     </div>
   );
 }
 
 // Page header with slot-based composition
-function PageHeader({ children, className }: PropsWithChildren<{ className?: string }>) {
+function PageHeader({
+  children,
+  className,
+}: PropsWithChildren<{ className?: string }>) {
   const left = findChild(children, PageHeaderLeft);
   const right = findChild(children, PageHeaderRight);
 
   return (
-    <div className={cn("shrink-0 w-full border-b border-border h-12", className)}>
+    <div
+      className={cn("shrink-0 w-full border-b border-border h-12", className)}
+    >
       <div className="flex items-center justify-between gap-3 h-12 px-4">
         {left}
         {right}
@@ -41,7 +54,10 @@ function PageHeader({ children, className }: PropsWithChildren<{ className?: str
 }
 
 // Left slot for title, breadcrumbs, etc.
-function PageHeaderLeft({ children, className }: PropsWithChildren<{ className?: string }>) {
+function PageHeaderLeft({
+  children,
+  className,
+}: PropsWithChildren<{ className?: string }>) {
   return (
     <div className={cn("flex items-center gap-2 min-w-0 flex-1", className)}>
       {children}
@@ -50,7 +66,10 @@ function PageHeaderLeft({ children, className }: PropsWithChildren<{ className?:
 }
 
 // Right slot for actions, buttons, filters
-function PageHeaderRight({ children, className }: PropsWithChildren<{ className?: string }>) {
+function PageHeaderRight({
+  children,
+  className,
+}: PropsWithChildren<{ className?: string }>) {
   return (
     <div className={cn("flex items-center gap-2 flex-none", className)}>
       {children}
@@ -59,11 +78,12 @@ function PageHeaderRight({ children, className }: PropsWithChildren<{ className?
 }
 
 // Content area with proper overflow handling
-function PageContent({ children, className }: PropsWithChildren<{ className?: string }>) {
+function PageContent({
+  children,
+  className,
+}: PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={cn("flex-1 overflow-auto", className)}>
-      {children}
-    </div>
+    <div className={cn("flex-1 overflow-auto", className)}>{children}</div>
   );
 }
 

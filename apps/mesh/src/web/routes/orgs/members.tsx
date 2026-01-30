@@ -879,63 +879,112 @@ function OrgMembersContent() {
       <Page.Content>
         {viewMode === "cards" ? (
           <div className="flex-1 overflow-auto p-5">
-          {allRows.length === 0 ? (
-            <EmptyState
-              title={search ? "No members found" : "No members found"}
-              description={
-                search
-                  ? `No members match "${search}"`
-                  : "Invite members to get started."
-              }
-            />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {allRows.map((row) => {
-                if (row.type === "invitation") {
-                  // Invitation card
+            {allRows.length === 0 ? (
+              <EmptyState
+                title={search ? "No members found" : "No members found"}
+                description={
+                  search
+                    ? `No members match "${search}"`
+                    : "Invite members to get started."
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {allRows.map((row) => {
+                  if (row.type === "invitation") {
+                    // Invitation card
+                    return (
+                      <Card
+                        key={`inv-${row.data.id}`}
+                        className="transition-colors relative opacity-75"
+                      >
+                        <div className="absolute top-4 right-4 z-10">
+                          <InvitationActionsDropdown
+                            invitationId={row.data.id}
+                            onCancel={setInvitationToCancel}
+                            isCancelling={invitationActions.cancel.isPending}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-4 p-6">
+                          <Avatar
+                            fallback={getInitials(row.data.email)}
+                            shape="circle"
+                            size="lg"
+                            className="shrink-0"
+                          />
+                          <div className="flex flex-col gap-2">
+                            <h3 className="text-base font-medium text-foreground truncate">
+                              {row.data.email}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="w-fit text-amber-600 border-amber-400"
+                              >
+                                Pending
+                              </Badge>
+                            </div>
+                            <RoleSelector
+                              role={row.data.role}
+                              memberId={row.data.id}
+                              isOwner={false}
+                              roleColorMap={roleColorMap}
+                              selectableRoles={selectableRoles}
+                              onRoleChange={(invitationId, role) =>
+                                updateInvitationRoleMutation.mutate({
+                                  invitationId,
+                                  role,
+                                  email: row.data.email,
+                                })
+                              }
+                              className="w-fit"
+                            />
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  }
+                  // Member card
+                  const member = row.data;
                   return (
                     <Card
-                      key={`inv-${row.data.id}`}
-                      className="transition-colors relative opacity-75"
+                      key={member.id}
+                      className="transition-colors relative"
                     >
                       <div className="absolute top-4 right-4 z-10">
-                        <InvitationActionsDropdown
-                          invitationId={row.data.id}
-                          onCancel={setInvitationToCancel}
-                          isCancelling={invitationActions.cancel.isPending}
+                        <MemberActionsDropdown
+                          member={member}
+                          roles={roles}
+                          onChangeRole={(memberId, role) =>
+                            updateRoleMutation.mutate({ memberId, role })
+                          }
+                          onRemove={setMemberToRemove}
+                          isUpdating={updateRoleMutation.isPending}
                         />
                       </div>
                       <div className="flex flex-col gap-4 p-6">
                         <Avatar
-                          fallback={getInitials(row.data.email)}
+                          url={member.user?.image ?? undefined}
+                          fallback={getInitials(member.user?.name)}
                           shape="circle"
                           size="lg"
                           className="shrink-0"
                         />
                         <div className="flex flex-col gap-2">
                           <h3 className="text-base font-medium text-foreground truncate">
-                            {row.data.email}
+                            {member.user?.name || "Unknown"}
                           </h3>
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant="outline"
-                              className="w-fit text-amber-600 border-amber-400"
-                            >
-                              Pending
-                            </Badge>
-                          </div>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {member.user?.email}
+                          </p>
                           <RoleSelector
-                            role={row.data.role}
-                            memberId={row.data.id}
-                            isOwner={false}
+                            role={member.role}
+                            memberId={member.id}
+                            isOwner={member.role === "owner"}
                             roleColorMap={roleColorMap}
                             selectableRoles={selectableRoles}
-                            onRoleChange={(invitationId, role) =>
-                              updateInvitationRoleMutation.mutate({
-                                invitationId,
-                                role,
-                                email: row.data.email,
-                              })
+                            onRoleChange={(memberId, role) =>
+                              updateRoleMutation.mutate({ memberId, role })
                             }
                             className="w-fit"
                           />
@@ -943,78 +992,32 @@ function OrgMembersContent() {
                       </div>
                     </Card>
                   );
-                }
-                // Member card
-                const member = row.data;
-                return (
-                  <Card key={member.id} className="transition-colors relative">
-                    <div className="absolute top-4 right-4 z-10">
-                      <MemberActionsDropdown
-                        member={member}
-                        roles={roles}
-                        onChangeRole={(memberId, role) =>
-                          updateRoleMutation.mutate({ memberId, role })
-                        }
-                        onRemove={setMemberToRemove}
-                        isUpdating={updateRoleMutation.isPending}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-4 p-6">
-                      <Avatar
-                        url={member.user?.image ?? undefined}
-                        fallback={getInitials(member.user?.name)}
-                        shape="circle"
-                        size="lg"
-                        className="shrink-0"
-                      />
-                      <div className="flex flex-col gap-2">
-                        <h3 className="text-base font-medium text-foreground truncate">
-                          {member.user?.name || "Unknown"}
-                        </h3>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {member.user?.email}
-                        </p>
-                        <RoleSelector
-                          role={member.role}
-                          memberId={member.id}
-                          isOwner={member.role === "owner"}
-                          roleColorMap={roleColorMap}
-                          selectableRoles={selectableRoles}
-                          onRoleChange={(memberId, role) =>
-                            updateRoleMutation.mutate({ memberId, role })
-                          }
-                          className="w-fit"
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ) : (
-        <CollectionTableWrapper
-          columns={columns}
-          data={allRows}
-          isLoading={false}
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={handleSort}
-          emptyState={
-            search ? (
-              <EmptyState
-                title="No members found"
-                description={`No members match "${search}"`}
-              />
-            ) : (
-              <EmptyState
-                title="No members found"
-                description="Invite members to get started."
-              />
-            )
-          }
-        />
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <CollectionTableWrapper
+            columns={columns}
+            data={allRows}
+            isLoading={false}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            emptyState={
+              search ? (
+                <EmptyState
+                  title="No members found"
+                  description={`No members match "${search}"`}
+                />
+              ) : (
+                <EmptyState
+                  title="No members found"
+                  description="Invite members to get started."
+                />
+              )
+            }
+          />
         )}
       </Page.Content>
     </Page>

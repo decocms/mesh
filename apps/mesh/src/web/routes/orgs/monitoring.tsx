@@ -1053,7 +1053,9 @@ export default function MonitoringDashboard() {
           <>
             <Page.Header>
               <Page.Header.Left>
-                <h1 className="text-sm font-medium text-foreground">Monitoring</h1>
+                <h1 className="text-sm font-medium text-foreground">
+                  Monitoring
+                </h1>
               </Page.Header.Left>
             </Page.Header>
             <Page.Content>
@@ -1079,13 +1081,15 @@ export default function MonitoringDashboard() {
             <>
               <Page.Header>
                 <Page.Header.Left>
-                  <h1 className="text-sm font-medium text-foreground">Monitoring</h1>
+                  <h1 className="text-sm font-medium text-foreground">
+                    Monitoring
+                  </h1>
                 </Page.Header.Left>
               </Page.Header>
               <Page.Content>
                 <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
-                <MonitoringStats.Skeleton />
-                <MonitoringLogsTable.Skeleton />
+                  <MonitoringStats.Skeleton />
+                  <MonitoringLogsTable.Skeleton />
                 </div>
               </Page.Content>
             </>

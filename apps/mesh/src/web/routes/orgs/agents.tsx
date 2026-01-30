@@ -280,91 +280,91 @@ function OrgAgentsContent() {
       <Page.Content>
         {listState.viewMode === "cards" ? (
           <div className="flex-1 overflow-auto p-5">
-          {virtualMcps.length === 0 ? (
-            <EmptyState
-              image={<Users03 size={36} className="text-muted-foreground" />}
-              title={listState.search ? "No agents found" : "No agents yet"}
-              description={
-                listState.search
-                  ? `No agents match "${listState.search}"`
-                  : "Create an agent to aggregate tools from multiple Connections."
-              }
-            />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {virtualMcps.map((virtualMcp) => (
-                <ConnectionCard
-                  key={virtualMcp.id ?? "default"}
-                  connection={{
-                    id: virtualMcp.id ?? "",
-                    title: virtualMcp.title,
-                    description: virtualMcp.description,
-                    icon: virtualMcp.icon,
-                    status: virtualMcp.status,
-                  }}
-                  fallbackIcon={<Users03 />}
-                  onClick={() =>
-                    navigate({
-                      to: "/$org/agents/$agentId",
-                      params: { org: org.slug, agentId: virtualMcp.id },
-                    })
-                  }
-                  footer={
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>
-                        {virtualMcp.connections.length} connection
-                        {virtualMcp.connections.length !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                  }
-                  headerActions={
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
+            {virtualMcps.length === 0 ? (
+              <EmptyState
+                image={<Users03 size={36} className="text-muted-foreground" />}
+                title={listState.search ? "No agents found" : "No agents yet"}
+                description={
+                  listState.search
+                    ? `No agents match "${listState.search}"`
+                    : "Create an agent to aggregate tools from multiple Connections."
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {virtualMcps.map((virtualMcp) => (
+                  <ConnectionCard
+                    key={virtualMcp.id ?? "default"}
+                    connection={{
+                      id: virtualMcp.id ?? "",
+                      title: virtualMcp.title,
+                      description: virtualMcp.description,
+                      icon: virtualMcp.icon,
+                      status: virtualMcp.status,
+                    }}
+                    fallbackIcon={<Users03 />}
+                    onClick={() =>
+                      navigate({
+                        to: "/$org/agents/$agentId",
+                        params: { org: org.slug, agentId: virtualMcp.id },
+                      })
+                    }
+                    footer={
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>
+                          {virtualMcp.connections.length} connection
+                          {virtualMcp.connections.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    }
+                    headerActions={
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <DotsVertical size={20} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <DotsVertical size={20} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate({
-                              to: "/$org/agents/$agentId",
-                              params: {
-                                org: org.slug,
-                                agentId: virtualMcp.id,
-                              },
-                            });
-                          }}
-                        >
-                          <Eye size={16} />
-                          Open
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            dispatch({ type: "delete", virtualMcp });
-                          }}
-                        >
-                          <Trash01 size={16} />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  }
-                />
-              ))}
-            </div>
-          )}
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate({
+                                to: "/$org/agents/$agentId",
+                                params: {
+                                  org: org.slug,
+                                  agentId: virtualMcp.id,
+                                },
+                              });
+                            }}
+                          >
+                            <Eye size={16} />
+                            Open
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dispatch({ type: "delete", virtualMcp });
+                            }}
+                          >
+                            <Trash01 size={16} />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    }
+                  />
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <CollectionTableWrapper
@@ -383,13 +383,17 @@ function OrgAgentsContent() {
             emptyState={
               listState.search ? (
                 <EmptyState
-                  image={<Users03 size={36} className="text-muted-foreground" />}
+                  image={
+                    <Users03 size={36} className="text-muted-foreground" />
+                  }
                   title="No agents found"
                   description={`No agents match "${listState.search}"`}
                 />
               ) : (
                 <EmptyState
-                  image={<Users03 size={36} className="text-muted-foreground" />}
+                  image={
+                    <Users03 size={36} className="text-muted-foreground" />
+                  }
                   title="No agents yet"
                   description="Create an agent to aggregate tools from multiple Connections."
                 />
