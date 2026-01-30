@@ -13,7 +13,7 @@ export function SmartAutoScroll({
   parts: unknown[] | null | undefined;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(false);
 
   // Extract content dependencies from parts for dependency tracking
   const partsLength = parts?.length;
