@@ -1,5 +1,4 @@
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
+import { Page } from "@/web/components/page";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
@@ -237,10 +236,14 @@ export default function OrgSettings() {
   const hasChanges = form.formState.isDirty;
 
   return (
-    <CollectionPage>
-      <CollectionHeader title="Settings" />
+    <Page>
+      <Page.Header>
+        <Page.Header.Left>
+          <h1 className="text-sm font-medium text-foreground">Settings</h1>
+        </Page.Header.Left>
+      </Page.Header>
 
-      <div className="flex-1 overflow-auto">
+      <Page.Content>
         <div className="flex h-full">
           {/* Content */}
           <div className="flex-1 overflow-auto">
@@ -382,7 +385,7 @@ export default function OrgSettings() {
             </div>
           </div>
         </div>
-      </div>
-    </CollectionPage>
+      </Page.Content>
+    </Page>
   );
 }

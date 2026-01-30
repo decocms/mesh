@@ -4,13 +4,10 @@ import { X } from "@untitledui/icons";
 import type { UIMessage } from "ai";
 import type {
   PropsWithChildren,
-  ReactElement,
   ReactNode,
   RefObject,
 } from "react";
 import {
-  Children,
-  isValidElement,
   useEffect,
   useRef,
   useTransition,
@@ -76,19 +73,6 @@ function useChatAutoScroll({
   }, [messageCount, sentinelRef]);
 }
 
-function findChild<T>(
-  children: ReactNode,
-  type: (props: T) => ReactNode,
-): ReactElement<T> | null {
-  const arr = Children.toArray(children);
-  for (const child of arr) {
-    if (isValidElement(child) && child.type === type) {
-      return child as ReactElement<T>;
-    }
-  }
-  return null;
-}
-
 function ChatRoot({
   className,
   children,
@@ -105,29 +89,6 @@ function ChatRoot({
   );
 }
 
-function ChatHeader({ children }: PropsWithChildren) {
-  const left = findChild(children, ChatHeaderLeft);
-  const right = findChild(children, ChatHeaderRight);
-
-  return (
-    <div className="flex h-12 items-center justify-between gap-4 border-b border-border px-4 flex-none">
-      {left}
-      {right}
-    </div>
-  );
-}
-
-function ChatHeaderLeft({ children }: PropsWithChildren) {
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-      {children}
-    </div>
-  );
-}
-
-function ChatHeaderRight({ children }: PropsWithChildren) {
-  return <div className="flex flex-none items-center gap-1">{children}</div>;
-}
 
 function ChatMain({
   children,
@@ -276,10 +237,6 @@ export function ChatHighlight({
 }
 
 export const Chat = Object.assign(ChatRoot, {
-  Header: Object.assign(ChatHeader, {
-    Left: ChatHeaderLeft,
-    Right: ChatHeaderRight,
-  }),
   Main: ChatMain,
   Messages: ChatMessages,
   EmptyState: ChatEmptyState,

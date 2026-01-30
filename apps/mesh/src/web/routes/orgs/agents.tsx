@@ -1,6 +1,6 @@
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
+import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { Page } from "@/web/components/page";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
@@ -211,7 +211,7 @@ function OrgAgentsContent() {
   );
 
   return (
-    <CollectionPage>
+    <Page>
       {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={dialogState.mode === "deleting"}
@@ -241,21 +241,27 @@ function OrgAgentsContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Collection Header */}
-      <CollectionHeader
-        title="Agents"
-        viewMode={listState.viewMode}
-        onViewModeChange={listState.setViewMode}
-        sortKey={listState.sortKey}
-        sortDirection={listState.sortDirection}
-        onSort={listState.handleSort}
-        sortOptions={[
-          { id: "title", label: "Name" },
-          { id: "description", label: "Description" },
-          { id: "status", label: "Status" },
-        ]}
-        ctaButton={ctaButton}
-      />
+      {/* Page Header */}
+      <Page.Header>
+        <Page.Header.Left>
+          <h1 className="text-sm font-medium text-foreground">Agents</h1>
+        </Page.Header.Left>
+        <Page.Header.Right>
+          <CollectionDisplayButton
+            viewMode={listState.viewMode}
+            onViewModeChange={listState.setViewMode}
+            sortKey={listState.sortKey}
+            sortDirection={listState.sortDirection}
+            onSort={listState.handleSort}
+            sortOptions={[
+              { id: "title", label: "Name" },
+              { id: "description", label: "Description" },
+              { id: "status", label: "Status" },
+            ]}
+          />
+          {ctaButton}
+        </Page.Header.Right>
+      </Page.Header>
 
       {/* Search Bar */}
       <CollectionSearch
@@ -271,8 +277,9 @@ function OrgAgentsContent() {
       />
 
       {/* Content: Cards or Table */}
-      {listState.viewMode === "cards" ? (
-        <div className="flex-1 overflow-auto p-5">
+      <Page.Content>
+        {listState.viewMode === "cards" ? (
+          <div className="flex-1 overflow-auto p-5">
           {virtualMcps.length === 0 ? (
             <EmptyState
               image={<Users03 size={36} className="text-muted-foreground" />}
@@ -358,39 +365,40 @@ function OrgAgentsContent() {
               ))}
             </div>
           )}
-        </div>
-      ) : (
-        <CollectionTableWrapper
-          columns={columns}
-          data={virtualMcps}
-          isLoading={false}
-          sortKey={listState.sortKey}
-          sortDirection={listState.sortDirection}
-          onSort={listState.handleSort}
-          onRowClick={(virtualMcp) =>
-            navigate({
-              to: "/$org/agents/$agentId",
-              params: { org: org.slug, agentId: virtualMcp.id },
-            })
-          }
-          emptyState={
-            listState.search ? (
-              <EmptyState
-                image={<Users03 size={36} className="text-muted-foreground" />}
-                title="No agents found"
-                description={`No agents match "${listState.search}"`}
-              />
-            ) : (
-              <EmptyState
-                image={<Users03 size={36} className="text-muted-foreground" />}
-                title="No agents yet"
-                description="Create an agent to aggregate tools from multiple Connections."
-              />
-            )
-          }
-        />
-      )}
-    </CollectionPage>
+          </div>
+        ) : (
+          <CollectionTableWrapper
+            columns={columns}
+            data={virtualMcps}
+            isLoading={false}
+            sortKey={listState.sortKey}
+            sortDirection={listState.sortDirection}
+            onSort={listState.handleSort}
+            onRowClick={(virtualMcp) =>
+              navigate({
+                to: "/$org/agents/$agentId",
+                params: { org: org.slug, agentId: virtualMcp.id },
+              })
+            }
+            emptyState={
+              listState.search ? (
+                <EmptyState
+                  image={<Users03 size={36} className="text-muted-foreground" />}
+                  title="No agents found"
+                  description={`No agents match "${listState.search}"`}
+                />
+              ) : (
+                <EmptyState
+                  image={<Users03 size={36} className="text-muted-foreground" />}
+                  title="No agents yet"
+                  description="Create an agent to aggregate tools from multiple Connections."
+                />
+              )
+            }
+          />
+        )}
+      </Page.Content>
+    </Page>
   );
 }
 

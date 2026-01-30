@@ -1,6 +1,6 @@
 import { CollectionTab } from "@/web/components/details/connection/collection-tab";
 import { BindingCollectionEmptyState } from "@/web/components/binding-collection-empty-state";
-import { CollectionHeader } from "@/web/components/collections/collection-header";
+import { Page } from "@/web/components/page";
 import {
   useBindingConnections,
   useCollectionBindings,
@@ -62,10 +62,14 @@ export function BindingCollectionView({
     connection && activeCollection && (connection.id || installedConnectionId);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <CollectionHeader title={title} />
+    <Page>
+      <Page.Header>
+        <Page.Header.Left>
+          <h1 className="text-sm font-medium text-foreground">{title}</h1>
+        </Page.Header.Left>
+      </Page.Header>
 
-      <div className="h-full flex flex-col overflow-hidden">
+      <Page.Content>
         <Suspense
           fallback={
             <div className="flex flex-col items-center justify-center h-full">
@@ -99,7 +103,7 @@ export function BindingCollectionView({
             </div>
           )}
         </Suspense>
-      </div>
-    </div>
+      </Page.Content>
+    </Page>
   );
 }

@@ -4,9 +4,8 @@
  * Displays tool call monitoring logs and statistics for the organization.
  */
 
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { Page } from "@/web/components/page";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { MONITORING_CONFIG } from "@/web/components/monitoring/config.ts";
@@ -870,10 +869,12 @@ function MonitoringDashboardContent({
 
   return (
     <>
-      <CollectionHeader
-        title="Monitoring"
-        ctaButton={
-          tab === "logs" ? (
+      <Page.Header>
+        <Page.Header.Left>
+          <h1 className="text-sm font-medium text-foreground">Monitoring</h1>
+        </Page.Header.Left>
+        <Page.Header.Right>
+          {tab === "logs" ? (
             <div className="flex flex-wrap items-center gap-2">
               {/* Filters Button */}
               <FiltersPopover
@@ -914,9 +915,9 @@ function MonitoringDashboardContent({
                 onChange={onTimeRangeChange}
               />
             </div>
-          ) : null
-        }
-      />
+          ) : null}
+        </Page.Header.Right>
+      </Page.Header>
 
       {/* Tabs */}
       <div className="px-5 py-3 border-b border-border">
@@ -1046,35 +1047,47 @@ export default function MonitoringDashboard() {
     activeFiltersCount += validPropertyFilters.length;
 
   return (
-    <CollectionPage>
+    <Page>
       <ErrorBoundary
         fallback={
           <>
-            <CollectionHeader title="Monitoring" />
-            <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-[0.5px] bg-border shrink-0 border-b">
-                <div className="bg-background p-5 text-sm text-muted-foreground">
-                  Failed to load monitoring data
+            <Page.Header>
+              <Page.Header.Left>
+                <h1 className="text-sm font-medium text-foreground">Monitoring</h1>
+              </Page.Header.Left>
+            </Page.Header>
+            <Page.Content>
+              <div className="flex flex-col overflow-auto md:overflow-hidden h-full">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-[0.5px] bg-border shrink-0 border-b">
+                  <div className="bg-background p-5 text-sm text-muted-foreground">
+                    Failed to load monitoring data
+                  </div>
+                </div>
+                <div className="flex-1 flex items-center justify-center">
+                  <EmptyState
+                    title="Failed to load logs"
+                    description="There was an error loading the monitoring data. Please try again."
+                  />
                 </div>
               </div>
-              <div className="flex-1 flex items-center justify-center">
-                <EmptyState
-                  title="Failed to load logs"
-                  description="There was an error loading the monitoring data. Please try again."
-                />
-              </div>
-            </div>
+            </Page.Content>
           </>
         }
       >
         <Suspense
           fallback={
             <>
-              <CollectionHeader title="Monitoring" />
-              <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
+              <Page.Header>
+                <Page.Header.Left>
+                  <h1 className="text-sm font-medium text-foreground">Monitoring</h1>
+                </Page.Header.Left>
+              </Page.Header>
+              <Page.Content>
+                <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
                 <MonitoringStats.Skeleton />
                 <MonitoringLogsTable.Skeleton />
-              </div>
+                </div>
+              </Page.Content>
             </>
           }
         >
@@ -1099,6 +1112,6 @@ export default function MonitoringDashboard() {
           />
         </Suspense>
       </ErrorBoundary>
-    </CollectionPage>
+    </Page>
   );
 }

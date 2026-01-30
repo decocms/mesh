@@ -1,6 +1,6 @@
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
+import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { Page } from "@/web/components/page";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
@@ -885,7 +885,7 @@ function OrgMcpsContent() {
   );
 
   return (
-    <CollectionPage>
+    <Page>
       <Dialog
         open={isCreating || dialogState.mode === "editing"}
         onOpenChange={handleDialogClose}
@@ -1252,22 +1252,28 @@ function OrgMcpsContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Collection Header */}
-      <CollectionHeader
-        title="Connections"
-        viewMode={listState.viewMode}
-        onViewModeChange={listState.setViewMode}
-        sortKey={listState.sortKey}
-        sortDirection={listState.sortDirection}
-        onSort={listState.handleSort}
-        sortOptions={[
-          { id: "title", label: "Name" },
-          { id: "description", label: "Description" },
-          { id: "connection_type", label: "Type" },
-          { id: "status", label: "Status" },
-        ]}
-        ctaButton={ctaButton}
-      />
+      {/* Page Header */}
+      <Page.Header>
+        <Page.Header.Left>
+          <h1 className="text-sm font-medium text-foreground">Connections</h1>
+        </Page.Header.Left>
+        <Page.Header.Right>
+          <CollectionDisplayButton
+            viewMode={listState.viewMode}
+            onViewModeChange={listState.setViewMode}
+            sortKey={listState.sortKey}
+            sortDirection={listState.sortDirection}
+            onSort={listState.handleSort}
+            sortOptions={[
+              { id: "title", label: "Name" },
+              { id: "description", label: "Description" },
+              { id: "connection_type", label: "Type" },
+              { id: "status", label: "Status" },
+            ]}
+          />
+          {ctaButton}
+        </Page.Header.Right>
+      </Page.Header>
 
       {/* Search Bar */}
       <CollectionSearch
@@ -1283,8 +1289,9 @@ function OrgMcpsContent() {
       />
 
       {/* Content: Cards or Table */}
-      {listState.viewMode === "cards" ? (
-        <div className="flex-1 overflow-auto p-5">
+      <Page.Content>
+        {listState.viewMode === "cards" ? (
+          <div className="flex-1 overflow-auto p-5">
           {connections.length === 0 ? (
             <EmptyState
               image={
@@ -1443,8 +1450,9 @@ function OrgMcpsContent() {
             )
           }
         />
-      )}
-    </CollectionPage>
+        )}
+      </Page.Content>
+    </Page>
   );
 }
 

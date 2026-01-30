@@ -1,4 +1,5 @@
 import { IntegrationIcon } from "@/web/components/integration-icon";
+import { Page } from "@/web/components/page";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
@@ -44,8 +45,8 @@ function ChatPanelContent() {
 
     return (
       <Chat>
-        <Chat.Header>
-          <Chat.Header.Left>
+        <Page.Header className="flex-none">
+          <Page.Header.Left className="gap-2">
             <IntegrationIcon
               icon={displayAgent.icon}
               name={displayAgent.title}
@@ -53,8 +54,8 @@ function ChatPanelContent() {
               className="size-5 rounded-md aspect-square shrink-0"
             />
             <span className="text-sm font-medium">{displayAgent.title}</span>
-          </Chat.Header.Left>
-          <Chat.Header.Right>
+          </Page.Header.Left>
+          <Page.Header.Right className="gap-1">
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -66,8 +67,8 @@ function ChatPanelContent() {
                 className="text-muted-foreground group-hover:text-foreground transition-colors"
               />
             </button>
-          </Chat.Header.Right>
-        </Chat.Header>
+          </Page.Header.Right>
+        </Page.Header>
 
         <Chat.Main className="flex flex-col items-center">
           <Chat.EmptyState>
@@ -95,8 +96,8 @@ function ChatPanelContent() {
               : "duration-300 opacity-100 translate-x-0",
         )}
       >
-        <Chat.Header>
-          <Chat.Header.Left>
+        <Page.Header className="flex-none">
+          <Page.Header.Left className="gap-2">
             <IntegrationIcon
               icon={displayAgent.icon}
               name={displayAgent.title}
@@ -113,8 +114,8 @@ function ChatPanelContent() {
                 {displayAgent.title}
               </span>
             )}
-          </Chat.Header.Left>
-          <Chat.Header.Right>
+          </Page.Header.Left>
+          <Page.Header.Right className="gap-1">
             <button
               type="button"
               onClick={handleNewThread}
@@ -149,8 +150,8 @@ function ChatPanelContent() {
                 className="text-muted-foreground group-hover:text-foreground transition-colors"
               />
             </button>
-          </Chat.Header.Right>
-        </Chat.Header>
+          </Page.Header.Right>
+        </Page.Header>
 
         <Chat.Main>
           {isChatEmpty ? (

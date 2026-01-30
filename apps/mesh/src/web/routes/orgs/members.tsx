@@ -1,6 +1,6 @@
-import { CollectionHeader } from "@/web/components/collections/collection-header.tsx";
-import { CollectionPage } from "@/web/components/collections/collection-page.tsx";
+import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { Page } from "@/web/components/page";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { ManageRolesDialog } from "@/web/components/manage-roles-dialog";
 import { EmptyState } from "@/web/components/empty-state.tsx";
@@ -784,7 +784,7 @@ function OrgMembersContent() {
   ];
 
   return (
-    <CollectionPage>
+    <Page>
       {/* Cancel Invitation Dialog */}
       <AlertDialog
         open={!!invitationToCancel}
@@ -843,20 +843,26 @@ function OrgMembersContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <CollectionHeader
-        title="Members"
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        sortKey={sortKey}
-        sortDirection={sortDirection}
-        onSort={handleSort}
-        sortOptions={[
-          { id: "member", label: "Name" },
-          { id: "role", label: "Role" },
-          { id: "joined", label: "Joined" },
-        ]}
-        ctaButton={ctaButton}
-      />
+      <Page.Header>
+        <Page.Header.Left>
+          <h1 className="text-sm font-medium text-foreground">Members</h1>
+        </Page.Header.Left>
+        <Page.Header.Right>
+          <CollectionDisplayButton
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            sortOptions={[
+              { id: "member", label: "Name" },
+              { id: "role", label: "Role" },
+              { id: "joined", label: "Joined" },
+            ]}
+          />
+          {ctaButton}
+        </Page.Header.Right>
+      </Page.Header>
 
       <CollectionSearch
         value={search}
@@ -870,8 +876,9 @@ function OrgMembersContent() {
         }}
       />
 
-      {viewMode === "cards" ? (
-        <div className="flex-1 overflow-auto p-5">
+      <Page.Content>
+        {viewMode === "cards" ? (
+          <div className="flex-1 overflow-auto p-5">
           {allRows.length === 0 ? (
             <EmptyState
               title={search ? "No members found" : "No members found"}
@@ -1008,8 +1015,9 @@ function OrgMembersContent() {
             )
           }
         />
-      )}
-    </CollectionPage>
+        )}
+      </Page.Content>
+    </Page>
   );
 }
 
@@ -1017,25 +1025,25 @@ export default function OrgMembers() {
   return (
     <ErrorBoundary
       fallback={
-        <CollectionPage>
+        <Page>
           <div className="flex items-center justify-center h-full">
             <div className="text-sm text-muted-foreground">
               Failed to load members
             </div>
           </div>
-        </CollectionPage>
+        </Page>
       }
     >
       <Suspense
         fallback={
-          <CollectionPage>
+          <Page>
             <div className="flex items-center justify-center h-full">
               <Loading01
                 size={32}
                 className="animate-spin text-muted-foreground"
               />
             </div>
-          </CollectionPage>
+          </Page>
         }
       >
         <OrgMembersContent />

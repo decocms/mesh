@@ -11,6 +11,7 @@ import { TypewriterTitle } from "@/web/components/chat/typewriter-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { Page } from "@/web/components/page";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -78,8 +79,8 @@ function HomeContent() {
 
   return (
     <Chat>
-      <Chat.Header>
-        <Chat.Header.Left>
+      <Page.Header className="flex-none">
+        <Page.Header.Left className="gap-2">
           {!isChatEmpty && activeThread?.title ? (
             <TypewriterTitle
               text={activeThread.title}
@@ -88,8 +89,8 @@ function HomeContent() {
           ) : (
             <span className="text-sm font-medium text-foreground">Chat</span>
           )}
-        </Chat.Header.Left>
-        <Chat.Header.Right>
+        </Page.Header.Left>
+        <Page.Header.Right className="gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -159,8 +160,8 @@ function HomeContent() {
             </TooltipTrigger>
             <TooltipContent>Share chat</TooltipContent>
           </Tooltip>
-        </Chat.Header.Right>
-      </Chat.Header>
+        </Page.Header.Right>
+      </Page.Header>
 
       {!isChatEmpty ? (
         <>
@@ -244,12 +245,12 @@ function HomeChatErrorFallback({
 
   return (
     <Chat>
-      <Chat.Header>
-        <Chat.Header.Left>
+      <Page.Header className="flex-none">
+        <Page.Header.Left className="gap-2">
           <span className="text-sm font-medium text-foreground">Chat</span>
-        </Chat.Header.Left>
-        <Chat.Header.Right />
-      </Chat.Header>
+        </Page.Header.Left>
+        <Page.Header.Right className="gap-1" />
+      </Page.Header>
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
         <div className="max-w-sm space-y-4">
           <div className="bg-destructive/10 p-3 rounded-full mx-auto w-fit">
