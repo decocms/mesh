@@ -39,9 +39,9 @@ export function MeshSidebarHeader() {
               {/* Account switcher - hidden when collapsed and hovering */}
               <div
                 className={cn(
-                  "w-full min-w-0",
+                  "w-full min-w-0 transition-opacity",
                   isCollapsed &&
-                    "group-hover/account-switcher:opacity-0 group-hover/account-switcher:pointer-events-none transition-opacity",
+                    "group-hover/account-switcher:opacity-0 group-hover/account-switcher:pointer-events-none group-hover/account-switcher:invisible",
                 )}
               >
                 <MeshAccountSwitcher isCollapsed={isCollapsed} />
@@ -53,8 +53,8 @@ export function MeshSidebarHeader() {
                 className={cn(
                   "absolute inset-0 m-auto size-7 hover:bg-sidebar-accent transition-opacity",
                   isCollapsed
-                    ? "opacity-0 group-hover/account-switcher:opacity-100 pointer-events-none group-hover/account-switcher:pointer-events-auto"
-                    : "opacity-0 pointer-events-none",
+                    ? "opacity-0 invisible pointer-events-none group-hover/account-switcher:opacity-100 group-hover/account-switcher:visible group-hover/account-switcher:pointer-events-auto"
+                    : "opacity-0 invisible pointer-events-none",
                 )}
                 onClick={toggleSidebar}
                 aria-label="Expand sidebar"
