@@ -28,6 +28,7 @@ import { Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { ViewActions } from "../../layout";
+import { SaveActions } from "@/web/components/save-actions";
 import { ConnectionSettingsFormUI } from "./connection-settings-form-ui";
 import { McpConfigurationForm } from "./mcp-configuration-form";
 import { connectionFormSchema, type ConnectionFormData } from "./schema";
@@ -506,6 +507,10 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
     form.reset(data);
   };
 
+  const handleUndo = () => {
+    form.reset(connectionToFormValues(connection, scopes));
+  };
+
   const handleAuthenticate = async () => {
     const { token, tokenInfo, error } = await authenticateMcp({
       connectionId: connection.id,
@@ -623,15 +628,12 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
   return (
     <>
       <ViewActions>
-        <Button
-          onClick={handleSave}
-          disabled={!hasAnyChanges || isUpdating}
-          size="sm"
-          className="h-7"
-        >
-          {isUpdating && <Loading01 size={16} className="mr-2 animate-spin" />}
-          Save Changes
-        </Button>
+        <SaveActions
+          onSave={handleSave}
+          onUndo={handleUndo}
+          isDirty={hasAnyChanges}
+          isSaving={isUpdating}
+        />
         <PinToSidebarButton
           title={`${connection.title}: Settings`}
           url={url}

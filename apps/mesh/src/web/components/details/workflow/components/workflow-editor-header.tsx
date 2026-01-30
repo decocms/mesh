@@ -2,26 +2,25 @@ import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { VirtualMCPSelect } from "./virtual-mcp-select";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useRouterState } from "@tanstack/react-router";
 import {
   ClockFastForward,
   Code02,
-  FlipBackward,
   GitBranch01,
   Play,
-  Save02,
   Stop,
 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { ViewActions, ViewTabs } from "../../layout";
+import { SaveActions } from "@/web/components/save-actions";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import {
   usePollingWorkflowExecution,
   useWorkflowCancel,
@@ -84,8 +83,14 @@ export function WorkflowEditorHeader({
       <ViewActions>
         {!trackingExecutionId && (
           <>
-            <PinToSidebarButton title={title} url={url} icon="workflow" />
-
+            <SaveActions
+              onSave={onSave}
+              onUndo={resetToOriginalWorkflow}
+              isDirty={isDirty}
+              isSaving={isSaving}
+              saveLabel="Save workflow"
+              undoLabel="Reset changes"
+            />
             <Suspense fallback={<Spinner size="xs" />}>
               <VirtualMCPSelect
                 selectedVirtualMcpId={selectedVirtualMcpId}
@@ -104,45 +109,7 @@ export function WorkflowEditorHeader({
               ]}
             />
 
-            <TooltipProvider>
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <span className="inline-block">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="size-7 border border-input"
-                      onClick={resetToOriginalWorkflow}
-                      disabled={!isDirty}
-                      aria-label="Reset changes"
-                    >
-                      <FlipBackward size={14} />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Reset changes</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider>
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <span className="inline-block">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="size-7 border border-input"
-                      onClick={onSave}
-                      disabled={!isDirty || isSaving}
-                      aria-label="Save workflow"
-                    >
-                      {isSaving ? <Spinner size="xs" /> : <Save02 size={14} />}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Save workflow</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <PinToSidebarButton title={title} url={url} icon="workflow" />
 
             <TooltipProvider>
               <Tooltip delayDuration={0}>

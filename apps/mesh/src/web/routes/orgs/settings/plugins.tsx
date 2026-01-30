@@ -183,21 +183,19 @@ export default function PluginsSettings() {
 
                 <div className="flex items-center gap-3 pt-4">
                   <Button
+                    variant="outline"
+                    onClick={handleCancel}
+                    disabled={!hasChanges || isSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
                     onClick={handleSave}
                     disabled={!hasChanges || isSaving}
                     className="min-w-24"
                   >
                     {isSaving ? "Saving..." : "Save Changes"}
                   </Button>
-                  {hasChanges && (
-                    <Button
-                      variant="outline"
-                      onClick={handleCancel}
-                      disabled={isSaving}
-                    >
-                      Cancel
-                    </Button>
-                  )}
                 </div>
               </div>
             </div>
