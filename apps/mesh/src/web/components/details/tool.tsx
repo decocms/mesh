@@ -94,7 +94,6 @@ function ToolDetailsContent({
       key={`${connectionId}:${toolName}`}
       toolName={toolName}
       connectionId={connectionId}
-      onBack={onBack}
     />
   );
 }
@@ -102,11 +101,9 @@ function ToolDetailsContent({
 function ToolDetailsAuthenticated({
   toolName,
   connectionId,
-  onBack,
 }: {
   toolName: string;
   connectionId: string;
-  onBack: () => void;
 }) {
   const routerState = useRouterState();
   const url = routerState.location.href;
@@ -287,7 +284,7 @@ function ToolDetailsAuthenticated({
   };
 
   return (
-    <ViewLayout onBack={onBack}>
+    <ViewLayout>
       <ViewActions>
         <PinToSidebarButton
           title={tool?.name ?? beautifyToolName(toolName)}
