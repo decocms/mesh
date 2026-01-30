@@ -43,13 +43,11 @@ const MAX_VISIBLE = 3;
 function PromptPill({
   prompt,
   onSelect,
-  isSelected,
   isDisabled,
   isLoading,
 }: {
   prompt: Prompt;
   onSelect: (prompt: Prompt) => void;
-  isSelected?: boolean;
   isDisabled?: boolean;
   isLoading?: boolean;
 }) {
@@ -62,11 +60,10 @@ function PromptPill({
           onClick={() => onSelect(prompt)}
           disabled={isDisabled || isLoading}
           className={cn(
-            "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer flex items-center gap-1.5",
-            isSelected && "bg-accent/50 text-foreground",
-            isLoading && "bg-accent/50 text-foreground",
+            "px-3 py-1.5 text-xs text-muted-foreground border border-border rounded-full bg-background/80 hover:bg-background transition-colors cursor-pointer flex items-center gap-1.5",
+            isLoading && "opacity-60",
             (isDisabled || isLoading) &&
-              "cursor-not-allowed hover:bg-accent/50",
+              "cursor-not-allowed",
           )}
         >
           {(prompt.title ?? prompt.name).replace(/_/g, " ")}
@@ -122,7 +119,7 @@ function IceBreakersUI({
                 type="button"
                 disabled={isAnyLoading}
                 className={cn(
-                  "size-7 flex items-center justify-center text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer",
+                  "size-7 flex items-center justify-center text-xs text-muted-foreground border border-border rounded-full bg-background/80 hover:bg-background transition-colors cursor-pointer",
                   isAnyLoading && "opacity-60 cursor-not-allowed",
                 )}
               >
@@ -142,8 +139,8 @@ function IceBreakersUI({
                           onClick={() => onSelect(prompt)}
                           disabled={isAnyLoading && !isLoading}
                           className={cn(
-                            "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-md transition-colors cursor-pointer text-left flex items-center gap-1.5",
-                            isLoading && "bg-accent/50 text-foreground",
+                            "px-3 py-1.5 text-xs text-muted-foreground bg-background/80 hover:bg-background rounded-md transition-colors cursor-pointer text-left flex items-center gap-1.5",
+                            isLoading && "opacity-60",
                             isAnyLoading &&
                               !isLoading &&
                               "opacity-60 cursor-not-allowed",
