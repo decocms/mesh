@@ -1,5 +1,4 @@
-import { Button } from "@deco/ui/components/button.tsx";
-import { ArrowLeft } from "@untitledui/icons";
+import { Page } from "@/web/components/page";
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -30,39 +29,22 @@ export function ViewActions({ children }: PortalProps) {
 
 interface ViewLayoutProps {
   children: ReactNode;
-  onBack: () => void;
-  title?: string;
+  breadcrumb?: ReactNode;
 }
 
-export function ViewLayout({ children, onBack, title }: ViewLayoutProps) {
+export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
   const [tabsEl, setTabsEl] = useState<HTMLDivElement | null>(null);
   const [actionsEl, setActionsEl] = useState<HTMLDivElement | null>(null);
 
   return (
     <ViewLayoutContext value={{ tabsEl, actionsEl }}>
-      <div className="flex flex-col h-full bg-background">
+      <Page>
         {/* Header */}
-        <div className="flex items-center h-12 border-b border-border shrink-0">
-          {/* Back Button */}
-          <div className="flex h-full px-2 border-r items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="items-center size-8 text-muted-foreground"
-              onClick={onBack}
-            >
-              <ArrowLeft />
-            </Button>
-          </div>
-
-          {title && (
-            <div className="flex items-center gap-2 px-2">
-              <p className="text-sm font-medium">{title}</p>
-            </div>
-          )}
+        <Page.Header>
+          <Page.Header.Left>{breadcrumb}</Page.Header.Left>
 
           {/* Tabs and Actions */}
-          <div className="flex px-4 items-center gap-0 flex-1 min-w-0">
+          <Page.Header.Right>
             {/* Tabs Slot */}
             <div
               ref={setTabsEl}
@@ -72,14 +54,14 @@ export function ViewLayout({ children, onBack, title }: ViewLayoutProps) {
             {/* Actions Slot */}
             <div
               ref={setActionsEl}
-              className="flex items-center gap-2 ml-auto shrink-0"
+              className="flex items-center gap-2 shrink-0"
             />
-          </div>
-        </div>
+          </Page.Header.Right>
+        </Page.Header>
 
         {/* Main Content */}
-        <div className="flex-1 overflow-auto">{children}</div>
-      </div>
+        <Page.Content>{children}</Page.Content>
+      </Page>
     </ViewLayoutContext>
   );
 }

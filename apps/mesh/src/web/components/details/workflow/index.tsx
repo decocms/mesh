@@ -87,11 +87,7 @@ export function useCollectionWorkflow({ itemId }: { itemId: string }) {
   };
 }
 
-interface WorkflowViewProps {
-  onBack: () => void;
-}
-
-interface WorkflowDetailsProps extends WorkflowViewProps {
+interface WorkflowDetailsProps {
   onUpdate: (updates: Partial<Workflow>) => Promise<void>;
   isUpdating: boolean;
 }
@@ -236,9 +232,7 @@ function WorkflowExecutionBar() {
   );
 }
 
-export function WorkflowDetails({
-  onBack,
-}: Omit<WorkflowDetailsProps, "isUpdating">) {
+export function WorkflowDetails() {
   const { itemId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
@@ -252,7 +246,7 @@ export function WorkflowDetails({
 
   if (!workflow) {
     return (
-      <ViewLayout onBack={onBack}>
+      <ViewLayout>
         <div className="flex h-full w-full bg-background">
           <EmptyState
             icon={<FileIcon className="w-10 h-10 text-muted-foreground" />}
@@ -273,19 +267,14 @@ export function WorkflowDetails({
         currentStepTab: "input",
       }}
     >
-      <WorkflowStudio
-        onBack={onBack}
-        onUpdate={update}
-        isUpdating={isUpdating}
-      />
+      <WorkflowStudio onUpdate={update} isUpdating={isUpdating} />
     </WorkflowStoreProvider>
   );
 }
 function WorkflowStudio({
-  onBack,
   onUpdate,
   isUpdating,
-}: WorkflowDetailsProps) {
+}: Omit<WorkflowDetailsProps, "onBack">) {
   const workflow = useWorkflow();
   const trackingExecutionId = useTrackingExecutionId();
   const { viewMode, showExecutionsList } = useViewModeStore();
@@ -305,7 +294,7 @@ function WorkflowStudio({
     (currentStep || trackingExecutionId || !showExecutionsList);
 
   return (
-    <ViewLayout onBack={onBack}>
+    <ViewLayout>
       <div className="flex flex-col h-full overflow-hidden bg-background">
         <WorkflowEditorHeader
           title={workflow.title}
@@ -371,7 +360,7 @@ function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
   };
 }
 
-export function WorkflowExecutionDetailsView({ onBack }: WorkflowViewProps) {
+export function WorkflowExecutionDetailsView() {
   const { itemId } = useParams({
     from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
   });
@@ -381,7 +370,7 @@ export function WorkflowExecutionDetailsView({ onBack }: WorkflowViewProps) {
 
   if (!execution) {
     return (
-      <ViewLayout onBack={onBack}>
+      <ViewLayout>
         <div className="flex h-full w-full bg-background">
           <EmptyState
             icon={<FileIcon className="w-10 h-10 text-muted-foreground" />}
@@ -394,7 +383,7 @@ export function WorkflowExecutionDetailsView({ onBack }: WorkflowViewProps) {
   }
 
   return (
-    <ViewLayout onBack={onBack}>
+    <ViewLayout>
       <div className="flex flex-col h-full overflow-hidden bg-background">
         <MonacoCodeEditor
           height="100%"

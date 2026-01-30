@@ -3,17 +3,27 @@ import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
   useCollectionActions,
+  useConnection,
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { Loading01, Container } from "@untitledui/icons";
-import { useParams, useRouter } from "@tanstack/react-router";
+import { Link, useParams, useRouter } from "@tanstack/react-router";
 import { Suspense, type ComponentType } from "react";
 import {
   WorkflowExecutionDetailsView,
   WorkflowDetails,
 } from "@/web/components/details/workflow/index.tsx";
+import { ViewLayout } from "@/web/components/details/layout";
 
 interface CollectionDetailsProps {
   itemId: string;
@@ -58,6 +68,18 @@ function ToolDetailsContent() {
   );
 }
 
+/**
+ * Formats a collection name for display
+ * e.g., "LLM" -> "Llm", "USER_PROFILES" -> "User Profiles"
+ */
+function formatCollectionName(name: string): string {
+  return name
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 function CollectionDetailsContent() {
   const router = useRouter();
   const params = useParams({
@@ -75,6 +97,7 @@ function CollectionDetailsContent() {
   const scopeKey = connectionId ?? "no-connection";
 
   const { org } = useProjectContext();
+  const connection = useConnection(connectionId);
   const client = useMCPClient({
     connectionId: connectionId ?? null,
     orgId: org.id,
@@ -98,6 +121,42 @@ function CollectionDetailsContent() {
     normalizedCollectionName &&
     WELL_KNOWN_VIEW_DETAILS[normalizedCollectionName];
 
+  const collectionDisplayName = formatCollectionName(collectionName);
+
+  const breadcrumb = (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to="/$org/mcps" params={{ org: org.slug }}>
+              Connections
+            </Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        {connection && (
+          <>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link
+                  to="/$org/mcps/$connectionId"
+                  params={{ org: org.slug, connectionId }}
+                  search={{ tab: collectionName }}
+                >
+                  {connection.title}
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+          </>
+        )}
+        <BreadcrumbItem>
+          <BreadcrumbPage>{collectionDisplayName}</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+
   if (ViewComponent) {
     return (
       <ViewComponent
@@ -109,15 +168,17 @@ function CollectionDetailsContent() {
   }
 
   return (
-    <EmptyState
-      icon={<Container size={36} className="text-muted-foreground" />}
-      title="No component defined"
-      description="No component for this collection was defined"
-      buttonProps={{
-        onClick: handleBack,
-        children: "Go back",
-      }}
-    />
+    <ViewLayout breadcrumb={breadcrumb}>
+      <EmptyState
+        icon={<Container size={36} className="text-muted-foreground" />}
+        title="No component defined"
+        description="No component for this collection was defined"
+        buttonProps={{
+          onClick: handleBack,
+          children: "Go back",
+        }}
+      />
+    </ViewLayout>
   );
 }
 
