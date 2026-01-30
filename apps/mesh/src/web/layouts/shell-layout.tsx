@@ -1,7 +1,6 @@
 import { Chat } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
-import { InboxButton } from "@/web/components/inbox-button";
-import { MeshSidebar } from "@/web/components/mesh-sidebar";
+import { MeshSidebar } from "@/web/components/sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { MeshUserMenu } from "@/web/components/user-menu";
@@ -76,7 +75,6 @@ function Topbar({
         )}
       </AppTopbar.Left>
       <AppTopbar.Right className="gap-2">
-        <InboxButton />
         {showDecoChat && !disableDecoChat && (
           <Button
             size="sm"
@@ -213,12 +211,14 @@ function ShellLayoutContent() {
     <ProjectContextProvider {...projectContext}>
       <PersistentSidebarProvider>
         <div className="flex flex-col h-screen">
-          <Topbar
-            showSidebarToggle
-            showOrgSwitcher
-            showDecoChat
-            disableDecoChat={isHomeRoute}
-          />
+          <style>{`
+            [data-slot="sidebar-container"] {
+              top: 0 !important;
+            }
+            [data-slot="sidebar-inner"] {
+              padding-top: 0 !important;
+            }
+          `}</style>
           <Chat.Provider>
             <SidebarLayout
               className="flex-1 bg-sidebar"
@@ -230,7 +230,7 @@ function ShellLayoutContent() {
               }
             >
               <MeshSidebar />
-              <SidebarInset className="pt-12">
+              <SidebarInset>
                 <ChatPanels disableChat={isHomeRoute} />
               </SidebarInset>
             </SidebarLayout>
