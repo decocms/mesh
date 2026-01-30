@@ -725,7 +725,6 @@ function MonitoringLogsTableContent({
                 <LogRow
                   key={log.id}
                   log={log}
-                  isFirst={index === 0}
                   isExpanded={expandedRows.has(log.id)}
                   connection={connectionMap.get(log.connectionId)}
                   virtualMcpName={log.virtualMcpName ?? ""}

@@ -24,7 +24,6 @@ interface Connection {
 
 interface LogRowProps {
   log: EnrichedMonitoringLog;
-  isFirst: boolean;
   isExpanded: boolean;
   connection: Connection | undefined;
   virtualMcpName: string; // já resolvido pelo pai
@@ -38,7 +37,6 @@ interface LogRowProps {
 
 export function LogRow({
   log,
-  isFirst,
   isExpanded,
   connection,
   virtualMcpName,
