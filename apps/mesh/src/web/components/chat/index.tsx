@@ -13,7 +13,6 @@ import { ThreadHistoryPopover } from "./popover-threads";
 import { DecoChatSkeleton } from "./skeleton";
 import type { Metadata } from "./types.ts";
 export { useChat } from "./context";
-export { ModeSelector } from "./select-mode";
 export { ModelSelector } from "./select-model";
 export type { ModelChangePayload, SelectedModelState } from "./select-model";
 export type { VirtualMCPInfo } from "./select-virtual-mcp";
