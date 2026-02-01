@@ -1,0 +1,15 @@
+{
+  "sessions": [
+    {
+      "id": "session-ml341b16-br4tdn",
+      "taskId": "task-1769912212526-a6dpne",
+      "pid": 93856,
+      "status": "completed",
+      "startedAt": "2026-02-01T02:16:57.127Z",
+      "output": "The commit was successful. The task is complete - I've created `HELLO_WORLD.md` with a greeting and explanation of how I work.\n\n<promise>COMPLETE</promise>\n",
+      "exitCode": 0,
+      "completedAt": "2026-02-01T02:17:32.782Z"
+    }
+  ],
+  "lastUpdated": "2026-02-01T02:17:32.782Z"
+}

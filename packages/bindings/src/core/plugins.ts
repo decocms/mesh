@@ -94,6 +94,12 @@ export {
   type AnyRoute,
   type RouteIds,
   type RouteById,
+  // TanStack router hooks for plugin use
+  useNavigate,
+  useParams,
+  useSearch,
+  useLocation,
+  Link,
 } from "./plugin-router";
 
 // Re-export plugin context provider and hook (React components)

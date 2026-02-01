@@ -22,7 +22,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
-import { Loading01 } from "@untitledui/icons";
+import { Loading01, RefreshCcw01 } from "@untitledui/icons";
 import {
   Link,
   useNavigate,
@@ -50,6 +50,8 @@ function ConnectionInspectorViewWithConnection({
   resources,
   tools,
   isLoadingTools,
+  onRefreshTools,
+  isRefreshingTools,
 }: {
   connection: ConnectionEntity;
   connectionId: string;
@@ -72,6 +74,8 @@ function ConnectionInspectorViewWithConnection({
     outputSchema?: Record<string, unknown>;
   }>;
   isLoadingTools: boolean;
+  onRefreshTools?: () => void;
+  isRefreshingTools?: boolean;
 }) {
   const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
 
@@ -133,21 +137,37 @@ function ConnectionInspectorViewWithConnection({
   );
 
   const breadcrumb = (
-    <Breadcrumb>
-      <BreadcrumbList>
-        <BreadcrumbItem>
-          <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org }}>
-              Connections
-            </Link>
-          </BreadcrumbLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbPage>{connection.title}</BreadcrumbPage>
-        </BreadcrumbItem>
-      </BreadcrumbList>
-    </Breadcrumb>
+    <div className="flex items-center justify-between w-full">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to="/$org/mcps" params={{ org }}>
+                Connections
+              </Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{connection.title}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      {onRefreshTools && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onRefreshTools}
+          disabled={isRefreshingTools}
+          title="Refresh tools from MCP"
+        >
+          <RefreshCcw01
+            size={16}
+            className={isRefreshingTools ? "animate-spin" : ""}
+          />
+        </Button>
+      )}
+    </div>
   );
 
   return (
@@ -289,6 +309,14 @@ function ConnectionInspectorViewContent() {
     });
   };
 
+  // Refresh tools by triggering an empty update (which re-fetches tools)
+  const handleRefreshTools = async () => {
+    await actions.update.mutateAsync({
+      id: connectionId,
+      data: {},
+    });
+  };
+
   if (!connection) {
     return (
       <div className="flex h-full w-full bg-background">
@@ -326,6 +354,8 @@ function ConnectionInspectorViewContent() {
       resources={resources}
       tools={tools}
       isLoadingTools={isLoadingTools}
+      onRefreshTools={handleRefreshTools}
+      isRefreshingTools={actions.update.isPending}
     />
   );
 }
