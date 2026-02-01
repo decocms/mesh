@@ -1,75 +1,51 @@
 # Hello, World!
 
-Welcome to **MCP Mesh** - an open-source control plane for Model Context Protocol (MCP) traffic.
+Welcome to **MCP Mesh** - a self-hostable MCP Gateway for orchestrating AI connections and tools.
 
-## What We're Building
+## What is MCP Mesh?
 
-MCP Mesh is a full-stack platform for orchestrating MCP connections, tools, and AI agents. It sits between MCP clients (Cursor, Claude, VS Code, custom agents) and MCP servers, providing a unified layer for authentication, routing, and observability.
+MCP Mesh is a full-stack application that helps you manage and orchestrate [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) connections. Think of it as a central hub where AI agents can discover and use tools, connect to various services, and work together seamlessly.
 
-### The Problem We Solve
+## Key Features
 
-Without MCP Mesh, you have M×N integrations: M MCP servers × N clients, each requiring separate configs. MCP Mesh replaces this complexity with one production endpoint, so you stop maintaining separate configurations in every client.
+- **MCP Gateway**: Connect and manage multiple MCP servers from a single interface
+- **Tool Orchestration**: Register, discover, and invoke AI tools across your organization
+- **Plugin Architecture**: Extend functionality with custom plugins for specific MCP connections
+- **Self-Hostable**: Run on your own infrastructure with full control over your data
+- **Modern Stack**: Built with React 19, Hono, and Tailwind v4
 
-### Core Capabilities
-
-- **Virtual MCPs** - Runtime strategies for optimal tool selection
-- **Access Control** - Fine-grained RBAC via OAuth 2.1 + API keys
-- **Multi-tenancy** - Workspace/project isolation for configs, credentials, and logs
-- **Observability** - Full tracing with OpenTelemetry
-- **Token Vault** - Secure credential management
-- **Event Bus** - Pub/sub between connections with at-least-once delivery
-
-## Architecture
+## Project Structure
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         MCP Clients                             │
-│         Cursor · Claude · VS Code · Custom Agents               │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         MCP MESH                                │
-│     Virtual MCP · Policy Engine · Observability · Token Vault   │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       MCP Servers                               │
-│      Salesforce · Slack · GitHub · Postgres · Your APIs         │
-└─────────────────────────────────────────────────────────────────┘
+mesh/
+├── apps/
+│   ├── mesh/           # Main application (Hono API + React client)
+│   └── docs/           # Documentation site
+├── packages/
+│   ├── bindings/       # MCP connection abstractions
+│   ├── runtime/        # MCP proxy, OAuth, and tools runtime
+│   ├── ui/             # Shared React components
+│   └── mesh-plugin-*/  # Plugin packages
 ```
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Runtime | Bun / Node |
-| Language | TypeScript + Zod |
-| Framework | Hono (API) + Vite + React 19 |
-| Database | Kysely → SQLite / PostgreSQL |
-| Auth | Better Auth (OAuth 2.1 + API keys) |
-| Observability | OpenTelemetry |
-| UI | React 19 + Tailwind v4 + shadcn |
-| Protocol | Model Context Protocol (MCP) |
-
-## Quick Start
+## Getting Started
 
 ```bash
-# Clone and install
-git clone https://github.com/decocms/mesh.git
+# Install dependencies
 bun install
 
-# Run locally
+# Start development servers
 bun run dev
+
+# Open http://localhost:4000
 ```
 
-Open `http://localhost:4000` to access the admin UI.
+## Learn More
 
-## Part of deco CMS
-
-MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com), providing the foundation for connecting, governing, and observing MCP traffic.
+- Check out `AGENTS.md` for repository guidelines
+- Explore `skills/mesh-development/SKILL.md` for development conventions
+- Visit the documentation at `apps/docs/`
 
 ---
 
-*One secure endpoint for every MCP server.*
+Built with care by the Deco team.
