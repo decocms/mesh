@@ -18,13 +18,8 @@ import {
 } from "@untitledui/icons";
 
 export default function SiteDetail() {
-  const { connectionId: paramConnectionId } = useParams({ strict: false });
-  const { connectionId, connection } =
-    usePluginContext<typeof SITE_BUILDER_BINDING>();
+  const { connection } = usePluginContext<typeof SITE_BUILDER_BINDING>();
   const { data: detection, isLoading } = useSiteDetection();
-
-  // Use connection from context if params doesn't match (route param might be different)
-  const activeConnectionId = paramConnectionId || connectionId;
 
   if (isLoading) {
     return (
