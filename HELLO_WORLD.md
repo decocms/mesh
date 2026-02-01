@@ -1,51 +1,68 @@
 # Hello, World!
 
-Welcome to **MCP Mesh** - a self-hostable MCP Gateway for orchestrating AI connections and tools.
+Welcome to **MCP Mesh** - an open-source control plane for Model Context Protocol (MCP) traffic.
 
-## What is MCP Mesh?
+## What Are We Building?
 
-MCP Mesh is a full-stack application that helps you manage and orchestrate [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) connections. Think of it as a central hub where AI agents can discover and use tools, connect to various services, and work together seamlessly.
+MCP Mesh sits between your AI clients (Cursor, Claude, VS Code, custom agents) and your MCP servers, providing a unified layer for authentication, routing, and observability.
+
+### The Problem
+
+When you have M MCP servers and N clients, you end up maintaining M×N separate integrations. Each client needs its own configuration for each server. This becomes unmanageable as your tooling grows.
+
+### The Solution
+
+MCP Mesh replaces those M×N integrations with **one production endpoint**. It acts as a secure gateway that:
+
+- **Routes** all MCP traffic through a single governed endpoint
+- **Enforces** RBAC, policies, and audit trails at the control plane
+- **Observes** everything with OpenTelemetry - traces, costs, errors
+- **Manages** runtime strategies for optimal tool selection
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         MCP Clients                             │
+│         Cursor · Claude · VS Code · Custom Agents               │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         MCP MESH                                │
+│       Virtual MCP · Policy Engine · Observability · Token Vault │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       MCP Servers                               │
+│      Salesforce · Slack · GitHub · Postgres · Your APIs         │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Key Features
 
-- **MCP Gateway**: Connect and manage multiple MCP servers from a single interface
-- **Tool Orchestration**: Register, discover, and invoke AI tools across your organization
-- **Plugin Architecture**: Extend functionality with custom plugins for specific MCP connections
-- **Self-Hostable**: Run on your own infrastructure with full control over your data
-- **Modern Stack**: Built with React 19, Hono, and Tailwind v4
-
-## Project Structure
-
-```
-mesh/
-├── apps/
-│   ├── mesh/           # Main application (Hono API + React client)
-│   └── docs/           # Documentation site
-├── packages/
-│   ├── bindings/       # MCP connection abstractions
-│   ├── runtime/        # MCP proxy, OAuth, and tools runtime
-│   ├── ui/             # Shared React components
-│   └── mesh-plugin-*/  # Plugin packages
-```
+- **MeshContext** - Unified runtime interface for auth, storage, observability, and policy control
+- **defineTool()** - Declarative API for typed, auditable, observable MCP tools
+- **Multi-tenancy** - Workspace/project isolation for configs, credentials, and logs
+- **Virtual MCPs** - Compose and expose governed toolsets as new MCP servers
+- **Token Vault** - Secure credential management with OAuth support
 
 ## Getting Started
 
 ```bash
-# Install dependencies
+# Clone and install
+git clone https://github.com/decocms/mesh.git
 bun install
 
-# Start development servers
+# Run locally
 bun run dev
-
-# Open http://localhost:4000
 ```
 
-## Learn More
+Then visit [http://localhost:3000](http://localhost:3000)
 
-- Check out `AGENTS.md` for repository guidelines
-- Explore `skills/mesh-development/SKILL.md` for development conventions
-- Visit the documentation at `apps/docs/`
+## Part of deco CMS
+
+MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com). It's designed to connect, govern, and observe MCP traffic at scale.
 
 ---
 
-Built with care by the Deco team.
+Happy building!
