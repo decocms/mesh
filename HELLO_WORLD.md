@@ -1,32 +1,44 @@
 # Hello, World!
 
-Welcome to **MCP Mesh** - an open-source control plane for MCP (Model Context Protocol) traffic.
+Welcome to **MCP Mesh** — the open-source control plane for Model Context Protocol (MCP) traffic.
 
-## What is this project?
+## What Are We Building?
 
-MCP Mesh sits between your MCP clients (like Cursor, Claude, VS Code, or custom agents) and your MCP servers, providing a unified layer for authentication, routing, and observability.
+MCP Mesh is a unified gateway that sits between your MCP clients (Cursor, Claude, VS Code, custom agents) and your MCP servers (Salesforce, Slack, GitHub, Postgres, your APIs). Instead of configuring M×N integrations, you get one production endpoint with built-in governance, observability, and security.
 
-### The Problem It Solves
+### Core Vision
 
-Without MCP Mesh, you face **M×N integrations** - every MCP server needs separate configuration in every client. MCP Mesh replaces this complexity with **one production endpoint**, eliminating the need to maintain separate configs across tools.
+- **One Endpoint, Many Servers**: Route all MCP traffic through a single governed endpoint
+- **Enterprise-Ready**: RBAC, policies, audit trails, and multi-tenant workspace isolation
+- **Full Observability**: OpenTelemetry traces, costs, and error tracking out of the box
+- **Deploy Anywhere**: Docker, Kubernetes, AWS, GCP, or local Bun/Node runtimes
 
-### Key Capabilities
+### Current Focus: Site Builder
 
-- **Unified Routing** - Route all MCP traffic through a single governed endpoint
-- **Access Control** - Fine-grained RBAC with OAuth 2.1 and API keys per workspace/project
-- **Multi-tenancy** - Workspace and project isolation for configs, credentials, policies, and audit logs
-- **Observability** - Full OpenTelemetry integration for tracing, metrics, costs, and errors
-- **Virtual MCPs** - Compose and expose governed toolsets as new MCP servers
-- **Token Vault** - Secure bridge to remote MCP servers with credential management
+We're actively developing a **Site Builder** plugin that lets you control any local site from Mesh. The workflow:
 
-### Tech Stack
+1. Select a folder and mount it as a site
+2. Describe what you want (or pick a skill like "Landing Page")
+3. AI agents build it iteratively with live streaming preview
+4. Watch progress until complete or budget exhausted
 
-- **Runtime**: Bun / Node
-- **Language**: TypeScript + Zod
-- **Framework**: Hono (API) + Vite + React 19
-- **Database**: Kysely with SQLite / PostgreSQL
-- **Auth**: Better Auth (OAuth 2.1 + API keys)
-- **UI**: React 19 + Tailwind v4 + shadcn
+This is powered by:
+- **Beads**: Git-backed task storage with dependency graphs
+- **Ralph-style loops**: Autonomous execution (SELECT → PROMPT → EXECUTE → EVALUATE)
+- **Stack-agnostic design**: Works with Deco, Fresh, Next.js, and more
+
+## Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Runtime | Bun / Node |
+| Language | TypeScript + Zod |
+| Framework | Hono (API) + Vite + React 19 |
+| Database | Kysely → SQLite / PostgreSQL |
+| Auth | Better Auth (OAuth 2.1 + API keys) |
+| Observability | OpenTelemetry |
+| UI | React 19 + Tailwind v4 + shadcn |
+| Protocol | Model Context Protocol (MCP) |
 
 ## Getting Started
 
@@ -39,12 +51,18 @@ bun install
 bun run dev
 ```
 
-This starts the client at http://localhost:3000 plus the API server.
+The app runs at http://localhost:3000.
 
 ## Part of deco CMS
 
-MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com), providing the foundation for connecting, governing, and observing MCP traffic.
+MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com) — a platform for building and deploying AI-powered applications. The mesh connects, governs, and observes all MCP traffic, while upcoming layers (MCP Studio, MCP Store) will enable packaging and sharing of MCP capabilities.
+
+## Learn More
+
+- [Documentation](https://docs.deco.page/)
+- [Discord Community](https://decocms.com/discord)
+- [Website](https://decocms.com/mesh)
 
 ---
 
-Happy building!
+Built with care by the [deco](https://decocms.com) community.
