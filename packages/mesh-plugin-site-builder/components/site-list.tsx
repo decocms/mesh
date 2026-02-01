@@ -9,9 +9,9 @@ import { usePluginContext } from "@decocms/bindings/plugins";
 import { SITE_BUILDER_BINDING } from "../lib/binding";
 import {
   CheckCircle,
-  XCircle,
+  XClose,
   AlertCircle,
-  ExternalLink,
+  LinkExternal01,
 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -62,7 +62,7 @@ export default function SiteList() {
             ) : detection.hasDenoJson ? (
               <AlertCircle size={20} className="text-yellow-600 mt-0.5" />
             ) : (
-              <XCircle size={20} className="text-red-600 mt-0.5" />
+              <XClose size={20} className="text-red-600 mt-0.5" />
             )}
             <div className="flex-1">
               <h3 className="font-medium">
@@ -141,7 +141,7 @@ export default function SiteList() {
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               View Site Builder
-              <ExternalLink size={14} />
+              <LinkExternal01 size={14} />
             </button>
           </div>
         </div>

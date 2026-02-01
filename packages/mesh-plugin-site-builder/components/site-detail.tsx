@@ -11,9 +11,9 @@ import { SITE_BUILDER_BINDING } from "../lib/binding";
 import {
   AlertCircle,
   Eye,
-  Code,
-  Layers,
-  ExternalLink,
+  Code01,
+  LayersTwo01,
+  LinkExternal01,
 } from "@untitledui/icons";
 
 export default function SiteDetail() {
@@ -65,7 +65,7 @@ export default function SiteDetail() {
           <div className="h-4 w-px bg-border" />
 
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Layers size={14} />
+            <LayersTwo01 size={14} />
             <span>{detection.decoImports.length} deco imports</span>
           </div>
         </div>
@@ -75,7 +75,7 @@ export default function SiteDetail() {
             type="button"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border bg-background hover:bg-accent transition-colors"
           >
-            <Code size={14} />
+            <Code01 size={14} />
             Components
           </button>
           <button
@@ -134,7 +134,7 @@ export default function SiteDetail() {
             className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
           >
             Learn more about Deco
-            <ExternalLink size={12} />
+            <LinkExternal01 size={12} />
           </a>
         </div>
       </div>
