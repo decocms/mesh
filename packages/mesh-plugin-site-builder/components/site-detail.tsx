@@ -8,7 +8,6 @@
 import { useSiteDetection } from "../hooks/use-site-detection";
 import { usePluginContext } from "@decocms/bindings/plugins";
 import { SITE_BUILDER_BINDING } from "../lib/binding";
-import { useParams } from "@tanstack/react-router";
 import {
   AlertCircle,
   Eye,
