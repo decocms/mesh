@@ -101,3 +101,10 @@ export {
   type DeleteObjectsInput,
   type DeleteObjectsOutput,
 } from "./well-known/object-storage";
+
+// Re-export task runner binding types
+export {
+  TASK_RUNNER_BINDING,
+  type TaskRunnerBinding,
+  type Task,
+} from "./well-known/task-runner";

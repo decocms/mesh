@@ -33,7 +33,9 @@ import {
   createContext,
   type PropsWithChildren,
   useContext,
+  useEffect,
   useReducer,
+  useRef,
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
@@ -507,6 +509,53 @@ async function callUpdateThreadTool(
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
+// ============================================================================
+// Event System for Cross-Component Chat Messaging
+// ============================================================================
+
+/**
+ * Event name for sending chat messages from outside the chat context
+ */
+export const CHAT_SEND_MESSAGE_EVENT = "deco:send-chat-message";
+
+/**
+ * Event detail structure for chat message events
+ */
+export interface ChatSendMessageEventDetail {
+  /** Plain text message to send */
+  text: string;
+  /** Virtual MCP ID to select before sending (optional) */
+  virtualMcpId?: string;
+}
+
+/**
+ * Dispatch a chat message event from anywhere in the app
+ * The chat context will receive this and send the message
+ */
+export function dispatchChatMessage(detail: ChatSendMessageEventDetail): void {
+  window.dispatchEvent(
+    new CustomEvent<ChatSendMessageEventDetail>(CHAT_SEND_MESSAGE_EVENT, {
+      detail,
+    }),
+  );
+}
+
+/**
+ * Build a minimal tiptapDoc from plain text
+ */
+function textToTiptapDoc(text: string): Metadata["tiptapDoc"] {
+  // Split text into paragraphs
+  const paragraphs = text.split("\n\n").filter((p) => p.trim());
+
+  return {
+    type: "doc",
+    content: paragraphs.map((paragraph) => ({
+      type: "paragraph",
+      content: [{ type: "text", text: paragraph }],
+    })),
+  };
+}
+
 /**
  * Provider component for chat context
  * Consolidates all chat-related state: interaction, threads, virtual MCP, model, and chat session
@@ -747,7 +796,44 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const clearFinishReason = () => chatDispatch({ type: "CLEAR_FINISH_REASON" });
 
   // ===========================================================================
-  // 7. CONTEXT VALUE & RETURN
+  // 7. EVENT LISTENERS
+  // ===========================================================================
+
+  // Use a ref to track the sendMessage function to avoid stale closures
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
+
+  // Listen for chat message events from plugins or other components
+  useEffect(() => {
+    const handleChatEvent = (
+      event: CustomEvent<ChatSendMessageEventDetail>,
+    ) => {
+      const { text, virtualMcpId } = event.detail;
+
+      // Optionally select the virtual MCP before sending
+      if (virtualMcpId) {
+        setVirtualMcpId(virtualMcpId);
+      }
+
+      // Build tiptapDoc and send
+      const tiptapDoc = textToTiptapDoc(text);
+      sendMessageRef.current(tiptapDoc);
+    };
+
+    window.addEventListener(
+      CHAT_SEND_MESSAGE_EVENT,
+      handleChatEvent as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        CHAT_SEND_MESSAGE_EVENT,
+        handleChatEvent as EventListener,
+      );
+    };
+  }, []);
+
+  // ===========================================================================
+  // 8. CONTEXT VALUE & RETURN
   // ===========================================================================
 
   const value: ChatContextValue = {

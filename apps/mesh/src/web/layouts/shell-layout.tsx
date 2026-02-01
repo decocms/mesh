@@ -31,7 +31,13 @@ import {
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
 import { MessageChatSquare } from "@untitledui/icons";
-import { PropsWithChildren, Suspense, useRef, useTransition } from "react";
+import {
+  PropsWithChildren,
+  Suspense,
+  useEffect,
+  useRef,
+  useTransition,
+} from "react";
 import { KEYS } from "../lib/query-keys";
 
 function Topbar({
@@ -139,11 +145,35 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
 }
 
 /**
+ * Event name for opening the chat panel from plugins or other components
+ */
+export const CHAT_OPEN_EVENT = "deco:open-chat";
+
+/**
+ * Dispatch an event to open the chat panel
+ */
+export function dispatchOpenChat(): void {
+  window.dispatchEvent(new CustomEvent(CHAT_OPEN_EVENT));
+}
+
+/**
  * This component renders the chat panel and the main content.
  * It's important to keep it like this to avoid unnecessary re-renders.
  */
 function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
-  const [chatOpen] = useDecoChatOpen();
+  const [chatOpen, setChatOpen] = useDecoChatOpen();
+
+  // Listen for open chat events from plugins
+  useEffect(() => {
+    const handleOpenChat = () => {
+      setChatOpen(true);
+    };
+
+    window.addEventListener(CHAT_OPEN_EVENT, handleOpenChat);
+    return () => {
+      window.removeEventListener(CHAT_OPEN_EVENT, handleOpenChat);
+    };
+  }, [setChatOpen]);
 
   return (
     <ResizablePanelGroup direction="horizontal">

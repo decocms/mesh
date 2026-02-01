@@ -1,44 +1,75 @@
 # Hello, World!
 
-Welcome! I'm Claude, an AI assistant built by Anthropic. I'm here to help you with software engineering tasks in this codebase.
+Welcome to **MCP Mesh** - an open-source control plane for Model Context Protocol (MCP) traffic.
 
-## How I Work
+## What We're Building
 
-### Understanding Your Request
-When you give me a task, I first work to understand what you need. I'll read relevant files, explore the codebase structure, and ask clarifying questions if something is unclear.
+MCP Mesh is a full-stack platform for orchestrating MCP connections, tools, and AI agents. It sits between MCP clients (Cursor, Claude, VS Code, custom agents) and MCP servers, providing a unified layer for authentication, routing, and observability.
 
-### Planning and Tracking
-For complex tasks, I break them down into smaller steps and track my progress using a todo list. This helps me stay organized and gives you visibility into what I'm doing.
+### The Problem We Solve
 
-### Making Changes
-I make changes incrementally and commit frequently. I prefer:
-- **Reading before writing** - I always understand existing code before modifying it
-- **Small, focused changes** - One logical change at a time
-- **Using the right tools** - Specialized tools for file operations rather than shell commands when possible
+Without MCP Mesh, you have M×N integrations: M MCP servers × N clients, each requiring separate configs. MCP Mesh replaces this complexity with one production endpoint, so you stop maintaining separate configurations in every client.
 
-### Communication
-I communicate directly with you through text responses. If I need more information or want to validate an approach, I'll ask. I aim to be concise and focus on technical accuracy.
+### Core Capabilities
 
-### Safety First
-I follow safety practices:
-- Commit frequently to preserve work
-- Avoid destructive operations
-- Ask when requirements are unclear
-- Never introduce security vulnerabilities
+- **Virtual MCPs** - Runtime strategies for optimal tool selection
+- **Access Control** - Fine-grained RBAC via OAuth 2.1 + API keys
+- **Multi-tenancy** - Workspace/project isolation for configs, credentials, and logs
+- **Observability** - Full tracing with OpenTelemetry
+- **Token Vault** - Secure credential management
+- **Event Bus** - Pub/sub between connections with at-least-once delivery
 
-## What I Can Help With
+## Architecture
 
-- **Bug fixing** - Finding and resolving issues in code
-- **Feature development** - Implementing new functionality
-- **Code exploration** - Understanding how parts of the codebase work
-- **Refactoring** - Improving code structure and quality
-- **Documentation** - Explaining code and writing docs
-- **Testing** - Writing and running tests
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         MCP Clients                             │
+│         Cursor · Claude · VS Code · Custom Agents               │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         MCP MESH                                │
+│     Virtual MCP · Policy Engine · Observability · Token Vault   │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       MCP Servers                               │
+│      Salesforce · Slack · GitHub · Postgres · Your APIs         │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-## Getting Started
+## Tech Stack
 
-Just tell me what you'd like to accomplish, and I'll get to work. The more context you provide, the better I can help.
+| Layer | Technology |
+|-------|------------|
+| Runtime | Bun / Node |
+| Language | TypeScript + Zod |
+| Framework | Hono (API) + Vite + React 19 |
+| Database | Kysely → SQLite / PostgreSQL |
+| Auth | Better Auth (OAuth 2.1 + API keys) |
+| Observability | OpenTelemetry |
+| UI | React 19 + Tailwind v4 + shadcn |
+| Protocol | Model Context Protocol (MCP) |
+
+## Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/decocms/mesh.git
+bun install
+
+# Run locally
+bun run dev
+```
+
+Open `http://localhost:4000` to access the admin UI.
+
+## Part of deco CMS
+
+MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com), providing the foundation for connecting, governing, and observing MCP traffic.
 
 ---
 
-*Built on Anthropic's Claude, powered by the Opus 4.5 model.*
+*One secure endpoint for every MCP server.*
