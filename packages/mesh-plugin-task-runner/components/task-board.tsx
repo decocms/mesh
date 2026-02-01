@@ -860,7 +860,8 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
       {/* Plan Details Section */}
       {showPlan && task.plan && (
         <div className="mt-4 pt-4 border-t border-border">
-          <div className="space-y-3">
+          {/* Scrollable content area */}
+          <div className="max-h-64 overflow-y-auto space-y-3 pr-2">
             <div>
               <h5 className="text-xs font-medium text-muted-foreground mb-1">
                 Summary
@@ -916,38 +917,39 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
                 </span>
               </div>
             )}
+          </div>
 
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={handleApproveAndExecute}
-                disabled={approvePlan.isPending}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary-foreground bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
-              >
-                {approvePlan.isPending ? (
-                  <LoadingIcon size={14} />
-                ) : (
-                  <Check size={14} />
-                )}
-                Approve & Execute
-              </button>
-              <button
-                type="button"
-                onClick={handleApprovePlan}
-                disabled={approvePlan.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-md disabled:opacity-50"
-              >
+          {/* Action buttons - always visible */}
+          <div className="flex items-center gap-2 pt-3 mt-3 border-t border-border/50">
+            <button
+              type="button"
+              onClick={handleApproveAndExecute}
+              disabled={approvePlan.isPending}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary-foreground bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
+            >
+              {approvePlan.isPending ? (
+                <LoadingIcon size={14} />
+              ) : (
                 <Check size={14} />
-                Approve Only
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowPlan(false)}
-                className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Cancel
-              </button>
-            </div>
+              )}
+              Approve & Execute
+            </button>
+            <button
+              type="button"
+              onClick={handleApprovePlan}
+              disabled={approvePlan.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-md disabled:opacity-50"
+            >
+              <Check size={14} />
+              Approve Only
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPlan(false)}
+              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
