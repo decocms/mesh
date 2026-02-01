@@ -39,7 +39,6 @@ import {
   type Skill,
   type AgentSession,
   type QualityGate,
-  type TaskPlan,
 } from "../hooks/use-tasks";
 
 // ============================================================================
@@ -281,9 +280,21 @@ function formatRelativeTime(timestamp: string): string {
 function AgentSessionCard({ session }: { session: AgentSession }) {
   const sessionId = session.sessionId || session.id || "";
   const { data: detail } = useAgentSessionDetail(sessionId);
+  const [isStopping, setIsStopping] = useState(false);
 
   const isRunning = session.status === "running";
   const isCompleted = session.status === "completed";
+
+  const handleStop = () => {
+    if (isStopping) return;
+    if (!confirm(`Stop agent working on "${session.taskTitle}"?`)) return;
+
+    setIsStopping(true);
+    // Send a message to the Task Runner Agent to stop the session
+    const stopMessage = `Please stop agent session ${sessionId} immediately. Call AGENT_STOP with sessionId="${sessionId}".`;
+    sendChatMessage(stopMessage);
+    toast.info("Sent stop request to agent");
+  };
 
   // Use detailed data if available, otherwise fall back to summary
   const toolCalls = detail?.toolCalls || session.toolCalls || [];
@@ -354,11 +365,29 @@ function AgentSessionCard({ session }: { session: AgentSession }) {
             Task: <strong>{session.taskTitle}</strong>
           </div>
         </div>
-        {toolCallCount > 0 && (
-          <div className="text-xs bg-white/50 px-2 py-1 rounded">
-            {toolCallCount} tool calls
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {toolCallCount > 0 && (
+            <div className="text-xs bg-white/50 px-2 py-1 rounded">
+              {toolCallCount} tool calls
+            </div>
+          )}
+          {isRunning && (
+            <button
+              type="button"
+              onClick={handleStop}
+              disabled={isStopping}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded disabled:opacity-50"
+              title="Stop this agent"
+            >
+              {isStopping ? (
+                <LoadingIcon size={12} />
+              ) : (
+                <AlertCircle size={12} />
+              )}
+              {isStopping ? "Stopping..." : "Stop"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Last thinking/message - show for running */}

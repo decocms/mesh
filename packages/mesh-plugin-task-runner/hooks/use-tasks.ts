@@ -438,7 +438,7 @@ export function useApplySkill() {
         throw new Error("Connection doesn't support read_file");
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content: string } | string>;
@@ -464,7 +464,7 @@ export function useApplySkill() {
         throw new Error("Connection doesn't support TASK_CREATE");
       }
 
-      const createToolCaller = toolCaller as (
+      const createToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ task: Task }>;
@@ -500,7 +500,7 @@ export function useSetWorkspace() {
 }
 
 export function useInitBeads() {
-  const { connectionId, toolCaller, connection } =
+  const { toolCaller, connection } =
     usePluginContext<typeof OBJECT_STORAGE_BINDING>();
   const queryClient = useQueryClient();
 
@@ -517,7 +517,7 @@ export function useInitBeads() {
         throw new Error("This storage connection doesn't support write_file.");
       }
 
-      const writeToolCaller = toolCaller as (
+      const writeToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<unknown>;
@@ -588,12 +588,12 @@ export function useCreateTask() {
         );
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
 
-      const writeToolCaller = toolCaller as (
+      const writeToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<unknown>;
@@ -673,12 +673,12 @@ export function useUpdateTask() {
         );
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
 
-      const writeToolCaller = toolCaller as (
+      const writeToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<unknown>;
@@ -708,6 +708,9 @@ export function useUpdateTask() {
       }
 
       const task = tasksData.tasks[taskIndex];
+      if (!task) {
+        throw new Error(`Task ${params.taskId} not found`);
+      }
       if (params.title !== undefined) task.title = params.title;
       if (params.description !== undefined)
         task.description = params.description;
@@ -754,12 +757,12 @@ export function useCloseTasks() {
         );
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
 
-      const writeToolCaller = toolCaller as (
+      const writeToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<unknown>;
@@ -785,10 +788,11 @@ export function useCloseTasks() {
       const closedTasks: Task[] = [];
       for (const taskId of params.taskIds) {
         const taskIndex = tasksData.tasks.findIndex((t) => t.id === taskId);
-        if (taskIndex !== -1) {
-          tasksData.tasks[taskIndex].status = "closed";
-          tasksData.tasks[taskIndex].updatedAt = new Date().toISOString();
-          closedTasks.push(tasksData.tasks[taskIndex]);
+        const task = tasksData.tasks[taskIndex];
+        if (taskIndex !== -1 && task) {
+          task.status = "closed";
+          task.updatedAt = new Date().toISOString();
+          closedTasks.push(task);
         }
       }
 
@@ -828,12 +832,12 @@ export function useDeleteTask() {
         );
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
 
-      const writeToolCaller = toolCaller as (
+      const writeToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<unknown>;
@@ -901,7 +905,7 @@ export function useQualityGates() {
         return [];
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
@@ -971,7 +975,6 @@ export function useDetectQualityGates() {
   const { connectionId, toolCaller, connection } =
     usePluginContext<typeof OBJECT_STORAGE_BINDING>();
   const queryClient = useQueryClient();
-  const workspaceQuery = useWorkspace();
 
   return useMutation({
     mutationFn: async () => {
@@ -984,7 +987,7 @@ export function useDetectQualityGates() {
         throw new Error("This storage connection doesn't support read_file.");
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
@@ -1053,7 +1056,7 @@ export function useDetectQualityGates() {
         );
 
         if (hasWriteFile) {
-          const writeToolCaller = toolCaller as (
+          const writeToolCaller = toolCaller as unknown as (
             name: string,
             args: Record<string, unknown>,
           ) => Promise<unknown>;
@@ -1139,12 +1142,12 @@ export function useTaskPlan() {
         );
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
 
-      const writeToolCaller = toolCaller as (
+      const writeToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<unknown>;
@@ -1268,12 +1271,12 @@ export function useApprovePlan() {
         );
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
 
-      const writeToolCaller = toolCaller as (
+      const writeToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<unknown>;
@@ -1306,6 +1309,9 @@ export function useApprovePlan() {
       }
 
       const task = tasksData.tasks[taskIndex];
+      if (!task) {
+        throw new Error(`Task not found: ${params.taskId}`);
+      }
 
       if (params.action === "approve") {
         task.planStatus = "approved";
@@ -1374,12 +1380,12 @@ export function useAddQualityGate() {
         );
       }
 
-      const untypedToolCaller = toolCaller as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
 
-      const writeToolCaller = toolCaller as (
+      const writeToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<unknown>;
