@@ -91,7 +91,7 @@ export function useWorkspace() {
       try {
         // Call GET_ROOT to get the storage root path
         // Cast to any since GET_ROOT is not part of the typed binding
-        const untypedToolCaller = toolCaller as (
+        const untypedToolCaller = toolCaller as unknown as (
           name: string,
           args: Record<string, unknown>,
         ) => Promise<{ root: string }>;
@@ -159,7 +159,7 @@ export function useTasks() {
       }
 
       try {
-        const untypedToolCaller = toolCaller as (
+        const untypedToolCaller = toolCaller as unknown as (
           name: string,
           args: Record<string, unknown>,
         ) => Promise<{ content?: string } | string>;
@@ -252,7 +252,7 @@ export function useAgentSessions() {
       try {
         // Read sessions.json file directly using read_file tool
         // Cast to work around typed tool caller
-        const untypedToolCaller = toolCaller as (
+        const untypedToolCaller = toolCaller as unknown as (
           name: string,
           args: Record<string, unknown>,
         ) => Promise<{ content?: string }>;
@@ -406,7 +406,7 @@ export function useSkills() {
       }
 
       try {
-        const untypedToolCaller = toolCaller as (
+        const untypedToolCaller = toolCaller as unknown as (
           name: string,
           args: Record<string, unknown>,
         ) => Promise<{ skills: Skill[] }>;

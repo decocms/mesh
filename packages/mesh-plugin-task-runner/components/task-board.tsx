@@ -624,9 +624,17 @@ function TaskCard({
   const approvePlan = useApprovePlan();
   const [showPlan, setShowPlan] = useState(false);
   const [isPlanningRequested, setIsPlanningRequested] = useState(false);
+  const [isSpawning, setIsSpawning] = useState(false);
 
   // Poll for task updates while planning is in progress
   const hasPlan = !!task.plan;
+
+  // Reset spawning state when agent starts running
+  useEffect(() => {
+    if (hasRunningAgent && isSpawning) {
+      setIsSpawning(false);
+    }
+  }, [hasRunningAgent, isSpawning]);
   useEffect(() => {
     if (!isPlanningRequested || hasPlan) return;
 
@@ -712,6 +720,8 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
   };
 
   const handleApproveAndExecute = () => {
+    if (isSpawning || hasRunningAgent) return;
+    setIsSpawning(true);
     approvePlan.mutate(
       { taskId: task.id, action: "approve" },
       {
@@ -720,9 +730,18 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
           setShowPlan(false);
           onStartWithAgent(task);
         },
-        onError: (err) => toast.error(`Failed to approve: ${err.message}`),
+        onError: (err) => {
+          setIsSpawning(false);
+          toast.error(`Failed to approve: ${err.message}`);
+        },
       },
     );
+  };
+
+  const handleExecute = () => {
+    if (isSpawning || hasRunningAgent) return;
+    setIsSpawning(true);
+    onStartWithAgent(task);
   };
 
   const planApproved = task.planStatus === "approved";
@@ -808,21 +827,25 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
                       </span>
                     </button>
                   )}
-                  {/* Execute button - only show if plan is approved */}
-                  {planApproved && (
+                  {/* Execute button - only show if plan is approved and no agent running */}
+                  {planApproved && !hasRunningAgent && (
                     <button
                       type="button"
-                      onClick={() => onStartWithAgent(task)}
-                      disabled={updateTask.isPending || deleteTask.isPending}
+                      onClick={handleExecute}
+                      disabled={
+                        updateTask.isPending ||
+                        deleteTask.isPending ||
+                        isSpawning
+                      }
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md disabled:opacity-50 transition-colors"
                       title="Execute task with AI agent"
                     >
-                      {updateTask.isPending ? (
+                      {isSpawning ? (
                         <LoadingIcon size={14} />
                       ) : (
                         <MessageChatSquare size={14} />
                       )}
-                      <span>Execute</span>
+                      <span>{isSpawning ? "Starting..." : "Execute"}</span>
                     </button>
                   )}
                 </>
@@ -921,28 +944,37 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
 
           {/* Action buttons - always visible */}
           <div className="flex items-center gap-2 pt-3 mt-3 border-t border-border/50">
-            <button
-              type="button"
-              onClick={handleApproveAndExecute}
-              disabled={approvePlan.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary-foreground bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
-            >
-              {approvePlan.isPending ? (
+            {hasRunningAgent ? (
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
                 <LoadingIcon size={14} />
-              ) : (
-                <Check size={14} />
-              )}
-              Approve & Execute
-            </button>
-            <button
-              type="button"
-              onClick={handleApprovePlan}
-              disabled={approvePlan.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-md disabled:opacity-50"
-            >
-              <Check size={14} />
-              Approve Only
-            </button>
+                Agent already running...
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleApproveAndExecute}
+                  disabled={approvePlan.isPending || isSpawning}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary-foreground bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
+                >
+                  {approvePlan.isPending || isSpawning ? (
+                    <LoadingIcon size={14} />
+                  ) : (
+                    <Check size={14} />
+                  )}
+                  {isSpawning ? "Starting..." : "Approve & Execute"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApprovePlan}
+                  disabled={approvePlan.isPending || isSpawning}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-md disabled:opacity-50"
+                >
+                  <Check size={14} />
+                  Approve Only
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setShowPlan(false)}
