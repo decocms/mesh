@@ -21,6 +21,12 @@ Extend the existing Task Runner infrastructure with a Site Builder plugin that e
 
 **Goal:** Create Site Builder plugin with site-aware connection filtering and basic UI layout.
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Plugin scaffold with binding, router, and query keys
+- [ ] 01-02-PLAN.md — UI components with stack detection hook
+
 ### Requirements
 - R1.1: New sidebar menu item "Sites" (separate from "Tasks")
 - R1.2: Connection dropdown filtering (only show local-fs with deno.json)
