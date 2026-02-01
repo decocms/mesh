@@ -1,60 +1,32 @@
-# Hello, World! 👋
+# Hello, World!
 
-Welcome to **MCP Mesh** — the open-source control plane for MCP traffic.
+Welcome to **MCP Mesh** - an open-source control plane for MCP (Model Context Protocol) traffic.
 
-## What are we building?
+## What is this project?
 
-MCP Mesh is an infrastructure layer that sits between your MCP clients (like Cursor, Claude, VS Code, or custom agents) and your MCP servers. Think of it as a unified gateway that replaces the chaos of M×N integrations with a single, governed endpoint.
+MCP Mesh sits between your MCP clients (like Cursor, Claude, VS Code, or custom agents) and your MCP servers, providing a unified layer for authentication, routing, and observability.
 
-### The Problem
+### The Problem It Solves
 
-Without a mesh, every MCP client needs direct configuration for every MCP server. This means:
-- Duplicated configs across tools
-- No centralized auth or policy enforcement
-- No unified observability
-- Difficult credential management
+Without MCP Mesh, you face **M×N integrations** - every MCP server needs separate configuration in every client. MCP Mesh replaces this complexity with **one production endpoint**, eliminating the need to maintain separate configs across tools.
 
-### The Solution
+### Key Capabilities
 
-MCP Mesh provides:
-- **One endpoint** for all your MCP traffic
-- **RBAC and policies** enforced at the control plane
-- **Full observability** with OpenTelemetry traces, costs, and errors
-- **Multi-tenancy** with workspace/project scoping
-- **Token vault** for secure credential management
-- **Virtual MCPs** to compose and expose toolsets as new MCP servers
+- **Unified Routing** - Route all MCP traffic through a single governed endpoint
+- **Access Control** - Fine-grained RBAC with OAuth 2.1 and API keys per workspace/project
+- **Multi-tenancy** - Workspace and project isolation for configs, credentials, policies, and audit logs
+- **Observability** - Full OpenTelemetry integration for tracing, metrics, costs, and errors
+- **Virtual MCPs** - Compose and expose governed toolsets as new MCP servers
+- **Token Vault** - Secure bridge to remote MCP servers with credential management
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         MCP Clients                             │
-│         Cursor · Claude · VS Code · Custom Agents               │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         MCP MESH                                │
-│     Virtual MCP · Policy Engine · Observability · Token Vault   │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       MCP Servers                               │
-│      Salesforce · Slack · GitHub · Postgres · Your APIs         │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Tech Stack
+### Tech Stack
 
 - **Runtime**: Bun / Node
 - **Language**: TypeScript + Zod
 - **Framework**: Hono (API) + Vite + React 19
-- **Database**: Kysely → SQLite / PostgreSQL
+- **Database**: Kysely with SQLite / PostgreSQL
 - **Auth**: Better Auth (OAuth 2.1 + API keys)
-- **Observability**: OpenTelemetry
 - **UI**: React 19 + Tailwind v4 + shadcn
-- **Protocol**: Model Context Protocol (MCP)
 
 ## Getting Started
 
@@ -67,12 +39,12 @@ bun install
 bun run dev
 ```
 
-The client runs at http://localhost:4000 with the API server alongside it.
+This starts the client at http://localhost:3000 plus the API server.
 
 ## Part of deco CMS
 
-MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com) — enabling you to connect, govern, and observe all your MCP traffic from one place.
+MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com), providing the foundation for connecting, governing, and observing MCP traffic.
 
 ---
 
-Happy building! 🚀
+Happy building!
