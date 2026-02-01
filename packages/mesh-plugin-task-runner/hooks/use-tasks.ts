@@ -145,24 +145,165 @@ export function useTasks() {
   });
 }
 
-// Placeholder exports for components that still reference these
+/**
+ * Tool call from agent
+ */
+export interface ToolCall {
+  name: string;
+  input?: Record<string, unknown>;
+  timestamp: string;
+}
+
+/**
+ * Agent message
+ */
+export interface AgentMessage {
+  role: "user" | "assistant" | "tool";
+  content: string;
+  timestamp: string;
+}
+
+/**
+ * Agent session from AGENT_STATUS
+ */
+export interface AgentSession {
+  sessionId: string;
+  id?: string; // Alias
+  taskId: string;
+  taskTitle: string;
+  status: "running" | "completed" | "failed" | "stopped";
+  pid?: number;
+  startedAt: string;
+  completedAt?: string;
+  exitCode?: number;
+  toolCalls?: ToolCall[];
+  toolCallCount?: number;
+  messages?: AgentMessage[];
+}
+
+/**
+ * Hook to get agent sessions by reading .beads/sessions.json directly
+ * (AGENT_STATUS tool is on task-runner MCP, not the storage connection)
+ */
+export function useAgentSessions() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+
+  // Check if read_file tool is available (from local-fs MCP)
+  const hasReadFile = connection?.tools?.some((t) => t.name === "read_file");
+
+  return useQuery({
+    queryKey: QUERY_KEYS.agentSessions(connectionId ?? ""),
+    queryFn: async () => {
+      if (!toolCaller || !hasReadFile) {
+        return { sessions: [], runningCount: 0 };
+      }
+
+      try {
+        // Read sessions.json file directly using read_file tool
+        // Cast to work around typed tool caller
+        const untypedToolCaller = toolCaller as (
+          name: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ content?: string }>;
+        const result = await untypedToolCaller("read_file", {
+          path: ".beads/sessions.json",
+        });
+
+        // Parse the result
+        const content =
+          typeof result === "string"
+            ? result
+            : (result as { content?: string })?.content;
+
+        if (!content) {
+          return { sessions: [], runningCount: 0 };
+        }
+
+        // Parse the sessions file - it has { sessions: [...], lastUpdated: ... } structure
+        const parsed = JSON.parse(content) as {
+          sessions?: Array<AgentSession & { id?: string }>;
+          lastUpdated?: string;
+        };
+
+        const rawSessions = parsed.sessions || [];
+        const sessions = rawSessions.map((s) => ({
+          ...s,
+          sessionId: s.sessionId || s.id || "",
+        }));
+
+        // Sort by startedAt descending (most recent first)
+        sessions.sort(
+          (a, b) =>
+            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        );
+
+        const runningSessions = sessions.filter(
+          (s) => s.status === "running",
+        ).length;
+
+        return {
+          sessions,
+          runningCount: runningSessions,
+        };
+      } catch {
+        // File might not exist yet
+        return { sessions: [], runningCount: 0 };
+      }
+    },
+    enabled: !!connectionId && !!toolCaller && hasReadFile,
+    refetchInterval: 5000, // Poll every 5 seconds
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    staleTime: 4000, // Consider data fresh for 4 seconds
+  });
+}
+
+/**
+ * Hook to get detailed session info - uses cached data from useAgentSessions
+ * No additional network requests - just filters the parent data
+ */
+export function useAgentSessionDetail(sessionId: string | null) {
+  const { data } = useAgentSessions();
+
+  const session = data?.sessions?.find(
+    (s) => s.sessionId === sessionId || s.id === sessionId,
+  );
+
+  return {
+    data: session || null,
+    isLoading: false,
+  };
+}
+
+// Legacy placeholder for components that still reference useLoopStatus
 export function useLoopStatus() {
+  const { data } = useAgentSessions();
+  const hasRunning = (data?.runningCount ?? 0) > 0;
+  const firstRunning = data?.sessions?.find((s) => s.status === "running");
+
   return useQuery({
     queryKey: ["task-runner", "loop-status"],
     queryFn: async () => ({
-      status: "idle",
-      currentTask: null,
+      status: hasRunning ? "running" : "idle",
+      currentTask: firstRunning?.taskTitle || null,
       iteration: 0,
       maxIterations: 10,
       totalTokens: 0,
       maxTokens: 100000,
-      tasksCompleted: [],
-      tasksFailed: [],
-      startedAt: null,
+      tasksCompleted:
+        data?.sessions
+          ?.filter((s) => s.status === "completed")
+          .map((s) => s.taskId) || [],
+      tasksFailed:
+        data?.sessions
+          ?.filter((s) => s.status === "failed")
+          .map((s) => s.taskId) || [],
+      startedAt: firstRunning?.startedAt || null,
       lastActivity: null,
       error: null,
     }),
-    enabled: false,
+    enabled: true,
   });
 }
 
@@ -463,6 +604,42 @@ export function useCloseTasks() {
         ),
       );
       return results.map((r) => r.task);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+      });
+    },
+  });
+}
+
+export function useDeleteTask() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { taskId: string }) => {
+      // Check if TASK_DELETE tool is available
+      const hasTaskDelete = connection?.tools?.some(
+        (t) => t.name === "TASK_DELETE",
+      );
+
+      if (!hasTaskDelete) {
+        throw new Error(
+          "This storage connection doesn't support TASK_DELETE. Use a local-fs MCP.",
+        );
+      }
+
+      const untypedToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ success: boolean }>;
+
+      const result = await untypedToolCaller("TASK_DELETE", {
+        id: params.taskId,
+      });
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

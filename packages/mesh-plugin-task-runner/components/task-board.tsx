@@ -15,32 +15,31 @@ import {
   MessageChatSquare,
   BookOpen01,
   Edit02,
+  Trash01,
 } from "@untitledui/icons";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useParams } from "@decocms/bindings/plugins";
 import {
   useTasks,
-  useLoopStatus,
+  useAgentSessions,
+  useAgentSessionDetail,
   useSkills,
   useWorkspace,
   useBeadsStatus,
   useInitBeads,
   useCreateTask,
   useUpdateTask,
+  useDeleteTask,
   type Task,
   type Skill,
+  type AgentSession,
 } from "../hooks/use-tasks";
 
 // ============================================================================
 // Icons
 // ============================================================================
-
-const PauseIcon = ({ size = 14 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M6 4h4v16H6zm8 0h4v16h-4z" />
-  </svg>
-);
 
 const PlusIcon = ({ size = 14 }: { size?: number }) => (
   <svg
@@ -205,12 +204,14 @@ function WorkspaceDisplay() {
   }
 
   return (
-    <div className="flex items-center justify-between bg-muted/30 rounded-lg px-4 py-3">
-      <div className="flex items-center gap-2">
-        <Folder size={16} className="text-muted-foreground" />
-        <span className="font-mono text-sm">{workspaceData.workspace}</span>
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-1 text-muted-foreground">
+        <Folder size={11} />
+        <span className="font-mono text-[11px] truncate max-w-[280px]">
+          {workspaceData.workspace}
+        </span>
       </div>
-      <span className="text-xs text-muted-foreground">
+      <span className="text-[10px] text-muted-foreground/50">
         From storage connection
       </span>
     </div>
@@ -257,57 +258,263 @@ function BeadsInitBanner() {
 // Agent Status - Shows when the Task Runner Agent is actively working
 // ============================================================================
 
-function AgentStatus() {
-  const { data: status } = useLoopStatus();
+/**
+ * Format relative time (e.g., "2s ago", "1m ago")
+ */
+function formatRelativeTime(timestamp: string): string {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+}
 
-  const isRunning = status?.status === "running";
-  const isPaused = status?.status === "paused";
-  const isActive = isRunning || isPaused;
+/**
+ * Single agent session card with detailed status
+ */
+function AgentSessionCard({ session }: { session: AgentSession }) {
+  const sessionId = session.sessionId || session.id || "";
+  const { data: detail } = useAgentSessionDetail(sessionId);
 
-  // Don't show anything when idle - the agent controls happen in chat
-  if (!isActive) {
-    return null;
-  }
+  const isRunning = session.status === "running";
+  const isCompleted = session.status === "completed";
+
+  // Use detailed data if available, otherwise fall back to summary
+  const toolCalls = detail?.toolCalls || session.toolCalls || [];
+  const messages = detail?.messages || session.messages || [];
+  const toolCallCount =
+    detail?.toolCallCount ?? session.toolCallCount ?? toolCalls.length;
+
+  // Get last few tool calls for display
+  const recentTools = toolCalls.slice(-5).reverse();
+
+  // Get last assistant message
+  const lastAssistant = messages
+    .filter((m) => m.role === "assistant" && m.content)
+    .slice(-1)[0];
+
+  // Calculate duration - parent component's polling triggers re-render
+  const startTime = new Date(session.startedAt).getTime();
+  const endTime = session.completedAt
+    ? new Date(session.completedAt).getTime()
+    : Date.now();
+  const durationSec = Math.floor((endTime - startTime) / 1000);
+  const durationStr =
+    durationSec < 60
+      ? `${durationSec}s`
+      : `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`;
 
   return (
     <div
-      className={`rounded-lg p-3 ${
+      className={`rounded-lg p-4 border ${
         isRunning
-          ? "bg-green-50 border border-green-200"
-          : "bg-yellow-50 border border-yellow-200"
+          ? "bg-green-50 border-green-200"
+          : isCompleted
+            ? "bg-blue-50 border-blue-200"
+            : "bg-red-50 border-red-200"
       }`}
     >
-      <div className="flex items-center gap-3">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-3">
         {isRunning ? (
-          <>
-            <LoadingIcon size={16} className="text-green-600" />
-            <div className="flex-1">
-              <span className="text-sm font-medium text-green-700">
-                Agent is working
-              </span>
-              {status?.currentTask && (
-                <span className="text-xs text-green-600 ml-2">
-                  on{" "}
-                  <code className="bg-green-100 px-1 rounded">
-                    {status.currentTask}
-                  </code>
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 text-xs text-green-600">
-              <span>
-                Iteration {status?.iteration}/{status?.maxIterations}
-              </span>
-              <span>✓ {status?.tasksCompleted.length ?? 0}</span>
-              <span>✗ {status?.tasksFailed.length ?? 0}</span>
-            </div>
-          </>
+          <LoadingIcon size={18} className="text-green-600" />
+        ) : isCompleted ? (
+          <Check size={18} className="text-blue-600" />
         ) : (
-          <>
-            <PauseIcon size={16} />
-            <span className="text-sm font-medium text-yellow-700">
-              Agent paused
+          <AlertCircle size={18} className="text-red-600" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-sm font-semibold ${
+                isRunning
+                  ? "text-green-700"
+                  : isCompleted
+                    ? "text-blue-700"
+                    : "text-red-700"
+              }`}
+            >
+              {isRunning
+                ? "Agent Working"
+                : isCompleted
+                  ? "Completed"
+                  : "Failed"}
             </span>
+            <span className="text-xs text-muted-foreground">
+              • {durationStr}
+            </span>
+          </div>
+          <div className="text-xs text-muted-foreground truncate">
+            Task: <strong>{session.taskTitle}</strong>
+          </div>
+        </div>
+        {toolCallCount > 0 && (
+          <div className="text-xs bg-white/50 px-2 py-1 rounded">
+            {toolCallCount} tool calls
+          </div>
+        )}
+      </div>
+
+      {/* Last thinking/message */}
+      {lastAssistant && isRunning && (
+        <div className="mb-3 p-2 bg-white/50 rounded text-xs text-muted-foreground italic">
+          "{lastAssistant.content.slice(0, 150)}
+          {lastAssistant.content.length > 150 ? "..." : ""}"
+        </div>
+      )}
+
+      {/* Recent tool calls */}
+      {recentTools.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs font-medium text-muted-foreground mb-1">
+            Recent activity:
+          </div>
+          {recentTools.map((tool, i) => (
+            <div
+              key={`${tool.name}-${tool.timestamp}-${i}`}
+              className="flex items-center gap-2 text-xs"
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  i === 0 && isRunning
+                    ? "bg-green-500 animate-pulse"
+                    : "bg-muted-foreground/30"
+                }`}
+              />
+              <code className="font-mono text-muted-foreground">
+                {tool.name}
+              </code>
+              <span className="text-muted-foreground/50">
+                {formatRelativeTime(tool.timestamp)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* No activity yet */}
+      {recentTools.length === 0 && isRunning && (
+        <div className="text-xs text-muted-foreground italic">
+          Starting up...
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentStatus() {
+  const { data, isLoading, dataUpdatedAt } = useAgentSessions();
+  const [activeTab, setActiveTab] = useState<"current" | "history">("current");
+  const sessions = data?.sessions ?? [];
+
+  // Running sessions for "Current" tab
+  const runningSessions = sessions.filter((s) => s.status === "running");
+
+  // Completed/failed sessions for "History" tab
+  const historySessions = sessions
+    .filter((s) => s.status !== "running")
+    .slice(0, 10);
+
+  const hasRunning = runningSessions.length > 0;
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium flex items-center gap-2">
+          <span>Agent Status</span>
+          {hasRunning ? (
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          ) : (
+            <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+              Idle
+            </span>
+          )}
+        </h3>
+        {isLoading ? (
+          <span className="text-xs text-muted-foreground">Loading...</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            {new Date(dataUpdatedAt).toLocaleTimeString()}
+          </span>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        <button
+          type="button"
+          onClick={() => setActiveTab("current")}
+          className={`px-3 py-1.5 text-xs font-medium transition-colors relative ${
+            activeTab === "current"
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Current
+          {hasRunning && (
+            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-600 text-[10px]">
+              {runningSessions.length}
+            </span>
+          )}
+          {activeTab === "current" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("history")}
+          className={`px-3 py-1.5 text-xs font-medium transition-colors relative ${
+            activeTab === "history"
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          History
+          {historySessions.length > 0 && (
+            <span className="ml-1.5 text-[10px] text-muted-foreground">
+              ({historySessions.length})
+            </span>
+          )}
+          {activeTab === "history" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+          )}
+        </button>
+      </div>
+
+      {/* Tab content */}
+      <div className="max-h-64 overflow-y-auto space-y-2">
+        {activeTab === "current" && (
+          <>
+            {runningSessions.length > 0 ? (
+              runningSessions.map((session) => (
+                <AgentSessionCard
+                  key={session.sessionId || session.id}
+                  session={session}
+                />
+              ))
+            ) : (
+              <div className="text-xs text-muted-foreground text-center py-4">
+                No agents running. Click Execute on a task to start.
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === "history" && (
+          <>
+            {historySessions.length > 0 ? (
+              historySessions.map((session) => (
+                <AgentSessionCard
+                  key={session.sessionId || session.id}
+                  session={session}
+                />
+              ))
+            ) : (
+              <div className="text-xs text-muted-foreground text-center py-4">
+                No completed sessions yet.
+              </div>
+            )}
           </>
         )}
       </div>
@@ -322,11 +529,14 @@ function AgentStatus() {
 function TaskCard({
   task,
   onStartWithAgent,
+  hasRunningAgent,
 }: {
   task: Task;
   onStartWithAgent: (task: Task) => void;
+  hasRunningAgent: boolean;
 }) {
   const updateTask = useUpdateTask();
+  const deleteTask = useDeleteTask();
 
   const statusIcon = {
     open: <CircleIcon size={14} />,
@@ -335,11 +545,27 @@ function TaskCard({
     closed: <Check size={14} className="text-green-500" />,
   };
 
+  // If task is in_progress but no agent running, show as open
+  const displayStatus =
+    task.status === "in_progress" && !hasRunningAgent ? "open" : task.status;
+
+  const handleDelete = () => {
+    if (confirm(`Delete task "${task.title}"?`)) {
+      deleteTask.mutate(
+        { taskId: task.id },
+        {
+          onSuccess: () => toast.success("Task deleted"),
+          onError: (err) => toast.error(`Failed to delete: ${err.message}`),
+        },
+      );
+    }
+  };
+
   return (
     <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 text-muted-foreground">
-          {statusIcon[task.status]}
+          {statusIcon[displayStatus]}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -360,13 +586,13 @@ function TaskCard({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {task.status !== "closed" && (
+          {displayStatus !== "closed" && (
             <>
-              {task.status !== "in_progress" && (
+              {displayStatus !== "in_progress" && (
                 <button
                   type="button"
                   onClick={() => onStartWithAgent(task)}
-                  disabled={updateTask.isPending}
+                  disabled={updateTask.isPending || deleteTask.isPending}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md disabled:opacity-50 transition-colors"
                   title="Execute task with AI agent"
                 >
@@ -384,7 +610,7 @@ function TaskCard({
                   // TODO: Open edit modal
                   toast.info("Edit feature coming soon");
                 }}
-                disabled={updateTask.isPending}
+                disabled={updateTask.isPending || deleteTask.isPending}
                 className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded disabled:opacity-50"
                 title="Edit task"
               >
@@ -392,6 +618,19 @@ function TaskCard({
               </button>
             </>
           )}
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleteTask.isPending || hasRunningAgent}
+            className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
+            title={hasRunningAgent ? "Stop agent first" : "Delete task"}
+          >
+            {deleteTask.isPending ? (
+              <LoadingIcon size={14} />
+            ) : (
+              <Trash01 size={14} />
+            )}
+          </button>
         </div>
       </div>
     </div>
@@ -409,12 +648,20 @@ function TasksTabContent({
 }) {
   const { data: tasks, isLoading, error, refetch, isFetching } = useTasks();
   const { data: skills } = useSkills();
+  const { data: agentData } = useAgentSessions();
   const createTask = useCreateTask();
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   const selectedSkill = skills?.find((s) => s.id === selectedSkillId);
+
+  // Get task IDs that have running agents
+  const runningTaskIds = new Set(
+    agentData?.sessions
+      ?.filter((s) => s.status === "running")
+      ?.map((s) => s.taskId) || [],
+  );
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -563,11 +810,12 @@ function TasksTabContent({
         </form>
       )}
 
-      {/* Open & In Progress */}
-      {(grouped.open.length > 0 || grouped.in_progress.length > 0) && (
+      {/* In Progress */}
+      {grouped.in_progress.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">
-            Open ({grouped.open.length + grouped.in_progress.length})
+          <h4 className="text-sm font-medium text-green-600 mb-2 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            In Progress ({grouped.in_progress.length})
           </h4>
           <div className="space-y-2">
             {grouped.in_progress.map((task) => (
@@ -575,13 +823,26 @@ function TasksTabContent({
                 key={task.id}
                 task={task}
                 onStartWithAgent={onStartWithAgent}
+                hasRunningAgent={runningTaskIds.has(task.id)}
               />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Open */}
+      {grouped.open.length > 0 && (
+        <div>
+          <h4 className="text-sm font-medium text-muted-foreground mb-2">
+            Open ({grouped.open.length})
+          </h4>
+          <div className="space-y-2">
             {grouped.open.map((task) => (
               <TaskCard
                 key={task.id}
                 task={task}
                 onStartWithAgent={onStartWithAgent}
+                hasRunningAgent={runningTaskIds.has(task.id)}
               />
             ))}
           </div>
@@ -601,6 +862,7 @@ function TasksTabContent({
                 key={task.id}
                 task={task}
                 onStartWithAgent={onStartWithAgent}
+                hasRunningAgent={runningTaskIds.has(task.id)}
               />
             ))}
           </div>
@@ -620,6 +882,7 @@ function TasksTabContent({
                 key={task.id}
                 task={task}
                 onStartWithAgent={onStartWithAgent}
+                hasRunningAgent={false}
               />
             ))}
             {grouped.closed.length > 5 && (
@@ -706,9 +969,10 @@ function SkillsTabContent() {
 export default function TaskBoard() {
   const { data: workspaceData } = useWorkspace();
   const { data: beadsStatus } = useBeadsStatus();
-  const { org } = useParams({ strict: false }) as { org: string };
+  const { org: _org } = useParams({ strict: false }) as { org: string };
   const [activeTab, setActiveTab] = useState<"tasks" | "skills">("tasks");
   const updateTask = useUpdateTask();
+  const queryClient = useQueryClient();
 
   const workspace = workspaceData?.workspace;
   const hasBeads = beadsStatus?.initialized ?? false;
@@ -731,6 +995,21 @@ export default function TaskBoard() {
           const prompt = buildTaskPrompt(task, workspace);
           sendChatMessage(prompt);
           toast.success(`Started task: ${task.title}`);
+
+          // Start polling for agent session updates after a short delay
+          // (the agent takes a moment to start)
+          setTimeout(() => {
+            queryClient.invalidateQueries({
+              queryKey: ["task-runner", "agent-sessions"],
+            });
+          }, 1000);
+
+          // Poll a few more times to catch the agent starting
+          setTimeout(() => {
+            queryClient.invalidateQueries({
+              queryKey: ["task-runner", "agent-sessions"],
+            });
+          }, 3000);
         },
       },
     );
@@ -783,8 +1062,8 @@ export default function TaskBoard() {
               </button>
             </div>
 
-            {/* Tab Content */}
-            <div className="p-4">
+            {/* Tab Content - scrollable */}
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
               {activeTab === "tasks" && (
                 <TasksTabContent onStartWithAgent={handleStartWithAgent} />
               )}

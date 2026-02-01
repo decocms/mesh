@@ -15,4 +15,6 @@ export const QUERY_KEYS = {
     ["task-runner", "loop", connectionId] as const,
   skills: (connectionId: string) =>
     ["task-runner", "skills", connectionId] as const,
+  agentSessions: (connectionId: string) =>
+    ["task-runner", "agent-sessions", connectionId] as const,
 };
