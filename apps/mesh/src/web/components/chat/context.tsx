@@ -804,6 +804,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   sendMessageRef.current = sendMessage;
 
   // Listen for chat message events from plugins or other components
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     const handleChatEvent = (
       event: CustomEvent<ChatSendMessageEventDetail>,
@@ -830,7 +831,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
         handleChatEvent as EventListener,
       );
     };
-  }, []);
+  }, [setVirtualMcpId]);
 
   // ===========================================================================
   // 8. CONTEXT VALUE & RETURN

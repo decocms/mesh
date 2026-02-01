@@ -164,6 +164,7 @@ function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
   const [chatOpen, setChatOpen] = useDecoChatOpen();
 
   // Listen for open chat events from plugins
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     const handleOpenChat = () => {
       setChatOpen(true);

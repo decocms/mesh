@@ -20,6 +20,7 @@ import {
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { cn } from "@deco/ui/lib/utils";
 import { useParams } from "@decocms/bindings/plugins";
 import {
   useTasks,
@@ -40,6 +41,7 @@ import {
   type AgentSession,
   type QualityGate,
 } from "../hooks/use-tasks";
+import { KEYS } from "../lib/query-keys";
 
 // ============================================================================
 // Icons
@@ -99,7 +101,7 @@ const LoadingIcon = ({
     fill="none"
     stroke="currentColor"
     strokeWidth={2}
-    className={`animate-spin ${className}`}
+    className={cn("animate-spin", className)}
   >
     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
   </svg>
@@ -323,13 +325,12 @@ function AgentSessionCard({ session }: { session: AgentSession }) {
 
   return (
     <div
-      className={`rounded-lg p-4 border ${
-        isRunning
-          ? "bg-green-50 border-green-200"
-          : isCompleted
-            ? "bg-blue-50 border-blue-200"
-            : "bg-red-50 border-red-200"
-      }`}
+      className={cn(
+        "rounded-lg p-4 border",
+        isRunning && "bg-green-50 border-green-200",
+        isCompleted && "bg-blue-50 border-blue-200",
+        !isRunning && !isCompleted && "bg-red-50 border-red-200"
+      )}
     >
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
@@ -343,13 +344,12 @@ function AgentSessionCard({ session }: { session: AgentSession }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span
-              className={`text-sm font-semibold ${
-                isRunning
-                  ? "text-green-700"
-                  : isCompleted
-                    ? "text-blue-700"
-                    : "text-red-700"
-              }`}
+              className={cn(
+                "text-sm font-semibold",
+                isRunning && "text-green-700",
+                isCompleted && "text-blue-700",
+                !isRunning && !isCompleted && "text-red-700"
+              )}
             >
               {isRunning
                 ? "Agent Working"
@@ -429,11 +429,10 @@ function AgentSessionCard({ session }: { session: AgentSession }) {
               className="flex items-center gap-2 text-xs"
             >
               <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  i === 0 && isRunning
-                    ? "bg-green-500 animate-pulse"
-                    : "bg-muted-foreground/30"
-                }`}
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  i === 0 && isRunning ? "bg-green-500 animate-pulse" : "bg-muted-foreground/30"
+                )}
               />
               <code className="font-mono text-muted-foreground">
                 {tool.name}
@@ -524,22 +523,20 @@ function AgentStatus() {
         <button
           type="button"
           onClick={() => setActiveTab("current")}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors relative ${
-            activeTab === "current"
-              ? "text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+          className={cn(
+            "px-3 py-1.5 text-xs font-medium transition-colors relative",
+            activeTab === "current" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+          )}
         >
           Current
           {hasRecentActivity && (
             <span
-              className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${
-                hasRunning
-                  ? "bg-green-500/20 text-green-600"
-                  : mostRecentSession?.status === "failed"
-                    ? "bg-red-500/20 text-red-600"
-                    : "bg-blue-500/20 text-blue-600"
-              }`}
+              className={cn(
+                "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px]",
+                hasRunning && "bg-green-500/20 text-green-600",
+                !hasRunning && mostRecentSession?.status === "failed" && "bg-red-500/20 text-red-600",
+                !hasRunning && mostRecentSession?.status !== "failed" && "bg-blue-500/20 text-blue-600"
+              )}
             >
               {currentSessions.length}
             </span>
@@ -551,11 +548,10 @@ function AgentStatus() {
         <button
           type="button"
           onClick={() => setActiveTab("history")}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors relative ${
-            activeTab === "history"
-              ? "text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+          className={cn(
+            "px-3 py-1.5 text-xs font-medium transition-colors relative",
+            activeTab === "history" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+          )}
         >
           History
           {historySessions.length > 0 && (
@@ -659,11 +655,13 @@ function TaskCard({
   const hasPlan = !!task.plan;
 
   // Reset spawning state when agent starts running
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (hasRunningAgent && isSpawning) {
       setIsSpawning(false);
     }
   }, [hasRunningAgent, isSpawning]);
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (!isPlanningRequested || hasPlan) return;
 
@@ -676,6 +674,7 @@ function TaskCard({
   }, [isPlanningRequested, hasPlan, refetchTasks]);
 
   // Reset planning state when plan arrives
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (hasPlan && isPlanningRequested) {
       setIsPlanningRequested(false);
@@ -793,11 +792,10 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
             )}
             {hasPlan && (
               <span
-                className={`text-xs px-1.5 py-0.5 rounded ${
-                  planApproved
-                    ? "bg-green-100 text-green-700"
-                    : "bg-yellow-100 text-yellow-700"
-                }`}
+                className={cn(
+                  "text-xs px-1.5 py-0.5 rounded",
+                  planApproved ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                )}
               >
                 {planApproved ? "Plan Approved" : "Plan Draft"}
               </span>
@@ -943,15 +941,13 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
                 {task.plan.subtasks.map((st) => (
                   <li key={st.id} className="flex items-start gap-2 text-sm">
                     <span
-                      className={`text-xs px-1.5 py-0.5 rounded ${
-                        st.estimatedComplexity === "trivial"
-                          ? "bg-green-100 text-green-700"
-                          : st.estimatedComplexity === "simple"
-                            ? "bg-blue-100 text-blue-700"
-                            : st.estimatedComplexity === "moderate"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-red-100 text-red-700"
-                      }`}
+                      className={cn(
+                        "text-xs px-1.5 py-0.5 rounded",
+                        st.estimatedComplexity === "trivial" && "bg-green-100 text-green-700",
+                        st.estimatedComplexity === "simple" && "bg-blue-100 text-blue-700",
+                        st.estimatedComplexity === "moderate" && "bg-yellow-100 text-yellow-700",
+                        st.estimatedComplexity === "complex" && "bg-red-100 text-red-700"
+                      )}
                     >
                       {st.estimatedComplexity}
                     </span>
@@ -1144,11 +1140,12 @@ function TasksTabContent({
               <button
                 type="button"
                 onClick={() => setSelectedSkillId(null)}
-                className={`px-2 py-1 text-xs rounded-md border transition-colors ${
+                className={cn(
+                  "px-2 py-1 text-xs rounded-md border transition-colors",
                   selectedSkillId === null
                     ? "bg-primary text-primary-foreground border-primary"
                     : "border-border hover:bg-accent"
-                }`}
+                )}
               >
                 None
               </button>
@@ -1157,11 +1154,12 @@ function TasksTabContent({
                   key={skill.id}
                   type="button"
                   onClick={() => setSelectedSkillId(skill.id)}
-                  className={`px-2 py-1 text-xs rounded-md border transition-colors ${
+                  className={cn(
+                    "px-2 py-1 text-xs rounded-md border transition-colors",
                     selectedSkillId === skill.id
                       ? "bg-primary text-primary-foreground border-primary"
                       : "border-border hover:bg-accent"
-                  }`}
+                  )}
                   title={skill.description}
                 >
                   {skill.name}
@@ -1437,7 +1435,10 @@ function QualityGatesTabContent() {
             >
               <div className="flex items-center gap-3">
                 <div
-                  className={`p-1.5 rounded ${gate.required ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}
+                  className={cn(
+                    "p-1.5 rounded",
+                    gate.required ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"
+                  )}
                 >
                   <ShieldIcon size={14} />
                 </div>
@@ -1523,14 +1524,14 @@ export default function TaskBoard() {
           // (the agent takes a moment to start)
           setTimeout(() => {
             queryClient.invalidateQueries({
-              queryKey: ["task-runner", "agent-sessions"],
+              queryKey: KEYS.agentSessionsBase,
             });
           }, 1000);
 
           // Poll a few more times to catch the agent starting
           setTimeout(() => {
             queryClient.invalidateQueries({
-              queryKey: ["task-runner", "agent-sessions"],
+              queryKey: KEYS.agentSessionsBase,
             });
           }, 3000);
         },
@@ -1558,11 +1559,12 @@ export default function TaskBoard() {
               <button
                 type="button"
                 onClick={() => setActiveTab("tasks")}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                className={cn(
+                  "flex-1 px-4 py-3 text-sm font-medium transition-colors",
                   activeTab === "tasks"
                     ? "bg-background text-foreground border-b-2 border-primary -mb-px"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                }`}
+                )}
               >
                 <span className="flex items-center justify-center gap-2">
                   <File02 size={16} />
@@ -1572,11 +1574,12 @@ export default function TaskBoard() {
               <button
                 type="button"
                 onClick={() => setActiveTab("skills")}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                className={cn(
+                  "flex-1 px-4 py-3 text-sm font-medium transition-colors",
                   activeTab === "skills"
                     ? "bg-background text-foreground border-b-2 border-primary -mb-px"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                }`}
+                )}
               >
                 <span className="flex items-center justify-center gap-2">
                   <BookOpen01 size={16} />
@@ -1586,11 +1589,12 @@ export default function TaskBoard() {
               <button
                 type="button"
                 onClick={() => setActiveTab("gates")}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                className={cn(
+                  "flex-1 px-4 py-3 text-sm font-medium transition-colors",
                   activeTab === "gates"
                     ? "bg-background text-foreground border-b-2 border-primary -mb-px"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                }`}
+                )}
               >
                 <span className="flex items-center justify-center gap-2">
                   <ShieldIcon size={16} />

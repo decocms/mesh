@@ -8,7 +8,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePluginContext } from "@decocms/bindings/plugins";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
-import { QUERY_KEYS } from "../lib/query-keys";
+import { KEYS } from "../lib/query-keys";
 
 /**
  * Acceptance criterion for a task
@@ -78,7 +78,7 @@ export function useWorkspace() {
     usePluginContext<typeof OBJECT_STORAGE_BINDING>();
 
   return useQuery({
-    queryKey: QUERY_KEYS.workspace,
+    queryKey: KEYS.workspace,
     queryFn: async () => {
       // Check if GET_ROOT tool is available on this connection
       const hasGetRoot = connection?.tools?.some((t) => t.name === "GET_ROOT");
@@ -119,7 +119,7 @@ export function useBeadsStatus() {
     usePluginContext<typeof OBJECT_STORAGE_BINDING>();
 
   return useQuery({
-    queryKey: QUERY_KEYS.beadsStatus,
+    queryKey: KEYS.beadsStatus,
     queryFn: async () => {
       try {
         // Try to list .beads directory
@@ -151,7 +151,7 @@ export function useTasks() {
   const hasReadFile = connection?.tools?.some((t) => t.name === "read_file");
 
   return useQuery({
-    queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+    queryKey: KEYS.tasks(connectionId ?? ""),
     queryFn: async (): Promise<Task[]> => {
       if (!hasReadFile) {
         console.log("[Task Runner] Connection does not have read_file tool");
@@ -243,7 +243,7 @@ export function useAgentSessions() {
   const hasReadFile = connection?.tools?.some((t) => t.name === "read_file");
 
   return useQuery({
-    queryKey: QUERY_KEYS.agentSessions(connectionId ?? ""),
+    queryKey: KEYS.agentSessions(connectionId ?? ""),
     queryFn: async () => {
       if (!toolCaller || !hasReadFile) {
         return { sessions: [], runningCount: 0 };
@@ -333,7 +333,7 @@ export function useLoopStatus() {
   const firstRunning = data?.sessions?.find((s) => s.status === "running");
 
   return useQuery({
-    queryKey: ["task-runner", "loop-status"],
+    queryKey: KEYS.loopStatusLegacy,
     queryFn: async () => ({
       status: hasRunning ? "running" : "idle",
       currentTask: firstRunning?.taskTitle || null,
@@ -393,7 +393,7 @@ export function useSkills() {
     usePluginContext<typeof OBJECT_STORAGE_BINDING>();
 
   return useQuery({
-    queryKey: QUERY_KEYS.skills(connectionId ?? ""),
+    queryKey: KEYS.skills(connectionId ?? ""),
     queryFn: async (): Promise<Skill[]> => {
       // Check if SKILLS_LIST tool is available
       const hasSkillsList = connection?.tools?.some(
@@ -483,7 +483,7 @@ export function useApplySkill() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+        queryKey: KEYS.tasks(connectionId ?? ""),
       });
     },
   });
@@ -558,8 +558,8 @@ export function useInitBeads() {
       };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.beadsStatus });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.workspace });
+      queryClient.invalidateQueries({ queryKey: KEYS.beadsStatus });
+      queryClient.invalidateQueries({ queryKey: KEYS.workspace });
     },
   });
 }
@@ -640,7 +640,7 @@ export function useCreateTask() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+        queryKey: KEYS.tasks(connectionId ?? ""),
       });
     },
   });
@@ -731,7 +731,7 @@ export function useUpdateTask() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+        queryKey: KEYS.tasks(connectionId ?? ""),
       });
     },
   });
@@ -806,7 +806,7 @@ export function useCloseTasks() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+        queryKey: KEYS.tasks(connectionId ?? ""),
       });
     },
   });
@@ -875,7 +875,7 @@ export function useDeleteTask() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+        queryKey: KEYS.tasks(connectionId ?? ""),
       });
     },
   });
@@ -894,7 +894,7 @@ export function useQualityGates() {
   const workspaceQuery = useWorkspace();
 
   return useQuery({
-    queryKey: QUERY_KEYS.qualityGates(connectionId ?? ""),
+    queryKey: KEYS.qualityGates(connectionId ?? ""),
     queryFn: async (): Promise<QualityGate[]> => {
       // Check if read_file tool is available
       const hasReadFile = connection?.tools?.some(
@@ -1109,7 +1109,7 @@ export function useDetectQualityGates() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.qualityGates(connectionId ?? ""),
+        queryKey: KEYS.qualityGates(connectionId ?? ""),
       });
     },
   });
@@ -1238,7 +1238,7 @@ export function useTaskPlan() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+        queryKey: KEYS.tasks(connectionId ?? ""),
       });
     },
   });
@@ -1345,7 +1345,7 @@ export function useApprovePlan() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+        queryKey: KEYS.tasks(connectionId ?? ""),
       });
     },
   });
@@ -1441,7 +1441,7 @@ export function useAddQualityGate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.qualityGates(connectionId ?? ""),
+        queryKey: KEYS.qualityGates(connectionId ?? ""),
       });
     },
   });
