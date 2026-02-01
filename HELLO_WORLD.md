@@ -1,23 +1,30 @@
-# Hello, World!
+# Hello, World! 👋
 
-Welcome to **MCP Mesh** - an open-source control plane for Model Context Protocol (MCP) traffic.
+Welcome to **MCP Mesh** — the open-source control plane for MCP traffic.
 
-## What Are We Building?
+## What are we building?
 
-MCP Mesh sits between your AI clients (Cursor, Claude, VS Code, custom agents) and your MCP servers, providing a unified layer for authentication, routing, and observability.
+MCP Mesh is an infrastructure layer that sits between your MCP clients (like Cursor, Claude, VS Code, or custom agents) and your MCP servers. Think of it as a unified gateway that replaces the chaos of M×N integrations with a single, governed endpoint.
 
 ### The Problem
 
-When you have M MCP servers and N clients, you end up maintaining M×N separate integrations. Each client needs its own configuration for each server. This becomes unmanageable as your tooling grows.
+Without a mesh, every MCP client needs direct configuration for every MCP server. This means:
+- Duplicated configs across tools
+- No centralized auth or policy enforcement
+- No unified observability
+- Difficult credential management
 
 ### The Solution
 
-MCP Mesh replaces those M×N integrations with **one production endpoint**. It acts as a secure gateway that:
+MCP Mesh provides:
+- **One endpoint** for all your MCP traffic
+- **RBAC and policies** enforced at the control plane
+- **Full observability** with OpenTelemetry traces, costs, and errors
+- **Multi-tenancy** with workspace/project scoping
+- **Token vault** for secure credential management
+- **Virtual MCPs** to compose and expose toolsets as new MCP servers
 
-- **Routes** all MCP traffic through a single governed endpoint
-- **Enforces** RBAC, policies, and audit trails at the control plane
-- **Observes** everything with OpenTelemetry - traces, costs, errors
-- **Manages** runtime strategies for optimal tool selection
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -28,7 +35,7 @@ MCP Mesh replaces those M×N integrations with **one production endpoint**. It a
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                         MCP MESH                                │
-│       Virtual MCP · Policy Engine · Observability · Token Vault │
+│     Virtual MCP · Policy Engine · Observability · Token Vault   │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -38,13 +45,16 @@ MCP Mesh replaces those M×N integrations with **one production endpoint**. It a
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Key Features
+## Tech Stack
 
-- **MeshContext** - Unified runtime interface for auth, storage, observability, and policy control
-- **defineTool()** - Declarative API for typed, auditable, observable MCP tools
-- **Multi-tenancy** - Workspace/project isolation for configs, credentials, and logs
-- **Virtual MCPs** - Compose and expose governed toolsets as new MCP servers
-- **Token Vault** - Secure credential management with OAuth support
+- **Runtime**: Bun / Node
+- **Language**: TypeScript + Zod
+- **Framework**: Hono (API) + Vite + React 19
+- **Database**: Kysely → SQLite / PostgreSQL
+- **Auth**: Better Auth (OAuth 2.1 + API keys)
+- **Observability**: OpenTelemetry
+- **UI**: React 19 + Tailwind v4 + shadcn
+- **Protocol**: Model Context Protocol (MCP)
 
 ## Getting Started
 
@@ -57,12 +67,12 @@ bun install
 bun run dev
 ```
 
-Then visit [http://localhost:3000](http://localhost:3000)
+The client runs at http://localhost:4000 with the API server alongside it.
 
 ## Part of deco CMS
 
-MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com). It's designed to connect, govern, and observe MCP traffic at scale.
+MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com) — enabling you to connect, govern, and observe all your MCP traffic from one place.
 
 ---
 
-Happy building!
+Happy building! 🚀
