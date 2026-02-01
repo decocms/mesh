@@ -17,4 +17,8 @@ export const QUERY_KEYS = {
     ["task-runner", "skills", connectionId] as const,
   agentSessions: (connectionId: string) =>
     ["task-runner", "agent-sessions", connectionId] as const,
+  qualityGates: (connectionId: string) =>
+    ["task-runner", "quality-gates", connectionId] as const,
+  projectMemory: (connectionId: string) =>
+    ["task-runner", "project-memory", connectionId] as const,
 };

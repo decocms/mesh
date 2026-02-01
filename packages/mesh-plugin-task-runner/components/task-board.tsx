@@ -17,7 +17,7 @@ import {
   Edit02,
   Trash01,
 } from "@untitledui/icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useParams } from "@decocms/bindings/plugins";
@@ -32,9 +32,14 @@ import {
   useCreateTask,
   useUpdateTask,
   useDeleteTask,
+  useQualityGates,
+  useDetectQualityGates,
+  useApprovePlan,
   type Task,
   type Skill,
   type AgentSession,
+  type QualityGate,
+  type TaskPlan,
 } from "../hooks/use-tasks";
 
 // ============================================================================
@@ -356,11 +361,30 @@ function AgentSessionCard({ session }: { session: AgentSession }) {
         )}
       </div>
 
-      {/* Last thinking/message */}
+      {/* Last thinking/message - show for running */}
       {lastAssistant && isRunning && (
         <div className="mb-3 p-2 bg-white/50 rounded text-xs text-muted-foreground italic">
           "{lastAssistant.content.slice(0, 150)}
           {lastAssistant.content.length > 150 ? "..." : ""}"
+        </div>
+      )}
+
+      {/* Error output - show for failed sessions */}
+      {session.status === "failed" && session.output && (
+        <div className="mb-3 p-2 bg-red-100 rounded border border-red-200">
+          <div className="text-xs font-medium text-red-700 mb-1">Error:</div>
+          <code className="text-xs text-red-600 font-mono whitespace-pre-wrap break-all">
+            {session.output.slice(0, 300)}
+            {session.output.length > 300 ? "..." : ""}
+          </code>
+        </div>
+      )}
+
+      {/* Completion message - show for completed */}
+      {session.status === "completed" && lastAssistant && (
+        <div className="mb-3 p-2 bg-blue-50 rounded text-xs text-blue-700">
+          {lastAssistant.content.slice(0, 150)}
+          {lastAssistant.content.length > 150 ? "..." : ""}
         </div>
       )}
 
@@ -411,25 +435,51 @@ function AgentStatus() {
   // Running sessions for "Current" tab
   const runningSessions = sessions.filter((s) => s.status === "running");
 
-  // Completed/failed sessions for "History" tab
+  // Recently finished sessions (within last 60 seconds) - show in Current tab
+  const recentlyFinished = sessions.filter((s) => {
+    if (s.status === "running") return false;
+    if (!s.completedAt) return false;
+    const completedTime = new Date(s.completedAt).getTime();
+    const now = Date.now();
+    const sixtySeconds = 60 * 1000;
+    return now - completedTime < sixtySeconds;
+  });
+
+  // Current tab shows running + recently finished
+  const currentSessions = [...runningSessions, ...recentlyFinished];
+
+  // Completed/failed sessions for "History" tab (all non-running)
   const historySessions = sessions
     .filter((s) => s.status !== "running")
     .slice(0, 10);
 
   const hasRunning = runningSessions.length > 0;
+  const hasRecentActivity = currentSessions.length > 0;
+
+  // Determine status indicator
+  const mostRecentSession = currentSessions[0];
+  const statusIndicator = hasRunning ? (
+    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+  ) : mostRecentSession?.status === "failed" ? (
+    <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">
+      Failed
+    </span>
+  ) : mostRecentSession?.status === "completed" ? (
+    <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">
+      Done
+    </span>
+  ) : (
+    <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+      Idle
+    </span>
+  );
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium flex items-center gap-2">
           <span>Agent Status</span>
-          {hasRunning ? (
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          ) : (
-            <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-              Idle
-            </span>
-          )}
+          {statusIndicator}
         </h3>
         {isLoading ? (
           <span className="text-xs text-muted-foreground">Loading...</span>
@@ -452,9 +502,17 @@ function AgentStatus() {
           }`}
         >
           Current
-          {hasRunning && (
-            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-600 text-[10px]">
-              {runningSessions.length}
+          {hasRecentActivity && (
+            <span
+              className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${
+                hasRunning
+                  ? "bg-green-500/20 text-green-600"
+                  : mostRecentSession?.status === "failed"
+                    ? "bg-red-500/20 text-red-600"
+                    : "bg-blue-500/20 text-blue-600"
+              }`}
+            >
+              {currentSessions.length}
             </span>
           )}
           {activeTab === "current" && (
@@ -486,8 +544,8 @@ function AgentStatus() {
       <div className="max-h-64 overflow-y-auto space-y-2">
         {activeTab === "current" && (
           <>
-            {runningSessions.length > 0 ? (
-              runningSessions.map((session) => (
+            {currentSessions.length > 0 ? (
+              currentSessions.map((session) => (
                 <AgentSessionCard
                   key={session.sessionId || session.id}
                   session={session}
@@ -526,17 +584,68 @@ function AgentStatus() {
 // Task Card
 // ============================================================================
 
+// Plan icon component
+const ListIcon = ({ size = 14 }: { size?: number }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="8" y1="6" x2="21" y2="6" />
+    <line x1="8" y1="12" x2="21" y2="12" />
+    <line x1="8" y1="18" x2="21" y2="18" />
+    <line x1="3" y1="6" x2="3.01" y2="6" />
+    <line x1="3" y1="12" x2="3.01" y2="12" />
+    <line x1="3" y1="18" x2="3.01" y2="18" />
+  </svg>
+);
+
 function TaskCard({
   task,
   onStartWithAgent,
   hasRunningAgent,
+  workspacePath,
+  refetchTasks,
 }: {
   task: Task;
   onStartWithAgent: (task: Task) => void;
   hasRunningAgent: boolean;
+  workspacePath?: string;
+  refetchTasks?: () => void;
 }) {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const approvePlan = useApprovePlan();
+  const [showPlan, setShowPlan] = useState(false);
+  const [isPlanningRequested, setIsPlanningRequested] = useState(false);
+
+  // Poll for task updates while planning is in progress
+  const hasPlan = !!task.plan;
+  useEffect(() => {
+    if (!isPlanningRequested || hasPlan) return;
+
+    // Poll every 2 seconds while waiting for the plan
+    const interval = setInterval(() => {
+      refetchTasks?.();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isPlanningRequested, hasPlan, refetchTasks]);
+
+  // Reset planning state when plan arrives
+  useEffect(() => {
+    if (hasPlan && isPlanningRequested) {
+      setIsPlanningRequested(false);
+      setShowPlan(true); // Auto-expand plan when it arrives
+      toast.success("Plan ready! Review and approve to continue.");
+    }
+  }, [hasPlan, isPlanningRequested]);
 
   const statusIcon = {
     open: <CircleIcon size={14} />,
@@ -561,6 +670,63 @@ function TaskCard({
     }
   };
 
+  const handlePlan = () => {
+    if (!workspacePath) {
+      toast.error("Workspace not available yet - please wait and try again");
+      return;
+    }
+
+    // Send message to Task Runner Agent to analyze and plan the task
+    const planningPrompt = `Please analyze and create a detailed plan for task ${task.id}: "${task.title}"
+
+${task.description ? `Description: ${task.description}` : ""}
+Workspace: ${workspacePath}
+
+Instructions:
+1. Read the task requirements carefully
+2. Explore the codebase to understand relevant files and patterns
+3. Create a plan with:
+   - Clear, specific acceptance criteria (not generic ones)
+   - Subtasks broken down by complexity  
+   - Files that will likely need modification
+   - Any risks or considerations
+
+When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.id}", and your plan.`;
+
+    sendChatMessage(planningPrompt);
+    setIsPlanningRequested(true);
+    toast.success("Sent to agent for planning - check the chat");
+  };
+
+  const handleApprovePlan = () => {
+    approvePlan.mutate(
+      { taskId: task.id, action: "approve" },
+      {
+        onSuccess: () => {
+          toast.success("Plan approved - ready to execute");
+          setShowPlan(false);
+        },
+        onError: (err) => toast.error(`Failed to approve: ${err.message}`),
+      },
+    );
+  };
+
+  const handleApproveAndExecute = () => {
+    approvePlan.mutate(
+      { taskId: task.id, action: "approve" },
+      {
+        onSuccess: () => {
+          toast.success("Plan approved - starting execution...");
+          setShowPlan(false);
+          onStartWithAgent(task);
+        },
+        onError: (err) => toast.error(`Failed to approve: ${err.message}`),
+      },
+    );
+  };
+
+  const planApproved = task.planStatus === "approved";
+
   return (
     <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors">
       <div className="flex items-start gap-3">
@@ -577,6 +743,17 @@ function TaskCard({
                 P{task.priority}
               </span>
             )}
+            {hasPlan && (
+              <span
+                className={`text-xs px-1.5 py-0.5 rounded ${
+                  planApproved
+                    ? "bg-green-100 text-green-700"
+                    : "bg-yellow-100 text-yellow-700"
+                }`}
+              >
+                {planApproved ? "Plan Approved" : "Plan Draft"}
+              </span>
+            )}
           </div>
           <h4 className="font-medium text-sm mb-1">{task.title}</h4>
           {task.description && (
@@ -584,25 +761,71 @@ function TaskCard({
               {task.description}
             </p>
           )}
+
+          {/* Show acceptance criteria if approved */}
+          {planApproved &&
+            task.acceptanceCriteria &&
+            task.acceptanceCriteria.length > 0 && (
+              <div className="mt-2 text-xs">
+                <span className="text-muted-foreground">Criteria: </span>
+                <span className="text-foreground">
+                  {task.acceptanceCriteria.length} items
+                </span>
+              </div>
+            )}
         </div>
         <div className="flex items-center gap-1">
           {displayStatus !== "closed" && (
             <>
               {displayStatus !== "in_progress" && (
-                <button
-                  type="button"
-                  onClick={() => onStartWithAgent(task)}
-                  disabled={updateTask.isPending || deleteTask.isPending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md disabled:opacity-50 transition-colors"
-                  title="Execute task with AI agent"
-                >
-                  {updateTask.isPending ? (
-                    <LoadingIcon size={14} />
-                  ) : (
-                    <MessageChatSquare size={14} />
+                <>
+                  {/* Plan button - show if no plan or plan is draft */}
+                  {!planApproved && (
+                    <button
+                      type="button"
+                      onClick={
+                        hasPlan ? () => setShowPlan(!showPlan) : handlePlan
+                      }
+                      disabled={isPlanningRequested && !hasPlan}
+                      className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-md disabled:opacity-50 transition-colors"
+                      title={
+                        hasPlan
+                          ? "View/Edit Plan"
+                          : "Ask agent to plan this task"
+                      }
+                    >
+                      {isPlanningRequested && !hasPlan ? (
+                        <LoadingIcon size={12} />
+                      ) : (
+                        <ListIcon size={12} />
+                      )}
+                      <span>
+                        {hasPlan
+                          ? "View Plan"
+                          : isPlanningRequested
+                            ? "Planning..."
+                            : "Plan"}
+                      </span>
+                    </button>
                   )}
-                  <span>Execute</span>
-                </button>
+                  {/* Execute button - only show if plan is approved */}
+                  {planApproved && (
+                    <button
+                      type="button"
+                      onClick={() => onStartWithAgent(task)}
+                      disabled={updateTask.isPending || deleteTask.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md disabled:opacity-50 transition-colors"
+                      title="Execute task with AI agent"
+                    >
+                      {updateTask.isPending ? (
+                        <LoadingIcon size={14} />
+                      ) : (
+                        <MessageChatSquare size={14} />
+                      )}
+                      <span>Execute</span>
+                    </button>
+                  )}
+                </>
               )}
               <button
                 type="button"
@@ -633,6 +856,101 @@ function TaskCard({
           </button>
         </div>
       </div>
+
+      {/* Plan Details Section */}
+      {showPlan && task.plan && (
+        <div className="mt-4 pt-4 border-t border-border">
+          <div className="space-y-3">
+            <div>
+              <h5 className="text-xs font-medium text-muted-foreground mb-1">
+                Summary
+              </h5>
+              <p className="text-sm">{task.plan.summary}</p>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-medium text-muted-foreground mb-2">
+                Acceptance Criteria ({task.plan.acceptanceCriteria.length})
+              </h5>
+              <ul className="space-y-1">
+                {task.plan.acceptanceCriteria.map((ac) => (
+                  <li key={ac.id} className="flex items-start gap-2 text-sm">
+                    <span className="text-muted-foreground">•</span>
+                    <span>{ac.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h5 className="text-xs font-medium text-muted-foreground mb-2">
+                Subtasks ({task.plan.subtasks.length})
+              </h5>
+              <ul className="space-y-1">
+                {task.plan.subtasks.map((st) => (
+                  <li key={st.id} className="flex items-start gap-2 text-sm">
+                    <span
+                      className={`text-xs px-1.5 py-0.5 rounded ${
+                        st.estimatedComplexity === "trivial"
+                          ? "bg-green-100 text-green-700"
+                          : st.estimatedComplexity === "simple"
+                            ? "bg-blue-100 text-blue-700"
+                            : st.estimatedComplexity === "moderate"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {st.estimatedComplexity}
+                    </span>
+                    <span>{st.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {task.plan.estimatedComplexity && (
+              <div className="text-xs text-muted-foreground">
+                Overall complexity:{" "}
+                <span className="font-medium">
+                  {task.plan.estimatedComplexity}
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleApproveAndExecute}
+                disabled={approvePlan.isPending}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary-foreground bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
+              >
+                {approvePlan.isPending ? (
+                  <LoadingIcon size={14} />
+                ) : (
+                  <Check size={14} />
+                )}
+                Approve & Execute
+              </button>
+              <button
+                type="button"
+                onClick={handleApprovePlan}
+                disabled={approvePlan.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-md disabled:opacity-50"
+              >
+                <Check size={14} />
+                Approve Only
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPlan(false)}
+                className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -643,8 +961,10 @@ function TaskCard({
 
 function TasksTabContent({
   onStartWithAgent,
+  workspacePath,
 }: {
   onStartWithAgent: (task: Task) => void;
+  workspacePath?: string;
 }) {
   const { data: tasks, isLoading, error, refetch, isFetching } = useTasks();
   const { data: skills } = useSkills();
@@ -824,6 +1144,8 @@ function TasksTabContent({
                 task={task}
                 onStartWithAgent={onStartWithAgent}
                 hasRunningAgent={runningTaskIds.has(task.id)}
+                workspacePath={workspacePath}
+                refetchTasks={refetch}
               />
             ))}
           </div>
@@ -843,6 +1165,8 @@ function TasksTabContent({
                 task={task}
                 onStartWithAgent={onStartWithAgent}
                 hasRunningAgent={runningTaskIds.has(task.id)}
+                workspacePath={workspacePath}
+                refetchTasks={refetch}
               />
             ))}
           </div>
@@ -863,6 +1187,8 @@ function TasksTabContent({
                 task={task}
                 onStartWithAgent={onStartWithAgent}
                 hasRunningAgent={runningTaskIds.has(task.id)}
+                workspacePath={workspacePath}
+                refetchTasks={refetch}
               />
             ))}
           </div>
@@ -883,6 +1209,8 @@ function TasksTabContent({
                 task={task}
                 onStartWithAgent={onStartWithAgent}
                 hasRunningAgent={false}
+                workspacePath={workspacePath}
+                refetchTasks={refetch}
               />
             ))}
             {grouped.closed.length > 5 && (
@@ -963,6 +1291,136 @@ function SkillsTabContent() {
 }
 
 // ============================================================================
+// Quality Gates Tab Content
+// ============================================================================
+
+const ShieldIcon = ({ size = 14 }: { size?: number }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+);
+
+function QualityGatesTabContent() {
+  const { data: gates, isLoading } = useQualityGates();
+  const detectGates = useDetectQualityGates();
+
+  const handleDetect = () => {
+    detectGates.mutate(undefined, {
+      onSuccess: (result) => {
+        toast.success(`Detected ${result.gates.length} quality gates`);
+      },
+      onError: (err) => {
+        toast.error(`Failed to detect: ${err.message}`);
+      },
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
+        <LoadingIcon size={14} />
+        Loading quality gates...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Quality gates are commands that must pass before a task is considered
+          complete.
+        </p>
+        <button
+          type="button"
+          onClick={handleDetect}
+          disabled={detectGates.isPending}
+          className="flex items-center gap-1.5 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded disabled:opacity-50"
+        >
+          {detectGates.isPending ? (
+            <LoadingIcon size={12} />
+          ) : (
+            <RefreshIcon size={12} />
+          )}
+          Auto-detect
+        </button>
+      </div>
+
+      {!gates || gates.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <ShieldIcon size={32} />
+          <p className="text-sm mt-2">No quality gates configured</p>
+          <p className="text-xs">
+            Click "Auto-detect" to find gates from package.json scripts.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {gates.map((gate: QualityGate) => (
+            <div
+              key={gate.id}
+              className="p-3 bg-card border border-border rounded-lg flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-1.5 rounded ${gate.required ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}
+                >
+                  <ShieldIcon size={14} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">{gate.name}</span>
+                    {gate.required && (
+                      <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                        Required
+                      </span>
+                    )}
+                    {gate.source === "auto" && (
+                      <span className="text-xs text-muted-foreground">
+                        (auto-detected)
+                      </span>
+                    )}
+                  </div>
+                  <code className="text-xs text-muted-foreground font-mono">
+                    {gate.command}
+                  </code>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="text-xs text-muted-foreground border-t border-border pt-3 mt-4">
+        <p className="font-medium mb-1">How it works:</p>
+        <ul className="list-disc list-inside space-y-0.5">
+          <li>Agents run quality gates before marking a task complete</li>
+          <li>If any required gate fails, the agent fixes issues first</li>
+          <li>
+            Agents output{" "}
+            <code className="bg-muted px-1 rounded">
+              &lt;promise&gt;COMPLETE&lt;/promise&gt;
+            </code>{" "}
+            only when all gates pass
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // Main Task Board
 // ============================================================================
 
@@ -970,7 +1428,9 @@ export default function TaskBoard() {
   const { data: workspaceData } = useWorkspace();
   const { data: beadsStatus } = useBeadsStatus();
   const { org: _org } = useParams({ strict: false }) as { org: string };
-  const [activeTab, setActiveTab] = useState<"tasks" | "skills">("tasks");
+  const [activeTab, setActiveTab] = useState<"tasks" | "skills" | "gates">(
+    "tasks",
+  );
   const updateTask = useUpdateTask();
   const queryClient = useQueryClient();
 
@@ -1060,14 +1520,32 @@ export default function TaskBoard() {
                   Skills
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("gates")}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === "gates"
+                    ? "bg-background text-foreground border-b-2 border-primary -mb-px"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <ShieldIcon size={16} />
+                  Quality Gates
+                </span>
+              </button>
             </div>
 
             {/* Tab Content - scrollable */}
             <div className="p-4 max-h-[60vh] overflow-y-auto">
               {activeTab === "tasks" && (
-                <TasksTabContent onStartWithAgent={handleStartWithAgent} />
+                <TasksTabContent
+                  onStartWithAgent={handleStartWithAgent}
+                  workspacePath={workspaceData?.workspace}
+                />
               )}
               {activeTab === "skills" && <SkillsTabContent />}
+              {activeTab === "gates" && <QualityGatesTabContent />}
             </div>
           </div>
         </>

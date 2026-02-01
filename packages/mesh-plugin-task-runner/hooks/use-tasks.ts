@@ -11,6 +11,48 @@ import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
 import { QUERY_KEYS } from "../lib/query-keys";
 
 /**
+ * Acceptance criterion for a task
+ */
+export interface AcceptanceCriterion {
+  id: string;
+  description: string;
+  completed?: boolean;
+}
+
+/**
+ * Quality gate definition
+ */
+export interface QualityGate {
+  id: string;
+  name: string;
+  command: string;
+  description?: string;
+  required: boolean;
+  source: "auto" | "manual";
+}
+
+/**
+ * Task Plan type
+ */
+export interface TaskPlan {
+  summary: string;
+  acceptanceCriteria: Array<{
+    id: string;
+    description: string;
+    verifiable?: boolean;
+  }>;
+  subtasks: Array<{
+    id: string;
+    title: string;
+    description: string;
+    estimatedComplexity?: "trivial" | "simple" | "moderate" | "complex";
+    filesToModify?: string[];
+  }>;
+  risks?: string[];
+  estimatedComplexity?: "trivial" | "simple" | "moderate" | "complex";
+}
+
+/**
  * Task type for Beads
  */
 export interface Task {
@@ -22,6 +64,9 @@ export interface Task {
   createdAt?: string;
   updatedAt?: string;
   threadId?: string; // Chat thread ID for this task
+  acceptanceCriteria?: AcceptanceCriterion[]; // Verifiable success criteria
+  plan?: TaskPlan; // Generated plan before execution
+  planStatus?: "draft" | "approved" | "rejected"; // Plan approval status
 }
 
 /**
@@ -97,22 +142,19 @@ export function useBeadsStatus() {
 
 /**
  * Hook to list tasks from .beads directory
- * Reads the beads tasks.json file to get task list
+ * Reads .beads/tasks.json directly using read_file
  */
 export function useTasks() {
   const { connectionId, toolCaller, connection } =
     usePluginContext<typeof OBJECT_STORAGE_BINDING>();
 
+  const hasReadFile = connection?.tools?.some((t) => t.name === "read_file");
+
   return useQuery({
     queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
     queryFn: async (): Promise<Task[]> => {
-      // Check if TASK_LIST tool is available
-      const hasTaskList = connection?.tools?.some(
-        (t) => t.name === "TASK_LIST",
-      );
-
-      if (!hasTaskList) {
-        console.log("[Task Runner] Connection does not have TASK_LIST tool");
+      if (!hasReadFile) {
+        console.log("[Task Runner] Connection does not have read_file tool");
         return [];
       }
 
@@ -120,25 +162,32 @@ export function useTasks() {
         const untypedToolCaller = toolCaller as (
           name: string,
           args: Record<string, unknown>,
-        ) => Promise<{ tasks: Task[] }>;
+        ) => Promise<{ content?: string } | string>;
 
-        const result = await untypedToolCaller("TASK_LIST", { status: "all" });
-        console.log("[Task Runner] TASK_LIST result:", result);
+        const result = await untypedToolCaller("read_file", {
+          path: ".beads/tasks.json",
+        });
 
-        // Handle different response formats
-        if (Array.isArray(result)) {
-          return result;
+        const content =
+          typeof result === "string"
+            ? result
+            : typeof result === "object" && result.content
+              ? result.content
+              : null;
+
+        if (!content) {
+          console.log("[Task Runner] No tasks file or empty content");
+          return [];
         }
-        if (result && typeof result === "object" && "tasks" in result) {
-          return result.tasks;
-        }
-        return [];
+
+        const data = JSON.parse(content) as { tasks: Task[] };
+        return data.tasks || [];
       } catch (error) {
-        console.error("[Task Runner] TASK_LIST failed:", error);
+        console.error("[Task Runner] Failed to read tasks:", error);
         return [];
       }
     },
-    enabled: !!connectionId,
+    enabled: !!connectionId && hasReadFile,
     staleTime: 0, // Always consider data stale
     refetchOnMount: true,
     refetchOnWindowFocus: true,
@@ -179,6 +228,7 @@ export interface AgentSession {
   toolCalls?: ToolCall[];
   toolCallCount?: number;
   messages?: AgentMessage[];
+  output?: string; // Raw output from the agent (for error messages)
 }
 
 /**
@@ -456,30 +506,56 @@ export function useInitBeads() {
 
   return useMutation({
     mutationFn: async () => {
-      // Check if BEADS_INIT tool is available
-      const hasBeadsInit = connection?.tools?.some(
-        (t) => t.name === "BEADS_INIT",
+      const hasCreateDir = connection?.tools?.some(
+        (t) => t.name === "create_directory",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
       );
 
-      if (!hasBeadsInit) {
-        throw new Error(
-          "This storage connection doesn't support BEADS_INIT. Use a local-fs MCP.",
-        );
+      if (!hasWriteFile) {
+        throw new Error("This storage connection doesn't support write_file.");
       }
 
-      // Call BEADS_INIT to create .beads directory
-      const untypedToolCaller = toolCaller as (
+      const writeToolCaller = toolCaller as (
         name: string,
         args: Record<string, unknown>,
-      ) => Promise<{ success: boolean; path: string; message: string }>;
+      ) => Promise<unknown>;
 
-      const result = await untypedToolCaller("BEADS_INIT", {});
-
-      if (!result.success) {
-        throw new Error("Failed to initialize Beads");
+      // Create .beads directory if we have create_directory
+      if (hasCreateDir) {
+        try {
+          await writeToolCaller("create_directory", { path: ".beads" });
+        } catch {
+          // Directory might already exist, ignore
+        }
       }
 
-      return result;
+      // Create config.json
+      const config = {
+        version: "1.0.0",
+        created: new Date().toISOString(),
+      };
+      await writeToolCaller("write_file", {
+        path: ".beads/config.json",
+        content: JSON.stringify(config, null, 2),
+      });
+
+      // Create tasks.json if it doesn't exist
+      try {
+        await writeToolCaller("write_file", {
+          path: ".beads/tasks.json",
+          content: JSON.stringify({ tasks: [] }, null, 2),
+        });
+      } catch {
+        // File might already exist
+      }
+
+      return {
+        success: true,
+        path: ".beads",
+        message: "Beads initialized successfully",
+      };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.beadsStatus });
@@ -499,24 +575,68 @@ export function useCreateTask() {
       description?: string;
       priority?: number;
     }) => {
-      // Check if TASK_CREATE tool is available
-      const hasTaskCreate = connection?.tools?.some(
-        (t) => t.name === "TASK_CREATE",
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
       );
 
-      if (!hasTaskCreate) {
+      if (!hasReadFile || !hasWriteFile) {
         throw new Error(
-          "This storage connection doesn't support TASK_CREATE. Use a local-fs MCP.",
+          "This storage connection doesn't support read_file/write_file.",
         );
       }
 
       const untypedToolCaller = toolCaller as (
         name: string,
         args: Record<string, unknown>,
-      ) => Promise<{ task: Task }>;
+      ) => Promise<{ content?: string } | string>;
 
-      const result = await untypedToolCaller("TASK_CREATE", params);
-      return result.task;
+      const writeToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<unknown>;
+
+      // Read existing tasks
+      let tasksData: { tasks: Task[] } = { tasks: [] };
+      try {
+        const result = await untypedToolCaller("read_file", {
+          path: ".beads/tasks.json",
+        });
+        const content =
+          typeof result === "string"
+            ? result
+            : typeof result === "object" && result.content
+              ? result.content
+              : null;
+        if (content) {
+          tasksData = JSON.parse(content);
+        }
+      } catch {
+        // File doesn't exist yet, will create
+      }
+
+      // Create new task
+      const newTask: Task = {
+        id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: params.title,
+        description: params.description,
+        status: "open",
+        priority: params.priority,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      tasksData.tasks.push(newTask);
+
+      // Write back
+      await writeToolCaller("write_file", {
+        path: ".beads/tasks.json",
+        content: JSON.stringify(tasksData, null, 2),
+      });
+
+      return newTask;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -540,31 +660,71 @@ export function useUpdateTask() {
       priority?: number;
       threadId?: string;
     }) => {
-      // Check if TASK_UPDATE tool is available
-      const hasTaskUpdate = connection?.tools?.some(
-        (t) => t.name === "TASK_UPDATE",
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
       );
 
-      if (!hasTaskUpdate) {
+      if (!hasReadFile || !hasWriteFile) {
         throw new Error(
-          "This storage connection doesn't support TASK_UPDATE. Use a local-fs MCP.",
+          "This storage connection doesn't support read_file/write_file.",
         );
       }
 
       const untypedToolCaller = toolCaller as (
         name: string,
         args: Record<string, unknown>,
-      ) => Promise<{ task: Task }>;
+      ) => Promise<{ content?: string } | string>;
 
-      const result = await untypedToolCaller("TASK_UPDATE", {
-        id: params.taskId,
-        title: params.title,
-        description: params.description,
-        status: params.status,
-        priority: params.priority,
-        threadId: params.threadId,
+      const writeToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<unknown>;
+
+      // Read existing tasks
+      const result = await untypedToolCaller("read_file", {
+        path: ".beads/tasks.json",
       });
-      return result.task;
+      const content =
+        typeof result === "string"
+          ? result
+          : typeof result === "object" && result.content
+            ? result.content
+            : null;
+
+      if (!content) {
+        throw new Error("Tasks file not found");
+      }
+
+      const tasksData = JSON.parse(content) as { tasks: Task[] };
+      const taskIndex = tasksData.tasks.findIndex(
+        (t) => t.id === params.taskId,
+      );
+
+      if (taskIndex === -1) {
+        throw new Error(`Task ${params.taskId} not found`);
+      }
+
+      const task = tasksData.tasks[taskIndex];
+      if (params.title !== undefined) task.title = params.title;
+      if (params.description !== undefined)
+        task.description = params.description;
+      if (params.status !== undefined) task.status = params.status;
+      if (params.priority !== undefined) task.priority = params.priority;
+      if (params.threadId !== undefined) task.threadId = params.threadId;
+      task.updatedAt = new Date().toISOString();
+
+      tasksData.tasks[taskIndex] = task;
+
+      // Write back
+      await writeToolCaller("write_file", {
+        path: ".beads/tasks.json",
+        content: JSON.stringify(tasksData, null, 2),
+      });
+
+      return task;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -581,29 +741,64 @@ export function useCloseTasks() {
 
   return useMutation({
     mutationFn: async (params: { taskIds: string[] }) => {
-      // Check if TASK_UPDATE tool is available
-      const hasTaskUpdate = connection?.tools?.some(
-        (t) => t.name === "TASK_UPDATE",
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
       );
 
-      if (!hasTaskUpdate) {
+      if (!hasReadFile || !hasWriteFile) {
         throw new Error(
-          "This storage connection doesn't support TASK_UPDATE. Use a local-fs MCP.",
+          "This storage connection doesn't support read_file/write_file.",
         );
       }
 
       const untypedToolCaller = toolCaller as (
         name: string,
         args: Record<string, unknown>,
-      ) => Promise<{ task: Task }>;
+      ) => Promise<{ content?: string } | string>;
 
-      // Close each task
-      const results = await Promise.all(
-        params.taskIds.map((id) =>
-          untypedToolCaller("TASK_UPDATE", { id, status: "closed" }),
-        ),
-      );
-      return results.map((r) => r.task);
+      const writeToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<unknown>;
+
+      // Read existing tasks
+      const result = await untypedToolCaller("read_file", {
+        path: ".beads/tasks.json",
+      });
+      const content =
+        typeof result === "string"
+          ? result
+          : typeof result === "object" && result.content
+            ? result.content
+            : null;
+
+      if (!content) {
+        throw new Error("Tasks file not found");
+      }
+
+      const tasksData = JSON.parse(content) as { tasks: Task[] };
+
+      // Close matching tasks
+      const closedTasks: Task[] = [];
+      for (const taskId of params.taskIds) {
+        const taskIndex = tasksData.tasks.findIndex((t) => t.id === taskId);
+        if (taskIndex !== -1) {
+          tasksData.tasks[taskIndex].status = "closed";
+          tasksData.tasks[taskIndex].updatedAt = new Date().toISOString();
+          closedTasks.push(tasksData.tasks[taskIndex]);
+        }
+      }
+
+      // Write back
+      await writeToolCaller("write_file", {
+        path: ".beads/tasks.json",
+        content: JSON.stringify(tasksData, null, 2),
+      });
+
+      return closedTasks;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -620,30 +815,627 @@ export function useDeleteTask() {
 
   return useMutation({
     mutationFn: async (params: { taskId: string }) => {
-      // Check if TASK_DELETE tool is available
-      const hasTaskDelete = connection?.tools?.some(
-        (t) => t.name === "TASK_DELETE",
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
       );
 
-      if (!hasTaskDelete) {
+      if (!hasReadFile || !hasWriteFile) {
         throw new Error(
-          "This storage connection doesn't support TASK_DELETE. Use a local-fs MCP.",
+          "This storage connection doesn't support read_file/write_file.",
         );
       }
 
       const untypedToolCaller = toolCaller as (
         name: string,
         args: Record<string, unknown>,
-      ) => Promise<{ success: boolean }>;
+      ) => Promise<{ content?: string } | string>;
 
-      const result = await untypedToolCaller("TASK_DELETE", {
-        id: params.taskId,
+      const writeToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<unknown>;
+
+      // Read existing tasks
+      const result = await untypedToolCaller("read_file", {
+        path: ".beads/tasks.json",
       });
-      return result;
+      const content =
+        typeof result === "string"
+          ? result
+          : typeof result === "object" && result.content
+            ? result.content
+            : null;
+
+      if (!content) {
+        throw new Error("Tasks file not found");
+      }
+
+      const tasksData = JSON.parse(content) as { tasks: Task[] };
+      const initialLength = tasksData.tasks.length;
+      tasksData.tasks = tasksData.tasks.filter((t) => t.id !== params.taskId);
+
+      if (tasksData.tasks.length === initialLength) {
+        throw new Error(`Task ${params.taskId} not found`);
+      }
+
+      // Write back
+      await writeToolCaller("write_file", {
+        path: ".beads/tasks.json",
+        content: JSON.stringify(tasksData, null, 2),
+      });
+
+      return { success: true, deletedId: params.taskId };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+      });
+    },
+  });
+}
+
+// ============================================================================
+// Quality Gates Hooks
+// ============================================================================
+
+/**
+ * Hook to get quality gates from project config
+ */
+export function useQualityGates() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+  const workspaceQuery = useWorkspace();
+
+  return useQuery({
+    queryKey: QUERY_KEYS.qualityGates(connectionId ?? ""),
+    queryFn: async (): Promise<QualityGate[]> => {
+      // Check if read_file tool is available
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+
+      if (!hasReadFile || !workspaceQuery.data?.workspace) {
+        return [];
+      }
+
+      const untypedToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ content?: string } | string>;
+
+      try {
+        // Read project config
+        const configPath = ".beads/project-config.json";
+        const result = await untypedToolCaller("read_file", {
+          path: configPath,
+        });
+
+        const content =
+          typeof result === "string"
+            ? result
+            : typeof result === "object" && result.content
+              ? result.content
+              : null;
+
+        if (!content) return [];
+
+        const config = JSON.parse(content) as {
+          qualityGates?: QualityGate[];
+        };
+        return config.qualityGates ?? [];
+      } catch {
+        // No config file yet
+        return [];
+      }
+    },
+    enabled: !!connectionId && !!workspaceQuery.data?.workspace,
+  });
+}
+
+// Quality gate patterns to detect from package.json scripts
+const QUALITY_GATE_PATTERNS: Array<{
+  scripts: string[];
+  name: string;
+  description: string;
+}> = [
+  {
+    scripts: ["check", "typecheck", "type-check", "tsc"],
+    name: "Type Check",
+    description: "TypeScript type checking",
+  },
+  {
+    scripts: ["lint", "eslint", "oxlint"],
+    name: "Lint",
+    description: "Code linting",
+  },
+  {
+    scripts: ["test", "test:unit", "vitest", "jest"],
+    name: "Test",
+    description: "Run tests",
+  },
+  {
+    scripts: ["fmt", "fmt:check", "format", "prettier"],
+    name: "Format",
+    description: "Code formatting",
+  },
+];
+
+/**
+ * Hook to detect quality gates from package.json
+ * Reads package.json directly and finds common scripts
+ */
+export function useDetectQualityGates() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+  const queryClient = useQueryClient();
+  const workspaceQuery = useWorkspace();
+
+  return useMutation({
+    mutationFn: async () => {
+      // Check if read_file tool is available
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+
+      if (!hasReadFile) {
+        throw new Error("This storage connection doesn't support read_file.");
+      }
+
+      const untypedToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ content?: string } | string>;
+
+      // Read package.json
+      const pkgResult = await untypedToolCaller("read_file", {
+        path: "package.json",
+      });
+
+      const pkgContent =
+        typeof pkgResult === "string"
+          ? pkgResult
+          : typeof pkgResult === "object" && pkgResult.content
+            ? pkgResult.content
+            : null;
+
+      if (!pkgContent) {
+        throw new Error("Could not read package.json");
+      }
+
+      const pkg = JSON.parse(pkgContent) as {
+        scripts?: Record<string, string>;
+      };
+      if (!pkg.scripts) {
+        return { gates: [], saved: false };
+      }
+
+      const scriptNames = Object.keys(pkg.scripts);
+      const gates: QualityGate[] = [];
+
+      // Detect package manager from lockfiles
+      let runner = "npm run";
+      try {
+        await untypedToolCaller("read_file", { path: "bun.lock" });
+        runner = "bun run";
+      } catch {
+        try {
+          await untypedToolCaller("read_file", { path: "pnpm-lock.yaml" });
+          runner = "pnpm run";
+        } catch {
+          // Default to npm
+        }
+      }
+
+      // Find matching scripts
+      for (const pattern of QUALITY_GATE_PATTERNS) {
+        for (const scriptName of pattern.scripts) {
+          if (scriptNames.includes(scriptName)) {
+            gates.push({
+              id: `gate-${scriptName}`,
+              name: pattern.name,
+              command: `${runner} ${scriptName}`,
+              description: pattern.description,
+              required: true,
+              source: "auto",
+            });
+            break; // Only add one gate per pattern
+          }
+        }
+      }
+
+      // Save to .beads/project-config.json
+      if (gates.length > 0) {
+        const hasWriteFile = connection?.tools?.some(
+          (t) => t.name === "write_file",
+        );
+
+        if (hasWriteFile) {
+          const writeToolCaller = toolCaller as (
+            name: string,
+            args: Record<string, unknown>,
+          ) => Promise<unknown>;
+
+          // Try to read existing config first
+          let existingConfig: {
+            qualityGates?: QualityGate[];
+            completionToken?: string;
+            memoryDir?: string;
+          } = {};
+          try {
+            const configResult = await untypedToolCaller("read_file", {
+              path: ".beads/project-config.json",
+            });
+            const configContent =
+              typeof configResult === "string"
+                ? configResult
+                : typeof configResult === "object" && configResult.content
+                  ? configResult.content
+                  : null;
+            if (configContent) {
+              existingConfig = JSON.parse(configContent);
+            }
+          } catch {
+            // No existing config
+          }
+
+          // Merge with existing manual gates
+          const manualGates = (existingConfig.qualityGates ?? []).filter(
+            (g) => g.source === "manual",
+          );
+
+          const config = {
+            ...existingConfig,
+            qualityGates: [...gates, ...manualGates],
+            completionToken:
+              existingConfig.completionToken ?? "<promise>COMPLETE</promise>",
+            memoryDir: existingConfig.memoryDir ?? "memory",
+            lastUpdated: new Date().toISOString(),
+          };
+
+          await writeToolCaller("write_file", {
+            path: ".beads/project-config.json",
+            content: JSON.stringify(config, null, 2),
+          });
+        }
+      }
+
+      return { gates, saved: gates.length > 0 };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.qualityGates(connectionId ?? ""),
+      });
+    },
+  });
+}
+
+// ============================================================================
+// Task Planning Hooks
+// ============================================================================
+
+/**
+ * Hook to generate a plan for a task
+ */
+export function useTaskPlan() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { taskId: string }) => {
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
+      );
+
+      if (!hasReadFile || !hasWriteFile) {
+        throw new Error(
+          "This storage connection doesn't support read_file/write_file.",
+        );
+      }
+
+      const untypedToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ content?: string } | string>;
+
+      const writeToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<unknown>;
+
+      // Read the task
+      const tasksResult = await untypedToolCaller("read_file", {
+        path: ".beads/tasks.json",
+      });
+
+      const tasksContent =
+        typeof tasksResult === "string"
+          ? tasksResult
+          : typeof tasksResult === "object" && tasksResult.content
+            ? tasksResult.content
+            : null;
+
+      if (!tasksContent) {
+        throw new Error("Could not read tasks file");
+      }
+
+      const tasksData = JSON.parse(tasksContent) as { tasks: Task[] };
+      const task = tasksData.tasks.find((t) => t.id === params.taskId);
+
+      if (!task) {
+        throw new Error(`Task not found: ${params.taskId}`);
+      }
+
+      // Generate a simple plan
+      const plan: TaskPlan = {
+        summary: `Implement: ${task.title}`,
+        acceptanceCriteria: [
+          {
+            id: "ac-1",
+            description: `The feature "${task.title.slice(0, 50)}" is fully implemented`,
+            verifiable: true,
+          },
+          {
+            id: "ac-2",
+            description: "All quality gates pass (check, lint, test)",
+            verifiable: true,
+          },
+          {
+            id: "ac-3",
+            description: "Changes are committed with descriptive message",
+            verifiable: true,
+          },
+        ],
+        subtasks: [
+          {
+            id: "st-1",
+            title: "Understand requirements",
+            description: "Read task description and relevant code",
+            estimatedComplexity: "trivial",
+          },
+          {
+            id: "st-2",
+            title: "Implement the change",
+            description: task.title,
+            estimatedComplexity: "moderate",
+          },
+          {
+            id: "st-3",
+            title: "Test and verify",
+            description: "Run quality gates and verify acceptance criteria",
+            estimatedComplexity: "simple",
+          },
+        ],
+        estimatedComplexity: "moderate",
+      };
+
+      // Update task with plan
+      const taskIndex = tasksData.tasks.findIndex(
+        (t) => t.id === params.taskId,
+      );
+      tasksData.tasks[taskIndex] = {
+        ...task,
+        plan,
+        planStatus: "draft",
+        updatedAt: new Date().toISOString(),
+      } as Task;
+
+      await writeToolCaller("write_file", {
+        path: ".beads/tasks.json",
+        content: JSON.stringify(tasksData, null, 2),
+      });
+
+      return { taskId: params.taskId, plan, status: "draft" };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+      });
+    },
+  });
+}
+
+/**
+ * Hook to approve/reject a task plan
+ */
+export function useApprovePlan() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      taskId: string;
+      action: "approve" | "reject";
+      modifiedCriteria?: AcceptanceCriterion[];
+    }) => {
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
+      );
+
+      if (!hasReadFile || !hasWriteFile) {
+        throw new Error(
+          "This storage connection doesn't support read_file/write_file.",
+        );
+      }
+
+      const untypedToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ content?: string } | string>;
+
+      const writeToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<unknown>;
+
+      // Read tasks
+      const tasksResult = await untypedToolCaller("read_file", {
+        path: ".beads/tasks.json",
+      });
+
+      const tasksContent =
+        typeof tasksResult === "string"
+          ? tasksResult
+          : typeof tasksResult === "object" && tasksResult.content
+            ? tasksResult.content
+            : null;
+
+      if (!tasksContent) {
+        throw new Error("Could not read tasks file");
+      }
+
+      const tasksData = JSON.parse(tasksContent) as {
+        tasks: Array<Task & { plan?: TaskPlan; planStatus?: string }>;
+      };
+      const taskIndex = tasksData.tasks.findIndex(
+        (t) => t.id === params.taskId,
+      );
+
+      if (taskIndex === -1) {
+        throw new Error(`Task not found: ${params.taskId}`);
+      }
+
+      const task = tasksData.tasks[taskIndex];
+
+      if (params.action === "approve") {
+        task.planStatus = "approved";
+        // Copy acceptance criteria from plan to task
+        if (task.plan?.acceptanceCriteria) {
+          task.acceptanceCriteria =
+            params.modifiedCriteria ||
+            task.plan.acceptanceCriteria.map((ac) => ({
+              id: ac.id,
+              description: ac.description,
+              completed: false,
+            }));
+        }
+      } else {
+        task.planStatus = "rejected";
+      }
+
+      task.updatedAt = new Date().toISOString();
+      tasksData.tasks[taskIndex] = task;
+
+      await writeToolCaller("write_file", {
+        path: ".beads/tasks.json",
+        content: JSON.stringify(tasksData, null, 2),
+      });
+
+      return {
+        success: true,
+        taskId: params.taskId,
+        planStatus: task.planStatus,
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.tasks(connectionId ?? ""),
+      });
+    },
+  });
+}
+
+/**
+ * Hook to add a custom quality gate
+ * Writes directly to .beads/project-config.json
+ */
+export function useAddQualityGate() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      name: string;
+      command: string;
+      description?: string;
+      required?: boolean;
+    }) => {
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
+      );
+
+      if (!hasReadFile || !hasWriteFile) {
+        throw new Error(
+          "This storage connection doesn't support read_file/write_file.",
+        );
+      }
+
+      const untypedToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ content?: string } | string>;
+
+      const writeToolCaller = toolCaller as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<unknown>;
+
+      // Read existing config
+      let config: {
+        qualityGates?: QualityGate[];
+        completionToken?: string;
+        memoryDir?: string;
+        lastUpdated?: string;
+      } = {
+        qualityGates: [],
+        completionToken: "<promise>COMPLETE</promise>",
+        memoryDir: "memory",
+      };
+
+      try {
+        const configResult = await untypedToolCaller("read_file", {
+          path: ".beads/project-config.json",
+        });
+        const configContent =
+          typeof configResult === "string"
+            ? configResult
+            : typeof configResult === "object" && configResult.content
+              ? configResult.content
+              : null;
+        if (configContent) {
+          config = JSON.parse(configContent);
+        }
+      } catch {
+        // No existing config, use defaults
+      }
+
+      // Create new gate
+      const gate: QualityGate = {
+        id: `gate-${Date.now()}`,
+        name: params.name,
+        command: params.command,
+        description: params.description,
+        required: params.required ?? true,
+        source: "manual",
+      };
+
+      config.qualityGates = [...(config.qualityGates ?? []), gate];
+      config.lastUpdated = new Date().toISOString();
+
+      await writeToolCaller("write_file", {
+        path: ".beads/project-config.json",
+        content: JSON.stringify(config, null, 2),
+      });
+
+      return { success: true, gate };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.qualityGates(connectionId ?? ""),
       });
     },
   });
