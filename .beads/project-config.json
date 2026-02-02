@@ -1,0 +1,39 @@
+{
+  "qualityGates": [
+    {
+      "id": "gate-check",
+      "name": "Type Check",
+      "command": "bun run check",
+      "description": "TypeScript type checking",
+      "required": true,
+      "source": "auto"
+    },
+    {
+      "id": "gate-lint",
+      "name": "Lint",
+      "command": "bun run lint",
+      "description": "Code linting",
+      "required": true,
+      "source": "auto"
+    },
+    {
+      "id": "gate-test",
+      "name": "Test",
+      "command": "bun run test",
+      "description": "Run tests",
+      "required": true,
+      "source": "auto"
+    },
+    {
+      "id": "gate-fmt",
+      "name": "Format",
+      "command": "bun run fmt",
+      "description": "Code formatting",
+      "required": true,
+      "source": "auto"
+    }
+  ],
+  "completionToken": "<promise>COMPLETE</promise>",
+  "memoryDir": "memory",
+  "lastUpdated": "2026-02-01T14:48:58.695Z"
+}

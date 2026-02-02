@@ -1,18 +1,22 @@
 /**
  * Dynamic Plugin Layout
  *
- * Routes to the appropriate plugin layout based on the $pluginId param.
+ * Routes to the appropriate plugin layout based on the URL path.
  * Uses the plugin's renderHeader/renderEmptyState if defined, otherwise falls back to Outlet.
  */
 
-import { Outlet, useParams } from "@tanstack/react-router";
+import { Outlet, useLocation } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { Loading01 } from "@untitledui/icons";
 import { sourcePlugins } from "../plugins";
 import { PluginLayout } from "./plugin-layout";
 
 export default function DynamicPluginLayout() {
-  const { pluginId } = useParams({ strict: false }) as { pluginId: string };
+  const location = useLocation();
+
+  // Extract plugin ID from path: /$org/$pluginId/... -> pluginId
+  const pathParts = location.pathname.split("/").filter(Boolean);
+  const pluginId = pathParts.length >= 2 ? pathParts[1] : undefined;
 
   // Find the plugin by ID
   const plugin = sourcePlugins.find((p) => p.id === pluginId);
