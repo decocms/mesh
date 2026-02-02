@@ -340,9 +340,6 @@ class McpServerBuilder {
       },
       /**
        * Handle fetch requests (MCP protocol over HTTP)
-       *
-       * GET requests use SSE streaming - the transport must stay open for the duration
-       * of the SSE connection. We only close for non-GET requests (POST for JSON-RPC).
        */
       fetch: async (req: Request): Promise<Response> => {
         const transport = new WebStandardStreamableHTTPServerTransport({
@@ -352,13 +349,6 @@ class McpServerBuilder {
 
         await createServer().connect(transport);
 
-        // For GET requests (SSE), don't close transport - it's a long-lived streaming connection
-        // The transport will close itself when the client disconnects
-        if (req.method === "GET") {
-          return await transport.handleRequest(req);
-        }
-
-        // For POST/other requests, close transport after handling
         return await transport.handleRequest(req);
       },
     };

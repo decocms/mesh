@@ -19,7 +19,6 @@ import * as ConnectionTools from "./connection";
 import * as DatabaseTools from "./database";
 import * as EventBusTools from "./eventbus";
 import * as VirtualMCPTools from "./virtual";
-import * as VirtualToolTools from "./virtual-tool";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
 import * as ThreadTools from "./thread";
@@ -54,13 +53,6 @@ const CORE_TOOLS = [
   VirtualMCPTools.COLLECTION_VIRTUAL_MCP_GET,
   VirtualMCPTools.COLLECTION_VIRTUAL_MCP_UPDATE,
   VirtualMCPTools.COLLECTION_VIRTUAL_MCP_DELETE,
-
-  // Virtual Tool collection tools
-  VirtualToolTools.COLLECTION_VIRTUAL_TOOLS_CREATE,
-  VirtualToolTools.COLLECTION_VIRTUAL_TOOLS_LIST,
-  VirtualToolTools.COLLECTION_VIRTUAL_TOOLS_GET,
-  VirtualToolTools.COLLECTION_VIRTUAL_TOOLS_UPDATE,
-  VirtualToolTools.COLLECTION_VIRTUAL_TOOLS_DELETE,
 
   // Database tools
   DatabaseTools.DATABASES_RUN_SQL,
