@@ -294,10 +294,7 @@ function ConnectionInspectorViewWithConnection({
   const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
   });
-  // VIRTUAL connections are always "authenticated" - they don't have OAuth
-  // They're internal connections that aggregate tools from other connections
-  const isVirtualConnection = connection?.connection_type === "VIRTUAL";
-  const isMCPAuthenticated = isVirtualConnection || authStatus.isAuthenticated;
+  const isMCPAuthenticated = authStatus.isAuthenticated;
 
   // Check if connection has MCP binding for configuration
   const mcpBindingConnections = useBindingConnections({
@@ -648,12 +645,8 @@ function ConnectionInspectorViewContent() {
   const { data: resourcesData } = useMCPResourcesListQuery({ client });
 
   // Fetch tools - uses cached if available, otherwise fetches dynamically
-  // VIRTUAL connections always fetch dynamically because:
-  // 1. Their tools column contains virtual tool definitions (code), not cached downstream tools
-  // 2. The actual tools list (virtual + downstream) comes from the MCP proxy
-  const isVirtualConnection = connection?.connection_type === "VIRTUAL";
-  const hasCachedTools =
-    !isVirtualConnection && connection?.tools && connection.tools.length > 0;
+  // This handles VIRTUAL connections which always have null tools
+  const hasCachedTools = connection?.tools && connection.tools.length > 0;
   const { data: toolsData, isLoading: isLoadingTools } = useMCPToolsListQuery({
     client,
     enabled: !hasCachedTools,
