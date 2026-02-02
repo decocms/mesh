@@ -1,12 +1,14 @@
 /**
  * Site List Component
  *
- * Shows site detection, dev server status, and available pages.
+ * Shows site detection, dev server status, available pages, and preview.
  */
 
+import { useState } from "react";
 import { useSiteDetection } from "../hooks/use-site-detection";
 import { useDevServer } from "../hooks/use-dev-server";
 import { usePages } from "../hooks/use-pages";
+import { PreviewFrame } from "./preview-frame";
 import {
   CheckCircle,
   XClose,
@@ -16,6 +18,7 @@ import {
   RefreshCw01,
   Copy01,
   Loading02,
+  Eye,
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -33,6 +36,7 @@ export default function SiteList() {
     canStart,
   } = useDevServer();
   const { pages, isLoading: pagesLoading } = usePages();
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -54,9 +58,18 @@ export default function SiteList() {
     );
   }
 
-  const handleOpenPreview = (pagePath?: string) => {
+  const handlePreview = (pagePath?: string) => {
+    const url = pagePath ? `${serverUrl}${pagePath}` : serverUrl;
+    setPreviewUrl(url);
+  };
+
+  const handleOpenExternal = (pagePath?: string) => {
     const url = pagePath ? `${serverUrl}${pagePath}` : serverUrl;
     window.open(url, "_blank");
+  };
+
+  const handleClosePreview = () => {
+    setPreviewUrl(null);
   };
 
   const handleCopyCommand = async () => {
@@ -132,9 +145,17 @@ export default function SiteList() {
     );
   }
 
-  // Valid Deco site
+  // Valid Deco site - with optional preview
+  if (previewUrl) {
+    return (
+      <div className="h-full p-4">
+        <PreviewFrame url={previewUrl} onClose={handleClosePreview} />
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="h-full overflow-y-auto p-6 space-y-6 max-w-4xl mx-auto">
       {/* Site Status */}
       <div className="bg-card rounded-lg border border-border p-4">
         <div className="flex items-center justify-between">
@@ -150,10 +171,11 @@ export default function SiteList() {
           {isRunning && (
             <button
               type="button"
-              onClick={() => handleOpenPreview()}
-              className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              onClick={() => handlePreview()}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
-              Open Preview
+              <Eye size={16} />
+              Preview Site
             </button>
           )}
         </div>
@@ -267,16 +289,26 @@ export default function SiteList() {
             {pages.map((page) => (
               <div
                 key={page.id}
-                className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors cursor-pointer"
-                onClick={() => handleOpenPreview(page.path)}
+                className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors group"
               >
                 <File06 size={16} className="text-muted-foreground" />
-                <div className="flex-1 min-w-0">
+                <div
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => handlePreview(page.path)}
+                >
                   <div className="font-medium truncate">{page.name}</div>
                   <div className="text-xs text-muted-foreground truncate">
                     {page.path}
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handlePreview(page.path)}
+                  className="p-1.5 rounded-md hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+                  title="Preview"
+                >
+                  <Eye size={14} />
+                </button>
               </div>
             ))}
           </div>
