@@ -5,6 +5,7 @@ import { NavigationSidebar } from "./navigation";
 import { MeshSidebarHeader } from "./header";
 import { SidebarInboxFooter } from "./footer/inbox";
 import { SidebarItemsSection } from "./items";
+import { ThreadList } from "./thread-list";
 
 // Export types for external use
 export type { NavigationSidebarItem, Invitation } from "./types";
@@ -25,6 +26,7 @@ export function MeshSidebar() {
         <ErrorBoundary>
           <Suspense fallback={null}>
             <SidebarItemsSection />
+            <ThreadList />
           </Suspense>
         </ErrorBoundary>
       }

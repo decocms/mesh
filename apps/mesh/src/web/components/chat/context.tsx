@@ -6,7 +6,6 @@
  */
 
 import type { ThreadUpdateData } from "@/tools/thread/schema.ts";
-import { useChat as useAIChat } from "@ai-sdk/react";
 import type { CollectionUpdateOutput } from "@decocms/bindings/collections";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
 import {
@@ -33,7 +32,9 @@ import {
   createContext,
   type PropsWithChildren,
   useContext,
+  useEffect,
   useReducer,
+  useState,
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
@@ -53,6 +54,11 @@ import {
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import type { FileAttrs } from "./tiptap/file/node.tsx";
 import type { Message, Metadata, ParentThread, Thread } from "./types.ts";
+import {
+  ChatInstanceProvider,
+  ChatPoolProvider,
+  useChatPool,
+} from "./chat-pool";
 
 // ============================================================================
 // Type Definitions
@@ -508,11 +514,42 @@ async function callUpdateThreadTool(
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 /**
- * Provider component for chat context
- * Consolidates all chat-related state: interaction, threads, virtual MCP, model, and chat session
+ * Component that wraps ChatInstanceProvider and loads messages for a specific thread
  */
-export function ChatProvider({ children }: PropsWithChildren) {
+function ThreadChatInstance({
+  threadId,
+  transport,
+  onFinish,
+  onToolCall,
+  onError,
+}: {
+  threadId: string;
+  transport: Parameters<typeof ChatInstanceProvider>[0]["transport"];
+  onFinish: Parameters<typeof ChatInstanceProvider>[0]["onFinish"];
+  onToolCall?: Parameters<typeof ChatInstanceProvider>[0]["onToolCall"];
+  onError: Parameters<typeof ChatInstanceProvider>[0]["onError"];
+}) {
+  // Load messages for this thread
+  const messages = useThreadMessages(threadId);
+
+  return (
+    <ChatInstanceProvider
+      threadId={threadId}
+      initialMessages={messages}
+      transport={transport}
+      onFinish={onFinish}
+      onToolCall={onToolCall}
+      onError={onError}
+    />
+  );
+}
+
+/**
+ * Inner ChatProvider component that uses the chat pool
+ */
+function ChatProviderInner({ children }: PropsWithChildren) {
   const { locator, org } = useProjectContext();
+  const pool = useChatPool();
 
   // Get threads from the API
   const {
@@ -619,17 +656,40 @@ export function ChatProvider({ children }: PropsWithChildren) {
   };
 
   // ===========================================================================
-  // 4. HOOKS USING CALLBACKS - Hooks that depend on callback functions
+  // 4. CHAT POOL MANAGEMENT - Manage active chat instances
   // ===========================================================================
 
-  const chat = useAIChat<UIMessage<Metadata>>({
-    id: activeThreadId,
+  // Track which threads should have rendered ChatInstanceProvider components
+  // This set only grows - threads are never removed, allowing them to stay
+  // in memory. The pool's LRU eviction handles actual cleanup.
+  const [renderedThreadIds, setRenderedThreadIds] = useState<Set<string>>(
+    () => new Set([activeThreadId]),
+  );
+
+  // When active thread changes, ensure it has a rendered ChatInstanceProvider
+  // eslint-disable-next-line ban-use-effect/ban-use-effect -- Infrastructure code: side effect needed to manage pool
+  useEffect(() => {
+    setRenderedThreadIds((prev) => {
+      if (prev.has(activeThreadId)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add(activeThreadId);
+      return next;
+    });
+  }, [activeThreadId]);
+
+  // Get the chat instance for the active thread from the pool
+  const chatInstance = pool.getChatInstance(activeThreadId);
+  const chat = chatInstance?.chat ?? {
     messages: initialMessages,
-    transport,
-    onFinish,
-    onToolCall,
-    onError,
-  });
+    status: "ready" as const,
+    error: undefined,
+    sendMessage: async () => {},
+    stop: () => {},
+    setMessages: () => {},
+    clearError: () => {},
+  };
 
   // ===========================================================================
   // 5. POST-HOOK DERIVED VALUES - Values derived from hooks with callbacks
@@ -796,7 +856,39 @@ export function ChatProvider({ children }: PropsWithChildren) {
     clearFinishReason,
   };
 
-  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+  return (
+    <ChatContext.Provider value={value}>
+      {/* 
+        Render ChatInstanceProvider components for all threads that have been accessed.
+        These stay mounted to maintain chat state in the pool, enabling
+        seamless switching between threads without losing streaming state.
+        The pool's LRU eviction handles cleanup when maxPoolSize is reached.
+      */}
+      {Array.from(renderedThreadIds).map((threadId) => (
+        <ThreadChatInstance
+          key={threadId}
+          threadId={threadId}
+          transport={transport}
+          onFinish={onFinish}
+          onToolCall={onToolCall}
+          onError={onError}
+        />
+      ))}
+      {children}
+    </ChatContext.Provider>
+  );
+}
+
+/**
+ * Provider component for chat context
+ * Wraps ChatProviderInner with ChatPoolProvider
+ */
+export function ChatProvider({ children }: PropsWithChildren) {
+  return (
+    <ChatPoolProvider maxPoolSize={10}>
+      <ChatProviderInner>{children}</ChatProviderInner>
+    </ChatPoolProvider>
+  );
 }
 
 /**

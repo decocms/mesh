@@ -62,8 +62,7 @@ function PromptPill({
           className={cn(
             "px-3 py-1.5 text-xs text-muted-foreground border border-border rounded-full bg-background/80 hover:bg-background transition-colors cursor-pointer flex items-center gap-1.5",
             isLoading && "opacity-60",
-            (isDisabled || isLoading) &&
-              "cursor-not-allowed",
+            (isDisabled || isLoading) && "cursor-not-allowed",
           )}
         >
           {(prompt.title ?? prompt.name).replace(/_/g, " ")}
