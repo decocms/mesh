@@ -1,25 +1,34 @@
 /**
  * Site List Component
  *
- * Shows site detection result and getting started information.
+ * Shows site detection, dev server status, and available pages.
  */
 
 import { useSiteDetection } from "../hooks/use-site-detection";
-import { usePluginContext } from "@decocms/bindings/plugins";
-import { SITE_BUILDER_BINDING } from "../lib/binding";
+import { useDevServer } from "../hooks/use-dev-server";
+import { usePages } from "../hooks/use-pages";
 import {
   CheckCircle,
   XClose,
   AlertCircle,
-  LinkExternal01,
+  File06,
+  Play,
+  RefreshCw01,
+  Copy01,
 } from "@untitledui/icons";
-import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { cn } from "@deco/ui/lib/utils";
 
 export default function SiteList() {
-  const { connectionId, connection } =
-    usePluginContext<typeof SITE_BUILDER_BINDING>();
   const { data: detection, isLoading } = useSiteDetection();
-  const navigate = useNavigate();
+  const {
+    isRunning,
+    isChecking,
+    startCommand,
+    serverUrl,
+    refetch: refetchServer,
+  } = useDevServer();
+  const { pages, isLoading: pagesLoading } = usePages();
 
   if (isLoading) {
     return (
@@ -41,136 +50,192 @@ export default function SiteList() {
     );
   }
 
-  const handleViewSite = () => {
-    if (connectionId) {
-      navigate({
-        to: "/sites/$connectionId",
-        params: { connectionId },
-      });
+  const handleOpenPreview = (pagePath?: string) => {
+    const url = pagePath ? `${serverUrl}${pagePath}` : serverUrl;
+    window.open(url, "_blank");
+  };
+
+  const handleCopyCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(startCommand);
+      toast.success("Command copied to clipboard");
+    } catch {
+      toast.error("Failed to copy command");
     }
   };
 
-  return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      {/* Detection Status */}
-      <div className="space-y-3">
-        <h2 className="text-xl font-semibold">Site Detection</h2>
+  // Not a Deco site - show help
+  if (!detection.isDeco) {
+    return (
+      <div className="p-6 space-y-6 max-w-4xl mx-auto">
         <div className="bg-card rounded-lg border border-border p-4 space-y-3">
           <div className="flex items-start gap-3">
-            {detection.isDeco ? (
-              <CheckCircle size={20} className="text-green-600 mt-0.5" />
-            ) : detection.hasDenoJson ? (
+            {detection.hasDenoJson ? (
               <AlertCircle size={20} className="text-yellow-600 mt-0.5" />
             ) : (
               <XClose size={20} className="text-red-600 mt-0.5" />
             )}
             <div className="flex-1">
               <h3 className="font-medium">
-                {detection.isDeco
-                  ? "Deco Site Detected"
-                  : detection.hasDenoJson
-                    ? "Deno Project Detected"
-                    : "Not a Deco Site"}
+                {detection.hasDenoJson
+                  ? "Deno Project Detected"
+                  : "Not a Deco Site"}
               </h3>
               <p className="text-sm text-muted-foreground mt-1">
-                {detection.isDeco
-                  ? "This folder contains a valid Deco site with deco/ imports."
-                  : detection.hasDenoJson
-                    ? "This folder has deno.json but no deco/ imports."
-                    : detection.error ||
-                      "No deno.json file found in this directory."}
+                {detection.hasDenoJson
+                  ? "This folder has deno.json but no deco/ imports."
+                  : detection.error ||
+                    "No deno.json file found in this directory."}
               </p>
             </div>
           </div>
+        </div>
 
-          {detection.isDeco && detection.decoImports.length > 0 && (
-            <div className="pt-3 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                Detected Deco Imports:
+        <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            This plugin is designed for Deco sites. To use it:
+          </p>
+          <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside ml-2">
+            <li>
+              Create a new Deco site or clone an existing one with{" "}
+              <code className="bg-muted px-1 rounded">deno.json</code>
+            </li>
+            <li>
+              Ensure your <code className="bg-muted px-1 rounded">imports</code>{" "}
+              field includes{" "}
+              <code className="bg-muted px-1 rounded">deco/</code> packages
+            </li>
+            <li>Connect this plugin to your site folder</li>
+          </ol>
+        </div>
+      </div>
+    );
+  }
+
+  // Valid Deco site
+  return (
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+      {/* Site Status */}
+      <div className="bg-card rounded-lg border border-border p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CheckCircle size={20} className="text-green-600" />
+            <div>
+              <h3 className="font-medium">Deco Site Detected</h3>
+              <p className="text-sm text-muted-foreground">
+                {detection.decoImports.length} deco imports found
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {detection.decoImports.slice(0, 5).map((imp) => (
-                  <code
-                    key={imp}
-                    className="text-xs bg-muted px-2 py-0.5 rounded"
-                  >
-                    {imp}
-                  </code>
-                ))}
-                {detection.decoImports.length > 5 && (
-                  <span className="text-xs text-muted-foreground">
-                    +{detection.decoImports.length - 5} more
-                  </span>
-                )}
-              </div>
             </div>
+          </div>
+          {isRunning && (
+            <button
+              type="button"
+              onClick={() => handleOpenPreview()}
+              className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Open Preview
+            </button>
           )}
         </div>
       </div>
 
-      {/* Connection Info */}
+      {/* Dev Server Status */}
       <div className="space-y-3">
-        <h2 className="text-xl font-semibold">Connection</h2>
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="flex items-center gap-3">
-            {connection?.icon ? (
-              <img src={connection.icon} alt="" className="size-8 rounded" />
-            ) : null}
-            <div>
-              <h3 className="font-medium">{connection?.title}</h3>
-              <p className="text-sm text-muted-foreground">
-                {connection?.description || "Local filesystem connection"}
-              </p>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Dev Server</h2>
+          <button
+            type="button"
+            onClick={() => refetchServer()}
+            disabled={isChecking}
+            className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+            title="Refresh status"
+          >
+            <RefreshCw01
+              size={16}
+              className={cn(isChecking && "animate-spin")}
+            />
+          </button>
+        </div>
+
+        {isRunning ? (
+          <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                Running on localhost:8000
+              </span>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-card rounded-lg border border-border p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                Server not running
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono">
+                {startCommand}
+              </code>
+              <button
+                type="button"
+                onClick={handleCopyCommand}
+                className="p-2 rounded-md hover:bg-muted transition-colors"
+                title="Copy command"
+              >
+                <Copy01 size={16} />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Run this command in your terminal to start the dev server
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Actions */}
-      {detection.isDeco && (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">Getting Started</h2>
-          <div className="bg-card rounded-lg border border-border p-4 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Your Deco site is ready to use. Start building with AI-assisted
-              editing and live preview.
-            </p>
-            <button
-              type="button"
-              onClick={handleViewSite}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              View Site Builder
-              <LinkExternal01 size={14} />
-            </button>
+      {/* Pages List */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">Pages</h2>
+        {!isRunning ? (
+          <div className="bg-muted/30 rounded-lg border border-border p-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Play size={16} />
+              <span className="text-sm">Start the dev server to see pages</span>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Help for non-Deco projects */}
-      {!detection.isDeco && (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">How to Use This Plugin</h2>
-          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              This plugin is designed for Deco sites. To use it:
-            </p>
-            <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside ml-2">
-              <li>
-                Create a new Deco site or clone an existing one with{" "}
-                <code className="bg-muted px-1 rounded">deno.json</code>
-              </li>
-              <li>
-                Ensure your{" "}
-                <code className="bg-muted px-1 rounded">imports</code> field
-                includes <code className="bg-muted px-1 rounded">deco/</code>{" "}
-                packages
-              </li>
-              <li>Connect this plugin to your site folder</li>
-            </ol>
+        ) : pagesLoading ? (
+          <div className="bg-card rounded-lg border border-border p-4">
+            <div className="text-sm text-muted-foreground">
+              Loading pages...
+            </div>
           </div>
-        </div>
-      )}
+        ) : pages.length === 0 ? (
+          <div className="bg-card rounded-lg border border-border p-4">
+            <div className="text-sm text-muted-foreground">
+              No pages found in this site.
+            </div>
+          </div>
+        ) : (
+          <div className="bg-card rounded-lg border border-border divide-y divide-border">
+            {pages.map((page) => (
+              <div
+                key={page.id}
+                className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => handleOpenPreview(page.path)}
+              >
+                <File06 size={16} className="text-muted-foreground" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{page.name}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {page.path}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -2,25 +2,25 @@
  * Site Builder Plugin Router
  *
  * Provides typed routing for the site builder plugin.
- * Routes:
- * - / : Site list (shows filtered connections)
- * - /$connectionId : Site detail with preview
+ * Uses search params for page selection (similar to object-storage's path param).
  */
 
 import { createPluginRouter } from "@decocms/bindings/plugins";
 import * as z from "zod";
 
 /**
- * Search schema for site detail route.
+ * Search schema for the site builder route.
+ * Uses search params to track selected page and view mode.
  */
-const siteDetailSearchSchema = z.object({
-  page: z.string().optional().describe("Current page route being previewed"),
+const siteBuilderSearchSchema = z.object({
+  page: z.string().optional().describe("Selected page ID to preview"),
+  view: z.enum(["list", "preview"]).optional().default("list"),
 });
 
-export type SiteDetailSearch = z.infer<typeof siteDetailSearchSchema>;
+export type SiteBuilderSearch = z.infer<typeof siteBuilderSearchSchema>;
 
 /**
- * Plugin router with typed hooks for navigation.
+ * Plugin router with typed hooks for navigation and search params.
  */
 export const siteBuilderRouter = createPluginRouter((ctx) => {
   const { createRoute, lazyRouteComponent } = ctx.routing;
@@ -29,14 +29,8 @@ export const siteBuilderRouter = createPluginRouter((ctx) => {
     getParentRoute: () => ctx.parentRoute,
     path: "/",
     component: lazyRouteComponent(() => import("../components/site-list")),
+    validateSearch: siteBuilderSearchSchema,
   });
 
-  const detailRoute = createRoute({
-    getParentRoute: () => ctx.parentRoute,
-    path: "/$connectionId",
-    component: lazyRouteComponent(() => import("../components/site-detail")),
-    validateSearch: siteDetailSearchSchema,
-  });
-
-  return [indexRoute, detailRoute];
+  return [indexRoute];
 });
