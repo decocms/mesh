@@ -2,27 +2,21 @@
  * Task Panel Component
  *
  * Collapsible task panel that shows tasks and agent sessions
- * alongside the site preview. Reuses task-runner hooks.
+ * alongside the site preview. Reuses TaskCard from task-runner.
  */
 
 import { useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Play,
-  Check,
-  AlertCircle,
-  Clock,
-  Loading02,
-} from "@untitledui/icons";
+import { ChevronDown, ChevronRight, Plus, Loading02 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   useTasks,
   useCreateTask,
   useAgentSessions,
   useSkills,
+  useWorkspace,
+  type Task,
 } from "mesh-plugin-task-runner/hooks/use-tasks";
+import { TaskCard } from "mesh-plugin-task-runner/components/task-card";
 import { toast } from "sonner";
 import { useSiteDetection } from "../hooks/use-site-detection";
 import { usePages } from "../hooks/use-pages";
@@ -30,17 +24,6 @@ import { useDevServer } from "../hooks/use-dev-server";
 
 interface TaskPanelProps {
   className?: string;
-}
-
-type TaskStatus = "open" | "in_progress" | "blocked" | "closed";
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  status: TaskStatus;
-  priority?: number;
-  createdAt?: string;
 }
 
 interface AgentSession {
@@ -59,12 +42,27 @@ interface Skill {
   description?: string;
 }
 
-const statusIcons: Record<TaskStatus, React.ReactNode> = {
-  open: <Clock size={14} className="text-muted-foreground" />,
-  in_progress: <Loading02 size={14} className="text-blue-500 animate-spin" />,
-  blocked: <AlertCircle size={14} className="text-yellow-500" />,
-  closed: <Check size={14} className="text-green-500" />,
-};
+/** Event to open the chat panel */
+const CHAT_OPEN_EVENT = "deco:open-chat";
+/** Event to send a message to the chat */
+const CHAT_SEND_MESSAGE_EVENT = "deco:send-chat-message";
+
+/**
+ * Send a message to the chat panel
+ */
+function sendChatMessage(text: string): void {
+  // Open the chat panel
+  window.dispatchEvent(new CustomEvent(CHAT_OPEN_EVENT));
+
+  // Send the message after a brief delay to allow panel to open
+  setTimeout(() => {
+    window.dispatchEvent(
+      new CustomEvent(CHAT_SEND_MESSAGE_EVENT, {
+        detail: { text },
+      }),
+    );
+  }, 100);
+}
 
 export function TaskPanel({ className }: TaskPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -72,9 +70,10 @@ export function TaskPanel({ className }: TaskPanelProps) {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<string>("");
 
-  const { data: tasks = [], isLoading: tasksLoading } = useTasks();
+  const { data: tasks = [], isLoading: tasksLoading, refetch } = useTasks();
   const { data: sessionData } = useAgentSessions();
   const { data: skills = [] } = useSkills();
+  const { data: workspaceData } = useWorkspace();
   const createTask = useCreateTask();
 
   // Site context for agent prompts
@@ -84,6 +83,14 @@ export function TaskPanel({ className }: TaskPanelProps) {
 
   const sessions = sessionData?.sessions ?? [];
   const runningCount = sessionData?.runningCount ?? 0;
+  const workspacePath = workspaceData?.workspace ?? undefined;
+
+  // Get running task IDs
+  const runningTaskIds = new Set(
+    sessions
+      .filter((s: AgentSession) => s.status === "running")
+      .map((s: AgentSession) => s.taskId),
+  );
 
   const openTasks = tasks.filter(
     (t: Task) => t.status === "open" || t.status === "in_progress",
@@ -111,7 +118,7 @@ export function TaskPanel({ className }: TaskPanelProps) {
     }
   };
 
-  const handleRunTask = (task: Task) => {
+  const handleStartWithAgent = (task: Task) => {
     // Build site context for the agent
     const siteContext = detection?.isDeco
       ? {
@@ -128,22 +135,11 @@ export function TaskPanel({ className }: TaskPanelProps) {
       taskId: task.id,
       taskTitle: task.title,
       taskDescription: task.description || task.title,
+      workspace: workspacePath,
       siteContext,
     });
 
-    const text = `AGENT_SPAWN ${params}`;
-
-    // Open the chat panel
-    window.dispatchEvent(new CustomEvent("deco:open-chat"));
-
-    // Send the message after a brief delay to allow panel to open
-    setTimeout(() => {
-      window.dispatchEvent(
-        new CustomEvent("deco:send-chat-message", {
-          detail: { text },
-        }),
-      );
-    }, 100);
+    sendChatMessage(`AGENT_SPAWN ${params}`);
   };
 
   return (
@@ -279,25 +275,17 @@ export function TaskPanel({ className }: TaskPanelProps) {
             ) : openTasks.length === 0 ? (
               <div className="text-xs text-muted-foreground">No open tasks</div>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {openTasks.map((task: Task) => (
-                  <div
+                  <TaskCard
                     key={task.id}
-                    className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors group"
-                  >
-                    {statusIcons[task.status]}
-                    <span className="flex-1 text-sm truncate">
-                      {task.title}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRunTask(task)}
-                      className="p-1 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Run task"
-                    >
-                      <Play size={12} />
-                    </button>
-                  </div>
+                    task={task}
+                    onStartWithAgent={handleStartWithAgent}
+                    hasRunningAgent={runningTaskIds.has(task.id)}
+                    workspacePath={workspacePath}
+                    refetchTasks={refetch}
+                    sendChatMessage={sendChatMessage}
+                  />
                 ))}
               </div>
             )}
@@ -309,17 +297,17 @@ export function TaskPanel({ className }: TaskPanelProps) {
               <h3 className="text-xs font-medium text-muted-foreground mb-2">
                 Recently Completed
               </h3>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {completedTasks.map((task: Task) => (
-                  <div
+                  <TaskCard
                     key={task.id}
-                    className="flex items-center gap-2 p-2 rounded-md text-muted-foreground"
-                  >
-                    {statusIcons[task.status]}
-                    <span className="flex-1 text-sm truncate line-through">
-                      {task.title}
-                    </span>
-                  </div>
+                    task={task}
+                    onStartWithAgent={handleStartWithAgent}
+                    hasRunningAgent={false}
+                    workspacePath={workspacePath}
+                    refetchTasks={refetch}
+                    sendChatMessage={sendChatMessage}
+                  />
                 ))}
               </div>
             </div>

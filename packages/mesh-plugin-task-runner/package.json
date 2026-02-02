@@ -6,7 +6,8 @@
   "main": "./index.tsx",
   "exports": {
     ".": "./index.tsx",
-    "./hooks/use-tasks": "./hooks/use-tasks.ts"
+    "./hooks/use-tasks": "./hooks/use-tasks.ts",
+    "./components/task-card": "./components/task-card.tsx"
   },
   "scripts": {
     "check": "tsc --noEmit",
