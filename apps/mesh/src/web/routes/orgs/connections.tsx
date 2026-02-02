@@ -1,26 +1,24 @@
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
-import { Page } from "@/web/components/page";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
+import { type TableColumn } from "@/web/components/collections/collection-table.tsx";
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
+import { ConnectionStatus } from "@/web/components/connections/connection-status.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { Page } from "@/web/components/page";
+import type { RegistryItem } from "@/web/components/store/types";
+import { User } from "@/web/components/user/user.tsx";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
+import { authClient } from "@/web/lib/auth-client";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import {
-  useConnections,
-  useConnectionActions,
-  useProjectContext,
-  type ConnectionEntity,
-} from "@decocms/mesh-sdk";
+  extractItemsFromResponse,
+  findListToolName,
+} from "@/web/utils/registry-utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,8 +29,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { type TableColumn } from "@/web/components/collections/collection-table.tsx";
 import {
   Dialog,
   DialogContent,
@@ -55,15 +58,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@deco/ui/components/form.tsx";
-import {
-  DotsVertical,
-  Eye,
-  Trash01,
-  Loading01,
-  Container,
-  Terminal,
-  Globe02,
-} from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
   Select,
@@ -73,22 +67,28 @@ import {
   SelectValue,
 } from "@deco/ui/components/select.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import {
+  useConnectionActions,
+  useConnections,
+  useMCPClient, useMCPToolCallQuery,
+  useProjectContext,
+  type ConnectionEntity,
+} from "@decocms/mesh-sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import {
+  Container,
+  DotsVertical,
+  Eye,
+  Globe02,
+  Loading01,
+  Terminal,
+  Trash01,
+} from "@untitledui/icons";
+import { differenceInSeconds } from "date-fns";
 import { Suspense, useEffect, useReducer } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { authClient } from "@/web/lib/auth-client";
-import { generatePrefixedId } from "@/shared/utils/generate-id";
-import type { RegistryItem } from "@/web/components/store/types";
-import { useMCPClient, useMCPToolCallQuery } from "@decocms/mesh-sdk";
-import {
-  findListToolName,
-  extractItemsFromResponse,
-} from "@/web/utils/registry-utils";
-import { differenceInSeconds } from "date-fns";
-import { User } from "@/web/components/user/user.tsx";
-import { ConnectionStatus } from "@/web/components/connections/connection-status.tsx";
 
 function formatTimeAgo(date: Date): string {
   const seconds = differenceInSeconds(new Date(), date);
@@ -103,8 +103,8 @@ function formatTimeAgo(date: Date): string {
 }
 
 import type {
-  StdioConnectionParameters,
   HttpConnectionParameters,
+  StdioConnectionParameters,
 } from "@/tools/connection/schema";
 import { isStdioParameters } from "@/tools/connection/schema";
 import {
