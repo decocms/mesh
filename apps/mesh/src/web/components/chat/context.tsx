@@ -99,7 +99,6 @@ interface ChatContextValue {
 
   // Thread management
   activeThreadId: string;
-  setActiveThreadId: (threadId: string) => void; // For switching existing threads (suspends)
   createThread: () => void; // For creating new threads (with prefetch)
   switchToThread: (threadId: string) => Promise<void>; // For switching with cache prefilling
   threads: Thread[];
@@ -691,8 +690,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
             (thread) => thread.id !== threadId,
           );
           if (firstDifferentThread) {
-            // Switch to existing thread
-            setActiveThreadId(firstDifferentThread.id);
+            // Switch to existing thread with cache prefilling
+            await switchToThread(firstDifferentThread.id);
           } else {
             // Create new thread if no other threads exist
             createThread();
@@ -792,9 +791,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
     // Thread management (using API data directly)
     activeThreadId,
     threads,
-    setActiveThreadId, // Original, suspends for existing threads
-    createThread, // New, prefills for new threads
-    switchToThread, // New, prefills cache then switches
+    createThread, // Prefills for new threads
+    switchToThread, // Prefills cache then switches
     hideThread,
 
     // Thread pagination
