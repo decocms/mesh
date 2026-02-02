@@ -81,13 +81,11 @@ function HomeContent() {
     <Chat className="bg-background">
       <Page.Header className="flex-none">
         <Page.Header.Left className="gap-2">
-          {!isChatEmpty && activeThread?.title ? (
+          {!isChatEmpty && activeThread?.title && (
             <TypewriterTitle
               text={activeThread.title}
               className="text-sm font-medium text-foreground"
             />
-          ) : (
-            <span className="text-sm font-medium text-foreground">Chat</span>
           )}
         </Page.Header.Left>
         <Page.Header.Right className="gap-1">
