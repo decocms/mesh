@@ -38,7 +38,11 @@ import {
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import { useContext as useContextHook } from "../../hooks/use-context";
-import { useThreadMessages, useThreads } from "./use-threads";
+import {
+  useThreadMessages,
+  useThreadMessagesPrefill,
+  useThreads,
+} from "./use-threads";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { authClient } from "../../lib/auth-client";
@@ -538,6 +542,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     orgId: org.id,
   });
 
+  // Thread messages cache prefilling utility
+  const prefillThreadMessages = useThreadMessagesPrefill(mcpClient, org.id);
+
   // Project context
   // User session
   const { data: session } = authClient.useSession();
@@ -644,6 +651,22 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // 6. RETURNED FUNCTIONS - Functions exposed via context
   // ===========================================================================
 
+  // Wrapper for setActiveThreadId that prefills cache before setting new thread
+  const setActiveThreadIdWithPrefetch = (
+    threadId: string | ((prev: string) => string),
+  ) => {
+    const newThreadId =
+      typeof threadId === "function" ? threadId(activeThreadId) : threadId;
+
+    // Prefill cache for the new thread ID before setting it
+    if (newThreadId !== activeThreadId) {
+      prefillThreadMessages(newThreadId);
+    }
+
+    // Now set the active thread ID (this will trigger useThreadMessages with new ID)
+    setActiveThreadId(newThreadId);
+  };
+
   // Chat state functions
   const setTiptapDoc = (doc: Metadata["tiptapDoc"]) =>
     chatDispatch({ type: "SET_TIPTAP_DOC", payload: doc });
@@ -664,7 +687,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
           const firstDifferentThread = threads.find(
             (thread) => thread.id !== threadId,
           );
-          setActiveThreadId(firstDifferentThread?.id ?? crypto.randomUUID());
+          setActiveThreadIdWithPrefetch(
+            firstDifferentThread?.id ?? crypto.randomUUID(),
+          );
         }
         // Refetch threads to get the updated list from the API
         await refetchThreads();
@@ -760,7 +785,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     // Thread management (using API data directly)
     activeThreadId,
     threads,
-    setActiveThreadId,
+    setActiveThreadId: setActiveThreadIdWithPrefetch,
     hideThread,
 
     // Thread pagination

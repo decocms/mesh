@@ -19,8 +19,20 @@ import {
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import type { Message, Thread } from "./types.ts";
 import { KEYS } from "../../lib/query-keys";
+import { useCollectionCachePrefill } from "../../hooks/use-collection-cache-prefill";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
-const THREADS_PAGE_SIZE = 50;
+/**
+ * Constants for thread-related functionality
+ */
+const THREAD_CONSTANTS = {
+  /** Page size for thread messages queries */
+  THREAD_MESSAGES_PAGE_SIZE: 100,
+  /** Page size for threads list queries */
+  THREADS_PAGE_SIZE: 50,
+  /** Stale time for React Query queries (30 seconds) */
+  QUERY_STALE_TIME: 30_000,
+} as const;
 
 /**
  * Hook to get all threads with infinite scroll pagination
@@ -42,7 +54,7 @@ export function useThreads() {
           throw new Error("MCP client is not available");
         }
         const input: CollectionListInput = {
-          limit: THREADS_PAGE_SIZE,
+          limit: THREAD_CONSTANTS.THREADS_PAGE_SIZE,
           offset: pageParam,
         };
 
@@ -63,10 +75,10 @@ export function useThreads() {
         if (!lastPage.hasMore) {
           return undefined;
         }
-        return allPages.length * THREADS_PAGE_SIZE;
+        return allPages.length * THREAD_CONSTANTS.THREADS_PAGE_SIZE;
       },
       initialPageParam: 0,
-      staleTime: 30_000,
+      staleTime: THREAD_CONSTANTS.QUERY_STALE_TIME,
     });
 
   // Flatten all pages into a single threads array
@@ -102,9 +114,35 @@ export function useThreadMessages(threadId: string | null) {
     client,
     {
       filters: threadId ? [{ column: "threadId", value: threadId }] : [],
-      pageSize: 100,
+      pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
     },
   ) as Message[] | undefined;
 
   return data ?? [];
+}
+
+/**
+ * Hook that provides utilities to prefill thread messages cache
+ * Prevents suspension when switching to a new thread
+ *
+ * @param client - The MCP client used to call collection tools
+ * @param orgId - The organization ID
+ * @returns Function to prefill cache for a specific thread ID
+ */
+export function useThreadMessagesPrefill(
+  client: Client | null | undefined,
+  orgId: string,
+) {
+  const { prefillCollectionCache } = useCollectionCachePrefill();
+
+  return (threadId: string) => {
+    if (!client) {
+      return;
+    }
+
+    prefillCollectionCache(client, "THREAD_MESSAGES", orgId, {
+      filters: [{ column: "threadId", value: threadId }],
+      pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
+    });
+  };
 }

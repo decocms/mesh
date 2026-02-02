@@ -68,9 +68,21 @@ export interface UseCollectionListOptions<T extends CollectionEntity> {
 }
 
 /**
+ * Query key type for collection list queries
+ */
+export type CollectionQueryKey = readonly [
+  "mcp",
+  "client",
+  unknown,
+  "tool-call",
+  string,
+  string,
+];
+
+/**
  * Build a where expression from search term and filters
  */
-function buildWhereExpression<T extends CollectionEntity>(
+export function buildWhereExpression<T extends CollectionEntity>(
   searchTerm: string | undefined,
   filters: CollectionFilter[] | undefined,
   searchFields: (keyof T)[],
@@ -125,7 +137,7 @@ function buildWhereExpression<T extends CollectionEntity>(
 /**
  * Build orderBy expression from sort key and direction
  */
-function buildOrderByExpression<T extends CollectionEntity>(
+export function buildOrderByExpression<T extends CollectionEntity>(
   sortKey: keyof T | undefined,
   sortDirection: "asc" | "desc" | null | undefined,
   defaultSortKey: keyof T,
@@ -206,7 +218,7 @@ export function useCollectionItem<T extends CollectionEntity>(
 }
 
 /** Fake MCP result for empty collection list when client is skipped */
-const EMPTY_COLLECTION_LIST_RESULT = {
+export const EMPTY_COLLECTION_LIST_RESULT = {
   structuredContent: {
     items: [],
   } satisfies CollectionListOutput<CollectionEntity>,
@@ -282,6 +294,60 @@ export function useCollectionList<T extends CollectionEntity>(
   });
 
   return data;
+}
+
+/**
+ * Builds a query key for a collection list query
+ * Matches the internal logic of useCollectionList exactly
+ *
+ * @param client - The MCP client used to call collection tools (null/undefined returns null)
+ * @param collectionName - The name of the collection (e.g., "THREAD_MESSAGES", "CONNECTIONS")
+ * @param scopeKey - The scope key (connectionId for connection-scoped, virtualMcpId for virtual-mcp-scoped, etc.)
+ * @param options - Filter and configuration options
+ * @returns Query key array or null if client is not available
+ */
+export function buildCollectionQueryKey<T extends CollectionEntity>(
+  client: Client | null | undefined,
+  collectionName: string,
+  _scopeKey: string,
+  options: UseCollectionListOptions<T> = {},
+):
+  | CollectionQueryKey
+  | readonly ["collection-list-skip", string, string, string]
+  | null {
+  if (!client) {
+    return null;
+  }
+
+  const {
+    searchTerm,
+    filters,
+    sortKey,
+    sortDirection,
+    searchFields = ["title", "description"] satisfies (keyof T)[],
+    defaultSortKey = "updated_at" satisfies keyof T,
+    pageSize = 100,
+  } = options;
+
+  const upperName = collectionName.toUpperCase();
+  const listToolName = `COLLECTION_${upperName}_LIST`;
+
+  const where = buildWhereExpression(searchTerm, filters, searchFields);
+  const orderBy = buildOrderByExpression(
+    sortKey,
+    sortDirection,
+    defaultSortKey,
+  );
+
+  const toolArguments: CollectionListInput = {
+    ...(where && { where }),
+    ...(orderBy && { orderBy }),
+    limit: pageSize,
+    offset: 0,
+  };
+
+  const argsKey = JSON.stringify(toolArguments);
+  return KEYS.mcpToolCall(client, listToolName, argsKey);
 }
 
 /**
