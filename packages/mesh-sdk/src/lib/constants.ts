@@ -180,7 +180,7 @@ export function getWellKnownOpenRouterConnection(
     id: opts.id,
     title: "OpenRouter",
     description: "Access hundreds of LLM models from a single API",
-    icon: "https://openrouter.ai/favicon.ico",
+    icon: "https://assets.decocache.com/decocms/b2e2f64f-6025-45f7-9e8c-3b3ebdd073d8/openrouter_logojpg.jpg",
     app_name: "openrouter",
     app_id: "openrouter",
     connection_type: "HTTP",
