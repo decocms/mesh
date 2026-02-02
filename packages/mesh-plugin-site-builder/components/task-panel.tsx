@@ -131,10 +131,19 @@ export function TaskPanel({ className }: TaskPanelProps) {
       siteContext,
     });
 
-    const message = `AGENT_SPAWN ${params}`;
-    window.dispatchEvent(
-      new CustomEvent("deco:open-chat", { detail: { message } }),
-    );
+    const text = `AGENT_SPAWN ${params}`;
+
+    // Open the chat panel
+    window.dispatchEvent(new CustomEvent("deco:open-chat"));
+
+    // Send the message after a brief delay to allow panel to open
+    setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("deco:send-chat-message", {
+          detail: { text },
+        }),
+      );
+    }, 100);
   };
 
   return (
