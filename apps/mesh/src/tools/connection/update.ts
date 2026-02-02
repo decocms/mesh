@@ -228,6 +228,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       tools,
       configuration_state: finalState,
       configuration_scopes: finalScopes,
+      updated_by: userId,
     };
     const connection = await ctx.storage.connections.update(id, updatePayload);
 
