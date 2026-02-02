@@ -15,6 +15,7 @@ export interface ConnectionCardProps {
   connection: ConnectionCardData;
   onClick?: () => void;
   headerActions?: React.ReactNode;
+  body?: React.ReactNode;
   footer?: React.ReactNode;
   className?: string;
   size?: "sm" | "md";
@@ -25,6 +26,7 @@ export function ConnectionCard({
   connection,
   onClick,
   headerActions,
+  body,
   footer,
   className,
   size = "md",
@@ -37,61 +39,76 @@ export function ConnectionCard({
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-colors group",
+        "cursor-pointer transition-colors group overflow-hidden flex flex-col",
         onClick && "hover:bg-muted/50",
         className,
       )}
       onClick={onClick}
     >
-      <div className={cn("flex flex-col gap-4 relative", paddingClass)}>
-        {/* Header: Icon + Status Badge / Header Actions */}
-        <div className="flex items-start justify-between">
-          <IntegrationIcon
-            icon={connection.icon}
-            name={connection.title}
-            size="md"
-            className="shrink-0 shadow-sm"
-            fallbackIcon={fallbackIcon}
-          />
-          {/* Header Actions container */}
-          <div className="relative">
-            {/* Header Actions: hidden by default, visible on hover */}
-            {headerActions && (
-              <div
-                className={cn(
-                  "transition-opacity",
-                  "opacity-0 group-hover:opacity-100",
-                )}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {headerActions}
-              </div>
-            )}
+      <div className="flex flex-col flex-1">
+        {/* Top Section: Icon, Title, Description, Header Actions */}
+        <div className={cn("flex flex-col gap-4", paddingClass)}>
+          {/* Header: Icon + Status Badge / Header Actions */}
+          <div className="flex items-start justify-between">
+            <IntegrationIcon
+              icon={connection.icon}
+              name={connection.title}
+              size="md"
+              className="shrink-0 shadow-sm"
+              fallbackIcon={fallbackIcon}
+            />
+            {/* Header Actions container */}
+            <div className="relative">
+              {/* Header Actions: hidden by default, visible on hover */}
+              {headerActions && (
+                <div
+                  className={cn(
+                    "transition-opacity",
+                    "opacity-0 group-hover:opacity-100",
+                  )}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {headerActions}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Title and Description */}
+          <div className="flex flex-col gap-0">
+            <h3
+              className={cn(
+                "font-medium text-foreground truncate",
+                titleSizeClass,
+              )}
+            >
+              {connection.title}
+            </h3>
+            <p
+              className={cn(
+                "text-muted-foreground line-clamp-2",
+                descriptionSizeClass,
+              )}
+            >
+              {connection.description || "No description"}
+            </p>
+          </div>
+
+          {/* Body: Additional content like status */}
+          {body && <div>{body}</div>}
         </div>
 
-        {/* Title and Description */}
-        <div className="flex flex-col gap-0">
-          <h3
-            className={cn(
-              "font-medium text-foreground truncate",
-              titleSizeClass,
-            )}
-          >
-            {connection.title}
-          </h3>
-          <p
-            className={cn(
-              "text-muted-foreground line-clamp-2",
-              descriptionSizeClass,
-            )}
-          >
-            {connection.description || "No description"}
-          </p>
-        </div>
-
-        {/* Footer: Custom footer */}
-        {footer && <div onClick={(e) => e.stopPropagation()}>{footer}</div>}
+        {/* Footer: Custom footer with border-t spanning full width */}
+        {footer && (
+          <div className="border-t border-border mt-auto">
+            <div
+              className={cn("h-14 flex items-center", paddingClass)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {footer}
+            </div>
+          </div>
+        )}
       </div>
     </Card>
   );

@@ -1,259 +1,28 @@
-import {
-  envVarsToRecord,
-  recordToEnvVars,
-  type EnvVar,
-} from "@/web/components/env-vars-editor";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { useBindingConnections } from "@/web/hooks/use-binding";
 import {
-  useConnectionActions,
   useMCPClient,
   useMCPToolCall,
   useProjectContext,
-  isStdioParameters,
   type ConnectionEntity,
-  type StdioConnectionParameters,
-  type HttpConnectionParameters,
 } from "@decocms/mesh-sdk";
-import { authenticateMcp } from "@/web/lib/mcp-oauth";
-import { KEYS } from "@/web/lib/query-keys";
-import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Key01, File06, Loading01 } from "@untitledui/icons";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouterState } from "@tanstack/react-router";
 import { Suspense } from "react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { ViewActions } from "../../layout";
-import { SaveActions } from "@/web/components/save-actions";
-import { ConnectionSettingsFormUI } from "./connection-settings-form-ui";
+import type { useForm } from "react-hook-form";
 import { McpConfigurationForm } from "./mcp-configuration-form";
-import { connectionFormSchema, type ConnectionFormData } from "./schema";
-
-/**
- * Check if STDIO params look like an NPX command
- */
-function isNpxCommand(params: StdioConnectionParameters): boolean {
-  return params.command === "npx";
-}
-
-/**
- * Parse STDIO connection_headers back to NPX form fields
- */
-function parseStdioToNpx(params: StdioConnectionParameters): string {
-  // Find the package (skip -y flag)
-  return params.args?.find((a) => !a.startsWith("-")) ?? "";
-}
-
-/**
- * Parse STDIO connection_headers to custom command form fields
- */
-function parseStdioToCustom(params: StdioConnectionParameters): {
-  command: string;
-  args: string;
-  cwd: string;
-} {
-  return {
-    command: params.command,
-    args: params.args?.join(" ") ?? "",
-    cwd: params.cwd ?? "",
-  };
-}
-
-/**
- * Build STDIO connection_headers from NPX form fields
- */
-function buildNpxParameters(
-  packageName: string,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: "npx",
-    args: ["-y", packageName],
-  };
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-  return params;
-}
-
-/**
- * Build STDIO connection_headers from custom command form fields
- */
-function buildCustomStdioParameters(
-  command: string,
-  argsString: string,
-  cwd: string | undefined,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: command,
-  };
-
-  // Parse args from space-separated string (basic parsing)
-  if (argsString.trim()) {
-    params.args = argsString.trim().split(/\s+/);
-  }
-
-  if (cwd?.trim()) {
-    params.cwd = cwd.trim();
-  }
-
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-
-  return params;
-}
-
-/**
- * Convert connection entity to form values
- */
-function connectionToFormValues(
-  connection: ConnectionEntity,
-  scopes?: string[],
-): ConnectionFormData {
-  const baseFields = {
-    title: connection.title,
-    description: connection.description ?? "",
-    configuration_state: connection.configuration_state ?? {},
-    configuration_scopes: scopes || connection.configuration_scopes || [],
-  };
-
-  // Check if it's a STDIO connection
-  if (
-    connection.connection_type === "STDIO" &&
-    isStdioParameters(connection.connection_headers)
-  ) {
-    const stdioParams = connection.connection_headers;
-    const envVars = recordToEnvVars(stdioParams.envVars);
-
-    // Check if it's an NPX command
-    if (isNpxCommand(stdioParams)) {
-      const npxPackage = parseStdioToNpx(stdioParams);
-      return {
-        ...baseFields,
-        ui_type: "NPX",
-        connection_url: "",
-        connection_token: null,
-        npx_package: npxPackage,
-        stdio_command: "",
-        stdio_args: "",
-        stdio_cwd: "",
-        env_vars: envVars,
-      };
-    }
-
-    // Custom STDIO command
-    const customData = parseStdioToCustom(stdioParams);
-    return {
-      ...baseFields,
-      ui_type: "STDIO",
-      connection_url: "",
-      connection_token: null,
-      npx_package: "",
-      stdio_command: customData.command,
-      stdio_args: customData.args,
-      stdio_cwd: customData.cwd,
-      env_vars: envVars,
-    };
-  }
-
-  // HTTP/SSE/Websocket connection
-  return {
-    ...baseFields,
-    ui_type: connection.connection_type as "HTTP" | "SSE" | "Websocket",
-    connection_url: connection.connection_url ?? "",
-    connection_token: null, // Don't pre-fill token for security
-    npx_package: "",
-    stdio_command: "",
-    stdio_args: "",
-    stdio_cwd: "",
-    env_vars: [],
-  };
-}
-
-/**
- * Convert form values back to connection entity update
- */
-function formValuesToConnectionUpdate(
-  data: ConnectionFormData,
-): Partial<ConnectionEntity> {
-  let connectionType: "HTTP" | "SSE" | "Websocket" | "STDIO";
-  let connectionUrl: string | null = null;
-  let connectionToken: string | null = null;
-  let connectionParameters:
-    | StdioConnectionParameters
-    | HttpConnectionParameters
-    | null = null;
-
-  if (data.ui_type === "NPX") {
-    connectionType = "STDIO";
-    connectionUrl = ""; // STDIO doesn't use URL
-    connectionParameters = buildNpxParameters(
-      data.npx_package || "",
-      data.env_vars || [],
-    );
-  } else if (data.ui_type === "STDIO") {
-    connectionType = "STDIO";
-    connectionUrl = ""; // STDIO doesn't use URL
-    connectionParameters = buildCustomStdioParameters(
-      data.stdio_command || "",
-      data.stdio_args || "",
-      data.stdio_cwd,
-      data.env_vars || [],
-    );
-  } else {
-    connectionType = data.ui_type;
-    connectionUrl = data.connection_url || "";
-    connectionToken = data.connection_token || null;
-  }
-
-  return {
-    title: data.title,
-    description: data.description || null,
-    connection_type: connectionType,
-    connection_url: connectionUrl,
-    ...(connectionToken && { connection_token: connectionToken }),
-    ...(connectionParameters && { connection_headers: connectionParameters }),
-    configuration_state: data.configuration_state ?? null,
-    configuration_scopes: data.configuration_scopes ?? null,
-  };
-}
+import type { ConnectionFormData } from "./schema";
 
 interface SettingsTabProps {
   connection: ConnectionEntity;
-  onUpdate: (connection: Partial<ConnectionEntity>) => Promise<void>;
-  isUpdating: boolean;
+  form: ReturnType<typeof useForm<ConnectionFormData>>;
+  hasMcpBinding: boolean;
   isMCPAuthenticated: boolean;
   supportsOAuth: boolean;
-  hasOAuthToken: boolean;
   isServerError?: boolean;
+  onAuthenticate: () => void | Promise<void>;
   onViewReadme?: () => void;
 }
-
-type SettingsTabWithMcpBindingProps = SettingsTabProps & {
-  hasMcpBinding: true;
-};
-
-type SettingsTabWithoutMcpBindingProps = SettingsTabProps & {
-  hasMcpBinding: false;
-};
-
-type SettingsTabContentImplProps =
-  | (SettingsTabWithMcpBindingProps & {
-      stateSchema: Record<string, unknown>;
-      scopes: string[];
-    })
-  | (SettingsTabWithoutMcpBindingProps & {
-      stateSchema?: never;
-      scopes?: never;
-    });
 
 interface McpConfigurationResult {
   stateSchema: Record<string, unknown>;
@@ -296,7 +65,7 @@ export function OAuthAuthenticationState({
   buttonText = "Authenticate",
 }: OAuthAuthenticationStateProps) {
   return (
-    <div className="w-3/5 min-w-0 flex items-center justify-center">
+    <div className="flex-1 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4 max-w-md text-center">
         <div className="flex flex-col gap-2">
           <h3 className="text-lg font-semibold">Authentication Required</h3>
@@ -322,7 +91,7 @@ export function ManualAuthRequiredState({
   onViewReadme,
 }: ManualAuthRequiredStateProps) {
   return (
-    <div className="w-3/5 min-w-0 flex items-center justify-center">
+    <div className="flex-1 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4 max-w-md text-center">
         <Key01 size={48} className="text-muted-foreground" />
         <div className="flex flex-col gap-2">
@@ -348,7 +117,7 @@ export function ManualAuthRequiredState({
 
 function ServerErrorState() {
   return (
-    <div className="w-3/5 min-w-0 flex items-center justify-center">
+    <div className="flex-1 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4 max-w-md text-center">
         <img
           src="/empty-state-error.svg"
@@ -369,72 +138,30 @@ function ServerErrorState() {
   );
 }
 
-function SettingsTabContentWithMcpBinding(
-  props: SettingsTabWithMcpBindingProps,
-) {
-  const config = useMcpConfiguration(props.connection.id);
-  return <SettingsTabContentImpl {...props} {...config} />;
-}
-
-function SettingsTabContentWithoutMcpBinding(
-  props: SettingsTabWithoutMcpBindingProps,
-) {
-  return <SettingsTabContentImpl {...props} />;
-}
-
-function SettingsRightPanel({
-  hasMcpBinding,
-  stateSchema,
-  formState,
-  onFormStateChange,
-  onAuthenticate,
-  onViewReadme,
-  isMCPAuthenticated,
-  supportsOAuth,
-  isServerError,
-  hasReadme,
+function McpConfigurationContent({
+  connection,
+  form,
 }: {
-  hasMcpBinding: boolean;
-  stateSchema?: Record<string, unknown>;
-  formState?: Record<string, unknown>;
-  onFormStateChange: (state: Record<string, unknown>) => void;
-  onAuthenticate: () => void | Promise<void>;
-  onViewReadme?: () => void;
-  isMCPAuthenticated: boolean;
-  supportsOAuth: boolean;
-  isServerError?: boolean;
-  hasReadme: boolean;
+  connection: ConnectionEntity;
+  form: ReturnType<typeof useForm<ConnectionFormData>>;
 }) {
+  const { stateSchema } = useMcpConfiguration(connection.id);
+
+  const formState = form.watch("configuration_state");
+
+  const handleFormStateChange = (state: Record<string, unknown>) => {
+    form.setValue("configuration_state", state, { shouldDirty: true });
+  };
+
   const hasProperties =
     stateSchema &&
     stateSchema.properties &&
     typeof stateSchema.properties === "object" &&
     Object.keys(stateSchema.properties).length > 0;
 
-  if (!isMCPAuthenticated) {
-    // Show server error state if there was a 5xx error
-    if (isServerError) {
-      return <ServerErrorState />;
-    }
-    // Show different UI based on whether the server supports OAuth
-    if (supportsOAuth) {
-      return <OAuthAuthenticationState onAuthenticate={onAuthenticate} />;
-    }
+  if (!hasProperties) {
     return (
-      <ManualAuthRequiredState
-        hasReadme={hasReadme}
-        onViewReadme={onViewReadme}
-      />
-    );
-  }
-
-  if (!hasMcpBinding) {
-    return null;
-  }
-
-  if (!hasProperties || !stateSchema) {
-    return (
-      <div className="w-3/5 min-w-0 overflow-auto flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <EmptyState
           image={
             <img
@@ -453,31 +180,27 @@ function SettingsRightPanel({
   }
 
   return (
-    <div className="w-3/5 min-w-0 overflow-auto">
+    <div className="flex-1 overflow-auto">
       <McpConfigurationForm
         stateSchema={stateSchema}
         formState={formState ?? {}}
-        onFormStateChange={onFormStateChange}
+        onFormStateChange={handleFormStateChange}
       />
     </div>
   );
 }
 
-function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
+function SettingsTabContent(props: SettingsTabProps) {
   const {
     connection,
-    onUpdate,
-    isUpdating,
-    scopes,
+    form,
     hasMcpBinding,
-    stateSchema,
+    isMCPAuthenticated,
+    supportsOAuth,
+    isServerError,
+    onAuthenticate,
     onViewReadme,
   } = props;
-
-  const connectionActions = useConnectionActions();
-  const queryClient = useQueryClient();
-  const routerState = useRouterState();
-  const url = routerState.location.href;
 
   // Check if connection has README
   const repository = connection?.metadata?.repository as
@@ -485,219 +208,66 @@ function SettingsTabContentImpl(props: SettingsTabContentImplProps) {
     | undefined;
   const hasReadme = !!repository?.url;
 
-  const form = useForm<ConnectionFormData>({
-    resolver: zodResolver(connectionFormSchema),
-    values: connectionToFormValues(connection, scopes),
-  });
-
-  const formState = form.watch("configuration_state");
-  const hasAnyChanges = form.formState.isDirty;
-
-  const handleFormStateChange = (state: Record<string, unknown>) => {
-    form.setValue("configuration_state", state, { shouldDirty: true });
-  };
-
-  const handleSave = async () => {
-    const isValid = await form.trigger();
-    if (!isValid) return;
-
-    const data = form.getValues();
-    const updateData = formValuesToConnectionUpdate(data);
-    await onUpdate(updateData);
-    form.reset(data);
-  };
-
-  const handleUndo = () => {
-    form.reset(connectionToFormValues(connection, scopes));
-  };
-
-  const handleAuthenticate = async () => {
-    const { token, tokenInfo, error } = await authenticateMcp({
-      connectionId: connection.id,
-    });
-    if (error || !token) {
-      toast.error(`Authentication failed: ${error}`);
-      return;
+  // Not authenticated states
+  if (!isMCPAuthenticated) {
+    if (isServerError) {
+      return <ServerErrorState />;
     }
-
-    // Save token via new API (supports refresh tokens)
-    if (tokenInfo) {
-      try {
-        const response = await fetch(
-          `/api/connections/${connection.id}/oauth-token`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              accessToken: tokenInfo.accessToken,
-              refreshToken: tokenInfo.refreshToken,
-              expiresIn: tokenInfo.expiresIn,
-              scope: tokenInfo.scope,
-              clientId: tokenInfo.clientId,
-              clientSecret: tokenInfo.clientSecret,
-              tokenEndpoint: tokenInfo.tokenEndpoint,
-            }),
-          },
-        );
-        if (!response.ok) {
-          console.error("Failed to save OAuth token:", await response.text());
-          // Fall back to connection_token update
-          await connectionActions.update.mutateAsync({
-            id: connection.id,
-            data: { connection_token: token },
-          });
-        } else {
-          // Refresh tools after auth so bindings (e.g. LLMS) become available immediately.
-          // This is important for OpenRouter install flow, which creates the connection unauthenticated
-          // (tools discovery fails), then authenticates via OAuth.
-          try {
-            await connectionActions.update.mutateAsync({
-              id: connection.id,
-              data: {},
-            });
-          } catch (err) {
-            console.warn(
-              "Failed to refresh connection tools after OAuth:",
-              err,
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Error saving OAuth token:", err);
-        // Fall back to connection_token update
-        await connectionActions.update.mutateAsync({
-          id: connection.id,
-          data: { connection_token: token },
-        });
-      }
-    } else {
-      // No tokenInfo, fall back to legacy behavior
-      await connectionActions.update.mutateAsync({
-        id: connection.id,
-        data: { connection_token: token },
-      });
+    if (supportsOAuth) {
+      return <OAuthAuthenticationState onAuthenticate={onAuthenticate} />;
     }
-
-    // Invalidate auth status query to trigger UI refresh
-    const mcpProxyUrl = new URL(
-      `/mcp/${connection.id}`,
-      window.location.origin,
+    return (
+      <ManualAuthRequiredState
+        hasReadme={hasReadme}
+        onViewReadme={onViewReadme}
+      />
     );
-    await queryClient.invalidateQueries({
-      queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
-    });
+  }
 
-    toast.success("Authentication successful");
-  };
-
-  const handleRemoveOAuth = async () => {
-    try {
-      const response = await fetch(
-        `/api/connections/${connection.id}/oauth-token`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        toast.error(`Failed to remove OAuth: ${errorText}`);
-        return;
-      }
-
-      // Invalidate auth status query to trigger UI refresh
-      const mcpProxyUrl = new URL(
-        `/mcp/${connection.id}`,
-        window.location.origin,
-      );
-      await queryClient.invalidateQueries({
-        queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
-      });
-
-      toast.success(
-        "OAuth removed. You can now re-authenticate with a different account.",
-      );
-    } catch (err) {
-      console.error("Error removing OAuth token:", err);
-      toast.error("Failed to remove OAuth");
-    }
-  };
-
-  return (
-    <>
-      <ViewActions>
-        <SaveActions
-          onSave={handleSave}
-          onUndo={handleUndo}
-          isDirty={hasAnyChanges}
-          isSaving={isUpdating}
-        />
-        <PinToSidebarButton
-          title={`${connection.title}: Settings`}
-          url={url}
-          icon={connection.icon ?? "settings"}
-        />
-      </ViewActions>
-
-      <div className="flex h-full">
-        {/* Left sidebar - Connection Settings (2/5) */}
-        <div className="w-2/5 shrink-0 border-r border-border overflow-auto">
-          <ConnectionSettingsFormUI
-            form={form}
-            connection={connection}
-            hasOAuthToken={props.hasOAuthToken}
-            onReauthenticate={handleAuthenticate}
-            onRemoveOAuth={handleRemoveOAuth}
-          />
-        </div>
-
-        {/* Right panel - MCP Configuration (3/5) */}
-        <ErrorBoundary>
-          <Suspense
-            fallback={
-              <div className="w-3/5 min-w-0 flex items-center justify-center">
-                <Loading01
-                  size={32}
-                  className="animate-spin text-muted-foreground"
-                />
-              </div>
-            }
-          >
-            <SettingsRightPanel
-              hasMcpBinding={hasMcpBinding}
-              stateSchema={stateSchema}
-              formState={formState ?? undefined}
-              onFormStateChange={handleFormStateChange}
-              onAuthenticate={handleAuthenticate}
-              onViewReadme={onViewReadme}
-              isMCPAuthenticated={props.isMCPAuthenticated}
-              supportsOAuth={props.supportsOAuth}
-              isServerError={props.isServerError}
-              hasReadme={hasReadme}
+  // Authenticated but no MCP binding - show success state
+  if (!hasMcpBinding) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <EmptyState
+          image={
+            <img
+              src="/empty-state-success-muted.svg"
+              alt=""
+              width={220}
+              height={200}
+              aria-hidden="true"
             />
-          </Suspense>
-        </ErrorBoundary>
+          }
+          title="This server is all set!"
+          description="No additional configuration is needed. Everything is ready to go."
+        />
       </div>
-    </>
+    );
+  }
+
+  // Has MCP binding - show configuration form
+  return (
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="flex-1 flex items-center justify-center">
+            <Loading01
+              size={32}
+              className="animate-spin text-muted-foreground"
+            />
+          </div>
+        }
+      >
+        <McpConfigurationContent connection={connection} form={form} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
 export function SettingsTab(props: SettingsTabProps) {
-  const mcpBindingConnections = useBindingConnections({
-    connections: [props.connection],
-    binding: "MCP",
-  });
-  const hasMcpBinding = mcpBindingConnections.length > 0;
-
   return (
-    <div className="flex-1">
-      {hasMcpBinding ? (
-        <SettingsTabContentWithMcpBinding {...props} hasMcpBinding={true} />
-      ) : (
-        <SettingsTabContentWithoutMcpBinding {...props} hasMcpBinding={false} />
-      )}
+    <div className="flex-1 flex h-full">
+      <SettingsTabContent {...props} />
     </div>
   );
 }

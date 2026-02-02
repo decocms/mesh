@@ -1,7 +1,19 @@
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { useCollectionBindings } from "@/web/hooks/use-binding";
+import {
+  envVarsToRecord,
+  recordToEnvVars,
+  type EnvVar,
+} from "@/web/components/env-vars-editor";
+import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
+import { SaveActions } from "@/web/components/save-actions";
+import {
+  useBindingConnections,
+  useCollectionBindings,
+} from "@/web/hooks/use-binding";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
+import { authenticateMcp } from "@/web/lib/mcp-oauth";
+import { KEYS } from "@/web/lib/query-keys";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,33 +22,233 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
+import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
 import {
+  isStdioParameters,
   useConnection,
   useConnectionActions,
-  useProjectContext,
   useMCPClient,
   useMCPPromptsListQuery,
   useMCPResourcesListQuery,
   useMCPToolsListQuery,
+  useProjectContext,
   type ConnectionEntity,
+  type HttpConnectionParameters,
+  type StdioConnectionParameters,
 } from "@decocms/mesh-sdk";
-import { Button } from "@deco/ui/components/button.tsx";
-import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
-import { Loading01 } from "@untitledui/icons";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Link,
   useNavigate,
   useParams,
+  useRouterState,
   useSearch,
 } from "@tanstack/react-router";
+import { Loading01 } from "@untitledui/icons";
 import { Suspense } from "react";
-import { ViewLayout, ViewTabs } from "../layout";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { ViewActions, ViewLayout } from "../layout";
 import { CollectionTab } from "./collection-tab";
+import { ConnectionSidebar } from "./connection-sidebar";
 import { PromptsTab } from "./prompts-tab";
 import { ReadmeTab } from "./readme-tab";
 import { ResourcesTab } from "./resources-tab";
 import { SettingsTab } from "./settings-tab";
+import {
+  connectionFormSchema,
+  type ConnectionFormData,
+} from "./settings-tab/schema";
 import { ToolsTab } from "./tools-tab";
+
+/**
+ * Check if STDIO params look like an NPX command
+ */
+function isNpxCommand(params: StdioConnectionParameters): boolean {
+  return params.command === "npx";
+}
+
+/**
+ * Parse STDIO connection_headers back to NPX form fields
+ */
+function parseStdioToNpx(params: StdioConnectionParameters): string {
+  return params.args?.find((a) => !a.startsWith("-")) ?? "";
+}
+
+/**
+ * Parse STDIO connection_headers to custom command form fields
+ */
+function parseStdioToCustom(params: StdioConnectionParameters): {
+  command: string;
+  args: string;
+  cwd: string;
+} {
+  return {
+    command: params.command,
+    args: params.args?.join(" ") ?? "",
+    cwd: params.cwd ?? "",
+  };
+}
+
+/**
+ * Build STDIO connection_headers from NPX form fields
+ */
+function buildNpxParameters(
+  packageName: string,
+  envVars: EnvVar[],
+): StdioConnectionParameters {
+  const params: StdioConnectionParameters = {
+    command: "npx",
+    args: ["-y", packageName],
+  };
+  const envRecord = envVarsToRecord(envVars);
+  if (Object.keys(envRecord).length > 0) {
+    params.envVars = envRecord;
+  }
+  return params;
+}
+
+/**
+ * Build STDIO connection_headers from custom command form fields
+ */
+function buildCustomStdioParameters(
+  command: string,
+  argsString: string,
+  cwd: string | undefined,
+  envVars: EnvVar[],
+): StdioConnectionParameters {
+  const params: StdioConnectionParameters = {
+    command: command,
+  };
+
+  if (argsString.trim()) {
+    params.args = argsString.trim().split(/\s+/);
+  }
+
+  if (cwd?.trim()) {
+    params.cwd = cwd.trim();
+  }
+
+  const envRecord = envVarsToRecord(envVars);
+  if (Object.keys(envRecord).length > 0) {
+    params.envVars = envRecord;
+  }
+
+  return params;
+}
+
+/**
+ * Convert connection entity to form values
+ */
+function connectionToFormValues(
+  connection: ConnectionEntity,
+  scopes?: string[],
+): ConnectionFormData {
+  const baseFields = {
+    title: connection.title,
+    description: connection.description ?? "",
+    configuration_state: connection.configuration_state ?? {},
+    configuration_scopes: scopes || connection.configuration_scopes || [],
+  };
+
+  if (
+    connection.connection_type === "STDIO" &&
+    isStdioParameters(connection.connection_headers)
+  ) {
+    const stdioParams = connection.connection_headers;
+    const envVars = recordToEnvVars(stdioParams.envVars);
+
+    if (isNpxCommand(stdioParams)) {
+      const npxPackage = parseStdioToNpx(stdioParams);
+      return {
+        ...baseFields,
+        ui_type: "NPX",
+        connection_url: "",
+        connection_token: null,
+        npx_package: npxPackage,
+        stdio_command: "",
+        stdio_args: "",
+        stdio_cwd: "",
+        env_vars: envVars,
+      };
+    }
+
+    const customData = parseStdioToCustom(stdioParams);
+    return {
+      ...baseFields,
+      ui_type: "STDIO",
+      connection_url: "",
+      connection_token: null,
+      npx_package: "",
+      stdio_command: customData.command,
+      stdio_args: customData.args,
+      stdio_cwd: customData.cwd,
+      env_vars: envVars,
+    };
+  }
+
+  return {
+    ...baseFields,
+    ui_type: connection.connection_type as "HTTP" | "SSE" | "Websocket",
+    connection_url: connection.connection_url ?? "",
+    connection_token: null,
+    npx_package: "",
+    stdio_command: "",
+    stdio_args: "",
+    stdio_cwd: "",
+    env_vars: [],
+  };
+}
+
+/**
+ * Convert form values back to connection entity update
+ */
+function formValuesToConnectionUpdate(
+  data: ConnectionFormData,
+): Partial<ConnectionEntity> {
+  let connectionType: "HTTP" | "SSE" | "Websocket" | "STDIO";
+  let connectionUrl: string | null = null;
+  let connectionToken: string | null = null;
+  let connectionParameters:
+    | StdioConnectionParameters
+    | HttpConnectionParameters
+    | null = null;
+
+  if (data.ui_type === "NPX") {
+    connectionType = "STDIO";
+    connectionUrl = "";
+    connectionParameters = buildNpxParameters(
+      data.npx_package || "",
+      data.env_vars || [],
+    );
+  } else if (data.ui_type === "STDIO") {
+    connectionType = "STDIO";
+    connectionUrl = "";
+    connectionParameters = buildCustomStdioParameters(
+      data.stdio_command || "",
+      data.stdio_args || "",
+      data.stdio_cwd,
+      data.env_vars || [],
+    );
+  } else {
+    connectionType = data.ui_type;
+    connectionUrl = data.connection_url || "";
+    connectionToken = data.connection_token || null;
+  }
+
+  return {
+    title: data.title,
+    description: data.description || null,
+    connection_type: connectionType,
+    connection_url: connectionUrl,
+    ...(connectionToken && { connection_token: connectionToken }),
+    ...(connectionParameters && { connection_headers: connectionParameters }),
+    configuration_state: data.configuration_state ?? null,
+    configuration_scopes: data.configuration_scopes ?? null,
+  };
+}
 
 function ConnectionInspectorViewWithConnection({
   connection,
@@ -74,17 +286,155 @@ function ConnectionInspectorViewWithConnection({
   isLoadingTools: boolean;
 }) {
   const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
+  const queryClient = useQueryClient();
+  const routerState = useRouterState();
+  const url = routerState.location.href;
+  const connectionActions = useConnectionActions();
 
   const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
   });
   const isMCPAuthenticated = authStatus.isAuthenticated;
 
+  // Check if connection has MCP binding for configuration
+  const mcpBindingConnections = useBindingConnections({
+    connections: [connection],
+    binding: "MCP",
+  });
+  const hasMcpBinding = mcpBindingConnections.length > 0;
+
   // Check if connection has repository info for README tab (stored in metadata)
   const repository = connection?.metadata?.repository as
     | { url?: string; source?: string; subfolder?: string }
     | undefined;
   const hasRepository = !!repository?.url;
+
+  // Form state lifted to parent
+  const form = useForm<ConnectionFormData>({
+    resolver: zodResolver(connectionFormSchema),
+    values: connectionToFormValues(connection),
+  });
+
+  const hasAnyChanges = form.formState.isDirty;
+
+  const handleSave = async () => {
+    const isValid = await form.trigger();
+    if (!isValid) return;
+
+    const data = form.getValues();
+    const updateData = formValuesToConnectionUpdate(data);
+    await onUpdate(updateData);
+    form.reset(data);
+  };
+
+  const handleUndo = () => {
+    form.reset(connectionToFormValues(connection));
+  };
+
+  const handleAuthenticate = async () => {
+    const { token, tokenInfo, error } = await authenticateMcp({
+      connectionId: connection.id,
+    });
+    if (error || !token) {
+      toast.error(`Authentication failed: ${error}`);
+      return;
+    }
+
+    if (tokenInfo) {
+      try {
+        const response = await fetch(
+          `/api/connections/${connection.id}/oauth-token`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              accessToken: tokenInfo.accessToken,
+              refreshToken: tokenInfo.refreshToken,
+              expiresIn: tokenInfo.expiresIn,
+              scope: tokenInfo.scope,
+              clientId: tokenInfo.clientId,
+              clientSecret: tokenInfo.clientSecret,
+              tokenEndpoint: tokenInfo.tokenEndpoint,
+            }),
+          },
+        );
+        if (!response.ok) {
+          console.error("Failed to save OAuth token:", await response.text());
+          await connectionActions.update.mutateAsync({
+            id: connection.id,
+            data: { connection_token: token },
+          });
+        } else {
+          try {
+            await connectionActions.update.mutateAsync({
+              id: connection.id,
+              data: {},
+            });
+          } catch (err) {
+            console.warn(
+              "Failed to refresh connection tools after OAuth:",
+              err,
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Error saving OAuth token:", err);
+        await connectionActions.update.mutateAsync({
+          id: connection.id,
+          data: { connection_token: token },
+        });
+      }
+    } else {
+      await connectionActions.update.mutateAsync({
+        id: connection.id,
+        data: { connection_token: token },
+      });
+    }
+
+    const mcpProxyUrl = new URL(
+      `/mcp/${connection.id}`,
+      window.location.origin,
+    );
+    await queryClient.invalidateQueries({
+      queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+    });
+
+    toast.success("Authentication successful");
+  };
+
+  const handleRemoveOAuth = async () => {
+    try {
+      const response = await fetch(
+        `/api/connections/${connection.id}/oauth-token`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        toast.error(`Failed to remove OAuth: ${errorText}`);
+        return;
+      }
+
+      const mcpProxyUrl = new URL(
+        `/mcp/${connection.id}`,
+        window.location.origin,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+      });
+
+      toast.success(
+        "OAuth removed. You can now re-authenticate with a different account.",
+      );
+    } catch (err) {
+      console.error("Error removing OAuth token:", err);
+      toast.error("Failed to remove OAuth");
+    }
+  };
 
   const toolsCount = tools.length;
   const promptsCount = prompts.length;
@@ -117,9 +467,15 @@ function ConnectionInspectorViewWithConnection({
     ...(hasRepository ? [{ id: "readme", label: "README" }] : []),
   ];
 
+  // Default to "tools" when authenticated (if tools tab exists), otherwise "settings"
+  const defaultTab =
+    isMCPAuthenticated && tabs.some((t) => t.id === "tools")
+      ? "tools"
+      : "settings";
+
   const activeTabId = tabs.some((t) => t.id === requestedTabId)
     ? requestedTabId
-    : "settings";
+    : defaultTab;
 
   const handleTabChange = (tabId: string) => {
     navigate({
@@ -152,75 +508,109 @@ function ConnectionInspectorViewWithConnection({
 
   return (
     <ViewLayout breadcrumb={breadcrumb}>
-      <ViewTabs>
-        <ResourceTabs
-          tabs={tabs}
-          activeTab={activeTabId}
-          onTabChange={handleTabChange}
+      <ViewActions>
+        <SaveActions
+          onSave={handleSave}
+          onUndo={handleUndo}
+          isDirty={hasAnyChanges}
+          isSaving={isUpdating}
         />
-      </ViewTabs>
+        <PinToSidebarButton
+          title={connection.title}
+          url={url}
+          icon={connection.icon ?? "settings"}
+        />
+      </ViewActions>
       <div className="flex h-full w-full bg-background overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0 bg-background overflow-auto">
-          <ErrorBoundary key={activeTabId}>
-            <Suspense
-              fallback={
-                <div className="flex h-full items-center justify-center">
-                  <Loading01
-                    size={32}
-                    className="animate-spin text-muted-foreground"
+        {/* Fixed left sidebar */}
+        <div className="w-100 shrink-0 border-r border-border bg-background">
+          <ConnectionSidebar
+            form={form}
+            connection={connection}
+            isMCPAuthenticated={isMCPAuthenticated}
+            hasOAuthToken={authStatus.hasOAuthToken}
+            onReauthenticate={handleAuthenticate}
+            onRemoveOAuth={handleRemoveOAuth}
+          />
+        </div>
+
+        {/* Right side - Tabs + Content */}
+        <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
+          {/* Tabs header */}
+          <div className="shrink-0 flex items-center gap-4 px-5 py-3 border-b border-border">
+            <ResourceTabs
+              tabs={tabs}
+              activeTab={activeTabId}
+              onTabChange={handleTabChange}
+              className="flex-1"
+            />
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-auto">
+            <ErrorBoundary key={activeTabId}>
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading01
+                      size={32}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                }
+              >
+                {activeTabId === "tools" ? (
+                  <ToolsTab
+                    tools={tools}
+                    connectionId={connectionId}
+                    org={org}
+                    isLoading={isLoadingTools}
                   />
-                </div>
-              }
-            >
-              {activeTabId === "tools" ? (
-                <ToolsTab
-                  tools={tools}
-                  connectionId={connectionId}
-                  org={org}
-                  isLoading={isLoadingTools}
-                />
-              ) : activeTabId === "prompts" ? (
-                <PromptsTab
-                  prompts={prompts}
-                  connectionId={connectionId}
-                  org={org}
-                />
-              ) : activeTabId === "resources" ? (
-                <ResourcesTab
-                  resources={resources}
-                  connectionId={connectionId}
-                  org={org}
-                />
-              ) : activeTabId === "settings" ? (
-                <SettingsTab
-                  connection={connection}
-                  onUpdate={onUpdate}
-                  isUpdating={isUpdating}
-                  isMCPAuthenticated={isMCPAuthenticated}
-                  supportsOAuth={authStatus.supportsOAuth}
-                  hasOAuthToken={authStatus.hasOAuthToken}
-                  isServerError={authStatus.isServerError}
-                  onViewReadme={
-                    hasRepository ? () => handleTabChange("readme") : undefined
-                  }
-                />
-              ) : activeTabId === "readme" && hasRepository ? (
-                <ReadmeTab repository={repository} />
-              ) : activeCollection && isMCPAuthenticated ? (
-                <CollectionTab
-                  key={activeTabId}
-                  connectionId={connectionId}
-                  org={org}
-                  activeCollection={activeCollection}
-                />
-              ) : (
-                <EmptyState
-                  title="Collection not found"
-                  description="This collection may have been deleted or you may not have access."
-                />
-              )}
-            </Suspense>
-          </ErrorBoundary>
+                ) : activeTabId === "prompts" ? (
+                  <PromptsTab
+                    prompts={prompts}
+                    connectionId={connectionId}
+                    org={org}
+                  />
+                ) : activeTabId === "resources" ? (
+                  <ResourcesTab
+                    resources={resources}
+                    connectionId={connectionId}
+                    org={org}
+                  />
+                ) : activeTabId === "settings" ? (
+                  <SettingsTab
+                    connection={connection}
+                    form={form}
+                    hasMcpBinding={hasMcpBinding}
+                    isMCPAuthenticated={isMCPAuthenticated}
+                    supportsOAuth={authStatus.supportsOAuth}
+                    isServerError={authStatus.isServerError}
+                    onAuthenticate={handleAuthenticate}
+                    onViewReadme={
+                      hasRepository
+                        ? () => handleTabChange("readme")
+                        : undefined
+                    }
+                  />
+                ) : activeTabId === "readme" && hasRepository ? (
+                  <ReadmeTab repository={repository} />
+                ) : activeCollection && isMCPAuthenticated ? (
+                  <CollectionTab
+                    key={activeTabId}
+                    connectionId={connectionId}
+                    org={org}
+                    activeCollection={activeCollection}
+                  />
+                ) : (
+                  <EmptyState
+                    title="Collection not found"
+                    description="This collection may have been deleted or you may not have access."
+                  />
+                )}
+              </Suspense>
+            </ErrorBoundary>
+          </div>
         </div>
       </div>
     </ViewLayout>
@@ -236,7 +626,7 @@ function ConnectionInspectorViewContent() {
 
   // We can use search params for active tab if we want persistent tabs
   const search = useSearch({ from: "/shell/$org/mcps/$connectionId" });
-  const requestedTabId = search.tab || "settings";
+  const requestedTabId = search.tab ?? "";
 
   const connection = useConnection(connectionId);
   const actions = useConnectionActions();

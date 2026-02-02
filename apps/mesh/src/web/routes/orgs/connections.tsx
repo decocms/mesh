@@ -64,6 +64,7 @@ import {
   Container,
   Terminal,
   Globe02,
+  CheckCircle,
 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
@@ -87,6 +88,23 @@ import {
   findListToolName,
   extractItemsFromResponse,
 } from "@/web/utils/registry-utils";
+import { isConnectionAuthenticated } from "@/web/lib/mcp-oauth";
+import { KEYS } from "@/web/lib/query-keys";
+import { useQuery } from "@tanstack/react-query";
+import { differenceInSeconds } from "date-fns";
+import { User } from "@/web/components/user/user.tsx";
+
+function formatTimeAgo(date: Date): string {
+  const seconds = differenceInSeconds(new Date(), date);
+
+  if (seconds < 60) return "<1m";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w ago`;
+  if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}mo ago`;
+  return `${Math.floor(seconds / 31536000)}y ago`;
+}
 
 import type {
   StdioConnectionParameters,
@@ -376,6 +394,47 @@ function dialogReducer(_state: DialogState, action: DialogAction): DialogState {
     case "close":
       return { mode: "idle" };
   }
+}
+
+function ConnectionStatus({ connectionId }: { connectionId: string }) {
+  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
+  const { data: authStatus, isLoading } = useQuery({
+    queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+    queryFn: () =>
+      isConnectionAuthenticated({
+        url: mcpProxyUrl.href,
+        token: null,
+      }),
+    staleTime: 30000,
+    retry: false,
+  });
+
+  if (isLoading) {
+    return (
+      <Badge variant="outline">
+        <Loading01 size={12} className="animate-spin" />
+        Checking...
+      </Badge>
+    );
+  }
+
+  if (authStatus?.isAuthenticated) {
+    return (
+      <Badge
+        variant="success"
+        className="gap-1.5 bg-success-foreground text-success"
+      >
+        <CheckCircle size={12} />
+        Connected
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="outline" className="text-muted-foreground">
+      Not connected
+    </Badge>
+  );
 }
 
 function OrgMcpsContent() {
@@ -760,7 +819,7 @@ function OrgMcpsContent() {
           fallbackIcon={<Container />}
         />
       ),
-      cellClassName: "w-16 shrink-0",
+      cellClassName: "w-12 shrink-0",
       wrap: true,
     },
     {
@@ -774,53 +833,60 @@ function OrgMcpsContent() {
           {connection.title}
         </span>
       ),
-      cellClassName: "w-48 max-w-48 min-w-0 shrink-0",
+      cellClassName: "w-32 min-w-0 shrink-0",
       sortable: true,
     },
     {
       id: "description",
       header: "Description",
       render: (connection) => (
-        <span className="text-sm text-foreground line-clamp-2">
+        <span
+          className="text-sm text-muted-foreground truncate block"
+          title={connection.description || ""}
+        >
           {connection.description || "—"}
         </span>
       ),
-      cellClassName: "flex-1 min-w-0",
-      wrap: true,
+      cellClassName: "flex-1 min-w-0 max-w-0",
+      wrap: false,
       sortable: true,
     },
     {
       id: "connection_type",
       header: "Type",
       accessor: (connection) => (
-        <span className="text-sm font-medium">
+        <span className="text-xs font-medium">
           {connection.connection_type}
         </span>
       ),
-      cellClassName: "w-24 shrink-0",
+      cellClassName: "w-16 shrink-0",
       sortable: true,
-    },
-    {
-      id: "connection_url",
-      header: "URL",
-      render: (connection) => {
-        const url = connection.connection_url ?? "";
-        const truncated = url.length > 40 ? `${url.slice(0, 40)}...` : url;
-        return (
-          <span className="text-sm text-muted-foreground">{truncated}</span>
-        );
-      },
-      cellClassName: "w-48 min-w-0 shrink-0",
     },
     {
       id: "status",
       header: "Status",
+      render: (connection) => <ConnectionStatus connectionId={connection.id} />,
+      cellClassName: "w-28 shrink-0",
+      sortable: false,
+    },
+    {
+      id: "created_by",
+      header: "Created by",
+      render: (connection) => <User id={connection.created_by} size="3xs" />,
+      cellClassName: "w-32 shrink-0",
+      sortable: true,
+    },
+    {
+      id: "updated_at",
+      header: "Updated",
       render: (connection) => (
-        <Badge variant={connection.status === "active" ? "success" : "outline"}>
-          {connection.status}
-        </Badge>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {connection.updated_at
+            ? formatTimeAgo(new Date(connection.updated_at))
+            : "—"}
+        </span>
       ),
-      cellClassName: "w-24 shrink-0",
+      cellClassName: "max-w-24 w-24 shrink-0",
       sortable: true,
     },
     {
@@ -996,9 +1062,6 @@ function OrgMcpsContent() {
                               }}
                             />
                           </FormControl>
-                          <p className="text-xs text-muted-foreground">
-                            The npm package to run with npx
-                          </p>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -1280,7 +1343,8 @@ function OrgMcpsContent() {
               { id: "title", label: "Name" },
               { id: "description", label: "Description" },
               { id: "connection_type", label: "Type" },
-              { id: "status", label: "Status" },
+              { id: "created_by", label: "Created by" },
+              { id: "updated_at", label: "Updated" },
             ]}
           />
           {ctaButton}
@@ -1398,6 +1462,19 @@ function OrgMcpsContent() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     }
+                    body={<ConnectionStatus connectionId={connection.id} />}
+                    footer={
+                      <div className="flex items-center justify-between text-xs text-muted-foreground w-full min-w-0">
+                        <div className="flex-1 min-w-0">
+                          <User id={connection.created_by} size="3xs" />
+                        </div>
+                        <span className="shrink-0 ml-2">
+                          {connection.updated_at
+                            ? formatTimeAgo(new Date(connection.updated_at))
+                            : "—"}
+                        </span>
+                      </div>
+                    }
                   />
                 ))}
               </div>
@@ -1405,64 +1482,68 @@ function OrgMcpsContent() {
           </div>
         ) : (
           <div className="h-full flex flex-col overflow-hidden">
-            <CollectionTableWrapper
-              columns={columns}
-              data={connections}
-              isLoading={false}
-              sortKey={listState.sortKey}
-              sortDirection={listState.sortDirection}
-              onSort={listState.handleSort}
-              onRowClick={(connection) =>
-                navigate({
-                  to: "/$org/mcps/$connectionId",
-                  params: { org: org.slug, connectionId: connection.id },
-                })
-              }
-              emptyState={
-                listState.search ? (
-                  <EmptyState
-                    image={
-                      <img
-                        src="/emptystate-mcp.svg"
-                        alt=""
-                        width={400}
-                        height={178}
-                        aria-hidden="true"
-                      />
-                    }
-                    title="No Connections found"
-                    description={`No Connections match "${listState.search}"`}
-                  />
-                ) : (
-                  <EmptyState
-                    image={
-                      <img
-                        src="/emptystate-mcp.svg"
-                        alt=""
-                        width={400}
-                        height={178}
-                        aria-hidden="true"
-                      />
-                    }
-                    title="No Connections found"
-                    description="Create a connection to get started."
-                    actions={
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          navigate({
-                            to: "/$org/store",
-                            params: { org: org.slug },
-                          })
+            <div className="flex-1 overflow-auto min-w-0">
+              <div className="min-w-[1000px]">
+                <CollectionTableWrapper
+                  columns={columns}
+                  data={connections}
+                  isLoading={false}
+                  sortKey={listState.sortKey}
+                  sortDirection={listState.sortDirection}
+                  onSort={listState.handleSort}
+                  onRowClick={(connection) =>
+                    navigate({
+                      to: "/$org/mcps/$connectionId",
+                      params: { org: org.slug, connectionId: connection.id },
+                    })
+                  }
+                  emptyState={
+                    listState.search ? (
+                      <EmptyState
+                        image={
+                          <img
+                            src="/emptystate-mcp.svg"
+                            alt=""
+                            width={400}
+                            height={178}
+                            aria-hidden="true"
+                          />
                         }
-                      >
-                        Browse Store
-                      </Button>
-                    }
-                  />
-                )
-              }
-            />
+                        title="No Connections found"
+                        description={`No Connections match "${listState.search}"`}
+                      />
+                    ) : (
+                      <EmptyState
+                        image={
+                          <img
+                            src="/emptystate-mcp.svg"
+                            alt=""
+                            width={400}
+                            height={178}
+                            aria-hidden="true"
+                          />
+                        }
+                        title="No Connections found"
+                        description="Create a connection to get started."
+                        actions={
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              navigate({
+                                to: "/$org/store",
+                                params: { org: org.slug },
+                              })
+                            }
+                          >
+                            Browse Store
+                          </Button>
+                        }
+                      />
+                    )
+                  }
+                />
+              </div>
+            </div>
           </div>
         )}
       </Page.Content>

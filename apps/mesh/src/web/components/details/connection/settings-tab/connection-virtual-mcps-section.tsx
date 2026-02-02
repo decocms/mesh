@@ -26,13 +26,13 @@ function VirtualMCPListItem({
     <Link
       to="/$org/agents/$agentId"
       params={{ org, agentId: virtualMcp.id }}
-      className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors group"
+      className="flex items-center gap-3 p-2 pr-1 rounded-lg hover:bg-muted/50 transition-colors group"
     >
       {virtualMcp.icon ? (
         <img
           src={virtualMcp.icon}
           alt={virtualMcp.title}
-          className="w-8 h-8 rounded-md object-cover shrink-0"
+          className="w-5 h-5 rounded-md object-cover shrink-0"
         />
       ) : (
         <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
@@ -93,9 +93,8 @@ function CreateVirtualMCPButton({
   if (hasExistingVirtualMcps) {
     return (
       <Button
-        variant="outline"
-        size="sm"
-        className="gap-1.5"
+        variant="ghost"
+        className="size-6 p-0"
         onClick={handleCreateVirtualMCP}
         disabled={actions.create.isPending}
       >
@@ -104,22 +103,21 @@ function CreateVirtualMCPButton({
         ) : (
           <Plus size={16} />
         )}
-        Create another Agent
       </Button>
     );
   }
 
   return (
     <Button
-      size="lg"
-      className="gap-2 w-full"
+      variant="outline"
+      size="sm"
       onClick={handleCreateVirtualMCP}
       disabled={actions.create.isPending}
     >
       {actions.create.isPending ? (
-        <Loading01 size={20} className="animate-spin" />
+        <Loading01 className="animate-spin text-muted-foreground" />
       ) : (
-        <Users03 size={20} />
+        <Users03 className="size-3 text-muted-foreground" />
       )}
       Create an agent
     </Button>
@@ -143,16 +141,10 @@ export function ConnectionVirtualMCPsSection({
   if (!hasVirtualMcps) {
     // No virtual MCPs - show the "Use in your IDE" section
     return (
-      <div className="p-5 flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <h4 className="text-sm font-medium text-foreground">
-            Use in your IDE
-          </h4>
-          <p className="text-xs text-muted-foreground">
-            Expose this connection via an Agent to use it in Cursor, VS Code,
-            Claude Desktop, and other MCP-compatible tools.
-          </p>
-        </div>
+      <div className="p-5 flex items-center justify-between gap-3">
+        <h4 className="text-xs text-muted-foreground font-medium">
+          Use in your IDE
+        </h4>
         <CreateVirtualMCPButton
           connectionId={connectionId}
           connectionTitle={connectionTitle}
@@ -169,10 +161,17 @@ export function ConnectionVirtualMCPsSection({
   return (
     <div className="p-5 flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h4 className="text-sm font-medium text-foreground">Agents</h4>
-        <p className="text-xs text-muted-foreground">
-          This connection is used on the following agents.
-        </p>
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs text-muted-foreground font-medium">Agents</h4>
+          <CreateVirtualMCPButton
+            connectionId={connectionId}
+            connectionTitle={connectionTitle}
+            connectionDescription={connectionDescription}
+            connectionIcon={connectionIcon}
+            org={org}
+            hasExistingVirtualMcps={true}
+          />
+        </div>
       </div>
       <div className="flex flex-col gap-2">
         {virtualMcps.map((virtualMcp) => (
@@ -183,14 +182,6 @@ export function ConnectionVirtualMCPsSection({
           />
         ))}
       </div>
-      <CreateVirtualMCPButton
-        connectionId={connectionId}
-        connectionTitle={connectionTitle}
-        connectionDescription={connectionDescription}
-        connectionIcon={connectionIcon}
-        org={org}
-        hasExistingVirtualMcps={true}
-      />
     </div>
   );
 }

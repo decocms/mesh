@@ -194,9 +194,6 @@ function ConnectionFields({
                   className="h-10 rounded-lg"
                 />
               </FormControl>
-              <p className="text-xs text-muted-foreground">
-                The npm package to run with npx
-              </p>
               <FormMessage />
             </FormItem>
           )}
