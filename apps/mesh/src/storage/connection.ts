@@ -38,6 +38,7 @@ type RawConnectionRow = {
   id: string;
   organization_id: string;
   created_by: string;
+  updated_by: string | null;
   title: string;
   description: string | null;
   icon: string | null;
@@ -341,6 +342,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
       id: row.id,
       organization_id: row.organization_id,
       created_by: row.created_by,
+      updated_by: row.updated_by ?? undefined,
       title: row.title,
       description: row.description,
       icon: row.icon,

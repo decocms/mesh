@@ -1,4 +1,4 @@
-import { ReadmeViewer } from "@/web/components/store/readme-viewer";
+import { ReadmeViewer } from "@/web/components/readme";
 
 interface ReadmeTabProps {
   repository: {

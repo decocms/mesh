@@ -36,7 +36,7 @@ import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import { slugify } from "@/web/utils/slugify";
-import { getGitHubAvatarUrl, extractGitHubRepo } from "@/web/utils/github-icon";
+import { getGitHubAvatarUrl, extractGitHubRepo } from "@/web/utils/github";
 import {
   findListToolName,
   getConnectionTypeLabel,

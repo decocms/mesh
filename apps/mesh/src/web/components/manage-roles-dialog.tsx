@@ -1380,10 +1380,10 @@ export function ManageRolesDialog({
                   size="sm"
                   onClick={() => setActiveTab("mcp")}
                   className={cn(
-                    "h-8 rounded-lg px-2 py-1",
+                    "h-7 rounded-lg px-2 border border-input transition-colors",
                     activeTab === "mcp"
-                      ? "bg-muted border-input text-foreground"
-                      : "border-input text-muted-foreground bg-transparent",
+                      ? "bg-accent border-border text-foreground"
+                      : "bg-transparent text-muted-foreground hover:border-border hover:bg-accent/50 hover:text-foreground",
                   )}
                 >
                   MCP Permissions
@@ -1394,10 +1394,10 @@ export function ManageRolesDialog({
                 size="sm"
                 onClick={() => setActiveTab("org")}
                 className={cn(
-                  "h-8 rounded-lg px-2 py-1",
+                  "h-7 rounded-lg px-2 border border-input transition-colors",
                   activeTab === "org"
-                    ? "bg-muted border-input text-foreground"
-                    : "border-input text-muted-foreground bg-transparent",
+                    ? "bg-accent border-border text-foreground"
+                    : "bg-transparent text-muted-foreground hover:border-border hover:bg-accent/50 hover:text-foreground",
                 )}
               >
                 Organization Permissions
@@ -1407,10 +1407,10 @@ export function ManageRolesDialog({
                 size="sm"
                 onClick={() => setActiveTab("members")}
                 className={cn(
-                  "h-8 rounded-lg px-2 py-1",
+                  "h-7 rounded-lg px-2 border border-input transition-colors",
                   activeTab === "members"
-                    ? "bg-muted border-input text-foreground"
-                    : "border-input text-muted-foreground bg-transparent",
+                    ? "bg-accent border-border text-foreground"
+                    : "bg-transparent text-muted-foreground hover:border-border hover:bg-accent/50 hover:text-foreground",
                 )}
               >
                 Members

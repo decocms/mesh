@@ -77,7 +77,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
+import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { AnalyticsTab } from "@/web/components/monitoring/analytics-tab.tsx";
 import {
   Table,
@@ -942,7 +942,7 @@ function MonitoringDashboardContent({
 
       {/* Tabs */}
       <div className="px-5 py-3 border-b border-border">
-        <ResourceTabs
+        <CollectionTabs
           tabs={tabs}
           activeTab={tab}
           onTabChange={(tabId) => onTabChange(tabId as "logs" | "analytics")}

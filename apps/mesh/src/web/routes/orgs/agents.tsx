@@ -31,9 +31,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { type TableColumn } from "@deco/ui/components/collection-table.tsx";
+import { type TableColumn } from "@/web/components/collections/collection-table.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +48,21 @@ import {
 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useReducer } from "react";
+import { differenceInSeconds } from "date-fns";
+import { User } from "@/web/components/user/user.tsx";
+import { AgentConnectionsPreview } from "@/web/components/connections/agent-connections-preview.tsx";
+
+function formatTimeAgo(date: Date): string {
+  const seconds = differenceInSeconds(new Date(), date);
+
+  if (seconds < 60) return "<1m";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w ago`;
+  if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}mo ago`;
+  return `${Math.floor(seconds / 31536000)}y ago`;
+}
 
 type DialogState =
   | { mode: "idle" }
@@ -102,27 +116,21 @@ function OrgAgentsContent() {
 
   const columns: TableColumn<VirtualMCPEntity>[] = [
     {
-      id: "icon",
-      header: "",
-      render: (virtualMcp) => (
-        <IntegrationIcon
-          icon={virtualMcp.icon}
-          name={virtualMcp.title}
-          size="sm"
-          className="shrink-0 shadow-sm"
-          fallbackIcon={<Users03 size={16} />}
-        />
-      ),
-      cellClassName: "w-16 shrink-0",
-      wrap: true,
-    },
-    {
       id: "title",
       header: "Name",
       render: (virtualMcp) => (
-        <span className="text-sm font-medium text-foreground truncate">
-          {virtualMcp.title}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <IntegrationIcon
+            icon={virtualMcp.icon}
+            name={virtualMcp.title}
+            size="sm"
+            className="shrink-0 shadow-sm"
+            fallbackIcon={<Users03 size={16} />}
+          />
+          <span className="text-sm font-medium text-foreground truncate">
+            {virtualMcp.title}
+          </span>
+        </div>
       ),
       cellClassName: "w-48 min-w-0 shrink-0",
       sortable: true,
@@ -143,21 +151,35 @@ function OrgAgentsContent() {
       id: "connections",
       header: "Connections",
       render: (virtualMcp) => (
-        <span className="text-sm text-muted-foreground">
-          {virtualMcp.connections.length}
-        </span>
+        <Suspense fallback={<AgentConnectionsPreview.Fallback />}>
+          <AgentConnectionsPreview
+            connectionIds={virtualMcp.connections.map((c) => c.connection_id)}
+            maxVisibleIcons={2}
+          />
+        </Suspense>
       ),
-      cellClassName: "w-24 shrink-0",
+      cellClassName: "w-28 shrink-0",
     },
     {
-      id: "status",
-      header: "Status",
+      id: "updated_by",
+      header: "Updated by",
       render: (virtualMcp) => (
-        <Badge variant={virtualMcp.status === "active" ? "default" : "outline"}>
-          {virtualMcp.status}
-        </Badge>
+        <User id={virtualMcp.updated_by ?? virtualMcp.created_by} size="3xs" />
       ),
-      cellClassName: "w-24 shrink-0",
+      cellClassName: "w-32 shrink-0",
+      sortable: true,
+    },
+    {
+      id: "updated_at",
+      header: "Updated",
+      render: (virtualMcp) => (
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {virtualMcp.updated_at
+            ? formatTimeAgo(new Date(virtualMcp.updated_at))
+            : "—"}
+        </span>
+      ),
+      cellClassName: "max-w-24 w-24 shrink-0",
       sortable: true,
     },
     {
@@ -268,7 +290,8 @@ function OrgAgentsContent() {
             sortOptions={[
               { id: "title", label: "Name" },
               { id: "description", label: "Description" },
-              { id: "status", label: "Status" },
+              { id: "updated_by", label: "Updated by" },
+              { id: "updated_at", label: "Updated" },
             ]}
           />
           {ctaButton}

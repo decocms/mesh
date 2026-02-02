@@ -1,26 +1,24 @@
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
-import { Page } from "@/web/components/page";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
+import { type TableColumn } from "@/web/components/collections/collection-table.tsx";
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
+import { ConnectionStatus } from "@/web/components/connections/connection-status.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { Page } from "@/web/components/page";
+import type { RegistryItem } from "@/web/components/store/types";
+import { User } from "@/web/components/user/user.tsx";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
+import { authClient } from "@/web/lib/auth-client";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import {
-  useConnections,
-  useConnectionActions,
-  useProjectContext,
-  type ConnectionEntity,
-} from "@decocms/mesh-sdk";
+  extractItemsFromResponse,
+  findListToolName,
+} from "@/web/utils/registry-utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,9 +29,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { type TableColumn } from "@deco/ui/components/collection-table.tsx";
 import {
   Dialog,
   DialogContent,
@@ -56,15 +58,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@deco/ui/components/form.tsx";
-import {
-  DotsVertical,
-  Eye,
-  Trash01,
-  Loading01,
-  Container,
-  Terminal,
-  Globe02,
-} from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
   Select,
@@ -74,23 +67,45 @@ import {
   SelectValue,
 } from "@deco/ui/components/select.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import {
+  useConnectionActions,
+  useConnections,
+  useMCPClient,
+  useMCPToolCallQuery,
+  useProjectContext,
+  type ConnectionEntity,
+} from "@decocms/mesh-sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import {
+  Container,
+  DotsVertical,
+  Eye,
+  Globe02,
+  Loading01,
+  Terminal,
+  Trash01,
+} from "@untitledui/icons";
+import { differenceInSeconds } from "date-fns";
 import { Suspense, useEffect, useReducer } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { authClient } from "@/web/lib/auth-client";
-import { generatePrefixedId } from "@/shared/utils/generate-id";
-import type { RegistryItem } from "@/web/components/store/types";
-import { useMCPClient, useMCPToolCallQuery } from "@decocms/mesh-sdk";
-import {
-  findListToolName,
-  extractItemsFromResponse,
-} from "@/web/utils/registry-utils";
+
+function formatTimeAgo(date: Date): string {
+  const seconds = differenceInSeconds(new Date(), date);
+
+  if (seconds < 60) return "<1m";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w ago`;
+  if (seconds < 31536000) return `${Math.floor(seconds / 2592000)}mo ago`;
+  return `${Math.floor(seconds / 31536000)}y ago`;
+}
 
 import type {
-  StdioConnectionParameters,
   HttpConnectionParameters,
+  StdioConnectionParameters,
 } from "@/tools/connection/schema";
 import { isStdioParameters } from "@/tools/connection/schema";
 import {
@@ -749,78 +764,81 @@ function OrgMcpsContent() {
 
   const columns: TableColumn<ConnectionEntity>[] = [
     {
-      id: "icon",
-      header: "",
-      render: (connection) => (
-        <IntegrationIcon
-          icon={connection.icon}
-          name={connection.title}
-          size="sm"
-          className="shrink-0 shadow-sm"
-          fallbackIcon={<Container />}
-        />
-      ),
-      cellClassName: "w-16 shrink-0",
-      wrap: true,
-    },
-    {
       id: "title",
       header: "Name",
       render: (connection) => (
-        <span
-          className="text-sm font-medium text-foreground truncate block"
-          title={connection.title}
-        >
-          {connection.title}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <IntegrationIcon
+            icon={connection.icon}
+            name={connection.title}
+            size="sm"
+            className="shrink-0 shadow-sm"
+            fallbackIcon={<Container />}
+          />
+          <span
+            className="text-sm font-medium text-foreground truncate block"
+            title={connection.title}
+          >
+            {connection.title}
+          </span>
+        </div>
       ),
-      cellClassName: "w-48 max-w-48 min-w-0 shrink-0",
+      cellClassName: "w-32 min-w-0 shrink-0",
       sortable: true,
     },
     {
       id: "description",
       header: "Description",
       render: (connection) => (
-        <span className="text-sm text-foreground line-clamp-2">
+        <span
+          className="text-sm text-muted-foreground truncate block"
+          title={connection.description || ""}
+        >
           {connection.description || "—"}
         </span>
       ),
-      cellClassName: "flex-1 min-w-0",
-      wrap: true,
+      cellClassName: "flex-1 min-w-0 max-w-0",
+      wrap: false,
       sortable: true,
     },
     {
       id: "connection_type",
       header: "Type",
       accessor: (connection) => (
-        <span className="text-sm font-medium">
+        <span className="text-xs font-medium">
           {connection.connection_type}
         </span>
       ),
-      cellClassName: "w-24 shrink-0",
+      cellClassName: "w-16 shrink-0",
       sortable: true,
-    },
-    {
-      id: "connection_url",
-      header: "URL",
-      render: (connection) => {
-        const url = connection.connection_url ?? "";
-        const truncated = url.length > 40 ? `${url.slice(0, 40)}...` : url;
-        return (
-          <span className="text-sm text-muted-foreground">{truncated}</span>
-        );
-      },
-      cellClassName: "w-48 min-w-0 shrink-0",
     },
     {
       id: "status",
       header: "Status",
+      render: (connection) => <ConnectionStatus status={connection.status} />,
+      cellClassName: "w-28 shrink-0",
+      sortable: false,
+    },
+    {
+      id: "updated_by",
+      header: "Updated by",
       render: (connection) => (
-        <Badge variant={connection.status === "active" ? "success" : "outline"}>
-          {connection.status}
-        </Badge>
+        <User id={connection.updated_by ?? connection.created_by} size="3xs" />
       ),
-      cellClassName: "w-24 shrink-0",
+      cellClassName: "w-32 shrink-0",
+      sortable: true,
+    },
+    {
+      id: "updated_at",
+      header: "Updated",
+      render: (connection) => (
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {connection.updated_at
+            ? formatTimeAgo(new Date(connection.updated_at))
+            : "—"}
+        </span>
+      ),
+      cellClassName: "max-w-24 w-24 shrink-0",
       sortable: true,
     },
     {
@@ -996,9 +1014,6 @@ function OrgMcpsContent() {
                               }}
                             />
                           </FormControl>
-                          <p className="text-xs text-muted-foreground">
-                            The npm package to run with npx
-                          </p>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -1280,7 +1295,8 @@ function OrgMcpsContent() {
               { id: "title", label: "Name" },
               { id: "description", label: "Description" },
               { id: "connection_type", label: "Type" },
-              { id: "status", label: "Status" },
+              { id: "updated_by", label: "Updated by" },
+              { id: "updated_at", label: "Updated" },
             ]}
           />
           {ctaButton}
@@ -1398,6 +1414,22 @@ function OrgMcpsContent() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     }
+                    body={<ConnectionStatus status={connection.status} />}
+                    footer={
+                      <div className="flex items-center justify-between text-xs text-muted-foreground w-full min-w-0">
+                        <div className="flex-1 min-w-0">
+                          <User
+                            id={connection.updated_by ?? connection.created_by}
+                            size="3xs"
+                          />
+                        </div>
+                        <span className="shrink-0 ml-2">
+                          {connection.updated_at
+                            ? formatTimeAgo(new Date(connection.updated_at))
+                            : "—"}
+                        </span>
+                      </div>
+                    }
                   />
                 ))}
               </div>
@@ -1405,64 +1437,68 @@ function OrgMcpsContent() {
           </div>
         ) : (
           <div className="h-full flex flex-col overflow-hidden">
-            <CollectionTableWrapper
-              columns={columns}
-              data={connections}
-              isLoading={false}
-              sortKey={listState.sortKey}
-              sortDirection={listState.sortDirection}
-              onSort={listState.handleSort}
-              onRowClick={(connection) =>
-                navigate({
-                  to: "/$org/mcps/$connectionId",
-                  params: { org: org.slug, connectionId: connection.id },
-                })
-              }
-              emptyState={
-                listState.search ? (
-                  <EmptyState
-                    image={
-                      <img
-                        src="/emptystate-mcp.svg"
-                        alt=""
-                        width={400}
-                        height={178}
-                        aria-hidden="true"
-                      />
-                    }
-                    title="No Connections found"
-                    description={`No Connections match "${listState.search}"`}
-                  />
-                ) : (
-                  <EmptyState
-                    image={
-                      <img
-                        src="/emptystate-mcp.svg"
-                        alt=""
-                        width={400}
-                        height={178}
-                        aria-hidden="true"
-                      />
-                    }
-                    title="No Connections found"
-                    description="Create a connection to get started."
-                    actions={
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          navigate({
-                            to: "/$org/store",
-                            params: { org: org.slug },
-                          })
+            <div className="flex-1 overflow-auto min-w-0">
+              <div className="min-w-[1000px]">
+                <CollectionTableWrapper
+                  columns={columns}
+                  data={connections}
+                  isLoading={false}
+                  sortKey={listState.sortKey}
+                  sortDirection={listState.sortDirection}
+                  onSort={listState.handleSort}
+                  onRowClick={(connection) =>
+                    navigate({
+                      to: "/$org/mcps/$connectionId",
+                      params: { org: org.slug, connectionId: connection.id },
+                    })
+                  }
+                  emptyState={
+                    listState.search ? (
+                      <EmptyState
+                        image={
+                          <img
+                            src="/emptystate-mcp.svg"
+                            alt=""
+                            width={400}
+                            height={178}
+                            aria-hidden="true"
+                          />
                         }
-                      >
-                        Browse Store
-                      </Button>
-                    }
-                  />
-                )
-              }
-            />
+                        title="No Connections found"
+                        description={`No Connections match "${listState.search}"`}
+                      />
+                    ) : (
+                      <EmptyState
+                        image={
+                          <img
+                            src="/emptystate-mcp.svg"
+                            alt=""
+                            width={400}
+                            height={178}
+                            aria-hidden="true"
+                          />
+                        }
+                        title="No Connections found"
+                        description="Create a connection to get started."
+                        actions={
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              navigate({
+                                to: "/$org/store",
+                                params: { org: org.slug },
+                              })
+                            }
+                          >
+                            Browse Store
+                          </Button>
+                        }
+                      />
+                    )
+                  }
+                />
+              </div>
+            </div>
           </div>
         )}
       </Page.Content>

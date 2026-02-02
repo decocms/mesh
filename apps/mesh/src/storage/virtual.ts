@@ -32,6 +32,7 @@ type RawConnectionRow = {
   created_at: Date | string;
   updated_at: Date | string;
   created_by: string;
+  updated_by: string | null;
   metadata: string | null;
 };
 
@@ -272,7 +273,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
 
   async update(
     id: string,
-    _userId: string,
+    userId: string,
     data: VirtualMCPUpdateData,
   ): Promise<VirtualMCPEntity> {
     const now = new Date().toISOString();
@@ -280,6 +281,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     // Build update object for connections table
     const updateData: Record<string, unknown> = {
       updated_at: now,
+      updated_by: userId,
     };
 
     if (data.title !== undefined) {
@@ -395,7 +397,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       created_at: createdAt,
       updated_at: updatedAt,
       created_by: row.created_by,
-      updated_by: undefined, // connections table doesn't have updated_by
+      updated_by: row.updated_by ?? undefined,
       metadata: {
         ...metadata,
         instructions: metadata?.instructions ?? null,

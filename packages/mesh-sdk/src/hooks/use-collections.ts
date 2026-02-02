@@ -20,15 +20,15 @@ import {
   type OrderByExpression,
   type WhereExpression,
 } from "@decocms/bindings/collections";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   useMutation,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { useMCPToolCall } from "./use-mcp-tools";
 import { KEYS } from "../lib/query-keys";
+import { useMCPToolCall } from "./use-mcp-tools";
 
 /**
  * Collection entity base type that matches the collection binding pattern
@@ -146,11 +146,37 @@ function buildOrderByExpression<T extends CollectionEntity>(
  * Extract payload from MCP tool result (handles structuredContent wrapper)
  */
 function extractPayload<T>(result: unknown): T {
-  const r = result as { structuredContent?: T } | T;
-  if (r && typeof r === "object" && "structuredContent" in r) {
-    return r.structuredContent as T;
+  if (!result || typeof result !== "object") {
+    throw new Error("Invalid result");
   }
-  return r as T;
+
+  if ("isError" in result && result.isError) {
+    throw new Error(
+      "content" in result &&
+        Array.isArray(result.content) &&
+        result.content[0]?.type === "text"
+        ? result.content[0].text
+        : "Unknown error",
+    );
+  }
+
+  if ("structuredContent" in result) {
+    return result.structuredContent as T;
+  }
+
+  throw new Error("No structured content found");
+}
+
+/**
+ * TODO: We should remove this after fixing the Chat.Provider requiring llms from mcps
+ */
+function extractPayloadSafe<T>(result: unknown): T | null {
+  try {
+    return extractPayload<T>(result);
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 /**
@@ -176,17 +202,15 @@ export function useCollectionItem<T extends CollectionEntity>(
     queryKey: KEYS.mcpToolCall(client, getToolName, itemId ?? ""),
     queryFn: async () => {
       if (!itemId) {
-        return { item: null } as CollectionGetOutput<T>;
+        return { item: null } satisfies CollectionGetOutput<T>;
       }
 
-      const result = (await client.callTool({
+      const result = await client.callTool({
         name: getToolName,
-        arguments: {
-          id: itemId,
-        } as CollectionGetInput,
-      })) as { structuredContent?: unknown };
+        arguments: { id: itemId } satisfies CollectionGetInput,
+      });
 
-      return extractPayload<CollectionGetOutput<T>>(result);
+      return extractPayloadSafe<CollectionGetOutput<T>>(result);
     },
     staleTime: 60_000,
   });
@@ -215,8 +239,8 @@ export function useCollectionList<T extends CollectionEntity>(
     filters,
     sortKey,
     sortDirection,
-    searchFields = ["title", "description"] as (keyof T)[],
-    defaultSortKey = "updated_at" as keyof T,
+    searchFields = ["title", "description"] satisfies (keyof T)[],
+    defaultSortKey = "updated_at" satisfies keyof T,
     pageSize = 100,
   } = options;
 
@@ -242,7 +266,7 @@ export function useCollectionList<T extends CollectionEntity>(
     toolName: listToolName,
     toolArguments,
     select: (result) => {
-      const payload = extractPayload<CollectionListOutput<T>>(result);
+      const payload = extractPayloadSafe<CollectionListOutput<T>>(result);
       return payload?.items ?? [];
     },
   });
@@ -279,24 +303,21 @@ export function useCollectionActions<T extends CollectionEntity>(
         if (key[0] !== "mcp" || key[1] !== "client" || key[3] !== "tool-call") {
           return false;
         }
-        const toolName = key[4] as string;
-        return toolName?.startsWith(`COLLECTION_${upperName}_`);
+        const toolName = key[4];
+        return (
+          typeof toolName === "string" &&
+          toolName.startsWith(`COLLECTION_${upperName}_`)
+        );
       },
     });
   };
 
   const create = useMutation({
     mutationFn: async (data: Partial<T>) => {
-      const result = (await client.callTool({
+      const result = await client.callTool({
         name: createToolName,
-        arguments: {
-          data,
-        } as CollectionInsertInput<T>,
-      })) as {
-        structuredContent?: unknown;
-        isError?: boolean;
-        content?: unknown;
-      };
+        arguments: { data } satisfies CollectionInsertInput<T>,
+      });
 
       if (result.isError) {
         throw new Error(
@@ -322,13 +343,10 @@ export function useCollectionActions<T extends CollectionEntity>(
 
   const update = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<T> }) => {
-      const result = (await client.callTool({
+      const result = await client.callTool({
         name: updateToolName,
-        arguments: {
-          id,
-          data,
-        } as CollectionUpdateInput<T>,
-      })) as { structuredContent?: unknown };
+        arguments: { id, data } satisfies CollectionUpdateInput<T>,
+      });
       const payload = extractPayload<CollectionUpdateOutput<T>>(result);
 
       return payload.item;
@@ -345,12 +363,10 @@ export function useCollectionActions<T extends CollectionEntity>(
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const result = (await client.callTool({
+      const result = await client.callTool({
         name: deleteToolName,
-        arguments: {
-          id,
-        } as CollectionDeleteInput,
-      })) as { structuredContent?: unknown };
+        arguments: { id } satisfies CollectionDeleteInput,
+      });
       const payload = extractPayload<CollectionDeleteOutput<T>>(result);
 
       return payload.item.id;

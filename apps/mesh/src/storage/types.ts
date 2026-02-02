@@ -150,6 +150,7 @@ export interface MCPConnectionTable {
   id: string;
   organization_id: string; // All connections are organization-scoped
   created_by: string; // User who created this connection
+  updated_by: string | null; // User who last updated this connection
   title: string;
   description: string | null;
   icon: string | null;

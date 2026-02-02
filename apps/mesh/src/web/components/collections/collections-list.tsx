@@ -3,7 +3,7 @@ import { CollectionCard } from "./collection-card.tsx";
 import { CollectionTableWrapper } from "./collection-table-wrapper.tsx";
 import { CollectionDisplayButton } from "./collection-display-button.tsx";
 import type { CollectionsListProps } from "./types";
-import type { TableColumn } from "@deco/ui/components/collection-table.tsx";
+import type { TableColumn } from "./collection-table.tsx";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {

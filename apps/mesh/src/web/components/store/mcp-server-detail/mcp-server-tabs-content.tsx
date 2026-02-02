@@ -1,8 +1,8 @@
 import { EmptyState } from "@/web/components/empty-state";
-import { ReadmeViewer } from "@/web/components/store/readme-viewer";
+import { ReadmeViewer } from "@/web/components/readme";
 import { Loading01 } from "@untitledui/icons";
 import { ToolsList, type Tool } from "@/web/components/tools";
-import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
+import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { MCPServersList } from "./mcp-servers-list";
 import type { MCPServerData, TabItem, UnifiedServerEntry } from "./types";
 
@@ -55,7 +55,7 @@ export function MCPServerTabsContent({
       {/* Tabs Section */}
       {availableTabs.length > 0 && (
         <div className="px-4 py-2 border-b border-border bg-background">
-          <ResourceTabs
+          <CollectionTabs
             tabs={availableTabs}
             activeTab={effectiveActiveTabId}
             onTabChange={onTabChange}

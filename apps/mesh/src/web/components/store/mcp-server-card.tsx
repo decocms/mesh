@@ -15,7 +15,7 @@ import {
 import { Card } from "@deco/ui/components/card.js";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { IntegrationIcon } from "../integration-icon.tsx";
-import { getGitHubAvatarUrl } from "@/web/utils/github-icon";
+import { getGitHubAvatarUrl } from "@/web/utils/github";
 import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
 import type { RegistryItem, Protocol } from "./types";
 

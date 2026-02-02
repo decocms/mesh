@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Loading01, File06 } from "@untitledui/icons";
-import { extractGitHubRepo, fetchGitHubReadme } from "../lib/github";
+import { extractGitHubRepo, fetchGitHubReadme } from "@/web/utils/github";
+import { KEYS } from "@/web/lib/query-keys";
 import "github-markdown-css/github-markdown-light.css";
 
 interface ReadmeViewerProps {
@@ -45,7 +46,7 @@ export function ReadmeViewer({
   const shouldFetch = !!repo && providedHtml === undefined;
 
   const { data: fetchedHtml, isLoading: isFetching } = useQuery({
-    queryKey: queryKey ?? ["github-readme", repo?.owner, repo?.repo],
+    queryKey: queryKey ?? KEYS.githubReadme(repo?.owner, repo?.repo),
     queryFn: async () => {
       if (!repo) return null;
       return fetchGitHubReadme(repo.owner, repo.repo);
