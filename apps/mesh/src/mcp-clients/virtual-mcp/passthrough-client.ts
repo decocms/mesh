@@ -42,9 +42,27 @@ interface ResourceCache extends Cache<Resource> {}
 interface PromptCache extends Cache<Prompt> {}
 
 /**
+ * Check if an error indicates a stale/disconnected server
+ */
+function isStaleConnectionError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes("server not initialized") ||
+      message.includes("connection closed") ||
+      message.includes("socket hang up") ||
+      message.includes("econnreset") ||
+      message.includes("econnrefused")
+    );
+  }
+  return false;
+}
+
+/**
  * Create a map of connection ID to proxy entry
  *
- * Creates proxies for all connections in parallel, filtering out failures
+ * Creates proxies for all connections in parallel, filtering out failures.
+ * Handles stale connections by invalidating the cache and retrying once.
  */
 async function createProxyMap(
   connections: ConnectionEntity[],
@@ -56,6 +74,24 @@ async function createProxyMap(
         const proxy = await ctx.createMCPProxy(connection);
         return [connection.id, proxy] as const;
       } catch (error) {
+        // If stale connection error, invalidate cache and retry once
+        if (isStaleConnectionError(error)) {
+          console.log(
+            `[aggregator] Stale connection detected for ${connection.id}, retrying...`,
+          );
+          ctx.getOrCreateClient.invalidate(connection.id);
+          try {
+            const proxy = await ctx.createMCPProxy(connection);
+            return [connection.id, proxy] as const;
+          } catch (retryError) {
+            console.warn(
+              `[aggregator] Retry failed for connection ${connection.id}:`,
+              retryError,
+            );
+            return null;
+          }
+        }
+
         console.warn(
           `[aggregator] Failed to create proxy for connection ${connection.id}:`,
           error,
@@ -163,10 +199,18 @@ export class PassthroughClient extends Client {
 
           return { connectionId, data };
         } catch (error) {
-          console.error(
-            `[PassthroughClient] Failed to load cache for connection ${connectionId}:`,
-            error,
-          );
+          // If stale connection, invalidate cache for potential retry on next request
+          if (isStaleConnectionError(error)) {
+            console.warn(
+              `[PassthroughClient] Stale connection for ${connectionId}, invalidating cache`,
+            );
+            this.ctx.getOrCreateClient.invalidate(connectionId);
+          } else {
+            console.error(
+              `[PassthroughClient] Failed to load cache for connection ${connectionId}:`,
+              error,
+            );
+          }
           return null;
         }
       }),

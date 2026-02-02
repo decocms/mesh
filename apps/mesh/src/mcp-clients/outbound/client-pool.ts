@@ -2,10 +2,29 @@
  * Client Pool
  *
  * Manages a pool of MCP clients using a Map for connection reuse.
+ * Handles stale connections when MCP servers are restarted.
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+
+/**
+ * Check if an error indicates a stale/disconnected server
+ * These errors happen when the MCP server process was restarted
+ */
+function isStaleConnectionError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes("server not initialized") ||
+      message.includes("connection closed") ||
+      message.includes("socket hang up") ||
+      message.includes("econnreset") ||
+      message.includes("econnrefused")
+    );
+  }
+  return false;
+}
 
 /**
  * Create a client pool
@@ -17,10 +36,24 @@ export function createClientPool(): (<T extends Transport>(
   transport: T,
   key: string,
 ) => Promise<Client>) & {
+  invalidate: (key: string) => void;
   [Symbol.asyncDispose]: () => Promise<void>;
 } {
   // Map to store client promises (single-flight pattern)
   const clientMap = new Map<string, Promise<Client>>();
+
+  /**
+   * Invalidate a cached client, forcing reconnection on next request
+   */
+  function invalidate(key: string): void {
+    const clientPromise = clientMap.get(key);
+    if (clientPromise) {
+      console.log(`[ClientPool] Invalidating cached client for ${key}`);
+      clientMap.delete(key);
+      // Close the client in the background
+      clientPromise.then((client) => client.close()).catch(() => {}); // Ignore close errors
+    }
+  }
 
   /**
    * Get or create a client connection from the pool
@@ -64,6 +97,16 @@ export function createClientPool(): (<T extends Transport>(
       clientMap.delete(key);
     };
 
+    // Set up error handler to detect stale connections
+    client.onerror = (error) => {
+      if (isStaleConnectionError(error)) {
+        console.log(
+          `[ClientPool] Detected stale connection for ${key}, invalidating`,
+        );
+        clientMap.delete(key);
+      }
+    };
+
     const clientPromise = client
       .connect(transport, { timeout: 30_000 })
       .then(() => client)
@@ -77,8 +120,9 @@ export function createClientPool(): (<T extends Transport>(
     return clientPromise;
   }
 
-  // Create the function object with Symbol.asyncDispose
+  // Create the function object with invalidate and Symbol.asyncDispose
   const getOrCreateClient = Object.assign(getOrCreateClientImpl, {
+    invalidate,
     [Symbol.asyncDispose]: async (): Promise<void> => {
       const closePromises: Promise<void>[] = [];
       for (const [key, clientPromise] of clientMap) {
@@ -97,6 +141,7 @@ export function createClientPool(): (<T extends Transport>(
     transport: T,
     key: string,
   ) => Promise<Client>) & {
+    invalidate: (key: string) => void;
     [Symbol.asyncDispose]: () => Promise<void>;
   };
 
