@@ -43,6 +43,22 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     return sql`json_extract(${sql.ref(column)}, ${jsonPath})`;
   }
 
+  /**
+   * Get JSON property value wrapped in commas for "in" matching.
+   * This enables searching for exact values within comma-separated strings.
+   * e.g., ',Engineering,Sales,' LIKE '%,Engineering,%' matches
+   * but ',Engineering,Sales,' LIKE '%,Eng,%' does NOT match
+   */
+  private jsonExtractWithCommas(column: string, key: string) {
+    if (this.databaseType === "postgres") {
+      // PostgreSQL: wrap extracted value in commas
+      return sql`(',' || (${sql.ref(column)}::jsonb)->>${key} || ',')`;
+    }
+    // SQLite: wrap extracted value in commas
+    const jsonPath = `$.${key}`;
+    return sql`(',' || json_extract(${sql.ref(column)}, ${jsonPath}) || ',')`;
+  }
+
   async log(event: MonitoringLog): Promise<void> {
     await this.logBatch([event]);
   }
@@ -139,7 +155,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
 
     // Apply property filters
     if (filters.propertyFilters) {
-      const { properties, propertyKeys, propertyPatterns } =
+      const { properties, propertyKeys, propertyPatterns, propertyInValues } =
         filters.propertyFilters;
 
       // Exact match: property key=value
@@ -175,6 +191,24 @@ export class SqlMonitoringStorage implements MonitoringStorage {
             jsonExpr as never,
             likeOp,
             pattern as never,
+          );
+        }
+      }
+
+      // In match: check if value exists in comma-separated property value
+      // This enables exact matching within arrays stored as comma-separated strings
+      // e.g., user_tags="Engineering,Sales" with value="Engineering" will match
+      if (propertyInValues) {
+        for (const [key, value] of Object.entries(propertyInValues)) {
+          // Wrap the property value in commas and search for the exact value surrounded by commas
+          // This prevents partial matches (e.g., "Eng" matching "Engineering")
+          const inExpr = this.jsonExtractWithCommas("properties", key);
+          const searchPattern = `%,${value},%`;
+          query = query.where(inExpr as never, "like", searchPattern as never);
+          countQuery = countQuery.where(
+            inExpr as never,
+            "like",
+            searchPattern as never,
           );
         }
       }

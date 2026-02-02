@@ -72,6 +72,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+import { TagMultiSelect } from "@/web/components/tag-multi-select";
 
 // Role colors matching manage-roles-dialog
 const ROLE_COLORS = [
@@ -712,6 +713,18 @@ function OrgMembersContent() {
       sortable: true,
     },
     {
+      id: "tags",
+      header: "Tags",
+      render: (row) => {
+        if (row.type === "member") {
+          return <TagMultiSelect memberId={row.data.id} maxDisplay={2} />;
+        }
+        // Invitations don't have tags
+        return <span className="text-xs text-muted-foreground">-</span>;
+      },
+      cellClassName: "w-40 shrink-0",
+    },
+    {
       id: "joined",
       header: "Joined",
       render: (row) => {
@@ -1000,6 +1013,7 @@ function OrgMembersContent() {
                             }
                             className="w-fit"
                           />
+                          <TagMultiSelect memberId={member.id} maxDisplay={3} />
                         </div>
                       </div>
                     </Card>

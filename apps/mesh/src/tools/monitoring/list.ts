@@ -74,6 +74,12 @@ export const MONITORING_LOGS_LIST = defineTool({
       .describe(
         "Filter by property value patterns (SQL LIKE, use % as wildcard)",
       ),
+    propertyInValues: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe(
+        "Filter by exact match within comma-separated values (e.g., user_tags in 'Engineering')",
+      ),
   }),
   outputSchema: z.object({
     logs: z.array(monitoringLogSchema).describe("Array of monitoring logs"),
@@ -86,12 +92,16 @@ export const MONITORING_LOGS_LIST = defineTool({
 
     // Build property filters if any are provided
     const hasPropertyFilters =
-      input.properties || input.propertyKeys || input.propertyPatterns;
+      input.properties ||
+      input.propertyKeys ||
+      input.propertyPatterns ||
+      input.propertyInValues;
     const propertyFilters = hasPropertyFilters
       ? {
           properties: input.properties,
           propertyKeys: input.propertyKeys,
           propertyPatterns: input.propertyPatterns,
+          propertyInValues: input.propertyInValues,
         }
       : undefined;
 

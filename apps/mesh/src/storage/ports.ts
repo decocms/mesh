@@ -14,6 +14,7 @@ import type {
 import type {
   MonitoringLog,
   OrganizationSettings,
+  OrganizationTag,
   Thread,
   ThreadMessage,
 } from "./types";
@@ -83,6 +84,8 @@ export interface PropertyFilters {
   propertyKeys?: string[];
   /** Pattern match: filter logs where property value matches pattern (SQL LIKE) */
   propertyPatterns?: Record<string, string>;
+  /** In match: filter logs where property value (comma-separated) contains the specified value */
+  propertyInValues?: Record<string, string>;
 }
 
 export interface MonitoringStorage {
@@ -143,4 +146,33 @@ export interface VirtualMCPStoragePort {
     data: VirtualMCPUpdateData,
   ): Promise<VirtualMCPEntity>;
   delete(id: string): Promise<void>;
+}
+
+// ============================================================================
+// Tag Storage Port
+// ============================================================================
+
+export interface TagStoragePort {
+  // Organization tags
+  listOrgTags(organizationId: string): Promise<OrganizationTag[]>;
+  getTag(tagId: string): Promise<OrganizationTag | null>;
+  getTagByName(
+    organizationId: string,
+    name: string,
+  ): Promise<OrganizationTag | null>;
+  createTag(organizationId: string, name: string): Promise<OrganizationTag>;
+  deleteTag(tagId: string): Promise<void>;
+
+  // Member tags
+  getMemberTags(memberId: string): Promise<OrganizationTag[]>;
+  setMemberTags(memberId: string, tagIds: string[]): Promise<void>;
+  addMemberTag(memberId: string, tagId: string): Promise<void>;
+  removeMemberTag(memberId: string, tagId: string): Promise<void>;
+
+  // Bulk operations for monitoring
+  getUserTagsInOrg(
+    userId: string,
+    organizationId: string,
+  ): Promise<OrganizationTag[]>;
+  getMembersWithTags(organizationId: string): Promise<Map<string, string[]>>;
 }
