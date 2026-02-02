@@ -61,6 +61,7 @@ import { getSelectionCount } from "./selection-utils";
 import type { VirtualMCPConnection } from "@decocms/mesh-sdk/types";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
+import { AgentConnectionsPreview } from "@/web/components/connections/agent-connections-preview.tsx";
 
 type DialogState = {
   shareDialogOpen: boolean;
@@ -89,36 +90,6 @@ function dialogReducer(state: DialogState, action: DialogAction): DialogState {
       return state;
   }
 }
-
-/**
- * Connection Icon Preview Component - Shows a connection icon
- */
-function ConnectionIconPreview({ connection_id }: { connection_id: string }) {
-  const connection = useConnection(connection_id);
-
-  if (!connection) return null;
-
-  return (
-    <div className="shrink-0 bg-background ring-1 ring-background rounded-lg">
-      <IntegrationIcon
-        icon={connection.icon}
-        name={connection.title}
-        size="xs"
-      />
-    </div>
-  );
-}
-
-/**
- * Connection Icon Preview Fallback Component - Shows loading state while connection loads
- */
-ConnectionIconPreview.Fallback = function ConnectionIconPreviewFallback() {
-  return (
-    <div className="shrink-0 bg-background ring-1 ring-background rounded-lg">
-      <div className="size-5 rounded bg-muted animate-pulse" />
-    </div>
-  );
-};
 
 /**
  * Skill Item Component - Shows a connection with inline badges
@@ -430,7 +401,7 @@ function VirtualMcpDetailViewWithData({
                   <div className="flex items-center">
                     {/* Icons preview - collapses instantly when open, expands smoothly when closed */}
                     <div
-                      className="flex items-center -space-x-2 ease-(--ease-out-expo)"
+                      className="ease-(--ease-out-expo)"
                       style={{
                         width: dialogState.skillsOpen ? 0 : "auto",
                         marginRight: dialogState.skillsOpen ? 0 : 4,
@@ -442,16 +413,10 @@ function VirtualMcpDetailViewWithData({
                           : "200ms",
                       }}
                     >
-                      {connections.slice(0, 4).map((conn) => (
-                        <Suspense
-                          key={conn.connection_id}
-                          fallback={<ConnectionIconPreview.Fallback />}
-                        >
-                          <ConnectionIconPreview
-                            connection_id={conn.connection_id}
-                          />
-                        </Suspense>
-                      ))}
+                      <AgentConnectionsPreview
+                        connectionIds={connections.map((c) => c.connection_id)}
+                        maxVisibleIcons={2}
+                      />
                     </div>
                     {/* Plus button that expands to "+ Add" when open */}
                     <div
