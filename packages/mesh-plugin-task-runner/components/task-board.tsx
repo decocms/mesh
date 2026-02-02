@@ -32,6 +32,9 @@ import {
   useUpdateTask,
   useQualityGates,
   useDetectQualityGates,
+  useQualityGatesBaseline,
+  useVerifyQualityGates,
+  useAcknowledgeQualityGates,
   type Task,
   type Skill,
   type AgentSession,
@@ -598,12 +601,14 @@ function TasksTabContent({
   const { data: tasks, isLoading, error, refetch, isFetching } = useTasks();
   const { data: skills } = useSkills();
   const { data: agentData } = useAgentSessions();
+  const { data: baselineData } = useQualityGatesBaseline();
   const createTask = useCreateTask();
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   const selectedSkill = skills?.find((s) => s.id === selectedSkillId);
+  const canCreateTasks = baselineData?.canCreateTasks ?? false;
 
   // Get task IDs that have running agents
   const runningTaskIds = new Set(
@@ -682,7 +687,18 @@ function TasksTabContent({
           <button
             type="button"
             onClick={() => setIsAdding(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border hover:bg-accent"
+            disabled={!canCreateTasks}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border",
+              canCreateTasks
+                ? "border-border hover:bg-accent"
+                : "border-border opacity-50 cursor-not-allowed",
+            )}
+            title={
+              canCreateTasks
+                ? "Add a new task"
+                : "Verify quality gates first (see Quality Gates tab)"
+            }
           >
             <PlusIcon size={14} />
             Add Task
@@ -690,7 +706,23 @@ function TasksTabContent({
         </div>
       </div>
 
-      {isAdding && (
+      {/* Warning if baseline not ready */}
+      {!canCreateTasks && (
+        <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
+          <AlertCircle size={16} className="text-yellow-600 flex-shrink-0" />
+          <div>
+            <span className="font-medium text-yellow-800">
+              Quality gates not verified.
+            </span>{" "}
+            <span className="text-yellow-700">
+              Go to the <span className="font-medium">Quality Gates</span> tab
+              to verify baseline before creating tasks.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {isAdding && canCreateTasks && (
         <form
           onSubmit={handleAddTask}
           className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border"
@@ -948,7 +980,15 @@ const ShieldIcon = ({ size = 14 }: { size?: number }) => (
 
 function QualityGatesTabContent() {
   const { data: gates, isLoading } = useQualityGates();
+  const { data: baselineData, isLoading: baselineLoading } =
+    useQualityGatesBaseline();
   const detectGates = useDetectQualityGates();
+  const verifyGates = useVerifyQualityGates();
+  const acknowledgeGates = useAcknowledgeQualityGates();
+  const [showResults, setShowResults] = useState(false);
+  const [lastResults, setLastResults] = useState<
+    Array<{ gate: string; passed: boolean; output: string }>
+  >([]);
 
   const handleDetect = () => {
     detectGates.mutate(undefined, {
@@ -961,7 +1001,40 @@ function QualityGatesTabContent() {
     });
   };
 
-  if (isLoading) {
+  const handleVerify = () => {
+    verifyGates.mutate(undefined, {
+      onSuccess: (result) => {
+        setLastResults(result.results);
+        setShowResults(true);
+        if (result.allPassed) {
+          toast.success("All quality gates pass! Ready for tasks.");
+        } else {
+          toast.warning(
+            `${result.results.filter((r) => !r.passed).length} gate(s) failing. Acknowledge to continue.`,
+          );
+        }
+      },
+      onError: (err) => {
+        toast.error(`Verification failed: ${err.message}`);
+      },
+    });
+  };
+
+  const handleAcknowledge = () => {
+    acknowledgeGates.mutate(true, {
+      onSuccess: () => {
+        toast.success(
+          "Failures acknowledged. Agents will not try to fix pre-existing issues.",
+        );
+        setShowResults(false);
+      },
+      onError: (err) => {
+        toast.error(`Failed to acknowledge: ${err.message}`);
+      },
+    });
+  };
+
+  if (isLoading || baselineLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
         <LoadingIcon size={14} />
@@ -970,8 +1043,136 @@ function QualityGatesTabContent() {
     );
   }
 
+  const baseline = baselineData?.baseline;
+  const hasBaseline = baselineData?.hasBaseline ?? false;
+  const canCreateTasks = baselineData?.canCreateTasks ?? false;
+
   return (
     <div className="space-y-4">
+      {/* Baseline Verification Section */}
+      <div
+        className={cn(
+          "p-4 rounded-lg border",
+          !hasBaseline
+            ? "bg-yellow-50 border-yellow-200"
+            : canCreateTasks
+              ? "bg-green-50 border-green-200"
+              : "bg-red-50 border-red-200",
+        )}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="font-medium text-sm flex items-center gap-2">
+              {!hasBaseline ? (
+                <>
+                  <AlertCircle size={16} className="text-yellow-600" />
+                  Quality Gates Not Verified
+                </>
+              ) : baseline?.allPassed ? (
+                <>
+                  <Check size={16} className="text-green-600" />
+                  All Gates Passing
+                </>
+              ) : baseline?.acknowledged ? (
+                <>
+                  <AlertCircle size={16} className="text-orange-600" />
+                  Failures Acknowledged
+                </>
+              ) : (
+                <>
+                  <AlertCircle size={16} className="text-red-600" />
+                  Gates Failing - Action Required
+                </>
+              )}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              {!hasBaseline ? (
+                "Run verification to establish a baseline before creating tasks."
+              ) : baseline?.allPassed ? (
+                "Ready to create tasks. Agents will maintain this passing state."
+              ) : baseline?.acknowledged ? (
+                <>
+                  Agents will NOT try to fix:{" "}
+                  <span className="font-medium">
+                    {baseline.failingGates.join(", ")}
+                  </span>
+                </>
+              ) : (
+                "Some gates are failing. Acknowledge to continue without fixing, or fix first."
+              )}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {!hasBaseline || !baseline?.allPassed ? (
+              <button
+                type="button"
+                onClick={handleVerify}
+                disabled={verifyGates.isPending || !gates || gates.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded disabled:opacity-50"
+              >
+                {verifyGates.isPending ? (
+                  <LoadingIcon size={12} />
+                ) : (
+                  <ShieldIcon size={12} />
+                )}
+                {hasBaseline ? "Re-verify" : "Verify Gates"}
+              </button>
+            ) : null}
+            {hasBaseline && !baseline?.allPassed && !baseline?.acknowledged && (
+              <button
+                type="button"
+                onClick={handleAcknowledge}
+                disabled={acknowledgeGates.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-orange-500 text-white hover:bg-orange-600 rounded disabled:opacity-50"
+              >
+                {acknowledgeGates.isPending ? (
+                  <LoadingIcon size={12} />
+                ) : (
+                  <Check size={12} />
+                )}
+                Acknowledge Failures
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Show verification results */}
+        {showResults && lastResults.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-current/10">
+            <p className="text-xs font-medium mb-2">Verification Results:</p>
+            <div className="space-y-1">
+              {lastResults.map((result, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "flex items-center gap-2 text-xs px-2 py-1 rounded",
+                    result.passed ? "bg-green-100" : "bg-red-100",
+                  )}
+                >
+                  {result.passed ? (
+                    <Check size={12} className="text-green-600" />
+                  ) : (
+                    <AlertCircle size={12} className="text-red-600" />
+                  )}
+                  <span className="font-medium">{result.gate}</span>
+                  <span className="text-muted-foreground">
+                    {result.passed ? "passed" : "failed"}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowResults(false)}
+              className="text-xs text-muted-foreground hover:text-foreground mt-2"
+            >
+              Hide results
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Gates Configuration */}
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           Quality gates are commands that must pass before a task is considered
@@ -1002,57 +1203,82 @@ function QualityGatesTabContent() {
         </div>
       ) : (
         <div className="space-y-2">
-          {gates.map((gate: QualityGate) => (
-            <div
-              key={gate.id}
-              className="p-3 bg-card border border-border rounded-lg flex items-center justify-between"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    "p-1.5 rounded",
-                    gate.required
-                      ? "bg-green-100 text-green-700"
-                      : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  <ShieldIcon size={14} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{gate.name}</span>
-                    {gate.required && (
-                      <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
-                        Required
-                      </span>
+          {gates.map((gate: QualityGate) => {
+            const isFailing = baseline?.failingGates?.includes(gate.name);
+            return (
+              <div
+                key={gate.id}
+                className={cn(
+                  "p-3 bg-card border rounded-lg flex items-center justify-between",
+                  isFailing && baseline?.acknowledged
+                    ? "border-orange-300 bg-orange-50/50"
+                    : "border-border",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "p-1.5 rounded",
+                      isFailing
+                        ? "bg-red-100 text-red-700"
+                        : gate.required
+                          ? "bg-green-100 text-green-700"
+                          : "bg-muted text-muted-foreground",
                     )}
-                    {gate.source === "auto" && (
-                      <span className="text-xs text-muted-foreground">
-                        (auto-detected)
-                      </span>
-                    )}
+                  >
+                    <ShieldIcon size={14} />
                   </div>
-                  <code className="text-xs text-muted-foreground font-mono">
-                    {gate.command}
-                  </code>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{gate.name}</span>
+                      {gate.required && (
+                        <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                          Required
+                        </span>
+                      )}
+                      {isFailing && baseline?.acknowledged && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">
+                          Pre-existing failure
+                        </span>
+                      )}
+                      {gate.source === "auto" && (
+                        <span className="text-xs text-muted-foreground">
+                          (auto-detected)
+                        </span>
+                      )}
+                    </div>
+                    <code className="text-xs text-muted-foreground font-mono">
+                      {gate.command}
+                    </code>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       <div className="text-xs text-muted-foreground border-t border-border pt-3 mt-4">
         <p className="font-medium mb-1">How it works:</p>
         <ul className="list-disc list-inside space-y-0.5">
-          <li>Agents run quality gates before marking a task complete</li>
-          <li>If any required gate fails, the agent fixes issues first</li>
+          <li>
+            <strong>Verify first:</strong> Run gates to establish a baseline
+            before creating tasks
+          </li>
+          <li>
+            <strong>All passing:</strong> Agents maintain this state - any new
+            failures must be fixed
+          </li>
+          <li>
+            <strong>Acknowledged failures:</strong> Agents ignore pre-existing
+            issues and focus on their task
+          </li>
           <li>
             Agents output{" "}
             <code className="bg-muted px-1 rounded">
               &lt;promise&gt;COMPLETE&lt;/promise&gt;
             </code>{" "}
-            only when all gates pass
+            when done
           </li>
         </ul>
       </div>

@@ -21,6 +21,8 @@ export const KEYS = {
   agentSessionsBase: ["task-runner", "agent-sessions"] as const,
   qualityGates: (connectionId: string) =>
     ["task-runner", "quality-gates", connectionId] as const,
+  qualityGatesBaseline: (connectionId: string) =>
+    ["task-runner", "quality-gates-baseline", connectionId] as const,
   projectMemory: (connectionId: string) =>
     ["task-runner", "project-memory", connectionId] as const,
 };

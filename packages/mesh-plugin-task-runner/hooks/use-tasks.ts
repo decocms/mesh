@@ -32,6 +32,28 @@ export interface QualityGate {
 }
 
 /**
+ * Result from running a quality gate
+ */
+export interface QualityGateResult {
+  gate: string;
+  command: string;
+  passed: boolean;
+  output: string;
+  duration: number;
+}
+
+/**
+ * Quality gates baseline - tracks verification state and acknowledged failures
+ */
+export interface QualityGatesBaseline {
+  verified: boolean;
+  verifiedAt: string;
+  allPassed: boolean;
+  acknowledged: boolean;
+  failingGates: string[];
+}
+
+/**
  * Task Plan type
  */
 export interface TaskPlan {
@@ -1110,6 +1132,159 @@ export function useDetectQualityGates() {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: KEYS.qualityGates(connectionId ?? ""),
+      });
+    },
+  });
+}
+
+// ============================================================================
+// Quality Gates Baseline Hooks
+// ============================================================================
+
+/**
+ * Hook to get the quality gates baseline status
+ */
+export function useQualityGatesBaseline() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+  const workspaceQuery = useWorkspace();
+
+  return useQuery({
+    queryKey: KEYS.qualityGatesBaseline(connectionId ?? ""),
+    queryFn: async (): Promise<{
+      hasBaseline: boolean;
+      baseline?: QualityGatesBaseline;
+      canCreateTasks: boolean;
+    }> => {
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+
+      if (!hasReadFile || !workspaceQuery.data?.workspace) {
+        return { hasBaseline: false, canCreateTasks: false };
+      }
+
+      const untypedToolCaller = toolCaller as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ content?: string } | string>;
+
+      try {
+        const result = await untypedToolCaller("read_file", {
+          path: ".beads/project-config.json",
+        });
+
+        const content =
+          typeof result === "string"
+            ? result
+            : typeof result === "object" && result.content
+              ? result.content
+              : null;
+
+        if (!content) {
+          return { hasBaseline: false, canCreateTasks: false };
+        }
+
+        const config = JSON.parse(content) as {
+          qualityGatesBaseline?: QualityGatesBaseline;
+        };
+
+        const baseline = config.qualityGatesBaseline;
+        const hasBaseline = !!baseline?.verified;
+        const canCreateTasks =
+          hasBaseline && (baseline.allPassed || baseline.acknowledged);
+
+        return { hasBaseline, baseline, canCreateTasks };
+      } catch {
+        return { hasBaseline: false, canCreateTasks: false };
+      }
+    },
+    enabled: !!connectionId && !!workspaceQuery.data?.workspace,
+  });
+}
+
+/**
+ * Hook to verify quality gates and establish baseline
+ */
+export function useVerifyQualityGates() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<{
+      allPassed: boolean;
+      results: QualityGateResult[];
+      baseline: QualityGatesBaseline;
+    }> => {
+      const hasMcpTool = connection?.tools?.some(
+        (t) => t.name === "QUALITY_GATES_VERIFY",
+      );
+
+      if (!hasMcpTool) {
+        throw new Error("Quality gates verification not available");
+      }
+
+      const mcpToolCaller = toolCaller as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{
+        allPassed: boolean;
+        results: QualityGateResult[];
+        baseline: QualityGatesBaseline;
+      }>;
+
+      return mcpToolCaller("QUALITY_GATES_VERIFY", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: KEYS.qualityGatesBaseline(connectionId ?? ""),
+      });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.qualityGates(connectionId ?? ""),
+      });
+    },
+  });
+}
+
+/**
+ * Hook to acknowledge pre-existing quality gate failures
+ */
+export function useAcknowledgeQualityGates() {
+  const { connectionId, toolCaller, connection } =
+    usePluginContext<typeof OBJECT_STORAGE_BINDING>();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      acknowledge: boolean,
+    ): Promise<{
+      success: boolean;
+      baseline?: QualityGatesBaseline;
+      error?: string;
+    }> => {
+      const hasMcpTool = connection?.tools?.some(
+        (t) => t.name === "QUALITY_GATES_ACKNOWLEDGE",
+      );
+
+      if (!hasMcpTool) {
+        throw new Error("Quality gates acknowledge not available");
+      }
+
+      const mcpToolCaller = toolCaller as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{
+        success: boolean;
+        baseline?: QualityGatesBaseline;
+        error?: string;
+      }>;
+
+      return mcpToolCaller("QUALITY_GATES_ACKNOWLEDGE", { acknowledge });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: KEYS.qualityGatesBaseline(connectionId ?? ""),
       });
     },
   });
