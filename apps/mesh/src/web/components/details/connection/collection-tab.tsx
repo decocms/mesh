@@ -7,14 +7,6 @@ import {
 } from "@/web/components/collections/collections-list.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import type { ValidatedCollection } from "@/web/hooks/use-binding";
-import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import {
-  useConnection,
-  useCollectionActions,
-  useCollectionList,
-  useMCPClient,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
 import { useListState } from "@/web/hooks/use-list-state";
 import { authClient } from "@/web/lib/auth-client";
 import { BaseCollectionJsonSchema } from "@/web/utils/constants";
@@ -30,7 +22,13 @@ import {
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  useCollectionActions,
+  useCollectionList,
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
+import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -53,11 +51,8 @@ export function CollectionTab({
   const hasUpdateTool = activeCollection.hasUpdateTool;
   const hasDeleteTool = activeCollection.hasDeleteTool;
   const navigate = useNavigate();
-  const routerState = useRouterState();
-  const url = routerState.location.href;
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id || "unknown";
-  const connection = useConnection(connectionId);
 
   const { org: projectOrg } = useProjectContext();
   const client = useMCPClient({
@@ -213,11 +208,6 @@ export function CollectionTab({
           sortDirection={sortDirection}
           onSort={handleSort}
           sortOptions={sortOptions}
-        />
-        <PinToSidebarButton
-          title={`${collectionName}s`}
-          url={url}
-          icon={connection?.icon ?? "grid_view"}
         />
         {showCreateInToolbar && createButton}
       </ViewActions>

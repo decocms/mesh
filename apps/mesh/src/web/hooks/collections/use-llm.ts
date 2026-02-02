@@ -6,7 +6,6 @@
  */
 
 import type { ModelCollectionEntitySchema } from "@decocms/bindings/llm";
-import { z } from "zod";
 import {
   useCollectionList,
   useConnections,
@@ -14,6 +13,7 @@ import {
   useProjectContext,
   type UseCollectionListOptions,
 } from "@decocms/mesh-sdk";
+import { z } from "zod";
 import { useBindingConnections } from "../use-binding";
 
 // LLM type matching ModelSchema from @decocms/bindings
