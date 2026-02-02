@@ -12,10 +12,18 @@ function removeGitHubAnchorIcons(html: string): string {
  */
 function addExternalLinkAttributes(html: string): string {
   return html.replace(/<a\s+([^>]*href="[^"]*"[^>]*)>/gi, (match, attrs) => {
+    let result = match;
     if (attrs.includes("target=")) {
-      return match.replace(/target="[^"]*"/gi, 'target="_blank"');
+      result = result.replace(/target="[^"]*"/gi, 'target="_blank"');
+    } else {
+      result = result.replace(/>/, ' target="_blank">');
     }
-    return `<a ${attrs} target="_blank" rel="noopener noreferrer">`;
+    if (attrs.includes("rel=")) {
+      result = result.replace(/rel="[^"]*"/gi, 'rel="noopener noreferrer"');
+    } else {
+      result = result.replace(/>/, ' rel="noopener noreferrer">');
+    }
+    return result;
   });
 }
 
