@@ -261,17 +261,8 @@ async function createMCPProxyDoNotUseDirectly(
   // Uses indexed tools if available, falls back to client for connections without cached tools
   // NOTE: Defined early so it can be passed to authorization middlewares for public tool check
   const listTools = async (): Promise<ListToolsResult> => {
-    // VIRTUAL connections always use client.listTools() because:
-    // 1. Their tools column contains virtual tool definitions (code), not cached downstream tools
-    // 2. The aggregator (via client.listTools()) returns virtual + aggregated downstream tools
-    const isVirtualConnection = connection.connection_type === "VIRTUAL";
-
-    // Use indexed tools if available (except for VIRTUAL connections)
-    if (
-      !isVirtualConnection &&
-      connection.tools &&
-      connection.tools.length > 0
-    ) {
+    // Use indexed tools if available
+    if (connection.tools && connection.tools.length > 0) {
       return {
         tools: connection.tools.map((tool) => ({
           name: tool.name,
@@ -284,7 +275,7 @@ async function createMCPProxyDoNotUseDirectly(
       };
     }
 
-    // Fall back to client for connections without indexed tools (or VIRTUAL connections)
+    // Fall back to client for connections without indexed tools
     return await client.listTools();
   };
 

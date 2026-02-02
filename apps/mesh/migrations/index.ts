@@ -28,7 +28,6 @@ import * as migration025addmonitoringvirtualmcpid from "./025-add-monitoring-vir
 import * as migration026restrictchildconnectiondelete from "./026-restrict-child-connection-delete.ts";
 import * as migration027updatemanagementmcpurl from "./027-update-management-mcp-url.ts";
 import * as migration028updatemanagementmcptoself from "./028-update-management-mcp-to-self.ts";
-import * as migration029adddependencymode from "./029-add-dependency-mode.ts";
 
 // Core migrations
 const coreMigrations: Record<string, Migration> = {
@@ -62,7 +61,6 @@ const coreMigrations: Record<string, Migration> = {
     migration026restrictchildconnectiondelete,
   "027-update-management-mcp-url": migration027updatemanagementmcpurl,
   "028-update-management-mcp-to-self": migration028updatemanagementmcptoself,
-  "029-add-dependency-mode": migration029adddependencymode,
 };
 
 // Collect plugin migrations and merge with core migrations
