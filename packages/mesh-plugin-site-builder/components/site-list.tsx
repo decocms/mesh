@@ -15,18 +15,22 @@ import {
   Play,
   RefreshCw01,
   Copy01,
+  Loading02,
 } from "@untitledui/icons";
 import { toast } from "sonner";
-import { cn } from "@deco/ui/lib/utils";
+import { cn } from "@deco/ui/lib/utils.ts";
 
 export default function SiteList() {
   const { data: detection, isLoading } = useSiteDetection();
   const {
     isRunning,
     isChecking,
+    isStarting,
     startCommand,
     serverUrl,
     refetch: refetchServer,
+    startServer,
+    canStart,
   } = useDevServer();
   const { pages, isLoading: pagesLoading } = usePages();
 
@@ -61,6 +65,22 @@ export default function SiteList() {
       toast.success("Command copied to clipboard");
     } catch {
       toast.error("Failed to copy command");
+    }
+  };
+
+  const handleStartServer = async () => {
+    if (!startServer) return;
+    try {
+      const result = await startServer();
+      if (result?.success) {
+        toast.success("Dev server starting...");
+      } else {
+        toast.error(result?.error || "Failed to start server");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to start server",
+      );
     }
   };
 
@@ -168,28 +188,54 @@ export default function SiteList() {
           </div>
         ) : (
           <div className="bg-card rounded-lg border border-border p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                Server not running
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  Server not running
+                </span>
+              </div>
+              {startServer && (
+                <button
+                  type="button"
+                  onClick={handleStartServer}
+                  disabled={!canStart}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isStarting ? (
+                    <>
+                      <Loading02 size={14} className="animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      <Play size={14} />
+                      Start Server
+                    </>
+                  )}
+                </button>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono">
-                {startCommand}
-              </code>
-              <button
-                type="button"
-                onClick={handleCopyCommand}
-                className="p-2 rounded-md hover:bg-muted transition-colors"
-                title="Copy command"
-              >
-                <Copy01 size={16} />
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Run this command in your terminal to start the dev server
-            </p>
+            {!startServer && (
+              <>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono">
+                    {startCommand}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={handleCopyCommand}
+                    className="p-2 rounded-md hover:bg-muted transition-colors"
+                    title="Copy command"
+                  >
+                    <Copy01 size={16} />
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Run this command in your terminal to start the dev server
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>
