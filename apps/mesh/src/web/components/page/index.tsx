@@ -45,13 +45,12 @@ function PageHeader({
     <div
       className={cn(
         "shrink-0 w-full border-b border-border h-12 overflow-x-auto",
+        "flex items-center justify-between gap-3 px-4 min-w-max",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-3 h-12 px-4 min-w-max">
-        {left}
-        {right}
-      </div>
+      {left}
+      {right}
     </div>
   );
 }

@@ -16,10 +16,18 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import {
+  useSuspenseInfiniteQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { Message, Thread } from "./types.ts";
 import { KEYS } from "../../lib/query-keys";
 import { useCollectionCachePrefill } from "../../hooks/use-collection-cache-prefill";
+import {
+  buildCollectionQueryKey,
+  buildWhereExpression,
+  buildOrderByExpression,
+} from "@decocms/mesh-sdk";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 /**
@@ -143,6 +151,77 @@ export function useThreadMessagesPrefill(
     prefillCollectionCache(client, "THREAD_MESSAGES", orgId, {
       filters: [{ column: "threadId", value: threadId }],
       pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
+    });
+  };
+}
+
+/**
+ * Hook that provides a function to switch to a thread with cache prefilling
+ * Fetches thread messages and populates cache before switching to prevent suspension
+ *
+ * @param client - The MCP client used to call collection tools
+ * @param orgId - The organization ID
+ * @returns Function to switch to a thread (fetches messages first)
+ */
+export function useSwitchToThread(
+  client: Client | null | undefined,
+  orgId: string,
+) {
+  const queryClient = useQueryClient();
+
+  return async (threadId: string) => {
+    if (!client) {
+      return;
+    }
+
+    // Build the query key for this thread's messages
+    const queryKey = buildCollectionQueryKey(client, "THREAD_MESSAGES", orgId, {
+      filters: [{ column: "threadId", value: threadId }],
+      pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
+    });
+
+    if (!queryKey) {
+      return;
+    }
+
+    // Check if data already exists in cache
+    const existingData = queryClient.getQueryData(queryKey);
+    if (existingData) {
+      // Already cached, can switch immediately
+      return;
+    }
+
+    // Fetch messages and populate cache (matches useCollectionList queryFn)
+    const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
+    const where = buildWhereExpression(
+      undefined,
+      [{ column: "threadId", value: threadId }],
+      [],
+    );
+    const orderBy = buildOrderByExpression(
+      undefined,
+      undefined,
+      "updated_at" as keyof (CollectionEntity & Message),
+    );
+
+    const toolArguments: CollectionListInput = {
+      ...(where && { where }),
+      ...(orderBy && { orderBy }),
+      limit: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
+      offset: 0,
+    };
+
+    await queryClient.fetchQuery({
+      queryKey,
+      queryFn: async () => {
+        const result = await client.callTool({
+          name: listToolName,
+          arguments: toolArguments,
+        });
+        return result;
+      },
+      staleTime: THREAD_CONSTANTS.QUERY_STALE_TIME,
+      retry: false,
     });
   };
 }

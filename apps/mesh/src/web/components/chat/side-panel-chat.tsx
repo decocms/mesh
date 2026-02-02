@@ -21,8 +21,8 @@ function ChatPanelContent() {
     modelsConnections,
     isChatEmpty,
     activeThreadId,
-    setActiveThreadId,
     createThread,
+    switchToThread,
     threads,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
@@ -181,7 +181,7 @@ function ChatPanelContent() {
         <ThreadsView
           threads={threads}
           activeThreadId={activeThreadId}
-          onThreadSelect={setActiveThreadId}
+          onThreadSelect={switchToThread}
           onClose={() => setShowThreadsOverlay(false)}
         />
       </div>

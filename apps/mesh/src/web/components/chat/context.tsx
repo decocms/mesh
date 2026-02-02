@@ -41,6 +41,7 @@ import { useContext as useContextHook } from "../../hooks/use-context";
 import {
   useThreadMessages,
   useThreadMessagesPrefill,
+  useSwitchToThread,
   useThreads,
 } from "./use-threads";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
@@ -98,8 +99,9 @@ interface ChatContextValue {
 
   // Thread management
   activeThreadId: string;
-  setActiveThreadId: (threadId: string) => void; // For switching existing threads
+  setActiveThreadId: (threadId: string) => void; // For switching existing threads (suspends)
   createThread: () => void; // For creating new threads (with prefetch)
+  switchToThread: (threadId: string) => Promise<void>; // For switching with cache prefilling
   threads: Thread[];
   hideThread: (threadId: string) => void;
 
@@ -546,6 +548,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Thread messages cache prefilling utility
   const prefillThreadMessages = useThreadMessagesPrefill(mcpClient, org.id);
 
+  // Thread switching with cache prefilling
+  const switchToThreadAsync = useSwitchToThread(mcpClient, org.id);
+
   // Project context
   // User session
   const { data: session } = authClient.useSession();
@@ -657,6 +662,12 @@ export function ChatProvider({ children }: PropsWithChildren) {
     const newThreadId = crypto.randomUUID();
     prefillThreadMessages(newThreadId);
     setActiveThreadId(newThreadId);
+  };
+
+  // Function to switch to a thread with cache prefilling
+  const switchToThread = async (threadId: string) => {
+    await switchToThreadAsync(threadId);
+    setActiveThreadId(threadId);
   };
 
   // Chat state functions
@@ -783,6 +794,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     threads,
     setActiveThreadId, // Original, suspends for existing threads
     createThread, // New, prefills for new threads
+    switchToThread, // New, prefills cache then switches
     hideThread,
 
     // Thread pagination

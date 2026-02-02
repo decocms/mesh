@@ -54,8 +54,8 @@ function HomeContent() {
     modelsConnections,
     isChatEmpty,
     activeThreadId,
-    setActiveThreadId,
     createThread,
+    switchToThread,
     threads,
     selectedVirtualMcp,
   } = useChat();
@@ -217,8 +217,8 @@ function HomeContent() {
         onOpenChange={setIsThreadsSidebarOpen}
         threads={threads}
         activeThreadId={activeThreadId}
-        onThreadSelect={(threadId) => {
-          setActiveThreadId(threadId);
+        onThreadSelect={async (threadId) => {
+          await switchToThread(threadId);
           setIsThreadsSidebarOpen(false);
         }}
       />
