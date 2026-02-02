@@ -37,7 +37,18 @@ async function validateRequest(
 
   const parseResult = StreamRequestSchema.safeParse(rawPayload);
   if (!parseResult.success) {
-    throw new HTTPException(400, { message: "Invalid request body" });
+    // Log detalhes do erro de validação para debug
+    console.error("[Decopilot] ❌ Request validation failed:");
+    console.error(
+      "Validation errors:",
+      JSON.stringify(parseResult.error.format(), null, 2),
+    );
+    console.error("Raw payload:", JSON.stringify(rawPayload, null, 2));
+
+    throw new HTTPException(400, {
+      message: "Invalid request body",
+      cause: parseResult.error.format(),
+    });
   }
 
   return {
