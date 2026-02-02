@@ -121,21 +121,12 @@ export class ConnectionStorage implements ConnectionStoragePort {
     return row ? this.deserializeConnection(row as RawConnectionRow) : null;
   }
 
-  async list(
-    organizationId: string,
-    options?: { includeVirtual?: boolean },
-  ): Promise<ConnectionEntity[]> {
-    let query = this.db
+  async list(organizationId: string): Promise<ConnectionEntity[]> {
+    const rows = await this.db
       .selectFrom("connections")
       .selectAll()
-      .where("organization_id", "=", organizationId);
-
-    // By default, exclude VIRTUAL connections unless explicitly requested
-    if (!options?.includeVirtual) {
-      query = query.where("connection_type", "!=", "VIRTUAL");
-    }
-
-    const rows = await query.execute();
+      .where("organization_id", "=", organizationId)
+      .execute();
 
     return Promise.all(
       rows.map((row) => this.deserializeConnection(row as RawConnectionRow)),

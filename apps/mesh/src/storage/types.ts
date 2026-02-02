@@ -571,13 +571,6 @@ export interface EventDelivery {
 export type ToolSelectionMode = "inclusion" | "exclusion";
 
 /**
- * Dependency mode for connection aggregations
- * - 'direct': User explicitly added this connection to the Virtual MCP (tools exposed)
- * - 'indirect': Connection is referenced by virtual tool code (FK only, tools hidden)
- */
-export type DependencyMode = "direct" | "indirect";
-
-/**
  * Connection aggregation table definition
  * Many-to-many relationship linking VIRTUAL connections (agents) to their child connections
  * with selected tools/resources/prompts
@@ -592,7 +585,6 @@ export interface ConnectionAggregationTable {
   selected_tools: JsonArray<string[]> | null; // null = all tools
   selected_resources: JsonArray<string[]> | null; // null = all resources, supports URI patterns with * and **
   selected_prompts: JsonArray<string[]> | null; // null = all prompts
-  dependency_mode: DependencyMode; // 'direct' = tools exposed, 'indirect' = FK only
   created_at: ColumnType<Date, Date | string, never>;
 }
 
