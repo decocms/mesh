@@ -22,6 +22,7 @@ function ChatPanelContent() {
     isChatEmpty,
     activeThreadId,
     setActiveThreadId,
+    createThread,
     threads,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
@@ -34,7 +35,7 @@ function ChatPanelContent() {
 
   const handleNewThread = () => {
     startTransition(() => {
-      setActiveThreadId(crypto.randomUUID());
+      createThread();
     });
   };
 

@@ -98,7 +98,8 @@ interface ChatContextValue {
 
   // Thread management
   activeThreadId: string;
-  setActiveThreadId: (threadId: string) => void;
+  setActiveThreadId: (threadId: string) => void; // For switching existing threads
+  createThread: () => void; // For creating new threads (with prefetch)
   threads: Thread[];
   hideThread: (threadId: string) => void;
 
@@ -651,19 +652,10 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // 6. RETURNED FUNCTIONS - Functions exposed via context
   // ===========================================================================
 
-  // Wrapper for setActiveThreadId that prefills cache before setting new thread
-  const setActiveThreadIdWithPrefetch = (
-    threadId: string | ((prev: string) => string),
-  ) => {
-    const newThreadId =
-      typeof threadId === "function" ? threadId(activeThreadId) : threadId;
-
-    // Prefill cache for the new thread ID before setting it
-    if (newThreadId !== activeThreadId) {
-      prefillThreadMessages(newThreadId);
-    }
-
-    // Now set the active thread ID (this will trigger useThreadMessages with new ID)
+  // Function to create a new thread with cache prefilling
+  const createThread = () => {
+    const newThreadId = crypto.randomUUID();
+    prefillThreadMessages(newThreadId);
     setActiveThreadId(newThreadId);
   };
 
@@ -687,9 +679,13 @@ export function ChatProvider({ children }: PropsWithChildren) {
           const firstDifferentThread = threads.find(
             (thread) => thread.id !== threadId,
           );
-          setActiveThreadIdWithPrefetch(
-            firstDifferentThread?.id ?? crypto.randomUUID(),
-          );
+          if (firstDifferentThread) {
+            // Switch to existing thread
+            setActiveThreadId(firstDifferentThread.id);
+          } else {
+            // Create new thread if no other threads exist
+            createThread();
+          }
         }
         // Refetch threads to get the updated list from the API
         await refetchThreads();
@@ -785,7 +781,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
     // Thread management (using API data directly)
     activeThreadId,
     threads,
-    setActiveThreadId: setActiveThreadIdWithPrefetch,
+    setActiveThreadId, // Original, suspends for existing threads
+    createThread, // New, prefills for new threads
     hideThread,
 
     // Thread pagination

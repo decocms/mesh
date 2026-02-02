@@ -55,6 +55,7 @@ function HomeContent() {
     isChatEmpty,
     activeThreadId,
     setActiveThreadId,
+    createThread,
     threads,
     selectedVirtualMcp,
   } = useChat();
@@ -96,7 +97,7 @@ function HomeContent() {
                 variant="outline"
                 size="icon"
                 className="size-7 border border-input"
-                onClick={() => setActiveThreadId(crypto.randomUUID())}
+                onClick={() => createThread()}
                 disabled={isChatEmpty}
                 aria-label="New chat"
               >
