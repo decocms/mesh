@@ -1,8 +1,6 @@
 import { authClient } from "@/web/lib/auth-client";
-import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Plus } from "@untitledui/icons";
-import { useState } from "react";
 import { OrgItem } from "./org-item";
 
 interface OrgPanelProps {
@@ -10,6 +8,7 @@ interface OrgPanelProps {
   onOrgSelect: (orgSlug: string) => void;
   onOrgSettings: (orgSlug: string) => void;
   onPopoverClose: () => void;
+  onCreateOrganization: () => void;
 }
 
 export function OrgPanel({
@@ -17,9 +16,9 @@ export function OrgPanel({
   onOrgSelect,
   onOrgSettings,
   onPopoverClose,
+  onCreateOrganization,
 }: OrgPanelProps) {
   const { data: organizations } = authClient.useListOrganizations();
-  const [creatingOrganization, setCreatingOrganization] = useState(false);
 
   // Sort orgs: current first, then alphabetically
   const sortedOrganizations = [...(organizations ?? [])].sort((a, b) => {
@@ -29,44 +28,37 @@ export function OrgPanel({
   });
 
   return (
-    <>
-      <div className="flex flex-col min-w-[275px] border-l border-border">
-        {/* Header */}
-        <div className="flex items-center justify-between h-10 px-3 border-b border-border">
-          <span className="text-xs text-muted-foreground truncate">
-            Your Organizations
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-5"
-            onClick={() => {
-              onPopoverClose();
-              setCreatingOrganization(true);
-            }}
-          >
-            <Plus size={16} className="text-muted-foreground" />
-          </Button>
-        </div>
-
-        {/* Org list */}
-        <div className="flex flex-col gap-0.5 p-1 flex-1 overflow-y-auto">
-          {sortedOrganizations.map((organization) => (
-            <OrgItem
-              key={organization.slug}
-              org={organization}
-              isActive={organization.slug === currentOrgSlug}
-              onClick={() => onOrgSelect(organization.slug)}
-              onSettings={() => onOrgSettings(organization.slug)}
-            />
-          ))}
-        </div>
+    <div className="flex flex-col min-w-[275px] border-l border-border">
+      {/* Header */}
+      <div className="flex items-center justify-between h-10 px-3 border-b border-border">
+        <span className="text-xs text-muted-foreground truncate">
+          Your Organizations
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-5"
+          onClick={() => {
+            onPopoverClose();
+            onCreateOrganization();
+          }}
+        >
+          <Plus size={16} className="text-muted-foreground" />
+        </Button>
       </div>
 
-      <CreateOrganizationDialog
-        open={creatingOrganization}
-        onOpenChange={setCreatingOrganization}
-      />
-    </>
+      {/* Org list */}
+      <div className="flex flex-col gap-0.5 p-1 flex-1 overflow-y-auto">
+        {sortedOrganizations.map((organization) => (
+          <OrgItem
+            key={organization.slug}
+            org={organization}
+            isActive={organization.slug === currentOrgSlug}
+            onClick={() => onOrgSelect(organization.slug)}
+            onSettings={() => onOrgSettings(organization.slug)}
+          />
+        ))}
+      </div>
+    </div>
   );
 }

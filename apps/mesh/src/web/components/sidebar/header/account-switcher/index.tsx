@@ -13,6 +13,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { UserPanel } from "./user-panel";
 import { OrgPanel } from "./org-panel";
+import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
 import { UserSettingsDialog } from "@/web/components/user-settings-dialog";
 
 interface MeshAccountSwitcherProps {
@@ -33,6 +34,7 @@ export function MeshAccountSwitcher({
 
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [creatingOrganization, setCreatingOrganization] = useState(false);
 
   const user = session?.user;
   const userImage = (user as { image?: string } | undefined)?.image;
@@ -104,6 +106,7 @@ export function MeshAccountSwitcher({
             onOrgSelect={handleSelectOrg}
             onOrgSettings={handleOrgSettings}
             onPopoverClose={() => setOpen(false)}
+            onCreateOrganization={() => setCreatingOrganization(true)}
           />
         </PopoverContent>
       </Popover>
@@ -116,6 +119,11 @@ export function MeshAccountSwitcher({
           userImage={userImage}
         />
       )}
+
+      <CreateOrganizationDialog
+        open={creatingOrganization}
+        onOpenChange={setCreatingOrganization}
+      />
     </>
   );
 }

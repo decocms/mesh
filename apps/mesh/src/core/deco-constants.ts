@@ -14,7 +14,8 @@ export const DECO_STORE_URL = "https://api.decocms.com/mcp/registry";
 export const OPENROUTER_MCP_URL = "https://sites-openrouter.decocache.com/mcp";
 
 /** OpenRouter icon URL */
-export const OPENROUTER_ICON_URL = "https://openrouter.ai/favicon.ico";
+export const OPENROUTER_ICON_URL =
+  "https://assets.decocache.com/decocms/b2e2f64f-6025-45f7-9e8c-3b3ebdd073d8/openrouter_logojpg.jpg";
 
 /**
  * Check if a connection URL is a deco-hosted MCP (excluding the registry itself).
