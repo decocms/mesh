@@ -63,11 +63,6 @@ export default function SiteList() {
     setPreviewUrl(url);
   };
 
-  const handleOpenExternal = (pagePath?: string) => {
-    const url = pagePath ? `${serverUrl}${pagePath}` : serverUrl;
-    window.open(url, "_blank");
-  };
-
   const handleClosePreview = () => {
     setPreviewUrl(null);
   };
