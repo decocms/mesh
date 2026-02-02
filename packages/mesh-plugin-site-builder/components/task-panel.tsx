@@ -24,6 +24,9 @@ import {
   useSkills,
 } from "mesh-plugin-task-runner/hooks/use-tasks";
 import { toast } from "sonner";
+import { useSiteDetection } from "../hooks/use-site-detection";
+import { usePages } from "../hooks/use-pages";
+import { useDevServer } from "../hooks/use-dev-server";
 
 interface TaskPanelProps {
   className?: string;
@@ -74,6 +77,11 @@ export function TaskPanel({ className }: TaskPanelProps) {
   const { data: skills = [] } = useSkills();
   const createTask = useCreateTask();
 
+  // Site context for agent prompts
+  const { data: detection } = useSiteDetection();
+  const { pages } = usePages();
+  const { isRunning, serverUrl } = useDevServer();
+
   const sessions = sessionData?.sessions ?? [];
   const runningCount = sessionData?.runningCount ?? 0;
 
@@ -104,8 +112,26 @@ export function TaskPanel({ className }: TaskPanelProps) {
   };
 
   const handleRunTask = (task: Task) => {
-    // Dispatch event to open chat and send task
-    const message = `Execute task: ${task.title}${task.description ? `\n\n${task.description}` : ""}`;
+    // Build site context for the agent
+    const siteContext = detection?.isDeco
+      ? {
+          isDeco: true,
+          serverUrl: isRunning ? serverUrl : undefined,
+          pages: pages.map((p) => p.path),
+          decoImports: detection.decoImports,
+          siteType: "deco",
+        }
+      : undefined;
+
+    // Build AGENT_SPAWN command with site context
+    const params = JSON.stringify({
+      taskId: task.id,
+      taskTitle: task.title,
+      taskDescription: task.description || task.title,
+      siteContext,
+    });
+
+    const message = `AGENT_SPAWN ${params}`;
     window.dispatchEvent(
       new CustomEvent("deco:open-chat", { detail: { message } }),
     );
