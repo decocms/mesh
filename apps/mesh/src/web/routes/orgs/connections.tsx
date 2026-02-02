@@ -70,7 +70,8 @@ import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   useConnectionActions,
   useConnections,
-  useMCPClient, useMCPToolCallQuery,
+  useMCPClient,
+  useMCPToolCallQuery,
   useProjectContext,
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
