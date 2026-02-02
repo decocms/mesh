@@ -22,6 +22,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Loading01, RefreshCcw01 } from "@untitledui/icons";
 import {
   Link,
@@ -163,7 +164,7 @@ function ConnectionInspectorViewWithConnection({
         >
           <RefreshCcw01
             size={16}
-            className={isRefreshingTools ? "animate-spin" : ""}
+            className={cn(isRefreshingTools && "animate-spin")}
           />
         </Button>
       )}

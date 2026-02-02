@@ -20,7 +20,7 @@ import {
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { cn } from "@deco/ui/lib/utils";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { useParams } from "@decocms/bindings/plugins";
 import {
   useTasks,
@@ -329,7 +329,7 @@ function AgentSessionCard({ session }: { session: AgentSession }) {
         "rounded-lg p-4 border",
         isRunning && "bg-green-50 border-green-200",
         isCompleted && "bg-blue-50 border-blue-200",
-        !isRunning && !isCompleted && "bg-red-50 border-red-200"
+        !isRunning && !isCompleted && "bg-red-50 border-red-200",
       )}
     >
       {/* Header */}
@@ -348,7 +348,7 @@ function AgentSessionCard({ session }: { session: AgentSession }) {
                 "text-sm font-semibold",
                 isRunning && "text-green-700",
                 isCompleted && "text-blue-700",
-                !isRunning && !isCompleted && "text-red-700"
+                !isRunning && !isCompleted && "text-red-700",
               )}
             >
               {isRunning
@@ -431,7 +431,9 @@ function AgentSessionCard({ session }: { session: AgentSession }) {
               <span
                 className={cn(
                   "w-1.5 h-1.5 rounded-full",
-                  i === 0 && isRunning ? "bg-green-500 animate-pulse" : "bg-muted-foreground/30"
+                  i === 0 && isRunning
+                    ? "bg-green-500 animate-pulse"
+                    : "bg-muted-foreground/30",
                 )}
               />
               <code className="font-mono text-muted-foreground">
@@ -525,7 +527,9 @@ function AgentStatus() {
           onClick={() => setActiveTab("current")}
           className={cn(
             "px-3 py-1.5 text-xs font-medium transition-colors relative",
-            activeTab === "current" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+            activeTab === "current"
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
           Current
@@ -534,8 +538,12 @@ function AgentStatus() {
               className={cn(
                 "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px]",
                 hasRunning && "bg-green-500/20 text-green-600",
-                !hasRunning && mostRecentSession?.status === "failed" && "bg-red-500/20 text-red-600",
-                !hasRunning && mostRecentSession?.status !== "failed" && "bg-blue-500/20 text-blue-600"
+                !hasRunning &&
+                  mostRecentSession?.status === "failed" &&
+                  "bg-red-500/20 text-red-600",
+                !hasRunning &&
+                  mostRecentSession?.status !== "failed" &&
+                  "bg-blue-500/20 text-blue-600",
               )}
             >
               {currentSessions.length}
@@ -550,7 +558,9 @@ function AgentStatus() {
           onClick={() => setActiveTab("history")}
           className={cn(
             "px-3 py-1.5 text-xs font-medium transition-colors relative",
-            activeTab === "history" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+            activeTab === "history"
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
           History
@@ -794,7 +804,9 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
               <span
                 className={cn(
                   "text-xs px-1.5 py-0.5 rounded",
-                  planApproved ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                  planApproved
+                    ? "bg-green-100 text-green-700"
+                    : "bg-yellow-100 text-yellow-700",
                 )}
               >
                 {planApproved ? "Plan Approved" : "Plan Draft"}
@@ -943,10 +955,14 @@ When done, call TASK_SET_PLAN with workspace="${workspacePath}", taskId="${task.
                     <span
                       className={cn(
                         "text-xs px-1.5 py-0.5 rounded",
-                        st.estimatedComplexity === "trivial" && "bg-green-100 text-green-700",
-                        st.estimatedComplexity === "simple" && "bg-blue-100 text-blue-700",
-                        st.estimatedComplexity === "moderate" && "bg-yellow-100 text-yellow-700",
-                        st.estimatedComplexity === "complex" && "bg-red-100 text-red-700"
+                        st.estimatedComplexity === "trivial" &&
+                          "bg-green-100 text-green-700",
+                        st.estimatedComplexity === "simple" &&
+                          "bg-blue-100 text-blue-700",
+                        st.estimatedComplexity === "moderate" &&
+                          "bg-yellow-100 text-yellow-700",
+                        st.estimatedComplexity === "complex" &&
+                          "bg-red-100 text-red-700",
                       )}
                     >
                       {st.estimatedComplexity}
@@ -1144,7 +1160,7 @@ function TasksTabContent({
                   "px-2 py-1 text-xs rounded-md border transition-colors",
                   selectedSkillId === null
                     ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border hover:bg-accent"
+                    : "border-border hover:bg-accent",
                 )}
               >
                 None
@@ -1158,7 +1174,7 @@ function TasksTabContent({
                     "px-2 py-1 text-xs rounded-md border transition-colors",
                     selectedSkillId === skill.id
                       ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border hover:bg-accent"
+                      : "border-border hover:bg-accent",
                   )}
                   title={skill.description}
                 >
@@ -1437,7 +1453,9 @@ function QualityGatesTabContent() {
                 <div
                   className={cn(
                     "p-1.5 rounded",
-                    gate.required ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"
+                    gate.required
+                      ? "bg-green-100 text-green-700"
+                      : "bg-muted text-muted-foreground",
                   )}
                 >
                   <ShieldIcon size={14} />
@@ -1563,7 +1581,7 @@ export default function TaskBoard() {
                   "flex-1 px-4 py-3 text-sm font-medium transition-colors",
                   activeTab === "tasks"
                     ? "bg-background text-foreground border-b-2 border-primary -mb-px"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
                 )}
               >
                 <span className="flex items-center justify-center gap-2">
@@ -1578,7 +1596,7 @@ export default function TaskBoard() {
                   "flex-1 px-4 py-3 text-sm font-medium transition-colors",
                   activeTab === "skills"
                     ? "bg-background text-foreground border-b-2 border-primary -mb-px"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
                 )}
               >
                 <span className="flex items-center justify-center gap-2">
@@ -1593,7 +1611,7 @@ export default function TaskBoard() {
                   "flex-1 px-4 py-3 text-sm font-medium transition-colors",
                   activeTab === "gates"
                     ? "bg-background text-foreground border-b-2 border-primary -mb-px"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
                 )}
               >
                 <span className="flex items-center justify-center gap-2">

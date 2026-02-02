@@ -799,9 +799,12 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // 7. EVENT LISTENERS
   // ===========================================================================
 
-  // Use a ref to track the sendMessage function to avoid stale closures
+  // Use refs to track functions and avoid stale closures
   const sendMessageRef = useRef(sendMessage);
   sendMessageRef.current = sendMessage;
+
+  const setVirtualMcpIdRef = useRef(setVirtualMcpId);
+  setVirtualMcpIdRef.current = setVirtualMcpId;
 
   // Listen for chat message events from plugins or other components
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -813,7 +816,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
       // Optionally select the virtual MCP before sending
       if (virtualMcpId) {
-        setVirtualMcpId(virtualMcpId);
+        setVirtualMcpIdRef.current(virtualMcpId);
       }
 
       // Build tiptapDoc and send
@@ -831,7 +834,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
         handleChatEvent as EventListener,
       );
     };
-  }, [setVirtualMcpId]);
+  }, []);
 
   // ===========================================================================
   // 8. CONTEXT VALUE & RETURN
