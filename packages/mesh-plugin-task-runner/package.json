@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "main": "./index.tsx",
+  "exports": {
+    ".": "./index.tsx",
+    "./hooks/use-tasks": "./hooks/use-tasks.ts"
+  },
   "scripts": {
     "check": "tsc --noEmit",
     "test": "bun test"

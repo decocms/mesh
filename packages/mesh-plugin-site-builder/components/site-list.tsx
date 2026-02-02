@@ -9,6 +9,7 @@ import { useSiteDetection } from "../hooks/use-site-detection";
 import { useDevServer } from "../hooks/use-dev-server";
 import { usePages } from "../hooks/use-pages";
 import { PreviewFrame } from "./preview-frame";
+import { TaskPanel } from "./task-panel";
 import {
   CheckCircle,
   XClose,
@@ -140,11 +141,14 @@ export default function SiteList() {
     );
   }
 
-  // Valid Deco site - with optional preview
+  // Valid Deco site - with preview and task panel
   if (previewUrl) {
     return (
-      <div className="h-full p-4">
-        <PreviewFrame url={previewUrl} onClose={handleClosePreview} />
+      <div className="h-full flex">
+        <div className="flex-1 p-4">
+          <PreviewFrame url={previewUrl} onClose={handleClosePreview} />
+        </div>
+        <TaskPanel />
       </div>
     );
   }
