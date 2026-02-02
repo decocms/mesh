@@ -31,7 +31,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { type TableColumn } from "@deco/ui/components/collection-table.tsx";
 import {
@@ -64,7 +63,6 @@ import {
   Container,
   Terminal,
   Globe02,
-  CheckCircle,
 } from "@untitledui/icons";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
@@ -88,11 +86,9 @@ import {
   findListToolName,
   extractItemsFromResponse,
 } from "@/web/utils/registry-utils";
-import { isConnectionAuthenticated } from "@/web/lib/mcp-oauth";
-import { KEYS } from "@/web/lib/query-keys";
-import { useQuery } from "@tanstack/react-query";
 import { differenceInSeconds } from "date-fns";
 import { User } from "@/web/components/user/user.tsx";
+import { ConnectionStatus } from "@/web/components/connections/connection-status.tsx";
 
 function formatTimeAgo(date: Date): string {
   const seconds = differenceInSeconds(new Date(), date);
@@ -394,47 +390,6 @@ function dialogReducer(_state: DialogState, action: DialogAction): DialogState {
     case "close":
       return { mode: "idle" };
   }
-}
-
-function ConnectionStatus({ connectionId }: { connectionId: string }) {
-  const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
-  const { data: authStatus, isLoading } = useQuery({
-    queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
-    queryFn: () =>
-      isConnectionAuthenticated({
-        url: mcpProxyUrl.href,
-        token: null,
-      }),
-    staleTime: 30000,
-    retry: false,
-  });
-
-  if (isLoading) {
-    return (
-      <Badge variant="outline">
-        <Loading01 size={12} className="animate-spin" />
-        Checking...
-      </Badge>
-    );
-  }
-
-  if (authStatus?.isAuthenticated) {
-    return (
-      <Badge
-        variant="success"
-        className="gap-1.5 bg-success-foreground text-success"
-      >
-        <CheckCircle size={12} />
-        Connected
-      </Badge>
-    );
-  }
-
-  return (
-    <Badge variant="outline" className="text-muted-foreground">
-      Not connected
-    </Badge>
-  );
 }
 
 function OrgMcpsContent() {
@@ -808,30 +763,24 @@ function OrgMcpsContent() {
 
   const columns: TableColumn<ConnectionEntity>[] = [
     {
-      id: "icon",
-      header: "",
-      render: (connection) => (
-        <IntegrationIcon
-          icon={connection.icon}
-          name={connection.title}
-          size="sm"
-          className="shrink-0 shadow-sm"
-          fallbackIcon={<Container />}
-        />
-      ),
-      cellClassName: "w-12 shrink-0",
-      wrap: true,
-    },
-    {
       id: "title",
       header: "Name",
       render: (connection) => (
-        <span
-          className="text-sm font-medium text-foreground truncate block"
-          title={connection.title}
-        >
-          {connection.title}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <IntegrationIcon
+            icon={connection.icon}
+            name={connection.title}
+            size="sm"
+            className="shrink-0 shadow-sm"
+            fallbackIcon={<Container />}
+          />
+          <span
+            className="text-sm font-medium text-foreground truncate block"
+            title={connection.title}
+          >
+            {connection.title}
+          </span>
+        </div>
       ),
       cellClassName: "w-32 min-w-0 shrink-0",
       sortable: true,
@@ -865,14 +814,16 @@ function OrgMcpsContent() {
     {
       id: "status",
       header: "Status",
-      render: (connection) => <ConnectionStatus connectionId={connection.id} />,
+      render: (connection) => <ConnectionStatus status={connection.status} />,
       cellClassName: "w-28 shrink-0",
       sortable: false,
     },
     {
-      id: "created_by",
-      header: "Created by",
-      render: (connection) => <User id={connection.created_by} size="3xs" />,
+      id: "updated_by",
+      header: "Updated by",
+      render: (connection) => (
+        <User id={connection.updated_by ?? connection.created_by} size="3xs" />
+      ),
       cellClassName: "w-32 shrink-0",
       sortable: true,
     },
@@ -1343,7 +1294,7 @@ function OrgMcpsContent() {
               { id: "title", label: "Name" },
               { id: "description", label: "Description" },
               { id: "connection_type", label: "Type" },
-              { id: "created_by", label: "Created by" },
+              { id: "updated_by", label: "Updated by" },
               { id: "updated_at", label: "Updated" },
             ]}
           />
@@ -1462,11 +1413,14 @@ function OrgMcpsContent() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     }
-                    body={<ConnectionStatus connectionId={connection.id} />}
+                    body={<ConnectionStatus status={connection.status} />}
                     footer={
                       <div className="flex items-center justify-between text-xs text-muted-foreground w-full min-w-0">
                         <div className="flex-1 min-w-0">
-                          <User id={connection.created_by} size="3xs" />
+                          <User
+                            id={connection.updated_by ?? connection.created_by}
+                            size="3xs"
+                          />
                         </div>
                         <span className="shrink-0 ml-2">
                           {connection.updated_at
