@@ -194,7 +194,7 @@ const useModelState = (
   );
 
   // Fetch models for the selected connection
-  const models = useModels(modelsConnection?.id ?? null);
+  const models = useModels(modelsConnection?.id);
   const cheapestModel = models
     .filter((m) => (m.costs?.input ?? 0) + (m.costs?.output ?? 0) > 0)
     .reduce<(typeof models)[number] | undefined>((min, model) => {

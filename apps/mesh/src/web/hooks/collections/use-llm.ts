@@ -9,7 +9,7 @@ import type { ModelCollectionEntitySchema } from "@decocms/bindings/llm";
 import {
   useCollectionList,
   useConnections,
-  useMCPClient,
+  useMCPClientOptional,
   useProjectContext,
   type UseCollectionListOptions,
 } from "@decocms/mesh-sdk";
@@ -36,8 +36,8 @@ export function useLLMsFromConnection(
   options: UseLLMsOptions = {},
 ) {
   const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: connectionId ?? null,
+  const client = useMCPClientOptional({
+    connectionId,
     orgId: org.id,
   });
   const scopeKey = connectionId ?? "no-connection";

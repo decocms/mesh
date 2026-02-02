@@ -21,8 +21,10 @@ export {
 export {
   createMCPClient,
   useMCPClient,
+  useMCPClientOptional,
   type CreateMcpClientOptions,
   type UseMcpClientOptions,
+  type UseMcpClientOptionalOptions,
 } from "./use-mcp-client";
 
 // MCP tools hooks

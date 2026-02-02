@@ -56,7 +56,7 @@ prioritizedModelIds.forEach((modelId, index) => {
  * Hook to fetch LLM models from a specific connection.
  * Returns filtered and sorted models.
  */
-export function useModels(connectionId: string | null): LLM[] {
+export function useModels(connectionId: string | undefined): LLM[] {
   // Fetch models from the connection using the collection hook
   const models = useLLMsFromConnection(connectionId ?? undefined, {
     pageSize: 999,
@@ -482,7 +482,7 @@ function ModelSelectorContent({
   const modelsConnections = modelsConnectionsProp ?? modelsConnectionsFromHook;
 
   // Fetch models only for the selected connection
-  const models = useModels(selectedConnectionId);
+  const models = useModels(selectedConnectionId ?? undefined);
 
   // Focus search input when mounted
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -649,7 +649,7 @@ export function ModelSelector({
   const selectedConnectionId = selectedModel?.connectionId ?? null;
 
   // Fetch models only for the selected connection
-  const models = useModels(selectedConnectionId);
+  const models = useModels(selectedConnectionId ?? undefined);
 
   // Find selected model by id
   const currentModel = selectedModel
