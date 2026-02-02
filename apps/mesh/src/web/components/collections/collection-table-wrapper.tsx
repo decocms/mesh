@@ -1,5 +1,4 @@
-import { CollectionTable } from "@deco/ui/components/collection-table.tsx";
-import type { TableColumn } from "@deco/ui/components/collection-table.tsx";
+import { CollectionTable, type TableColumn } from "./collection-table.tsx";
 import type { ReactNode } from "react";
 
 interface CollectionTableWrapperProps<T> {

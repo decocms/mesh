@@ -32,7 +32,7 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { type TableColumn } from "@deco/ui/components/collection-table.tsx";
+import { type TableColumn } from "@/web/components/collections/collection-table.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,

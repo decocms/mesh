@@ -143,4 +143,3 @@ export function CollectionTable<T = Record<string, unknown>>({
 }
 
 export type { CollectionTableColumn as TableColumn };
-export { CollectionTable as Table };
