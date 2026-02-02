@@ -23,7 +23,7 @@ import {
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { ResourceTabs } from "@deco/ui/components/resource-tabs.tsx";
+import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import {
   isStdioParameters,
   useConnection,
@@ -538,7 +538,7 @@ function ConnectionInspectorViewWithConnection({
         <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
           {/* Tabs header */}
           <div className="shrink-0 flex items-center gap-4 px-5 py-3 border-b border-border">
-            <ResourceTabs
+            <CollectionTabs
               tabs={tabs}
               activeTab={activeTabId}
               onTabChange={handleTabChange}

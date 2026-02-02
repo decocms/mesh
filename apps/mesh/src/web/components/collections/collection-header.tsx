@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   FilterBar,
@@ -27,15 +28,15 @@ import {
   ArrowDown,
 } from "@untitledui/icons";
 
-export interface ResourceHeaderTab {
+export interface CollectionHeaderTab {
   id: string;
   label: string;
   onClick?: () => void;
   href?: string;
 }
 
-interface ResourceHeaderProps {
-  tabs?: ResourceHeaderTab[];
+interface CollectionHeaderProps {
+  tabs?: CollectionHeaderTab[];
   activeTab?: string;
   onTabChange?: (tabId: string) => void;
   searchValue?: string;
@@ -62,7 +63,7 @@ interface ResourceHeaderProps {
   }) => ReactNode;
 }
 
-export function ResourceHeader({
+export function CollectionHeader({
   tabs,
   activeTab,
   onTabChange,
@@ -85,7 +86,7 @@ export function ResourceHeader({
   hideActions = false,
   renderUserItem,
   renderUserFilter,
-}: ResourceHeaderProps) {
+}: CollectionHeaderProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -153,11 +154,11 @@ export function ResourceHeader({
               >
                 <FilterLines
                   size={20}
-                  className={
+                  className={cn(
                     filters && filters.length > 0
                       ? "text-violet-500"
-                      : "text-muted-foreground"
-                  }
+                      : "text-muted-foreground",
+                  )}
                 />
               </Button>
             )}

@@ -1,25 +1,25 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Badge } from "@deco/ui/components/badge.tsx";
 
-export interface ResourceTab {
+export interface CollectionTab {
   id: string;
   label: string;
   count?: number;
 }
 
-export interface ResourceTabsProps {
-  tabs: ResourceTab[];
+export interface CollectionTabsProps {
+  tabs: CollectionTab[];
   activeTab: string;
   onTabChange: (tabId: string) => void;
   className?: string;
 }
 
-export function ResourceTabs({
+export function CollectionTabs({
   tabs,
   activeTab,
   onTabChange,
   className,
-}: ResourceTabsProps) {
+}: CollectionTabsProps) {
   return (
     <div
       className={cn(
@@ -46,7 +46,7 @@ export function ResourceTabs({
               <Badge
                 variant="secondary"
                 className={cn(
-                  "size-3 p-0 rounded-xs text-[10px] font-mono inline-flex items-center justify-center",
+                  "h-5 min-w-5 px-1 rounded-full text-[10px] font-mono inline-flex items-center justify-center",
                   isActive
                     ? "bg-background text-foreground"
                     : "bg-muted-foreground/10 text-muted-foreground",
