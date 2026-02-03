@@ -77,6 +77,11 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
         const { client, callStreamableTool } = await createClient(extraHeaders);
 
         if (options?.streamable?.[String(toolName)]) {
+          if (!callStreamableTool) {
+            throw new Error(
+              `Tool ${String(toolName)} requires streaming support but client doesn't provide callStreamableTool`,
+            );
+          }
           return callStreamableTool(String(toolName), args);
         }
 
