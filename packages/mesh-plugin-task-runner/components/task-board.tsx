@@ -1039,7 +1039,7 @@ function QualityGatesTabContent({
   >([]);
   const [isCreatingFixTask, setIsCreatingFixTask] = useState(false);
 
-  // Handle creating a fix task and starting agent
+  // Handle creating a fix task and requesting a plan
   const handleCreateFixTask = async (gateName: string, gateOutput: string) => {
     const workspace = workspaceData?.workspace;
     if (!workspace) {
@@ -1050,7 +1050,7 @@ function QualityGatesTabContent({
     setIsCreatingFixTask(true);
     try {
       const title = `Fix ${gateName} quality gate failures`;
-      const description = `Fix the following ${gateName} errors. Create a plan with subtasks for each issue.\n\n\`\`\`\n${gateOutput}\n\`\`\``;
+      const description = `Fix the following ${gateName} errors:\n\n\`\`\`\n${gateOutput}\n\`\`\``;
 
       // Create the task and get its ID
       const taskId = await new Promise<string>((resolve, reject) => {
@@ -1070,14 +1070,26 @@ function QualityGatesTabContent({
         );
       });
 
-      // Use AGENT_SPAWN to properly track the agent session
-      const prompt = buildTaskPrompt(
-        { id: taskId, title, description },
-        workspace,
-      );
-      sendChatMessage(prompt);
+      // Send planning prompt (same as Plan button on task card)
+      const planningPrompt = `Please analyze and create a detailed plan for task ${taskId}: "${title}"
 
-      toast.success("Fix task created - agent spawned");
+Description: ${description}
+Workspace: ${workspace}
+
+Instructions:
+1. Read the task requirements carefully
+2. Explore the codebase to understand relevant files and patterns
+3. Create a plan with:
+   - Clear, specific acceptance criteria (not generic ones)
+   - Subtasks broken down by complexity
+   - Files that will likely need modification
+   - Any risks or considerations
+
+When done, call TASK_SET_PLAN with workspace="${workspace}", taskId="${taskId}", and your plan.`;
+
+      sendChatMessage(planningPrompt);
+
+      toast.success("Fix task created - sent to agent for planning");
       onFixTaskCreated?.();
     } catch (error) {
       toast.error(`Failed to create fix task: ${error}`);
