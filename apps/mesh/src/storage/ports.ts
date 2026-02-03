@@ -169,6 +169,9 @@ export interface TagStoragePort {
   addMemberTag(memberId: string, tagId: string): Promise<void>;
   removeMemberTag(memberId: string, tagId: string): Promise<void>;
 
+  // Member verification
+  verifyMemberOrg(memberId: string, organizationId: string): Promise<boolean>;
+
   // Bulk operations for monitoring
   getUserTagsInOrg(
     userId: string,

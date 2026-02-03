@@ -31,8 +31,16 @@ export const MEMBER_TAGS_GET = defineTool({
     requireAuth(ctx);
     await ctx.access.check();
 
-    // Ensure we have org context
-    requireOrganization(ctx);
+    const organization = requireOrganization(ctx);
+
+    // Verify member belongs to this organization
+    const memberInOrg = await ctx.storage.tags.verifyMemberOrg(
+      input.memberId,
+      organization.id,
+    );
+    if (!memberInOrg) {
+      throw new Error(`Member not found in this organization: ${input.memberId}`);
+    }
 
     const tags = await ctx.storage.tags.getMemberTags(input.memberId);
 

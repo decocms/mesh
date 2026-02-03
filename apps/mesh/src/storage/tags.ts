@@ -72,15 +72,12 @@ export class TagStorage {
     organizationId: string,
     name: string,
   ): Promise<OrganizationTag> {
-    // Check if tag already exists
-    const existing = await this.getTagByName(organizationId, name);
-    if (existing) {
-      return existing;
-    }
-
     const id = generatePrefixedId("tag");
     const now = new Date().toISOString();
 
+    // Use ON CONFLICT DO NOTHING to handle concurrent creates gracefully.
+    // This avoids the race condition where a concurrent request could insert
+    // a tag with the same name between our check and insert.
     await this.db
       .insertInto("organization_tags")
       .values({
@@ -89,14 +86,19 @@ export class TagStorage {
         name,
         created_at: now,
       })
+      .onConflict((oc) =>
+        oc.columns(["organization_id", "name"]).doNothing()
+      )
       .execute();
 
-    return {
-      id,
-      organizationId,
-      name,
-      createdAt: now,
-    };
+    // Fetch the tag (either the one we just inserted, or the existing one)
+    const tag = await this.getTagByName(organizationId, name);
+    if (!tag) {
+      // This should never happen unless there's a bug or the tag was deleted
+      throw new Error(`Failed to create or retrieve tag: ${name}`);
+    }
+
+    return tag;
   }
 
   /**
@@ -171,19 +173,10 @@ export class TagStorage {
    * Add a single tag to a member (idempotent)
    */
   async addMemberTag(memberId: string, tagId: string): Promise<void> {
-    // Check if already assigned
-    const existing = await this.db
-      .selectFrom("member_tags")
-      .select("id")
-      .where("member_id", "=", memberId)
-      .where("tag_id", "=", tagId)
-      .executeTakeFirst();
-
-    if (existing) {
-      return; // Already assigned
-    }
-
     const now = new Date().toISOString();
+
+    // Use ON CONFLICT DO NOTHING to make this idempotent and avoid race conditions
+    // where concurrent requests could try to insert the same assignment.
     await this.db
       .insertInto("member_tags")
       .values({
@@ -192,6 +185,9 @@ export class TagStorage {
         tag_id: tagId,
         created_at: now,
       })
+      .onConflict((oc) =>
+        oc.columns(["member_id", "tag_id"]).doNothing()
+      )
       .execute();
   }
 
@@ -204,6 +200,24 @@ export class TagStorage {
       .where("member_id", "=", memberId)
       .where("tag_id", "=", tagId)
       .execute();
+  }
+
+  /**
+   * Verify that a member belongs to the specified organization
+   * Used for authorization checks before mutating member tags
+   */
+  async verifyMemberOrg(
+    memberId: string,
+    organizationId: string,
+  ): Promise<boolean> {
+    const row = await this.db
+      .selectFrom("member")
+      .select("id")
+      .where("id", "=", memberId)
+      .where("organizationId", "=", organizationId)
+      .executeTakeFirst();
+
+    return row !== undefined;
   }
 
   // ============================================================================

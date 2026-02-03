@@ -196,17 +196,8 @@ export function parseRawPropertyFilters(raw: string): PropertyFilter[] {
           value: "",
         };
       }
-      // Check for "in" operator (key@value) - exact match within comma-separated list
-      if (line.includes("@")) {
-        const [key, ...valueParts] = line.split("@");
-        return {
-          key: key || "",
-          operator: "in" as PropertyFilterOperator,
-          value: valueParts.join("@"),
-        };
-      }
-      // Check for equals first (key=value) - must come before contains
-      // to handle values containing ~ (e.g., url=https://example.com/~user)
+      // Check for equals first (key=value) - must come before contains and "in"
+      // to handle values containing ~ or @ (e.g., email=user@example.com)
       if (line.includes("=")) {
         const [key, ...valueParts] = line.split("=");
         return {
@@ -215,13 +206,24 @@ export function parseRawPropertyFilters(raw: string): PropertyFilter[] {
           value: valueParts.join("="),
         };
       }
-      // Check for contains (key~value)
+      // Check for contains (key~value) - must come before "in"
+      // to handle values containing @ (e.g., field~test@value)
       if (line.includes("~")) {
         const [key, ...valueParts] = line.split("~");
         return {
           key: key || "",
           operator: "contains" as PropertyFilterOperator,
           value: valueParts.join("~"),
+        };
+      }
+      // Check for "in" operator (key@value) - exact match within comma-separated list
+      // Only matches when @ is the first operator (no = or ~ before it)
+      if (line.includes("@")) {
+        const [key, ...valueParts] = line.split("@");
+        return {
+          key: key || "",
+          operator: "in" as PropertyFilterOperator,
+          value: valueParts.join("@"),
         };
       }
       // Just a key without operator - treat as exists
