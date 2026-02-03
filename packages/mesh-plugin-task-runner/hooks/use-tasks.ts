@@ -1066,46 +1066,84 @@ export function useDetectQualityGates() {
         args: Record<string, unknown>,
       ) => Promise<{ content?: string } | string>;
 
-      // Read package.json
-      const pkgResult = await untypedToolCaller("read_file", {
-        path: "package.json",
-      });
-
-      const pkgContent = extractTextContent(pkgResult);
-
-      if (!pkgContent) {
-        console.error(
-          "[useDetectQualityGates] Could not extract content from:",
-          pkgResult,
-        );
-        throw new Error("Could not read package.json");
-      }
-
-      const pkg = JSON.parse(pkgContent) as {
-        scripts?: Record<string, string>;
-      };
-      if (!pkg.scripts) {
-        return { gates: [], saved: false };
-      }
-
-      const scriptNames = Object.keys(pkg.scripts);
-      const gates: QualityGate[] = [];
-
-      // Detect package manager from lockfiles
+      // Try to read package.json first, then deno.json
+      let scriptNames: string[] = [];
       let runner = "npm run";
+      let configType: "package" | "deno" | null = null;
+
+      // Try package.json
       try {
-        await untypedToolCaller("read_file", { path: "bun.lock" });
-        runner = "bun run";
+        const pkgResult = await untypedToolCaller("read_file", {
+          path: "package.json",
+        });
+        const pkgContent = extractTextContent(pkgResult);
+
+        if (pkgContent && !pkgContent.startsWith("Error:")) {
+          const pkg = JSON.parse(pkgContent) as {
+            scripts?: Record<string, string>;
+          };
+          if (pkg.scripts) {
+            scriptNames = Object.keys(pkg.scripts);
+            configType = "package";
+
+            // Detect package manager from lockfiles
+            try {
+              const bunLock = await untypedToolCaller("read_file", {
+                path: "bun.lock",
+              });
+              const bunContent = extractTextContent(bunLock);
+              if (bunContent && !bunContent.startsWith("Error:")) {
+                runner = "bun run";
+              }
+            } catch {
+              try {
+                const pnpmLock = await untypedToolCaller("read_file", {
+                  path: "pnpm-lock.yaml",
+                });
+                const pnpmContent = extractTextContent(pnpmLock);
+                if (pnpmContent && !pnpmContent.startsWith("Error:")) {
+                  runner = "pnpm run";
+                }
+              } catch {
+                // Default to npm
+              }
+            }
+          }
+        }
       } catch {
+        // package.json not found or invalid
+      }
+
+      // Try deno.json if package.json didn't work
+      if (configType === null) {
         try {
-          await untypedToolCaller("read_file", { path: "pnpm-lock.yaml" });
-          runner = "pnpm run";
+          const denoResult = await untypedToolCaller("read_file", {
+            path: "deno.json",
+          });
+          const denoContent = extractTextContent(denoResult);
+
+          if (denoContent && !denoContent.startsWith("Error:")) {
+            const deno = JSON.parse(denoContent) as {
+              tasks?: Record<string, string>;
+            };
+            if (deno.tasks) {
+              scriptNames = Object.keys(deno.tasks);
+              configType = "deno";
+              runner = "deno task";
+            }
+          }
         } catch {
-          // Default to npm
+          // deno.json not found or invalid
         }
       }
 
-      // Find matching scripts
+      if (scriptNames.length === 0) {
+        return { gates: [], saved: false };
+      }
+
+      const gates: QualityGate[] = [];
+
+      // Find matching scripts/tasks
       for (const pattern of QUALITY_GATE_PATTERNS) {
         for (const scriptName of pattern.scripts) {
           if (scriptNames.includes(scriptName)) {
