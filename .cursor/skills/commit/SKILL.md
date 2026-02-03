@@ -1,4 +1,13 @@
+---
+name: commit
+description: Prepare code for review by running quality checks, creating conventional commits, and opening pull requests. Use when the user wants to commit changes, create a PR, prepare for code review, or asks to commit their work.
+disable-model-invocation: true
+---
+
 I'm getting ready for code review. Please follow these steps:
+
+## 0. Branch Check
+If you're on the `main` branch, create a new feature branch first before making any commits.
 
 ## 1. Quality Assurance Checks
 Run the following commands in order:
