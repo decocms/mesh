@@ -64,11 +64,6 @@ async function createClientMap(
   const clientResults = await Promise.all(
     connections.map(async (connection) => {
       try {
-        // Validate connection status
-        if (connection.status !== "active") {
-          throw new Error(`Connection inactive: ${connection.status}`);
-        }
-
         const client = await createClient(connection, ctx, false);
         return [connection.id, client] as const;
       } catch (error) {

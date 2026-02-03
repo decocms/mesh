@@ -9,6 +9,7 @@ import {
   getReferencedConnectionIds,
   parseScope,
 } from "@/auth/configuration-scopes";
+import { createClient } from "@/mcp-clients";
 import { DownstreamTokenStorage } from "@/storage/downstream-token";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
@@ -244,15 +245,16 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       finalScopes
     ) {
       try {
-        await using proxy = await ctx.createMCPProxy(id);
-        await proxy.callTool({
+        // Create client - pool manages lifecycle, best-effort call
+        const client = await createClient(connection, ctx, false);
+
+        await client.callTool({
           name: "ON_MCP_CONFIGURATION",
           arguments: {
             state: finalState,
             scopes: finalScopes,
           },
         });
-        await proxy.close().catch(console.error);
       } catch (error) {
         console.error("Failed to invoke ON_MCP_CONFIGURATION callback", error);
       }
