@@ -23,15 +23,11 @@ import {
   type CallToolRequest,
   type CallToolResult,
   ErrorCode,
-  type GetPromptRequest,
-  type GetPromptResult,
   type ListPromptsResult,
   type ListResourcesResult,
   type ListResourceTemplatesResult,
   type ListToolsResult,
   McpError,
-  type ReadResourceRequest,
-  type ReadResourceResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Context, Hono } from "hono";
@@ -630,11 +626,6 @@ async function createMCPProxyDoNotUseDirectly(
     }
   };
 
-  // Read a specific resource from downstream connection
-  const readResource = async (
-    params: ReadResourceRequest["params"],
-  ): Promise<ReadResourceResult> => client.readResource(params);
-
   // List resource templates from downstream connection
   const listResourceTemplates =
     async (): Promise<ListResourceTemplatesResult> => {
@@ -668,11 +659,6 @@ async function createMCPProxyDoNotUseDirectly(
     }
   };
 
-  // Get a specific prompt from downstream connection
-  const getPrompt = async (
-    params: GetPromptRequest["params"],
-  ): Promise<GetPromptResult> => client.getPrompt(params);
-
   // We are currently exposing the underlying client with tools/resources/prompts capabilities
   // This way we have an uniform API the frontend can leverage from.
   // Frontend connects to mesh. It's garatee that all mcps have the necessary capabilities. The UI works consistently.
@@ -686,14 +672,14 @@ async function createMCPProxyDoNotUseDirectly(
       }),
     listTools,
     listResources,
-    readResource,
     listResourceTemplates,
     listPrompts,
-    getPrompt,
     getServerCapabilities,
-    getInstructions: () => client.getInstructions(),
-    close: () => client.close(),
-    [Symbol.asyncDispose]: () => client.close(),
+    readResource: client.readResource.bind(client),
+    getPrompt: client.getPrompt.bind(client),
+    getInstructions: client.getInstructions.bind(client),
+    close: client.close.bind(client),
+    [Symbol.asyncDispose]: client.close.bind(client),
   } as MCPProxyClient;
 }
 
