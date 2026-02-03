@@ -10,6 +10,7 @@
  */
 
 import { LanguageModelBinding } from "@decocms/bindings/llm";
+import { createClient } from "@/mcp-clients";
 import { toServerClient, withStreamingSupport } from "./proxy";
 import {
   generateText,
@@ -574,21 +575,26 @@ app.post("/:org/v1/chat/completions", async (c) => {
     const created = Math.floor(Date.now() / 1000);
 
     // 9. Handle streaming vs non-streaming
-    // NOTE: Proxy must be created INSIDE each branch to keep it alive for the duration of the operation
+    // NOTE: Client must be created INSIDE each branch to keep it alive for the duration of the operation
     if (request.stream) {
       return streamSSE(c, async (stream) => {
-        // Create proxy inside the streaming callback so it stays alive
+        // Validate connection status
+        if (connection.status !== "active") {
+          throw new Error(`Connection inactive: ${connection.status}`);
+        }
+
+        // Create client inside the streaming callback so it stays alive
         // Add streaming support since this branch needs it
-        await using proxy = await ctx.createMCPProxy(connectionId);
-        const streamableProxy = withStreamingSupport(
-          proxy,
+        const client = await createClient(connection, ctx, false);
+        await using streamableClient = withStreamingSupport(
+          client,
           connectionId,
           connection,
           ctx,
           { superUser: false },
         );
         const llmBinding = LanguageModelBinding.forClient(
-          toServerClient(streamableProxy),
+          toServerClient(streamableClient),
         );
         const provider = createLLMProvider(llmBinding).languageModel(modelId);
 
@@ -720,9 +726,19 @@ app.post("/:org/v1/chat/completions", async (c) => {
         }
       });
     } else {
-      // Non-streaming response - doesn't need streaming support
-      await using proxy = await ctx.createMCPProxy(connectionId);
-      const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
+      // Validate connection status
+      if (connection.status !== "active") {
+        throw new Error(`Connection inactive: ${connection.status}`);
+      }
+
+      // Non-streaming response - create client with disposal support
+      const rawClient = await createClient(connection, ctx, false);
+      await using client = Object.assign(rawClient, {
+        [Symbol.asyncDispose]: async () => {
+          await rawClient.close();
+        },
+      });
+      const llmBinding = LanguageModelBinding.forClient(toServerClient(client));
       const provider = createLLMProvider(llmBinding).languageModel(modelId);
 
       const options = buildGenerateOptions(

@@ -5,28 +5,30 @@
  */
 
 import { LanguageModelBinding } from "@decocms/bindings/llm";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 import { createLLMProvider } from "../../llm-provider";
-import {
-  type MCPProxyClient,
-  type StreamableMCPProxyClient,
-  toServerClient,
-} from "../proxy";
+import { toServerClient } from "../proxy";
 import type { ModelProvider } from "./types";
 
 /**
- * Create a ModelProvider from a proxy client
- * Accepts both regular and streamable proxy clients
+ * Create a ModelProvider from an MCP client
+ * Accepts both regular and streamable clients
  */
-export async function createModelProviderFromProxy(
-  proxy: MCPProxyClient | StreamableMCPProxyClient,
+export async function createModelProviderFromClient(
+  client: Client & {
+    callStreamableTool?: (
+      name: string,
+      args: Record<string, unknown>,
+    ) => Promise<Response>;
+  },
   config: {
     modelId: string;
     connectionId: string;
     fastId?: string | null;
   },
 ): Promise<ModelProvider> {
-  const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
+  const llmBinding = LanguageModelBinding.forClient(toServerClient(client));
 
   const llmProvider = createLLMProvider(llmBinding);
   const model = llmProvider.languageModel(config.modelId);

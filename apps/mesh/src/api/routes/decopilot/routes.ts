@@ -11,6 +11,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import type { MeshContext } from "@/core/mesh-context";
+import { createClient } from "@/mcp-clients";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { Metadata } from "@/web/components/chat/types";
@@ -23,7 +24,7 @@ import {
 } from "./constants";
 import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
-import { createModelProviderFromProxy } from "./model-provider";
+import { createModelProviderFromClient } from "./model-provider";
 import {
   checkModelPermission,
   fetchModelPermissions,
@@ -118,11 +119,10 @@ app.post("/:org/decopilot/stream", async (c) => {
     const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
     const threadId = thread_id ?? memoryConfig?.threadId;
 
-    // Get connection entity for streaming support and create clients in parallel
-    const [virtualMcp, modelConnection, modelClient] = await Promise.all([
+    // Get connection entities
+    const [virtualMcp, modelConnection] = await Promise.all([
       ctx.storage.virtualMcps.findById(agent.id, organization.id),
       ctx.storage.connections.findById(model.connectionId, organization.id),
-      ctx.createMCPProxy(model.connectionId),
     ]);
 
     if (!modelConnection) {
@@ -132,6 +132,14 @@ app.post("/:org/decopilot/stream", async (c) => {
     if (!virtualMcp) {
       throw new Error("Agent not found");
     }
+
+    // Validate connection status before creating client
+    if (modelConnection.status !== "active") {
+      throw new Error(`Model connection inactive: ${modelConnection.status}`);
+    }
+
+    // Create model client for LLM calls
+    const modelClient = await createClient(modelConnection, ctx, false);
 
     const mcpClient = await createVirtualClientFrom(
       virtualMcp,
@@ -151,7 +159,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     // 2. Extract tools from virtual MCP client and create model provider
     const [mcpTools, modelProvider] = await Promise.all([
       toolsFromMCP(mcpClient),
-      createModelProviderFromProxy(streamableModelClient, {
+      createModelProviderFromClient(streamableModelClient, {
         modelId: model.id,
         connectionId: model.connectionId,
         fastId: model.fastId ?? null,
@@ -162,6 +170,9 @@ app.post("/:org/decopilot/stream", async (c) => {
     // Without this, when client disconnects mid-stream, onFinish/onError are NOT called
     // and the MCP client + transport streams leak (TextDecoderStream, 256KB buffers)
     const abortSignal = c.req.raw.signal;
+    abortSignal.addEventListener("abort", () => {
+      modelClient.close().catch(() => {});
+    });
 
     // Get server instructions if available (for virtual MCP agents)
     const serverInstructions = mcpClient.getInstructions();
