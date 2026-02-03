@@ -175,4 +175,9 @@ export const KEYS = {
   // Remote MCP tools (for store server detail page)
   remoteMcpTools: (remoteUrl: string | null) =>
     ["remote-mcp-tools", remoteUrl] as const,
+
+  // Tags (scoped by locator)
+  tags: (locator: string) => [locator, "tags"] as const,
+  memberTags: (locator: string, memberId: string) =>
+    [locator, "member-tags", memberId] as const,
 } as const;

@@ -160,10 +160,7 @@ async function migrateExistingPluginRecords(
  * Each plugin's migrations are tracked independently in the plugin_migrations table.
  * Migrations are run in order within each plugin (sorted by name).
  */
-async function runPluginMigrations(
-  db: Kysely<Database>,
-  dbType: "sqlite" | "postgres",
-): Promise<void> {
+async function runPluginMigrations(db: Kysely<Database>): Promise<void> {
   const pluginMigrations = collectPluginMigrations();
 
   if (pluginMigrations.length === 0) {
@@ -356,7 +353,7 @@ export async function migrateToLatest<T = unknown>(
     console.log("🎉 Core migrations completed successfully");
 
     // Phase 2: Run plugin migrations (separate tracking)
-    await runPluginMigrations(database.db, database.type);
+    await runPluginMigrations(database.db);
 
     // Run seed if specified
     let seedResult: T | undefined;
