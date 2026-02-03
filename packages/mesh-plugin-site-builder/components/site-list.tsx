@@ -22,7 +22,7 @@ import {
   Plus,
   Edit02,
 } from "@untitledui/icons";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { cn } from "@deco/ui/lib/utils.ts";
 
@@ -40,12 +40,12 @@ export default function SiteList() {
   } = useDevServer();
   const { pages, isLoading: pagesLoading } = usePages();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const navigate = useNavigate();
   const { connectionId } = useParams({ strict: false }) as {
     connectionId?: string;
   };
 
   // Navigation to Tasks with context
+  // Use window.location for cross-plugin navigation
   const navigateToTasks = (params: {
     skill?: string;
     template?: string;
@@ -58,11 +58,8 @@ export default function SiteList() {
     if (connectionId) searchParams.set("site", connectionId);
 
     const search = searchParams.toString();
-    navigate({
-      to: "/tasks/$connectionId",
-      params: { connectionId: connectionId || "" },
-      search: search ? `?${search}` : undefined,
-    });
+    const basePath = connectionId ? `/tasks/${connectionId}` : "/tasks";
+    window.location.href = search ? `${basePath}?${search}` : basePath;
   };
 
   const handleCreatePage = () => {
