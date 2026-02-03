@@ -9,7 +9,6 @@ import { useSiteDetection } from "../hooks/use-site-detection";
 import { useDevServer } from "../hooks/use-dev-server";
 import { usePages } from "../hooks/use-pages";
 import { PreviewFrame } from "./preview-frame";
-import { TaskPanel } from "./task-panel";
 import {
   CheckCircle,
   XClose,
@@ -20,7 +19,10 @@ import {
   Copy01,
   Loading02,
   Eye,
+  Plus,
+  Edit02,
 } from "@untitledui/icons";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { cn } from "@deco/ui/lib/utils.ts";
 
@@ -38,6 +40,42 @@ export default function SiteList() {
   } = useDevServer();
   const { pages, isLoading: pagesLoading } = usePages();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { connectionId } = useParams({ strict: false }) as {
+    connectionId?: string;
+  };
+
+  // Navigation to Tasks with context
+  const navigateToTasks = (params: {
+    skill?: string;
+    template?: string;
+    edit?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params.skill) searchParams.set("skill", params.skill);
+    if (params.template) searchParams.set("template", params.template);
+    if (params.edit) searchParams.set("edit", params.edit);
+    if (connectionId) searchParams.set("site", connectionId);
+
+    const search = searchParams.toString();
+    navigate({
+      to: "/tasks/$connectionId",
+      params: { connectionId: connectionId || "" },
+      search: search ? `?${search}` : undefined,
+    });
+  };
+
+  const handleCreatePage = () => {
+    navigateToTasks({ skill: "decocms-landing-pages" });
+  };
+
+  const handleUseAsTemplate = (pagePath: string) => {
+    navigateToTasks({ skill: "decocms-landing-pages", template: pagePath });
+  };
+
+  const handleEditPage = (pagePath: string) => {
+    navigateToTasks({ edit: pagePath });
+  };
 
   if (isLoading) {
     return (
@@ -258,7 +296,17 @@ export default function SiteList() {
 
           {/* Pages List */}
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold">Pages</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Pages</h2>
+              <button
+                type="button"
+                onClick={handleCreatePage}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Plus size={14} />
+                Create Page
+              </button>
+            </div>
             {!isRunning ? (
               <div className="bg-muted/30 rounded-lg border border-border p-4">
                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -297,14 +345,32 @@ export default function SiteList() {
                         {page.path}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handlePreview(page.path)}
-                      className="p-1.5 rounded-md hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
-                      title="Preview"
-                    >
-                      <Eye size={14} />
-                    </button>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => handlePreview(page.path)}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                        title="Preview"
+                      >
+                        <Eye size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUseAsTemplate(page.path)}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                        title="Use as Template"
+                      >
+                        <Copy01 size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleEditPage(page.path)}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                        title="Edit Page"
+                      >
+                        <Edit02 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -312,7 +378,6 @@ export default function SiteList() {
           </div>
         </div>
       )}
-      <TaskPanel />
     </div>
   );
 }

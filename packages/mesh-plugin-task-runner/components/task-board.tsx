@@ -15,11 +15,13 @@ import {
   Check,
 } from "@untitledui/icons";
 import { TaskCard } from "./task-card";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useParams } from "@decocms/bindings/plugins";
+import { useSearch } from "@tanstack/react-router";
+import type { TaskBoardSearch } from "../lib/router";
 import {
   useTasks,
   useAgentSessions,
@@ -594,9 +596,11 @@ function AgentStatus() {
 function TasksTabContent({
   onStartWithAgent,
   workspacePath,
+  searchParams,
 }: {
   onStartWithAgent: (task: Task) => void;
   workspacePath?: string;
+  searchParams?: TaskBoardSearch;
 }) {
   const { data: tasks, isLoading, error, refetch, isFetching } = useTasks();
   const { data: skills } = useSkills();
@@ -606,9 +610,41 @@ function TasksTabContent({
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [hasAppliedParams, setHasAppliedParams] = useState(false);
 
   const selectedSkill = skills?.find((s) => s.id === selectedSkillId);
   const canCreateTasks = baselineData?.canCreateTasks ?? false;
+
+  // Handle site context params from navigation
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (hasAppliedParams || !searchParams || !skills) return;
+
+    const { skill, template, edit } = searchParams;
+
+    if (skill || template || edit) {
+      // Pre-select skill if provided
+      if (skill) {
+        const matchedSkill = skills.find((s) => s.id === skill);
+        if (matchedSkill) {
+          setSelectedSkillId(matchedSkill.id);
+        }
+      }
+
+      // Pre-fill title based on context
+      if (template) {
+        setNewTaskTitle(`Create new page based on ${template}`);
+      } else if (edit) {
+        setNewTaskTitle(`Edit page: ${edit}`);
+      } else if (skill) {
+        setNewTaskTitle("Create new landing page");
+      }
+
+      // Open the add task form
+      setIsAdding(true);
+      setHasAppliedParams(true);
+    }
+  }, [searchParams, skills, hasAppliedParams]);
 
   // Get task IDs that have running agents
   const runningTaskIds = new Set(
@@ -1294,6 +1330,7 @@ export default function TaskBoard() {
   const { data: workspaceData } = useWorkspace();
   const { data: beadsStatus } = useBeadsStatus();
   const { org: _org } = useParams({ strict: false }) as { org: string };
+  const searchParams = useSearch({ strict: false }) as TaskBoardSearch;
   const [activeTab, setActiveTab] = useState<"tasks" | "skills" | "gates">(
     "tasks",
   );
@@ -1411,6 +1448,7 @@ export default function TaskBoard() {
                 <TasksTabContent
                   onStartWithAgent={handleStartWithAgent}
                   workspacePath={workspaceData?.workspace}
+                  searchParams={searchParams}
                 />
               )}
               {activeTab === "skills" && <SkillsTabContent />}

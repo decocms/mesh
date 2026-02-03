@@ -9,6 +9,7 @@ import * as z from "zod";
 
 /**
  * Search schema for the task board route.
+ * Includes site context params for navigation from Sites plugin.
  */
 const taskBoardSearchSchema = z.object({
   view: z.enum(["board", "list"]).optional().default("board"),
@@ -16,6 +17,11 @@ const taskBoardSearchSchema = z.object({
     .enum(["all", "ready", "in_progress", "blocked"])
     .optional()
     .default("all"),
+  // Site context params (from Sites plugin navigation)
+  skill: z.string().optional(), // Pre-select skill for new task
+  template: z.string().optional(), // Page path to use as template
+  edit: z.string().optional(), // Page path to edit
+  site: z.string().optional(), // Site connection ID for context
 });
 
 export type TaskBoardSearch = z.infer<typeof taskBoardSearchSchema>;
