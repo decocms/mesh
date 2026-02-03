@@ -133,11 +133,6 @@ app.post("/:org/decopilot/stream", async (c) => {
       throw new Error("Agent not found");
     }
 
-    // Validate connection status before creating client
-    if (modelConnection.status !== "active") {
-      throw new Error(`Model connection inactive: ${modelConnection.status}`);
-    }
-
     // Create model client for LLM calls
     const modelClient = await createClient(modelConnection, ctx, false);
 

@@ -578,15 +578,11 @@ app.post("/:org/v1/chat/completions", async (c) => {
     // NOTE: Client must be created INSIDE each branch to keep it alive for the duration of the operation
     if (request.stream) {
       return streamSSE(c, async (stream) => {
-        // Validate connection status
-        if (connection.status !== "active") {
-          throw new Error(`Connection inactive: ${connection.status}`);
-        }
-
         // Create client inside the streaming callback so it stays alive
         // Add streaming support since this branch needs it
+        // Note: No need for await using - client pool manages lifecycle
         const client = await createClient(connection, ctx, false);
-        await using streamableClient = withStreamingSupport(
+        const streamableClient = withStreamingSupport(
           client,
           connectionId,
           connection,
@@ -726,18 +722,9 @@ app.post("/:org/v1/chat/completions", async (c) => {
         }
       });
     } else {
-      // Validate connection status
-      if (connection.status !== "active") {
-        throw new Error(`Connection inactive: ${connection.status}`);
-      }
-
-      // Non-streaming response - create client with disposal support
-      const rawClient = await createClient(connection, ctx, false);
-      await using client = Object.assign(rawClient, {
-        [Symbol.asyncDispose]: async () => {
-          await rawClient.close();
-        },
-      });
+      // Non-streaming response
+      // Note: No need for await using - client pool manages lifecycle
+      const client = await createClient(connection, ctx, false);
       const llmBinding = LanguageModelBinding.forClient(toServerClient(client));
       const provider = createLLMProvider(llmBinding).languageModel(modelId);
 

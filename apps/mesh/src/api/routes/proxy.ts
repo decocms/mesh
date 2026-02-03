@@ -215,7 +215,6 @@ export function withStreamingSupport(
     name: string,
     args: Record<string, unknown>,
   ) => Promise<Response>;
-  [Symbol.asyncDispose]: () => Promise<void>;
 } {
   // Call tool using fetch directly for streaming support
   // Inspired by @deco/api proxy callStreamableTool
@@ -354,15 +353,11 @@ export function withStreamingSupport(
   return {
     ...client,
     callStreamableTool,
-    [Symbol.asyncDispose]: async () => {
-      await client.close();
-    },
   } as Client & {
     callStreamableTool: (
       name: string,
       args: Record<string, unknown>,
     ) => Promise<Response>;
-    [Symbol.asyncDispose]: () => Promise<void>;
   };
 }
 
