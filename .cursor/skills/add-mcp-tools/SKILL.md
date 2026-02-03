@@ -1,5 +1,6 @@
 ---
-alwaysApply: false
+name: add-mcp-tools
+description: Guide for adding new MCP tools with consistent patterns for schemas, tool definitions, registry updates, and Better Auth integration
 ---
 
 # Adding New MCP Tools to MCP Mesh
