@@ -488,14 +488,14 @@ const ChatContext = createContext<ChatContextValue | null>(null);
  * Consolidates all chat-related state: interaction, threads, virtual MCP, model, and chat session
  */
 export function ChatProvider({ children }: PropsWithChildren) {
+  // ===========================================================================
+  // 1. HOOKS - Call all hooks and derive state from them
+  // ===========================================================================
+
   const { locator, org } = useProjectContext();
 
   // Unified thread manager hook handles all thread state and operations
   const threadManager = useThreadManager();
-
-  // ===========================================================================
-  // 1. HOOKS - Call all hooks and derive state from them
-  // ===========================================================================
 
   // Project context
   // User session
@@ -622,6 +622,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Thread actions are provided by threadManager
   const createThread = threadManager.createThread;
   const switchToThread = threadManager.switchThread;
+  const hideThread = threadManager.hideThread;
 
   // Chat state functions
   const setTiptapDoc = (doc: Metadata["tiptapDoc"]) =>
@@ -630,9 +631,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const clearTiptapDoc = () => chatDispatch({ type: "CLEAR_TIPTAP_DOC" });
 
   const resetInteraction = () => chatDispatch({ type: "RESET" });
-
-  // Hide thread is provided by threadManager
-  const hideThread = threadManager.hideThread;
 
   // Virtual MCP functions
   const setVirtualMcpId = (virtualMcpId: string | null) => {
