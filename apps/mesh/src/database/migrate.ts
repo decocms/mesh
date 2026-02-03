@@ -122,7 +122,7 @@ async function migrateExistingPluginRecords(
     const pluginId = pluginPart.substring(0, slashIndex);
     const migrationName = pluginPart.substring(slashIndex + 1);
 
-    // Insert into new table (ignore if already exists)
+    // Insert into new table and remove from old table only if new table has the record
     try {
       await sql`
         INSERT INTO plugin_migrations (plugin_id, name, timestamp)
@@ -130,10 +130,24 @@ async function migrateExistingPluginRecords(
       `.execute(db);
       console.log(`   Migrated: ${pluginId}/${migrationName}`);
     } catch {
-      // Already exists, skip
+      // INSERT failed - could be duplicate key or other error
+      // Verify record exists in new table before proceeding
+      const exists = await sql<{ cnt: number }>`
+        SELECT COUNT(*) as cnt FROM plugin_migrations 
+        WHERE plugin_id = ${pluginId} AND name = ${migrationName}
+      `.execute(db);
+
+      if (exists.rows[0]?.cnt === 0) {
+        // Record doesn't exist in new table - INSERT failed for unexpected reason
+        console.warn(
+          `   ⚠️  Failed to migrate ${pluginId}/${migrationName}, keeping in old table`,
+        );
+        continue;
+      }
+      // Record exists in new table (was already migrated)
     }
 
-    // Remove from kysely_migration
+    // Safe to remove from kysely_migration - record is confirmed in plugin_migrations
     await sql`
       DELETE FROM kysely_migration WHERE name = ${name}
     `.execute(db);
