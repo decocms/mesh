@@ -17,7 +17,7 @@ type CallStreamableToolMiddleware = (
 
 const MAX_STREAMABLE_LOG_BYTES = 256 * 1024; // 256KB (avoid unbounded memory on long streams)
 
-function extractCallToolErrorMessage(
+export function extractCallToolErrorMessage(
   result: CallToolResult,
 ): string | undefined {
   if (!result.isError) return undefined;
@@ -44,7 +44,7 @@ function extractCallToolErrorMessage(
  * Extract custom properties from tool call arguments (_meta.properties).
  * Only string values are accepted to match the properties schema.
  */
-function extractMetaProperties(
+export function extractMetaProperties(
   args: Record<string, unknown> | undefined,
 ): Record<string, string> | undefined {
   if (!args) return undefined;
@@ -75,7 +75,7 @@ function extractMetaProperties(
  * Merge properties from header (ctx.metadata.properties) and _meta.properties.
  * Header properties take precedence over _meta properties.
  */
-function mergeProperties(
+export function mergeProperties(
   headerProps: Record<string, string> | undefined,
   metaProps: Record<string, string> | undefined,
 ): Record<string, string> | undefined {
@@ -93,7 +93,9 @@ function mergeProperties(
  * If the tool result includes a `structuredContent` payload, store ONLY that to
  * avoid duplicating both structured + text output in the database.
  */
-function formatMonitoringOutput(value: unknown): Record<string, unknown> {
+export function formatMonitoringOutput(
+  value: unknown,
+): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const record = value as Record<string, unknown>;
     const structured = record.structuredContent;
