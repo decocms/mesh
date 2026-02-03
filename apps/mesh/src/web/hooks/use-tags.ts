@@ -40,7 +40,6 @@ const TAG_KEYS = {
 
 type TagsListOutput = { tags: Tag[] };
 type TagCreateOutput = { tag: Tag };
-type TagDeleteOutput = { success: boolean };
 
 /**
  * Hook to fetch all organization tags
@@ -92,38 +91,6 @@ export function useCreateTag() {
     onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : "Failed to create tag",
-      );
-    },
-  });
-}
-
-/**
- * Hook to delete a tag
- */
-export function useDeleteTag() {
-  const queryClient = useQueryClient();
-  const { org, locator } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  return useMutation({
-    mutationFn: async (tagId: string) => {
-      const result = (await client.callTool({
-        name: "TAGS_DELETE",
-        arguments: { tagId },
-      })) as { structuredContent?: unknown };
-      const payload = (result.structuredContent ?? result) as TagDeleteOutput;
-      return payload.success;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TAG_KEYS.tags(locator) });
-      toast.success("Tag deleted");
-    },
-    onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete tag",
       );
     },
   });
@@ -202,39 +169,3 @@ export function useSetMemberTags() {
     },
   });
 }
-
-/**
- * Hook to prefetch member tags for multiple members at once
- * Useful for loading tag data before rendering a list
- */
-export function usePrefetchMemberTags() {
-  const queryClient = useQueryClient();
-  const { org, locator } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  return async (memberIds: string[]) => {
-    await Promise.all(
-      memberIds.map((memberId) =>
-        queryClient.prefetchQuery({
-          queryKey: TAG_KEYS.memberTags(locator, memberId),
-          queryFn: async () => {
-            const result = (await client.callTool({
-              name: "MEMBER_TAGS_GET",
-              arguments: { memberId },
-            })) as { structuredContent?: unknown };
-            const payload = (result.structuredContent ??
-              result) as MemberTagsGetOutput;
-            return payload.tags;
-          },
-          staleTime: 30000,
-        }),
-      ),
-    );
-  };
-}
-
-// Export TAG_KEYS for use in components that need to invalidate queries
-export { TAG_KEYS };
