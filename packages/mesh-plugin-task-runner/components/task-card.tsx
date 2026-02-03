@@ -168,8 +168,9 @@ export function TaskCard({
       setIsPlanningRequested(false);
       setShowPlan(true); // Auto-expand plan when it arrives
       toast.success("Plan ready! Review and approve to continue.");
+      onPlanningStateChange?.(task.id, false);
     }
-  }, [hasPlan, isPlanningRequested]);
+  }, [hasPlan, isPlanningRequested, task.id, onPlanningStateChange]);
 
   const statusIcon = {
     open: <CircleIcon size={14} />,
