@@ -39,7 +39,9 @@ export const MEMBER_TAGS_GET = defineTool({
       organization.id,
     );
     if (!memberInOrg) {
-      throw new Error(`Member not found in this organization: ${input.memberId}`);
+      throw new Error(
+        `Member not found in this organization: ${input.memberId}`,
+      );
     }
 
     const tags = await ctx.storage.tags.getMemberTags(input.memberId);

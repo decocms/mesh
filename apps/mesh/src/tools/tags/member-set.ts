@@ -41,7 +41,9 @@ export const MEMBER_TAGS_SET = defineTool({
       organization.id,
     );
     if (!memberInOrg) {
-      throw new Error(`Member not found in this organization: ${input.memberId}`);
+      throw new Error(
+        `Member not found in this organization: ${input.memberId}`,
+      );
     }
 
     // Verify all tags belong to this organization

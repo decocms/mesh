@@ -86,9 +86,7 @@ export class TagStorage {
         name,
         created_at: now,
       })
-      .onConflict((oc) =>
-        oc.columns(["organization_id", "name"]).doNothing()
-      )
+      .onConflict((oc) => oc.columns(["organization_id", "name"]).doNothing())
       .execute();
 
     // Fetch the tag (either the one we just inserted, or the existing one)
@@ -185,9 +183,7 @@ export class TagStorage {
         tag_id: tagId,
         created_at: now,
       })
-      .onConflict((oc) =>
-        oc.columns(["member_id", "tag_id"]).doNothing()
-      )
+      .onConflict((oc) => oc.columns(["member_id", "tag_id"]).doNothing())
       .execute();
   }
 

@@ -66,7 +66,10 @@ export class SqlMonitoringStorage implements MonitoringStorage {
    */
   private escapeLikeWildcards(value: string): string {
     // Escape the escape character first, then the wildcards
-    return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    return value
+      .replace(/\\/g, "\\\\")
+      .replace(/%/g, "\\%")
+      .replace(/_/g, "\\_");
   }
 
   async log(event: MonitoringLog): Promise<void> {
