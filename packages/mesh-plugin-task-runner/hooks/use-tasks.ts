@@ -10,6 +10,58 @@ import { usePluginContext } from "@decocms/bindings/plugins";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
 import { KEYS } from "../lib/query-keys";
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Extract text content from various MCP tool response formats
+ * Handles: string, { content: string }, { content: [{ text: string }] }, { text: string }
+ */
+function extractTextContent(result: unknown): string | null {
+  if (typeof result === "string") {
+    return result;
+  }
+
+  if (typeof result !== "object" || result === null) {
+    return null;
+  }
+
+  const obj = result as Record<string, unknown>;
+
+  // Handle { content: string }
+  if (typeof obj.content === "string") {
+    return obj.content;
+  }
+
+  // Handle { content: [{ type: 'text', text: string }] } (MCP format)
+  if (Array.isArray(obj.content)) {
+    const textParts = obj.content
+      .filter(
+        (item): item is { type: string; text: string } =>
+          typeof item === "object" &&
+          item !== null &&
+          "text" in item &&
+          typeof (item as { text: unknown }).text === "string",
+      )
+      .map((item) => item.text);
+    if (textParts.length > 0) {
+      return textParts.join("");
+    }
+  }
+
+  // Handle { text: string }
+  if (typeof obj.text === "string") {
+    return obj.text;
+  }
+
+  return null;
+}
+
+// ============================================================================
+// Types
+// ============================================================================
+
 /**
  * Acceptance criterion for a task
  */
@@ -1019,14 +1071,13 @@ export function useDetectQualityGates() {
         path: "package.json",
       });
 
-      const pkgContent =
-        typeof pkgResult === "string"
-          ? pkgResult
-          : typeof pkgResult === "object" && pkgResult.content
-            ? pkgResult.content
-            : null;
+      const pkgContent = extractTextContent(pkgResult);
 
       if (!pkgContent) {
+        console.error(
+          "[useDetectQualityGates] Could not extract content from:",
+          pkgResult,
+        );
         throw new Error("Could not read package.json");
       }
 
@@ -1093,12 +1144,7 @@ export function useDetectQualityGates() {
             const configResult = await untypedToolCaller("read_file", {
               path: ".beads/project-config.json",
             });
-            const configContent =
-              typeof configResult === "string"
-                ? configResult
-                : typeof configResult === "object" && configResult.content
-                  ? configResult.content
-                  : null;
+            const configContent = extractTextContent(configResult);
             if (configContent) {
               existingConfig = JSON.parse(configContent);
             }
