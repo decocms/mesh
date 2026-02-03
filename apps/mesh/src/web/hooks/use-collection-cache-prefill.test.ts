@@ -41,7 +41,7 @@ describe("Collection Cache Prefill Logic", () => {
     }
   });
 
-  it("should return null query key for null client", () => {
+  it("should return query key with null client", () => {
     const queryKey = buildCollectionQueryKey(
       null,
       "THREAD_MESSAGES",
@@ -49,10 +49,21 @@ describe("Collection Cache Prefill Logic", () => {
       {},
     );
 
-    expect(queryKey).toBeNull();
+    expect(queryKey).toEqual([
+      "mcp",
+      "client",
+      null,
+      "tool-call",
+      "COLLECTION_THREAD_MESSAGES_LIST",
+      JSON.stringify({
+        orderBy: [{ field: ["updated_at"], direction: "asc" }],
+        limit: 100,
+        offset: 0,
+      }),
+    ]);
   });
 
-  it("should return null query key for undefined client", () => {
+  it("should return query key with undefined client", () => {
     const queryKey = buildCollectionQueryKey(
       undefined,
       "THREAD_MESSAGES",
@@ -60,7 +71,18 @@ describe("Collection Cache Prefill Logic", () => {
       {},
     );
 
-    expect(queryKey).toBeNull();
+    expect(queryKey).toEqual([
+      "mcp",
+      "client",
+      undefined,
+      "tool-call",
+      "COLLECTION_THREAD_MESSAGES_LIST",
+      JSON.stringify({
+        orderBy: [{ field: ["updated_at"], direction: "asc" }],
+        limit: 100,
+        offset: 0,
+      }),
+    ]);
   });
 
   it("should prefill cache with empty result structure", () => {

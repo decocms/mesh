@@ -5,18 +5,13 @@
  * Provides optimized state management to minimize re-renders across the component tree.
  */
 
-import type { ThreadUpdateData } from "@/tools/thread/schema.ts";
 import { useChat as useAIChat } from "@ai-sdk/react";
-import type { CollectionUpdateOutput } from "@decocms/bindings/collections";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
 import {
   getWellKnownDecopilotVirtualMCP,
-  useMCPClient,
   useProjectContext,
   useVirtualMCPs,
-  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
-import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type {
   EmbeddedResource,
   PromptMessage,
@@ -38,12 +33,7 @@ import {
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import { useContext as useContextHook } from "../../hooks/use-context";
-import {
-  useThreadMessages,
-  useThreadMessagesPrefill,
-  useSwitchToThread,
-  useThreads,
-} from "./use-threads";
+import { useThreadManager } from "./thread";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { authClient } from "../../lib/auth-client";
@@ -491,26 +481,6 @@ function derivePartsFromTiptapDoc(
   return parts;
 }
 
-async function callUpdateThreadTool(
-  client: Client | null,
-  threadId: string,
-  data: ThreadUpdateData,
-) {
-  if (!client) {
-    throw new Error("MCP client is not available");
-  }
-  const result = (await client.callTool({
-    name: "COLLECTION_THREADS_UPDATE",
-    arguments: {
-      id: threadId,
-      data,
-    },
-  })) as { structuredContent?: unknown };
-  const payload = (result.structuredContent ??
-    result) as CollectionUpdateOutput<Thread>;
-  return payload.item;
-}
-
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 /**
@@ -520,35 +490,12 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 export function ChatProvider({ children }: PropsWithChildren) {
   const { locator, org } = useProjectContext();
 
-  // Get threads from the API
-  const {
-    threads,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-    refetch: refetchThreads,
-  } = useThreads();
+  // Unified thread manager hook handles all thread state and operations
+  const threadManager = useThreadManager();
 
-  // Only store active thread ID in localStorage (not the threads themselves)
-  const [activeThreadId, setActiveThreadId] = useLocalStorage<string>(
-    LOCALSTORAGE_KEYS.assistantChatActiveThread(locator),
-    threads[0]?.id ?? crypto.randomUUID(),
-  );
   // ===========================================================================
   // 1. HOOKS - Call all hooks and derive state from them
   // ===========================================================================
-
-  // MCP client for thread operations
-  const mcpClient = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  // Thread messages cache prefilling utility
-  const prefillThreadMessages = useThreadMessagesPrefill(mcpClient, org.id);
-
-  // Thread switching with cache prefilling
-  const switchToThreadAsync = useSwitchToThread(mcpClient, org.id);
 
   // Project context
   // User session
@@ -577,8 +524,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
       "code_execution",
     );
 
-  // Always fetch messages for the active thread - if it's truly new, the query returns empty
-  const initialMessages = useThreadMessages(activeThreadId);
+  // Messages are fetched by threadManager
+  const initialMessages = threadManager.messages;
 
   // Context prompt
   const contextPrompt = useContextHook(storedSelectedVirtualMcpId);
@@ -608,6 +555,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
     isAbort,
     isDisconnect,
     isError,
+    message,
+    messages: allMessages,
   }: {
     message: ChatMessage;
     messages: ChatMessage[];
@@ -621,9 +570,23 @@ export function ChatProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    // Refetch threads to get the updated list from the API
-    // The backend handles thread creation/updates when messages are saved
-    await refetchThreads();
+    const title = message.metadata?.title ?? null;
+
+    console.log("Here's the title", title);
+
+    // Update messages cache with the latest messages from the stream
+    threadManager.updateMessagesCache(
+      threadManager.activeThreadId,
+      allMessages,
+    );
+
+    // Update thread title in cache if available
+    if (title) {
+      threadManager.updateThread(threadManager.activeThreadId, {
+        title,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   };
 
   const onError = (error: Error) => {
@@ -635,7 +598,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // ===========================================================================
 
   const chat = useAIChat<UIMessage<Metadata>>({
-    id: activeThreadId,
+    id: threadManager.activeThreadId,
     messages: initialMessages,
     transport,
     onFinish,
@@ -656,18 +619,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // 6. RETURNED FUNCTIONS - Functions exposed via context
   // ===========================================================================
 
-  // Function to create a new thread with cache prefilling
-  const createThread = () => {
-    const newThreadId = crypto.randomUUID();
-    prefillThreadMessages(newThreadId);
-    setActiveThreadId(newThreadId);
-  };
-
-  // Function to switch to a thread with cache prefilling
-  const switchToThread = async (threadId: string) => {
-    await switchToThreadAsync(threadId);
-    setActiveThreadId(threadId);
-  };
+  // Thread actions are provided by threadManager
+  const createThread = threadManager.createThread;
+  const switchToThread = threadManager.switchThread;
 
   // Chat state functions
   const setTiptapDoc = (doc: Metadata["tiptapDoc"]) =>
@@ -677,35 +631,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   const resetInteraction = () => chatDispatch({ type: "RESET" });
 
-  const hideThread = async (threadId: string) => {
-    try {
-      const updatedThread = await callUpdateThreadTool(mcpClient, threadId, {
-        hidden: true,
-      });
-      if (updatedThread) {
-        const willHideCurrentThread = threadId === activeThreadId;
-        if (willHideCurrentThread) {
-          // Find a different thread to switch to
-          const firstDifferentThread = threads.find(
-            (thread) => thread.id !== threadId,
-          );
-          if (firstDifferentThread) {
-            // Switch to existing thread with cache prefilling
-            await switchToThread(firstDifferentThread.id);
-          } else {
-            // Create new thread if no other threads exist
-            createThread();
-          }
-        }
-        // Refetch threads to get the updated list from the API
-        await refetchThreads();
-      }
-    } catch (error) {
-      const err = error as Error;
-      toast.error(`Failed to update thread: ${err.message}`);
-      console.error("[chat] Failed to update thread:", error);
-    }
-  };
+  // Hide thread is provided by threadManager
+  const hideThread = threadManager.hideThread;
 
   // Virtual MCP functions
   const setVirtualMcpId = (virtualMcpId: string | null) => {
@@ -735,7 +662,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     const messageMetadata: Metadata = {
       tiptapDoc,
       created_at: new Date().toISOString(),
-      thread_id: activeThreadId,
+      thread_id: threadManager.activeThreadId,
       agent: {
         id: selectedVirtualMcp?.id ?? decopilotId,
         mode: selectedMode,
@@ -788,17 +715,17 @@ export function ChatProvider({ children }: PropsWithChildren) {
     clearTiptapDoc,
     resetInteraction,
 
-    // Thread management (using API data directly)
-    activeThreadId,
-    threads,
-    createThread, // Prefills for new threads
-    switchToThread, // Prefills cache then switches
+    // Thread management (using threadManager)
+    activeThreadId: threadManager.activeThreadId,
+    threads: threadManager.threads,
+    createThread,
+    switchToThread,
     hideThread,
 
     // Thread pagination
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
+    hasNextPage: threadManager.hasNextPage,
+    isFetchingNextPage: threadManager.isFetchingNextPage,
+    fetchNextPage: threadManager.fetchNextPage,
 
     // Virtual MCP state
     virtualMcps,

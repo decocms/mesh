@@ -46,10 +46,6 @@ export function useCollectionCachePrefill() {
       options,
     );
 
-    if (!queryKey) {
-      return;
-    }
-
     // Check if data already exists in cache
     const existingData = queryClient.getQueryData(queryKey);
     if (existingData) {

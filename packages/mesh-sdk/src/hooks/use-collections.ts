@@ -269,9 +269,7 @@ export function useCollectionList<T extends CollectionEntity>(
   };
 
   const argsKey = JSON.stringify(toolArguments);
-  const queryKey = client
-    ? KEYS.mcpToolCall(client, listToolName, argsKey)
-    : (["collection-list-skip", scopeKey, collectionName, argsKey] as const);
+  const queryKey = KEYS.mcpToolCall(client, listToolName, argsKey);
 
   const { data } = useSuspenseQuery({
     queryKey,
@@ -300,25 +298,18 @@ export function useCollectionList<T extends CollectionEntity>(
  * Builds a query key for a collection list query
  * Matches the internal logic of useCollectionList exactly
  *
- * @param client - The MCP client used to call collection tools (null/undefined returns null)
+ * @param client - The MCP client used to call collection tools (null/undefined is valid for skip queries)
  * @param collectionName - The name of the collection (e.g., "THREAD_MESSAGES", "CONNECTIONS")
  * @param scopeKey - The scope key (connectionId for connection-scoped, virtualMcpId for virtual-mcp-scoped, etc.)
  * @param options - Filter and configuration options
- * @returns Query key array or null if client is not available
+ * @returns Query key array
  */
 export function buildCollectionQueryKey<T extends CollectionEntity>(
   client: Client | null | undefined,
   collectionName: string,
   _scopeKey: string,
   options: UseCollectionListOptions<T> = {},
-):
-  | CollectionQueryKey
-  | readonly ["collection-list-skip", string, string, string]
-  | null {
-  if (!client) {
-    return null;
-  }
-
+): CollectionQueryKey {
   const {
     searchTerm,
     filters,
