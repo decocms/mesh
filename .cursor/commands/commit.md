@@ -6,6 +6,7 @@ Run the following commands in order:
 2. bun run lint
 3. bun run check:ci
 4. bun run knip
+5. bun test
 
 If any checks fail, address the issues before proceeding.
 
