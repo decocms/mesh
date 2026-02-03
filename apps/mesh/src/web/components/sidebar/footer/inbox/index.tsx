@@ -66,7 +66,7 @@ export function SidebarInboxFooter() {
   };
 
   return (
-    <SidebarFooter className="border-t border-border pt-2">
+    <SidebarFooter className="border-t border-border py-2 border-r">
       <SidebarMenu>
         <SidebarMenuItem>
           <Popover open={open} onOpenChange={setOpen}>

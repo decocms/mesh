@@ -1,5 +1,6 @@
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useProjectSidebarItems } from "@/web/hooks/use-project-sidebar-items";
+import { Locator, useProjectContext } from "@decocms/mesh-sdk";
 import { Suspense } from "react";
 import { NavigationSidebar } from "./navigation";
 import { MeshSidebarHeader } from "./header";
@@ -14,15 +15,21 @@ export type {
   Invitation,
 } from "./types";
 
-export function MeshSidebar() {
+interface MeshSidebarProps {
+  onCreateProject?: () => void;
+}
+
+export function MeshSidebar({ onCreateProject }: MeshSidebarProps) {
   const sidebarSections = useProjectSidebarItems();
+  const { locator } = useProjectContext();
+  const isOrgAdmin = Locator.isOrgAdminProject(locator);
 
   return (
     <NavigationSidebar
       sections={sidebarSections}
       header={
         <Suspense fallback={<MeshSidebarHeader.Skeleton />}>
-          <MeshSidebarHeader />
+          <MeshSidebarHeader onCreateProject={onCreateProject} />
         </Suspense>
       }
       footer={<SidebarInboxFooter />}
@@ -33,6 +40,7 @@ export function MeshSidebar() {
           </Suspense>
         </ErrorBoundary>
       }
+      contentClassName={!isOrgAdmin ? "pt-3" : undefined}
     />
   );
 }

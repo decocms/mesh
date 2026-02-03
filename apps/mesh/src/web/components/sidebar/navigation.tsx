@@ -9,6 +9,7 @@ import {
   SidebarSeparator,
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import type { ReactNode } from "react";
 import type { NavigationSidebarItem, SidebarSection } from "./types";
 import { SidebarCollapsibleGroup } from "./sidebar-group";
@@ -20,6 +21,8 @@ interface NavigationSidebarProps {
   additionalContent?: ReactNode;
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
+  /** Additional classes for the content area */
+  contentClassName?: string;
 }
 
 function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
@@ -83,11 +86,17 @@ export function NavigationSidebar({
   additionalContent,
   variant = "sidebar",
   collapsible = "icon",
+  contentClassName,
 }: NavigationSidebarProps) {
   return (
     <Sidebar variant={variant} collapsible={collapsible}>
       {header}
-      <SidebarContent className="flex flex-col flex-1 overflow-x-hidden font-medium">
+      <SidebarContent
+        className={cn(
+          "flex flex-col flex-1 overflow-x-hidden font-medium border-r pb-2",
+          contentClassName,
+        )}
+      >
         {sections.map((section, index) => (
           <SidebarSectionRenderer key={index} section={section} />
         ))}

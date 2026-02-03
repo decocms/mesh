@@ -14,34 +14,116 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  Locator,
+  ORG_ADMIN_PROJECT_SLUG,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  ArrowNarrowLeft,
   ChevronLeftDouble,
   ChevronRightDouble,
+  LayoutLeft,
   MessageChatSquare,
 } from "@untitledui/icons";
 import { MeshAccountSwitcher } from "./account-switcher";
+import { ProjectSwitcher } from "../project-switcher";
 
-export function MeshSidebarHeader() {
+interface MeshSidebarHeaderProps {
+  onCreateProject?: () => void;
+}
+
+export function MeshSidebarHeader({ onCreateProject }: MeshSidebarHeaderProps) {
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isChatOpen, setChatOpen] = useDecoChatOpen();
+  const { locator, org } = useProjectContext();
+  const isOrgAdmin = Locator.isOrgAdminProject(locator);
+  const navigate = useNavigate();
 
   const toggleChat = () => {
     setChatOpen((prev) => !prev);
   };
 
+  const handleBackToOrg = () => {
+    navigate({
+      to: "/$org/$project",
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
+    });
+  };
+
+  // For projects (non-org-admin): Dark themed header with back arrow + project switcher
+  if (!isOrgAdmin) {
+    return (
+      <SidebarHeaderUI className="h-[47px] gap-0 pt-0 bg-[#030302] border-b border-zinc-800 border-r">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <div className="flex items-center justify-center w-full h-[47px] px-2">
+              {isCollapsed ? (
+                // Collapsed: just show expand button
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-zinc-400 hover:text-white hover:bg-zinc-800"
+                  onClick={toggleSidebar}
+                  aria-label="Expand sidebar"
+                >
+                  <ChevronRightDouble className="size-4" />
+                </Button>
+              ) : (
+                // Expanded: show full header
+                <div className="flex items-center justify-between w-full">
+                  {/* Back Arrow */}
+                  <button
+                    type="button"
+                    onClick={handleBackToOrg}
+                    className="flex items-center justify-center text-zinc-400 hover:text-white transition-colors shrink-0"
+                    aria-label="Back to organization"
+                  >
+                    <ArrowNarrowLeft className="size-4" />
+                  </button>
+
+                  {/* Project Switcher - Dark variant */}
+                  <div className="flex-1 min-w-0 mx-2">
+                    <ProjectSwitcher
+                      variant="dark"
+                      hideIcon
+                      onCreateProject={onCreateProject}
+                    />
+                  </div>
+
+                  {/* Sidebar Toggle */}
+                  <button
+                    type="button"
+                    onClick={toggleSidebar}
+                    className="flex items-center justify-center text-zinc-400 hover:text-white transition-colors shrink-0"
+                    aria-label="Collapse sidebar"
+                  >
+                    <LayoutLeft className="size-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeaderUI>
+    );
+  }
+
+  // Org-admin: Show account switcher with collapse/chat controls (light theme)
   return (
-    <SidebarHeaderUI className="h-12 gap-0 pt-0">
+    <SidebarHeaderUI className="h-12 gap-0 pt-0 border-r">
       <SidebarMenu>
         <SidebarMenuItem>
           <div className="flex items-center justify-between w-full h-12">
             {/* Left side: Account Switcher */}
-            <div className="group/account-switcher relative flex items-center justify-center gap-1.5 min-w-0 flex-1 overflow-hidden">
-              {/* Account switcher - hidden when collapsed and hovering */}
+            <div className="group/switcher relative flex items-center justify-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+              {/* Switcher - hidden when collapsed and hovering */}
               <div
                 className={cn(
                   "w-full min-w-0 transition-opacity",
                   isCollapsed &&
-                    "group-hover/account-switcher:opacity-0 group-hover/account-switcher:pointer-events-none group-hover/account-switcher:invisible",
+                    "group-hover/switcher:opacity-0 group-hover/switcher:pointer-events-none group-hover/switcher:invisible",
                 )}
               >
                 <MeshAccountSwitcher isCollapsed={isCollapsed} />
@@ -53,7 +135,7 @@ export function MeshSidebarHeader() {
                 className={cn(
                   "absolute inset-0 m-auto size-7 hover:bg-sidebar-accent transition-opacity",
                   isCollapsed
-                    ? "opacity-0 invisible pointer-events-none group-hover/account-switcher:opacity-100 group-hover/account-switcher:visible group-hover/account-switcher:pointer-events-auto"
+                    ? "opacity-0 invisible pointer-events-none group-hover/switcher:opacity-100 group-hover/switcher:visible group-hover/switcher:pointer-events-auto"
                     : "opacity-0 invisible pointer-events-none",
                 )}
                 onClick={toggleSidebar}

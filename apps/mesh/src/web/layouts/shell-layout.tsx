@@ -4,6 +4,7 @@ import { MeshSidebar } from "@/web/components/sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { MeshUserMenu } from "@/web/components/user-menu";
+import { ProjectTopbar } from "@/web/components/topbar/project-topbar";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
@@ -232,6 +233,9 @@ function ShellLayoutContent() {
     },
   };
 
+  // Determine if we're in org-admin or a regular project for topbar styling
+  const isOrgAdmin = projectSlug === ORG_ADMIN_PROJECT_SLUG;
+
   return (
     <ProjectContextProvider {...contextWithCurrentProject}>
       <PersistentSidebarProvider>
@@ -255,8 +259,12 @@ function ShellLayoutContent() {
               }
             >
               <MeshSidebar />
-              <SidebarInset>
-                <ChatPanels disableChat={isHomeRoute} />
+              <SidebarInset className="flex flex-col">
+                {/* Project-aware topbar - only show for non-org-admin projects */}
+                {!isOrgAdmin && <ProjectTopbar right={<MeshUserMenu />} />}
+                <div className="flex-1 overflow-hidden">
+                  <ChatPanels disableChat={isHomeRoute} />
+                </div>
               </SidebarInset>
             </SidebarLayout>
           </Chat.Provider>
