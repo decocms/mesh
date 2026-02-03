@@ -137,7 +137,7 @@ async function migrateExistingPluginRecords(
         WHERE plugin_id = ${pluginId} AND name = ${migrationName}
       `.execute(db);
 
-      if (exists.rows[0]?.cnt === 0) {
+      if (Number(exists.rows[0]?.cnt) === 0) {
         // Record doesn't exist in new table - INSERT failed for unexpected reason
         console.warn(
           `   ⚠️  Failed to migrate ${pluginId}/${migrationName}, keeping in old table`,
