@@ -7,15 +7,19 @@
 import { LanguageModelBinding } from "@decocms/bindings/llm";
 
 import { createLLMProvider } from "../../llm-provider";
-import { toServerClient } from "../proxy";
-import type { MeshContext } from "@/core/mesh-context";
+import {
+  type MCPProxyClient,
+  type StreamableMCPProxyClient,
+  toServerClient,
+} from "../proxy";
 import type { ModelProvider } from "./types";
 
 /**
  * Create a ModelProvider from a proxy client
+ * Accepts both regular and streamable proxy clients
  */
 export async function createModelProviderFromProxy(
-  proxy: Awaited<ReturnType<MeshContext["createMCPProxy"]>>,
+  proxy: MCPProxyClient | StreamableMCPProxyClient,
   config: {
     modelId: string;
     connectionId: string;

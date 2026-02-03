@@ -6,7 +6,10 @@
  * Also supports virtual tools (JavaScript code defined on the Virtual MCP).
  */
 
-import { MCPProxyClient } from "@/api/routes/proxy";
+import {
+  MCPProxyClient,
+  type StreamableMCPProxyClient,
+} from "@/api/routes/proxy";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   type CallToolRequest,
@@ -546,8 +549,10 @@ export class PassthroughClient extends Client {
     const connectionId = cache.mappings.get(name);
     if (connectionId) {
       const client = clients.get(connectionId);
-      if (client) {
-        return client.callStreamableTool(name, args);
+      if (client && "callStreamableTool" in client) {
+        // Type guard: client has streaming support
+        const streamableClient = client as StreamableMCPProxyClient;
+        return streamableClient.callStreamableTool(name, args);
       }
     }
 
