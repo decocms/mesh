@@ -599,11 +599,15 @@ function TasksTabContent({
   workspacePath,
   searchParams,
   onGoToQualityGates,
+  pendingPlanningTaskIds,
+  onPlanningComplete,
 }: {
   onStartWithAgent: (task: Task) => void;
   workspacePath?: string;
   searchParams?: TaskBoardSearch;
   onGoToQualityGates?: () => void;
+  pendingPlanningTaskIds?: Set<string>;
+  onPlanningComplete?: (taskId: string) => void;
 }) {
   const { data: tasks, isLoading, error, refetch, isFetching } = useTasks();
   const { data: skills } = useSkills();
@@ -874,6 +878,10 @@ function TasksTabContent({
                 workspacePath={workspacePath}
                 refetchTasks={refetch}
                 sendChatMessage={sendChatMessage}
+                initialPlanningRequested={pendingPlanningTaskIds?.has(task.id)}
+                onPlanningStateChange={(taskId, isPending) => {
+                  if (!isPending) onPlanningComplete?.(taskId);
+                }}
               />
             ))}
           </div>
@@ -1023,7 +1031,7 @@ const ShieldIcon = ({ size = 14 }: { size?: number }) => (
 function QualityGatesTabContent({
   onFixTaskCreated,
 }: {
-  onFixTaskCreated?: () => void;
+  onFixTaskCreated?: (taskId: string) => void;
 }) {
   const { data: gates, isLoading } = useQualityGates();
   const { data: baselineData, isLoading: baselineLoading } =
@@ -1090,7 +1098,7 @@ When done, call TASK_SET_PLAN with workspace="${workspace}", taskId="${taskId}",
       sendChatMessage(planningPrompt);
 
       toast.success("Fix task created - sent to agent for planning");
-      onFixTaskCreated?.();
+      onFixTaskCreated?.(taskId);
     } catch (error) {
       toast.error(`Failed to create fix task: ${error}`);
     } finally {
@@ -1428,8 +1436,25 @@ export default function TaskBoard() {
   const [activeTab, setActiveTab] = useState<"tasks" | "skills" | "gates">(
     "tasks",
   );
+  const [pendingPlanningTaskIds, setPendingPlanningTaskIds] = useState<
+    Set<string>
+  >(new Set());
   const updateTask = useUpdateTask();
   const queryClient = useQueryClient();
+
+  // Add a task to pending planning
+  const addPendingPlanningTask = (taskId: string) => {
+    setPendingPlanningTaskIds((prev) => new Set([...prev, taskId]));
+  };
+
+  // Remove a task from pending planning
+  const removePendingPlanningTask = (taskId: string) => {
+    setPendingPlanningTaskIds((prev) => {
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  };
 
   const workspace = workspaceData?.workspace;
   const hasBeads = beadsStatus?.initialized ?? false;
@@ -1544,12 +1569,17 @@ export default function TaskBoard() {
                   workspacePath={workspaceData?.workspace}
                   searchParams={searchParams}
                   onGoToQualityGates={() => setActiveTab("gates")}
+                  pendingPlanningTaskIds={pendingPlanningTaskIds}
+                  onPlanningComplete={removePendingPlanningTask}
                 />
               )}
               {activeTab === "skills" && <SkillsTabContent />}
               {activeTab === "gates" && (
                 <QualityGatesTabContent
-                  onFixTaskCreated={() => setActiveTab("tasks")}
+                  onFixTaskCreated={(taskId) => {
+                    addPendingPlanningTask(taskId);
+                    setActiveTab("tasks");
+                  }}
                 />
               )}
             </div>

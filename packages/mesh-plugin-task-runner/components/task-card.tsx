@@ -101,6 +101,10 @@ export interface TaskCardProps {
   refetchTasks?: () => void;
   /** Function to send a message to the chat */
   sendChatMessage: (text: string) => void;
+  /** Whether planning was requested for this task (from external action) */
+  initialPlanningRequested?: boolean;
+  /** Callback when planning state changes */
+  onPlanningStateChange?: (taskId: string, isPending: boolean) => void;
 }
 
 // ============================================================================
@@ -114,13 +118,25 @@ export function TaskCard({
   workspacePath,
   refetchTasks,
   sendChatMessage,
+  initialPlanningRequested = false,
+  onPlanningStateChange,
 }: TaskCardProps) {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const approvePlan = useApprovePlan();
   const [showPlan, setShowPlan] = useState(false);
-  const [isPlanningRequested, setIsPlanningRequested] = useState(false);
+  const [isPlanningRequested, setIsPlanningRequested] = useState(
+    initialPlanningRequested,
+  );
   const [isSpawning, setIsSpawning] = useState(false);
+
+  // Sync with external planning state
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (initialPlanningRequested && !isPlanningRequested) {
+      setIsPlanningRequested(true);
+    }
+  }, [initialPlanningRequested, isPlanningRequested]);
 
   // Poll for task updates while planning is in progress
   const hasPlan = !!task.plan;
