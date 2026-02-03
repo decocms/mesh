@@ -22,6 +22,7 @@ import * as VirtualMCPTools from "./virtual";
 import * as VirtualToolTools from "./virtual-tool";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
+import * as ProjectTools from "./projects";
 import * as TagTools from "./tags";
 import * as ThreadTools from "./thread";
 import * as UserTools from "./user";
@@ -105,6 +106,15 @@ const CORE_TOOLS = [
   TagTools.TAGS_DELETE,
   TagTools.MEMBER_TAGS_GET,
   TagTools.MEMBER_TAGS_SET,
+
+  // Project tools
+  ProjectTools.PROJECT_LIST,
+  ProjectTools.PROJECT_GET,
+  ProjectTools.PROJECT_CREATE,
+  ProjectTools.PROJECT_UPDATE,
+  ProjectTools.PROJECT_DELETE,
+  ProjectTools.PROJECT_PLUGIN_CONFIG_GET,
+  ProjectTools.PROJECT_PLUGIN_CONFIG_UPDATE,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime

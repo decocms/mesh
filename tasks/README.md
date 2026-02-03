@@ -11,7 +11,7 @@ Check off each task as it's completed. Start a **fresh thread** for each task.
 | Status | Task | File | Start Command |
 |--------|------|------|---------------|
 | [x] | 001 - Database Schema & Storage | `@tasks/001-database-schema-storage.md` | "Execute task 001" |
-| [ ] | 002 - MCP Tools | `@tasks/002-mcp-tools.md` | "Execute task 002" |
+| [x] | 002 - MCP Tools | `@tasks/002-mcp-tools.md` | "Execute task 002" |
 | [ ] | 003 - Routing Refactor | `@tasks/003-routing-refactor.md` | "Execute task 003" |
 | [ ] | 004 - Project Layout & Context | `@tasks/004-project-layout-context.md` | "Execute task 004" |
 | [ ] | 005 - Sidebar Groups | `@tasks/005-sidebar-groups.md` | "Execute task 005" |
