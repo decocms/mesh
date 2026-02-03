@@ -178,7 +178,24 @@ async function logProxyMonitoringEvent(args: {
   );
 
   // Merge with header properties (header takes precedence)
-  const properties = mergeProperties(ctx.metadata.properties, metaProperties);
+  let properties = mergeProperties(ctx.metadata.properties, metaProperties);
+
+  // Inject user tags into properties
+  const userId = ctx.auth.user?.id || ctx.auth.apiKey?.userId;
+  if (userId) {
+    try {
+      const userTags = await ctx.storage.tags.getUserTagsInOrg(
+        userId,
+        organizationId,
+      );
+      if (userTags.length > 0) {
+        const tagNames = userTags.map((t) => t.name).join(",");
+        properties = { ...properties, user_tags: tagNames };
+      }
+    } catch {
+      // Silently ignore tag fetch errors - don't fail monitoring
+    }
+  }
 
   await ctx.storage.monitoring.log({
     organizationId,

@@ -149,6 +149,7 @@ const OPERATOR_OPTIONS: Array<{
 }> = [
   { value: "eq", label: "equals" },
   { value: "contains", label: "contains" },
+  { value: "in", label: "in (list)" },
   { value: "exists", label: "exists" },
 ];
 
@@ -409,6 +410,7 @@ function FiltersPopover({
                     One per line:{" "}
                     <code className="bg-muted px-1 rounded">key=value</code>{" "}
                     <code className="bg-muted px-1 rounded">key~contains</code>{" "}
+                    <code className="bg-muted px-1 rounded">key@in_list</code>{" "}
                     <code className="bg-muted px-1 rounded">key?</code>
                   </p>
                 </div>

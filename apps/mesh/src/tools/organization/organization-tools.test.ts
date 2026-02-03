@@ -191,6 +191,7 @@ const createMockContext = (
       virtualMcps: null as never,
       users: null as never,
       threads: null as never,
+      tags: null as never,
     },
     vault: null as never,
     authInstance: authInstance as unknown as BetterAuthInstance,

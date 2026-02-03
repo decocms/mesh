@@ -9,7 +9,9 @@ type IdPrefixes =
   | "agg"
   | "dtok"
   | "thrd"
-  | "msg";
+  | "msg"
+  | "tag"
+  | "mtag";
 
 export function generatePrefixedId(prefix: IdPrefixes) {
   return `${prefix}_${nanoid()}`;

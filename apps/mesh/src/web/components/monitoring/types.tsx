@@ -112,7 +112,7 @@ export interface MonitoringSearchParams {
 // Property Filter Types
 // ============================================================================
 
-export type PropertyFilterOperator = "eq" | "contains" | "exists";
+export type PropertyFilterOperator = "eq" | "contains" | "exists" | "in";
 
 export interface PropertyFilter {
   key: string;
@@ -152,7 +152,7 @@ export function deserializePropertyFilters(str: string): PropertyFilter[] {
 
 /**
  * Convert property filters to raw text format.
- * Format: one filter per line as "key=value" or "key~value" or "key?"
+ * Format: one filter per line as "key=value" or "key~value" or "key?" or "key@value"
  */
 export function propertyFiltersToRaw(filters: PropertyFilter[]): string {
   return filters
@@ -165,6 +165,8 @@ export function propertyFiltersToRaw(filters: PropertyFilter[]): string {
           return `${f.key}~${f.value}`;
         case "exists":
           return `${f.key}?`;
+        case "in":
+          return `${f.key}@${f.value}`;
       }
     })
     .join("\n");
@@ -176,6 +178,7 @@ export function propertyFiltersToRaw(filters: PropertyFilter[]): string {
  * - "key=value" → equals
  * - "key~value" → contains
  * - "key?" → exists
+ * - "key@value" → in (exact match within comma-separated values)
  */
 export function parseRawPropertyFilters(raw: string): PropertyFilter[] {
   if (!raw.trim()) return [];
@@ -193,8 +196,8 @@ export function parseRawPropertyFilters(raw: string): PropertyFilter[] {
           value: "",
         };
       }
-      // Check for equals first (key=value) - must come before contains
-      // to handle values containing ~ (e.g., url=https://example.com/~user)
+      // Check for equals first (key=value) - must come before contains and "in"
+      // to handle values containing ~ or @ (e.g., email=user@example.com)
       if (line.includes("=")) {
         const [key, ...valueParts] = line.split("=");
         return {
@@ -203,13 +206,24 @@ export function parseRawPropertyFilters(raw: string): PropertyFilter[] {
           value: valueParts.join("="),
         };
       }
-      // Check for contains (key~value)
+      // Check for contains (key~value) - must come before "in"
+      // to handle values containing @ (e.g., field~test@value)
       if (line.includes("~")) {
         const [key, ...valueParts] = line.split("~");
         return {
           key: key || "",
           operator: "contains" as PropertyFilterOperator,
           value: valueParts.join("~"),
+        };
+      }
+      // Check for "in" operator (key@value) - exact match within comma-separated list
+      // Only matches when @ is the first operator (no = or ~ before it)
+      if (line.includes("@")) {
+        const [key, ...valueParts] = line.split("@");
+        return {
+          key: key || "",
+          operator: "in" as PropertyFilterOperator,
+          value: valueParts.join("@"),
         };
       }
       // Just a key without operator - treat as exists
@@ -228,10 +242,12 @@ export function propertyFiltersToApiParams(filters: PropertyFilter[]): {
   properties?: Record<string, string>;
   propertyPatterns?: Record<string, string>;
   propertyKeys?: string[];
+  propertyInValues?: Record<string, string>;
 } {
   const properties: Record<string, string> = {};
   const propertyPatterns: Record<string, string> = {};
   const propertyKeys: string[] = [];
+  const propertyInValues: Record<string, string> = {};
 
   for (const filter of filters) {
     if (!filter.key.trim()) continue;
@@ -250,6 +266,11 @@ export function propertyFiltersToApiParams(filters: PropertyFilter[]): {
       case "exists":
         propertyKeys.push(filter.key);
         break;
+      case "in":
+        if (filter.value) {
+          propertyInValues[filter.key] = filter.value;
+        }
+        break;
     }
   }
 
@@ -258,6 +279,8 @@ export function propertyFiltersToApiParams(filters: PropertyFilter[]): {
     propertyPatterns:
       Object.keys(propertyPatterns).length > 0 ? propertyPatterns : undefined,
     propertyKeys: propertyKeys.length > 0 ? propertyKeys : undefined,
+    propertyInValues:
+      Object.keys(propertyInValues).length > 0 ? propertyInValues : undefined,
   };
 }
 

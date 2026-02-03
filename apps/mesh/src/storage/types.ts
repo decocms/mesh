@@ -632,6 +632,52 @@ export interface ThreadMessage extends UIMessage<Metadata> {
   updatedAt: string;
 }
 
+// ============================================================================
+// Member Tags Table Definitions
+// ============================================================================
+
+/**
+ * Organization tag table definition
+ * Stores normalized tag definitions per organization
+ */
+export interface OrganizationTagTable {
+  id: string;
+  organization_id: string;
+  name: string;
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+/**
+ * Organization tag entity - Runtime representation
+ */
+export interface OrganizationTag {
+  id: string;
+  organizationId: string;
+  name: string;
+  createdAt: Date | string;
+}
+
+/**
+ * Member tag junction table definition
+ * Links members to tags (many-to-many)
+ */
+export interface MemberTagTable {
+  id: string;
+  member_id: string;
+  tag_id: string;
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+/**
+ * Member tag entity - Runtime representation
+ */
+export interface MemberTag {
+  id: string;
+  memberId: string;
+  tagId: string;
+  createdAt: Date | string;
+}
+
 /**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
@@ -669,4 +715,8 @@ export interface Database {
 
   threads: ThreadTable;
   thread_messages: ThreadMessageTable;
+
+  // Member tags tables
+  organization_tags: OrganizationTagTable;
+  member_tags: MemberTagTable;
 }

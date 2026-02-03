@@ -227,6 +227,7 @@ import type { EventBus } from "../event-bus/interface";
 import type { ConnectionStorage } from "../storage/connection";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
+import type { TagStorage } from "../storage/tags";
 import type { UserStorage } from "../storage/user";
 import type { VirtualMCPStorage } from "../storage/virtual";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -252,6 +253,7 @@ export interface MeshStorage {
   virtualMcps: VirtualMCPStorage;
   users: UserStorage;
   threads: SqlThreadStorage;
+  tags: TagStorage;
 }
 
 // ============================================================================

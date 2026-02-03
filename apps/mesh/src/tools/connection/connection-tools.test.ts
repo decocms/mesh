@@ -80,6 +80,7 @@ describe("Connection Tools", () => {
         threads: null as never,
         virtualMcps: null as never,
         users: null as never,
+        tags: null as never,
       },
       vault,
       authInstance: null as never,

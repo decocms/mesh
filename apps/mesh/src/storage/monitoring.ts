@@ -43,6 +43,35 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     return sql`json_extract(${sql.ref(column)}, ${jsonPath})`;
   }
 
+  /**
+   * Get JSON property value wrapped in commas for "in" matching.
+   * This enables searching for exact values within comma-separated strings.
+   * e.g., ',Engineering,Sales,' LIKE '%,Engineering,%' matches
+   * but ',Engineering,Sales,' LIKE '%,Eng,%' does NOT match
+   */
+  private jsonExtractWithCommas(column: string, key: string) {
+    if (this.databaseType === "postgres") {
+      // PostgreSQL: wrap extracted value in commas
+      return sql`(',' || (${sql.ref(column)}::jsonb)->>${key} || ',')`;
+    }
+    // SQLite: wrap extracted value in commas
+    const jsonPath = `$.${key}`;
+    return sql`(',' || json_extract(${sql.ref(column)}, ${jsonPath}) || ',')`;
+  }
+
+  /**
+   * Escape SQL LIKE wildcards in a string value.
+   * This ensures that '%' and '_' are treated as literal characters,
+   * not as pattern matching wildcards.
+   */
+  private escapeLikeWildcards(value: string): string {
+    // Escape the escape character first, then the wildcards
+    return value
+      .replace(/\\/g, "\\\\")
+      .replace(/%/g, "\\%")
+      .replace(/_/g, "\\_");
+  }
+
   async log(event: MonitoringLog): Promise<void> {
     await this.logBatch([event]);
   }
@@ -139,7 +168,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
 
     // Apply property filters
     if (filters.propertyFilters) {
-      const { properties, propertyKeys, propertyPatterns } =
+      const { properties, propertyKeys, propertyPatterns, propertyInValues } =
         filters.propertyFilters;
 
       // Exact match: property key=value
@@ -176,6 +205,23 @@ export class SqlMonitoringStorage implements MonitoringStorage {
             likeOp,
             pattern as never,
           );
+        }
+      }
+
+      // In match: check if value exists in comma-separated property value
+      // This enables exact matching within arrays stored as comma-separated strings
+      // e.g., user_tags="Engineering,Sales" with value="Engineering" will match
+      if (propertyInValues) {
+        for (const [key, value] of Object.entries(propertyInValues)) {
+          // Wrap the property value in commas and search for the exact value surrounded by commas
+          // This prevents partial matches (e.g., "Eng" matching "Engineering")
+          // Escape LIKE wildcards to ensure exact matching (e.g., "100%" matches literally)
+          const inExpr = this.jsonExtractWithCommas("properties", key);
+          const escapedValue = this.escapeLikeWildcards(value);
+          const searchPattern = `%,${escapedValue},%`;
+          const likeCondition = sql`${inExpr} LIKE ${searchPattern} ESCAPE '\\'`;
+          query = query.where(likeCondition as never);
+          countQuery = countQuery.where(likeCondition as never);
         }
       }
     }

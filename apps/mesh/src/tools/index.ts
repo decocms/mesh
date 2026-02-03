@@ -21,6 +21,7 @@ import * as EventBusTools from "./eventbus";
 import * as VirtualMCPTools from "./virtual";
 import * as MonitoringTools from "./monitoring";
 import * as OrganizationTools from "./organization";
+import * as TagTools from "./tags";
 import * as ThreadTools from "./thread";
 import * as UserTools from "./user";
 import { ToolName } from "./registry";
@@ -89,6 +90,13 @@ const CORE_TOOLS = [
   ThreadTools.COLLECTION_THREADS_UPDATE,
   ThreadTools.COLLECTION_THREADS_DELETE,
   ThreadTools.COLLECTION_THREAD_MESSAGES_LIST,
+
+  // Tag tools
+  TagTools.TAGS_LIST,
+  TagTools.TAGS_CREATE,
+  TagTools.TAGS_DELETE,
+  TagTools.MEMBER_TAGS_GET,
+  TagTools.MEMBER_TAGS_SET,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime
