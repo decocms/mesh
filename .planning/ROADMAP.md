@@ -17,205 +17,146 @@ Extend the existing Task Runner infrastructure with a Site Builder plugin that e
 
 ---
 
-## Phase 1: Site Builder Plugin Foundation
+## Phase 1: Site Builder Plugin Foundation ✅ COMPLETE
 
 **Goal:** Create Site Builder plugin with site-aware connection filtering and basic UI layout.
 
-**Plans:** 2 plans
+**Status:** Complete
 
-Plans:
-- [ ] 01-01-PLAN.md — Plugin scaffold with binding, router, and query keys
-- [ ] 01-02-PLAN.md — UI components with stack detection hook
-
-### Requirements
-- R1.1: New sidebar menu item "Sites" (separate from "Tasks")
-- R1.2: Connection dropdown filtering (only show local-fs with deno.json)
-- R1.3: Basic plugin layout with preview area placeholder
-- R1.4: Route structure: `/sites`, `/sites/:connectionId`
-
-### Deliverables
-- [ ] Create `packages/mesh-plugin-site-builder/` plugin scaffold
-- [ ] Register plugin with sidebar item (icon: Globe or similar)
-- [ ] Implement SITE_BUILDER_BINDING for connection filtering
-- [ ] Add stack detection utility (check for deno.json with deco/ import)
-- [ ] Create site list view with filtered connections
-- [ ] Create site detail view layout (preview area + collapsible tasks)
-
-### Success Criteria
-- Sites appears as separate sidebar item
-- Only Deno/Deco folders show in connection dropdown
-- Route navigation works: /sites → /sites/:connectionId
+### Completed
+- [x] Plugin scaffold with binding, router, query keys
+- [x] Site detection (deno.json with deco imports)
+- [x] Site list view with filtered connections
+- [x] Route structure: `/sites`, `/sites/:connectionId`
 
 ---
 
-## Phase 2: Dev Server & Preview
+## Phase 2: Dev Server & Preview ✅ COMPLETE
 
 **Goal:** Control dev server and display live preview with HMR.
 
-### Requirements
-- R2.1: Detect stack from deno.json/package.json
-- R2.2: Start/stop dev server via MCP tool
-- R2.3: Auto-detect running port from server output
-- R2.4: Live preview iframe with detected URL
-- R2.5: Page/route selector dropdown
+**Status:** Complete
 
-### Deliverables
-- [ ] Add `SITE_STACK_DETECT` tool to task-runner MCP
-- [ ] Add `SITE_DEV_START` tool (runs `deno task dev` or equivalent)
-- [ ] Add `SITE_DEV_STOP` tool (kills dev server process)
-- [ ] Add `SITE_DEV_STATUS` tool (running state, port, URL)
-- [ ] Add `SITE_PAGES` tool (list routes from .deco/blocks/pages-*.json)
-- [ ] Create PreviewFrame component with iframe and URL bar
-- [ ] Create PageSelector dropdown populated by SITE_PAGES
-- [ ] Implement port detection from dev server stdout
-
-### Success Criteria
-- Click "Start" → dev server runs → preview shows site
-- Page selector shows available routes
-- HMR updates visible in preview (Fresh built-in)
+### Completed
+- [x] Stack detection from deno.json
+- [x] Start/stop dev server via DENO_TASK tool
+- [x] Port detection from server output
+- [x] Live preview iframe with detected URL
+- [x] Page list from routes directory
 
 ---
 
-## Phase 3: Task Integration & Skills
+## Phase 3: Task Integration & Skills ✅ COMPLETE (needs UX refactor)
 
 **Goal:** Integrate task board components and add site-building skills.
 
-### Requirements
-- R3.1: Reuse task-runner hooks and components
-- R3.2: Collapsible task panel in site detail view
-- R3.3: Copy landing page skills to MCP
-- R3.4: Site context passed to agents (stack, paths, conventions)
+**Status:** Complete but UX needs refactoring per Phase 5
 
-### Deliverables
-- [ ] Import and wrap task-runner's `useTasks` hook
-- [ ] Import and wrap task-runner's `useAgentSessions` hook
-- [ ] Create CollapsibleTaskPanel component
-- [ ] Copy `decocms-landing-pages/SKILL.md` to MCP skills
-- [ ] Copy `deco-sales-pitch-pages/SKILL.md` to MCP skills
-- [ ] Add `SKILL_LIST` tool to expose bundled skills
-- [ ] Add `SKILL_GET` tool to retrieve skill details
-- [ ] Implement site context injection into agent prompts
-- [ ] Add skill selector dropdown in site detail view
-
-### Success Criteria
-- Task panel shows tasks from .beads/tasks.json
-- Skills available in dropdown
-- Agent spawned with full site context
+### Completed
+- [x] Reuse task-runner hooks (useTasks, useAgentSessions)
+- [x] TaskCard component extracted for reuse
+- [x] Landing page skills copied to skills/ folder
+- [x] Site context injection into agent prompts
+- [x] Quality gates baseline verification system
 
 ---
 
-## Phase 4: Polish & Streaming
+## Phase 4: Quality & Polish ✅ COMPLETE
 
-**Goal:** Optimize UX with streaming progress and better integration.
+**Goal:** Quality gates verification and code cleanup.
+
+**Status:** Complete
+
+### Completed
+- [x] Quality gates baseline verification before task creation
+- [x] Acknowledge pre-existing failures flow
+- [x] Agent prompt differentiation (don't fix acknowledged failures)
+- [x] Support for deno.json in quality gate detection
+- [x] MCP response format handling fixes
+
+---
+
+## Phase 5: UX Refactor - Separation of Concerns 🎯 CURRENT
+
+**Goal:** Separate Sites tab (site management) from Tasks tab (task execution with live preview).
+
+### UX Principles
+
+**Sites Tab** = Site Management Only
+- Site selection and pages list
+- Dev server controls and logs
+- Page actions that CREATE tasks and navigate to Tasks tab
+- NO task management UI
+
+**Tasks Tab** = Task Execution
+- Full task management (existing)
+- When running a site-related task, show live page preview
+- Real-time preview updates via HMR
 
 ### Requirements
-- R4.1: Agent output visible during execution
-- R4.2: Streaming page creation (placeholder → real sections)
-- R4.3: Budget display and controls
-- R4.4: Session persistence and resume
+- R5.1: Remove TaskPanel from Sites tab
+- R5.2: Add "Create Page" button → navigates to Tasks with skill pre-selected
+- R5.3: Add "Use as Template" button on page hover → navigates to Tasks
+- R5.4: Add "Edit" button on page → shows page, chat creates task → navigates to Tasks
+- R5.5: Task Runner shows live preview when executing site tasks
+- R5.6: Pass page context when navigating to Tasks
 
 ### Deliverables
-- [ ] Add agent output panel (or integrate with chat)
-- [ ] Implement placeholder section pattern for streaming builds
-- [ ] Add budget indicator from session data
-- [ ] Add stop button for running agents
-- [ ] Polish mobile/responsive layout
-- [ ] Add error states and retry logic
+- [ ] Remove TaskPanel component from site-list.tsx
+- [ ] Add PageActions component (Create Page, Use as Template, Edit buttons)
+- [ ] Implement navigation to Tasks with pre-selected skill and page context
+- [ ] Add SitePreview component to Task Runner for site-related tasks
+- [ ] Store task metadata (siteConnectionId, pagePath) for preview routing
 
 ### Success Criteria
-- User sees agent working in real-time
-- Page builds incrementally visible via HMR
-- Can stop runaway agents
-- Sessions resumable after page refresh
+- Sites tab is purely for site management (no tasks)
+- "Create Page" navigates to Tasks with landing page skill
+- "Use as Template" navigates to Tasks with selected page as reference
+- "Edit" opens chat, creates task, navigates to Tasks
+- Tasks tab shows live preview when agent edits site files
 
 ---
 
 ## Dependency Map
 
 ```
-Phase 1 (Foundation)
+Phase 1 (Foundation) ✅
     ↓
-Phase 2 (Dev Server & Preview)
+Phase 2 (Dev Server & Preview) ✅
     ↓
-Phase 3 (Task Integration & Skills)
+Phase 3 (Task Integration & Skills) ✅
     ↓
-Phase 4 (Polish & Streaming)
+Phase 4 (Quality & Polish) ✅
+    ↓
+Phase 5 (UX Refactor) 🎯 CURRENT
 ```
-
-All phases are sequential - each builds on the previous.
 
 ---
 
-## Files to Create/Modify
+## Files to Modify (Phase 5)
 
-### New Files
+### Sites Plugin Changes
 ```
 packages/mesh-plugin-site-builder/
-├── package.json
-├── index.tsx                    # Plugin definition
 ├── components/
-│   ├── site-list.tsx           # Connection list with stack badges
-│   ├── site-detail.tsx         # Main detail view
-│   ├── preview-frame.tsx       # Iframe with controls
-│   ├── page-selector.tsx       # Route dropdown
-│   ├── task-panel.tsx          # Collapsible task board
-│   └── skill-selector.tsx      # Skill dropdown
-├── hooks/
-│   ├── use-site.ts             # Site-specific state
-│   ├── use-dev-server.ts       # Dev server control
-│   └── use-preview.ts          # Preview URL state
+│   ├── site-list.tsx          # Remove TaskPanel, add page actions
+│   ├── page-actions.tsx       # NEW: Create Page, Use as Template, Edit
+│   └── task-panel.tsx         # DELETE or repurpose
 └── lib/
-    ├── binding.ts              # SITE_BUILDER_BINDING
-    └── stack-detection.ts      # Stack detection utils
-
-mcps/task-runner/server/tools/
-├── site-stack.ts               # SITE_STACK_DETECT
-├── site-dev.ts                 # SITE_DEV_START/STOP/STATUS
-├── site-pages.ts               # SITE_PAGES
-└── skills.ts                   # SKILL_LIST/GET
-
-mcps/task-runner/skills/
-├── decocms-landing-pages.md    # Copied from ../context/skills/
-└── deco-sales-pitch-pages.md   # Copied from ../context/skills/
+    └── navigation.ts          # NEW: Navigate to Tasks with context
 ```
 
-### Modified Files
+### Task Runner Changes
 ```
 packages/mesh-plugin-task-runner/
-├── hooks/use-tasks.ts          # Export for reuse
-└── hooks/use-agent-sessions.ts # Export for reuse
-
-mcps/task-runner/server/index.ts  # Register new tools
+├── components/
+│   ├── task-board.tsx         # Add SitePreview when task has site context
+│   └── site-preview.tsx       # NEW: Live preview for site tasks
+└── hooks/
+    └── use-tasks.ts           # Task metadata includes siteConnectionId, pagePath
 ```
 
 ---
 
-## Skills to Bundle
-
-From `../context/skills/`:
-
-1. **decocms-landing-pages/SKILL.md** (547 lines)
-   - Page JSON structure at `.deco/blocks/pages-{slug}.json`
-   - Section anatomy (TSX with Props interface, JSDoc)
-   - Design styles: Flashy, Elegant, Pragmatic, Dashboard
-   - Color system and conventions
-
-2. **deco-sales-pitch-pages/SKILL.md** (483 lines)
-   - Sales pitch workflow with research phases
-   - SalesPitch sections: Hero, Metrics, Problem, ClosedLoop, Solution, ROI, CTA
-   - Image generation with nano-banana-agent
-
-These skills provide the domain knowledge agents need to build Deco sites correctly.
-
----
-
-## Out of Scope (v1)
-
-- Multi-stack support (Next.js, Astro) - Deno/Deco first
-- Remote site deployment - local development only
-- Visual page builder / drag-drop - agent builds via code
-- MCP UI in chat panel - use collapsible task panel for now
-
----
-
-*Roadmap created: 2026-02-01*
+*Roadmap updated: 2026-02-02*
+*Phases 1-4 complete, Phase 5 in progress*

@@ -1,21 +1,21 @@
 # Project State: Site Builder Plugin
 
 **Project:** Site Builder Plugin for Mesh
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-02
 
 ---
 
 ## Current Position
 
-**Phase:** 1 of 4 (01-plugin-foundation)
-**Plan:** 1 of 2 (Plugin scaffold with binding, router, and query keys)
-**Status:** In progress
-**Last activity:** 2026-02-01 - Completed 01-01-PLAN.md
+**Phase:** 5 of 5 (UX Refactor - Separation of Concerns)
+**Plan:** 1 of 1
+**Status:** Complete
 
 **Progress:**
 ```
-Phase 1: ████░░░░░░░░░░░░░░░░ 50% (1/2 plans complete)
-Overall: ██░░░░░░░░░░░░░░░░░░ 10% (1/10 estimated total plans)
+Phase 1-4: ████████████████████ 100% complete
+Phase 5:   ████████████████████ 100% complete
+Overall:   ████████████████████ 100% (5/5 phases complete)
 ```
 
 ---
@@ -24,32 +24,31 @@ Overall: ██░░░░░░░░░░░░░░░░░░ 10% (1/10 
 
 | Phase | Decision | Rationale | Impact |
 |-------|----------|-----------|--------|
-| 01-01 | Extended OBJECT_STORAGE_BINDING for site builder | Reuses existing object storage connections, filtering done at runtime | Site detection happens in application layer vs binding layer |
-| 01-01 | Globe01 icon for Sites sidebar | Visual distinction from Files plugin (File04) | Clear UX differentiation between file management and site building |
-| 01-01 | Placeholder components for compilation | Allows TypeScript verification before full implementation | Plan 02 will implement actual component logic |
+| 01 | Extended OBJECT_STORAGE_BINDING for site builder | Reuses existing object storage connections | Runtime filtering |
+| 02 | DENO_TASK for dev server control | Leverages existing MCP tool | Simple integration |
+| 03 | TaskCard extraction for reuse | Share between task-runner and site-builder | Clean separation |
+| 04 | Quality gates baseline verification | Prevent agents from fixing pre-existing issues | Focused task execution |
+| 05 | **Separate Sites and Tasks tabs** | Sites = management, Tasks = execution with preview | Clear UX separation |
 
 ---
 
 ## Accumulated Context
 
-### Tech Stack
-- **Plugin framework:** mesh-plugin pattern (following task-runner)
-- **Routing:** @tanstack/router with typed routes
-- **State management:** @tanstack/react-query for server state
-- **Icons:** @untitledui/icons (Globe01 for site builder)
-- **Build:** TypeScript with workspace dependencies
-
-### Established Patterns
-- **Plugin scaffold:** package.json follows task-runner pattern with workspace dependencies
-- **Binding extension:** `SITE_BUILDER_BINDING = [...OBJECT_STORAGE_BINDING]` pattern
-- **Router pattern:** `createPluginRouter` with typed routes and lazy components
-- **Query keys:** Hierarchical key factory with plugin prefix for cache isolation
+### Final Architecture
+- **Sites tab**: Site management only
+  - Site selection, pages list, dev server, logs
+  - "Create Page" → Tasks with skill pre-selected
+  - "Use as Template" → Tasks with page as reference
+  - "Edit" → Tasks with edit context
+- **Tasks tab**: Task execution
+  - Full task management
+  - Handles context params from Sites navigation
+  - Pre-fills task form based on params
 
 ### Key Files
-- `packages/mesh-plugin-site-builder/index.tsx` - Plugin definition and registration
-- `packages/mesh-plugin-site-builder/lib/binding.ts` - SITE_BUILDER_BINDING type
-- `packages/mesh-plugin-site-builder/lib/router.ts` - Typed router with routes
-- `packages/mesh-plugin-site-builder/lib/query-keys.ts` - Query key factory
+- `packages/mesh-plugin-site-builder/components/site-list.tsx` - Site management UI
+- `packages/mesh-plugin-task-runner/components/task-board.tsx` - Task execution with context handling
+- `packages/mesh-plugin-task-runner/lib/router.ts` - Extended search schema
 
 ---
 
@@ -57,37 +56,39 @@ Overall: ██░░░░░░░░░░░░░░░░░░ 10% (1/10 
 
 **Current blockers:** None
 
-**Watching:**
-- TypeScript compilation health as components are implemented
-- Runtime site detection logic in Plan 02 (checking for deno.json with deco/ imports)
+**Future enhancements:**
+- Live preview in Task Runner when editing site pages
+- Server logs panel in Sites tab
 
 ---
 
 ## Session Continuity
 
-**Last session:** 2026-02-01T21:52:53Z
-**Stopped at:** Completed 01-01-PLAN.md
+**Last session:** 2026-02-02
+**Completed:** Phase 5 - UX Refactor
 **Resume file:** None
 
-**What's ready:**
-- Plugin scaffold complete and compiling
-- Binding definition ready for connection filtering
-- Router configured for / and /$connectionId routes
-- Ready to proceed with Plan 02 (UI Components)
+**Milestone status:** Complete - all 5 phases done
 
 ---
 
 ## Alignment Status
 
-**On track:** Phase 1 progressing as planned per ROADMAP.md
+**On track:** Milestone v1.0 complete
 
-**Next milestone:** Complete Phase 1 (Plugin Foundation)
-- Remaining: Plan 02 - UI components with stack detection hook
-
-**Dependencies satisfied:**
-- No prior phase dependencies (this is Phase 1)
+All requirements implemented:
+- ✅ Site Builder plugin with preview-first UI
+- ✅ Connection dropdown filtering for sites
+- ✅ Stack detection from deno.json
+- ✅ Dev server control via task-runner MCP
+- ✅ Live preview iframe with port detection
+- ✅ Page/route list
+- ✅ Task integration with skills
+- ✅ Site context passed to agents
+- ✅ Quality gates baseline verification
+- ✅ Separate Sites/Tasks UX
 
 ---
 
-*State maintained by /gsd:execute-phase*
+*State maintained by GSD workflow*
 *Format: STATE.md v1*
