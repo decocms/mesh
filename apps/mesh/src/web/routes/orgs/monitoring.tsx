@@ -79,6 +79,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { AnalyticsTab } from "@/web/components/monitoring/analytics-tab.tsx";
+import { DashboardsTab } from "@/web/components/monitoring/dashboards-tab.tsx";
 import {
   Table,
   TableBody,
@@ -759,7 +760,7 @@ const MonitoringLogsTable = Object.assign(MonitoringLogsTableContent, {
 // ============================================================================
 
 interface MonitoringDashboardContentProps {
-  tab: "logs" | "analytics";
+  tab: "logs" | "analytics" | "dashboards";
   dateRange: DateRange;
   displayDateRange: DateRange;
   connectionIds: string[];
@@ -775,7 +776,7 @@ interface MonitoringDashboardContentProps {
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
   onTimeRangeChange: (range: TimeRangeValue) => void;
   onStreamingToggle: () => void;
-  onTabChange: (tab: "logs" | "analytics") => void;
+  onTabChange: (tab: "logs" | "analytics" | "dashboards") => void;
 }
 
 function MonitoringDashboardContent({
@@ -880,6 +881,7 @@ function MonitoringDashboardContent({
   const tabs = [
     { id: "logs" as const, label: "Logs" },
     { id: "analytics" as const, label: "Analytics" },
+    { id: "dashboards" as const, label: "Dashboards" },
   ];
 
   return (
@@ -945,7 +947,9 @@ function MonitoringDashboardContent({
         <CollectionTabs
           tabs={tabs}
           activeTab={tab}
-          onTabChange={(tabId) => onTabChange(tabId as "logs" | "analytics")}
+          onTabChange={(tabId) =>
+            onTabChange(tabId as "logs" | "analytics" | "dashboards")
+          }
         />
       </div>
 
@@ -991,8 +995,10 @@ function MonitoringDashboardContent({
             />
           </div>
         </div>
-      ) : (
+      ) : tab === "analytics" ? (
         <AnalyticsTab />
+      ) : (
+        <DashboardsTab />
       )}
     </>
   );

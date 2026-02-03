@@ -28,6 +28,7 @@ import * as migration026restrictchildconnectiondelete from "./026-restrict-child
 import * as migration027updatemanagementmcpurl from "./027-update-management-mcp-url.ts";
 import * as migration028updatemanagementmcptoself from "./028-update-management-mcp-to-self.ts";
 import * as migration029addupdatedbytoconnections from "./029-add-updated-by-to-connections.ts";
+import * as migration030monitoringdashboards from "./030-monitoring-dashboards.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -68,6 +69,7 @@ const migrations: Record<string, Migration> = {
   "027-update-management-mcp-url": migration027updatemanagementmcpurl,
   "028-update-management-mcp-to-self": migration028updatemanagementmcptoself,
   "029-add-updated-by-to-connections": migration029addupdatedbytoconnections,
+  "030-monitoring-dashboards": migration030monitoringdashboards,
 };
 
 export default migrations;
