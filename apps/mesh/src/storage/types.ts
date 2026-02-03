@@ -686,6 +686,78 @@ export interface MemberTag {
   createdAt: Date | string;
 }
 
+// ============================================================================
+// Projects Table Definitions
+// ============================================================================
+
+/**
+ * Project UI customization settings
+ */
+export interface ProjectUI {
+  banner: string | null;
+  bannerColor: string | null;
+  icon: string | null;
+  themeColor: string | null;
+}
+
+/**
+ * Project table definition
+ * Projects are organization-scoped workspaces
+ */
+export interface ProjectTable {
+  id: string;
+  organization_id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  enabled_plugins: JsonArray<string> | null;
+  ui: JsonObject<ProjectUI> | null;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+/**
+ * Project entity - Runtime representation
+ */
+export interface Project {
+  id: string;
+  organizationId: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  enabledPlugins: string[] | null;
+  ui: ProjectUI | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+/**
+ * Project plugin config table definition
+ * Per-project plugin configuration with optional MCP connection binding
+ */
+export interface ProjectPluginConfigTable {
+  id: string;
+  project_id: string;
+  plugin_id: string;
+  connection_id: string | null;
+  settings: JsonObject<Record<string, unknown>> | null;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+/**
+ * Project plugin config entity - Runtime representation
+ */
+export interface ProjectPluginConfig {
+  id: string;
+  projectId: string;
+  pluginId: string;
+  connectionId: string | null;
+  settings: Record<string, unknown> | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
 /**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
@@ -727,4 +799,8 @@ export interface Database {
   // Member tags tables
   organization_tags: OrganizationTagTable;
   member_tags: MemberTagTable;
+
+  // Projects tables
+  projects: ProjectTable;
+  project_plugin_configs: ProjectPluginConfigTable;
 }

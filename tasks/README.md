@@ -10,7 +10,7 @@ Check off each task as it's completed. Start a **fresh thread** for each task.
 
 | Status | Task | File | Start Command |
 |--------|------|------|---------------|
-| [ ] | 001 - Database Schema & Storage | `@tasks/001-database-schema-storage.md` | "Execute task 001" |
+| [x] | 001 - Database Schema & Storage | `@tasks/001-database-schema-storage.md` | "Execute task 001" |
 | [ ] | 002 - MCP Tools | `@tasks/002-mcp-tools.md` | "Execute task 002" |
 | [ ] | 003 - Routing Refactor | `@tasks/003-routing-refactor.md` | "Execute task 003" |
 | [ ] | 004 - Project Layout & Context | `@tasks/004-project-layout-context.md` | "Execute task 004" |
