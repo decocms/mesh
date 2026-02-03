@@ -144,15 +144,27 @@ export type StreamableMCPProxyClient = MCPProxyClient & {
 };
 
 /**
- * Convert MCPProxyClient to ServerClient format for bindings compatibility
+ * Convert Client to ServerClient format for bindings compatibility
  * Overloaded to handle both regular and streamable clients
  */
 export function toServerClient(
-  client: MCPProxyClient,
+  client: Client,
 ): Omit<ServerClient, "callStreamableTool">;
-export function toServerClient(client: StreamableMCPProxyClient): ServerClient;
 export function toServerClient(
-  client: MCPProxyClient | StreamableMCPProxyClient,
+  client: Client & {
+    callStreamableTool: (
+      name: string,
+      args: Record<string, unknown>,
+    ) => Promise<Response>;
+  },
+): ServerClient;
+export function toServerClient(
+  client: Client & {
+    callStreamableTool?: (
+      name: string,
+      args: Record<string, unknown>,
+    ) => Promise<Response>;
+  },
 ): ServerClient | Omit<ServerClient, "callStreamableTool"> {
   const base = {
     client: {
@@ -162,7 +174,7 @@ export function toServerClient(
   };
 
   // Only add streaming if present
-  if ("callStreamableTool" in client) {
+  if ("callStreamableTool" in client && client.callStreamableTool) {
     return {
       ...base,
       callStreamableTool: client.callStreamableTool.bind(client),
@@ -179,13 +191,13 @@ const DEFAULT_SERVER_CAPABILITIES = {
 };
 
 /**
- * Decorator function that adds streaming support to an MCP proxy client
+ * Decorator function that adds streaming support to an MCP client
  *
  * This extends a pure MCP spec-compliant client with the custom callStreamableTool
  * method for HTTP streaming. This separation keeps MCP spec functionality separate
  * from Mesh-specific extensions.
  *
- * @param client - The base MCP proxy client (MCP spec-compliant)
+ * @param client - The base MCP client (MCP spec-compliant)
  * @param connectionId - The connection ID
  * @param connection - The connection entity
  * @param ctx - The mesh context
@@ -193,12 +205,18 @@ const DEFAULT_SERVER_CAPABILITIES = {
  * @returns A client with streaming support added
  */
 export function withStreamingSupport(
-  client: MCPProxyClient,
+  client: Client,
   connectionId: string,
   connection: ConnectionEntity,
   ctx: MeshContext,
   options: { superUser: boolean },
-): StreamableMCPProxyClient {
+): Client & {
+  callStreamableTool: (
+    name: string,
+    args: Record<string, unknown>,
+  ) => Promise<Response>;
+  [Symbol.asyncDispose]: () => Promise<void>;
+} {
   // Call tool using fetch directly for streaming support
   // Inspired by @deco/api proxy callStreamableTool
   // Note: Only works for HTTP connections - STDIO and VIRTUAL don't support streaming fetch
@@ -336,7 +354,16 @@ export function withStreamingSupport(
   return {
     ...client,
     callStreamableTool,
-  } as StreamableMCPProxyClient;
+    [Symbol.asyncDispose]: async () => {
+      await client.close();
+    },
+  } as Client & {
+    callStreamableTool: (
+      name: string,
+      args: Record<string, unknown>,
+    ) => Promise<Response>;
+    [Symbol.asyncDispose]: () => Promise<void>;
+  };
 }
 
 async function createMCPProxyDoNotUseDirectly(
