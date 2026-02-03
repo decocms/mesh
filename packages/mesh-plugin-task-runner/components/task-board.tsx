@@ -597,10 +597,12 @@ function TasksTabContent({
   onStartWithAgent,
   workspacePath,
   searchParams,
+  onGoToQualityGates,
 }: {
   onStartWithAgent: (task: Task) => void;
   workspacePath?: string;
   searchParams?: TaskBoardSearch;
+  onGoToQualityGates?: () => void;
 }) {
   const { data: tasks, isLoading, error, refetch, isFetching } = useTasks();
   const { data: skills } = useSkills();
@@ -744,17 +746,20 @@ function TasksTabContent({
 
       {/* Warning if baseline not ready */}
       {!canCreateTasks && (
-        <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
-          <AlertCircle size={16} className="text-yellow-600 flex-shrink-0" />
-          <div>
+        <div className="flex items-center justify-between gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-yellow-600 flex-shrink-0" />
             <span className="font-medium text-yellow-800">
               Quality gates not verified.
-            </span>{" "}
-            <span className="text-yellow-700">
-              Go to the <span className="font-medium">Quality Gates</span> tab
-              to verify baseline before creating tasks.
             </span>
           </div>
+          <button
+            type="button"
+            onClick={onGoToQualityGates}
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-yellow-100 text-yellow-800 hover:bg-yellow-200 transition-colors"
+          >
+            Verify Quality Gates
+          </button>
         </div>
       )}
 
@@ -1449,6 +1454,7 @@ export default function TaskBoard() {
                   onStartWithAgent={handleStartWithAgent}
                   workspacePath={workspaceData?.workspace}
                   searchParams={searchParams}
+                  onGoToQualityGates={() => setActiveTab("gates")}
                 />
               )}
               {activeTab === "skills" && <SkillsTabContent />}
