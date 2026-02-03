@@ -1289,6 +1289,7 @@ export function useQualityGatesBaseline() {
 
 /**
  * Hook to verify quality gates and establish baseline
+ * Uses EXEC tool from local-fs MCP to run gate commands
  */
 export function useVerifyQualityGates() {
   const { connectionId, toolCaller, connection } =
@@ -1301,24 +1302,93 @@ export function useVerifyQualityGates() {
       results: QualityGateResult[];
       baseline: QualityGatesBaseline;
     }> => {
-      const hasMcpTool = connection?.tools?.some(
-        (t) => t.name === "QUALITY_GATES_VERIFY",
+      const hasExec = connection?.tools?.some((t) => t.name === "EXEC");
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
       );
 
-      if (!hasMcpTool) {
+      if (!hasExec || !hasReadFile || !hasWriteFile) {
         throw new Error("Quality gates verification not available");
       }
 
-      const mcpToolCaller = toolCaller as unknown as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
-      ) => Promise<{
-        allPassed: boolean;
-        results: QualityGateResult[];
-        baseline: QualityGatesBaseline;
-      }>;
+      ) => Promise<unknown>;
 
-      return mcpToolCaller("QUALITY_GATES_VERIFY", {});
+      // Read project config to get quality gates
+      let config: { qualityGates?: QualityGate[] } = { qualityGates: [] };
+      try {
+        const configResult = await untypedToolCaller("read_file", {
+          path: ".beads/project-config.json",
+        });
+        const content = extractTextContent(configResult);
+        if (content) {
+          config = JSON.parse(content);
+        }
+      } catch {
+        // Config doesn't exist yet, use empty gates
+      }
+
+      const gates = config.qualityGates || [];
+      const requiredGates = gates.filter((g) => g.required);
+
+      // Run each gate command using EXEC
+      const results: QualityGateResult[] = [];
+      for (const gate of requiredGates) {
+        const start = Date.now();
+        try {
+          const execResult = (await untypedToolCaller("EXEC", {
+            command: gate.command,
+          })) as { exitCode?: number; stdout?: string; stderr?: string };
+
+          results.push({
+            gate: gate.name,
+            command: gate.command,
+            passed: execResult.exitCode === 0,
+            output: (
+              (execResult.stdout || "") + (execResult.stderr || "")
+            ).slice(-500),
+            duration: Date.now() - start,
+          });
+        } catch (error) {
+          results.push({
+            gate: gate.name,
+            command: gate.command,
+            passed: false,
+            output: error instanceof Error ? error.message : "Command failed",
+            duration: Date.now() - start,
+          });
+        }
+      }
+
+      const allPassed = results.every((r) => r.passed);
+      const failingGates = results.filter((r) => !r.passed).map((r) => r.gate);
+
+      // Create baseline
+      const baseline: QualityGatesBaseline = {
+        verified: true,
+        verifiedAt: new Date().toISOString(),
+        allPassed,
+        acknowledged: false,
+        failingGates,
+      };
+
+      // Save baseline to config
+      const updatedConfig = {
+        ...config,
+        qualityGatesBaseline: baseline,
+      };
+
+      await untypedToolCaller("write_file", {
+        path: ".beads/project-config.json",
+        content: JSON.stringify(updatedConfig, null, 2),
+      });
+
+      return { allPassed, results, baseline };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -1333,6 +1403,7 @@ export function useVerifyQualityGates() {
 
 /**
  * Hook to acknowledge pre-existing quality gate failures
+ * Updates the baseline in project-config.json
  */
 export function useAcknowledgeQualityGates() {
   const { connectionId, toolCaller, connection } =
@@ -1347,24 +1418,66 @@ export function useAcknowledgeQualityGates() {
       baseline?: QualityGatesBaseline;
       error?: string;
     }> => {
-      const hasMcpTool = connection?.tools?.some(
-        (t) => t.name === "QUALITY_GATES_ACKNOWLEDGE",
+      const hasReadFile = connection?.tools?.some(
+        (t) => t.name === "read_file",
+      );
+      const hasWriteFile = connection?.tools?.some(
+        (t) => t.name === "write_file",
       );
 
-      if (!hasMcpTool) {
+      if (!hasReadFile || !hasWriteFile) {
         throw new Error("Quality gates acknowledge not available");
       }
 
-      const mcpToolCaller = toolCaller as unknown as (
+      const untypedToolCaller = toolCaller as unknown as (
         name: string,
         args: Record<string, unknown>,
-      ) => Promise<{
-        success: boolean;
-        baseline?: QualityGatesBaseline;
-        error?: string;
-      }>;
+      ) => Promise<unknown>;
 
-      return mcpToolCaller("QUALITY_GATES_ACKNOWLEDGE", { acknowledge });
+      // Read current config
+      let config: {
+        qualityGates?: QualityGate[];
+        qualityGatesBaseline?: QualityGatesBaseline;
+      } = {};
+      try {
+        const configResult = await untypedToolCaller("read_file", {
+          path: ".beads/project-config.json",
+        });
+        const content = extractTextContent(configResult);
+        if (content) {
+          config = JSON.parse(content);
+        }
+      } catch {
+        return {
+          success: false,
+          error: "No baseline exists. Run verification first.",
+        };
+      }
+
+      if (!config.qualityGatesBaseline?.verified) {
+        return {
+          success: false,
+          error: "No baseline exists. Run verification first.",
+        };
+      }
+
+      // Update baseline with acknowledged flag
+      const baseline: QualityGatesBaseline = {
+        ...config.qualityGatesBaseline,
+        acknowledged: acknowledge,
+      };
+
+      const updatedConfig = {
+        ...config,
+        qualityGatesBaseline: baseline,
+      };
+
+      await untypedToolCaller("write_file", {
+        path: ".beads/project-config.json",
+        content: JSON.stringify(updatedConfig, null, 2),
+      });
+
+      return { success: true, baseline };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
