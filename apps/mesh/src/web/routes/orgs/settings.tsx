@@ -217,8 +217,8 @@ export default function OrgSettings() {
       // If slug changed, navigate to new slug
       if (data?.data?.slug && data.data.slug !== org.slug) {
         navigate({
-          to: "/$org/settings",
-          params: { org: data.data.slug },
+          to: "/$org/$project/org-settings",
+          params: { org: data.data.slug, project: "org-admin" },
         });
       }
     },
@@ -374,8 +374,8 @@ export default function OrgSettings() {
 
                   <div className="mt-4">
                     <Link
-                      to="/$org/settings/plugins"
-                      params={{ org: org.slug }}
+                      to="/$org/$project/org-settings/plugins"
+                      params={{ org: org.slug, project: "org-admin" }}
                       className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors group"
                     >
                       <div className="flex items-center gap-3">

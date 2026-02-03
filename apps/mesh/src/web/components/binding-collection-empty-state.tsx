@@ -42,8 +42,12 @@ export function BindingCollectionEmptyState({
 
       // Navigate to the connection detail page for setup
       navigate({
-        to: "/$org/mcps/$connectionId",
-        params: { org: orgSlug, connectionId: created.id },
+        to: "/$org/$project/mcps/$connectionId",
+        params: {
+          org: orgSlug,
+          project: "org-admin",
+          connectionId: created.id,
+        },
       });
     } finally {
       setIsInstalling(false);
@@ -52,8 +56,8 @@ export function BindingCollectionEmptyState({
 
   const handleInstallMcpServer = () => {
     navigate({
-      to: "/$org/mcps",
-      params: { org: orgSlug },
+      to: "/$org/$project/mcps",
+      params: { org: orgSlug, project: "org-admin" },
       search: { action: "create" },
     });
   };

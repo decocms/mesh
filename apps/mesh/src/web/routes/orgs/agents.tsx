@@ -202,8 +202,12 @@ function OrgAgentsContent() {
               onClick={(e) => {
                 e.stopPropagation();
                 navigate({
-                  to: "/$org/agents/$agentId",
-                  params: { org: org.slug, agentId: virtualMcp.id },
+                  to: "/$org/$project/agents/$agentId",
+                  params: {
+                    org: org.slug,
+                    project: "org-admin",
+                    agentId: virtualMcp.id,
+                  },
                 });
               }}
             >
@@ -340,8 +344,12 @@ function OrgAgentsContent() {
                     fallbackIcon={<Users03 />}
                     onClick={() =>
                       navigate({
-                        to: "/$org/agents/$agentId",
-                        params: { org: org.slug, agentId: virtualMcp.id },
+                        to: "/$org/$project/agents/$agentId",
+                        params: {
+                          org: org.slug,
+                          project: "org-admin",
+                          agentId: virtualMcp.id,
+                        },
                       })
                     }
                     footer={
@@ -372,9 +380,10 @@ function OrgAgentsContent() {
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate({
-                                to: "/$org/agents/$agentId",
+                                to: "/$org/$project/agents/$agentId",
                                 params: {
                                   org: org.slug,
+                                  project: "org-admin",
                                   agentId: virtualMcp.id,
                                 },
                               });
@@ -412,8 +421,12 @@ function OrgAgentsContent() {
               onSort={listState.handleSort}
               onRowClick={(virtualMcp) =>
                 navigate({
-                  to: "/$org/agents/$agentId",
-                  params: { org: org.slug, agentId: virtualMcp.id },
+                  to: "/$org/$project/agents/$agentId",
+                  params: {
+                    org: org.slug,
+                    project: "org-admin",
+                    agentId: virtualMcp.id,
+                  },
                 })
               }
               emptyState={

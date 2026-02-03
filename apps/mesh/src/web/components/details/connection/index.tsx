@@ -285,7 +285,7 @@ function ConnectionInspectorViewWithConnection({
   }>;
   isLoadingTools: boolean;
 }) {
-  const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
+  const navigate = useNavigate({ from: "/$org/$project/mcps/$connectionId" });
   const queryClient = useQueryClient();
   const routerState = useRouterState();
   const url = routerState.location.href;
@@ -496,7 +496,10 @@ function ConnectionInspectorViewWithConnection({
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org }}>
+            <Link
+              to="/$org/$project/mcps"
+              params={{ org, project: "org-admin" }}
+            >
               Connections
             </Link>
           </BreadcrumbLink>
@@ -621,14 +624,14 @@ function ConnectionInspectorViewWithConnection({
 }
 
 function ConnectionInspectorViewContent() {
-  const navigate = useNavigate({ from: "/$org/mcps/$connectionId" });
+  const navigate = useNavigate({ from: "/$org/$project/mcps/$connectionId" });
   const { connectionId, org } = useParams({
-    from: "/shell/$org/mcps/$connectionId",
+    from: "/shell/$org/$project/mcps/$connectionId",
   });
   const { org: projectOrg } = useProjectContext();
 
   // We can use search params for active tab if we want persistent tabs
-  const search = useSearch({ from: "/shell/$org/mcps/$connectionId" });
+  const search = useSearch({ from: "/shell/$org/$project/mcps/$connectionId" });
   const requestedTabId = search.tab ?? "";
 
   const connection = useConnection(connectionId);
@@ -697,8 +700,8 @@ function ConnectionInspectorViewContent() {
               variant="outline"
               onClick={() =>
                 navigate({
-                  to: "/$org/mcps",
-                  params: { org: org as string },
+                  to: "/$org/$project/mcps",
+                  params: { org: org as string, project: "org-admin" },
                 })
               }
             >

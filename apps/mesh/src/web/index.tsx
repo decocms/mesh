@@ -8,6 +8,7 @@ import {
   lazyRouteComponent,
   Outlet,
   RouterProvider,
+  redirect,
   type AnyRoute,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
@@ -23,6 +24,8 @@ import type {
   PluginSetupContext,
 } from "@decocms/bindings/plugins";
 
+const ORG_ADMIN_PROJECT_SLUG = "org-admin";
+
 const rootRoute = createRootRoute({
   component: () => (
     <Providers>
@@ -33,6 +36,10 @@ const rootRoute = createRootRoute({
     </Providers>
   ),
 });
+
+// ============================================
+// PUBLIC ROUTES (unchanged)
+// ============================================
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -87,33 +94,119 @@ const storeInviteRoute = createRoute({
   ),
 });
 
+const oauthCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/oauth/callback",
+  component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
+});
+
+// ============================================
+// SHELL LAYOUT (authenticated wrapper)
+// ============================================
+
 const shellLayout = createRoute({
   getParentRoute: () => rootRoute,
   id: "shell",
   component: lazyRouteComponent(() => import("./layouts/shell-layout.tsx")),
 });
 
+// Home route (landing, redirects to first org)
 const homeRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/",
   component: lazyRouteComponent(() => import("./routes/home.tsx")),
 });
 
-const orgHomeRoute = createRoute({
+// ============================================
+// ORG REDIRECT ROUTE
+// ============================================
+
+// Redirects /$org to /$org/org-admin
+const orgRedirectRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/$project",
+      params: { org: params.org, project: ORG_ADMIN_PROJECT_SLUG },
+    });
+  },
+});
+
+// ============================================
+// PROJECT LAYOUT
+// ============================================
+
+const projectLayout = createRoute({
+  getParentRoute: () => shellLayout,
+  path: "/$org/$project",
+  component: lazyRouteComponent(() => import("./layouts/project-layout.tsx")),
+});
+
+// ============================================
+// PROJECT ROUTES (available in all projects)
+// ============================================
+
+// Project home - the default view when entering a project
+const projectHomeRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/",
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
-const orgMembersRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/members",
+// Tasks placeholder (new)
+const tasksRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/tasks",
+  component: lazyRouteComponent(() => import("./routes/tasks.tsx")),
+});
+
+// Project settings (new - different from org settings)
+const projectSettingsRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/settings",
+  component: lazyRouteComponent(() => import("./routes/project-settings.tsx")),
+});
+
+// ============================================
+// ORG-ADMIN EXCLUSIVE ROUTES
+// ============================================
+
+// Helper to guard org-admin routes
+const orgAdminGuard = ({
+  params,
+}: {
+  params: { org: string; project: string };
+}) => {
+  if (params.project !== ORG_ADMIN_PROJECT_SLUG) {
+    throw redirect({
+      to: "/$org/$project",
+      params: { org: params.org, project: params.project },
+    });
+  }
+};
+
+// Projects list (new - org-admin only)
+const projectsListRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/projects",
+  beforeLoad: orgAdminGuard,
+  component: lazyRouteComponent(() => import("./routes/projects-list.tsx")),
+});
+
+// Members
+const membersRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/members",
+  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/orgs/members.tsx")),
 });
 
-const orgConnectionsRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/mcps",
+// Connections (mcps)
+const connectionsRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/mcps",
+  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/orgs/connections.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
@@ -122,23 +215,58 @@ const orgConnectionsRoute = createRoute({
   ),
 });
 
+// Connection detail
+const connectionDetailRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/mcps/$connectionId",
+  beforeLoad: orgAdminGuard,
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/connection-detail.tsx"),
+  ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      tab: z.string().optional(),
+    }),
+  ),
+});
+
+// Collection detail
+const collectionDetailRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/mcps/$connectionId/$collectionName/$itemId",
+  beforeLoad: orgAdminGuard,
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/collection-detail.tsx"),
+  ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      replayId: z.string().optional(), // Random ID to lookup input in sessionStorage
+    }),
+  ),
+});
+
+// Org Settings (different from project settings)
 const orgSettingsRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/settings",
+  getParentRoute: () => projectLayout,
+  path: "/org-settings", // Changed to avoid conflict with /settings
+  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/orgs/settings.tsx")),
 });
 
 const orgSettingsPluginsRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/settings/plugins",
+  getParentRoute: () => projectLayout,
+  path: "/org-settings/plugins",
+  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(
     () => import("./routes/orgs/settings/plugins.tsx"),
   ),
 });
 
-const orgMonitoringRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/monitoring",
+// Monitoring
+const monitoringRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/monitoring",
+  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
@@ -157,14 +285,16 @@ const orgMonitoringRoute = createRoute({
   ),
 });
 
-const orgStoreRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/store",
+// Store
+const storeRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/store",
+  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/orgs/store/page.tsx")),
 });
 
-const storeServerDetailRoute = createRoute({
-  getParentRoute: () => orgStoreRoute,
+const storeDetailRoute = createRoute({
+  getParentRoute: () => storeRoute,
   path: "/$appName",
   component: lazyRouteComponent(
     () => import("./routes/orgs/store/mcp-server-detail.tsx"),
@@ -178,35 +308,11 @@ const storeServerDetailRoute = createRoute({
   ),
 });
 
-const connectionLayoutRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/mcps/$connectionId",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/connection-detail.tsx"),
-  ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      tab: z.string().optional(),
-    }),
-  ),
-});
-
-const collectionDetailsRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/mcps/$connectionId/$collectionName/$itemId",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/collection-detail.tsx"),
-  ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      replayId: z.string().optional(), // Random ID to lookup input in sessionStorage
-    }),
-  ),
-});
-
-const orgAgentsRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/agents",
+// Agents
+const agentsRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/agents",
+  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/orgs/agents.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
@@ -216,8 +322,9 @@ const orgAgentsRoute = createRoute({
 });
 
 const agentDetailRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/agents/$agentId",
+  getParentRoute: () => projectLayout,
+  path: "/agents/$agentId",
+  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/orgs/agent-detail.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
@@ -226,27 +333,27 @@ const agentDetailRoute = createRoute({
   ),
 });
 
-const orgWorkflowRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/workflows",
+// Workflows
+const workflowsRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/workflows",
+  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
-/**
- * Dynamic plugin route
- * Routes to plugins based on $pluginId parameter
- */
+// ============================================
+// PLUGIN ROUTES
+// ============================================
+
 const pluginLayoutRoute = createRoute({
-  getParentRoute: () => shellLayout,
-  path: "/$org/$pluginId",
+  getParentRoute: () => projectLayout, // Changed from shellLayout
+  path: "/$pluginId",
   component: lazyRouteComponent(
     () => import("./layouts/dynamic-plugin-layout.tsx"),
   ),
 });
 
-/**
- * In-memory state for plugins to register stuff via callbacks.
- */
+// Plugin setup (same as before)
 export const pluginRootSidebarItems: {
   pluginId: string;
   icon: ReactNode;
@@ -278,31 +385,37 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
 // Add all plugin routes as children of the plugin layout
 const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
 
-const oauthCallbackRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/oauth/callback",
-  component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
-});
+// ============================================
+// ROUTE TREE
+// ============================================
 
-const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
-  storeServerDetailRoute,
-]);
+const storeRouteWithChildren = storeRoute.addChildren([storeDetailRoute]);
+
+const projectRoutes = [
+  projectHomeRoute,
+  tasksRoute,
+  projectSettingsRoute,
+  projectsListRoute,
+  membersRoute,
+  connectionsRoute,
+  connectionDetailRoute,
+  collectionDetailRoute,
+  orgSettingsRoute,
+  orgSettingsPluginsRoute,
+  monitoringRoute,
+  storeRouteWithChildren,
+  agentsRoute,
+  agentDetailRoute,
+  workflowsRoute,
+  pluginLayoutWithChildren,
+];
+
+const projectLayoutWithChildren = projectLayout.addChildren(projectRoutes);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
-  orgHomeRoute,
-  orgMembersRoute,
-  orgConnectionsRoute,
-  orgAgentsRoute,
-  agentDetailRoute,
-  orgMonitoringRoute,
-  orgStoreRouteWithChildren,
-  orgSettingsRoute,
-  orgSettingsPluginsRoute,
-  orgWorkflowRoute,
-  connectionLayoutRoute,
-  collectionDetailsRoute,
-  pluginLayoutWithChildren,
+  orgRedirectRoute,
+  projectLayoutWithChildren,
 ]);
 
 const routeTree = rootRoute.addChildren([

@@ -117,8 +117,8 @@ function StoreDiscoveryContent({
     const serverName = item.server.name;
 
     navigate({
-      to: "/$org/store/$appName",
-      params: { org: org.slug, appName: serverSlug },
+      to: "/$org/$project/store/$appName",
+      params: { org: org.slug, project: "org-admin", appName: serverSlug },
       search: {
         registryId,
         serverName,

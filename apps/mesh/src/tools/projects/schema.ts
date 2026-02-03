@@ -10,7 +10,7 @@ import { z } from "zod";
  * Project UI customization schema
  * All fields are required but nullable to match the ProjectUI type
  */
-export const projectUISchema = z.object({
+const projectUISchema = z.object({
   banner: z.string().nullable(),
   bannerColor: z.string().nullable(),
   icon: z.string().nullable(),

@@ -144,8 +144,8 @@ function TopServersContent({
 
   const handleConnectionClick = (connectionId: string) => {
     navigate({
-      to: "/$org/monitoring",
-      params: { org: org.slug },
+      to: "/$org/$project/monitoring",
+      params: { org: org.slug, project: "org-admin" },
       search: {
         from: "now-24h",
         to: "now",
@@ -157,8 +157,8 @@ function TopServersContent({
 
   const handleTitleClick = () => {
     navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
+      to: "/$org/$project/mcps",
+      params: { org: org.slug, project: "org-admin" },
     });
   };
 

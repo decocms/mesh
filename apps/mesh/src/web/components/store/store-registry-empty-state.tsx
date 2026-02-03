@@ -42,8 +42,8 @@ export function StoreRegistryEmptyState({
 
   const handleInstallMcpServer = () => {
     navigate({
-      to: "/$org/mcps",
-      params: { org: orgSlug },
+      to: "/$org/$project/mcps",
+      params: { org: orgSlug, project: "org-admin" },
       search: { action: "create" },
     });
   };

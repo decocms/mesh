@@ -146,8 +146,8 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
 
   const handleVirtualMcpClick = (virtualMcpId: string) => {
     navigate({
-      to: "/$org/monitoring",
-      params: { org: org.slug },
+      to: "/$org/$project/monitoring",
+      params: { org: org.slug, project: "org-admin" },
       search: {
         from: "now-24h",
         to: "now",
@@ -159,8 +159,8 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
 
   const handleTitleClick = () => {
     navigate({
-      to: "/$org/agents",
-      params: { org: org.slug },
+      to: "/$org/$project/agents",
+      params: { org: org.slug, project: "org-admin" },
     });
   };
 

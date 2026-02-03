@@ -73,9 +73,10 @@ function PromptsList({
       onPromptClick(prompt);
     } else if (connectionId && org) {
       navigate({
-        to: "/$org/mcps/$connectionId/$collectionName/$itemId",
+        to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
         params: {
           org: org,
+          project: "org-admin",
           connectionId: connectionId,
           collectionName: "prompts",
           itemId: encodeURIComponent(prompt.name),

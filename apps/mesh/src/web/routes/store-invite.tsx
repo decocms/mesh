@@ -35,8 +35,8 @@ function StoreInviteRedirect() {
 
   return (
     <Navigate
-      to="/$org/store/$appName"
-      params={{ org: org.slug, appName }}
+      to="/$org/$project/store/$appName"
+      params={{ org: org.slug, project: "org-admin", appName }}
       search={search}
       replace
     />

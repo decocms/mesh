@@ -165,13 +165,13 @@ function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
 }
 
 function ShellLayoutContent() {
-  const { org } = useParams({ strict: false });
+  const { org, project } = useParams({ strict: false });
   const routerState = useRouterState();
 
-  // Check if we're on the home route (/$org)
+  // Check if we're on the project home route (/$org/$project)
   const isHomeRoute =
-    routerState.location.pathname === `/${org}` ||
-    routerState.location.pathname === `/${org}/`;
+    routerState.location.pathname === `/${org}/${project}` ||
+    routerState.location.pathname === `/${org}/${project}/`;
 
   const { data: projectContext } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),

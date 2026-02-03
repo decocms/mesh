@@ -124,8 +124,8 @@ function TopToolsContent(_props: TopToolsContentProps) {
 
   const handleTitleClick = () => {
     navigate({
-      to: "/$org/monitoring",
-      params: { org: org.slug },
+      to: "/$org/$project/monitoring",
+      params: { org: org.slug, project: "org-admin" },
     });
   };
 

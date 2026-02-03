@@ -595,8 +595,8 @@ function StoreMCPServerDetailContent() {
       const { id } = await actions.create.mutateAsync(connectionData);
 
       navigate({
-        to: "/$org/mcps/$connectionId",
-        params: { org: org.slug, connectionId: id },
+        to: "/$org/$project/mcps/$connectionId",
+        params: { org: org.slug, project: "org-admin", connectionId: id },
       });
     } catch (error) {
       toast.error(
@@ -607,8 +607,8 @@ function StoreMCPServerDetailContent() {
 
   const handleBackClick = () => {
     navigate({
-      to: "/$org/store",
-      params: { org: org.slug },
+      to: "/$org/$project/store",
+      params: { org: org.slug, project: "org-admin" },
     });
   };
 
@@ -631,7 +631,10 @@ function StoreMCPServerDetailContent() {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/store" params={{ org: org.slug }}>
+            <Link
+              to="/$org/$project/store"
+              params={{ org: org.slug, project: "org-admin" }}
+            >
               Store
             </Link>
           </BreadcrumbLink>
@@ -729,8 +732,8 @@ export default function StoreMCPServerDetail() {
 
   const handleBackClick = () => {
     navigate({
-      to: "/$org/store",
-      params: { org: org.slug },
+      to: "/$org/$project/store",
+      params: { org: org.slug, project: "org-admin" },
     });
   };
 

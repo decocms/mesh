@@ -110,7 +110,10 @@ export default function PluginsSettings() {
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to="/$org/settings" params={{ org: org.slug }}>
+                  <Link
+                    to="/$org/$project/org-settings"
+                    params={{ org: org.slug, project: "org-admin" }}
+                  >
                     Settings
                   </Link>
                 </BreadcrumbLink>

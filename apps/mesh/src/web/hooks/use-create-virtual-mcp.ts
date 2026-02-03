@@ -55,8 +55,8 @@ export function useCreateVirtualMCP(
 
     if (navigateOnCreate) {
       navigate({
-        to: "/$org/agents/$agentId",
-        params: { org: org.slug, agentId: virtualMcp.id },
+        to: "/$org/$project/agents/$agentId",
+        params: { org: org.slug, project: "org-admin", agentId: virtualMcp.id },
       });
     }
 

@@ -37,8 +37,8 @@ export function NoLlmBindingEmptyState({
 
   const handleInstallMcpServer = () => {
     navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
+      to: "/$org/$project/mcps",
+      params: { org: org.slug, project: "org-admin" },
       search: { action: "create" },
     });
   };
@@ -58,8 +58,12 @@ export function NoLlmBindingEmptyState({
       if (existingConnection) {
         setDecoChatOpen(false);
         navigate({
-          to: "/$org/mcps/$connectionId",
-          params: { org: org.slug, connectionId: existingConnection.id },
+          to: "/$org/$project/mcps/$connectionId",
+          params: {
+            org: org.slug,
+            project: "org-admin",
+            connectionId: existingConnection.id,
+          },
         });
         return;
       }
@@ -73,8 +77,12 @@ export function NoLlmBindingEmptyState({
 
       setDecoChatOpen(false);
       navigate({
-        to: "/$org/mcps/$connectionId",
-        params: { org: org.slug, connectionId: result.id },
+        to: "/$org/$project/mcps/$connectionId",
+        params: {
+          org: org.slug,
+          project: "org-admin",
+          connectionId: result.id,
+        },
       });
     } catch (error) {
       toast.error(

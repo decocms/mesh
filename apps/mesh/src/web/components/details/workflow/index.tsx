@@ -43,7 +43,7 @@ import { useRef, useState, useSyncExternalStore } from "react";
 export function useCollectionWorkflow({ itemId }: { itemId: string }) {
   const [isUpdating, setIsUpdating] = useState(false);
   const { connectionId } = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
   });
   const scopeKey = connectionId ?? "no-connection";
 
@@ -234,7 +234,7 @@ function WorkflowExecutionBar() {
 
 export function WorkflowDetails() {
   const { itemId } = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
   });
   const {
     item: workflow,
@@ -342,7 +342,7 @@ function WorkflowStudio({
 
 function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
   const { connectionId } = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
   });
   const scopeKey = connectionId ?? "no-connection";
 
@@ -362,7 +362,7 @@ function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
 
 export function WorkflowExecutionDetailsView() {
   const { itemId } = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
   });
   const { item: execution } = useCollectionWorkflowExecution({
     itemId: itemId,
