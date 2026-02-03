@@ -1343,14 +1343,28 @@ export function useVerifyQualityGates() {
         try {
           const execResult = (await untypedToolCaller("EXEC", {
             command: gate.command,
-          })) as { exitCode?: number; stdout?: string; stderr?: string };
+            timeout: 120000, // 2 minutes for type checks
+          })) as {
+            success?: boolean;
+            exitCode?: number;
+            stdout?: string;
+            stderr?: string;
+            error?: string;
+          };
+
+          // Check success property first, then exitCode
+          const passed =
+            execResult.success === true ||
+            (execResult.success === undefined && execResult.exitCode === 0);
 
           results.push({
             gate: gate.name,
             command: gate.command,
-            passed: execResult.exitCode === 0,
+            passed,
             output: (
-              (execResult.stdout || "") + (execResult.stderr || "")
+              (execResult.stdout || "") +
+              (execResult.stderr || "") +
+              (execResult.error || "")
             ).slice(-500),
             duration: Date.now() - start,
           });
