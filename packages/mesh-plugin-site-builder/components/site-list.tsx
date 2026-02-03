@@ -40,7 +40,8 @@ export default function SiteList() {
   } = useDevServer();
   const { pages, isLoading: pagesLoading } = usePages();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const { connectionId } = useParams({ strict: false }) as {
+  const { org, connectionId } = useParams({ strict: false }) as {
+    org?: string;
     connectionId?: string;
   };
 
@@ -58,7 +59,12 @@ export default function SiteList() {
     if (connectionId) searchParams.set("site", connectionId);
 
     const search = searchParams.toString();
-    const basePath = connectionId ? `/tasks/${connectionId}` : "/tasks";
+    // URL pattern: /{org}/task-runner/{connectionId}
+    const basePath = org
+      ? connectionId
+        ? `/${org}/task-runner/${connectionId}`
+        : `/${org}/task-runner`
+      : "/task-runner";
     window.location.href = search ? `${basePath}?${search}` : basePath;
   };
 
