@@ -21,6 +21,12 @@ export interface CreateMcpClientOptions {
 
 export type UseMcpClientOptions = CreateMcpClientOptions;
 
+export interface UseMcpClientOptionalOptions
+  extends Omit<CreateMcpClientOptions, "connectionId"> {
+  /** Connection ID - string for connection MCP, null for default/self, undefined to skip (returns null) */
+  connectionId: string | null | undefined;
+}
+
 /**
  * Build the MCP URL from connectionId and optional meshUrl
  * Uses /mcp/:connectionId for all servers
@@ -110,7 +116,7 @@ export function useMCPClient({
 }: UseMcpClientOptions): Client {
   const queryKey = KEYS.mcpClient(
     orgId,
-    connectionId ?? "",
+    connectionId ?? "self",
     token ?? "",
     meshUrl ?? "",
   );
@@ -122,6 +128,52 @@ export function useMCPClient({
     gcTime: 0, // Clean up immediately when query is inactive
   });
 
-  // useSuspenseQuery guarantees data is available (suspends until ready)
   return client!;
+}
+
+/**
+ * Optional MCP client - returns null when connectionId is undefined (skip creating client).
+ * Use when the connection may not be selected yet (e.g. model picker with no connections).
+ *
+ * - connectionId: string → connection-specific MCP
+ * - connectionId: null → default/self MCP
+ * - connectionId: undefined → skip (returns null, no MCP call)
+ *
+ * @param options - Configuration for the MCP client
+ * @returns The MCP client instance, or null when connectionId is undefined
+ */
+export function useMCPClientOptional({
+  connectionId,
+  orgId,
+  token,
+  meshUrl,
+}: UseMcpClientOptionalOptions): Client | null {
+  const queryKey =
+    connectionId !== undefined
+      ? KEYS.mcpClient(
+          orgId,
+          connectionId ?? "self",
+          token ?? "",
+          meshUrl ?? "",
+        )
+      : (["mcp", "client", "skip", orgId] as const);
+
+  const { data: client } = useSuspenseQuery({
+    queryKey,
+    queryFn: async () => {
+      if (connectionId === undefined) {
+        return null;
+      }
+      return createMCPClient({
+        connectionId: connectionId as string | null,
+        orgId,
+        token,
+        meshUrl,
+      });
+    },
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+
+  return client ?? null;
 }

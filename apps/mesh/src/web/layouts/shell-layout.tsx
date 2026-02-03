@@ -152,7 +152,7 @@ function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
       </ResizablePanel>
       {!disableChat && (
         <>
-          <ResizableHandle withHandle={chatOpen} />
+          <ResizableHandle withHandle={chatOpen} className="border-l-1" />
           <PersistentResizablePanel
             className={cn(chatOpen ? "max-w-none" : "max-w-0")}
           >

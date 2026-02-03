@@ -57,6 +57,7 @@ export const KEYS = {
   ) => ["mcp", "client", orgId, connectionId, token, meshUrl] as const,
 
   // MCP client-based queries (scoped by client instance)
+  // Note: client can be null/undefined for skip queries that shouldn't execute
   mcpToolsList: (client: unknown) =>
     ["mcp", "client", client, "tools"] as const,
   mcpResourcesList: (client: unknown) =>

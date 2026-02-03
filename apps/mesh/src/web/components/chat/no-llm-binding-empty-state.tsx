@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -11,6 +10,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { authClient } from "@/web/lib/auth-client";
+import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 
 interface NoLlmBindingEmptyStateProps {
   title?: string;
@@ -27,8 +27,8 @@ export function NoLlmBindingEmptyState({
   description = "Connect to a model provider to unlock AI-powered features.",
   org,
 }: NoLlmBindingEmptyStateProps) {
-  const [isInstalling, setIsInstalling] = useState(false);
-  const connectionActions = useConnectionActions();
+  const actions = useConnectionActions();
+  const [, setDecoChatOpen] = useDecoChatOpen();
   const navigate = useNavigate();
   const { data: session } = authClient.useSession();
   const allConnections = useConnections();
@@ -49,7 +49,6 @@ export function NoLlmBindingEmptyState({
       return;
     }
 
-    setIsInstalling(true);
     try {
       // Check if OpenRouter already exists
       const existingConnection = allConnections?.find(
@@ -57,6 +56,7 @@ export function NoLlmBindingEmptyState({
       );
 
       if (existingConnection) {
+        setDecoChatOpen(false);
         navigate({
           to: "/$org/mcps/$connectionId",
           params: { org: org.slug, connectionId: existingConnection.id },
@@ -69,8 +69,9 @@ export function NoLlmBindingEmptyState({
         id: generatePrefixedId("conn"),
       });
 
-      const result = await connectionActions.create.mutateAsync(connectionData);
+      const result = await actions.create.mutateAsync(connectionData);
 
+      setDecoChatOpen(false);
       navigate({
         to: "/$org/mcps/$connectionId",
         params: { org: org.slug, connectionId: result.id },
@@ -79,8 +80,6 @@ export function NoLlmBindingEmptyState({
       toast.error(
         `Failed to connect OpenRouter: ${error instanceof Error ? error.message : String(error)}`,
       );
-    } finally {
-      setIsInstalling(false);
     }
   };
 
@@ -103,14 +102,14 @@ export function NoLlmBindingEmptyState({
           <Button
             variant="outline"
             onClick={handleInstallOpenRouter}
-            disabled={isInstalling}
+            disabled={actions.create.isPending}
           >
             <img
               src={OPENROUTER_ICON_URL}
               alt="OpenRouter"
               className="size-4"
             />
-            {isInstalling ? "Installing..." : "Install OpenRouter"}
+            {actions.create.isPending ? "Installing..." : "Install OpenRouter"}
           </Button>
           <Button variant="outline" onClick={handleInstallMcpServer}>
             Install Connection

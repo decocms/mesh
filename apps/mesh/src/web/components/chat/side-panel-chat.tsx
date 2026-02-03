@@ -21,7 +21,8 @@ function ChatPanelContent() {
     modelsConnections,
     isChatEmpty,
     activeThreadId,
-    setActiveThreadId,
+    createThread,
+    switchToThread,
     threads,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
@@ -34,7 +35,7 @@ function ChatPanelContent() {
 
   const handleNewThread = () => {
     startTransition(() => {
-      setActiveThreadId(crypto.randomUUID());
+      createThread();
     });
   };
 
@@ -46,9 +47,7 @@ function ChatPanelContent() {
     return (
       <Chat>
         <Page.Header className="flex-none">
-          <Page.Header.Left className="gap-2">
-            <span className="text-sm font-medium">{displayAgent.title}</span>
-          </Page.Header.Left>
+          <Page.Header.Left className="gap-2" />
           <Page.Header.Right className="gap-1">
             <button
               type="button"
@@ -92,15 +91,11 @@ function ChatPanelContent() {
       >
         <Page.Header className="flex-none">
           <Page.Header.Left className="gap-2">
-            {!isChatEmpty && activeThread?.title ? (
+            {!isChatEmpty && activeThread?.title && (
               <TypewriterTitle
                 text={activeThread.title}
                 className="text-sm font-medium text-foreground"
               />
-            ) : (
-              <span className="text-sm font-medium text-foreground">
-                {displayAgent.title}
-              </span>
             )}
           </Page.Header.Left>
           <Page.Header.Right className="gap-1">
@@ -186,7 +181,7 @@ function ChatPanelContent() {
         <ThreadsView
           threads={threads}
           activeThreadId={activeThreadId}
-          onThreadSelect={setActiveThreadId}
+          onThreadSelect={switchToThread}
           onClose={() => setShowThreadsOverlay(false)}
         />
       </div>

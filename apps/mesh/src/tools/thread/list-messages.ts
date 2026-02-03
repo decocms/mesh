@@ -61,10 +61,16 @@ export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
       throw new Error("threadId filter is required in where clause");
     }
 
-    // First verify the thread exists and belongs to the organization
+    // Verify the thread exists and belongs to the organization
     const thread = await ctx.storage.threads.get(threadId);
+
+    // Return empty when thread doesn't exist (e.g. new chat before first message)
     if (!thread || thread.organizationId !== organization.id) {
-      throw new Error("Thread not found in organization");
+      return {
+        items: [],
+        totalCount: 0,
+        hasMore: false,
+      };
     }
 
     const offset = input.offset ?? 0;

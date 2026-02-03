@@ -15,9 +15,14 @@ export {
   useCollectionItem,
   useCollectionList,
   useCollectionActions,
+  buildWhereExpression,
+  buildOrderByExpression,
+  buildCollectionQueryKey,
+  EMPTY_COLLECTION_LIST_RESULT,
   type CollectionEntity,
   type CollectionFilter,
   type UseCollectionListOptions,
+  type CollectionQueryKey,
   // Connection hooks
   useConnections,
   useConnection,
@@ -27,8 +32,10 @@ export {
   // MCP client hook and factory
   createMCPClient,
   useMCPClient,
+  useMCPClientOptional,
   type CreateMcpClientOptions,
   type UseMcpClientOptions,
+  type UseMcpClientOptionalOptions,
   // MCP tools hooks
   useMCPToolsList,
   useMCPToolsListQuery,

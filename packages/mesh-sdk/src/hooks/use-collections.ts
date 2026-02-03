@@ -28,7 +28,6 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { KEYS } from "../lib/query-keys";
-import { useMCPToolCall } from "./use-mcp-tools";
 
 /**
  * Collection entity base type that matches the collection binding pattern
@@ -69,9 +68,21 @@ export interface UseCollectionListOptions<T extends CollectionEntity> {
 }
 
 /**
+ * Query key type for collection list queries
+ */
+export type CollectionQueryKey = readonly [
+  "mcp",
+  "client",
+  unknown,
+  "tool-call",
+  string,
+  string,
+];
+
+/**
  * Build a where expression from search term and filters
  */
-function buildWhereExpression<T extends CollectionEntity>(
+export function buildWhereExpression<T extends CollectionEntity>(
   searchTerm: string | undefined,
   filters: CollectionFilter[] | undefined,
   searchFields: (keyof T)[],
@@ -126,7 +137,7 @@ function buildWhereExpression<T extends CollectionEntity>(
 /**
  * Build orderBy expression from sort key and direction
  */
-function buildOrderByExpression<T extends CollectionEntity>(
+export function buildOrderByExpression<T extends CollectionEntity>(
   sortKey: keyof T | undefined,
   sortDirection: "asc" | "desc" | null | undefined,
   defaultSortKey: keyof T,
@@ -168,18 +179,6 @@ function extractPayload<T>(result: unknown): T {
 }
 
 /**
- * TODO: We should remove this after fixing the Chat.Provider requiring llms from mcps
- */
-function extractPayloadSafe<T>(result: unknown): T | null {
-  try {
-    return extractPayload<T>(result);
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}
-
-/**
  * Get a single item by ID from a collection
  *
  * @param scopeKey - The scope key (connectionId for connection-scoped, virtualMcpId for virtual-mcp-scoped, etc.)
@@ -210,7 +209,7 @@ export function useCollectionItem<T extends CollectionEntity>(
         arguments: { id: itemId } satisfies CollectionGetInput,
       });
 
-      return extractPayloadSafe<CollectionGetOutput<T>>(result);
+      return extractPayload<CollectionGetOutput<T>>(result);
     },
     staleTime: 60_000,
   });
@@ -218,19 +217,27 @@ export function useCollectionItem<T extends CollectionEntity>(
   return data?.item ?? null;
 }
 
+/** Fake MCP result for empty collection list when client is skipped */
+export const EMPTY_COLLECTION_LIST_RESULT = {
+  structuredContent: {
+    items: [],
+  } satisfies CollectionListOutput<CollectionEntity>,
+  isError: false,
+} as const;
+
 /**
  * Get a paginated list of items from a collection
  *
  * @param scopeKey - The scope key (connectionId for connection-scoped, virtualMcpId for virtual-mcp-scoped, etc.)
  * @param collectionName - The name of the collection (e.g., "CONNECTIONS", "AGENT")
- * @param client - The MCP client used to call collection tools
+ * @param client - The MCP client used to call collection tools (null/undefined returns [] without MCP call)
  * @param options - Filter and configuration options
  * @returns Suspense query result with items array
  */
 export function useCollectionList<T extends CollectionEntity>(
   scopeKey: string,
   collectionName: string,
-  client: Client,
+  client: Client | null | undefined,
   options: UseCollectionListOptions<T> = {},
 ) {
   void scopeKey; // Reserved for future use (e.g., cache scoping)
@@ -261,17 +268,77 @@ export function useCollectionList<T extends CollectionEntity>(
     offset: 0,
   };
 
-  const { data } = useMCPToolCall({
-    client,
-    toolName: listToolName,
-    toolArguments,
+  const argsKey = JSON.stringify(toolArguments);
+  const queryKey = KEYS.mcpToolCall(client, listToolName, argsKey);
+
+  const { data } = useSuspenseQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!client) {
+        return EMPTY_COLLECTION_LIST_RESULT;
+      }
+      const result = await client.callTool({
+        name: listToolName,
+        arguments: toolArguments,
+      });
+      return result;
+    },
+    staleTime: 30_000,
+    retry: false,
     select: (result) => {
-      const payload = extractPayloadSafe<CollectionListOutput<T>>(result);
+      const payload = extractPayload<CollectionListOutput<T>>(result);
       return payload?.items ?? [];
     },
   });
 
   return data;
+}
+
+/**
+ * Builds a query key for a collection list query
+ * Matches the internal logic of useCollectionList exactly
+ *
+ * @param client - The MCP client used to call collection tools (null/undefined is valid for skip queries)
+ * @param collectionName - The name of the collection (e.g., "THREAD_MESSAGES", "CONNECTIONS")
+ * @param scopeKey - The scope key (connectionId for connection-scoped, virtualMcpId for virtual-mcp-scoped, etc.)
+ * @param options - Filter and configuration options
+ * @returns Query key array
+ */
+export function buildCollectionQueryKey<T extends CollectionEntity>(
+  client: Client | null | undefined,
+  collectionName: string,
+  _scopeKey: string,
+  options: UseCollectionListOptions<T> = {},
+): CollectionQueryKey {
+  const {
+    searchTerm,
+    filters,
+    sortKey,
+    sortDirection,
+    searchFields = ["title", "description"] satisfies (keyof T)[],
+    defaultSortKey = "updated_at" satisfies keyof T,
+    pageSize = 100,
+  } = options;
+
+  const upperName = collectionName.toUpperCase();
+  const listToolName = `COLLECTION_${upperName}_LIST`;
+
+  const where = buildWhereExpression(searchTerm, filters, searchFields);
+  const orderBy = buildOrderByExpression(
+    sortKey,
+    sortDirection,
+    defaultSortKey,
+  );
+
+  const toolArguments: CollectionListInput = {
+    ...(where && { where }),
+    ...(orderBy && { orderBy }),
+    limit: pageSize,
+    offset: 0,
+  };
+
+  const argsKey = JSON.stringify(toolArguments);
+  return KEYS.mcpToolCall(client, listToolName, argsKey);
 }
 
 /**

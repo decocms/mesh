@@ -110,7 +110,7 @@ export function ThreadHistoryPopover({
   const [searchQuery, setSearchQuery] = useState("");
   const {
     activeThreadId,
-    setActiveThreadId,
+    switchToThread,
     threads,
     hasNextPage,
     isFetchingNextPage,
@@ -148,9 +148,7 @@ export function ThreadHistoryPopover({
 
   const filteredThreads = searchQuery.trim()
     ? threads.filter((thread) =>
-        (thread.title || "New chat")
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()),
+        thread.title.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : threads;
 
@@ -230,7 +228,7 @@ export function ThreadHistoryPopover({
                               "flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer group",
                               isActive && "bg-accent/50",
                             )}
-                            onClick={() => setActiveThreadId(thread.id)}
+                            onClick={() => switchToThread(thread.id)}
                           >
                             <div className="flex-1 min-w-0 flex items-center gap-2">
                               <span className="text-sm truncate">
