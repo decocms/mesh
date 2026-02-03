@@ -44,7 +44,10 @@ export interface ThreadStoragePort {
 export interface ConnectionStoragePort {
   create(data: Partial<ConnectionEntity>): Promise<ConnectionEntity>;
   findById(id: string): Promise<ConnectionEntity | null>;
-  list(organizationId: string): Promise<ConnectionEntity[]>;
+  list(
+    organizationId: string,
+    options?: { includeVirtual?: boolean },
+  ): Promise<ConnectionEntity[]>;
   update(
     id: string,
     data: Partial<ConnectionEntity>,
@@ -125,6 +128,15 @@ export type {
   VirtualMCPUpdateData,
 } from "../tools/virtual/schema";
 
+import type {
+  VirtualToolEntity,
+  VirtualToolCreateData,
+  VirtualToolUpdateData,
+} from "../tools/virtual-tool/schema";
+
+// Re-export virtual tool types
+export type { VirtualToolEntity, VirtualToolCreateData, VirtualToolUpdateData };
+
 export interface VirtualMCPStoragePort {
   create(
     organizationId: string,
@@ -146,6 +158,31 @@ export interface VirtualMCPStoragePort {
     data: VirtualMCPUpdateData,
   ): Promise<VirtualMCPEntity>;
   delete(id: string): Promise<void>;
+
+  // Virtual Tool CRUD methods
+  listVirtualTools(virtualMcpId: string): Promise<VirtualToolEntity[]>;
+  getVirtualTool(
+    virtualMcpId: string,
+    toolName: string,
+  ): Promise<VirtualToolEntity | null>;
+  createVirtualTool(
+    virtualMcpId: string,
+    data: VirtualToolCreateData,
+    connectionDependencies: string[],
+  ): Promise<VirtualToolEntity>;
+  updateVirtualTool(
+    virtualMcpId: string,
+    toolName: string,
+    data: VirtualToolUpdateData,
+    connectionDependencies?: string[],
+  ): Promise<VirtualToolEntity>;
+  deleteVirtualTool(virtualMcpId: string, toolName: string): Promise<void>;
+
+  // Indirect dependency management
+  syncIndirectDependencies(
+    virtualMcpId: string,
+    connectionIds: string[],
+  ): Promise<void>;
 }
 
 // ============================================================================

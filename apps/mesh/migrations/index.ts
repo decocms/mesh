@@ -29,6 +29,7 @@ import * as migration027updatemanagementmcpurl from "./027-update-management-mcp
 import * as migration028updatemanagementmcptoself from "./028-update-management-mcp-to-self.ts";
 import * as migration029addupdatedbytoconnections from "./029-add-updated-by-to-connections.ts";
 import * as migration030membertags from "./030-member-tags.ts";
+import * as migration031adddependencymode from "./031-add-dependency-mode.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -70,6 +71,7 @@ const migrations: Record<string, Migration> = {
   "028-update-management-mcp-to-self": migration028updatemanagementmcptoself,
   "029-add-updated-by-to-connections": migration029addupdatedbytoconnections,
   "030-member-tags": migration030membertags,
+  "031-add-dependency-mode": migration031adddependencymode,
 };
 
 export default migrations;

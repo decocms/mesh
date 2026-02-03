@@ -22,6 +22,7 @@ export type ToolCategory =
   | "Organizations"
   | "Connections"
   | "Virtual MCPs"
+  | "Virtual Tools"
   | "Threads"
   | "Monitoring"
   | "Users"
@@ -59,6 +60,12 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_VIRTUAL_MCP_GET",
   "COLLECTION_VIRTUAL_MCP_UPDATE",
   "COLLECTION_VIRTUAL_MCP_DELETE",
+  // Virtual Tool tools
+  "COLLECTION_VIRTUAL_TOOLS_CREATE",
+  "COLLECTION_VIRTUAL_TOOLS_LIST",
+  "COLLECTION_VIRTUAL_TOOLS_GET",
+  "COLLECTION_VIRTUAL_TOOLS_UPDATE",
+  "COLLECTION_VIRTUAL_TOOLS_DELETE",
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
@@ -260,6 +267,33 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Virtual MCPs",
     dangerous: true,
   },
+  // Virtual Tool tools
+  {
+    name: "COLLECTION_VIRTUAL_TOOLS_CREATE",
+    description: "Create virtual tools on Virtual MCPs",
+    category: "Virtual Tools",
+  },
+  {
+    name: "COLLECTION_VIRTUAL_TOOLS_LIST",
+    description: "List virtual tools",
+    category: "Virtual Tools",
+  },
+  {
+    name: "COLLECTION_VIRTUAL_TOOLS_GET",
+    description: "View virtual tool details",
+    category: "Virtual Tools",
+  },
+  {
+    name: "COLLECTION_VIRTUAL_TOOLS_UPDATE",
+    description: "Update virtual tools",
+    category: "Virtual Tools",
+  },
+  {
+    name: "COLLECTION_VIRTUAL_TOOLS_DELETE",
+    description: "Delete virtual tools",
+    category: "Virtual Tools",
+    dangerous: true,
+  },
   // Monitoring tools
   {
     name: "MONITORING_LOGS_LIST",
@@ -439,6 +473,11 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_VIRTUAL_MCP_GET: "View virtual MCP details",
   COLLECTION_VIRTUAL_MCP_UPDATE: "Update virtual MCPs",
   COLLECTION_VIRTUAL_MCP_DELETE: "Delete virtual MCPs",
+  COLLECTION_VIRTUAL_TOOLS_CREATE: "Create virtual tools",
+  COLLECTION_VIRTUAL_TOOLS_LIST: "List virtual tools",
+  COLLECTION_VIRTUAL_TOOLS_GET: "View virtual tool details",
+  COLLECTION_VIRTUAL_TOOLS_UPDATE: "Update virtual tools",
+  COLLECTION_VIRTUAL_TOOLS_DELETE: "Delete virtual tools",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
   API_KEY_CREATE: "Create API key",
@@ -482,6 +521,7 @@ export function getToolsByCategory() {
     Organizations: [],
     Connections: [],
     "Virtual MCPs": [],
+    "Virtual Tools": [],
     Threads: [],
     Monitoring: [],
     Users: [],
