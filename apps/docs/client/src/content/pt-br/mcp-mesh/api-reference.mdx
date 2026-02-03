@@ -20,10 +20,9 @@ Faz proxy de requisições MCP para uma única connection upstream.
 
 ### Agent (MCP virtual)
 
-- `POST /mcp/gateway/:gatewayId` (compatibilidade: o path HTTP ainda usa `gateway`, mas refere-se ao Agent)
-- `POST /mcp/gateway` (Agent padrão da org; requer `x-org-id` ou `x-org-slug`)
+- `POST /mcp/:connectionId` (onde `connectionId` é o ID da connection do Agent)
 
-Faz proxy de requisições MCP para um agent (agregação + estratégia de exposição).
+Agents são MCPs virtuais armazenados como connections com `connection_type = 'VIRTUAL'`. Eles agregam tools/resources/prompts de múltiplas connections. Suporta parâmetro de query `?mode=` para estratégia de seleção de tools (passthrough, smart_tool_selection, code_execution).
 
 ## Endpoints de autenticação (alto nível)
 

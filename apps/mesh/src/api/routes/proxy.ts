@@ -14,6 +14,10 @@
 import { getMonitoringConfig } from "@/core/config";
 import { createClient } from "@/mcp-clients";
 import { buildRequestHeaders } from "@/mcp-clients/outbound/headers";
+import {
+  parseStrategyFromMode,
+  type ToolSelectionStrategy,
+} from "@/mcp-clients/virtual-mcp";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { ServerClient } from "@decocms/bindings/mcp";
 import { createServerFromClient } from "@decocms/mesh-sdk";
@@ -230,7 +234,10 @@ const DEFAULT_SERVER_CAPABILITIES = {
 async function createMCPProxyDoNotUseDirectly(
   connectionIdOrConnection: string | ConnectionEntity,
   ctx: MeshContext,
-  { superUser }: { superUser: boolean }, // this is basically used for background workers that needs cross-organization access
+  {
+    superUser,
+    strategy = "passthrough",
+  }: { superUser: boolean; strategy?: ToolSelectionStrategy }, // this is basically used for background workers that needs cross-organization access
 ): Promise<MCPProxyClient> {
   // Get connection details
   const connection =
@@ -255,7 +262,7 @@ async function createMCPProxyDoNotUseDirectly(
   }
 
   // Create client early - needed for listTools and other operations
-  const client = await createClient(connection, ctx, superUser);
+  const client = await createClient(connection, ctx, { superUser, strategy });
 
   // List tools from downstream connection
   // Uses indexed tools if available, falls back to client for connections without cached tools
@@ -607,9 +614,11 @@ async function createMCPProxyDoNotUseDirectly(
 export async function createMCPProxy(
   connectionIdOrConnection: string | ConnectionEntity,
   ctx: MeshContext,
+  strategy?: ToolSelectionStrategy,
 ) {
   return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
     superUser: false,
+    strategy,
   });
 }
 
@@ -617,14 +626,17 @@ export async function createMCPProxy(
  * Create a MCP proxy for a downstream connection with super user access
  * @param connectionIdOrConnection - The connection ID or connection entity
  * @param ctx - The mesh context
+ * @param strategy - Optional tool selection strategy
  * @returns The MCP proxy
  */
 export async function dangerouslyCreateSuperUserMCPProxy(
   connectionIdOrConnection: string | ConnectionEntity,
   ctx: MeshContext,
+  strategy?: ToolSelectionStrategy,
 ) {
   return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
     superUser: true,
+    strategy,
   });
 }
 
@@ -654,7 +666,9 @@ app.all("/:connectionId", async (c) => {
 
   try {
     try {
-      const client = await ctx.createMCPProxy(connectionId);
+      // Parse strategy from query string mode parameter (defaults to passthrough)
+      const strategy = parseStrategyFromMode(c.req.query("mode"));
+      const client = await ctx.createMCPProxy(connectionId, strategy);
 
       // Create server from client using the bridge
       const server = createServerFromClient(client, {
@@ -719,7 +733,9 @@ app.all("/:connectionId/call-tool/:toolName", async (c) => {
   const ctx = c.get("meshContext");
 
   try {
-    const client = await ctx.createMCPProxy(connectionId);
+    // Parse strategy from query string mode parameter (defaults to passthrough)
+    const strategy = parseStrategyFromMode(c.req.query("mode"));
+    const client = await ctx.createMCPProxy(connectionId, strategy);
     const result = await client.callTool({
       name: toolName,
       arguments: await c.req.json(),

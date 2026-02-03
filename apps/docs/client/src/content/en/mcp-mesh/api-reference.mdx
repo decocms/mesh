@@ -20,10 +20,9 @@ Proxies MCP requests to a single upstream connection.
 
 ### Agent (virtual server)
 
-- `POST /mcp/gateway/:gatewayId`
-- `POST /mcp/gateway` (default Agent; requires `x-org-id` or `x-org-slug`)
+- `POST /mcp/:connectionId` (where `connectionId` is the Agent's connection ID)
 
-Aggregates tools/resources/prompts across multiple connections.
+Agents are virtual MCPs stored as connections with `connection_type = 'VIRTUAL'`. They aggregate tools/resources/prompts across multiple connections. Supports `?mode=` query parameter for tool selection strategy (passthrough, smart_tool_selection, code_execution).
 
 ## OAuth discovery
 
