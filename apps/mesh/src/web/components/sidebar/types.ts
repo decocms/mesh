@@ -8,6 +8,19 @@ export interface NavigationSidebarItem {
   isActive?: boolean;
 }
 
+export interface SidebarItemGroup {
+  id: string;
+  label: string;
+  items: NavigationSidebarItem[];
+  defaultExpanded?: boolean;
+}
+
+export type SidebarSection =
+  | { type: "items"; items: NavigationSidebarItem[] }
+  | { type: "group"; group: SidebarItemGroup }
+  | { type: "divider" }
+  | { type: "spacer" };
+
 export interface Invitation {
   id: string;
   organizationId: string;

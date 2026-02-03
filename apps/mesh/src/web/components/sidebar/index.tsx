@@ -7,14 +7,19 @@ import { SidebarInboxFooter } from "./footer/inbox";
 import { SidebarItemsSection } from "./items";
 
 // Export types for external use
-export type { NavigationSidebarItem, Invitation } from "./types";
+export type {
+  NavigationSidebarItem,
+  SidebarSection,
+  SidebarItemGroup,
+  Invitation,
+} from "./types";
 
 export function MeshSidebar() {
-  const sidebarItems = useProjectSidebarItems();
+  const sidebarSections = useProjectSidebarItems();
 
   return (
     <NavigationSidebar
-      navigationItems={sidebarItems}
+      sections={sidebarSections}
       header={
         <Suspense fallback={<MeshSidebarHeader.Skeleton />}>
           <MeshSidebarHeader />
