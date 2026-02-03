@@ -33,7 +33,7 @@ export function buildOptimisticThread(id: string): Thread {
   const now = new Date().toISOString();
   return {
     id,
-    title: "", // Empty title until first message generates one
+    title: "New chat", // Empty title until first message generates one
     createdAt: now,
     updatedAt: now,
   };

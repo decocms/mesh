@@ -148,9 +148,7 @@ export function ThreadHistoryPopover({
 
   const filteredThreads = searchQuery.trim()
     ? threads.filter((thread) =>
-        (thread.title || "New chat")
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()),
+        thread.title.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : threads;
 
