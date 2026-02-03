@@ -53,7 +53,7 @@ export function updateThreadInCache(
       title: updates.title ?? currentThread.title,
       createdAt: currentThread.createdAt,
       updatedAt: updates.updatedAt ?? currentThread.updatedAt,
-      ...(updates.hidden !== undefined && { hidden: updates.hidden }),
+      hidden: updates.hidden ?? currentThread.hidden,
     };
     updatedItems[threadIndex] = updatedThread;
 

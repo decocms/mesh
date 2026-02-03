@@ -556,7 +556,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     isDisconnect,
     isError,
     message,
-    messages: allMessages,
+    messages,
   }: {
     message: ChatMessage;
     messages: ChatMessage[];
@@ -566,27 +566,25 @@ export function ChatProvider({ children }: PropsWithChildren) {
     finishReason?: string;
   }) => {
     chatDispatch({ type: "SET_FINISH_REASON", payload: finishReason ?? null });
+
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
       return;
     }
 
-    const title = message.metadata?.title ?? null;
+    const { title, thread_id, created_at } = message.metadata ?? {};
 
-    console.log("Here's the title", title);
+    if (!thread_id || !title || !created_at) {
+      return;
+    }
 
     // Update messages cache with the latest messages from the stream
-    threadManager.updateMessagesCache(
-      threadManager.activeThreadId,
-      allMessages,
-    );
+    threadManager.updateMessagesCache(thread_id, messages);
 
     // Update thread title in cache if available
-    if (title) {
-      threadManager.updateThread(threadManager.activeThreadId, {
-        title,
-        updatedAt: new Date().toISOString(),
-      });
-    }
+    threadManager.updateThread(thread_id, {
+      title,
+      updatedAt: new Date(created_at).toISOString(),
+    });
   };
 
   const onError = (error: Error) => {
