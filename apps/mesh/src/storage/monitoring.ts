@@ -59,6 +59,16 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     return sql`(',' || json_extract(${sql.ref(column)}, ${jsonPath}) || ',')`;
   }
 
+  /**
+   * Escape SQL LIKE wildcards in a string value.
+   * This ensures that '%' and '_' are treated as literal characters,
+   * not as pattern matching wildcards.
+   */
+  private escapeLikeWildcards(value: string): string {
+    // Escape the escape character first, then the wildcards
+    return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+  }
+
   async log(event: MonitoringLog): Promise<void> {
     await this.logBatch([event]);
   }
@@ -202,14 +212,13 @@ export class SqlMonitoringStorage implements MonitoringStorage {
         for (const [key, value] of Object.entries(propertyInValues)) {
           // Wrap the property value in commas and search for the exact value surrounded by commas
           // This prevents partial matches (e.g., "Eng" matching "Engineering")
+          // Escape LIKE wildcards to ensure exact matching (e.g., "100%" matches literally)
           const inExpr = this.jsonExtractWithCommas("properties", key);
-          const searchPattern = `%,${value},%`;
-          query = query.where(inExpr as never, "like", searchPattern as never);
-          countQuery = countQuery.where(
-            inExpr as never,
-            "like",
-            searchPattern as never,
-          );
+          const escapedValue = this.escapeLikeWildcards(value);
+          const searchPattern = `%,${escapedValue},%`;
+          const likeCondition = sql`${inExpr} LIKE ${searchPattern} ESCAPE '\\'`;
+          query = query.where(likeCondition as never);
+          countQuery = countQuery.where(likeCondition as never);
         }
       }
     }
