@@ -1176,41 +1176,6 @@ function QualityGatesTabContent() {
             )}
           </div>
         </div>
-
-        {/* Show verification results */}
-        {showResults && lastResults.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-current/10">
-            <p className="text-xs font-medium mb-2">Verification Results:</p>
-            <div className="space-y-1">
-              {lastResults.map((result, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "flex items-center gap-2 text-xs px-2 py-1 rounded",
-                    result.passed ? "bg-green-100" : "bg-red-100",
-                  )}
-                >
-                  {result.passed ? (
-                    <Check size={12} className="text-green-600" />
-                  ) : (
-                    <AlertCircle size={12} className="text-red-600" />
-                  )}
-                  <span className="font-medium">{result.gate}</span>
-                  <span className="text-muted-foreground">
-                    {result.passed ? "passed" : "failed"}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowResults(false)}
-              className="text-xs text-muted-foreground hover:text-foreground mt-2"
-            >
-              Hide results
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Gates Configuration */}
@@ -1246,53 +1211,93 @@ function QualityGatesTabContent() {
         <div className="space-y-2">
           {gates.map((gate: QualityGate) => {
             const isFailing = baseline?.failingGates?.includes(gate.name);
+            const result = lastResults.find((r) => r.gate === gate.name);
+            const hasResult = showResults && result;
             return (
               <div
                 key={gate.id}
                 className={cn(
-                  "p-3 bg-card border rounded-lg flex items-center justify-between",
+                  "p-3 bg-card border rounded-lg",
                   isFailing && baseline?.acknowledged
                     ? "border-orange-300 bg-orange-50/50"
-                    : "border-border",
+                    : hasResult && !result.passed
+                      ? "border-red-300"
+                      : hasResult && result.passed
+                        ? "border-green-300"
+                        : "border-border",
                 )}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "p-1.5 rounded",
-                      isFailing
-                        ? "bg-red-100 text-red-700"
-                        : gate.required
-                          ? "bg-green-100 text-green-700"
-                          : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    <ShieldIcon size={14} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{gate.name}</span>
-                      {gate.required && (
-                        <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
-                          Required
-                        </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "p-1.5 rounded",
+                        hasResult
+                          ? result.passed
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                          : isFailing
+                            ? "bg-red-100 text-red-700"
+                            : gate.required
+                              ? "bg-green-100 text-green-700"
+                              : "bg-muted text-muted-foreground",
                       )}
-                      {isFailing && baseline?.acknowledged && (
-                        <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">
-                          Pre-existing failure
-                        </span>
-                      )}
-                      {gate.source === "auto" && (
-                        <span className="text-xs text-muted-foreground">
-                          (auto-detected)
-                        </span>
+                    >
+                      {hasResult ? (
+                        result.passed ? (
+                          <Check size={14} />
+                        ) : (
+                          <AlertCircle size={14} />
+                        )
+                      ) : (
+                        <ShieldIcon size={14} />
                       )}
                     </div>
-                    <code className="text-xs text-muted-foreground font-mono">
-                      {gate.command}
-                    </code>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{gate.name}</span>
+                        {gate.required && (
+                          <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                            Required
+                          </span>
+                        )}
+                        {isFailing && baseline?.acknowledged && (
+                          <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">
+                            Pre-existing failure
+                          </span>
+                        )}
+                        {gate.source === "auto" && (
+                          <span className="text-xs text-muted-foreground">
+                            (auto-detected)
+                          </span>
+                        )}
+                      </div>
+                      <code className="text-xs text-muted-foreground font-mono">
+                        {gate.command}
+                      </code>
+                    </div>
                   </div>
+                  {hasResult && (
+                    <span
+                      className={cn(
+                        "text-xs font-medium px-2 py-1 rounded",
+                        result.passed
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700",
+                      )}
+                    >
+                      {result.passed ? "Passed" : "Failed"}
+                    </span>
+                  )}
                 </div>
+                {/* Show output when failed */}
+                {hasResult && !result.passed && result.output && (
+                  <div className="mt-2 pt-2 border-t border-red-200">
+                    <pre className="text-xs text-red-700 bg-red-50 p-2 rounded overflow-x-auto max-h-32 overflow-y-auto">
+                      {result.output}
+                    </pre>
+                  </div>
+                )}
               </div>
             );
           })}
