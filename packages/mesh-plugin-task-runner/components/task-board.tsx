@@ -13,6 +13,7 @@ import {
   BookOpen01,
   AlertCircle,
   Check,
+  Edit02,
 } from "@untitledui/icons";
 import { TaskCard } from "./task-card";
 import { useState, useEffect } from "react";
@@ -598,11 +599,15 @@ function TasksTabContent({
   workspacePath,
   searchParams,
   onGoToQualityGates,
+  fixTaskContext,
+  onClearFixTaskContext,
 }: {
   onStartWithAgent: (task: Task) => void;
   workspacePath?: string;
   searchParams?: TaskBoardSearch;
   onGoToQualityGates?: () => void;
+  fixTaskContext?: { gateName: string; gateOutput: string } | null;
+  onClearFixTaskContext?: () => void;
 }) {
   const { data: tasks, isLoading, error, refetch, isFetching } = useTasks();
   const { data: skills } = useSkills();
@@ -610,6 +615,7 @@ function TasksTabContent({
   const { data: baselineData } = useQualityGatesBaseline();
   const createTask = useCreateTask();
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDescription, setNewTaskDescription] = useState("");
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [hasAppliedParams, setHasAppliedParams] = useState(false);
@@ -648,6 +654,24 @@ function TasksTabContent({
     }
   }, [searchParams, skills, hasAppliedParams]);
 
+  // Handle fix task context from Quality Gates
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (!fixTaskContext) return;
+
+    const { gateName, gateOutput } = fixTaskContext;
+
+    // Pre-fill the task with gate failure details
+    setNewTaskTitle(`Fix ${gateName} quality gate failures`);
+    setNewTaskDescription(
+      `Fix the following ${gateName} errors:\n\n\`\`\`\n${gateOutput}\n\`\`\`\n\nCreate subtasks for each issue and fix them one by one.`,
+    );
+    setIsAdding(true);
+
+    // Clear the context after applying
+    onClearFixTaskContext?.();
+  }, [fixTaskContext, onClearFixTaskContext]);
+
   // Get task IDs that have running agents
   const runningTaskIds = new Set(
     agentData?.sessions
@@ -658,9 +682,12 @@ function TasksTabContent({
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTaskTitle.trim()) {
-      const description = selectedSkill
-        ? `Follow the instructions in skills/${selectedSkill.id}/SKILL.md`
-        : undefined;
+      // Use custom description if set, otherwise skill description
+      const description = newTaskDescription.trim()
+        ? newTaskDescription.trim()
+        : selectedSkill
+          ? `Follow the instructions in skills/${selectedSkill.id}/SKILL.md`
+          : undefined;
 
       createTask.mutate(
         { title: newTaskTitle.trim(), description },
@@ -668,6 +695,7 @@ function TasksTabContent({
           onSuccess: () => {
             toast.success("Task created");
             setNewTaskTitle("");
+            setNewTaskDescription("");
             setSelectedSkillId(null);
             setIsAdding(false);
           },
@@ -776,6 +804,17 @@ function TasksTabContent({
             className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
             autoFocus
           />
+
+          {/* Description textarea - shown when there's pre-filled content or user wants to add */}
+          {newTaskDescription && (
+            <textarea
+              value={newTaskDescription}
+              onChange={(e) => setNewTaskDescription(e.target.value)}
+              placeholder="Task description (optional)..."
+              className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background min-h-[100px] font-mono"
+              rows={6}
+            />
+          )}
 
           {skills && skills.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -1019,7 +1058,11 @@ const ShieldIcon = ({ size = 14 }: { size?: number }) => (
   </svg>
 );
 
-function QualityGatesTabContent() {
+function QualityGatesTabContent({
+  onCreateFixTask,
+}: {
+  onCreateFixTask?: (gateName: string, gateOutput: string) => void;
+}) {
   const { data: gates, isLoading } = useQualityGates();
   const { data: baselineData, isLoading: baselineLoading } =
     useQualityGatesBaseline();
@@ -1296,6 +1339,18 @@ function QualityGatesTabContent() {
                     <pre className="text-xs text-red-700 bg-red-50 p-2 rounded overflow-x-auto max-h-32 overflow-y-auto">
                       {result.output}
                     </pre>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onCreateFixTask?.(gate.name, result.output)
+                        }
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 rounded transition-colors"
+                      >
+                        <Edit02 size={12} />
+                        Create Fix Task
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1344,8 +1399,18 @@ export default function TaskBoard() {
   const [activeTab, setActiveTab] = useState<"tasks" | "skills" | "gates">(
     "tasks",
   );
+  const [fixTaskContext, setFixTaskContext] = useState<{
+    gateName: string;
+    gateOutput: string;
+  } | null>(null);
   const updateTask = useUpdateTask();
   const queryClient = useQueryClient();
+
+  // Handle creating a fix task from quality gates
+  const handleCreateFixTask = (gateName: string, gateOutput: string) => {
+    setFixTaskContext({ gateName, gateOutput });
+    setActiveTab("tasks");
+  };
 
   const workspace = workspaceData?.workspace;
   const hasBeads = beadsStatus?.initialized ?? false;
@@ -1460,10 +1525,14 @@ export default function TaskBoard() {
                   workspacePath={workspaceData?.workspace}
                   searchParams={searchParams}
                   onGoToQualityGates={() => setActiveTab("gates")}
+                  fixTaskContext={fixTaskContext}
+                  onClearFixTaskContext={() => setFixTaskContext(null)}
                 />
               )}
               {activeTab === "skills" && <SkillsTabContent />}
-              {activeTab === "gates" && <QualityGatesTabContent />}
+              {activeTab === "gates" && (
+                <QualityGatesTabContent onCreateFixTask={handleCreateFixTask} />
+              )}
             </div>
           </div>
         </>
