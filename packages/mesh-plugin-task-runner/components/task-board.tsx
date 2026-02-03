@@ -1052,22 +1052,32 @@ function QualityGatesTabContent({
       const title = `Fix ${gateName} quality gate failures`;
       const description = `Fix the following ${gateName} errors. Create a plan with subtasks for each issue.\n\n\`\`\`\n${gateOutput}\n\`\`\``;
 
-      // Create the task
-      await new Promise<void>((resolve, reject) => {
+      // Create the task and get its ID
+      const taskId = await new Promise<string>((resolve, reject) => {
         createTask.mutate(
           { title, description },
           {
-            onSuccess: () => resolve(),
+            onSuccess: (result) => {
+              // Extract task ID from the result
+              const id =
+                typeof result === "object" && result && "id" in result
+                  ? (result as { id: string }).id
+                  : `task-${Date.now()}`;
+              resolve(id);
+            },
             onError: (err) => reject(err),
           },
         );
       });
 
-      // Build prompt and send to chat to start planning
-      const prompt = `Plan how to fix these ${gateName} errors. Analyze each error and create a step-by-step plan:\n\n\`\`\`\n${gateOutput}\n\`\`\`\n\nCreate subtasks for each issue that needs to be fixed.`;
+      // Use AGENT_SPAWN to properly track the agent session
+      const prompt = buildTaskPrompt(
+        { id: taskId, title, description },
+        workspace,
+      );
       sendChatMessage(prompt);
 
-      toast.success("Fix task created - planning started");
+      toast.success("Fix task created - agent spawned");
       onFixTaskCreated?.();
     } catch (error) {
       toast.error(`Failed to create fix task: ${error}`);
