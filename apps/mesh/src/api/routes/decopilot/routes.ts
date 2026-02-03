@@ -15,6 +15,7 @@ import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { Metadata } from "@/web/components/chat/types";
 import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
+import { withStreamingSupport } from "../proxy";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
@@ -117,11 +118,16 @@ app.post("/:org/decopilot/stream", async (c) => {
     const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
     const threadId = thread_id ?? memoryConfig?.threadId;
 
-    // Create virtual MCP client and model provider in parallel
-    const [virtualMcp, modelClient] = await Promise.all([
+    // Get connection entity for streaming support and create clients in parallel
+    const [virtualMcp, modelConnection, modelClient] = await Promise.all([
       ctx.storage.virtualMcps.findById(agent.id, organization.id),
+      ctx.storage.connections.findById(model.connectionId, organization.id),
       ctx.createMCPProxy(model.connectionId),
     ]);
+
+    if (!modelConnection) {
+      throw new Error("Model connection not found");
+    }
 
     if (!virtualMcp) {
       throw new Error("Agent not found");
@@ -133,10 +139,19 @@ app.post("/:org/decopilot/stream", async (c) => {
       agent.mode,
     );
 
+    // Add streaming support since agents may use streaming models
+    const streamableModelClient = withStreamingSupport(
+      modelClient,
+      model.connectionId,
+      modelConnection,
+      ctx,
+      { superUser: false },
+    );
+
     // 2. Extract tools from virtual MCP client and create model provider
     const [mcpTools, modelProvider] = await Promise.all([
       toolsFromMCP(mcpClient),
-      createModelProviderFromProxy(modelClient, {
+      createModelProviderFromProxy(streamableModelClient, {
         modelId: model.id,
         connectionId: model.connectionId,
         fastId: model.fastId ?? null,

@@ -10,7 +10,7 @@
  */
 
 import { LanguageModelBinding } from "@decocms/bindings/llm";
-import { toServerClient } from "./proxy";
+import { toServerClient, withStreamingSupport } from "./proxy";
 import {
   generateText,
   jsonSchema,
@@ -578,9 +578,17 @@ app.post("/:org/v1/chat/completions", async (c) => {
     if (request.stream) {
       return streamSSE(c, async (stream) => {
         // Create proxy inside the streaming callback so it stays alive
-        await using proxy = await ctx.createMCPProxy(connection);
+        // Add streaming support since this branch needs it
+        await using proxy = await ctx.createMCPProxy(connectionId);
+        const streamableProxy = withStreamingSupport(
+          proxy,
+          connectionId,
+          connection,
+          ctx,
+          { superUser: false },
+        );
         const llmBinding = LanguageModelBinding.forClient(
-          toServerClient(proxy),
+          toServerClient(streamableProxy),
         );
         const provider = createLLMProvider(llmBinding).languageModel(modelId);
 
@@ -712,8 +720,8 @@ app.post("/:org/v1/chat/completions", async (c) => {
         }
       });
     } else {
-      // Non-streaming response
-      await using proxy = await ctx.createMCPProxy(connection);
+      // Non-streaming response - doesn't need streaming support
+      await using proxy = await ctx.createMCPProxy(connectionId);
       const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
       const provider = createLLMProvider(llmBinding).languageModel(modelId);
 
