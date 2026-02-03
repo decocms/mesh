@@ -180,4 +180,16 @@ export const KEYS = {
   tags: (locator: string) => [locator, "tags"] as const,
   memberTags: (locator: string, memberId: string) =>
     [locator, "member-tags", memberId] as const,
+
+  // Projects (scoped by organization)
+  projects: (organizationId: string) => ["projects", organizationId] as const,
+  project: (organizationId: string, slug: string) =>
+    ["project", organizationId, slug] as const,
+  projectById: (projectId: string) => ["project", "byId", projectId] as const,
+
+  // Project plugin configs
+  projectPluginConfigs: (projectId: string) =>
+    ["project-plugin-configs", projectId] as const,
+  projectPluginConfig: (projectId: string, pluginId: string) =>
+    ["project-plugin-config", projectId, pluginId] as const,
 } as const;

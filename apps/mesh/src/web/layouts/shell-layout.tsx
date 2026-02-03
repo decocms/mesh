@@ -173,6 +173,9 @@ function ShellLayoutContent() {
     routerState.location.pathname === `/${org}/${project}` ||
     routerState.location.pathname === `/${org}/${project}/`;
 
+  // Use project slug from URL params, fallback to org-admin
+  const projectSlug = project ?? ORG_ADMIN_PROJECT_SLUG;
+
   const { data: projectContext } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),
     queryFn: async () => {
@@ -186,7 +189,11 @@ function ShellLayoutContent() {
 
       return {
         org: data,
-        project: { slug: ORG_ADMIN_PROJECT_SLUG },
+        // Project slug comes from URL param, actual project data is fetched in project-layout
+        project: {
+          slug: projectSlug,
+          isOrgAdmin: projectSlug === ORG_ADMIN_PROJECT_SLUG,
+        },
       } as ProjectContextProviderProps;
     },
     gcTime: Infinity,
@@ -195,7 +202,6 @@ function ShellLayoutContent() {
     refetchOnMount: false,
   });
 
-  // Should use "project ?? org-admin" when projects are introduced
   if (!projectContext) {
     return (
       <div className="min-h-screen bg-background">
@@ -216,8 +222,18 @@ function ShellLayoutContent() {
     return null;
   }
 
+  // Update project context with current project slug from URL
+  const contextWithCurrentProject = {
+    ...projectContext,
+    project: {
+      ...projectContext.project,
+      slug: projectSlug,
+      isOrgAdmin: projectSlug === ORG_ADMIN_PROJECT_SLUG,
+    },
+  };
+
   return (
-    <ProjectContextProvider {...projectContext}>
+    <ProjectContextProvider {...contextWithCurrentProject}>
       <PersistentSidebarProvider>
         <div className="flex flex-col h-screen">
           <style>{`

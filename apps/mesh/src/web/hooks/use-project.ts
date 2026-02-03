@@ -1,0 +1,125 @@
+/**
+ * Project Hooks
+ *
+ * Provides React hooks for fetching project data using MCP tools.
+ * Used by ProjectLayout to fetch project information based on URL params.
+ */
+
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMCPClient, SELF_MCP_ALIAS_ID } from "@decocms/mesh-sdk";
+import { KEYS } from "../lib/query-keys";
+
+/**
+ * Project UI customization
+ */
+export interface ProjectUI {
+  banner: string | null;
+  bannerColor: string | null;
+  icon: string | null;
+  themeColor: string | null;
+}
+
+/**
+ * Serialized project from API
+ */
+export interface Project {
+  id: string;
+  organizationId: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  enabledPlugins: string[] | null;
+  ui: ProjectUI | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+type ProjectGetOutput = { project: Project | null };
+type ProjectListOutput = {
+  projects: Omit<Project, "organizationId">[];
+};
+
+/**
+ * Hook to fetch a project by organization ID and slug
+ *
+ * @param organizationId - Organization ID
+ * @param slug - Project slug
+ * @returns Query result with project data
+ */
+export function useProject(organizationId: string, slug: string) {
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: organizationId,
+  });
+
+  return useQuery({
+    queryKey: KEYS.project(organizationId, slug),
+    queryFn: async () => {
+      const result = (await client.callTool({
+        name: "PROJECT_GET",
+        arguments: {
+          organizationId,
+          slug,
+        },
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ?? result) as ProjectGetOutput;
+      return payload.project;
+    },
+    enabled: !!organizationId && !!slug,
+    staleTime: 30000, // 30 seconds
+  });
+}
+
+/**
+ * Hook to fetch all projects in an organization
+ *
+ * @param organizationId - Organization ID
+ * @returns Query result with projects array
+ */
+export function useProjects(organizationId: string) {
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: organizationId,
+  });
+
+  return useQuery({
+    queryKey: KEYS.projects(organizationId),
+    queryFn: async () => {
+      const result = (await client.callTool({
+        name: "PROJECT_LIST",
+        arguments: {
+          organizationId,
+        },
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ?? result) as ProjectListOutput;
+      // Add organizationId back to each project for completeness
+      return payload.projects.map((p) => ({
+        ...p,
+        organizationId,
+      }));
+    },
+    enabled: !!organizationId,
+    staleTime: 30000, // 30 seconds
+  });
+}
+
+/**
+ * Hook to invalidate project queries
+ * Useful after project mutations
+ */
+export function useInvalidateProject() {
+  const queryClient = useQueryClient();
+
+  return {
+    invalidateProject: (organizationId: string, slug: string) => {
+      queryClient.invalidateQueries({
+        queryKey: KEYS.project(organizationId, slug),
+      });
+    },
+    invalidateProjects: (organizationId: string) => {
+      queryClient.invalidateQueries({
+        queryKey: KEYS.projects(organizationId),
+      });
+    },
+  };
+}

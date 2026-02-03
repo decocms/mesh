@@ -13,7 +13,7 @@ Check off each task as it's completed. Start a **fresh thread** for each task.
 | [x] | 001 - Database Schema & Storage | `@tasks/001-database-schema-storage.md` | "Execute task 001" |
 | [x] | 002 - MCP Tools | `@tasks/002-mcp-tools.md` | "Execute task 002" |
 | [x] | 003 - Routing Refactor | `@tasks/003-routing-refactor.md` | "Execute task 003" |
-| [ ] | 004 - Project Layout & Context | `@tasks/004-project-layout-context.md` | "Execute task 004" |
+| [x] | 004 - Project Layout & Context | `@tasks/004-project-layout-context.md` | "Execute task 004" |
 | [ ] | 005 - Sidebar Groups | `@tasks/005-sidebar-groups.md` | "Execute task 005" |
 | [ ] | 006 - Topbar & Header | `@tasks/006-topbar-header.md` | "Execute task 006" |
 | [ ] | 007 - Projects List Page | `@tasks/007-projects-list-page.md` | "Execute task 007" |

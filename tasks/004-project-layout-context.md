@@ -21,22 +21,24 @@ The project layout wraps all project-scoped routes. It:
 
 ### Step 1: Add Query Keys
 
-Update `apps/mesh/src/web/lib/query-keys.ts`:
+Update `apps/mesh/src/web/lib/query-keys.ts` by adding to the existing `KEYS` object:
 
 ```typescript
-// Add to existing query keys
-export const projectKeys = {
-  all: ["projects"] as const,
-  list: (organizationId: string) => [...projectKeys.all, "list", organizationId] as const,
-  byId: (projectId: string) => [...projectKeys.all, "byId", projectId] as const,
-  bySlug: (organizationId: string, slug: string) => [...projectKeys.all, "bySlug", organizationId, slug] as const,
-};
+export const KEYS = {
+  // ... existing keys ...
 
-export const projectPluginConfigKeys = {
-  all: ["projectPluginConfigs"] as const,
-  list: (projectId: string) => [...projectPluginConfigKeys.all, "list", projectId] as const,
-  byPlugin: (projectId: string, pluginId: string) => [...projectPluginConfigKeys.all, "byPlugin", projectId, pluginId] as const,
-};
+  // Projects (scoped by organization)
+  projects: (organizationId: string) => ["projects", organizationId] as const,
+  project: (organizationId: string, slug: string) =>
+    ["project", organizationId, slug] as const,
+  projectById: (projectId: string) => ["project", "byId", projectId] as const,
+
+  // Project plugin configs
+  projectPluginConfigs: (projectId: string) =>
+    ["project-plugin-configs", projectId] as const,
+  projectPluginConfig: (projectId: string, pluginId: string) =>
+    ["project-plugin-config", projectId, pluginId] as const,
+} as const;
 ```
 
 ### Step 2: Create Project Hooks
@@ -45,13 +47,13 @@ Create `apps/mesh/src/web/hooks/use-project.ts`:
 
 ```typescript
 import { useQuery } from "@tanstack/react-query";
-import { projectKeys } from "../lib/query-keys";
+import { KEYS } from "../lib/query-keys";
 // Import your MCP client or API client
 import { client } from "../lib/client"; // Adjust import
 
 export function useProject(organizationId: string, slug: string) {
   return useQuery({
-    queryKey: projectKeys.bySlug(organizationId, slug),
+    queryKey: KEYS.project(organizationId, slug),
     queryFn: async () => {
       const result = await client.call("PROJECT_GET", {
         organizationId,
@@ -65,7 +67,7 @@ export function useProject(organizationId: string, slug: string) {
 
 export function useProjects(organizationId: string) {
   return useQuery({
-    queryKey: projectKeys.list(organizationId),
+    queryKey: KEYS.projects(organizationId),
     queryFn: async () => {
       const result = await client.call("PROJECT_LIST", {
         organizationId,
