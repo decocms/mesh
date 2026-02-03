@@ -12,6 +12,7 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { toast } from "sonner";
+import { KEYS } from "../lib/query-keys";
 
 /**
  * Tag data structure
@@ -22,21 +23,6 @@ export interface Tag {
   name: string;
   createdAt: string;
 }
-
-// ============================================================================
-// Query Keys
-// ============================================================================
-
-// Extend KEYS with tag-specific keys (local extension)
-const TAG_KEYS = {
-  tags: (locator: string) => [locator, "tags"] as const,
-  memberTags: (locator: string, memberId: string) =>
-    [locator, "member-tags", memberId] as const,
-};
-
-// ============================================================================
-// Organization Tags Hooks
-// ============================================================================
 
 type TagsListOutput = { tags: Tag[] };
 type TagCreateOutput = { tag: Tag };
@@ -52,7 +38,7 @@ export function useTags() {
   });
 
   return useQuery({
-    queryKey: TAG_KEYS.tags(locator),
+    queryKey: KEYS.tags(locator),
     queryFn: async () => {
       const result = (await client.callTool({
         name: "TAGS_LIST",
@@ -86,7 +72,7 @@ export function useCreateTag() {
       return payload.tag;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TAG_KEYS.tags(locator) });
+      queryClient.invalidateQueries({ queryKey: KEYS.tags(locator) });
     },
     onError: (error) => {
       toast.error(
@@ -114,7 +100,7 @@ export function useMemberTags(memberId: string) {
   });
 
   return useQuery({
-    queryKey: TAG_KEYS.memberTags(locator, memberId),
+    queryKey: KEYS.memberTags(locator, memberId),
     queryFn: async () => {
       const result = (await client.callTool({
         name: "MEMBER_TAGS_GET",
@@ -159,7 +145,7 @@ export function useSetMemberTags() {
     onSuccess: (_data, variables) => {
       // Invalidate the specific member's tags
       queryClient.invalidateQueries({
-        queryKey: TAG_KEYS.memberTags(locator, variables.memberId),
+        queryKey: KEYS.memberTags(locator, variables.memberId),
       });
     },
     onError: (error) => {
