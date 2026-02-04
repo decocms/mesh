@@ -345,39 +345,70 @@ export interface OnChangeCallback<TState> {
   scopes: string[];
 }
 
+/**
+ * OAuth 2.0 Token Exchange Parameters
+ * Parameters passed to exchangeCode() for token retrieval
+ * @see https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3
+ */
 export interface OAuthParams {
+  /** REQUIRED - The authorization code received from the authorization server */
   code: string;
+  /** OPTIONAL - PKCE code verifier (RFC 7636) */
   code_verifier?: string;
+  /** OPTIONAL - Code challenge method: S256 (SHA-256) or plain */
   code_challenge_method?: "S256" | "plain";
   /**
-   * The redirect_uri used in the authorization request (without state/extra params).
-   * This is the clean callback URL that should be used for token exchange.
+   * OPTIONAL - The redirect_uri used in the authorization request
+   * MUST be identical if included in the authorization request
    */
   redirect_uri?: string;
 }
 
+/**
+ * OAuth 2.0 Token Response
+ * Response from the authorization server's token endpoint
+ * @see https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
+ */
 export interface OAuthTokenResponse {
+  /** REQUIRED - The access token issued by the authorization server */
   access_token: string;
+  /** REQUIRED - Type of token (usually "Bearer" per RFC 6750) */
   token_type: string;
+  /** RECOMMENDED - Lifetime in seconds of the access token */
   expires_in?: number;
+  /** OPTIONAL - Used to obtain new access tokens (if applicable) */
   refresh_token?: string;
+  /** OPTIONAL - Scope of the access token (if different from requested) */
   scope?: string;
+  /** Additional provider-specific fields */
   [key: string]: unknown;
 }
 
 /**
- * OAuth client for dynamic client registration (RFC7591)
+ * OAuth 2.0 Client Metadata (Dynamic Client Registration)
+ * @see https://datatracker.ietf.org/doc/html/rfc7591#section-2
+ * @see https://datatracker.ietf.org/doc/html/rfc7591#section-3.2.1
  */
 export interface OAuthClient {
+  /** REQUIRED - OAuth 2.0 client identifier string */
   client_id: string;
+  /** OPTIONAL - OAuth 2.0 client secret string (confidential clients) */
   client_secret?: string;
+  /** OPTIONAL - Human-readable name of the client */
   client_name?: string;
+  /** REQUIRED - Array of redirect URIs for use in redirect-based flows */
   redirect_uris: string[];
+  /** OPTIONAL - Array of OAuth 2.0 grant types (e.g., "authorization_code", "refresh_token") */
   grant_types?: string[];
+  /** OPTIONAL - Array of response types (e.g., "code", "token") */
   response_types?: string[];
+  /** OPTIONAL - Authentication method for the token endpoint (e.g., "client_secret_basic", "none") */
   token_endpoint_auth_method?: string;
+  /** OPTIONAL - Space-separated list of scope values */
   scope?: string;
+  /** OPTIONAL - Time at which the client identifier was issued (Unix timestamp) */
   client_id_issued_at?: number;
+  /** OPTIONAL - Time at which the client secret expires (Unix timestamp, 0 = never) */
   client_secret_expires_at?: number;
 }
 
