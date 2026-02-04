@@ -70,6 +70,27 @@ interface CodePayload {
   codeChallengeMethod?: string;
 }
 
+/**
+ * OAuth 2.0/2.1 Token Request Parameters
+ * Per RFC 6749 (OAuth 2.0) and RFC 9207 (OAuth 2.1)
+ * All parameters are strings when properly formatted
+ * @see https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3
+ */
+interface OAuthTokenRequestBody {
+  /** REQUIRED for authorization_code grant - The authorization code from callback */
+  code?: string;
+  /** OPTIONAL - PKCE code verifier (RFC 7636) */
+  code_verifier?: string;
+  /** REQUIRED - Grant type: "authorization_code" or "refresh_token" */
+  grant_type?: string;
+  /** REQUIRED for refresh_token grant - The refresh token */
+  refresh_token?: string;
+  /** OPTIONAL - Redirect URI used in authorization request */
+  redirect_uri?: string;
+  /** Additional provider-specific parameters */
+  [key: string]: unknown;
+}
+
 const forceHttps = (url: URL) => {
   const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (!isLocal) {
@@ -285,24 +306,41 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
   const handleToken = async (req: Request): Promise<Response> => {
     try {
       const contentType = req.headers.get("content-type") ?? "";
-      let body: Record<string, string>;
+      let body: Record<string, unknown>;
 
       if (contentType.includes("application/x-www-form-urlencoded")) {
         const formData = await req.formData();
-        body = Object.fromEntries(formData.entries()) as Record<string, string>;
+        body = Object.fromEntries(formData.entries());
       } else {
-        body = await req.json();
+        const jsonBody = await req.json();
+        if (
+          typeof jsonBody !== "object" ||
+          jsonBody === null ||
+          Array.isArray(jsonBody)
+        ) {
+          return Response.json(
+            {
+              error: "invalid_request",
+              error_description: "Request body must be a JSON object",
+            },
+            { status: 400 },
+          );
+        }
+        body = jsonBody as Record<string, unknown>;
       }
 
+      // Extract and validate OAuth parameters
+      // Per RFC 6749, all parameters should be strings, but we validate at runtime
       const { code, code_verifier, grant_type, refresh_token } = body;
 
       // Handle refresh_token grant type
       if (grant_type === "refresh_token") {
-        if (!refresh_token) {
+        if (typeof refresh_token !== "string" || !refresh_token) {
           return Response.json(
             {
               error: "invalid_request",
-              error_description: "refresh_token is required",
+              error_description:
+                "refresh_token is required and must be a string",
             },
             { status: 400 },
           );
@@ -356,9 +394,12 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
         );
       }
 
-      if (!code) {
+      if (typeof code !== "string" || !code) {
         return Response.json(
-          { error: "invalid_request", error_description: "code is required" },
+          {
+            error: "invalid_request",
+            error_description: "code is required and must be a string",
+          },
           { status: 400 },
         );
       }
@@ -377,11 +418,11 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
 
       // Verify PKCE if code challenge was provided
       if (payload.codeChallenge) {
-        if (!code_verifier) {
+        if (typeof code_verifier !== "string" || !code_verifier) {
           return Response.json(
             {
               error: "invalid_grant",
-              error_description: "code_verifier required",
+              error_description: "code_verifier required and must be a string",
             },
             { status: 400 },
           );
