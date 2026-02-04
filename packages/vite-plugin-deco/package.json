@@ -12,6 +12,11 @@
     "vite": "^7.2.1",
     "@cloudflare/vite-plugin": "^1.13.4"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/decocms/mesh.git",
+    "directory": "packages/vite-plugin-deco"
+  },
   "publishConfig": {
     "access": "public"
   }
