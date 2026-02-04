@@ -23,6 +23,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Setup Node.js for npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Install dependencies
         run: bun install
 
@@ -34,10 +40,10 @@ jobs:
         id: version-check
         run: |
           # Get the current version from package.json
-          CURRENT_VERSION=$(bun -e "console.log(require('./package.json').version)")
+          CURRENT_VERSION=$(node -e "console.log(require('./package.json').version)")
 
           # Try to get the published version from npm (will fail if package doesn't exist)
-          PUBLISHED_VERSION=$(bun info @decocms/runtime version 2>/dev/null || echo "0.0.0")
+          PUBLISHED_VERSION=$(npm view @decocms/runtime version 2>/dev/null || echo "0.0.0")
 
           echo "Current version: $CURRENT_VERSION"
           echo "Published version: $PUBLISHED_VERSION"
@@ -60,12 +66,6 @@ jobs:
             echo "📦 Stable version detected, will publish with tag 'latest'"
           fi
         working-directory: packages/runtime
-
-      - name: Setup Node.js for npm registry
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          registry-url: "https://registry.npmjs.org"
 
       - name: Publish to npm
         if: steps.version-check.outputs.version-changed == 'true'

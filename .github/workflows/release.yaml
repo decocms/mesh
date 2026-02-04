@@ -78,11 +78,20 @@ jobs:
             echo "version-changed=false" >> $GITHUB_OUTPUT
             echo "⏭️ Version unchanged ($CURRENT_VERSION), skipping publish"
           fi
+
+          # Check if this is a prerelease version (contains a hyphen)
+          if [[ "$CURRENT_VERSION" == *-* ]]; then
+            echo "npm-tag=next" >> $GITHUB_OUTPUT
+            echo "📦 Prerelease version detected, will publish with tag 'next'"
+          else
+            echo "npm-tag=latest" >> $GITHUB_OUTPUT
+            echo "📦 Stable version detected, will publish with tag 'latest'"
+          fi
         working-directory: apps/mesh
 
       - name: Publish to NPM
         if: steps.version-check.outputs.version-changed == 'true'
-        run: npm publish --access public --provenance
+        run: npm publish --access public --tag ${{ steps.version-check.outputs.npm-tag }} --provenance
         working-directory: apps/mesh
 
       - name: Wait for npm propagation
