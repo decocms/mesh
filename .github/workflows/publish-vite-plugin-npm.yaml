@@ -7,11 +7,13 @@ on:
       - "packages/vite-plugin-deco/**"
   workflow_dispatch:
 
+permissions:
+  contents: write
+  id-token: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout code
@@ -44,12 +46,16 @@ jobs:
           fi
         working-directory: packages/vite-plugin-deco
 
+      - name: Setup Node.js for npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Publish to npm
         if: steps.version-check.outputs.version-changed == 'true'
-        run: bun publish --access public --tag ${{ steps.version-check.outputs.npm-tag }}
+        run: npm publish --access public --tag ${{ steps.version-check.outputs.npm-tag }} --provenance
         working-directory: packages/vite-plugin-deco
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create Release
         if: steps.version-check.outputs.version-changed == 'true'

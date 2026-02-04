@@ -26,7 +26,7 @@ jobs:
     # Skip if triggered by push AND commit is from release-tagging workflow
     # This prevents double-runs when release-tagging.yaml bumps the version
     if: |
-      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'workflow_dispatch' ||
       !startsWith(github.event.head_commit.message, '[release]:')
     permissions:
       contents: write
@@ -42,12 +42,6 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
-
       - name: Install dependencies
         run: bun install
 
@@ -57,14 +51,15 @@ jobs:
           bun run build:server
         working-directory: apps/mesh
 
+      # ==================== NPM PUBLISH ====================
       - name: Check if version changed
         id: version-check
         run: |
           # Get the current version from package.json
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          CURRENT_VERSION=$(bun -e "console.log(require('./package.json').version)")
 
           # Try to get the published version from npm (will fail if package doesn't exist)
-          PUBLISHED_VERSION=$(npm view @decocms/mesh version 2>/dev/null || echo "0.0.0")
+          PUBLISHED_VERSION=$(bun info @decocms/mesh version 2>/dev/null || echo "0.0.0")
 
           echo "Current version: $CURRENT_VERSION"
           echo "Published version: $PUBLISHED_VERSION"
@@ -79,13 +74,16 @@ jobs:
           fi
         working-directory: apps/mesh
 
-      # ==================== NPM PUBLISH ====================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Publish to NPM
         if: steps.version-check.outputs.version-changed == 'true'
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: apps/mesh
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Wait for npm propagation
         if: steps.version-check.outputs.version-changed == 'true'
@@ -198,4 +196,3 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Deployment" >> $GITHUB_STEP_SUMMARY
           echo "🚀 Triggered ArgoCD deployment with image tag \`${{ steps.version-check.outputs.current-version }}\`" >> $GITHUB_STEP_SUMMARY
-
