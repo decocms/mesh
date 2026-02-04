@@ -42,6 +42,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Install dependencies
         run: bun install
 
@@ -59,7 +65,7 @@ jobs:
           CURRENT_VERSION=$(bun -e "console.log(require('./package.json').version)")
 
           # Try to get the published version from npm (will fail if package doesn't exist)
-          PUBLISHED_VERSION=$(bun info @decocms/mesh version 2>/dev/null || echo "0.0.0")
+          PUBLISHED_VERSION=$(npm view @decocms/mesh version 2>/dev/null || echo "0.0.0")
 
           echo "Current version: $CURRENT_VERSION"
           echo "Published version: $PUBLISHED_VERSION"
@@ -73,12 +79,6 @@ jobs:
             echo "⏭️ Version unchanged ($CURRENT_VERSION), skipping publish"
           fi
         working-directory: apps/mesh
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
 
       - name: Publish to NPM
         if: steps.version-check.outputs.version-changed == 'true'
