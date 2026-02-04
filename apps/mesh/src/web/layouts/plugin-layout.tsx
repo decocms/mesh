@@ -3,6 +3,10 @@
  *
  * Generic layout for plugins that filters connections by binding
  * and provides PluginContext to plugin routes.
+ *
+ * Connection selection is controlled by project settings (plugin bindings).
+ * If no connection is configured for the plugin, an empty state is shown
+ * prompting the user to configure it in project settings.
  */
 
 import {
@@ -17,18 +21,20 @@ import {
   PluginContextProvider,
   type PluginRenderHeaderProps,
 } from "@decocms/bindings/plugins";
-import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import {
+  SELF_MCP_ALIAS_ID,
   useConnections,
   useMCPClient,
   useProjectContext,
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
-import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { authClient } from "@/web/lib/auth-client";
-import { Outlet, useParams } from "@tanstack/react-router";
-import { Loading01 } from "@untitledui/icons";
+import { Outlet, useParams, Link } from "@tanstack/react-router";
+import { Loading01, Settings01 } from "@untitledui/icons";
 import { Suspense, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { KEYS } from "@/web/lib/query-keys";
+import { Button } from "@deco/ui/components/button.tsx";
 
 interface PluginLayoutProps {
   /**
@@ -88,31 +94,61 @@ function toPluginConnectionEntity(
  * valid connections are available. Connection-related fields are
  * null in that case.
  */
+type PluginConfigOutput = {
+  config: {
+    id: string;
+    projectId: string;
+    pluginId: string;
+    connectionId: string | null;
+    settings: Record<string, unknown> | null;
+  } | null;
+};
+
 export function PluginLayout({
   binding,
   renderHeader,
   renderEmptyState,
 }: PluginLayoutProps) {
-  const { org } = useProjectContext();
-  const { pluginId } = useParams({ strict: false }) as { pluginId: string };
+  const { org, project } = useProjectContext();
+  const {
+    org: orgParam,
+    project: projectParam,
+    pluginId,
+  } = useParams({
+    strict: false,
+  }) as { org: string; project: string; pluginId: string };
   const allConnections = useConnections();
   const { data: authSession } = authClient.useSession();
+
+  // Fetch project's plugin config to get configured connection
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const { data: pluginConfig, isLoading: isLoadingConfig } = useQuery({
+    queryKey: KEYS.projectPluginConfig(project.id ?? "", pluginId),
+    queryFn: async () => {
+      const result = (await selfClient.callTool({
+        name: "PROJECT_PLUGIN_CONFIG_GET",
+        arguments: {
+          projectId: project.id,
+          pluginId,
+        },
+      })) as { structuredContent?: unknown };
+      return (result.structuredContent ?? result) as PluginConfigOutput;
+    },
+    enabled: !!project.id && !!pluginId,
+  });
 
   // Filter connections by the plugin's binding
   const validConnections = filterConnectionsByBinding(allConnections, binding);
 
-  // Persist selected connection in localStorage
-  const [selectedConnectionId, setSelectedConnectionId] =
-    useLocalStorage<string>(
-      LOCALSTORAGE_KEYS.pluginConnection(org.slug, pluginId),
-      (existing) => existing ?? "",
-    );
-
-  // Find the selected connection, or default to first valid one
-  const selectedConnection = validConnections.find(
-    (c) => c.id === selectedConnectionId,
-  );
-  const effectiveConnection = selectedConnection ?? validConnections[0] ?? null;
+  // Connection is determined solely by project config
+  const configuredConnectionId = pluginConfig?.config?.connectionId;
+  const configuredConnection = configuredConnectionId
+    ? validConnections.find((c) => c.id === configuredConnectionId)
+    : null;
 
   // Build session for context (always available)
   const session: PluginSession | null = authSession?.user
@@ -133,9 +169,21 @@ export function PluginLayout({
     name: org.name,
   };
 
-  // If no valid connections, show empty state with partial context
-  // Components using { partial: true } will get nullable connection fields
-  if (validConnections.length === 0 || !effectiveConnection) {
+  // Show loading state while fetching config
+  if (isLoadingConfig) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <Loading01
+          size={32}
+          className="animate-spin text-muted-foreground mb-4"
+        />
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  // If no valid connections exist at all, show the plugin's empty state
+  if (validConnections.length === 0) {
     const emptyContext: PluginContextPartial<Binder> = {
       connectionId: null,
       connection: null,
@@ -153,16 +201,53 @@ export function PluginLayout({
     );
   }
 
+  // If no connection is configured in project settings, prompt user to configure
+  if (!configuredConnection) {
+    const emptyContext: PluginContextPartial<Binder> = {
+      connectionId: null,
+      connection: null,
+      toolCaller: null,
+      org: orgContext,
+      session,
+    };
+
+    return (
+      <PluginContextProvider value={emptyContext}>
+        <div className="h-full flex flex-col items-center justify-center gap-4 p-8">
+          <div className="flex flex-col items-center gap-2 text-center max-w-md">
+            <Settings01 size={48} className="text-muted-foreground mb-2" />
+            <h2 className="text-lg font-semibold">Plugin Not Configured</h2>
+            <p className="text-sm text-muted-foreground">
+              This plugin requires a connection to be configured. Go to project
+              settings to select which integration to use.
+            </p>
+          </div>
+          <Button asChild>
+            <Link
+              to="/$org/$project/settings"
+              params={{
+                org: orgParam ?? org.slug,
+                project: projectParam ?? project.slug ?? "",
+              }}
+            >
+              Go to Project Settings
+            </Link>
+          </Button>
+        </div>
+      </PluginContextProvider>
+    );
+  }
+
   const client = useMCPClient({
-    connectionId: effectiveConnection.id,
+    connectionId: configuredConnection.id,
     orgId: org.id,
   });
 
   // Create the plugin context with connection
   // TypedToolCaller is generic - the plugin will cast it to the correct binding type
   const pluginContext: PluginContext<Binder> = {
-    connectionId: effectiveConnection.id,
-    connection: toPluginConnectionEntity(effectiveConnection),
+    connectionId: configuredConnection.id,
+    connection: toPluginConnectionEntity(configuredConnection),
     // The toolCaller accepts any tool name and args at runtime
     // Type safety is enforced by the plugin using usePluginContext<MyBinding>()
     toolCaller: ((toolName: string, args: unknown) =>
@@ -184,9 +269,11 @@ export function PluginLayout({
     <PluginContextProvider value={pluginContext}>
       <div className="h-full flex flex-col overflow-hidden">
         {renderHeader({
-          connections: validConnections.map(toPluginConnectionEntity),
-          selectedConnectionId: effectiveConnection.id,
-          onConnectionChange: setSelectedConnectionId,
+          // Only show the configured connection (read-only display)
+          connections: [toPluginConnectionEntity(configuredConnection)],
+          selectedConnectionId: configuredConnection.id,
+          // No-op since connection is controlled by project settings
+          onConnectionChange: () => {},
         })}
         <div className="flex-1 overflow-hidden">
           <Suspense

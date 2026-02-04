@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
 import { useProjects } from "@/web/hooks/use-project";
 import { Page } from "@/web/components/page";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { ProjectCard } from "@/web/components/project-card";
 import { EmptyState } from "@/web/components/empty-state.tsx";
+import { CreateProjectDialog } from "@/web/components/create-project-dialog";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,12 +15,11 @@ import {
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 
-const ORG_ADMIN_PROJECT_SLUG = "org-admin";
-
 export default function ProjectsListPage() {
   const { org } = useProjectContext();
   const { data: projects, isLoading } = useProjects(org.id);
   const [search, setSearch] = useState("");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const navigate = useNavigate();
 
   // Filter out org-admin and apply search
@@ -40,8 +40,7 @@ export default function ProjectsListPage() {
   };
 
   const handleCreateProject = () => {
-    // TODO: Will open CreateProjectDialog in Task 009
-    console.log("Create project clicked");
+    setCreateDialogOpen(true);
   };
 
   return (
@@ -82,15 +81,15 @@ export default function ProjectsListPage() {
       />
 
       {/* Content */}
-      <Page.Content>
+      <Page.Content className="@container">
         {/* Loading State */}
         {isLoading && (
           <div className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-[240px] rounded-xl bg-muted animate-pulse"
+                  className="h-[240px] min-w-[300px] rounded-xl bg-muted animate-pulse"
                 />
               ))}
             </div>
@@ -125,7 +124,7 @@ export default function ProjectsListPage() {
         {/* Card Grid */}
         {!isLoading && userProjects.length > 0 && (
           <div className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 gap-4">
               {userProjects.map((project) => (
                 <ProjectCard
                   key={project.id}
@@ -137,6 +136,12 @@ export default function ProjectsListPage() {
           </div>
         )}
       </Page.Content>
+
+      {/* Create Project Dialog */}
+      <CreateProjectDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
     </Page>
   );
 }

@@ -34,7 +34,7 @@ export function ProjectCard({ project, onSettingsClick }: ProjectCardProps) {
     <Link
       to="/$org/$project"
       params={{ org: org.slug, project: project.slug }}
-      className="block group"
+      className="block group min-w-[300px]"
     >
       <div className="border rounded-xl overflow-hidden bg-card hover:shadow-lg transition-shadow">
         {/* Banner */}
@@ -60,7 +60,7 @@ export function ProjectCard({ project, onSettingsClick }: ProjectCardProps) {
         {/* Content */}
         <div className="p-4">
           {/* Project Icon */}
-          <div className="-mt-10 mb-3">
+          <div className="-mt-10 mb-3 relative z-10">
             {project.ui?.icon ? (
               <img
                 src={project.ui.icon}

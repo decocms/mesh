@@ -6,8 +6,15 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import { requireAuth } from "../../core/mesh-context";
+import { getUserId, requireAuth } from "../../core/mesh-context";
 import { serializedPluginConfigSchema } from "./schema";
+import {
+  createDevAssetsConnectionEntity,
+  isDevAssetsConnection,
+  isDevMode,
+} from "../connection/dev-assets";
+import { getBaseUrl } from "../../core/server-constants";
+import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 
 export const PROJECT_PLUGIN_CONFIG_UPDATE = defineTool({
   name: "PROJECT_PLUGIN_CONFIG_UPDATE" as const,
@@ -40,6 +47,45 @@ export const PROJECT_PLUGIN_CONFIG_UPDATE = defineTool({
     await ctx.access.check();
 
     const { projectId, pluginId, connectionId, settings } = input;
+    const userId = getUserId(ctx);
+
+    const projectRow = await ctx.db
+      .selectFrom("projects")
+      .select(["id", "organization_id"])
+      .where("id", "=", projectId)
+      .executeTakeFirst();
+    const connectionExists = connectionId
+      ? await ctx.db
+          .selectFrom("connections")
+          .select(["id"])
+          .where("id", "=", connectionId)
+          .executeTakeFirst()
+      : null;
+
+    if (
+      connectionId &&
+      projectRow?.organization_id &&
+      !connectionExists &&
+      isDevMode()
+    ) {
+      const devAssetsId = WellKnownOrgMCPId.DEV_ASSETS(
+        projectRow.organization_id,
+      );
+      if (isDevAssetsConnection(connectionId, projectRow.organization_id)) {
+        if (!userId) {
+          throw new Error("User ID required to create dev-assets connection");
+        }
+        const devAssetsConnection = createDevAssetsConnectionEntity(
+          projectRow.organization_id,
+          getBaseUrl(),
+        );
+        await ctx.storage.connections.create({
+          ...devAssetsConnection,
+          organization_id: projectRow.organization_id,
+          created_by: userId,
+        });
+      }
+    }
 
     const config = await ctx.storage.projectPluginConfigs.upsert(
       projectId,
@@ -49,6 +95,18 @@ export const PROJECT_PLUGIN_CONFIG_UPDATE = defineTool({
         settings,
       },
     );
+
+    logDebug({
+      runId: "debug",
+      hypothesisId: "H4",
+      location: "plugin-config-update.ts:93",
+      message: "PROJECT_PLUGIN_CONFIG_UPDATE success",
+      data: {
+        configId: config.id,
+        configProjectId: config.projectId,
+        configConnectionId: config.connectionId,
+      },
+    });
 
     return {
       config: {

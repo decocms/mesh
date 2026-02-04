@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Chat } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
+import { CreateProjectDialog } from "@/web/components/create-project-dialog";
 import { MeshSidebar } from "@/web/components/sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
 import { SplashScreen } from "@/web/components/splash-screen";
@@ -168,6 +170,7 @@ function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
 function ShellLayoutContent() {
   const { org, project } = useParams({ strict: false });
   const routerState = useRouterState();
+  const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
 
   // Check if we're on the project home route (/$org/$project)
   const isHomeRoute =
@@ -258,7 +261,9 @@ function ShellLayoutContent() {
                 } as Record<string, string>
               }
             >
-              <MeshSidebar />
+              <MeshSidebar
+                onCreateProject={() => setCreateProjectDialogOpen(true)}
+              />
               <SidebarInset className="flex flex-col">
                 {/* Project-aware topbar - only show for non-org-admin projects */}
                 {!isOrgAdmin && <ProjectTopbar right={<MeshUserMenu />} />}
@@ -270,6 +275,12 @@ function ShellLayoutContent() {
           </Chat.Provider>
         </div>
       </PersistentSidebarProvider>
+
+      {/* Create Project Dialog */}
+      <CreateProjectDialog
+        open={createProjectDialogOpen}
+        onOpenChange={setCreateProjectDialogOpen}
+      />
     </ProjectContextProvider>
   );
 }

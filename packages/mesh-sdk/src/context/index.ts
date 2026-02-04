@@ -6,6 +6,7 @@ export {
   useIsOrgAdmin,
   Locator,
   ORG_ADMIN_PROJECT_SLUG,
+  ORG_ADMIN_PROJECT_NAME,
   type ProjectContextProviderProps,
   type ProjectLocator,
   type LocatorStructured,

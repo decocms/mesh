@@ -13,6 +13,7 @@ export type LocatorStructured = {
 };
 
 export const ORG_ADMIN_PROJECT_SLUG = "org-admin";
+export const ORG_ADMIN_PROJECT_NAME = "Organization Admin";
 
 export const Locator = {
   from({ org, project }: LocatorStructured): ProjectLocator {

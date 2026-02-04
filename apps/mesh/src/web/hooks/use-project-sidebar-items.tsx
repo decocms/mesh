@@ -18,6 +18,7 @@ import {
 } from "@untitledui/icons";
 import { pluginRootSidebarItems } from "../index.tsx";
 import { useOrganizationSettings } from "./collections/use-organization-settings";
+import { useProject } from "./use-project";
 
 export function useProjectSidebarItems(): SidebarSection[] {
   const { locator, org: orgContext } = useProjectContext();
@@ -26,9 +27,16 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const { org, project } = Locator.parse(locator);
   const isOrgAdminProject = Locator.isOrgAdminProject(locator);
 
-  // Get organization settings to filter enabled plugins
+  // Get organization settings for org-admin project
   const orgSettings = useOrganizationSettings(orgContext.id);
-  const enabledPlugins = orgSettings?.enabled_plugins ?? [];
+
+  // Fetch project data to get enabledPlugins (sidebar is outside ProjectLayout context)
+  const { data: projectData } = useProject(orgContext.id, project);
+
+  // Use project's enabledPlugins for regular projects, org settings for org-admin
+  const enabledPlugins = isOrgAdminProject
+    ? (orgSettings?.enabled_plugins ?? [])
+    : (projectData?.enabledPlugins ?? []);
 
   // Filter plugins to only show enabled ones
   const enabledPluginItems = pluginRootSidebarItems.filter((item) =>

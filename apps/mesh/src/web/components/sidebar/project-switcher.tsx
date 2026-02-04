@@ -11,6 +11,7 @@ import { useSidebar } from "@deco/ui/components/sidebar.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   Locator,
+  ORG_ADMIN_PROJECT_NAME,
   ORG_ADMIN_PROJECT_SLUG,
   useProjectContext,
 } from "@decocms/mesh-sdk";
@@ -23,8 +24,6 @@ import {
   Plus,
 } from "@untitledui/icons";
 import { useProjects } from "@/web/hooks/use-project";
-
-const ORG_ADMIN_PROJECT_NAME = "Organization Admin";
 
 interface ProjectSwitcherProps {
   onCreateProject?: () => void;
