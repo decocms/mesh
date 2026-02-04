@@ -286,7 +286,7 @@ export function useCollectionList<T extends CollectionEntity>(
     staleTime: 30_000,
     retry: false,
     select: (result) => {
-      const payload = extractPayload<CollectionListOutput<T>>(result);
+      const payload = extractPayload<CollectionListOutput<T>>(result ?? {});
       return payload?.items ?? [];
     },
   });

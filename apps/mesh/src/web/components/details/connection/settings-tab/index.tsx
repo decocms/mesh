@@ -9,7 +9,7 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { Key01, File06, Loading01 } from "@untitledui/icons";
 import { Suspense } from "react";
-import type { useForm } from "react-hook-form";
+import { useWatch, type useForm } from "react-hook-form";
 import { McpConfigurationForm } from "./mcp-configuration-form";
 import type { ConnectionFormData } from "./schema";
 
@@ -147,7 +147,11 @@ function McpConfigurationContent({
 }) {
   const { stateSchema } = useMcpConfiguration(connection.id);
 
-  const formState = form.watch("configuration_state");
+  // useWatch is more reliable for triggering re-renders than form.watch()
+  const formState = useWatch({
+    control: form.control,
+    name: "configuration_state",
+  });
 
   const handleFormStateChange = (state: Record<string, unknown>) => {
     form.setValue("configuration_state", state, { shouldDirty: true });
