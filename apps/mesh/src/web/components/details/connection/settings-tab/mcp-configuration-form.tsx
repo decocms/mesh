@@ -75,16 +75,6 @@ function getBindingInfo(schema: Record<string, unknown>): {
 }
 
 /**
- * Extract field name from child element id.
- * e.g., "root_llm___type" -> "llm", "root_model_value" -> "model"
- */
-function extractFieldName(childId: string): string {
-  const withoutRoot = childId.replace(/^root_/, "");
-  const parts = withoutRoot.split("_");
-  return parts[0] || "";
-}
-
-/**
  * Check if a binding schema value represents an MCP Server name that needs dynamic resolution.
  * @example "@deco/database" -> true, "deco/database" -> true, [{name: "TOOL"}] -> false
  */
@@ -326,16 +316,24 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
   const { schema, formData, title, description, registry } = props;
   const formContext = registry.formContext as FormContext | undefined;
 
-  const firstChildKey = props.properties[0]?.content?.key as string | undefined;
+  // The `title` prop contains the field name (e.g., "EVENT_BUS", "DATABASE")
+  // This is the key we need for data operations
+  const fieldKey = title || "";
 
-  const fieldPath =
-    title || (firstChildKey ? extractFieldName(firstChildKey) : "");
+  // For display, format the title nicely
+  const displayFieldPath = title || "";
 
   if (isBindingField(schema as Record<string, unknown>)) {
     const { bindingType, bindingSchema } = getBindingInfo(
       schema as Record<string, unknown>,
     );
-    const currentValue = (formData?.value as string) || "";
+    // Use formContext.formData (parent's controlled state) as source of truth,
+    // falling back to RJSF's internal formData for initial render
+    const formContextFieldData = formContext?.formData?.[fieldKey] as
+      | Record<string, unknown>
+      | undefined;
+    const currentValue =
+      ((formContextFieldData?.value ?? formData?.value) as string) || "";
 
     const handleBindingChange = (newValue: string | null) => {
       const newFieldData = {
@@ -343,11 +341,11 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
         value: newValue ?? "",
         ...(bindingType && { __type: bindingType }),
       };
-      formContext?.onFieldChange(fieldPath, newFieldData);
+      formContext?.onFieldChange(fieldKey, newFieldData);
     };
 
     const handleModelChange = (model: ModelChangePayload) => {
-      formContext?.onFieldChange(fieldPath, {
+      formContext?.onFieldChange(fieldKey, {
         __type: bindingType,
         value: {
           id: model.id,
@@ -362,7 +360,9 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
         .replace(/_/g, " ")
         .replace(/\b\w/g, (c) => c.toUpperCase());
 
-    const displayTitle = title ? formatTitle(title) : formatTitle(fieldPath);
+    const displayTitle = title
+      ? formatTitle(title)
+      : formatTitle(displayFieldPath || fieldKey);
 
     if (bindingType === "@deco/agent") {
       return (
@@ -517,6 +517,8 @@ export function McpConfigurationForm({
   return (
     <div className="flex flex-col h-full overflow-auto p-5">
       <RjsfForm
+        // Force re-render when formState changes by using a key
+        key={JSON.stringify(formState)}
         schema={stateSchema}
         validator={validator}
         formData={formState}
