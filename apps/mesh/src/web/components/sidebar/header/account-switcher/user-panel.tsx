@@ -10,6 +10,7 @@ import {
 import { GitHubIcon } from "@daveyplate/better-auth-ui";
 import { toast } from "sonner";
 import { MenuItem } from "./menu-item";
+import { InboxMenuItem } from "./inbox-menu-item";
 
 interface UserPanelProps {
   user: {
@@ -61,6 +62,8 @@ export function UserPanel({ user, userImage, onOpenSettings }: UserPanelProps) {
 
         {/* Menu Items */}
         <div className="p-1 flex flex-col">
+          <InboxMenuItem />
+
           <MenuItem onClick={onOpenSettings}>
             <Settings04 size={18} />
             Preferences

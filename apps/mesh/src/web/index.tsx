@@ -32,7 +32,7 @@ const rootRoute = createRootRoute({
       <Suspense fallback={<SplashScreen />}>
         <Outlet />
       </Suspense>
-      <TanStackRouterDevtools />
+      {/* <TanStackRouterDevtools /> */}
     </Providers>
   ),
 });
@@ -333,11 +333,10 @@ const agentDetailRoute = createRoute({
   ),
 });
 
-// Workflows
+// Workflows (available for all projects)
 const workflowsRoute = createRoute({
   getParentRoute: () => projectLayout,
   path: "/workflows",
-  beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 

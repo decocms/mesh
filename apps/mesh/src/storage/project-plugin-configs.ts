@@ -10,6 +10,15 @@ import type { Database, ProjectPluginConfig } from "./types";
 import type { ProjectPluginConfigStoragePort } from "./ports";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
+/**
+ * Summary of a bound connection for display purposes
+ */
+export interface BoundConnectionSummary {
+  id: string;
+  title: string;
+  icon: string | null;
+}
+
 export class ProjectPluginConfigsStorage
   implements ProjectPluginConfigStoragePort
 {
@@ -124,5 +133,50 @@ export class ProjectPluginConfigsStorage
       .where("plugin_id", "=", pluginId)
       .executeTakeFirst();
     return (result.numDeletedRows ?? 0n) > 0n;
+  }
+
+  /**
+   * Get bound connections for multiple projects (for list display)
+   * Returns a map of project ID to array of connection summaries
+   */
+  async getBoundConnectionsForProjects(
+    projectIds: string[],
+  ): Promise<Map<string, BoundConnectionSummary[]>> {
+    if (projectIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.db
+      .selectFrom("project_plugin_configs")
+      .innerJoin(
+        "connections",
+        "connections.id",
+        "project_plugin_configs.connection_id",
+      )
+      .select([
+        "project_plugin_configs.project_id",
+        "connections.id as connection_id",
+        "connections.title",
+        "connections.icon",
+      ])
+      .where("project_plugin_configs.project_id", "in", projectIds)
+      .where("project_plugin_configs.connection_id", "is not", null)
+      .execute();
+
+    const result = new Map<string, BoundConnectionSummary[]>();
+
+    for (const row of rows) {
+      const projectId = row.project_id;
+      if (!result.has(projectId)) {
+        result.set(projectId, []);
+      }
+      result.get(projectId)!.push({
+        id: row.connection_id,
+        title: row.title,
+        icon: row.icon,
+      });
+    }
+
+    return result;
   }
 }

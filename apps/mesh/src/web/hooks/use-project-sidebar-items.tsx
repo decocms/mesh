@@ -8,13 +8,15 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
   Building02,
+  CheckDone01,
   Container,
+  Dataflow03,
+  FaceSmile,
   Folder,
   Home02,
-  Settings01,
+  Target04,
   Users03,
-  UserSquare,
-  Zap,
+  ZapSquare,
 } from "@untitledui/icons";
 import { pluginRootSidebarItems } from "../index.tsx";
 import { useOrganizationSettings } from "./collections/use-organization-settings";
@@ -64,20 +66,18 @@ export function useProjectSidebarItems(): SidebarSection[] {
     },
   };
 
-  const settingsItem: NavigationSidebarItem = {
-    key: "settings",
-    label: "Settings",
-    icon: <Settings01 />,
+  // Org-admin specific items - flat list matching Figma design
+  const tasksItem: NavigationSidebarItem = {
+    key: "tasks",
+    label: "Tasks",
+    icon: <CheckDone01 />,
     onClick: () =>
       navigate({
-        to: isOrgAdminProject
-          ? "/$org/$project/org-settings"
-          : "/$org/$project/settings",
-        params: { org, project },
+        to: "/$org/$project/tasks",
+        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
       }),
   };
 
-  // Org-admin specific items
   const connectionsItem: NavigationSidebarItem = {
     key: "mcps",
     label: "Connections",
@@ -85,6 +85,28 @@ export function useProjectSidebarItems(): SidebarSection[] {
     onClick: () =>
       navigate({
         to: "/$org/$project/mcps",
+        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
+      }),
+  };
+
+  const projectsItem: NavigationSidebarItem = {
+    key: "projects",
+    label: "Projects",
+    icon: <Folder />,
+    onClick: () =>
+      navigate({
+        to: "/$org/$project/projects",
+        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
+      }),
+  };
+
+  const storeItem: NavigationSidebarItem = {
+    key: "store",
+    label: "Store",
+    icon: <Building02 />,
+    onClick: () =>
+      navigate({
+        to: "/$org/$project/store",
         params: { org, project: ORG_ADMIN_PROJECT_SLUG },
       }),
   };
@@ -100,62 +122,38 @@ export function useProjectSidebarItems(): SidebarSection[] {
       }),
   };
 
-  // Organization group items (org-admin only)
-  const organizationGroupItems: NavigationSidebarItem[] = [
-    {
-      key: "projects",
-      label: "Projects",
-      icon: <Folder />,
-      onClick: () =>
-        navigate({
-          to: "/$org/$project/projects",
-          params: { org, project: ORG_ADMIN_PROJECT_SLUG },
-        }),
-    },
-    {
-      key: "store",
-      label: "Store",
-      icon: <Building02 />,
-      onClick: () =>
-        navigate({
-          to: "/$org/$project/store",
-          params: { org, project: ORG_ADMIN_PROJECT_SLUG },
-        }),
-    },
-    {
-      key: "monitoring",
-      label: "Monitoring",
-      icon: <BarChart10 />,
-      onClick: () =>
-        navigate({
-          to: "/$org/$project/monitoring",
-          params: { org, project: ORG_ADMIN_PROJECT_SLUG },
-        }),
-    },
-    {
-      key: "members",
-      label: "Members",
-      icon: <UserSquare />,
-      onClick: () =>
-        navigate({
-          to: "/$org/$project/members",
-          params: { org, project: ORG_ADMIN_PROJECT_SLUG },
-        }),
-    },
-  ];
+  const monitorItem: NavigationSidebarItem = {
+    key: "monitoring",
+    label: "Monitor",
+    icon: <BarChart10 />,
+    onClick: () =>
+      navigate({
+        to: "/$org/$project/monitoring",
+        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
+      }),
+  };
 
-  // Automation group items (org-admin only)
-  const automationGroupItems: NavigationSidebarItem[] = [
-    {
-      key: "workflow",
-      label: "Workflows",
-      icon: <Zap />,
-      onClick: () =>
-        navigate({
-          to: "/$org/$project/workflows",
-          params: { org, project: ORG_ADMIN_PROJECT_SLUG },
-        }),
-    },
+  const membersItem: NavigationSidebarItem = {
+    key: "members",
+    label: "Members",
+    icon: <FaceSmile />,
+    onClick: () =>
+      navigate({
+        to: "/$org/$project/members",
+        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
+      }),
+  };
+
+  // Org admin items in order matching Figma design
+  // Note: "Projects" section is also shown via SidebarProjectsSection
+  const orgAdminItems: NavigationSidebarItem[] = [
+    tasksItem,
+    connectionsItem,
+    projectsItem,
+    storeItem,
+    agentsItem,
+    monitorItem,
+    membersItem,
   ];
 
   // Plugin items mapped to navigation items
@@ -177,38 +175,16 @@ export function useProjectSidebarItems(): SidebarSection[] {
   );
 
   if (isOrgAdminProject) {
-    // Org-admin sidebar layout:
-    // - Home, Connections, Agents
-    // - [Divider]
-    // - Organization group (Projects, Store, Workflows, Monitoring, Members)
+    // Org-admin sidebar layout (flat, matching Figma):
+    // - Home, Tasks, Connections, Projects, Store, Agents, Monitor, Members
     // - [Divider] (if plugins exist)
     // - Plugin items
-    // - [Divider]
-    // - Settings
+    // - "Projects" section (shown via SidebarProjectsSection)
+    // (Settings is in the footer)
     const sections: SidebarSection[] = [
       {
         type: "items",
-        items: [homeItem, connectionsItem, agentsItem],
-      },
-      { type: "divider" },
-      {
-        type: "group",
-        group: {
-          id: "organization",
-          label: "Organization",
-          items: organizationGroupItems,
-          defaultExpanded: true,
-        },
-      },
-      { type: "divider" },
-      {
-        type: "group",
-        group: {
-          id: "automation",
-          label: "Automation",
-          items: automationGroupItems,
-          defaultExpanded: true,
-        },
+        items: [homeItem, ...orgAdminItems],
       },
     ];
 
@@ -218,29 +194,61 @@ export function useProjectSidebarItems(): SidebarSection[] {
       sections.push({ type: "items", items: pluginItems });
     }
 
-    // Spacer pushes Settings to the bottom
-    sections.push({ type: "spacer" });
-    sections.push({ type: "items", items: [settingsItem] });
-
     return sections;
   }
 
-  // Regular project sidebar layout:
-  // - Home
-  // - [Divider] (if plugins exist)
-  // - Plugin items
-  // - [Spacer]
-  // - Settings (at bottom)
-  const sections: SidebarSection[] = [{ type: "items", items: [homeItem] }];
+  // Project-specific items (for regular projects, not org-admin)
+  const projectTasksItem: NavigationSidebarItem = {
+    key: "tasks",
+    label: "Tasks",
+    icon: <Target04 />,
+    onClick: () =>
+      navigate({
+        to: "/$org/$project/tasks",
+        params: { org, project },
+      }),
+  };
+
+  const workflowsItem: NavigationSidebarItem = {
+    key: "workflows",
+    label: "Workflows",
+    icon: <Dataflow03 />,
+    onClick: () =>
+      navigate({
+        to: "/$org/$project/workflows",
+        params: { org, project },
+      }),
+  };
+
+  const pluginsItem: NavigationSidebarItem = {
+    key: "plugins",
+    label: "Plugins",
+    icon: <ZapSquare />,
+    onClick: () =>
+      navigate({
+        to: "/$org/$project/settings",
+        params: { org, project },
+      }),
+  };
+
+  // Regular project sidebar layout (matching Figma):
+  // - Home, Tasks, Workflows, Plugins
+  // - [Divider] (if enabled plugins exist)
+  // - Plugin items (enabled plugins)
+  // (Settings is in the footer)
+  const projectItems: NavigationSidebarItem[] = [
+    homeItem,
+    projectTasksItem,
+    workflowsItem,
+    pluginsItem,
+  ];
+
+  const sections: SidebarSection[] = [{ type: "items", items: projectItems }];
 
   if (pluginItems.length > 0) {
     sections.push({ type: "divider" });
     sections.push({ type: "items", items: pluginItems });
   }
-
-  // Spacer pushes Settings to the bottom
-  sections.push({ type: "spacer" });
-  sections.push({ type: "items", items: [settingsItem] });
 
   return sections;
 }

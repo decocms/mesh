@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth } from "../../core/mesh-context";
-import { serializedProjectSchema } from "./schema";
+import { serializedProjectWithBindingsSchema } from "./schema";
 
 export const PROJECT_LIST = defineTool({
   name: "PROJECT_LIST" as const,
@@ -18,7 +18,7 @@ export const PROJECT_LIST = defineTool({
   }),
 
   outputSchema: z.object({
-    projects: z.array(serializedProjectSchema.omit({ organizationId: true })),
+    projects: z.array(serializedProjectWithBindingsSchema),
   }),
 
   handler: async (input, ctx) => {
@@ -30,6 +30,13 @@ export const PROJECT_LIST = defineTool({
 
     const projects = await ctx.storage.projects.list(input.organizationId);
 
+    // Fetch bound connections for all projects in a single query
+    const projectIds = projects.map((p) => p.id);
+    const boundConnectionsMap =
+      await ctx.storage.projectPluginConfigs.getBoundConnectionsForProjects(
+        projectIds,
+      );
+
     return {
       projects: projects.map((project) => ({
         id: project.id,
@@ -38,6 +45,7 @@ export const PROJECT_LIST = defineTool({
         description: project.description,
         enabledPlugins: project.enabledPlugins,
         ui: project.ui,
+        boundConnections: boundConnectionsMap.get(project.id) ?? [],
         createdAt:
           project.createdAt instanceof Date
             ? project.createdAt.toISOString()

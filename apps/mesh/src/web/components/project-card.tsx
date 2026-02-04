@@ -2,8 +2,12 @@ import { Link } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useProjectContext } from "@decocms/mesh-sdk";
+import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import type { ProjectUI } from "@/web/hooks/use-project";
+import type {
+  ProjectUI,
+  BoundConnectionSummary,
+} from "@/web/hooks/use-project";
 
 interface ProjectCardProps {
   project: {
@@ -11,7 +15,7 @@ interface ProjectCardProps {
     slug: string;
     name: string;
     description: string | null;
-    enabledPlugins: string[] | null;
+    boundConnections: BoundConnectionSummary[];
     ui: ProjectUI | null;
     updatedAt: string;
   };
@@ -21,8 +25,10 @@ interface ProjectCardProps {
 export function ProjectCard({ project, onSettingsClick }: ProjectCardProps) {
   const { org } = useProjectContext();
 
+  const themeColor = project.ui?.themeColor ?? "#60a5fa";
+
   const bannerStyle = {
-    backgroundColor: project.ui?.bannerColor ?? "#3B82F6",
+    backgroundColor: project.ui?.bannerColor ?? themeColor,
     backgroundImage: project.ui?.banner
       ? `url(${project.ui.banner})`
       : undefined,
@@ -36,9 +42,9 @@ export function ProjectCard({ project, onSettingsClick }: ProjectCardProps) {
       params={{ org: org.slug, project: project.slug }}
       className="block group min-w-[300px]"
     >
-      <div className="border rounded-xl overflow-hidden bg-card hover:shadow-lg transition-shadow">
+      <div className="border border-border rounded-xl overflow-hidden bg-card">
         {/* Banner */}
-        <div className="h-24 relative" style={bannerStyle}>
+        <div className="h-20 relative" style={bannerStyle}>
           {/* Settings Button */}
           <button
             type="button"
@@ -48,65 +54,81 @@ export function ProjectCard({ project, onSettingsClick }: ProjectCardProps) {
               onSettingsClick?.(e);
             }}
             className={cn(
-              "absolute top-2 right-2 size-8 rounded-lg flex items-center justify-center",
+              "absolute top-3 right-3 size-6 rounded-md flex items-center justify-center",
               "bg-black/20 hover:bg-black/40 transition-colors",
               "opacity-0 group-hover:opacity-100",
             )}
           >
-            <Settings className="size-4 text-white" />
+            <Settings className="size-3.5 text-white" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-4">
-          {/* Project Icon */}
-          <div className="-mt-10 mb-3 relative z-10">
+        <div className="flex flex-col flex-1 justify-between p-4">
+          {/* Top Section */}
+          <div className="flex flex-col gap-4">
+            {/* Project Icon */}
             {project.ui?.icon ? (
               <img
                 src={project.ui.icon}
                 alt=""
-                className="size-12 rounded-xl border-2 border-background object-cover"
+                className="size-8 rounded-md object-cover"
               />
             ) : (
               <div
-                className="size-12 rounded-xl border-2 border-background flex items-center justify-center text-lg font-semibold text-white"
-                style={{ backgroundColor: project.ui?.themeColor ?? "#3B82F6" }}
+                className="size-8 rounded-md flex items-center justify-center"
+                style={{ backgroundColor: themeColor }}
               >
-                {project.name.charAt(0).toUpperCase()}
+                <span className="text-sm font-medium text-white">
+                  {project.name.charAt(0).toUpperCase()}
+                </span>
               </div>
             )}
+
+            {/* Name & Time */}
+            <div className="flex flex-col">
+              <h3 className="font-medium text-base text-foreground truncate">
+                {project.name}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Edited{" "}
+                {formatDistanceToNow(new Date(project.updatedAt), {
+                  addSuffix: true,
+                })}
+              </p>
+            </div>
           </div>
-
-          {/* Name */}
-          <h3 className="font-semibold text-foreground truncate">
-            {project.name}
-          </h3>
-
-          {/* Updated Time */}
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Edited{" "}
-            {formatDistanceToNow(new Date(project.updatedAt), {
-              addSuffix: true,
-            })}
-          </p>
 
           {/* Footer */}
           <div className="flex items-center justify-between mt-4">
-            {/* Plugin Icons */}
-            <div className="flex -space-x-1.5">
-              {project.enabledPlugins?.slice(0, 4).map((pluginId) => (
-                <PluginIcon key={pluginId} pluginId={pluginId} />
+            {/* Bound Connection Icons */}
+            <div className="flex pr-2">
+              {project.boundConnections.slice(0, 4).map((conn) => (
+                <div
+                  key={conn.id}
+                  className="-mr-2 rounded-md border border-background"
+                >
+                  <ConnectionIcon connection={conn} />
+                </div>
               ))}
-              {(project.enabledPlugins?.length ?? 0) > 4 && (
-                <div className="size-6 rounded-full bg-muted border-2 border-background flex items-center justify-center text-xs text-muted-foreground">
-                  +{project.enabledPlugins!.length - 4}
+              {project.boundConnections.length > 4 && (
+                <div className="-mr-2 rounded-md border border-background">
+                  <div className="size-6 rounded-md bg-background border border-black/10 shadow-sm flex items-center justify-center text-xs text-muted-foreground">
+                    +{project.boundConnections.length - 4}
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Org Badge */}
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-              <div className="size-3 rounded-full bg-primary/20" />
+            <div className="flex items-center gap-2 text-xs text-foreground">
+              <Avatar
+                url={org.logo ?? undefined}
+                fallback={org.name}
+                size="xs"
+                className="size-4 shrink-0 rounded"
+                objectFit="cover"
+              />
               <span className="truncate max-w-20">{org.name}</span>
             </div>
           </div>
@@ -116,11 +138,30 @@ export function ProjectCard({ project, onSettingsClick }: ProjectCardProps) {
   );
 }
 
-function PluginIcon({ pluginId }: { pluginId: string }) {
+function ConnectionIcon({
+  connection,
+}: {
+  connection: BoundConnectionSummary;
+}) {
+  const baseClasses =
+    "size-6 rounded-md bg-background border border-black/10 shadow-sm flex items-center justify-center overflow-hidden";
+
+  if (connection.icon) {
+    return (
+      <div className={baseClasses} title={connection.title}>
+        <img
+          src={connection.icon}
+          alt={connection.title}
+          className="size-4 object-cover"
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="size-6 rounded-full bg-zinc-800 border-2 border-background flex items-center justify-center">
-      <span className="text-[10px] text-white font-medium">
-        {pluginId.charAt(0).toUpperCase()}
+    <div className={baseClasses} title={connection.title}>
+      <span className="text-[10px] text-muted-foreground font-medium">
+        {connection.title.charAt(0).toUpperCase()}
       </span>
     </div>
   );

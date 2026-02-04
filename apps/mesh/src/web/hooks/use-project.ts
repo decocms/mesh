@@ -20,6 +20,15 @@ export interface ProjectUI {
 }
 
 /**
+ * Bound connection summary for display
+ */
+export interface BoundConnectionSummary {
+  id: string;
+  title: string;
+  icon: string | null;
+}
+
+/**
  * Serialized project from API
  */
 export interface Project {
@@ -34,9 +43,16 @@ export interface Project {
   updatedAt: string;
 }
 
+/**
+ * Project with bound connections (from list endpoint)
+ */
+export interface ProjectWithBindings extends Omit<Project, "organizationId"> {
+  boundConnections: BoundConnectionSummary[];
+}
+
 type ProjectGetOutput = { project: Project | null };
 type ProjectListOutput = {
-  projects: Omit<Project, "organizationId">[];
+  projects: ProjectWithBindings[];
 };
 
 /**
@@ -96,7 +112,7 @@ export function useProjects(organizationId: string) {
       return payload.projects.map((p) => ({
         ...p,
         organizationId,
-      }));
+      })) as (ProjectWithBindings & { organizationId: string })[];
     },
     enabled: !!organizationId,
     staleTime: 30000, // 30 seconds

@@ -28,6 +28,15 @@ export const partialProjectUISchema = z.object({
 });
 
 /**
+ * Bound connection summary schema (for display in project cards)
+ */
+export const boundConnectionSummarySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  icon: z.string().nullable(),
+});
+
+/**
  * Serialized project schema for API responses
  */
 export const serializedProjectSchema = z.object({
@@ -41,6 +50,15 @@ export const serializedProjectSchema = z.object({
   createdAt: z.string().datetime().describe("ISO 8601 timestamp"),
   updatedAt: z.string().datetime().describe("ISO 8601 timestamp"),
 });
+
+/**
+ * Serialized project with bound connections (for list responses)
+ */
+export const serializedProjectWithBindingsSchema = serializedProjectSchema
+  .omit({ organizationId: true })
+  .extend({
+    boundConnections: z.array(boundConnectionSummarySchema),
+  });
 
 /**
  * Serialized project plugin config schema for API responses

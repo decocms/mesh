@@ -4,8 +4,9 @@ import { Locator, useProjectContext } from "@decocms/mesh-sdk";
 import { Suspense } from "react";
 import { NavigationSidebar } from "./navigation";
 import { MeshSidebarHeader } from "./header";
-import { SidebarInboxFooter } from "./footer/inbox";
+import { SidebarSettingsFooter } from "./footer/settings";
 import { SidebarItemsSection } from "./items";
+import { SidebarProjectsSection } from "./projects-section";
 
 // Export types for external use
 export type {
@@ -32,11 +33,11 @@ export function MeshSidebar({ onCreateProject }: MeshSidebarProps) {
           <MeshSidebarHeader onCreateProject={onCreateProject} />
         </Suspense>
       }
-      footer={<SidebarInboxFooter />}
+      footer={<SidebarSettingsFooter />}
       additionalContent={
         <ErrorBoundary>
           <Suspense fallback={null}>
-            <SidebarItemsSection />
+            {isOrgAdmin ? <SidebarProjectsSection /> : <SidebarItemsSection />}
           </Suspense>
         </ErrorBoundary>
       }
