@@ -162,7 +162,10 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     }
 
     // Handle MCP configuration state and scopes if present
-    let finalState = data.configuration_state ?? existing.configuration_state;
+    // IMPORTANT: configuration_state must never be null/undefined to ensure
+    // it's always included in the JWT token sent to downstream connections
+    let finalState =
+      data.configuration_state ?? existing.configuration_state ?? {};
     let finalScopes =
       data.configuration_scopes ?? existing.configuration_scopes ?? [];
 
@@ -173,8 +176,8 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     ) {
       // Merge state: use provided state, or keep existing
       if (data.configuration_state !== undefined) {
-        finalState = data.configuration_state;
-      } else if (finalState === null) {
+        finalState = data.configuration_state ?? {};
+      } else if (finalState === null || finalState === undefined) {
         finalState = {};
       }
 
@@ -184,7 +187,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       }
 
       // Validate configuration if we have scopes
-      if (finalScopes.length > 0 && finalState) {
+      if (finalScopes.length > 0) {
         await validateConfiguration(
           finalState as Record<string, unknown>,
           finalScopes,
