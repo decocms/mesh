@@ -284,6 +284,12 @@ const oauthCallbackRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
 });
 
+const cliCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cli-callback",
+  component: lazyRouteComponent(() => import("./routes/cli-callback.tsx")),
+});
+
 const orgStoreRouteWithChildren = orgStoreRoute.addChildren([
   storeServerDetailRoute,
 ]);
@@ -310,6 +316,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   betterAuthRoutes,
   oauthCallbackRoute,
+  cliCallbackRoute,
   connectRoute,
   storeInviteRoute,
 ]);

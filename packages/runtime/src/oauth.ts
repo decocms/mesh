@@ -60,6 +60,256 @@ interface PendingAuthState {
   oauthCallbackUri?: string;
 }
 
+/**
+ * Generate a beautiful success page with capybara animation
+ * Auto-redirects to the client callback after a brief delay
+ */
+function generateSuccessPage(redirectUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authentication Successful</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      background: #0a0a0a;
+      color: #fafafa;
+      overflow-x: hidden;
+    }
+
+    .layout {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .animation-panel {
+      flex: 1;
+      min-height: 40vh;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .animation-container {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .callback-frame {
+      position: relative;
+      z-index: 10;
+      width: 90%;
+      max-width: 600px;
+      height: 300px;
+      border: 1px solid #27272a;
+      border-radius: 1rem;
+      background: #18181b;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      animation: fadeSlideUp 0.6s ease-out 1.2s forwards;
+    }
+
+    .callback-frame iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      border-radius: 1rem;
+    }
+
+    .content-panel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+      background: #111111;
+      border-top: 1px solid #262626;
+    }
+
+    .card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 1.5rem;
+      padding: 3rem;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .logo {
+      width: 140px;
+      height: auto;
+      margin-bottom: 2rem;
+      opacity: 0;
+      animation: fadeSlideUp 0.6s ease-out 0.2s forwards;
+    }
+
+    .success-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(34, 197, 94, 0.12);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+      color: #4ade80;
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      margin-bottom: 1.5rem;
+      opacity: 0;
+      animation: fadeSlideUp 0.6s ease-out 0.4s forwards;
+    }
+
+    .success-badge svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.025em;
+      text-align: center;
+      opacity: 0;
+      animation: fadeSlideUp 0.6s ease-out 0.6s forwards;
+    }
+
+    p {
+      color: #71717a;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      text-align: center;
+      opacity: 0;
+      animation: fadeSlideUp 0.6s ease-out 0.8s forwards;
+    }
+
+    .redirect-text {
+      margin-top: 1rem;
+      font-size: 0.75rem;
+      color: #52525b;
+      opacity: 0;
+      animation: fadeSlideUp 0.6s ease-out 1s forwards;
+    }
+
+    @keyframes fadeSlideUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (min-width: 768px) {
+      .layout {
+        flex-direction: row;
+      }
+
+      .animation-panel {
+        flex: 1;
+        min-height: 100vh;
+      }
+
+      .content-panel {
+        flex: 0 0 480px;
+        border-top: none;
+        border-left: 1px solid #262626;
+        padding: 2rem;
+      }
+
+      .card {
+        padding: 3.5rem;
+      }
+
+      h1 {
+        font-size: 2rem;
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .content-panel {
+        flex: 0 0 540px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="animation-panel">
+      <div class="animation-container">
+        <div
+          data-us-project="3u9H2SGWSifD8DQZHG4X"
+          data-us-production="true"
+          style="width: 100%; height: 100%;"
+        ></div>
+      </div>
+      <div class="callback-frame" id="callback-container"></div>
+    </div>
+
+    <div class="content-panel">
+      <div class="card">
+        <img
+          src="https://assets.decocache.com/decocms/4869c863-d677-4e5b-b3fd-4b3913a56034/deco-logo.png"
+          alt="MCP Mesh"
+          class="logo"
+        />
+        <div class="success-badge">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          Authenticated
+        </div>
+        <h1>Connection Successful</h1>
+        <p>Your MCP connection has been authenticated successfully.</p>
+        <p class="redirect-text">Completing authentication...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/gh/nicholashamilton/unicorn-studio-embed-player@v1.5.2/dist/player.umd.js"></script>
+  <script>
+    (function() {
+      if (window.UnicornStudio) {
+        window.UnicornStudio.init().catch(console.error);
+      }
+
+      var callbackUrl = ${JSON.stringify(redirectUrl)};
+      var container = document.getElementById('callback-container');
+
+      // Create a visible iframe to show the client callback
+      // This lets the user see both our animation and the client's response
+      var iframe = document.createElement('iframe');
+      iframe.src = callbackUrl;
+      container.appendChild(iframe);
+
+      // Update the message after the callback is sent
+      setTimeout(function() {
+        var p = document.querySelector('.redirect-text');
+        if (p) {
+          p.textContent = 'You can close this window now.';
+          p.style.color = '#4ade80';
+        }
+      }, 1500);
+    })();
+  </script>
+</body>
+</html>`;
+}
+
 interface CodePayload {
   accessToken: string;
   tokenType: string;
@@ -280,7 +530,14 @@ export function createOAuthHandlers(oauth: OAuthConfig) {
         redirectUrl.searchParams.set("state", pending.clientState);
       }
 
-      return Response.redirect(redirectUrl.toString(), 302);
+      // Return a beautiful success page that auto-redirects
+      const finalRedirectUrl = redirectUrl.toString();
+      return new Response(generateSuccessPage(finalRedirectUrl), {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+        },
+      });
     } catch (err) {
       console.error("OAuth callback error:", err);
 
