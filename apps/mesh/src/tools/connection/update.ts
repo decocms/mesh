@@ -241,7 +241,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       (data.configuration_state !== undefined ||
         data.configuration_scopes !== undefined) &&
       finalState &&
-      finalScopes.length > 0
+      finalScopes
     ) {
       try {
         await using proxy = await ctx.createMCPProxy(id);
