@@ -80,7 +80,7 @@ function PluginBindingRow({ plugin }: { plugin: AnyClientPlugin }) {
   });
 
   // Fetch current config
-  const { data: configData } = useQuery({
+  const { data: configData, isLoading: isLoadingConfig } = useQuery({
     queryKey: KEYS.projectPluginConfig(project.id ?? "", plugin.id),
     queryFn: async () => {
       const result = (await client.callTool({
@@ -142,7 +142,7 @@ function PluginBindingRow({ plugin }: { plugin: AnyClientPlugin }) {
         binding={plugin.binding}
         placeholder="Select connection..."
         className="w-56"
-        disabled={mutation.isPending}
+        disabled={isLoadingConfig || mutation.isPending}
       />
     </div>
   );
