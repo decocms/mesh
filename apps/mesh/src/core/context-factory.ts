@@ -615,8 +615,16 @@ async function authenticateRequest(
   }
 
   try {
+    // Strip the Authorization header before calling getSession.
+    // We've already tried all Bearer-based auth (Mesh JWT, API key) above.
+    // If we pass the Bearer token to getSession, Better Auth's API key plugin
+    // will attempt to validate it as an API key and throw INVALID_API_KEY,
+    // flooding logs with false-positive errors.
+    const sessionHeaders = new Headers(req.headers);
+    sessionHeaders.delete("Authorization");
+
     const session = await timings.measure("auth_get_session", () =>
-      auth.api.getSession({ headers: req.headers }),
+      auth.api.getSession({ headers: sessionHeaders }),
     );
 
     if (session) {
@@ -630,7 +638,7 @@ async function authenticateRequest(
           "auth_get_full_organization",
           () =>
             auth.api
-              .getFullOrganization({ headers: req.headers })
+              .getFullOrganization({ headers: sessionHeaders })
               .catch(() => null),
         );
 
