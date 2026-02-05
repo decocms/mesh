@@ -11,7 +11,6 @@ import {
   redirect,
   type AnyRoute,
 } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { SplashScreen } from "@/web/components/splash-screen";
 import * as z from "zod";
 import type { ReactNode } from "react";
@@ -32,7 +31,6 @@ const rootRoute = createRootRoute({
       <Suspense fallback={<SplashScreen />}>
         <Outlet />
       </Suspense>
-      <TanStackRouterDevtools />
     </Providers>
   ),
 });
