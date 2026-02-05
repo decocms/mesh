@@ -89,8 +89,8 @@ export function ProjectGeneralForm() {
     },
   });
 
-  const onSubmit = (data: FormData) => {
-    mutation.mutate(data);
+  const onSubmit = async (data: FormData) => {
+    await mutation.mutateAsync(data);
   };
 
   const hasChanges = form.formState.isDirty;
@@ -154,7 +154,7 @@ export function ProjectGeneralForm() {
         <div className="flex items-center gap-3 pt-4">
           <Button
             type="submit"
-            disabled={!hasChanges || mutation.isPending || isOrgAdmin}
+            disabled={!hasChanges || mutation.isPending}
             className="min-w-24"
           >
             {mutation.isPending ? "Saving..." : "Save Changes"}
