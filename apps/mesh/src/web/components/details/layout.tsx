@@ -48,15 +48,21 @@ export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
   const actionsElRef = useRef<HTMLDivElement | null>(null);
 
   const tabsRef = (node: HTMLDivElement | null) => {
-    if (tabsElRef.current !== node) {
-      tabsElRef.current = node;
+    tabsElRef.current = node;
+    // Only call setState when attaching (node !== null).
+    // Calling setState with null during React's disappearLayoutEffects commit
+    // phase causes an infinite "Maximum update depth exceeded" loop.
+    // When the subtree is hidden, portals inside it are hidden too, so the
+    // stale state value is harmless. On reappear, the ref fires again with
+    // the real node.
+    if (node) {
       setTabsEl(node);
     }
   };
 
   const actionsRef = (node: HTMLDivElement | null) => {
-    if (actionsElRef.current !== node) {
-      actionsElRef.current = node;
+    actionsElRef.current = node;
+    if (node) {
       setActionsEl(node);
     }
   };
