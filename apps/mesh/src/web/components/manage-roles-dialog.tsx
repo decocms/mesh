@@ -1331,9 +1331,10 @@ export function ManageRolesDialog({
           }
         }
       }
-      if (modelEntries.length > 0) {
-        permission["models"] = modelEntries;
-      }
+      // Always set the key when allowAllModels is false — an empty array
+      // means "no models allowed". Omitting the key would mean "all allowed"
+      // per the backward-compat data model, which is the opposite of intent.
+      permission["models"] = modelEntries;
     }
 
     return permission;
