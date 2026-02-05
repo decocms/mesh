@@ -4,7 +4,7 @@ import { CollectionTableWrapper } from "@/web/components/collections/collection-
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import { useConnection } from "@decocms/mesh-sdk";
+import { ORG_ADMIN_PROJECT_SLUG, useConnection } from "@decocms/mesh-sdk";
 import { Card } from "@deco/ui/components/card.tsx";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
@@ -76,7 +76,7 @@ function PromptsList({
         to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
         params: {
           org: org,
-          project: "org-admin",
+          project: ORG_ADMIN_PROJECT_SLUG,
           connectionId: connectionId,
           collectionName: "prompts",
           itemId: encodeURIComponent(prompt.name),

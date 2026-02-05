@@ -702,7 +702,10 @@ function ConnectionInspectorViewContent() {
               onClick={() =>
                 navigate({
                   to: "/$org/$project/mcps",
-                  params: { org: org as string, project: "org-admin" },
+                  params: {
+                    org: org as string,
+                    project: ORG_ADMIN_PROJECT_SLUG,
+                  },
                 })
               }
             >

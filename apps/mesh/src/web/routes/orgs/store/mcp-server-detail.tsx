@@ -21,6 +21,7 @@ import {
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useConnection,
   useConnections,
   useConnectionActions,
@@ -596,7 +597,11 @@ function StoreMCPServerDetailContent() {
 
       navigate({
         to: "/$org/$project/mcps/$connectionId",
-        params: { org: org.slug, project: "org-admin", connectionId: id },
+        params: {
+          org: org.slug,
+          project: ORG_ADMIN_PROJECT_SLUG,
+          connectionId: id,
+        },
       });
     } catch (error) {
       toast.error(
@@ -608,7 +613,7 @@ function StoreMCPServerDetailContent() {
   const handleBackClick = () => {
     navigate({
       to: "/$org/$project/store",
-      params: { org: org.slug, project: "org-admin" },
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
 
@@ -633,7 +638,7 @@ function StoreMCPServerDetailContent() {
           <BreadcrumbLink asChild>
             <Link
               to="/$org/$project/store"
-              params={{ org: org.slug, project: "org-admin" }}
+              params={{ org: org.slug, project: ORG_ADMIN_PROJECT_SLUG }}
             >
               Store
             </Link>
@@ -733,7 +738,7 @@ export default function StoreMCPServerDetail() {
   const handleBackClick = () => {
     navigate({
       to: "/$org/$project/store",
-      params: { org: org.slug, project: "org-admin" },
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
 

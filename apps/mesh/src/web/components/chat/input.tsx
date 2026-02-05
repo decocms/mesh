@@ -15,6 +15,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
   isDecopilot,
+  ORG_ADMIN_PROJECT_SLUG,
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
@@ -170,7 +171,11 @@ function VirtualMCPBadge({
     e.stopPropagation();
     navigate({
       to: "/$org/$project/agents/$agentId",
-      params: { org: org.slug, project: "org-admin", agentId: virtualMcpId },
+      params: {
+        org: org.slug,
+        project: ORG_ADMIN_PROJECT_SLUG,
+        agentId: virtualMcpId,
+      },
     });
   };
 

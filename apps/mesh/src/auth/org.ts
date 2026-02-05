@@ -2,12 +2,10 @@ import {
   getWellKnownCommunityRegistryConnection,
   getWellKnownRegistryConnection,
   getWellKnownSelfConnection,
-} from "@decocms/mesh-sdk";
-import { getBaseUrl } from "@/core/server-constants";
-import {
   ORG_ADMIN_PROJECT_NAME,
   ORG_ADMIN_PROJECT_SLUG,
-} from "@/core/constants";
+} from "@decocms/mesh-sdk";
+import { getBaseUrl } from "@/core/server-constants";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
 import { ConnectionStorage } from "@/storage/connection";

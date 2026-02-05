@@ -11,7 +11,7 @@ import {
 import { ChevronDown, ChevronSelectorVertical } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
 import { UserPanel } from "./user-panel";
 import { OrgPanel } from "./org-panel";
 import { ProjectPanel } from "./project-panel";
@@ -62,7 +62,7 @@ export function MeshAccountSwitcher({
     setOpen(false);
     navigate({
       to: "/$org/$project/settings",
-      params: { org: orgSlug, project: "org-admin" },
+      params: { org: orgSlug, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
 
@@ -70,7 +70,7 @@ export function MeshAccountSwitcher({
     setOpen(false);
     navigate({
       to: "/$org/$project",
-      params: { org: orgSlug, project: "org-admin" },
+      params: { org: orgSlug, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
 

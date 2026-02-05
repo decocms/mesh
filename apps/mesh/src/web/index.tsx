@@ -22,8 +22,7 @@ import type {
   AnyClientPlugin,
   PluginSetupContext,
 } from "@decocms/bindings/plugins";
-
-const ORG_ADMIN_PROJECT_SLUG = "org-admin";
+import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
 
 const rootRoute = createRootRoute({
   component: () => (

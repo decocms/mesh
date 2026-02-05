@@ -5,9 +5,9 @@
  */
 
 import { z } from "zod";
+import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth } from "../../core/mesh-context";
-import { ORG_ADMIN_PROJECT_SLUG } from "../../core/constants";
 
 export const PROJECT_DELETE = defineTool({
   name: "PROJECT_DELETE" as const,

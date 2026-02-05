@@ -5,9 +5,9 @@
  */
 
 import { z } from "zod";
+import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth } from "../../core/mesh-context";
-import { ORG_ADMIN_PROJECT_SLUG } from "../../core/constants";
 import { partialProjectUISchema, serializedProjectSchema } from "./schema";
 import type { ProjectUI } from "../../storage/types";
 

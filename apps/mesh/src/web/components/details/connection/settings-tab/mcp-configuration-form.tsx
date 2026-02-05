@@ -1,8 +1,11 @@
-import { useConnections } from "@decocms/mesh-sdk";
+import {
+  ORG_ADMIN_PROJECT_SLUG,
+  useConnections,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
-import { useProjectContext } from "@decocms/mesh-sdk";
 import { Loading01, Plus } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -503,7 +506,7 @@ export function McpConfigurationForm({
   const handleAddNew = () => {
     navigate({
       to: "/$org/$project/mcps",
-      params: { org: org.slug, project: "org-admin" },
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
       search: { action: "create" },
     });
   };

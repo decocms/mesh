@@ -5,6 +5,7 @@ import { EmptyState } from "../empty-state";
 import { OPENROUTER_ICON_URL, OPENROUTER_MCP_URL } from "@/core/deco-constants";
 import {
   getWellKnownOpenRouterConnection,
+  ORG_ADMIN_PROJECT_SLUG,
   useConnectionActions,
   useConnections,
 } from "@decocms/mesh-sdk";
@@ -38,7 +39,7 @@ export function NoLlmBindingEmptyState({
   const handleInstallMcpServer = () => {
     navigate({
       to: "/$org/$project/mcps",
-      params: { org: org.slug, project: "org-admin" },
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
       search: { action: "create" },
     });
   };
@@ -61,7 +62,7 @@ export function NoLlmBindingEmptyState({
           to: "/$org/$project/mcps/$connectionId",
           params: {
             org: org.slug,
-            project: "org-admin",
+            project: ORG_ADMIN_PROJECT_SLUG,
             connectionId: existingConnection.id,
           },
         });
@@ -80,7 +81,7 @@ export function NoLlmBindingEmptyState({
         to: "/$org/$project/mcps/$connectionId",
         params: {
           org: org.slug,
-          project: "org-admin",
+          project: ORG_ADMIN_PROJECT_SLUG,
           connectionId: result.id,
         },
       });

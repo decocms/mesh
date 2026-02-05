@@ -5,6 +5,7 @@
 
 import { useNavigate } from "@tanstack/react-router";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useProjectContext,
   useVirtualMCPActions,
   type VirtualMCPEntity,
@@ -56,7 +57,11 @@ export function useCreateVirtualMCP(
     if (navigateOnCreate) {
       navigate({
         to: "/$org/$project/agents/$agentId",
-        params: { org: org.slug, project: "org-admin", agentId: virtualMcp.id },
+        params: {
+          org: org.slug,
+          project: ORG_ADMIN_PROJECT_SLUG,
+          agentId: virtualMcp.id,
+        },
       });
     }
 

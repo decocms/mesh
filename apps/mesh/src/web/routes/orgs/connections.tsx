@@ -68,6 +68,7 @@ import {
 } from "@deco/ui/components/select.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useConnectionActions,
   useConnections,
   useMCPClient,
@@ -438,7 +439,7 @@ function OrgMcpsContent() {
   const openCreateDialog = () => {
     navigate({
       to: "/$org/$project/mcps",
-      params: { org: org.slug, project: "org-admin" },
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
       search: { action: "create" },
     });
   };
@@ -446,7 +447,7 @@ function OrgMcpsContent() {
   const closeCreateDialog = () => {
     navigate({
       to: "/$org/$project/mcps",
-      params: { org: org.slug, project: "org-admin" },
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
       search: {},
     });
   };
@@ -664,7 +665,11 @@ function OrgMcpsContent() {
     form.reset();
     navigate({
       to: "/$org/$project/mcps/$connectionId",
-      params: { org: org.slug, project: "org-admin", connectionId: newId },
+      params: {
+        org: org.slug,
+        project: ORG_ADMIN_PROJECT_SLUG,
+        connectionId: newId,
+      },
     });
   };
 
@@ -868,7 +873,7 @@ function OrgMcpsContent() {
                   to: "/$org/$project/mcps/$connectionId",
                   params: {
                     org: org.slug,
-                    project: "org-admin",
+                    project: ORG_ADMIN_PROJECT_SLUG,
                     connectionId: connection.id,
                   },
                 });
@@ -901,7 +906,7 @@ function OrgMcpsContent() {
         onClick={() =>
           navigate({
             to: "/$org/$project/store",
-            params: { org: org.slug, project: "org-admin" },
+            params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
           })
         }
         size="sm"
@@ -1359,7 +1364,10 @@ function OrgMcpsContent() {
                       onClick={() =>
                         navigate({
                           to: "/$org/$project/store",
-                          params: { org: org.slug, project: "org-admin" },
+                          params: {
+                            org: org.slug,
+                            project: ORG_ADMIN_PROJECT_SLUG,
+                          },
                         })
                       }
                     >
@@ -1380,7 +1388,7 @@ function OrgMcpsContent() {
                         to: "/$org/$project/mcps/$connectionId",
                         params: {
                           org: org.slug,
-                          project: "org-admin",
+                          project: ORG_ADMIN_PROJECT_SLUG,
                           connectionId: connection.id,
                         },
                       })
@@ -1408,7 +1416,7 @@ function OrgMcpsContent() {
                                 to: "/$org/$project/mcps/$connectionId",
                                 params: {
                                   org: org.slug,
-                                  project: "org-admin",
+                                  project: ORG_ADMIN_PROJECT_SLUG,
                                   connectionId: connection.id,
                                 },
                               });
@@ -1467,7 +1475,7 @@ function OrgMcpsContent() {
                       to: "/$org/$project/mcps/$connectionId",
                       params: {
                         org: org.slug,
-                        project: "org-admin",
+                        project: ORG_ADMIN_PROJECT_SLUG,
                         connectionId: connection.id,
                       },
                     })
@@ -1506,7 +1514,10 @@ function OrgMcpsContent() {
                             onClick={() =>
                               navigate({
                                 to: "/$org/$project/store",
-                                params: { org: org.slug, project: "org-admin" },
+                                params: {
+                                  org: org.slug,
+                                  project: ORG_ADMIN_PROJECT_SLUG,
+                                },
                               })
                             }
                           >

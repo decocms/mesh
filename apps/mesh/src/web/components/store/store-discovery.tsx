@@ -4,7 +4,11 @@ import { Inbox01, SearchMd, Loading01, FilterLines } from "@untitledui/icons";
 import { useDebounce } from "@/web/hooks/use-debounce";
 import { useScrollRestoration } from "@/web/hooks/use-scroll-restoration";
 import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
-import { useConnection, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  ORG_ADMIN_PROJECT_SLUG,
+  useConnection,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { slugify } from "@/web/utils/slugify";
 import {
   findListToolName,
@@ -118,7 +122,11 @@ function StoreDiscoveryContent({
 
     navigate({
       to: "/$org/$project/store/$appName",
-      params: { org: org.slug, project: "org-admin", appName: serverSlug },
+      params: {
+        org: org.slug,
+        project: ORG_ADMIN_PROJECT_SLUG,
+        appName: serverSlug,
+      },
       search: {
         registryId,
         serverName,
