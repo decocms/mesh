@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   publish:
@@ -22,10 +23,10 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Setup Node.js
+      - name: Setup Node.js for npm registry
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
@@ -61,10 +62,8 @@ jobs:
 
       - name: Publish to npm
         if: steps.version-check.outputs.version-changed == 'true'
-        run: bun publish --access public --tag ${{ steps.version-check.outputs.npm-tag }}
+        run: npm publish --access public --tag ${{ steps.version-check.outputs.npm-tag }} --provenance
         working-directory: packages/mesh-sdk
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create Release
         if: steps.version-check.outputs.version-changed == 'true'
