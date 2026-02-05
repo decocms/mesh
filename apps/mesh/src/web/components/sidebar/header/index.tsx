@@ -23,7 +23,6 @@ import {
   ArrowNarrowLeft,
   ChevronLeftDouble,
   ChevronRightDouble,
-  LayoutLeft,
   MessageChatSquare,
 } from "@untitledui/icons";
 import { MeshAccountSwitcher } from "./account-switcher";
@@ -92,15 +91,42 @@ export function MeshSidebarHeader({ onCreateProject }: MeshSidebarHeaderProps) {
                     />
                   </div>
 
-                  {/* Sidebar Toggle */}
-                  <button
-                    type="button"
-                    onClick={toggleSidebar}
-                    className="flex items-center justify-center text-zinc-400 hover:text-white transition-colors shrink-0"
-                    aria-label="Collapse sidebar"
-                  >
-                    <LayoutLeft className="size-4" />
-                  </button>
+                  {/* Sidebar Toggle and Decopilot Toggle */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={toggleSidebar}
+                          className="flex items-center justify-center size-7 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                          aria-label="Collapse sidebar"
+                        >
+                          <ChevronLeftDouble className="size-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Collapse sidebar
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={toggleChat}
+                          className={cn(
+                            "flex items-center justify-center size-7 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors",
+                            isChatOpen && "bg-zinc-800 text-white",
+                          )}
+                          aria-label="Toggle Decopilot"
+                        >
+                          <MessageChatSquare className="size-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Toggle Decopilot
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               )}
             </div>
