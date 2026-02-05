@@ -19,7 +19,6 @@ import {
 } from "@deco/ui/components/select.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useState } from "react";
-import { toast } from "sonner";
 import type { Binder } from "@decocms/bindings";
 import { connectionImplementsBinding } from "@/web/hooks/use-binding";
 
@@ -135,16 +134,11 @@ export function BindingSelector({
   const handleCreateConnection = async () => {
     if (canInstallInline && bindingType) {
       setIsLocalInstalling(true);
-      try {
-        const result = await installByBinding(bindingType);
-        if (result) {
-          onValueChange(result.id);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to connect MCP: ${message}`);
-      } finally {
-        setIsLocalInstalling(false);
+      // installByBinding handles error notifications globally via mutation hooks
+      const result = await installByBinding(bindingType);
+      setIsLocalInstalling(false);
+      if (result) {
+        onValueChange(result.id);
       }
       return;
     }
@@ -212,6 +206,7 @@ export function BindingSelector({
         {(onAddNew || canInstallInline) && (
           <div className="border-t border-border">
             <Button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
