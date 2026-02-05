@@ -5,6 +5,7 @@ import { CreateProjectDialog } from "@/web/components/create-project-dialog";
 import { MeshSidebar } from "@/web/components/sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
 import { SplashScreen } from "@/web/components/splash-screen";
+import { ProjectTopbar } from "@/web/components/topbar/project-topbar";
 import { MeshUserMenu } from "@/web/components/user-menu";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
@@ -261,6 +262,7 @@ function ShellLayoutContent() {
                 onCreateProject={() => setCreateProjectDialogOpen(true)}
               />
               <SidebarInset className="flex flex-col">
+                <ProjectTopbar />
                 <div className="flex-1 overflow-hidden">
                   <ChatPanels disableChat={isHomeRoute} />
                 </div>
