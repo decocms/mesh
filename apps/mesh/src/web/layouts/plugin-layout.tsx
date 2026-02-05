@@ -25,6 +25,7 @@ import {
   SELF_MCP_ALIAS_ID,
   useConnections,
   useMCPClient,
+  useMCPClientOptional,
   useProjectContext,
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
@@ -150,6 +151,13 @@ export function PluginLayout({
     ? validConnections.find((c) => c.id === configuredConnectionId)
     : null;
 
+  // Call hook unconditionally - pass undefined to skip when no valid configured connection
+  // This must be called before any early returns to satisfy React's Rules of Hooks
+  const configuredClient = useMCPClientOptional({
+    connectionId: configuredConnection?.id,
+    orgId: org.id,
+  });
+
   // Build session for context (always available)
   const session: PluginSession | null = authSession?.user
     ? {
@@ -238,11 +246,6 @@ export function PluginLayout({
     );
   }
 
-  const client = useMCPClient({
-    connectionId: configuredConnection.id,
-    orgId: org.id,
-  });
-
   // Create the plugin context with connection
   // TypedToolCaller is generic - the plugin will cast it to the correct binding type
   const pluginContext: PluginContext<Binder> = {
@@ -251,8 +254,8 @@ export function PluginLayout({
     // The toolCaller accepts any tool name and args at runtime
     // Type safety is enforced by the plugin using usePluginContext<MyBinding>()
     toolCaller: ((toolName: string, args: unknown) =>
-      client
-        ? client
+      configuredClient
+        ? configuredClient
             .callTool({
               name: toolName,
               arguments: args as Record<string, unknown>,

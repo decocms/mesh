@@ -245,23 +245,6 @@ const collectionDetailRoute = createRoute({
   ),
 });
 
-// Org Settings (different from project settings)
-const orgSettingsRoute = createRoute({
-  getParentRoute: () => projectLayout,
-  path: "/org-settings", // Changed to avoid conflict with /settings
-  beforeLoad: orgAdminGuard,
-  component: lazyRouteComponent(() => import("./routes/orgs/settings.tsx")),
-});
-
-const orgSettingsPluginsRoute = createRoute({
-  getParentRoute: () => projectLayout,
-  path: "/org-settings/plugins",
-  beforeLoad: orgAdminGuard,
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/settings/plugins.tsx"),
-  ),
-});
-
 // Monitoring
 const monitoringRoute = createRoute({
   getParentRoute: () => projectLayout,
@@ -359,6 +342,14 @@ export const pluginRootSidebarItems: {
   label: string;
 }[] = [];
 
+export const pluginSidebarGroups: {
+  pluginId: string;
+  id: string;
+  label: string;
+  items: { icon: ReactNode; label: string }[];
+  defaultExpanded?: boolean;
+}[] = [];
+
 const pluginRoutes: AnyRoute[] = [];
 
 sourcePlugins.forEach((plugin: AnyClientPlugin) => {
@@ -373,6 +364,8 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
     },
     registerRootSidebarItem: (item) =>
       pluginRootSidebarItems.push({ pluginId: plugin.id, ...item }),
+    registerSidebarGroup: (group) =>
+      pluginSidebarGroups.push({ pluginId: plugin.id, ...group }),
     registerPluginRoutes: (routes) => {
       pluginRoutes.push(...routes);
     },
@@ -399,8 +392,6 @@ const projectRoutes = [
   connectionsRoute,
   connectionDetailRoute,
   collectionDetailRoute,
-  orgSettingsRoute,
-  orgSettingsPluginsRoute,
   monitoringRoute,
   storeRouteWithChildren,
   agentsRoute,

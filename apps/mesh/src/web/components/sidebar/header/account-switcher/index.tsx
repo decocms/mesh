@@ -42,7 +42,7 @@ export function MeshAccountSwitcher({
   const handleOrgSettings = (orgSlug: string) => {
     setOpen(false);
     navigate({
-      to: "/$org/$project/org-settings",
+      to: "/$org/$project/settings",
       params: { org: orgSlug, project: "org-admin" },
     });
   };

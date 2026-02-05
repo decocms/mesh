@@ -13,18 +13,13 @@ export function SidebarSettingsFooter() {
   const { locator } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const isOrgAdminProject = Locator.isOrgAdminProject(locator);
 
   const currentPath = routerState.location.pathname;
-  const isActive = isOrgAdminProject
-    ? currentPath.includes("/org-settings")
-    : currentPath.includes("/settings");
+  const isActive = currentPath.includes("/settings");
 
   const handleClick = () => {
     navigate({
-      to: isOrgAdminProject
-        ? "/$org/$project/org-settings"
-        : "/$org/$project/settings",
+      to: "/$org/$project/settings",
       params: Locator.parse(locator),
     });
   };

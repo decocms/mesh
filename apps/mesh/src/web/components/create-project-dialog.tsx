@@ -29,12 +29,10 @@ import {
 } from "@deco/ui/components/form.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
-import { Switch } from "@deco/ui/components/switch.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { KEYS } from "@/web/lib/query-keys";
 import { generateSlug, isValidSlug } from "@/web/lib/slug";
 import { ColorPicker } from "./color-picker";
-import { sourcePlugins } from "@/web/plugins";
 import type { Project } from "@/web/hooks/use-project";
 
 const formSchema = z.object({
@@ -42,7 +40,6 @@ const formSchema = z.object({
   slug: z.string().min(1, "Slug is required").max(100),
   description: z.string().max(1000).optional(),
   bannerColor: z.string().nullable().optional(),
-  enabledPlugins: z.array(z.string()).optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -75,7 +72,6 @@ export function CreateProjectDialog({
       slug: "",
       description: "",
       bannerColor: "#3B82F6",
-      enabledPlugins: [],
     },
   });
 
@@ -88,7 +84,7 @@ export function CreateProjectDialog({
           slug: data.slug,
           name: data.name,
           description: data.description || null,
-          enabledPlugins: data.enabledPlugins ?? [],
+          enabledPlugins: [],
           ui: {
             banner: null,
             bannerColor: data.bannerColor ?? null,
@@ -110,7 +106,6 @@ export function CreateProjectDialog({
         slug: "",
         description: "",
         bannerColor: "#3B82F6",
-        enabledPlugins: [],
       });
       setSlugManuallyEdited(false);
       // Navigate to the new project
@@ -163,15 +158,6 @@ export function CreateProjectDialog({
     );
   };
 
-  const togglePlugin = (pluginId: string) => {
-    const current = form.getValues("enabledPlugins") ?? [];
-    const newPlugins = current.includes(pluginId)
-      ? current.filter((id) => id !== pluginId)
-      : [...current, pluginId];
-    form.setValue("enabledPlugins", newPlugins);
-  };
-
-  const selectedPlugins = form.watch("enabledPlugins") ?? [];
   const bannerColor = form.watch("bannerColor");
   const slug = form.watch("slug");
   const name = form.watch("name");
@@ -292,38 +278,6 @@ export function CreateProjectDialog({
                 </FormItem>
               )}
             />
-
-            {/* Plugins */}
-            {sourcePlugins.length > 0 && (
-              <div className="space-y-2">
-                <Label>Enable Plugins</Label>
-                <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
-                  {sourcePlugins.map((plugin) => (
-                    <div
-                      key={plugin.id}
-                      className="flex items-center justify-between p-2"
-                    >
-                      <div className="min-w-0">
-                        <span className="text-sm">{plugin.id}</span>
-                        {plugin.description && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {plugin.description}
-                          </p>
-                        )}
-                      </div>
-                      <Switch
-                        checked={selectedPlugins.includes(plugin.id)}
-                        onCheckedChange={() => togglePlugin(plugin.id)}
-                        disabled={mutation.isPending}
-                      />
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  You can change these later in project settings.
-                </p>
-              </div>
-            )}
 
             <DialogFooter>
               <Button

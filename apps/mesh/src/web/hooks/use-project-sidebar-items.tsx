@@ -16,10 +16,8 @@ import {
   Home02,
   Target04,
   Users03,
-  ZapSquare,
 } from "@untitledui/icons";
-import { pluginRootSidebarItems } from "../index.tsx";
-import { useOrganizationSettings } from "./collections/use-organization-settings";
+import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 import { useProject } from "./use-project";
 
 export function useProjectSidebarItems(): SidebarSection[] {
@@ -29,16 +27,11 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const { org, project } = Locator.parse(locator);
   const isOrgAdminProject = Locator.isOrgAdminProject(locator);
 
-  // Get organization settings for org-admin project
-  const orgSettings = useOrganizationSettings(orgContext.id);
-
   // Fetch project data to get enabledPlugins (sidebar is outside ProjectLayout context)
   const { data: projectData } = useProject(orgContext.id, project);
 
-  // Use project's enabledPlugins for regular projects, org settings for org-admin
-  const enabledPlugins = isOrgAdminProject
-    ? (orgSettings?.enabled_plugins ?? [])
-    : (projectData?.enabledPlugins ?? []);
+  // All projects (including org-admin) use project-level enabledPlugins
+  const enabledPlugins = projectData?.enabledPlugins ?? [];
 
   // Filter plugins to only show enabled ones
   const enabledPluginItems = pluginRootSidebarItems.filter((item) =>
@@ -156,7 +149,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
     membersItem,
   ];
 
-  // Plugin items mapped to navigation items
+  // Plugin items mapped to navigation items (flat items)
   const pluginItems: NavigationSidebarItem[] = enabledPluginItems.map(
     (item) => ({
       key: item.pluginId,
@@ -174,11 +167,43 @@ export function useProjectSidebarItems(): SidebarSection[] {
     }),
   );
 
+  // Filter plugin groups to only show enabled ones
+  const enabledPluginGroups = pluginSidebarGroups.filter((group) =>
+    enabledPlugins.includes(group.pluginId),
+  );
+
+  // Plugin groups mapped to sidebar sections
+  const pluginGroupSections: SidebarSection[] = enabledPluginGroups.map(
+    (group) => ({
+      type: "group" as const,
+      group: {
+        id: `${group.pluginId}-${group.id}`,
+        label: group.label,
+        items: group.items.map((item, index) => ({
+          key: `${group.pluginId}-${group.id}-${index}`,
+          label: item.label,
+          icon: item.icon,
+          onClick: () =>
+            navigate({
+              to: "/$org/$project/$pluginId",
+              params: {
+                org,
+                project,
+                pluginId: group.pluginId,
+              },
+            }),
+        })),
+        defaultExpanded: group.defaultExpanded ?? true,
+      },
+    }),
+  );
+
   if (isOrgAdminProject) {
     // Org-admin sidebar layout (flat, matching Figma):
     // - Home, Tasks, Connections, Projects, Store, Agents, Monitor, Members
     // - [Divider] (if plugins exist)
-    // - Plugin items
+    // - Plugin items (flat)
+    // - Plugin groups
     // - "Projects" section (shown via SidebarProjectsSection)
     // (Settings is in the footer)
     const sections: SidebarSection[] = [
@@ -188,10 +213,18 @@ export function useProjectSidebarItems(): SidebarSection[] {
       },
     ];
 
-    // Add plugins if any
+    // Add flat plugin items if any
     if (pluginItems.length > 0) {
       sections.push({ type: "divider" });
       sections.push({ type: "items", items: pluginItems });
+    }
+
+    // Add plugin groups
+    if (pluginGroupSections.length > 0) {
+      if (pluginItems.length === 0) {
+        sections.push({ type: "divider" });
+      }
+      sections.push(...pluginGroupSections);
     }
 
     return sections;
@@ -220,34 +253,32 @@ export function useProjectSidebarItems(): SidebarSection[] {
       }),
   };
 
-  const pluginsItem: NavigationSidebarItem = {
-    key: "plugins",
-    label: "Plugins",
-    icon: <ZapSquare />,
-    onClick: () =>
-      navigate({
-        to: "/$org/$project/settings",
-        params: { org, project },
-      }),
-  };
-
   // Regular project sidebar layout (matching Figma):
-  // - Home, Tasks, Workflows, Plugins
+  // - Home, Tasks, Workflows
   // - [Divider] (if enabled plugins exist)
-  // - Plugin items (enabled plugins)
+  // - Plugin items (flat)
+  // - Plugin groups
   // (Settings is in the footer)
   const projectItems: NavigationSidebarItem[] = [
     homeItem,
     projectTasksItem,
     workflowsItem,
-    pluginsItem,
   ];
 
   const sections: SidebarSection[] = [{ type: "items", items: projectItems }];
 
+  // Add flat plugin items if any
   if (pluginItems.length > 0) {
     sections.push({ type: "divider" });
     sections.push({ type: "items", items: pluginItems });
+  }
+
+  // Add plugin groups
+  if (pluginGroupSections.length > 0) {
+    if (pluginItems.length === 0) {
+      sections.push({ type: "divider" });
+    }
+    sections.push(...pluginGroupSections);
   }
 
   return sections;

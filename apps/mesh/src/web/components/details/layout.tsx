@@ -1,5 +1,12 @@
 import { Page } from "@/web/components/page";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 interface ViewLayoutContextValue {
@@ -36,6 +43,25 @@ export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
   const [tabsEl, setTabsEl] = useState<HTMLDivElement | null>(null);
   const [actionsEl, setActionsEl] = useState<HTMLDivElement | null>(null);
 
+  // Track current values in refs to compare BEFORE calling setState
+  // This prevents setState from being called during commit phase when value hasn't changed
+  const tabsElRef = useRef<HTMLDivElement | null>(null);
+  const actionsElRef = useRef<HTMLDivElement | null>(null);
+
+  const tabsRef = useCallback((node: HTMLDivElement | null) => {
+    if (tabsElRef.current !== node) {
+      tabsElRef.current = node;
+      setTabsEl(node);
+    }
+  }, []);
+
+  const actionsRef = useCallback((node: HTMLDivElement | null) => {
+    if (actionsElRef.current !== node) {
+      actionsElRef.current = node;
+      setActionsEl(node);
+    }
+  }, []);
+
   return (
     <ViewLayoutContext value={{ tabsEl, actionsEl }}>
       <Page>
@@ -47,13 +73,13 @@ export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
           <Page.Header.Right>
             {/* Tabs Slot */}
             <div
-              ref={setTabsEl}
+              ref={tabsRef}
               className="flex items-center gap-2 overflow-x-auto min-w-0"
             />
 
             {/* Actions Slot */}
             <div
-              ref={setActionsEl}
+              ref={actionsRef}
               className="flex items-center gap-2 shrink-0"
             />
           </Page.Header.Right>

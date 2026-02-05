@@ -8,6 +8,7 @@ import {
 import { useProjectContext, ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
 import { ProjectGeneralForm } from "@/web/components/settings/project-general-form";
 import { ProjectPluginsForm } from "@/web/components/settings/project-plugins-form";
+import { OrganizationForm } from "@/web/components/settings/organization-form";
 import { DangerZone } from "@/web/components/settings/danger-zone";
 
 export default function ProjectSettingsPage() {
@@ -21,11 +22,7 @@ export default function ProjectSettingsPage() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbPage>
-                  {isOrgAdmin
-                    ? "Organization Admin Settings"
-                    : "Project Settings"}
-                </BreadcrumbPage>
+                <BreadcrumbPage>Settings</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
@@ -37,18 +34,35 @@ export default function ProjectSettingsPage() {
           <div className="flex-1 overflow-auto">
             <div className="p-5 max-w-2xl">
               <div className="space-y-8">
-                {/* General Section */}
-                <section className="space-y-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">
-                      General
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Basic project information.
-                    </p>
-                  </div>
-                  <ProjectGeneralForm />
-                </section>
+                {/* Organization Section - Only for org-admin */}
+                {isOrgAdmin && (
+                  <section className="space-y-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">
+                        Organization
+                      </h2>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Update your organization's name, slug, and logo.
+                      </p>
+                    </div>
+                    <OrganizationForm />
+                  </section>
+                )}
+
+                {/* General Section - Only for regular projects */}
+                {!isOrgAdmin && (
+                  <section className="space-y-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">
+                        General
+                      </h2>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Basic project information.
+                      </p>
+                    </div>
+                    <ProjectGeneralForm />
+                  </section>
+                )}
 
                 {/* Plugins Section */}
                 <section className="space-y-4">
