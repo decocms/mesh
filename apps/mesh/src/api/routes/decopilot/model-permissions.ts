@@ -114,6 +114,8 @@ export async function fetchModelPermissions(
     console.error(
       `[model-permissions] Failed to parse permissions for role: ${role}`,
     );
-    return undefined;
+    // Fail-closed: corrupted permission data should deny access, not grant it.
+    // Returning undefined would mean "all models allowed" per the data model.
+    return [];
   }
 }
