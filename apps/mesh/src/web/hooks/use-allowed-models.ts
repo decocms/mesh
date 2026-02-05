@@ -55,10 +55,25 @@ export function useAllowedModels() {
     return connModels.includes("*") || connModels.includes(modelId);
   };
 
+  /**
+   * Check if a connection has any allowed models at all.
+   * Used to filter out connections from the selector when the user's role
+   * doesn't grant access to any models on that connection.
+   */
+  const hasConnectionModels = (connectionId: string): boolean => {
+    if (allowAll) return true;
+    const connModels = models[connectionId];
+    if (connModels && connModels.length > 0) return true;
+    // Check wildcard connection
+    const wildcard = models["*"];
+    return wildcard ? wildcard.length > 0 : false;
+  };
+
   return {
     allowAll,
     models,
     isLoading,
     isModelAllowed,
+    hasConnectionModels,
   };
 }

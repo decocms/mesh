@@ -15,6 +15,7 @@ import {
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronSelectorVertical,
   CurrencyDollar,
@@ -22,6 +23,7 @@ import {
   Grid01,
   Image01,
   LogOut04,
+  RefreshCcw01,
   SearchMd,
   Stars01,
 } from "@untitledui/icons";
@@ -32,6 +34,7 @@ import {
   type LLM,
 } from "../../hooks/collections/use-llm";
 import { useAllowedModels } from "../../hooks/use-allowed-models";
+import { ErrorBoundary } from "../error-boundary";
 
 // Prioritized models in order
 const prioritizedModelIds = [
@@ -330,6 +333,130 @@ function ModelItemContent({
   );
 }
 
+/**
+ * Error fallback shown when fetching models from a connection fails.
+ * Allows the user to retry or switch to another provider via the connection dropdown.
+ */
+function ModelListErrorFallback({
+  error,
+  onRetry,
+}: {
+  error: Error | null;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
+      <div className="bg-destructive/10 p-2 rounded-full">
+        <AlertTriangle className="size-5 text-destructive" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-medium text-foreground">
+          Failed to load models
+        </p>
+        <p className="text-xs text-muted-foreground max-w-[260px]">
+          {error?.message || "Could not fetch models from this provider."}
+          {" Try another provider or retry."}
+        </p>
+      </div>
+      <Button variant="outline" size="sm" onClick={onRetry} className="gap-1.5">
+        <RefreshCcw01 className="size-3.5" />
+        Retry
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Skeleton loader for the model list area while models are being fetched.
+ */
+function ModelListSkeleton() {
+  return (
+    <div className="flex-1 overflow-y-auto px-0.5 pt-2 space-y-1">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-2 min-h-8 py-3 px-3 rounded-lg"
+        >
+          <Skeleton className="size-5 shrink-0 rounded-sm" />
+          <Skeleton className="flex-1 h-4" />
+          <Skeleton className="w-16 h-5 shrink-0 rounded-md" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Fetches and renders the model list for a specific connection.
+ * Isolated so it can be wrapped with ErrorBoundary + Suspense — when the
+ * fetch fails (e.g. no auth), the error boundary catches it and the user
+ * can switch to another provider.
+ */
+function ConnectionModelList({
+  connectionId,
+  allowAll,
+  isModelAllowed,
+  searchTerm,
+  selectedModel,
+  onModelSelect,
+  onHover,
+}: {
+  connectionId: string | null;
+  allowAll: boolean;
+  isModelAllowed: (connectionId: string, modelId: string) => boolean;
+  searchTerm: string;
+  selectedModel?: SelectedModelState;
+  onModelSelect: (model: LLM) => void;
+  onHover: (model: LLM) => void;
+}) {
+  // This suspense-enabled call can throw if the connection is inaccessible
+  const allModels = useModels(connectionId ?? undefined);
+
+  // Filter models based on permissions
+  const models = allowAll
+    ? allModels
+    : allModels.filter(
+        (m) => connectionId && isModelAllowed(connectionId, m.id),
+      );
+
+  // Filter models based on search term
+  const filteredModels = searchTerm.trim()
+    ? models.filter((model) => {
+        const search = searchTerm.toLowerCase();
+        return (
+          model.title.toLowerCase().includes(search) ||
+          model.provider?.toLowerCase().includes(search) ||
+          model.description?.toLowerCase().includes(search)
+        );
+      })
+    : models;
+
+  if (filteredModels.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-8 text-sm text-muted-foreground">
+        No models found
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto px-0.5 pt-2">
+      {filteredModels.map((m) => {
+        const isSelected = m.id === selectedModel?.id;
+        return (
+          <div
+            key={m.id}
+            onClick={() => onModelSelect(m)}
+            className={cn("rounded-lg mb-1", isSelected && "bg-accent")}
+          >
+            <ModelItemContent model={m} onHover={onHover} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SelectedModelDisplay({
   model,
   placeholder = "Select model",
@@ -458,7 +585,10 @@ function ModelSelectorContentFallback() {
 }
 
 /**
- * Modal content component for model selection
+ * Modal content component for model selection.
+ * The model-fetching logic lives in `ConnectionModelList` which is wrapped
+ * with ErrorBoundary + Suspense so a failed provider doesn't break the whole
+ * selector — the user can switch connections and retry.
  */
 function ModelSelectorContent({
   selectedModel,
@@ -484,21 +614,14 @@ function ModelSelectorContent({
     modelsConnectionsProp ?? modelsConnectionsFromHook;
 
   // Fetch allowed models for current user
-  const { isModelAllowed, allowAll } = useAllowedModels();
+  const { isModelAllowed, allowAll, hasConnectionModels } = useAllowedModels();
 
-  // Filter connections to only those with allowed models
-  const modelsConnections = allModelsConnections;
-
-  // Fetch models only for the selected connection
-  const allModels = useModels(selectedConnectionId ?? undefined);
-
-  // Filter models based on permissions
-  const models = allowAll
-    ? allModels
-    : allModels.filter(
-        (m) =>
-          selectedConnectionId && isModelAllowed(selectedConnectionId, m.id),
-      );
+  // Filter connections to only those with at least one allowed model.
+  // This prevents fetching the LLM list from connections the user has no access to,
+  // which would show empty states and potentially cause auth errors.
+  const modelsConnections = allowAll
+    ? allModelsConnections
+    : allModelsConnections.filter((conn) => hasConnectionModels(conn.id));
 
   // Focus search input when mounted
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -509,33 +632,18 @@ function ModelSelectorContent({
     }, 0);
   }, []);
 
-  // Filter models based on search term
-  const filteredModels = searchTerm.trim()
-    ? models.filter((model) => {
-        const search = searchTerm.toLowerCase();
-        return (
-          model.title.toLowerCase().includes(search) ||
-          model.provider?.toLowerCase().includes(search) ||
-          model.description?.toLowerCase().includes(search)
-        );
-      })
-    : models;
-
   const handleConnectionChange = (connectionId: string) => {
     setSelectedConnectionId(connectionId);
+    setHoveredModel(null);
   };
 
-  const handleModelChange = (modelId: string) => {
-    const selected = models.find((m) => m.id === modelId);
-
-    if (!selected || !selectedConnectionId) {
-      return;
-    }
+  const handleModelSelect = (model: LLM) => {
+    if (!selectedConnectionId) return;
 
     onModelChange({
-      id: selected.id,
+      id: model.id,
       connectionId: selectedConnectionId,
-      provider: selected.provider ?? undefined,
+      provider: model.provider ?? undefined,
     });
     setSearchTerm("");
     onClose();
@@ -545,7 +653,7 @@ function ModelSelectorContent({
     <div className="flex flex-col md:flex-row h-[350px]">
       {/* Left column - model list with search */}
       <div className="flex-1 flex flex-col md:border-r md:w-[400px] md:min-w-[400px]">
-        {/* Search input */}
+        {/* Search input + connection selector — always visible even on error */}
         <div className="border-b border-border h-12 bg-background/95 backdrop-blur sticky top-0 z-10">
           <label className="flex items-center gap-2.5 h-12 px-4 cursor-text">
             <SearchMd size={16} className="text-muted-foreground shrink-0" />
@@ -595,40 +703,32 @@ function ModelSelectorContent({
           </label>
         </div>
 
-        {/* Model list */}
-        <div className="flex-1 overflow-y-auto px-0.5 pt-2">
-          {filteredModels.length > 0 ? (
-            filteredModels.map((m) => {
-              const isSelected = m.id === selectedModel?.id;
-              return (
-                <div
-                  key={m.id}
-                  onClick={() => handleModelChange(m.id)}
-                  className={cn("rounded-lg mb-1", isSelected && "bg-accent")}
-                >
-                  <ModelItemContent model={m} onHover={setHoveredModel} />
-                </div>
-              );
-            })
-          ) : (
-            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-              No models found
-            </div>
+        {/* Model list — wrapped in ErrorBoundary so a failed provider
+            doesn't break the selector. key={connectionId} resets the
+            boundary when the user switches connections. */}
+        <ErrorBoundary
+          key={selectedConnectionId}
+          fallback={({ error, resetError }) => (
+            <ModelListErrorFallback error={error} onRetry={resetError} />
           )}
-        </div>
+        >
+          <Suspense fallback={<ModelListSkeleton />}>
+            <ConnectionModelList
+              connectionId={selectedConnectionId}
+              allowAll={allowAll}
+              isModelAllowed={isModelAllowed}
+              searchTerm={searchTerm}
+              selectedModel={selectedModel}
+              onModelSelect={handleModelSelect}
+              onHover={setHoveredModel}
+            />
+          </Suspense>
+        </ErrorBoundary>
       </div>
 
       {/* Right column - details panel (desktop only) */}
       <div className="hidden md:block md:w-[320px] md:shrink-0 p-3">
-        <ModelDetailsPanel
-          model={
-            hoveredModel ||
-            (selectedModel
-              ? models.find((m) => m.id === selectedModel.id)
-              : null) ||
-            null
-          }
-        />
+        <ModelDetailsPanel model={hoveredModel} />
       </div>
     </div>
   );
@@ -641,6 +741,58 @@ export interface ModelSelectorProps {
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
+}
+
+/**
+ * Resolves the selected model's display info (name, logo) by fetching the
+ * model list. Extracted so it can be wrapped with Suspense/ErrorBoundary
+ * independently of the trigger button.
+ */
+function ResolvedModelDisplay({
+  selectedModel,
+  placeholder,
+}: {
+  selectedModel?: SelectedModelState;
+  placeholder: string;
+}) {
+  const connectionId = selectedModel?.connectionId ?? undefined;
+  const models = useModels(connectionId);
+  const currentModel = selectedModel
+    ? models.find((m) => m.id === selectedModel.id)
+    : undefined;
+  return (
+    <SelectedModelDisplay model={currentModel} placeholder={placeholder} />
+  );
+}
+
+/**
+ * Fallback trigger display when the model list can't be resolved.
+ * Shows the short model name extracted from the ID.
+ */
+function FallbackModelDisplay({
+  selectedModel,
+  placeholder,
+}: {
+  selectedModel?: SelectedModelState;
+  placeholder: string;
+}) {
+  if (!selectedModel) {
+    return <SelectedModelDisplay model={undefined} placeholder={placeholder} />;
+  }
+
+  // Show short model name from the ID (e.g. "claude-sonnet-4.5" from "anthropic/claude-sonnet-4.5")
+  const shortName = selectedModel.id.split("/").pop() ?? selectedModel.id;
+  return (
+    <div className="flex items-center gap-0 group-hover:gap-2 group-data-[state=open]:gap-2 min-w-0 overflow-hidden transition-all duration-200">
+      <span className="text-sm text-muted-foreground group-hover:text-foreground group-data-[state=open]:text-foreground truncate whitespace-nowrap max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100 group-data-[state=open]:max-w-[150px] group-data-[state=open]:opacity-100 transition-all duration-200 ease-in-out overflow-hidden">
+        {shortName}
+      </span>
+      <ChevronDown
+        size={14}
+        className="text-muted-foreground opacity-0 max-w-0 group-hover:opacity-50 group-hover:max-w-[14px] group-data-[state=open]:opacity-50 group-data-[state=open]:max-w-[14px] shrink-0 transition-all duration-200 ease-in-out overflow-hidden"
+      />
+    </div>
+  );
 }
 
 /**
@@ -661,17 +813,6 @@ export function ModelSelector({
   const modelsConnectionsFromHook = useModelConnections();
   const modelsConnections = modelsConnectionsProp ?? modelsConnectionsFromHook;
 
-  // Derive connection ID from selectedModel or first available
-  const selectedConnectionId = selectedModel?.connectionId ?? null;
-
-  // Fetch models only for the selected connection
-  const models = useModels(selectedConnectionId ?? undefined);
-
-  // Find selected model by id
-  const currentModel = selectedModel
-    ? models.find((m) => m.id === selectedModel.id)
-    : undefined;
-
   if (modelsConnections.length === 0) {
     return null;
   }
@@ -688,10 +829,29 @@ export function ModelSelector({
             className,
           )}
         >
-          <SelectedModelDisplay
-            model={currentModel}
-            placeholder={placeholder}
-          />
+          {/* Resolve model display info — falls back gracefully on error */}
+          <ErrorBoundary
+            fallback={
+              <FallbackModelDisplay
+                selectedModel={selectedModel}
+                placeholder={placeholder}
+              />
+            }
+          >
+            <Suspense
+              fallback={
+                <SelectedModelDisplay
+                  model={undefined}
+                  placeholder={placeholder}
+                />
+              }
+            >
+              <ResolvedModelDisplay
+                selectedModel={selectedModel}
+                placeholder={placeholder}
+              />
+            </Suspense>
+          </ErrorBoundary>
         </Button>
       </PopoverTrigger>
       <PopoverContent
