@@ -80,7 +80,7 @@ function HomeContent() {
 
   return (
     <Chat className="bg-background">
-      <Page.Header className="flex-none">
+      <Page.Header className="flex-none z-10 bg-background">
         <Page.Header.Left className="gap-2">
           {activeThread?.title && (
             <TypewriterTitle
