@@ -32,6 +32,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
+import { useAllowedModels } from "../../hooks/use-allowed-models";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useThreadManager } from "./thread";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
@@ -183,6 +184,9 @@ const useModelState = (
     fastId?: string | null;
   } | null>(LOCALSTORAGE_KEYS.chatSelectedModel(locator), null);
 
+  // Fetch allowed models for current user's role
+  const { isModelAllowed, allowAll } = useAllowedModels();
+
   // Determine connectionId to use (from stored selection or first available)
   const modelsConnection = findOrFirst(
     modelsConnections,
@@ -190,7 +194,14 @@ const useModelState = (
   );
 
   // Fetch models for the selected connection
-  const models = useModels(modelsConnection?.id);
+  const allModels = useModels(modelsConnection?.id);
+
+  // Filter models by permissions so defaults are always allowed
+  const models =
+    allowAll || !modelsConnection?.id
+      ? allModels
+      : allModels.filter((m) => isModelAllowed(modelsConnection.id, m.id));
+
   const cheapestModel = models
     .filter((m) => (m.costs?.input ?? 0) + (m.costs?.output ?? 0) > 0)
     .reduce<(typeof models)[number] | undefined>((min, model) => {
@@ -202,7 +213,7 @@ const useModelState = (
         : min;
     }, undefined);
 
-  // Find the selected model from the fetched models using stored state
+  // Find the selected model from the filtered models using stored state
   const selectedModel = findOrFirst(models, modelState?.id);
 
   const selectedModelState =

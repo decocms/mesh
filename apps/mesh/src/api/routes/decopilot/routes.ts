@@ -22,6 +22,11 @@ import {
 import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createModelProviderFromProxy } from "./model-provider";
+import {
+  checkModelPermission,
+  fetchModelPermissions,
+  parseModelsToMap,
+} from "./model-permissions";
 import { StreamRequestSchema } from "./schemas";
 import { generateTitleInBackground } from "./title-generator";
 
@@ -52,6 +57,35 @@ async function validateRequest(
 
 const app = new Hono<{ Variables: { meshContext: MeshContext } }>();
 
+// ============================================================================
+// Allowed Models Endpoint
+// ============================================================================
+
+app.get("/:org/decopilot/allowed-models", async (c) => {
+  try {
+    const ctx = c.get("meshContext");
+    const organization = ensureOrganization(c);
+    const role = ctx.auth.user?.role;
+
+    const models = await fetchModelPermissions(ctx.db, organization.id, role);
+
+    return c.json(parseModelsToMap(models));
+  } catch (err) {
+    console.error("[decopilot:allowed-models] Error", err);
+    if (err instanceof HTTPException) {
+      return c.json({ error: err.message }, err.status);
+    }
+    return c.json(
+      { error: err instanceof Error ? err.message : "Internal error" },
+      500,
+    );
+  }
+});
+
+// ============================================================================
+// Stream Endpoint
+// ============================================================================
+
 app.post("/:org/decopilot/stream", async (c) => {
   try {
     const ctx = c.get("meshContext");
@@ -66,6 +100,18 @@ app.post("/:org/decopilot/stream", async (c) => {
       memory: memoryConfig,
       thread_id,
     } = await validateRequest(c);
+
+    // 2. Check model permissions
+    const allowedModels = await fetchModelPermissions(
+      ctx.db,
+      organization.id,
+      ctx.auth.user?.role,
+    );
+    if (!checkModelPermission(allowedModels, model.connectionId, model.id)) {
+      throw new HTTPException(403, {
+        message: "Model not allowed for your role",
+      });
+    }
 
     const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
     const threadId = thread_id ?? memoryConfig?.threadId;

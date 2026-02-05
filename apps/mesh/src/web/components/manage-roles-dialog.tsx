@@ -12,6 +12,11 @@ import {
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useLLMsFromConnection,
+  useModelConnections,
+  type LLM,
+} from "@/web/hooks/collections/use-llm";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -83,6 +88,9 @@ const roleFormSchema = z.object({
   staticPermissions: z.array(z.string()),
   // Connection-specific permissions (MCP permissions)
   toolSet: z.record(z.string(), z.array(z.string())),
+  // Model permissions (connection-scoped)
+  allowAllModels: z.boolean(),
+  modelSet: z.record(z.string(), z.array(z.string())),
   // Members
   memberIds: z.array(z.string()),
 });
@@ -152,6 +160,8 @@ function createEmptyRole(): RoleFormData {
     allowAllStaticPermissions: false,
     staticPermissions: [],
     toolSet: {},
+    allowAllModels: true,
+    modelSet: {},
     memberIds: [],
   };
 }
@@ -375,6 +385,300 @@ function OrgPermissionsTab({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Models Permissions Tab
+// ============================================================================
+
+interface ModelsPermissionsTabProps {
+  allowAllModels: boolean;
+  modelSet: Record<string, string[]>;
+  onAllowAllChange: (allowAll: boolean) => void;
+  onModelSetChange: (modelSet: Record<string, string[]>) => void;
+  readOnly?: boolean;
+}
+
+/**
+ * Inner component per connection that fetches and displays models.
+ * Wrapped in Suspense by the parent.
+ */
+function ConnectionModelsSection({
+  connection,
+  selectedModels,
+  allowAllModels,
+  onToggleModel,
+  onToggleConnectionAll,
+  allConnectionModelsSelected,
+  searchQuery,
+  readOnly,
+}: {
+  connection: { id: string; title: string; icon: string | null };
+  selectedModels: string[];
+  allowAllModels: boolean;
+  onToggleModel: (connectionId: string, modelId: string) => void;
+  onToggleConnectionAll: (connectionId: string, models: LLM[]) => void;
+  allConnectionModelsSelected: boolean;
+  searchQuery: string;
+  readOnly: boolean;
+}) {
+  const models = useLLMsFromConnection(connection.id, { pageSize: 999 });
+
+  // Filter models by search query
+  const filteredModels = searchQuery.trim()
+    ? models.filter(
+        (m) =>
+          m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          m.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          m.provider?.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : models;
+
+  if (filteredModels.length === 0) return null;
+
+  // Check if all filtered models in this connection are selected
+  const allSelected =
+    allowAllModels ||
+    allConnectionModelsSelected ||
+    (selectedModels.includes("*") && !allowAllModels) ||
+    filteredModels.every(
+      (m) => selectedModels.includes(m.id) || selectedModels.includes("*"),
+    );
+
+  return (
+    <div className="mb-6 last:mb-0">
+      {/* Connection header with toggle-all for this connection */}
+      <div className="flex items-center justify-between px-4 py-2">
+        <div className="flex items-center gap-2">
+          {connection.icon ? (
+            <img
+              src={connection.icon}
+              alt={connection.title}
+              className="w-4 h-4 rounded"
+            />
+          ) : (
+            <div className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+              {connection.title.slice(0, 1).toUpperCase()}
+            </div>
+          )}
+          <h4 className="text-sm font-medium text-muted-foreground/75">
+            {connection.title}
+          </h4>
+        </div>
+        {!readOnly && !allowAllModels && (
+          <Switch
+            checked={allSelected}
+            onCheckedChange={() => onToggleConnectionAll(connection.id, models)}
+          />
+        )}
+      </div>
+      {/* Model list */}
+      <div className="space-y-1">
+        {filteredModels.map((model) => {
+          const isEnabled =
+            allowAllModels ||
+            selectedModels.includes("*") ||
+            selectedModels.includes(model.id);
+
+          return (
+            <div
+              key={model.id}
+              className={cn(
+                "flex items-center justify-between gap-3 px-4 py-3",
+                !readOnly && "hover:bg-muted/50 cursor-pointer",
+              )}
+              onClick={() => {
+                if (readOnly || allowAllModels) return;
+                onToggleModel(connection.id, model.id);
+              }}
+            >
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {model.logo && (
+                  <img
+                    src={model.logo}
+                    className="w-4 h-4 shrink-0 rounded-sm"
+                    alt={model.title}
+                  />
+                )}
+                <span className="text-sm truncate">{model.title}</span>
+              </div>
+              <div onClick={(e) => e.stopPropagation()}>
+                {readOnly ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Switch checked={isEnabled} disabled />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Built-in role permissions cannot be changed</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <Switch
+                    checked={isEnabled}
+                    disabled={readOnly || allowAllModels}
+                    onCheckedChange={() => {
+                      if (readOnly || allowAllModels) return;
+                      onToggleModel(connection.id, model.id);
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ConnectionModelsSectionFallback() {
+  return (
+    <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground">
+      <Loading01 className="size-4 animate-spin" />
+      Loading models...
+    </div>
+  );
+}
+
+function ModelsPermissionsTab({
+  allowAllModels,
+  modelSet,
+  onAllowAllChange,
+  onModelSetChange,
+  readOnly = false,
+}: ModelsPermissionsTabProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const modelConnections = useModelConnections();
+
+  // Toggle a single model for a connection
+  const toggleModel = (connectionId: string, modelId: string) => {
+    const current = modelSet[connectionId] ?? [];
+    const newModelSet = { ...modelSet };
+    if (current.includes(modelId)) {
+      const filtered = current.filter((m) => m !== modelId);
+      if (filtered.length === 0) {
+        delete newModelSet[connectionId];
+      } else {
+        newModelSet[connectionId] = filtered;
+      }
+    } else {
+      newModelSet[connectionId] = [...current, modelId];
+    }
+    onModelSetChange(newModelSet);
+  };
+
+  // Toggle all models for a connection
+  const toggleConnectionAll = (connectionId: string, models: LLM[]) => {
+    const current = modelSet[connectionId] ?? [];
+    const allModelIds = models.map((m) => m.id);
+    const allSelected =
+      current.includes("*") || allModelIds.every((id) => current.includes(id));
+
+    const newModelSet = { ...modelSet };
+    if (allSelected) {
+      // Deselect all for this connection
+      delete newModelSet[connectionId];
+    } else {
+      // Select all for this connection
+      newModelSet[connectionId] = allModelIds;
+    }
+    onModelSetChange(newModelSet);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Search */}
+      <div className="border-b border-border">
+        <CollectionSearch
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search models..."
+          className="border-b-0"
+        />
+      </div>
+
+      {/* Select All Toggle */}
+      <div className="border-b border-border">
+        <div
+          className={cn(
+            "flex items-center justify-between px-4 py-3 rounded-lg",
+            !readOnly && "hover:bg-muted/50 cursor-pointer",
+          )}
+          onClick={() => {
+            if (readOnly) return;
+            const newValue = !allowAllModels;
+            onAllowAllChange(newValue);
+            if (newValue) {
+              onModelSetChange({});
+            }
+          }}
+        >
+          <span className="text-sm font-medium">All models</span>
+          <div onClick={(e) => e.stopPropagation()}>
+            {readOnly ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Switch checked={allowAllModels} disabled />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Built-in role permissions cannot be changed</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Switch
+                checked={allowAllModels}
+                onCheckedChange={(checked) => {
+                  if (readOnly) return;
+                  onAllowAllChange(checked);
+                  if (checked) {
+                    onModelSetChange({});
+                  }
+                }}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Models list grouped by connection */}
+      <div className="flex-1 overflow-auto">
+        {modelConnections.length === 0 ? (
+          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+            No LLM connections configured
+          </div>
+        ) : (
+          modelConnections.map((conn) => (
+            <Suspense
+              key={conn.id}
+              fallback={<ConnectionModelsSectionFallback />}
+            >
+              <ConnectionModelsSection
+                connection={conn}
+                selectedModels={modelSet[conn.id] ?? []}
+                allowAllModels={allowAllModels}
+                onToggleModel={toggleModel}
+                onToggleConnectionAll={toggleConnectionAll}
+                allConnectionModelsSelected={(modelSet[conn.id] ?? []).includes(
+                  "*",
+                )}
+                searchQuery={deferredSearchQuery}
+                readOnly={readOnly}
+              />
+            </Suspense>
+          ))
+        )}
       </div>
     </div>
   );
@@ -740,6 +1044,8 @@ function loadBuiltinRoleIntoForm(
     allowAllStaticPermissions: isOwnerOrAdmin,
     staticPermissions: BUILTIN_ROLE_PERMISSIONS[role],
     toolSet: {},
+    allowAllModels: true,
+    modelSet: {},
     memberIds: roleMembers.map((m) => m.id),
   };
 }
@@ -753,7 +1059,9 @@ export function ManageRolesDialog({
   onSuccess,
 }: ManageRolesDialogProps) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"mcp" | "org" | "members">("mcp");
+  const [activeTab, setActiveTab] = useState<
+    "mcp" | "org" | "models" | "members"
+  >("mcp");
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
@@ -815,7 +1123,7 @@ export function ManageRolesDialog({
     // Build toolSet from connection permissions
     const toolSet: Record<string, string[]> = {};
     for (const [key, tools] of Object.entries(permission)) {
-      if (key === "self") continue;
+      if (key === "self" || key === "models") continue;
       if (key === "*") {
         // All connections - expand to all current connections
         for (const conn of connections) {
@@ -838,6 +1146,24 @@ export function ManageRolesDialog({
       }
     }
 
+    // Build modelSet from "models" key (composite connectionId:modelId strings)
+    const modelsEntries = permission["models"] || [];
+    const hasAllModels =
+      modelsEntries.length === 0 || modelsEntries.includes("*:*");
+    const modelSet: Record<string, string[]> = {};
+    if (!hasAllModels) {
+      for (const entry of modelsEntries) {
+        const colonIdx = entry.indexOf(":");
+        if (colonIdx === -1) continue;
+        const connId = entry.slice(0, colonIdx);
+        const modelId = entry.slice(colonIdx + 1);
+        if (!modelSet[connId]) {
+          modelSet[connId] = [];
+        }
+        modelSet[connId].push(modelId);
+      }
+    }
+
     // Get members with this role
     const members = membersData?.data?.members ?? [];
     const roleMemberIds = members
@@ -853,6 +1179,8 @@ export function ManageRolesDialog({
       allowAllStaticPermissions: hasAllStaticPerms,
       staticPermissions: staticPerms,
       toolSet,
+      allowAllModels: hasAllModels,
+      modelSet,
       memberIds: roleMemberIds,
     };
   };
@@ -988,6 +1316,23 @@ export function ManageRolesDialog({
         } else {
           permission[connectionId] = tools;
         }
+      }
+    }
+
+    // Add model permissions as composite "connectionId:modelId" strings
+    if (role.allowAllModels) {
+      permission["models"] = ["*:*"];
+    } else {
+      const modelEntries: string[] = [];
+      for (const [connectionId, models] of Object.entries(role.modelSet)) {
+        if (models.length > 0) {
+          for (const modelId of models) {
+            modelEntries.push(`${connectionId}:${modelId}`);
+          }
+        }
+      }
+      if (modelEntries.length > 0) {
+        permission["models"] = modelEntries;
       }
     }
 
@@ -1405,6 +1750,19 @@ export function ManageRolesDialog({
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setActiveTab("models")}
+                className={cn(
+                  "h-7 rounded-lg px-2 border border-input transition-colors",
+                  activeTab === "models"
+                    ? "bg-accent border-border text-foreground"
+                    : "bg-transparent text-muted-foreground hover:border-border hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                Models
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setActiveTab("members")}
                 className={cn(
                   "h-7 rounded-lg px-2 border border-input transition-colors",
@@ -1440,6 +1798,23 @@ export function ManageRolesDialog({
                   }
                   onPermissionsChange={(permissions) =>
                     form.setValue("staticPermissions", permissions, {
+                      shouldDirty: true,
+                    })
+                  }
+                  readOnly={!!viewingBuiltinRole}
+                />
+              )}
+              {activeTab === "models" && (
+                <ModelsPermissionsTab
+                  allowAllModels={form.watch("allowAllModels")}
+                  modelSet={form.watch("modelSet")}
+                  onAllowAllChange={(allowAll) =>
+                    form.setValue("allowAllModels", allowAll, {
+                      shouldDirty: true,
+                    })
+                  }
+                  onModelSetChange={(newModelSet) =>
+                    form.setValue("modelSet", newModelSet, {
                       shouldDirty: true,
                     })
                   }
