@@ -24,9 +24,7 @@ export function ProjectTopbar({ left, center, right }: ProjectTopbarProps) {
     <div className="dark">
       <header className="sticky top-0 z-50 h-12 bg-background flex items-center px-4 shrink-0">
         {/* Left Section - Breadcrumb */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {left}
-        </div>
+        <div className="flex items-center gap-2 flex-1 min-w-0">{left}</div>
 
         {/* Center Section */}
         {center && (

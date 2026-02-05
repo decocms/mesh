@@ -147,7 +147,9 @@ export function MeshSidebarHeader({ onCreateProject }: MeshSidebarHeaderProps) {
                   >
                     <MessageChatSquare
                       size={11}
-                      className={cn(isDark ? "text-inherit" : "text-muted-foreground")}
+                      className={cn(
+                        isDark ? "text-inherit" : "text-muted-foreground",
+                      )}
                     />
                   </Button>
                 </TooltipTrigger>
