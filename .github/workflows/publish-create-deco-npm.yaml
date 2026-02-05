@@ -11,6 +11,10 @@ on:
     types:
       - completed
 
+permissions:
+  contents: write
+  id-token: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -42,7 +46,7 @@ jobs:
         id: version-check
         run: |
           # Get the current version from package.json
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          CURRENT_VERSION=$(bun -e "console.log(require('./package.json').version)")
 
           # Try to get the published version from npm (will fail if package doesn't exist)
           PUBLISHED_VERSION=$(npm view create-deco version 2>/dev/null || echo "0.0.0")
@@ -62,10 +66,8 @@ jobs:
 
       - name: Publish to NPM
         if: steps.version-check.outputs.version-changed == 'true'
-        run: npm publish
+        run: npm publish --provenance
         working-directory: packages/create-deco
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create Release
         if: steps.version-check.outputs.version-changed == 'true'

@@ -35,6 +35,11 @@
   "engines": {
     "node": ">=24.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/decocms/mesh.git",
+    "directory": "packages/bindings"
+  },
   "publishConfig": {
     "access": "public"
   }

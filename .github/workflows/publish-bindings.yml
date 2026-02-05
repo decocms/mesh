@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   publish:
@@ -22,6 +23,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Setup Node.js for npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Install dependencies
         run: bun install
 
@@ -31,20 +38,17 @@ jobs:
           # Get the current version from package.json
           CURRENT_VERSION=$(bun -e "console.log(require('./package.json').version)")
 
-          # Try to get the published version from npm (will fail if package doesn't exist)
-          PUBLISHED_VERSION=$(bun info @decocms/bindings version 2>/dev/null || echo "0.0.0")
-
-          echo "Current version: $CURRENT_VERSION"
-          echo "Published version: $PUBLISHED_VERSION"
-          echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-
-          if [ "$CURRENT_VERSION" != "$PUBLISHED_VERSION" ]; then
-            echo "version-changed=true" >> $GITHUB_OUTPUT
-            echo "✅ Version changed ($PUBLISHED_VERSION → $CURRENT_VERSION), will publish"
-          else
+          # Check if this specific version already exists in npm
+          # This works for both stable and prerelease versions (unlike checking 'latest' tag)
+          if npm view @decocms/bindings@$CURRENT_VERSION version >/dev/null 2>&1; then
             echo "version-changed=false" >> $GITHUB_OUTPUT
-            echo "⏭️ Version unchanged ($CURRENT_VERSION), skipping publish"
+            echo "⏭️ Version $CURRENT_VERSION already published, skipping publish"
+          else
+            echo "version-changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Version $CURRENT_VERSION not found in npm, will publish"
           fi
+
+          echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
           # Check if this is a prerelease version (contains a hyphen)
           if [[ "$CURRENT_VERSION" == *-* ]]; then
@@ -58,10 +62,8 @@ jobs:
 
       - name: Publish to npm
         if: steps.version-check.outputs.version-changed == 'true'
-        run: bun publish --access public --tag ${{ steps.version-check.outputs.npm-tag }}
+        run: npm publish --access public --tag ${{ steps.version-check.outputs.npm-tag }} --provenance
         working-directory: packages/bindings
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create Release
         if: steps.version-check.outputs.version-changed == 'true'
