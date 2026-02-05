@@ -5,7 +5,7 @@
  * Used by ProjectLayout to fetch project information based on URL params.
  */
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMCPClient, SELF_MCP_ALIAS_ID } from "@decocms/mesh-sdk";
 import { KEYS } from "../lib/query-keys";
 
@@ -119,23 +119,3 @@ export function useProjects(organizationId: string) {
   });
 }
 
-/**
- * Hook to invalidate project queries
- * Useful after project mutations
- */
-export function useInvalidateProject() {
-  const queryClient = useQueryClient();
-
-  return {
-    invalidateProject: (organizationId: string, slug: string) => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.project(organizationId, slug),
-      });
-    },
-    invalidateProjects: (organizationId: string) => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.projects(organizationId),
-      });
-    },
-  };
-}

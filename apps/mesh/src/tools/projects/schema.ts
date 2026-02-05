@@ -30,7 +30,7 @@ export const partialProjectUISchema = z.object({
 /**
  * Bound connection summary schema (for display in project cards)
  */
-export const boundConnectionSummarySchema = z.object({
+const boundConnectionSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
   icon: z.string().nullable(),
