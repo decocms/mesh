@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useConnection,
   useProjectContext,
   useVirtualMCP,
@@ -264,7 +265,10 @@ function VirtualMcpDetailViewWithData({
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/agents" params={{ org: org.slug }}>
+            <Link
+              to="/$org/$project/agents"
+              params={{ org: org.slug, project: ORG_ADMIN_PROJECT_SLUG }}
+            >
               Agents
             </Link>
           </BreadcrumbLink>
@@ -548,7 +552,7 @@ function VirtualMcpDetailViewWithData({
 
 function VirtualMcpDetailViewContent() {
   const navigate = useNavigate();
-  const params = useParams({ from: "/shell/$org/agents/$agentId" });
+  const params = useParams({ from: "/shell/$org/$project/agents/$agentId" });
   const { org, agentId: virtualMcpId } = params;
 
   const virtualMcp = useVirtualMCP(virtualMcpId);
@@ -564,8 +568,8 @@ function VirtualMcpDetailViewContent() {
               variant="outline"
               onClick={() =>
                 navigate({
-                  to: "/$org/agents",
-                  params: { org },
+                  to: "/$org/$project/agents",
+                  params: { org, project: ORG_ADMIN_PROJECT_SLUG },
                 })
               }
             >

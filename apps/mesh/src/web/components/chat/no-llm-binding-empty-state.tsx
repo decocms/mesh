@@ -5,6 +5,7 @@ import { EmptyState } from "../empty-state";
 import { OPENROUTER_ICON_URL, OPENROUTER_MCP_URL } from "@/core/deco-constants";
 import {
   getWellKnownOpenRouterConnection,
+  ORG_ADMIN_PROJECT_SLUG,
   useConnectionActions,
   useConnections,
 } from "@decocms/mesh-sdk";
@@ -37,8 +38,8 @@ export function NoLlmBindingEmptyState({
 
   const handleInstallMcpServer = () => {
     navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
+      to: "/$org/$project/mcps",
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
       search: { action: "create" },
     });
   };
@@ -58,8 +59,12 @@ export function NoLlmBindingEmptyState({
       if (existingConnection) {
         setDecoChatOpen(false);
         navigate({
-          to: "/$org/mcps/$connectionId",
-          params: { org: org.slug, connectionId: existingConnection.id },
+          to: "/$org/$project/mcps/$connectionId",
+          params: {
+            org: org.slug,
+            project: ORG_ADMIN_PROJECT_SLUG,
+            connectionId: existingConnection.id,
+          },
         });
         return;
       }
@@ -73,8 +78,12 @@ export function NoLlmBindingEmptyState({
 
       setDecoChatOpen(false);
       navigate({
-        to: "/$org/mcps/$connectionId",
-        params: { org: org.slug, connectionId: result.id },
+        to: "/$org/$project/mcps/$connectionId",
+        params: {
+          org: org.slug,
+          project: ORG_ADMIN_PROJECT_SLUG,
+          connectionId: result.id,
+        },
       });
     } catch (error) {
       toast.error(

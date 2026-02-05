@@ -2,11 +2,14 @@ import {
   getWellKnownCommunityRegistryConnection,
   getWellKnownRegistryConnection,
   getWellKnownSelfConnection,
+  ORG_ADMIN_PROJECT_NAME,
+  ORG_ADMIN_PROJECT_SLUG,
 } from "@decocms/mesh-sdk";
 import { getBaseUrl } from "@/core/server-constants";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
 import { ConnectionStorage } from "@/storage/connection";
+import { ProjectsStorage } from "@/storage/projects";
 import { Permission } from "@/storage/types";
 import { fetchToolsFromMCP } from "@/tools/connection/fetch-tools";
 import {
@@ -78,7 +81,7 @@ function getDefaultOrgMcps(organizationId: string): MCPCreationSpec[] {
 }
 
 /**
- * Create default MCP connections for a new organization
+ * Create default MCP connections and org-admin project for a new organization
  * This is deferred to run after the Better Auth request completes
  * to avoid deadlocks when issuing tokens
  */
@@ -87,7 +90,26 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
     const database = getDb();
     const vault = new CredentialVault(process.env.ENCRYPTION_KEY || "");
     const connectionStorage = new ConnectionStorage(database.db, vault);
+    const projectsStorage = new ProjectsStorage(database.db);
     const defaultOrgMcps = getDefaultOrgMcps(organizationId);
+
+    // Create the org-admin project
+    try {
+      await projectsStorage.create({
+        organizationId,
+        slug: ORG_ADMIN_PROJECT_SLUG,
+        name: ORG_ADMIN_PROJECT_NAME,
+        description: "Organization administration and settings",
+        enabledPlugins: null,
+        ui: null,
+      });
+    } catch (projectError) {
+      // Project might already exist (e.g., race condition), log and continue
+      console.warn(
+        "Could not create org-admin project (may already exist):",
+        projectError,
+      );
+    }
 
     await Promise.all(
       defaultOrgMcps.map(async (mcpConfig) => {

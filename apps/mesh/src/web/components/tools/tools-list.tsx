@@ -4,6 +4,7 @@ import { CollectionTableWrapper } from "@/web/components/collections/collection-
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
+import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ViewActions } from "@/web/components/details/layout";
@@ -68,9 +69,10 @@ export function ToolsList({
       onToolClick(tool);
     } else if (connectionId && org) {
       navigate({
-        to: "/$org/mcps/$connectionId/$collectionName/$itemId",
+        to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
         params: {
           org: org,
+          project: ORG_ADMIN_PROJECT_SLUG,
           connectionId: connectionId,
           collectionName: "tools",
           itemId: encodeURIComponent(tool.name),

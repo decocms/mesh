@@ -44,7 +44,7 @@ function PageHeader({
   return (
     <div
       className={cn(
-        "shrink-0 w-full border-b border-border h-12 overflow-x-auto",
+        "shrink-0 w-full bg-background border-b border-border h-12 overflow-x-auto",
         "flex items-center justify-between gap-3 px-4 min-w-max",
         className,
       )}

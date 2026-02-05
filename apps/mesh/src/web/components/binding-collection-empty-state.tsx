@@ -1,5 +1,6 @@
 import { authClient } from "@/web/lib/auth-client";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useConnectionActions,
   useProjectContext,
   type ConnectionCreateData,
@@ -42,8 +43,12 @@ export function BindingCollectionEmptyState({
 
       // Navigate to the connection detail page for setup
       navigate({
-        to: "/$org/mcps/$connectionId",
-        params: { org: orgSlug, connectionId: created.id },
+        to: "/$org/$project/mcps/$connectionId",
+        params: {
+          org: orgSlug,
+          project: ORG_ADMIN_PROJECT_SLUG,
+          connectionId: created.id,
+        },
       });
     } finally {
       setIsInstalling(false);
@@ -52,8 +57,8 @@ export function BindingCollectionEmptyState({
 
   const handleInstallMcpServer = () => {
     navigate({
-      to: "/$org/mcps",
-      params: { org: orgSlug },
+      to: "/$org/$project/mcps",
+      params: { org: orgSlug, project: ORG_ADMIN_PROJECT_SLUG },
       search: { action: "create" },
     });
   };

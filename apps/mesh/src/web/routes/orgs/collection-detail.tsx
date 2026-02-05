@@ -2,6 +2,7 @@ import { PromptDetailsView } from "@/web/components/details/prompt/index.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useCollectionActions,
   useConnection,
   useMCPClient,
@@ -44,7 +45,7 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
 function ToolDetailsContent() {
   const router = useRouter();
   const params = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
   });
 
   const itemId = decodeURIComponent(params.itemId);
@@ -83,7 +84,7 @@ function formatCollectionName(name: string): string {
 function CollectionDetailsContent() {
   const router = useRouter();
   const params = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
   });
 
   const connectionId = params.connectionId;
@@ -128,7 +129,10 @@ function CollectionDetailsContent() {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org: org.slug }}>
+            <Link
+              to="/$org/$project/mcps"
+              params={{ org: org.slug, project: ORG_ADMIN_PROJECT_SLUG }}
+            >
               Connections
             </Link>
           </BreadcrumbLink>
@@ -139,8 +143,12 @@ function CollectionDetailsContent() {
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link
-                  to="/$org/mcps/$connectionId"
-                  params={{ org: org.slug, connectionId }}
+                  to="/$org/$project/mcps/$connectionId"
+                  params={{
+                    org: org.slug,
+                    project: ORG_ADMIN_PROJECT_SLUG,
+                    connectionId,
+                  }}
                   search={{ tab: collectionName }}
                 >
                   {connection.title}
@@ -184,7 +192,7 @@ function CollectionDetailsContent() {
 
 function CollectionDetailsRouter() {
   const params = useParams({
-    from: "/shell/$org/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
   });
 
   const collectionName = decodeURIComponent(params.collectionName);

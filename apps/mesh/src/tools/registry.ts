@@ -29,7 +29,8 @@ export type ToolCategory =
   | "API Keys"
   | "Event Bus"
   | "Code Execution"
-  | "Tags";
+  | "Tags"
+  | "Projects";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -103,6 +104,14 @@ const ALL_TOOL_NAMES = [
   "TAGS_DELETE",
   "MEMBER_TAGS_GET",
   "MEMBER_TAGS_SET",
+  // Project tools
+  "PROJECT_LIST",
+  "PROJECT_GET",
+  "PROJECT_CREATE",
+  "PROJECT_UPDATE",
+  "PROJECT_DELETE",
+  "PROJECT_PLUGIN_CONFIG_GET",
+  "PROJECT_PLUGIN_CONFIG_UPDATE",
 ] as const;
 
 /**
@@ -444,6 +453,43 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Set member tags",
     category: "Tags",
   },
+  // Project tools
+  {
+    name: "PROJECT_LIST",
+    description: "List projects in organization",
+    category: "Projects",
+  },
+  {
+    name: "PROJECT_GET",
+    description: "View project details",
+    category: "Projects",
+  },
+  {
+    name: "PROJECT_CREATE",
+    description: "Create new project",
+    category: "Projects",
+  },
+  {
+    name: "PROJECT_UPDATE",
+    description: "Update project",
+    category: "Projects",
+  },
+  {
+    name: "PROJECT_DELETE",
+    description: "Delete project",
+    category: "Projects",
+    dangerous: true,
+  },
+  {
+    name: "PROJECT_PLUGIN_CONFIG_GET",
+    description: "View project plugin configuration",
+    category: "Projects",
+  },
+  {
+    name: "PROJECT_PLUGIN_CONFIG_UPDATE",
+    description: "Update project plugin configuration",
+    category: "Projects",
+  },
 ];
 
 /**
@@ -507,6 +553,13 @@ const TOOL_LABELS: Record<ToolName, string> = {
   TAGS_DELETE: "Delete organization tag",
   MEMBER_TAGS_GET: "Get member tags",
   MEMBER_TAGS_SET: "Set member tags",
+  PROJECT_LIST: "List projects",
+  PROJECT_GET: "View project details",
+  PROJECT_CREATE: "Create project",
+  PROJECT_UPDATE: "Update project",
+  PROJECT_DELETE: "Delete project",
+  PROJECT_PLUGIN_CONFIG_GET: "View plugin config",
+  PROJECT_PLUGIN_CONFIG_UPDATE: "Update plugin config",
 };
 
 // ============================================================================
@@ -529,6 +582,7 @@ export function getToolsByCategory() {
     "Event Bus": [],
     "Code Execution": [],
     Tags: [],
+    Projects: [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

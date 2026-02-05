@@ -1,5 +1,11 @@
 import { Page } from "@/web/components/page";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 interface ViewLayoutContextValue {
@@ -36,6 +42,31 @@ export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
   const [tabsEl, setTabsEl] = useState<HTMLDivElement | null>(null);
   const [actionsEl, setActionsEl] = useState<HTMLDivElement | null>(null);
 
+  // Track current values in refs to compare BEFORE calling setState
+  // This prevents setState from being called during commit phase when value hasn't changed
+  const tabsElRef = useRef<HTMLDivElement | null>(null);
+  const actionsElRef = useRef<HTMLDivElement | null>(null);
+
+  const tabsRef = (node: HTMLDivElement | null) => {
+    tabsElRef.current = node;
+    // Only call setState when attaching (node !== null).
+    // Calling setState with null during React's disappearLayoutEffects commit
+    // phase causes an infinite "Maximum update depth exceeded" loop.
+    // When the subtree is hidden, portals inside it are hidden too, so the
+    // stale state value is harmless. On reappear, the ref fires again with
+    // the real node.
+    if (node) {
+      setTabsEl(node);
+    }
+  };
+
+  const actionsRef = (node: HTMLDivElement | null) => {
+    actionsElRef.current = node;
+    if (node) {
+      setActionsEl(node);
+    }
+  };
+
   return (
     <ViewLayoutContext value={{ tabsEl, actionsEl }}>
       <Page>
@@ -47,13 +78,13 @@ export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
           <Page.Header.Right>
             {/* Tabs Slot */}
             <div
-              ref={setTabsEl}
+              ref={tabsRef}
               className="flex items-center gap-2 overflow-x-auto min-w-0"
             />
 
             {/* Actions Slot */}
             <div
-              ref={setActionsEl}
+              ref={actionsRef}
               className="flex items-center gap-2 shrink-0"
             />
           </Page.Header.Right>

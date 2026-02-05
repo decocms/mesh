@@ -11,7 +11,11 @@ import {
   ToggleGroupItem,
 } from "@deco/ui/components/toggle-group.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  ORG_ADMIN_PROJECT_SLUG,
+  useConnections,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { Container } from "@untitledui/icons";
 import { useMonitoringLogs } from "./hooks.ts";
@@ -144,8 +148,8 @@ function TopServersContent({
 
   const handleConnectionClick = (connectionId: string) => {
     navigate({
-      to: "/$org/monitoring",
-      params: { org: org.slug },
+      to: "/$org/$project/monitoring",
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
       search: {
         from: "now-24h",
         to: "now",
@@ -157,8 +161,8 @@ function TopServersContent({
 
   const handleTitleClick = () => {
     navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
+      to: "/$org/$project/mcps",
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
 

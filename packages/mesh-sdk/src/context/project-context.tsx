@@ -13,6 +13,7 @@ export type LocatorStructured = {
 };
 
 export const ORG_ADMIN_PROJECT_SLUG = "org-admin";
+export const ORG_ADMIN_PROJECT_NAME = "Organization Admin";
 
 export const Locator = {
   from({ org, project }: LocatorStructured): ProjectLocator {
@@ -40,19 +41,52 @@ export const Locator = {
   },
 } as const;
 
+/**
+ * Project UI customization
+ */
+export interface ProjectUI {
+  banner: string | null;
+  bannerColor: string | null;
+  icon: string | null;
+  themeColor: string | null;
+}
+
+/**
+ * Organization data in context
+ */
+export interface OrganizationData {
+  id: string;
+  name: string;
+  slug: string;
+  logo: string | null;
+}
+
+/**
+ * Project data in context
+ * Includes full project info when loaded from storage
+ */
+export interface ProjectData {
+  /** Project ID (only available when loaded from storage) */
+  id?: string;
+  /** Organization ID (only available when loaded from storage) */
+  organizationId?: string;
+  /** Project slug */
+  slug: string;
+  /** Project display name */
+  name?: string;
+  /** Project description */
+  description?: string | null;
+  /** Enabled plugins */
+  enabledPlugins?: string[] | null;
+  /** UI customization */
+  ui?: ProjectUI | null;
+  /** Whether this is the org-admin project */
+  isOrgAdmin?: boolean;
+}
+
 interface ProjectContextType {
-  org: {
-    id: string;
-    name: string;
-    slug: string;
-    logo: string | null;
-  };
-
-  project: {
-    name?: string;
-    slug: string;
-  };
-
+  org: OrganizationData;
+  project: ProjectData;
   locator: ProjectLocator;
 }
 
@@ -69,9 +103,31 @@ export const useProjectContext = () => {
   return context;
 };
 
+/**
+ * Convenience hook to get organization data
+ */
+export const useOrg = () => {
+  return useProjectContext().org;
+};
+
+/**
+ * Convenience hook to get current project data
+ */
+export const useCurrentProject = () => {
+  return useProjectContext().project;
+};
+
+/**
+ * Convenience hook to check if current project is org-admin
+ */
+export const useIsOrgAdmin = () => {
+  const project = useProjectContext().project;
+  return project.isOrgAdmin ?? project.slug === ORG_ADMIN_PROJECT_SLUG;
+};
+
 export type ProjectContextProviderProps = {
-  org: { id: string; slug: string; name: string; logo: string | null };
-  project: { name?: string; slug: string };
+  org: OrganizationData;
+  project: ProjectData;
 };
 
 export const ProjectContextProvider = ({

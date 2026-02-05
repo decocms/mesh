@@ -4,7 +4,7 @@
  * Contains shared types and the ExpandedLogContent component used by LogRow.
  */
 
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -380,9 +380,10 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
     sessionStorage.setItem(`replay-${replayId}`, JSON.stringify(log.input));
     // Navigate to tool page with replayId
     navigate({
-      to: "/$org/mcps/$connectionId/$collectionName/$itemId",
+      to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
       params: {
         org: org.slug,
+        project: ORG_ADMIN_PROJECT_SLUG,
         connectionId: log.connectionId,
         collectionName: "tools",
         itemId: encodeURIComponent(log.toolName),
@@ -467,8 +468,11 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                           value,
                         };
                         navigate({
-                          to: "/$org/monitoring",
-                          params: { org: org.slug },
+                          to: "/$org/$project/monitoring",
+                          params: {
+                            org: org.slug,
+                            project: ORG_ADMIN_PROJECT_SLUG,
+                          },
                           search: {
                             propertyFilters: serializePropertyFilters([filter]),
                           },

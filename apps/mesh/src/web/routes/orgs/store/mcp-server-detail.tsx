@@ -21,6 +21,7 @@ import {
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { usePublisherConnection } from "@/web/hooks/use-publisher-connection";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useConnection,
   useConnections,
   useConnectionActions,
@@ -595,8 +596,12 @@ function StoreMCPServerDetailContent() {
       const { id } = await actions.create.mutateAsync(connectionData);
 
       navigate({
-        to: "/$org/mcps/$connectionId",
-        params: { org: org.slug, connectionId: id },
+        to: "/$org/$project/mcps/$connectionId",
+        params: {
+          org: org.slug,
+          project: ORG_ADMIN_PROJECT_SLUG,
+          connectionId: id,
+        },
       });
     } catch (error) {
       toast.error(
@@ -607,8 +612,8 @@ function StoreMCPServerDetailContent() {
 
   const handleBackClick = () => {
     navigate({
-      to: "/$org/store",
-      params: { org: org.slug },
+      to: "/$org/$project/store",
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
 
@@ -631,7 +636,10 @@ function StoreMCPServerDetailContent() {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/store" params={{ org: org.slug }}>
+            <Link
+              to="/$org/$project/store"
+              params={{ org: org.slug, project: ORG_ADMIN_PROJECT_SLUG }}
+            >
               Store
             </Link>
           </BreadcrumbLink>
@@ -729,8 +737,8 @@ export default function StoreMCPServerDetail() {
 
   const handleBackClick = () => {
     navigate({
-      to: "/$org/store",
-      params: { org: org.slug },
+      to: "/$org/$project/store",
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
 

@@ -68,6 +68,7 @@ import {
 } from "@deco/ui/components/select.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useConnectionActions,
   useConnections,
   useMCPClient,
@@ -437,14 +438,18 @@ function OrgMcpsContent() {
 
   const openCreateDialog = () => {
     navigate({
-      to: "/$org/mcps",
-      params: { org: org.slug },
+      to: "/$org/$project/mcps",
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
       search: { action: "create" },
     });
   };
 
   const closeCreateDialog = () => {
-    navigate({ to: "/$org/mcps", params: { org: org.slug }, search: {} });
+    navigate({
+      to: "/$org/$project/mcps",
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
+      search: {},
+    });
   };
 
   // React Hook Form setup
@@ -659,8 +664,12 @@ function OrgMcpsContent() {
     closeCreateDialog();
     form.reset();
     navigate({
-      to: "/$org/mcps/$connectionId",
-      params: { org: org.slug, connectionId: newId },
+      to: "/$org/$project/mcps/$connectionId",
+      params: {
+        org: org.slug,
+        project: ORG_ADMIN_PROJECT_SLUG,
+        connectionId: newId,
+      },
     });
   };
 
@@ -861,8 +870,12 @@ function OrgMcpsContent() {
               onClick={(e) => {
                 e.stopPropagation();
                 navigate({
-                  to: "/$org/mcps/$connectionId",
-                  params: { org: org.slug, connectionId: connection.id },
+                  to: "/$org/$project/mcps/$connectionId",
+                  params: {
+                    org: org.slug,
+                    project: ORG_ADMIN_PROJECT_SLUG,
+                    connectionId: connection.id,
+                  },
                 });
               }}
             >
@@ -891,7 +904,10 @@ function OrgMcpsContent() {
       <Button
         variant="outline"
         onClick={() =>
-          navigate({ to: "/$org/store", params: { org: org.slug } })
+          navigate({
+            to: "/$org/$project/store",
+            params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
+          })
         }
         size="sm"
         className="h-7 px-3 rounded-lg text-sm font-medium"
@@ -1347,8 +1363,11 @@ function OrgMcpsContent() {
                       variant="outline"
                       onClick={() =>
                         navigate({
-                          to: "/$org/store",
-                          params: { org: org.slug },
+                          to: "/$org/$project/store",
+                          params: {
+                            org: org.slug,
+                            project: ORG_ADMIN_PROJECT_SLUG,
+                          },
                         })
                       }
                     >
@@ -1366,8 +1385,12 @@ function OrgMcpsContent() {
                     fallbackIcon={<Container />}
                     onClick={() =>
                       navigate({
-                        to: "/$org/mcps/$connectionId",
-                        params: { org: org.slug, connectionId: connection.id },
+                        to: "/$org/$project/mcps/$connectionId",
+                        params: {
+                          org: org.slug,
+                          project: ORG_ADMIN_PROJECT_SLUG,
+                          connectionId: connection.id,
+                        },
                       })
                     }
                     headerActions={
@@ -1390,9 +1413,10 @@ function OrgMcpsContent() {
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate({
-                                to: "/$org/mcps/$connectionId",
+                                to: "/$org/$project/mcps/$connectionId",
                                 params: {
                                   org: org.slug,
+                                  project: ORG_ADMIN_PROJECT_SLUG,
                                   connectionId: connection.id,
                                 },
                               });
@@ -1448,8 +1472,12 @@ function OrgMcpsContent() {
                   onSort={listState.handleSort}
                   onRowClick={(connection) =>
                     navigate({
-                      to: "/$org/mcps/$connectionId",
-                      params: { org: org.slug, connectionId: connection.id },
+                      to: "/$org/$project/mcps/$connectionId",
+                      params: {
+                        org: org.slug,
+                        project: ORG_ADMIN_PROJECT_SLUG,
+                        connectionId: connection.id,
+                      },
                     })
                   }
                   emptyState={
@@ -1485,8 +1513,11 @@ function OrgMcpsContent() {
                             variant="outline"
                             onClick={() =>
                               navigate({
-                                to: "/$org/store",
-                                params: { org: org.slug },
+                                to: "/$org/$project/store",
+                                params: {
+                                  org: org.slug,
+                                  project: ORG_ADMIN_PROJECT_SLUG,
+                                },
                               })
                             }
                           >

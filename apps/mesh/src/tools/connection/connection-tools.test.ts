@@ -81,6 +81,8 @@ describe("Connection Tools", () => {
         virtualMcps: null as never,
         users: null as never,
         tags: null as never,
+        projects: null as never,
+        projectPluginConfigs: null as never,
       },
       vault,
       authInstance: null as never,

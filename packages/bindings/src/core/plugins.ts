@@ -18,6 +18,13 @@ export interface RegisterRootSidebarItemParams {
   label: string;
 }
 
+export interface RegisterSidebarGroupParams {
+  id: string;
+  label: string;
+  items: RegisterRootSidebarItemParams[];
+  defaultExpanded?: boolean;
+}
+
 export interface RegisterEmptyStateParams {
   component: ReactNode;
 }
@@ -29,6 +36,7 @@ export interface PluginSetupContext {
     lazyRouteComponent: typeof lazyRouteComponent;
   };
   registerRootSidebarItem: (params: RegisterRootSidebarItemParams) => void;
+  registerSidebarGroup: (params: RegisterSidebarGroupParams) => void;
   registerPluginRoutes: (route: AnyRoute[]) => void;
 }
 

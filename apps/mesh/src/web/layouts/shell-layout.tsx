@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Chat } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
+import { CreateProjectDialog } from "@/web/components/create-project-dialog";
 import { MeshSidebar } from "@/web/components/sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
 import { SplashScreen } from "@/web/components/splash-screen";
+import { ProjectTopbar } from "@/web/components/topbar/project-topbar";
 import { MeshUserMenu } from "@/web/components/user-menu";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
@@ -152,7 +155,7 @@ function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
       </ResizablePanel>
       {!disableChat && (
         <>
-          <ResizableHandle withHandle={chatOpen} className="border-l-1" />
+          <ResizableHandle withHandle={chatOpen} />
           <PersistentResizablePanel
             className={cn(chatOpen ? "max-w-none" : "max-w-0")}
           >
@@ -165,13 +168,17 @@ function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
 }
 
 function ShellLayoutContent() {
-  const { org } = useParams({ strict: false });
+  const { org, project } = useParams({ strict: false });
   const routerState = useRouterState();
+  const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
 
-  // Check if we're on the home route (/$org)
+  // Check if we're on the project home route (/$org/$project)
   const isHomeRoute =
-    routerState.location.pathname === `/${org}` ||
-    routerState.location.pathname === `/${org}/`;
+    routerState.location.pathname === `/${org}/${project}` ||
+    routerState.location.pathname === `/${org}/${project}/`;
+
+  // Use project slug from URL params, fallback to org-admin
+  const projectSlug = project ?? ORG_ADMIN_PROJECT_SLUG;
 
   const { data: projectContext } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),
@@ -186,7 +193,11 @@ function ShellLayoutContent() {
 
       return {
         org: data,
-        project: { slug: ORG_ADMIN_PROJECT_SLUG },
+        // Project slug comes from URL param, actual project data is fetched in project-layout
+        project: {
+          slug: projectSlug,
+          isOrgAdmin: projectSlug === ORG_ADMIN_PROJECT_SLUG,
+        },
       } as ProjectContextProviderProps;
     },
     gcTime: Infinity,
@@ -195,7 +206,6 @@ function ShellLayoutContent() {
     refetchOnMount: false,
   });
 
-  // Should use "project ?? org-admin" when projects are introduced
   if (!projectContext) {
     return (
       <div className="min-h-screen bg-background">
@@ -216,10 +226,28 @@ function ShellLayoutContent() {
     return null;
   }
 
+  // Update project context with current project slug from URL
+  const contextWithCurrentProject = {
+    ...projectContext,
+    project: {
+      ...projectContext.project,
+      slug: projectSlug,
+      isOrgAdmin: projectSlug === ORG_ADMIN_PROJECT_SLUG,
+    },
+  };
+
   return (
-    <ProjectContextProvider {...projectContext}>
+    <ProjectContextProvider {...contextWithCurrentProject}>
       <PersistentSidebarProvider>
-        <div className="flex flex-col h-screen">
+        <div
+          className="flex flex-col h-screen"
+          style={
+            {
+              "--project-topbar-height":
+                projectSlug === ORG_ADMIN_PROJECT_SLUG ? "0px" : "48px",
+            } as React.CSSProperties
+          }
+        >
           <style>{`
             [data-slot="sidebar-container"] {
               top: 0 !important;
@@ -238,14 +266,25 @@ function ShellLayoutContent() {
                 } as Record<string, string>
               }
             >
-              <MeshSidebar />
-              <SidebarInset>
-                <ChatPanels disableChat={isHomeRoute} />
+              <MeshSidebar
+                onCreateProject={() => setCreateProjectDialogOpen(true)}
+              />
+              <SidebarInset className="flex flex-col">
+                <ProjectTopbar />
+                <div className="flex-1 overflow-hidden">
+                  <ChatPanels disableChat={isHomeRoute} />
+                </div>
               </SidebarInset>
             </SidebarLayout>
           </Chat.Provider>
         </div>
       </PersistentSidebarProvider>
+
+      {/* Create Project Dialog */}
+      <CreateProjectDialog
+        open={createProjectDialogOpen}
+        onOpenChange={setCreateProjectDialogOpen}
+      />
     </ProjectContextProvider>
   );
 }

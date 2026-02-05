@@ -23,6 +23,7 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useCollectionActions,
   useCollectionList,
   useMCPClient,
@@ -98,9 +99,10 @@ export function CollectionTab({
   // Create action handlers
   const handleEdit = (item: BaseCollectionEntity) => {
     navigate({
-      to: "/$org/mcps/$connectionId/$collectionName/$itemId",
+      to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
       params: {
         org,
+        project: ORG_ADMIN_PROJECT_SLUG,
         connectionId,
         collectionName,
         itemId: item.id,
@@ -165,9 +167,10 @@ export function CollectionTab({
 
       // Navigate to the new item's detail page
       navigate({
-        to: "/$org/mcps/$connectionId/$collectionName/$itemId",
+        to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
         params: {
           org,
+          project: ORG_ADMIN_PROJECT_SLUG,
           connectionId,
           collectionName,
           itemId: createdItem.id,

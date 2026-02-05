@@ -230,6 +230,8 @@ import type { OrganizationSettingsStorage } from "../storage/organization-settin
 import type { TagStorage } from "../storage/tags";
 import type { UserStorage } from "../storage/user";
 import type { VirtualMCPStorage } from "../storage/virtual";
+import type { ProjectsStorage } from "../storage/projects";
+import type { ProjectPluginConfigsStorage } from "../storage/project-plugin-configs";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
@@ -254,6 +256,8 @@ export interface MeshStorage {
   users: UserStorage;
   threads: SqlThreadStorage;
   tags: TagStorage;
+  projects: ProjectsStorage;
+  projectPluginConfigs: ProjectPluginConfigsStorage;
 }
 
 // ============================================================================

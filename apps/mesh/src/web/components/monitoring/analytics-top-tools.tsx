@@ -7,7 +7,11 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
 import { ChartContainer, ChartTooltip } from "@deco/ui/components/chart.tsx";
-import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  ORG_ADMIN_PROJECT_SLUG,
+  useConnections,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { Container } from "@untitledui/icons";
 import { Line, LineChart } from "recharts";
@@ -124,8 +128,8 @@ function TopToolsContent(_props: TopToolsContentProps) {
 
   const handleTitleClick = () => {
     navigate({
-      to: "/$org/monitoring",
-      params: { org: org.slug },
+      to: "/$org/$project/monitoring",
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
 
