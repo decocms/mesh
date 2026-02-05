@@ -75,7 +75,3 @@ export function OrgPanel({
     </div>
   );
 }
-
-export function useOrganizations() {
-  return authClient.useListOrganizations();
-}
