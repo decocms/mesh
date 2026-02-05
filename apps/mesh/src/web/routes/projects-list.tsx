@@ -85,11 +85,11 @@ export default function ProjectsListPage() {
         {/* Loading State */}
         {isLoading && (
           <div className="p-5">
-            <div className="grid grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 @lg:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-[240px] min-w-[300px] rounded-xl bg-muted animate-pulse"
+                  className="h-[240px] rounded-xl bg-muted animate-pulse"
                 />
               ))}
             </div>
@@ -124,7 +124,7 @@ export default function ProjectsListPage() {
         {/* Card Grid */}
         {!isLoading && userProjects.length > 0 && (
           <div className="p-5">
-            <div className="grid grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 @lg:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4 gap-4">
               {userProjects.map((project) => (
                 <ProjectCard
                   key={project.id}

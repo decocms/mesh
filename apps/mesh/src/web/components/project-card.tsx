@@ -40,7 +40,7 @@ export function ProjectCard({ project, onSettingsClick }: ProjectCardProps) {
     <Link
       to="/$org/$project"
       params={{ org: org.slug, project: project.slug }}
-      className="block group min-w-[300px]"
+      className="block group"
     >
       <div className="border border-border rounded-xl overflow-hidden bg-card">
         {/* Banner */}
