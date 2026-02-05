@@ -46,12 +46,11 @@ const MCP_SERVERS = [
   { url: "https://mcp.supabase.com/mcp", name: "Supabase" },
   { url: "https://api.grain.com/_/mcp", name: "Grain" },
   { url: "https://mcp.apify.com/", name: "Apify" },
+  { url: "https://mcp.postman.com/mcp", name: "Postman" },
 ];
 
 /** MCP servers that DON'T support OAuth - should return 401 without WWW-Authenticate */
-const NO_OAUTH_SERVERS = [
-  { url: "https://mcp.postman.com/mcp", name: "Postman" },
-];
+const NO_OAUTH_SERVERS: { url: string; name: string }[] = [];
 
 interface ProtectedResourceMetadata {
   resource?: string;
