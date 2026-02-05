@@ -524,8 +524,12 @@ export function ChatProvider({ children }: PropsWithChildren) {
     string | null
   >(`${locator}:selected-virtual-mcp-id`, null);
 
-  // Model state
-  const modelsConnections = useModelConnections();
+  // Model state — filter out connections where the user's role allows no models
+  const allModelsConnections = useModelConnections();
+  const { hasConnectionModels } = useAllowedModels();
+  const modelsConnections = allModelsConnections.filter((conn) =>
+    hasConnectionModels(conn.id),
+  );
   const [selectedModel, setModel] = useModelState(locator, modelsConnections);
 
   // Mode state
