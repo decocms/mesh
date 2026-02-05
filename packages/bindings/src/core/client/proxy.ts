@@ -111,7 +111,17 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
             )}`,
           );
         }
-        return structuredContent;
+
+        // Prefer structuredContent, but fall back to parsing content[0].text
+        // structuredContent may be undefined if the response doesn't include it
+        // (e.g., SDK version mismatch, schema parsing stripping unknown fields)
+        if (structuredContent !== undefined) {
+          return structuredContent;
+        }
+        const textContent = (content as { text: string }[])?.[0]?.text;
+        return typeof textContent === "string"
+          ? safeParse(textContent)
+          : undefined;
       }
 
       async function listToolsFn() {

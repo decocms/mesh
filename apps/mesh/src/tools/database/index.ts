@@ -107,10 +107,12 @@ function isRoleOrSchemaNotFoundError(error: unknown): boolean {
     // PostgreSQL error codes:
     // 3F000 - invalid_schema_name (schema doesn't exist)
     // 42704 - undefined_object (role doesn't exist)
+    // 22023 - invalid_parameter_value (SET LOCAL ROLE with non-existent role)
     const code = (error as { code?: string }).code;
     return (
       code === "3F000" ||
       code === "42704" ||
+      code === "22023" ||
       (msg.includes("schema") && msg.includes("does not exist")) ||
       (msg.includes("role") && msg.includes("does not exist"))
     );
