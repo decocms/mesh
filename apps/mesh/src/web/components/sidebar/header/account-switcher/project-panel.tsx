@@ -106,7 +106,7 @@ function ProjectList({
   onProjectSettings,
   orgSlug,
 }: ProjectListProps) {
-  const { data: projects } = useProjects(organizationId);
+  const { data: projects } = useProjects(organizationId, { suspense: true });
 
   // Filter out org-admin from user projects
   const userProjects =

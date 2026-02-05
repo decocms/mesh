@@ -90,10 +90,12 @@ export function MeshAccountSwitcher({
     });
   };
 
-  const handleCreateProject = () => {
-    setOpen(false);
-    onCreateProject?.();
-  };
+  const handleCreateProject = onCreateProject
+    ? () => {
+        setOpen(false);
+        onCreateProject();
+      }
+    : undefined;
 
   // Reset hovered org when popover closes
   const handleOpenChange = (newOpen: boolean) => {

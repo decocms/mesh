@@ -5,7 +5,7 @@
  * Used by ProjectLayout to fetch project information based on URL params.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useMCPClient, SELF_MCP_ALIAS_ID } from "@decocms/mesh-sdk";
 import { KEYS } from "../lib/query-keys";
 
@@ -90,15 +90,20 @@ export function useProject(organizationId: string, slug: string) {
  * Hook to fetch all projects in an organization
  *
  * @param organizationId - Organization ID
+ * @param options - Optional configuration
+ * @param options.suspense - If true, uses useSuspenseQuery instead of useQuery
  * @returns Query result with projects array
  */
-export function useProjects(organizationId: string) {
+export function useProjects(
+  organizationId: string,
+  options?: { suspense?: boolean },
+) {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: organizationId,
   });
 
-  return useQuery({
+  const queryConfig = {
     queryKey: KEYS.projects(organizationId),
     queryFn: async () => {
       const result = (await client.callTool({
@@ -114,7 +119,15 @@ export function useProjects(organizationId: string) {
         organizationId,
       })) as (ProjectWithBindings & { organizationId: string })[];
     },
-    enabled: !!organizationId,
     staleTime: 30000, // 30 seconds
+  };
+
+  if (options?.suspense) {
+    return useSuspenseQuery(queryConfig);
+  }
+
+  return useQuery({
+    ...queryConfig,
+    enabled: !!organizationId,
   });
 }
