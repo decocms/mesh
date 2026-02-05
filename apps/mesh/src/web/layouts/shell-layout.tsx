@@ -207,6 +207,15 @@ function ShellLayoutContent() {
     );
   }
 
+  // If org parameter exists but organization is invalid/doesn't exist, redirect to home
+  if (!projectContext.org) {
+    // Prevent infinite redirect loop - only redirect if not already at home
+    if (window.location.pathname !== "/") {
+      window.location.href = "/";
+    }
+    return null;
+  }
+
   return (
     <ProjectContextProvider {...projectContext}>
       <PersistentSidebarProvider>
