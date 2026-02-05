@@ -14,7 +14,7 @@ import type { Database, Permission } from "@/storage/types";
  * Extract the "models" array from a permission object.
  * Returns undefined if the "models" key is absent (meaning all models are allowed).
  */
-export function extractModelPermissions(
+function extractModelPermissions(
   permission: Permission | undefined | null,
 ): string[] | undefined {
   if (!permission) return undefined;
