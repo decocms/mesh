@@ -21,6 +21,42 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 
 /**
+ * Error display for when a project request fails
+ */
+function ProjectRequestError({
+  projectSlug,
+  orgSlug,
+  error,
+}: {
+  projectSlug: string;
+  orgSlug: string;
+  error: Error;
+}) {
+  const navigate = useNavigate();
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+      <h1 className="text-xl font-semibold">Failed to load project</h1>
+      <p className="text-muted-foreground text-center">
+        There was an error loading the project "{projectSlug}".
+      </p>
+      <p className="text-sm text-muted-foreground">{error.message}</p>
+      <Button
+        variant="link"
+        onClick={() =>
+          navigate({
+            to: "/$org/$project",
+            params: { org: orgSlug, project: ORG_ADMIN_PROJECT_SLUG },
+          })
+        }
+      >
+        Go to organization home
+      </Button>
+    </div>
+  );
+}
+
+/**
  * Error display for when a project is not found
  */
 function ProjectNotFoundError({
@@ -72,33 +108,33 @@ function ProjectLayoutContent() {
     return <SplashScreen />;
   }
 
-  // Error handling - project not found
-  // Note: For org-admin project, we allow it even if not in storage since it may be virtual
-  if ((error || !project) && projectSlug !== ORG_ADMIN_PROJECT_SLUG) {
+  // Error handling - request failed (network/permission errors)
+  if (error) {
+    return (
+      <ProjectRequestError
+        projectSlug={projectSlug}
+        orgSlug={orgSlug}
+        error={error}
+      />
+    );
+  }
+
+  // Project not found
+  if (!project) {
     return <ProjectNotFoundError projectSlug={projectSlug} orgSlug={orgSlug} />;
   }
 
   // Build enhanced context value with full project data
-  const enhancedProject = project
-    ? {
-        id: project.id,
-        organizationId: project.organizationId,
-        slug: project.slug,
-        name: project.name,
-        description: project.description,
-        enabledPlugins: project.enabledPlugins,
-        ui: project.ui,
-        isOrgAdmin: project.slug === ORG_ADMIN_PROJECT_SLUG,
-      }
-    : {
-        // Fallback for org-admin when not stored in DB
-        slug: projectSlug,
-        name:
-          projectSlug === ORG_ADMIN_PROJECT_SLUG
-            ? "Organization Admin"
-            : projectSlug,
-        isOrgAdmin: projectSlug === ORG_ADMIN_PROJECT_SLUG,
-      };
+  const enhancedProject = {
+    id: project.id,
+    organizationId: project.organizationId,
+    slug: project.slug,
+    name: project.name,
+    description: project.description,
+    enabledPlugins: project.enabledPlugins,
+    ui: project.ui,
+    isOrgAdmin: project.slug === ORG_ADMIN_PROJECT_SLUG,
+  };
 
   return (
     <ProjectContextProvider org={org} project={enhancedProject}>

@@ -26,11 +26,12 @@ import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
 import { KEYS } from "@/web/lib/query-keys";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
+  SELF_MCP_ALIAS_ID,
   useConnections,
   useMCPClient,
   useProjectContext,
   useVirtualMCPs,
-  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -1027,7 +1028,7 @@ export default function MonitoringDashboard() {
   const updateFilters = (updates: Partial<MonitoringSearchParams>) => {
     navigate({
       to: "/$org/$project/monitoring",
-      params: { org: org.slug, project: "org-admin" },
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
       search: {
         ...search,
         ...updates,

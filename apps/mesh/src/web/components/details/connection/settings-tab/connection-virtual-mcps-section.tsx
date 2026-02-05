@@ -1,4 +1,5 @@
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useVirtualMCPActions,
   useVirtualMCPs,
   type VirtualMCPEntity,
@@ -25,7 +26,7 @@ function VirtualMCPListItem({
   return (
     <Link
       to="/$org/$project/agents/$agentId"
-      params={{ org, project: "org-admin", agentId: virtualMcp.id }}
+      params={{ org, project: ORG_ADMIN_PROJECT_SLUG, agentId: virtualMcp.id }}
       className="flex items-center gap-3 p-2 pr-1 rounded-lg hover:bg-muted/50 transition-colors group"
     >
       {virtualMcp.icon ? (
@@ -86,7 +87,7 @@ function CreateVirtualMCPButton({
 
     navigate({
       to: "/$org/$project/agents/$agentId",
-      params: { org, project: "org-admin", agentId: result.id },
+      params: { org, project: ORG_ADMIN_PROJECT_SLUG, agentId: result.id },
     });
   };
 

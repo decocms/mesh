@@ -7,7 +7,11 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useProjectContext, useVirtualMCPs } from "@decocms/mesh-sdk";
+import {
+  ORG_ADMIN_PROJECT_SLUG,
+  useProjectContext,
+  useVirtualMCPs,
+} from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { Users03 } from "@untitledui/icons";
 import { useMonitoringLogs } from "./hooks.ts";
@@ -147,7 +151,7 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
   const handleVirtualMcpClick = (virtualMcpId: string) => {
     navigate({
       to: "/$org/$project/monitoring",
-      params: { org: org.slug, project: "org-admin" },
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
       search: {
         from: "now-24h",
         to: "now",
@@ -160,7 +164,7 @@ function TopAgentsContent({ metricsMode }: TopAgentsContentProps) {
   const handleTitleClick = () => {
     navigate({
       to: "/$org/$project/agents",
-      params: { org: org.slug, project: "org-admin" },
+      params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
 

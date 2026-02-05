@@ -49,13 +49,17 @@ export const PROJECT_PLUGIN_CONFIG_UPDATE = defineTool({
     const userId = getUserId(ctx);
 
     const project = await ctx.storage.projects.get(projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
     const connectionExists = connectionId
       ? await ctx.storage.connections.findById(connectionId)
       : null;
 
     if (
       connectionId &&
-      project?.organizationId &&
+      project.organizationId &&
       !connectionExists &&
       isDevMode()
     ) {

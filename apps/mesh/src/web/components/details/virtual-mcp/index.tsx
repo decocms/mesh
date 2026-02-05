@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useConnection,
   useProjectContext,
   useVirtualMCP,
@@ -266,7 +267,7 @@ function VirtualMcpDetailViewWithData({
           <BreadcrumbLink asChild>
             <Link
               to="/$org/$project/agents"
-              params={{ org: org.slug, project: "org-admin" }}
+              params={{ org: org.slug, project: ORG_ADMIN_PROJECT_SLUG }}
             >
               Agents
             </Link>
@@ -568,7 +569,7 @@ function VirtualMcpDetailViewContent() {
               onClick={() =>
                 navigate({
                   to: "/$org/$project/agents",
-                  params: { org, project: "org-admin" },
+                  params: { org, project: ORG_ADMIN_PROJECT_SLUG },
                 })
               }
             >

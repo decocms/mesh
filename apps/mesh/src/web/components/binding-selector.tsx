@@ -134,11 +134,14 @@ export function BindingSelector({
   const handleCreateConnection = async () => {
     if (canInstallInline && bindingType) {
       setIsLocalInstalling(true);
-      // installByBinding handles error notifications globally via mutation hooks
-      const result = await installByBinding(bindingType);
-      setIsLocalInstalling(false);
-      if (result) {
-        onValueChange(result.id);
+      try {
+        // installByBinding handles error notifications globally via mutation hooks
+        const result = await installByBinding(bindingType);
+        if (result) {
+          onValueChange(result.id);
+        }
+      } finally {
+        setIsLocalInstalling(false);
       }
       return;
     }

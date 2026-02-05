@@ -2,6 +2,7 @@ import { PromptDetailsView } from "@/web/components/details/prompt/index.tsx";
 import { ToolDetailsView } from "@/web/components/details/tool.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
+  ORG_ADMIN_PROJECT_SLUG,
   useCollectionActions,
   useConnection,
   useMCPClient,
@@ -130,7 +131,7 @@ function CollectionDetailsContent() {
           <BreadcrumbLink asChild>
             <Link
               to="/$org/$project/mcps"
-              params={{ org: org.slug, project: "org-admin" }}
+              params={{ org: org.slug, project: ORG_ADMIN_PROJECT_SLUG }}
             >
               Connections
             </Link>
@@ -143,7 +144,11 @@ function CollectionDetailsContent() {
               <BreadcrumbLink asChild>
                 <Link
                   to="/$org/$project/mcps/$connectionId"
-                  params={{ org: org.slug, project: "org-admin", connectionId }}
+                  params={{
+                    org: org.slug,
+                    project: ORG_ADMIN_PROJECT_SLUG,
+                    connectionId,
+                  }}
                   search={{ tab: collectionName }}
                 >
                   {connection.title}

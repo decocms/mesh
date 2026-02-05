@@ -26,6 +26,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import {
   isStdioParameters,
+  ORG_ADMIN_PROJECT_SLUG,
   useConnection,
   useConnectionActions,
   useMCPClient,
@@ -498,7 +499,7 @@ function ConnectionInspectorViewWithConnection({
           <BreadcrumbLink asChild>
             <Link
               to="/$org/$project/mcps"
-              params={{ org, project: "org-admin" }}
+              params={{ org, project: ORG_ADMIN_PROJECT_SLUG }}
             >
               Connections
             </Link>
