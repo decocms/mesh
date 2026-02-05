@@ -70,27 +70,6 @@ interface CodePayload {
   codeChallengeMethod?: string;
 }
 
-/**
- * OAuth 2.0/2.1 Token Request Parameters
- * Per RFC 6749 (OAuth 2.0) and RFC 9207 (OAuth 2.1)
- * All parameters are strings when properly formatted
- * @see https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3
- */
-interface OAuthTokenRequestBody {
-  /** REQUIRED for authorization_code grant - The authorization code from callback */
-  code?: string;
-  /** OPTIONAL - PKCE code verifier (RFC 7636) */
-  code_verifier?: string;
-  /** REQUIRED - Grant type: "authorization_code" or "refresh_token" */
-  grant_type?: string;
-  /** REQUIRED for refresh_token grant - The refresh token */
-  refresh_token?: string;
-  /** OPTIONAL - Redirect URI used in authorization request */
-  redirect_uri?: string;
-  /** Additional provider-specific parameters */
-  [key: string]: unknown;
-}
-
 const forceHttps = (url: URL) => {
   const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
   if (!isLocal) {

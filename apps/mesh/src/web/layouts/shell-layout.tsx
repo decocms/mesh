@@ -239,7 +239,15 @@ function ShellLayoutContent() {
   return (
     <ProjectContextProvider {...contextWithCurrentProject}>
       <PersistentSidebarProvider>
-        <div className="flex flex-col h-screen">
+        <div
+          className="flex flex-col h-screen"
+          style={
+            {
+              "--project-topbar-height":
+                projectSlug === ORG_ADMIN_PROJECT_SLUG ? "0px" : "48px",
+            } as React.CSSProperties
+          }
+        >
           <style>{`
             [data-slot="sidebar-container"] {
               top: 0 !important;
