@@ -14,7 +14,6 @@ import {
   isDevMode,
 } from "../connection/dev-assets";
 import { getBaseUrl } from "../../core/server-constants";
-import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 
 export const PROJECT_PLUGIN_CONFIG_UPDATE = defineTool({
   name: "PROJECT_PLUGIN_CONFIG_UPDATE" as const,
@@ -49,39 +48,28 @@ export const PROJECT_PLUGIN_CONFIG_UPDATE = defineTool({
     const { projectId, pluginId, connectionId, settings } = input;
     const userId = getUserId(ctx);
 
-    const projectRow = await ctx.db
-      .selectFrom("projects")
-      .select(["id", "organization_id"])
-      .where("id", "=", projectId)
-      .executeTakeFirst();
+    const project = await ctx.storage.projects.get(projectId);
     const connectionExists = connectionId
-      ? await ctx.db
-          .selectFrom("connections")
-          .select(["id"])
-          .where("id", "=", connectionId)
-          .executeTakeFirst()
+      ? await ctx.storage.connections.findById(connectionId)
       : null;
 
     if (
       connectionId &&
-      projectRow?.organization_id &&
+      project?.organizationId &&
       !connectionExists &&
       isDevMode()
     ) {
-      const devAssetsId = WellKnownOrgMCPId.DEV_ASSETS(
-        projectRow.organization_id,
-      );
-      if (isDevAssetsConnection(connectionId, projectRow.organization_id)) {
+      if (isDevAssetsConnection(connectionId, project.organizationId)) {
         if (!userId) {
           throw new Error("User ID required to create dev-assets connection");
         }
         const devAssetsConnection = createDevAssetsConnectionEntity(
-          projectRow.organization_id,
+          project.organizationId,
           getBaseUrl(),
         );
         await ctx.storage.connections.create({
           ...devAssetsConnection,
-          organization_id: projectRow.organization_id,
+          organization_id: project.organizationId,
           created_by: userId,
         });
       }
@@ -95,18 +83,6 @@ export const PROJECT_PLUGIN_CONFIG_UPDATE = defineTool({
         settings,
       },
     );
-
-    logDebug({
-      runId: "debug",
-      hypothesisId: "H4",
-      location: "plugin-config-update.ts:93",
-      message: "PROJECT_PLUGIN_CONFIG_UPDATE success",
-      data: {
-        configId: config.id,
-        configProjectId: config.projectId,
-        configConnectionId: config.connectionId,
-      },
-    });
 
     return {
       config: {
