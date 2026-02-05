@@ -125,8 +125,8 @@ export function ProjectCard({ project, onSettingsClick }: ProjectCardProps) {
               <Avatar
                 url={org.logo ?? undefined}
                 fallback={org.name}
-                size="xs"
-                className="size-4 shrink-0 rounded"
+                size="2xs"
+                className="shrink-0 rounded"
                 objectFit="cover"
               />
               <span className="truncate max-w-20">{org.name}</span>
