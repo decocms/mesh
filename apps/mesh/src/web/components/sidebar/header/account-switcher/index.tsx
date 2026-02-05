@@ -12,6 +12,7 @@ import { ChevronDown, ChevronSelectorVertical } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
+import { ENABLE_PROJECTS } from "@/web/lib/feature-flags";
 import { UserPanel } from "./user-panel";
 import { OrgPanel } from "./org-panel";
 import { ProjectPanel } from "./project-panel";
@@ -193,7 +194,7 @@ export function MeshAccountSwitcher({
           />
 
           {/* Project panel - shows projects for hovered org */}
-          {hoveredOrg && (
+          {ENABLE_PROJECTS && hoveredOrg && (
             <ProjectPanel
               organizationId={hoveredOrg.id}
               organizationName={hoveredOrg.name}

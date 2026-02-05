@@ -1,5 +1,6 @@
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useProjectSidebarItems } from "@/web/hooks/use-project-sidebar-items";
+import { ENABLE_PROJECTS } from "@/web/lib/feature-flags";
 import { Locator, useProjectContext } from "@decocms/mesh-sdk";
 import { Suspense } from "react";
 import { NavigationSidebar } from "./navigation";
@@ -37,7 +38,13 @@ export function MeshSidebar({ onCreateProject }: MeshSidebarProps) {
       additionalContent={
         <ErrorBoundary>
           <Suspense fallback={null}>
-            {isOrgAdmin ? <SidebarProjectsSection /> : <SidebarItemsSection />}
+            {isOrgAdmin ? (
+              ENABLE_PROJECTS ? (
+                <SidebarProjectsSection />
+              ) : null
+            ) : (
+              <SidebarItemsSection />
+            )}
           </Suspense>
         </ErrorBoundary>
       }

@@ -4,6 +4,7 @@ import type {
   NavigationSidebarItem,
   SidebarSection,
 } from "@/web/components/sidebar/types";
+import { ENABLE_PROJECTS } from "@/web/lib/feature-flags";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
@@ -126,6 +127,17 @@ export function useProjectSidebarItems(): SidebarSection[] {
       }),
   };
 
+  const workflowsItem: NavigationSidebarItem = {
+    key: "workflows",
+    label: "Workflows",
+    icon: <Dataflow03 />,
+    onClick: () =>
+      navigate({
+        to: "/$org/$project/workflows",
+        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
+      }),
+  };
+
   const membersItem: NavigationSidebarItem = {
     key: "members",
     label: "Members",
@@ -142,7 +154,8 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const orgAdminItems: NavigationSidebarItem[] = [
     tasksItem,
     connectionsItem,
-    projectsItem,
+    workflowsItem,
+    ...(ENABLE_PROJECTS ? [projectsItem] : []),
     storeItem,
     agentsItem,
     monitorItem,
@@ -242,7 +255,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
       }),
   };
 
-  const workflowsItem: NavigationSidebarItem = {
+  const projectWorkflowsItem: NavigationSidebarItem = {
     key: "workflows",
     label: "Workflows",
     icon: <Dataflow03 />,
@@ -262,7 +275,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const projectItems: NavigationSidebarItem[] = [
     homeItem,
     projectTasksItem,
-    workflowsItem,
+    projectWorkflowsItem,
   ];
 
   const sections: SidebarSection[] = [{ type: "items", items: projectItems }];
