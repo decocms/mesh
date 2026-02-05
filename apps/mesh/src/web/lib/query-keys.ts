@@ -62,6 +62,10 @@ export const KEYS = {
   // Models list (scoped by organization)
   modelsList: (orgId: string) => ["models-list", orgId] as const,
 
+  // Allowed models for current user (scoped by organization)
+  allowedModels: (locator: ProjectLocator) =>
+    [locator, "allowed-models"] as const,
+
   // Collections (scoped by connection)
   connectionCollections: (connectionId: string) =>
     [connectionId, "collections", "discovery"] as const,

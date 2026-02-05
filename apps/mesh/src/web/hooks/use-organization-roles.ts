@@ -34,6 +34,9 @@ export interface OrganizationRole {
   toolCount?: number;
   allowsAllConnections?: boolean;
   allowsAllTools?: boolean;
+  // Model permissions (under "models" key)
+  modelCount?: number;
+  allowsAllModels?: boolean;
 }
 
 /**
@@ -51,6 +54,9 @@ function parsePermission(
   allowsAllConnections: boolean;
   toolNames: string[];
   allowsAllTools: boolean;
+  // Model permissions (under "models")
+  modelCount: number;
+  allowsAllModels: boolean;
 } {
   if (!permission) {
     return {
@@ -60,6 +66,8 @@ function parsePermission(
       allowsAllConnections: false,
       toolNames: [],
       allowsAllTools: false,
+      modelCount: 0,
+      allowsAllModels: false,
     };
   }
 
@@ -69,6 +77,8 @@ function parsePermission(
   let allowsAllConnections = false;
   const toolNamesSet = new Set<string>();
   let allowsAllTools = false;
+  let modelCount = 0;
+  let allowsAllModels = false;
 
   for (const [resource, tools] of Object.entries(permission)) {
     // "self" is for static/organization-level permissions
@@ -77,6 +87,16 @@ function parsePermission(
         allowsAllStaticPermissions = true;
       } else {
         staticPermissions.push(...tools);
+      }
+      continue;
+    }
+
+    // "models" is for model permissions (composite connectionId:modelId strings)
+    if (resource === "models") {
+      if (tools.includes("*:*")) {
+        allowsAllModels = true;
+      } else {
+        modelCount = tools.length;
       }
       continue;
     }
@@ -115,6 +135,8 @@ function parsePermission(
     allowsAllConnections,
     toolNames: Array.from(toolNamesSet),
     allowsAllTools,
+    modelCount,
+    allowsAllModels,
   };
 }
 
@@ -176,6 +198,8 @@ export function useOrganizationRoles() {
         allowsAllConnections,
         toolNames,
         allowsAllTools,
+        modelCount,
+        allowsAllModels,
       } = parsePermission(customRole.permission);
 
       allRoles.push({
@@ -194,6 +218,9 @@ export function useOrganizationRoles() {
         allowsAllConnections,
         toolCount: allowsAllTools ? -1 : toolNames.length,
         allowsAllTools,
+        // Model permissions
+        modelCount: allowsAllModels ? -1 : modelCount,
+        allowsAllModels,
       });
     }
   }

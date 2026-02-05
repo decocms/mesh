@@ -31,6 +31,7 @@ import {
   useModelConnections,
   type LLM,
 } from "../../hooks/collections/use-llm";
+import { useAllowedModels } from "../../hooks/use-allowed-models";
 
 // Prioritized models in order
 const prioritizedModelIds = [
@@ -479,10 +480,25 @@ function ModelSelectorContent({
 
   // Use provided modelsConnections or fetch from hook
   const modelsConnectionsFromHook = useModelConnections();
-  const modelsConnections = modelsConnectionsProp ?? modelsConnectionsFromHook;
+  const allModelsConnections =
+    modelsConnectionsProp ?? modelsConnectionsFromHook;
+
+  // Fetch allowed models for current user
+  const { isModelAllowed, allowAll } = useAllowedModels();
+
+  // Filter connections to only those with allowed models
+  const modelsConnections = allModelsConnections;
 
   // Fetch models only for the selected connection
-  const models = useModels(selectedConnectionId ?? undefined);
+  const allModels = useModels(selectedConnectionId ?? undefined);
+
+  // Filter models based on permissions
+  const models = allowAll
+    ? allModels
+    : allModels.filter(
+        (m) =>
+          selectedConnectionId && isModelAllowed(selectedConnectionId, m.id),
+      );
 
   // Focus search input when mounted
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
