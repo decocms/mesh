@@ -142,7 +142,7 @@ export function MeshAccountSwitcher({
                       <p className="text-[10px] text-zinc-500 leading-none truncate">
                         {currentOrg?.name ?? "Select org"}
                       </p>
-                      <p className="text-sm text-white font-normal leading-none mt-0.5 truncate">
+                      <p className="text-sm text-white font-normal leading-tight mt-0.5 truncate">
                         {currentProject.name ?? currentProject.slug}
                       </p>
                     </>

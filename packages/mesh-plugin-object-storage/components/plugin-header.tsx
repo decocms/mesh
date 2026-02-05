@@ -98,9 +98,7 @@ function ConnectionSelector({
 }
 
 export default function PluginHeader(props: PluginRenderHeaderProps) {
-  return (
-    <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-      <ConnectionSelector {...props} />
-    </div>
-  );
+  // Note: The PluginLayout wraps this content with Page.Header,
+  // so we just render the content without wrapper styling
+  return <ConnectionSelector {...props} />;
 }

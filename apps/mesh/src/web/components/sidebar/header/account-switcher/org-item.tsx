@@ -19,8 +19,8 @@ export function OrgItem({
   onSettings,
   onHover,
 }: OrgItemProps) {
-  const showSettings = isActive && !isHovered;
-  const showChevron = isHovered;
+  const showSettings = isActive;
+  const showChevron = isHovered && !isActive;
 
   return (
     <div

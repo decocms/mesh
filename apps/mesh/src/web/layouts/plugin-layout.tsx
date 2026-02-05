@@ -36,6 +36,7 @@ import { Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Page } from "@/web/components/page";
 
 interface PluginLayoutProps {
   /**
@@ -270,15 +271,19 @@ export function PluginLayout({
 
   return (
     <PluginContextProvider value={pluginContext}>
-      <div className="h-full flex flex-col overflow-hidden">
-        {renderHeader({
-          // Only show the configured connection (read-only display)
-          connections: [toPluginConnectionEntity(configuredConnection)],
-          selectedConnectionId: configuredConnection.id,
-          // No-op since connection is controlled by project settings
-          onConnectionChange: () => {},
-        })}
-        <div className="flex-1 overflow-hidden">
+      <Page>
+        <Page.Header>
+          <Page.Header.Left>
+            {renderHeader({
+              // Only show the configured connection (read-only display)
+              connections: [toPluginConnectionEntity(configuredConnection)],
+              selectedConnectionId: configuredConnection.id,
+              // No-op since connection is controlled by project settings
+              onConnectionChange: () => {},
+            })}
+          </Page.Header.Left>
+        </Page.Header>
+        <Page.Content>
           <Suspense
             fallback={
               <div className="flex flex-col items-center justify-center h-full">
@@ -292,8 +297,8 @@ export function PluginLayout({
           >
             <Outlet />
           </Suspense>
-        </div>
-      </div>
+        </Page.Content>
+      </Page>
     </PluginContextProvider>
   );
 }
