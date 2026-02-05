@@ -1,26 +1,35 @@
-import { useState } from "react";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
-import { Settings02 } from "@untitledui/icons";
+import { ChevronRight, Settings02 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 
 interface OrgItemProps {
-  org: { slug: string; name: string; logo?: string | null };
+  org: { id: string; slug: string; name: string; logo?: string | null };
   isActive?: boolean;
+  isHovered?: boolean;
   onClick?: () => void;
   onSettings?: () => void;
+  onHover?: (orgId: string | null) => void;
 }
 
-export function OrgItem({ org, isActive, onClick, onSettings }: OrgItemProps) {
-  const [isHovered, setIsHovered] = useState(false);
-  const showSettings = isActive || isHovered;
+export function OrgItem({
+  org,
+  isActive,
+  isHovered,
+  onClick,
+  onSettings,
+  onHover,
+}: OrgItemProps) {
+  const showSettings = isActive && !isHovered;
+  const showChevron = isHovered;
 
   return (
     <div
       role="button"
       tabIndex={0}
       className={cn(
-        "flex items-center gap-2 w-full justify-start font-normal h-10 px-2 rounded-lg cursor-pointer transition-colors hover:bg-accent/50",
-        isActive && "bg-accent hover:bg-accent",
+        "flex items-center gap-2 w-full justify-start font-normal h-10 px-2 rounded-lg cursor-pointer transition-colors",
+        isHovered && "bg-accent/50",
+        isActive && !isHovered && "bg-accent hover:bg-accent",
       )}
       onClick={onClick}
       onKeyDown={(e) => {
@@ -29,8 +38,7 @@ export function OrgItem({ org, isActive, onClick, onSettings }: OrgItemProps) {
           onClick?.();
         }
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => onHover?.(org.id)}
     >
       <Avatar
         url={org.logo ?? undefined}
@@ -42,7 +50,7 @@ export function OrgItem({ org, isActive, onClick, onSettings }: OrgItemProps) {
       <span className="flex-1 text-sm text-foreground truncate text-left min-w-0">
         {org.name}
       </span>
-      {/* Settings button - always reserve space to prevent CLS */}
+      {/* Settings button - show when active but not hovered */}
       {onSettings && showSettings ? (
         <button
           type="button"
@@ -55,6 +63,8 @@ export function OrgItem({ org, isActive, onClick, onSettings }: OrgItemProps) {
         >
           <Settings02 size={16} className="text-muted-foreground" />
         </button>
+      ) : showChevron ? (
+        <ChevronRight size={16} className="text-muted-foreground shrink-0" />
       ) : (
         <span className="size-5 shrink-0" aria-hidden="true" />
       )}

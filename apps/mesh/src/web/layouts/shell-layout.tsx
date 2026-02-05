@@ -266,7 +266,7 @@ function ShellLayoutContent() {
               />
               <SidebarInset className="flex flex-col">
                 {/* Project-aware topbar - only show for non-org-admin projects */}
-                {!isOrgAdmin && <ProjectTopbar right={<MeshUserMenu />} />}
+                {!isOrgAdmin && <ProjectTopbar />}
                 <div className="flex-1 overflow-hidden">
                   <ChatPanels disableChat={isHomeRoute} />
                 </div>
