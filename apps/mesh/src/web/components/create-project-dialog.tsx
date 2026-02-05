@@ -127,7 +127,7 @@ export function CreateProjectDialog({
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     // Validate slug before submitting
     if (!isValidSlug(data.slug)) {
       form.setError("slug", {
@@ -141,7 +141,7 @@ export function CreateProjectDialog({
       });
       return;
     }
-    mutation.mutate(data);
+    await mutation.mutateAsync(data);
   };
 
   // Auto-generate slug from name
