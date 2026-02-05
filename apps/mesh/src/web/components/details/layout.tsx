@@ -2,7 +2,6 @@ import { Page } from "@/web/components/page";
 import {
   createContext,
   type ReactNode,
-  useCallback,
   useContext,
   useRef,
   useState,
@@ -48,19 +47,19 @@ export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
   const tabsElRef = useRef<HTMLDivElement | null>(null);
   const actionsElRef = useRef<HTMLDivElement | null>(null);
 
-  const tabsRef = useCallback((node: HTMLDivElement | null) => {
+  const tabsRef = (node: HTMLDivElement | null) => {
     if (tabsElRef.current !== node) {
       tabsElRef.current = node;
       setTabsEl(node);
     }
-  }, []);
+  };
 
-  const actionsRef = useCallback((node: HTMLDivElement | null) => {
+  const actionsRef = (node: HTMLDivElement | null) => {
     if (actionsElRef.current !== node) {
       actionsElRef.current = node;
       setActionsEl(node);
     }
-  }, []);
+  };
 
   return (
     <ViewLayoutContext value={{ tabsEl, actionsEl }}>

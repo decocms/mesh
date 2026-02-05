@@ -32,7 +32,7 @@ const rootRoute = createRootRoute({
       <Suspense fallback={<SplashScreen />}>
         <Outlet />
       </Suspense>
-      {/* <TanStackRouterDevtools /> */}
+      <TanStackRouterDevtools />
     </Providers>
   ),
 });
