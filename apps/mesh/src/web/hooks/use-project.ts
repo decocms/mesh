@@ -118,4 +118,3 @@ export function useProjects(organizationId: string) {
     staleTime: 30000, // 30 seconds
   });
 }
-
