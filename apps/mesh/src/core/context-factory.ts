@@ -615,7 +615,7 @@ async function authenticateRequest(
   }
 
   try {
-    // Strip the Authorization header before calling getSession
+    // Strip the Authorization header before calling getSession.
     // We've already tried all Bearer-based auth (Mesh JWT, API key) above.
     // If we pass the Bearer token to getSession, Better Auth's API key plugin
     // will attempt to validate it as an API key and throw INVALID_API_KEY,
