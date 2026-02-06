@@ -5,8 +5,11 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type {
+  ListPromptsResult,
+  Prompt,
+} from "@modelcontextprotocol/sdk/types.js";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
 import { useState } from "react";
@@ -95,7 +98,8 @@ export const PromptsMention = ({
     if (!client) return [];
 
     // Try to get from cache first (even if stale)
-    let virtualMcpPrompts = queryClient.getQueryData<Prompt[]>(queryKey);
+    let virtualMcpPrompts =
+      queryClient.getQueryData<ListPromptsResult>(queryKey);
 
     // If not in cache or we want fresh data, fetch from network
     // fetchQuery will use cache if fresh, otherwise fetch
@@ -105,7 +109,7 @@ export const PromptsMention = ({
         queryFn: () => listPrompts(client),
         staleTime: 60000, // 1 minute
       });
-      virtualMcpPrompts = result.prompts;
+      virtualMcpPrompts = result;
     } else {
       // Prefetch in background to ensure fresh data
       queryClient
@@ -120,15 +124,15 @@ export const PromptsMention = ({
     }
 
     // Ensure we have prompts (fallback to empty array)
-    if (!virtualMcpPrompts) {
+    if (!virtualMcpPrompts.prompts) {
       return [];
     }
 
     // Filter prompts based on query
-    let filteredPrompts = virtualMcpPrompts;
+    let filteredPrompts = virtualMcpPrompts.prompts;
     if (query.trim()) {
       const lowerQuery = query.toLowerCase();
-      filteredPrompts = virtualMcpPrompts.filter(
+      filteredPrompts = virtualMcpPrompts.prompts.filter(
         (p) =>
           p.name.toLowerCase().includes(lowerQuery) ||
           p.title?.toLowerCase().includes(lowerQuery) ||

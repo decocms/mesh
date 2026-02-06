@@ -5,6 +5,7 @@
  * Tools: PROJECT_CREATE, PROJECT_LIST, CONNECTION_CREATE, etc.
  */
 import { Hono } from "hono";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { MeshContext } from "../../core/mesh-context";
 import { managementMCP } from "../../tools";
 
@@ -22,8 +23,13 @@ const app = new Hono<{ Variables: Variables }>();
  * Exposes all PROJECT_* and CONNECTION_* tools via MCP protocol
  */
 app.all("/", async (c) => {
-  const mcp = await managementMCP(c.get("meshContext"));
-  return mcp.fetch(c.req.raw);
+  const server = await managementMCP(c.get("meshContext"));
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    enableJsonResponse:
+      c.req.raw.headers.get("Accept")?.includes("application/json") ?? false,
+  });
+  await server.connect(transport);
+  return transport.handleRequest(c.req.raw);
 });
 
 export default app;
