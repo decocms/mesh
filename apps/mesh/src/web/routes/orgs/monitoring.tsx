@@ -28,6 +28,7 @@ import { KEYS } from "@/web/lib/query-keys";
 import {
   ORG_ADMIN_PROJECT_SLUG,
   SELF_MCP_ALIAS_ID,
+  WellKnownOrgMCPId,
   useConnections,
   useMCPClient,
   useProjectContext,
@@ -79,6 +80,8 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
+import { Switch } from "@deco/ui/components/switch.tsx";
+import { Label } from "@deco/ui/components/label.tsx";
 import { AnalyticsTab } from "@/web/components/monitoring/analytics-tab.tsx";
 import {
   Table,
@@ -137,6 +140,7 @@ interface FiltersPopoverProps {
   virtualMcpIds: string[];
   tool: string;
   status: string;
+  hideSystem: boolean;
   propertyFilters: PropertyFilter[];
   connectionOptions: Array<{ value: string; label: string }>;
   virtualMcpOptions: Array<{ value: string; label: string }>;
@@ -159,6 +163,7 @@ function FiltersPopover({
   virtualMcpIds,
   tool,
   status,
+  hideSystem,
   propertyFilters,
   connectionOptions,
   virtualMcpOptions,
@@ -279,6 +284,22 @@ function FiltersPopover({
           </div>
 
           <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label
+                htmlFor="hide-system-calls"
+                className="text-xs font-medium text-muted-foreground cursor-pointer"
+              >
+                Hide system calls
+              </Label>
+              <Switch
+                id="hide-system-calls"
+                checked={hideSystem}
+                onCheckedChange={(checked) =>
+                  onUpdateFilters({ hideSystem: !!checked })
+                }
+              />
+            </div>
+
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                 Connections
@@ -771,6 +792,7 @@ interface MonitoringDashboardContentProps {
   status: string;
   search: string;
   streaming: boolean;
+  hideSystem: boolean;
   activeFiltersCount: number;
   from: string;
   to: string;
@@ -791,6 +813,7 @@ function MonitoringDashboardContent({
   status,
   search: searchQuery,
   streaming: isStreaming,
+  hideSystem,
   activeFiltersCount,
   from,
   to,
@@ -823,11 +846,17 @@ function MonitoringDashboardContent({
   // Convert property filters to API params
   const propertyApiParams = propertyFiltersToApiParams(propertyFilters);
 
+  // Compute excluded connection IDs when hiding system calls
+  const excludeConnectionIds = hideSystem
+    ? [WellKnownOrgMCPId.SELF(org.id)]
+    : undefined;
+
   // Base params for filtering (without pagination)
   const baseParams = {
     startDate: dateRange.startDate.toISOString(),
     endDate: dateRange.endDate.toISOString(),
     connectionId: connectionIds.length === 1 ? connectionIds[0] : undefined,
+    excludeConnectionIds,
     virtualMcpId: virtualMcpIds.length === 1 ? virtualMcpIds[0] : undefined,
     toolName: tool || undefined,
     isError:
@@ -906,6 +935,7 @@ function MonitoringDashboardContent({
                 virtualMcpIds={virtualMcpIds}
                 tool={tool}
                 status={status}
+                hideSystem={hideSystem}
                 propertyFilters={propertyFilters}
                 connectionOptions={connectionOptions}
                 virtualMcpOptions={virtualMcpOptions}
@@ -1019,6 +1049,7 @@ export default function MonitoringDashboard() {
     status,
     streaming = true,
     propertyFilters: propertyFiltersStr = "",
+    hideSystem = false,
   } = search;
 
   // Parse property filters from URL string
@@ -1065,6 +1096,7 @@ export default function MonitoringDashboard() {
   if (virtualMcpIds.length > 0) activeFiltersCount++;
   if (tool) activeFiltersCount++;
   if (status !== "all") activeFiltersCount++;
+  if (hideSystem) activeFiltersCount++;
   // Count property filters with non-empty keys
   const validPropertyFilters = propertyFilters.filter((f) => f.key.trim());
   if (validPropertyFilters.length > 0)
@@ -1129,6 +1161,7 @@ export default function MonitoringDashboard() {
             status={status}
             search={searchQuery}
             streaming={streaming}
+            hideSystem={hideSystem}
             activeFiltersCount={activeFiltersCount}
             from={from}
             to={to}

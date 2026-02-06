@@ -98,6 +98,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   async query(filters: {
     organizationId?: string;
     connectionId?: string;
+    excludeConnectionIds?: string[];
     virtualMcpId?: string;
     toolName?: string;
     isError?: boolean;
@@ -124,6 +125,21 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     if (filters.connectionId) {
       query = query.where("connection_id", "=", filters.connectionId);
       countQuery = countQuery.where("connection_id", "=", filters.connectionId);
+    }
+    if (
+      filters.excludeConnectionIds &&
+      filters.excludeConnectionIds.length > 0
+    ) {
+      query = query.where(
+        "connection_id",
+        "not in",
+        filters.excludeConnectionIds,
+      );
+      countQuery = countQuery.where(
+        "connection_id",
+        "not in",
+        filters.excludeConnectionIds,
+      );
     }
     if (filters.virtualMcpId) {
       query = query.where("virtual_mcp_id", "=", filters.virtualMcpId);

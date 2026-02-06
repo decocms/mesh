@@ -142,6 +142,7 @@ export interface MonitoringStorage {
   query(filters: {
     organizationId?: string;
     connectionId?: string;
+    excludeConnectionIds?: string[];
     virtualMcpId?: string;
     toolName?: string;
     isError?: boolean;

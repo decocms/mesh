@@ -261,6 +261,7 @@ const monitoringRoute = createRoute({
       page: z.number().optional(),
       streaming: z.boolean().default(true),
       propertyFilters: z.string().default(""),
+      hideSystem: z.boolean().default(false),
     }),
   ),
 });
