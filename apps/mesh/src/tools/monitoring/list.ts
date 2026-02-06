@@ -41,6 +41,12 @@ export const MONITORING_LOGS_LIST = defineTool({
   description: "List monitoring logs for tool calls in the organization",
   inputSchema: z.object({
     connectionId: z.string().optional().describe("Filter by connection ID"),
+    excludeConnectionIds: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Exclude logs from these connection IDs (e.g. system connections)",
+      ),
     virtualMcpId: z
       .string()
       .optional()
@@ -108,6 +114,7 @@ export const MONITORING_LOGS_LIST = defineTool({
     const filters = {
       organizationId: org.id,
       connectionId: input.connectionId,
+      excludeConnectionIds: input.excludeConnectionIds,
       virtualMcpId: input.virtualMcpId,
       toolName: input.toolName,
       isError: input.isError,
