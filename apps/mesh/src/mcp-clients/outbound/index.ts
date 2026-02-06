@@ -30,6 +30,14 @@ import { createStdioTransport } from "./transport-stdio";
 const sharedHeaders = new Map<string, Record<string, string>>();
 
 /**
+ * Remove the shared headers entry for a connectionId.
+ * Called by the client pool's onEvict callback to prevent memory leaks.
+ */
+export function clearConnectionHeaders(connectionId: string): void {
+  sharedHeaders.delete(connectionId);
+}
+
+/**
  * Get or create a shared mutable headers object for a connectionId,
  * then update it in-place with fresh auth headers.
  */
