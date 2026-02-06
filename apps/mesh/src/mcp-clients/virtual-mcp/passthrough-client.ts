@@ -7,7 +7,8 @@
  */
 
 import type { StreamableMCPProxyClient } from "@/api/routes/proxy";
-import { createClient } from "@/mcp-clients";
+import { clientFromConnection } from "@/mcp-clients";
+import { fallbackOnMethodNotFoundError } from "@/mcp-clients/utils";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   type CallToolRequest,
@@ -64,7 +65,7 @@ async function createClientMap(
   const clientResults = await Promise.all(
     connections.map(async (connection) => {
       try {
-        const client = await createClient(connection, ctx, false);
+        const client = await clientFromConnection(connection, ctx, false);
         return [connection.id, client] as const;
       } catch (error) {
         console.warn(
@@ -244,8 +245,14 @@ export class PassthroughClient extends Client {
         try {
           const data =
             target === "resources"
-              ? await client.listResources().then((r) => r.resources)
-              : await client.listPrompts().then((r) => r.prompts);
+              ? await client
+                  .listResources()
+                  .catch(fallbackOnMethodNotFoundError({ resources: [] }))
+                  .then((r) => r.resources)
+              : await client
+                  .listPrompts()
+                  .catch(fallbackOnMethodNotFoundError({ prompts: [] }))
+                  .then((r) => r.prompts);
 
           const selected = this._selectionMap.get(connectionId);
           const selectedKey =

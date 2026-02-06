@@ -11,12 +11,11 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import type { MeshContext } from "@/core/mesh-context";
-import { createClient } from "@/mcp-clients";
+import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { Metadata } from "@/web/components/chat/types";
 import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
-import { withStreamingSupport } from "../proxy";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
@@ -134,7 +133,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     }
 
     // Create model client for LLM calls
-    const modelClient = await createClient(modelConnection, ctx, false);
+    const modelClient = await clientFromConnection(modelConnection, ctx, false);
 
     const mcpClient = await createVirtualClientFrom(
       virtualMcp,
