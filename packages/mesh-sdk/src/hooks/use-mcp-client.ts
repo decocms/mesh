@@ -95,6 +95,7 @@ export async function createMCPClient({
     token ?? "",
     meshUrl ?? "",
   );
+
   (client as Client & { toJSON: () => string }).toJSON = () =>
     `mcp-client:${queryKey.join(":")}`;
 

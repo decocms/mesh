@@ -82,7 +82,7 @@ export function createMCPClientProxy<T extends Record<string, unknown>>(
               `Tool ${String(toolName)} requires streaming support but client doesn't provide callStreamableTool`,
             );
           }
-          return callStreamableTool(String(toolName), args);
+          return await callStreamableTool(String(toolName), args);
         }
 
         const { structuredContent, isError, content } = await client.callTool({
