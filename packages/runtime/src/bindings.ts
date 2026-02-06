@@ -108,6 +108,12 @@ export const proxyConnectionForId = (
     headers ??= {};
     headers.cookie = ctx.cookie;
   }
+
+  if (ctx.token) {
+    headers ??= {};
+    headers["x-mesh-token"] = ctx.token;
+  }
+  
   return {
     type: "HTTP",
     url: new URL(`/mcp/${connectionId}`, ctx.meshUrl).href,
