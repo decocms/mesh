@@ -14,7 +14,12 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { buildRequestHeaders } from "./headers";
+import { createClientPool } from "./client-pool";
 import { createStdioTransport } from "./transport-stdio";
+
+// Singleton pool for STDIO connections — child processes must persist across requests.
+// Separate from the per-request pool on MeshContext (used by HTTP/SSE).
+const stdioPool = createClientPool();
 
 /**
  * Create an MCP client for outbound connections (STDIO, HTTP, Websocket, SSE)
@@ -58,8 +63,9 @@ export async function createOutboundClient(
         cwd: maybeParams.cwd,
       });
 
-      // Get or create client from pool - automatically removed when connection closes
-      return ctx.getOrCreateClient(transport, connectionId);
+      // STDIO uses a singleton pool — child processes must persist across requests.
+      // NOT the per-request pool on ctx (that one is for HTTP/SSE with fresh auth headers).
+      return stdioPool(transport, connectionId);
     }
 
     case "HTTP":
