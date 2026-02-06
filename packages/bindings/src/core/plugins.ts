@@ -104,10 +104,9 @@ export {
   type RouteById,
 } from "./plugin-router";
 
-// Re-export plugin context provider and hook (React components)
-export {
-  PluginContextProvider,
-  usePluginContext,
-  type PluginContextProviderProps,
-  type UsePluginContextOptions,
+// Note: PluginContextProvider and usePluginContext have been moved to @decocms/mesh-sdk/plugins.
+// Types are re-exported here for backwards compatibility.
+export type {
+  PluginContextProviderProps,
+  UsePluginContextOptions,
 } from "./plugin-context-provider";
