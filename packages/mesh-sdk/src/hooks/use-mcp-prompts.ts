@@ -1,5 +1,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
+  ErrorCode,
+  McpError,
+  type GetPromptRequest,
+  type GetPromptResult,
+  type ListPromptsResult,
+} from "@modelcontextprotocol/sdk/types.js";
+import {
   useQuery,
   UseQueryResult,
   useSuspenseQuery,
@@ -7,11 +14,6 @@ import {
   type UseQueryOptions,
   type UseSuspenseQueryOptions,
 } from "@tanstack/react-query";
-import type {
-  GetPromptRequest,
-  GetPromptResult,
-  ListPromptsResult,
-} from "@modelcontextprotocol/sdk/types.js";
 import { KEYS } from "../lib/query-keys";
 
 /**
@@ -23,7 +25,15 @@ export async function listPrompts(client: Client): Promise<ListPromptsResult> {
   if (!capabilities?.prompts) {
     return { prompts: [] };
   }
-  return await client.listPrompts();
+
+  try {
+    return await client.listPrompts();
+  } catch (error) {
+    if (error instanceof McpError && error.code === ErrorCode.MethodNotFound) {
+      return { prompts: [] };
+    }
+    throw error;
+  }
 }
 
 /**
