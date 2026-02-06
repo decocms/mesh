@@ -7,7 +7,7 @@
  */
 
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
-import { usePluginContext } from "@decocms/bindings/plugins";
+import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useObjects, type ObjectItem } from "../hooks/use-objects";
 import { getFileName, getFileIcon, formatFileSize } from "../lib/utils";
 import { Button } from "@deco/ui/components/button.tsx";

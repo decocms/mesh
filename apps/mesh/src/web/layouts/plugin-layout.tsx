@@ -17,10 +17,8 @@ import {
   PluginContextPartial,
   PluginSession,
 } from "@decocms/bindings";
-import {
-  PluginContextProvider,
-  type PluginRenderHeaderProps,
-} from "@decocms/bindings/plugins";
+import type { PluginRenderHeaderProps } from "@decocms/bindings/plugins";
+import { PluginContextProvider } from "@decocms/mesh-sdk/plugins";
 import {
   SELF_MCP_ALIAS_ID,
   useConnections,

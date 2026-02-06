@@ -11,7 +11,8 @@
     ".": "./src/index.ts",
     "./hooks": "./src/hooks/index.ts",
     "./context": "./src/context/index.ts",
-    "./types": "./src/types/index.ts"
+    "./types": "./src/types/index.ts",
+    "./plugins": "./src/plugins/index.ts"
   },
   "dependencies": {
     "@decocms/bindings": "^1.1.1",
@@ -21,6 +22,7 @@
   "peerDependencies": {
     "@tanstack/react-query": ">=5.0.0",
     "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
     "sonner": ">=2.0.0"
   },
   "peerDependenciesMeta": {

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@decocms/bindings": "workspace:*",
+    "@decocms/mesh-sdk": "workspace:*",
     "@deco/ui": "workspace:*",
     "@tanstack/react-query": "5.90.11",
     "@untitledui/icons": "^0.0.19",

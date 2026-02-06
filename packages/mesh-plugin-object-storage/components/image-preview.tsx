@@ -7,7 +7,7 @@
 
 import { useState, useRef } from "react";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
-import { usePluginContext } from "@decocms/bindings/plugins";
+import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useQuery } from "@tanstack/react-query";
 import { Image01, Loading01, AlertCircle } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
