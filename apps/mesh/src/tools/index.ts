@@ -7,12 +7,13 @@
  * Plugin tools are collected at startup and combined with core tools.
  */
 
-import { mcpServer } from "@/api/utils/mcp";
 import { MeshContext } from "@/core/mesh-context";
 import {
   collectPluginTools,
   filterToolsByEnabledPlugins,
 } from "@/core/plugin-loader";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import * as ApiKeyTools from "./apiKeys";
 import * as CodeExecutionTools from "./code-execution";
 import * as ConnectionTools from "./connection";
@@ -156,28 +157,55 @@ export const managementMCP = async (ctx: MeshContext) => {
   // Core tools are always included, plugin tools only if their plugin is enabled
   const filteredTools = filterToolsByEnabledPlugins(ALL_TOOLS, enabledPlugins);
 
-  // Convert filtered tools to ToolDefinition format
-  const tools = filteredTools.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-    outputSchema: tool.outputSchema,
-    handler: async (args: unknown) => {
-      ctx.access.setToolName(tool.name);
-      // Execute the tool with the mesh context
-      return await tool.execute(args, ctx);
-    },
-  }));
+  // Create MCP server directly
+  const server = new McpServer(
+    { name: "mcp-mesh-management", version: "1.0.0" },
+    { capabilities: { tools: {} } },
+  );
 
-  // Create and use MCP server with builder pattern
-  const server = mcpServer({
-    name: "mcp-mesh-management",
-    version: "1.0.0",
-  })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .withTools(tools as any)
-    .build();
+  // Register each tool with the server
+  for (const tool of filteredTools) {
+    const inputSchema =
+      tool.inputSchema &&
+      typeof tool.inputSchema === "object" &&
+      "shape" in tool.inputSchema
+        ? (tool.inputSchema as z.ZodObject<z.ZodRawShape>)
+        : z.object({});
+    const outputSchema =
+      tool.outputSchema &&
+      typeof tool.outputSchema === "object" &&
+      "shape" in tool.outputSchema
+        ? (tool.outputSchema as z.ZodObject<z.ZodRawShape>)
+        : undefined;
 
-  // Handle the incoming MCP message
+    const inputShape = inputSchema.shape;
+    const outputShape = outputSchema?.shape;
+
+    server.registerTool(
+      tool.name,
+      {
+        description: tool.description ?? "",
+        inputSchema: inputShape,
+        outputSchema: outputShape,
+      },
+      async (args) => {
+        ctx.access.setToolName(tool.name);
+        try {
+          const result = await tool.execute(args, ctx);
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(result) }],
+            structuredContent: result as { [x: string]: unknown },
+          };
+        } catch (error) {
+          const err = error as Error;
+          return {
+            content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+            isError: true,
+          };
+        }
+      },
+    );
+  }
+
   return server;
 };
