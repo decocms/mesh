@@ -127,7 +127,9 @@ export interface LLMProvider extends ProviderV2 {
 function convertCallOptionsForBinding(
   options: LanguageModelV2CallOptions,
 ): Parameters<LLMBindingClient["LLM_DO_GENERATE"]>[0]["callOptions"] {
-  const { prompt, ...rest } = options;
+  // Extract prompt and filter out non-serializable fields (abortSignal is used client-side only)
+  const { prompt, abortSignal: _abortSignal, ...rest } = options;
+  // abortSignal is used for cancellation but shouldn't be sent over HTTP/network
 
   const cleanedPrompt = prompt.map((msg) => {
     if (
@@ -146,10 +148,12 @@ function convertCallOptionsForBinding(
     return msg;
   });
 
-  return {
+  const result = {
     ...rest,
     prompt: cleanedPrompt,
   } as Parameters<LLMBindingClient["LLM_DO_GENERATE"]>[0]["callOptions"];
+
+  return result;
 }
 
 /**
@@ -205,16 +209,19 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
           };
         },
         doStream: async (options: LanguageModelV2CallOptions) => {
+          const convertedOptions = convertCallOptionsForBinding(
+            options,
+          ) as Parameters<LLMBindingClient["LLM_DO_STREAM"]>[0]["callOptions"];
+
           const response = await binding.LLM_DO_STREAM({
-            callOptions: convertCallOptionsForBinding(options) as Parameters<
-              LLMBindingClient["LLM_DO_STREAM"]
-            >[0]["callOptions"],
+            callOptions: convertedOptions,
             modelId,
           });
 
           if (!response.ok) {
+            const errorText = await response.text();
             throw new Error(
-              `Streaming failed for model ${modelId} with the status code: ${response.status}\n${await response.text()}`,
+              `Streaming failed for model ${modelId} with the status code: ${response.status}\n${errorText}`,
             );
           }
 
