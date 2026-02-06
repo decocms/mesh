@@ -5,10 +5,10 @@
  */
 
 import { LanguageModelBinding } from "@decocms/bindings/llm";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 import { createLLMProvider } from "../../llm-provider";
 import { toServerClient } from "../proxy";
+import type { ClientWithOptionalStreamingSupport } from "@/mcp-clients";
 import type { ModelProvider } from "./types";
 
 /**
@@ -16,12 +16,7 @@ import type { ModelProvider } from "./types";
  * Accepts both regular and streamable clients
  */
 export async function createModelProviderFromClient(
-  client: Client & {
-    callStreamableTool?: (
-      name: string,
-      args: Record<string, unknown>,
-    ) => Promise<Response>;
-  },
+  client: ClientWithOptionalStreamingSupport,
   config: {
     modelId: string;
     connectionId: string;

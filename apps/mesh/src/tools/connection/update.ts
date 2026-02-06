@@ -9,7 +9,7 @@ import {
   getReferencedConnectionIds,
   parseScope,
 } from "@/auth/configuration-scopes";
-import { createClient } from "@/mcp-clients";
+import { clientFromConnection } from "@/mcp-clients";
 import { DownstreamTokenStorage } from "@/storage/downstream-token";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
@@ -246,7 +246,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     ) {
       try {
         // Create client - pool manages lifecycle, best-effort call
-        const client = await createClient(connection, ctx, false);
+        const client = await clientFromConnection(connection, ctx, false);
 
         await client.callTool({
           name: "ON_MCP_CONFIGURATION",
