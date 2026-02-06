@@ -390,7 +390,6 @@ import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { SqlThreadStorage } from "@/storage/threads";
 import { createClientPool } from "@/mcp-clients/outbound/client-pool";
-import { clearConnectionHeaders } from "@/mcp-clients/outbound";
 
 /**
  * Fetch role permissions from the database
@@ -752,18 +751,18 @@ export async function createMeshContextFactory(
     // Note: Token revocation handled by Better Auth (deleteApiKey)
   };
 
-  // Create client pool once (singleton pattern) - shared across all requests
-  // onEvict cleans up the shared mutable headers used by HTTP/SSE transports
-  await using clientPool = createClientPool({
-    onEvict: clearConnectionHeaders,
-  });
-
   // Return factory function
   return async (
     req?: Request,
     options?: FactoryOptions,
   ): Promise<MeshContext> => {
     const timings = options?.timings ?? DEFAULT_TIMINGS;
+
+    // Client pool scoped to this request — reuses connections within the same
+    // request cycle (e.g., virtual MCP calling multiple tools on the same connection).
+    // Must NOT be a singleton — per-request auth headers (x-mesh-token JWT) get
+    // baked into the transport at creation time and would go stale across requests.
+    const clientPool = createClientPool();
     const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = req
