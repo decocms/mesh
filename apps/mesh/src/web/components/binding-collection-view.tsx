@@ -20,7 +20,12 @@ import {
   type ConnectionCreateData,
 } from "@decocms/mesh-sdk";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, Loading01, RefreshCcw01, Settings02 } from "@untitledui/icons";
+import {
+  AlertTriangle,
+  Loading01,
+  RefreshCcw01,
+  Settings02,
+} from "@untitledui/icons";
 import { Suspense, useState } from "react";
 
 interface BindingCollectionViewProps {
@@ -146,17 +151,17 @@ export function BindingCollectionView({
                 activeCollection={activeCollection}
               />
             ) : (
-            <div className="flex flex-col items-center justify-center h-full">
-              <BindingCollectionEmptyState
-                title={emptyState.title}
-                description={emptyState.description}
-                wellKnownMcp={wellKnownMcp}
-                imageSrc={emptyState.imageSrc}
-                onConnected={(connectionId) => {
-                  setInstalledConnectionId(connectionId);
-                }}
-              />
-            </div>
+              <div className="flex flex-col items-center justify-center h-full">
+                <BindingCollectionEmptyState
+                  title={emptyState.title}
+                  description={emptyState.description}
+                  wellKnownMcp={wellKnownMcp}
+                  imageSrc={emptyState.imageSrc}
+                  onConnected={(connectionId) => {
+                    setInstalledConnectionId(connectionId);
+                  }}
+                />
+              </div>
             )}
           </Suspense>
         </ErrorBoundary>
