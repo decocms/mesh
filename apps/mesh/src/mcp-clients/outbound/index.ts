@@ -17,6 +17,51 @@ import { buildRequestHeaders } from "./headers";
 import { createStdioTransport } from "./transport-stdio";
 
 /**
+ * Shared mutable headers objects per connectionId.
+ *
+ * HTTP/SSE transports bake `requestInit.headers` into the transport at creation time,
+ * but the MCP SDK reads headers BY REFERENCE at send time (`new Headers(this._requestInit?.headers)`).
+ *
+ * By sharing a single mutable headers object per connectionId, we can:
+ * 1. Keep the client pool (avoid repeated initialize handshakes)
+ * 2. Update auth headers (x-mesh-token JWT, Authorization) in-place before each use
+ * 3. The cached transport picks up fresh values on the next send
+ */
+const sharedHeaders = new Map<string, Record<string, string>>();
+
+/**
+ * Remove the shared headers entry for a connectionId.
+ * Called by the client pool's onEvict callback to prevent memory leaks.
+ */
+export function clearConnectionHeaders(connectionId: string): void {
+  sharedHeaders.delete(connectionId);
+}
+
+/**
+ * Get or create a shared mutable headers object for a connectionId,
+ * then update it in-place with fresh auth headers.
+ */
+function refreshSharedHeaders(
+  connectionId: string,
+  freshHeaders: Record<string, string>,
+): Record<string, string> {
+  let headers = sharedHeaders.get(connectionId);
+  if (!headers) {
+    headers = {};
+    sharedHeaders.set(connectionId, headers);
+  }
+
+  // Clear old keys and assign fresh ones in-place.
+  // This mutates the SAME object reference that the cached transport holds.
+  for (const key of Object.keys(headers)) {
+    delete headers[key];
+  }
+  Object.assign(headers, freshHeaders);
+
+  return headers;
+}
+
+/**
  * Create an MCP client for outbound connections (STDIO, HTTP, Websocket, SSE)
  *
  * @param connection - Connection entity from database
@@ -68,12 +113,20 @@ export async function createOutboundClient(
         throw new Error(`${connection.connection_type} connection missing URL`);
       }
 
-      const headers = await buildRequestHeaders(connection, ctx, superUser);
+      const freshHeaders = await buildRequestHeaders(
+        connection,
+        ctx,
+        superUser,
+      );
 
       const httpParams = connection.connection_headers;
       if (httpParams && "headers" in httpParams) {
-        Object.assign(headers, httpParams.headers);
+        Object.assign(freshHeaders, httpParams.headers);
       }
+
+      // Use a shared mutable headers object so the cached transport
+      // picks up fresh auth headers on every subsequent request.
+      const headers = refreshSharedHeaders(connectionId, freshHeaders);
 
       const transport = new StreamableHTTPClientTransport(
         new URL(connection.connection_url),
@@ -88,12 +141,19 @@ export async function createOutboundClient(
         throw new Error("SSE connection missing URL");
       }
 
-      const headers = await buildRequestHeaders(connection, ctx, superUser);
+      const freshHeaders = await buildRequestHeaders(
+        connection,
+        ctx,
+        superUser,
+      );
 
       const httpParams = connection.connection_headers;
       if (httpParams && "headers" in httpParams) {
-        Object.assign(headers, httpParams.headers);
+        Object.assign(freshHeaders, httpParams.headers);
       }
+
+      // Same shared-headers pattern as HTTP
+      const headers = refreshSharedHeaders(connectionId, freshHeaders);
 
       const transport = new SSEClientTransport(
         new URL(connection.connection_url),

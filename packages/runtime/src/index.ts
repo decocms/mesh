@@ -195,7 +195,7 @@ export const withBindings = <TEnv>({
 
     context = {
       authorization,
-      state: decoded.state ?? metadata.state,
+      state: decoded.state ?? metadata.state ?? {},
       token: tokenOrContext,
       meshUrl: (decoded.meshUrl as string) ?? metadata.meshUrl,
       connectionId: (decoded.connectionId as string) ?? metadata.connectionId,

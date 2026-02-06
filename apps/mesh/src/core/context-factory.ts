@@ -390,6 +390,7 @@ import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { SqlThreadStorage } from "@/storage/threads";
 import { createClientPool } from "@/mcp-clients/outbound/client-pool";
+import { clearConnectionHeaders } from "@/mcp-clients/outbound";
 
 /**
  * Fetch role permissions from the database
@@ -752,7 +753,10 @@ export async function createMeshContextFactory(
   };
 
   // Create client pool once (singleton pattern) - shared across all requests
-  await using clientPool = createClientPool();
+  // onEvict cleans up the shared mutable headers used by HTTP/SSE transports
+  await using clientPool = createClientPool({
+    onEvict: clearConnectionHeaders,
+  });
 
   // Return factory function
   return async (

@@ -530,7 +530,7 @@ const getEventBus = (
   const bus = env as unknown as { [prop]: EventBusBindingClient };
   return typeof bus[prop] !== "undefined"
     ? bus[prop]
-    : env?.MESH_REQUEST_CONTEXT.state[prop];
+    : env?.MESH_REQUEST_CONTEXT?.state?.[prop];
 };
 
 const toolsFor = <TSchema extends ZodTypeAny = never>({
