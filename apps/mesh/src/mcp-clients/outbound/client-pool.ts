@@ -2,18 +2,15 @@
  * Client Pool
  *
  * Manages a pool of MCP clients using a Map for connection reuse.
+ * Scoped per-request — reuses connections within the same request cycle
+ * (e.g., virtual MCP calling multiple tools on the same downstream connection).
+ *
+ * Must NOT be used as a singleton across requests — HTTP transports bake
+ * auth headers (x-mesh-token JWT) at creation time, which go stale.
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-
-export interface ClientPoolOptions {
-  /**
-   * Called when a client is evicted from the pool (close, error, or dispose).
-   * Use this to clean up associated resources (e.g., shared headers).
-   */
-  onEvict?: (key: string) => void;
-}
 
 /**
  * Create a client pool
@@ -21,9 +18,7 @@ export interface ClientPoolOptions {
  *
  * @returns Function to get or create a client connection from the pool
  */
-export function createClientPool(options?: ClientPoolOptions): (<
-  T extends Transport,
->(
+export function createClientPool(): (<T extends Transport>(
   transport: T,
   key: string,
 ) => Promise<Client>) & {
@@ -31,12 +26,6 @@ export function createClientPool(options?: ClientPoolOptions): (<
 } {
   // Map to store client promises (single-flight pattern)
   const clientMap = new Map<string, Promise<Client>>();
-  const onEvict = options?.onEvict;
-
-  function evict(key: string) {
-    clientMap.delete(key);
-    onEvict?.(key);
-  }
 
   /**
    * Get or create a client connection from the pool
@@ -56,6 +45,8 @@ export function createClientPool(options?: ClientPoolOptions): (<
       console.log(`[ClientPool] Reusing cached client for ${key}`);
       return cachedPromise;
     }
+
+    console.log(`[ClientPool] Creating new client for ${key}`);
 
     // Create the connection promise immediately and store it
     // This ensures concurrent requests for the same key get the same promise
@@ -77,14 +68,14 @@ export function createClientPool(options?: ClientPoolOptions): (<
 
     // Set up cleanup handler BEFORE connecting - remove from cache when connection closes
     client.onclose = () => {
-      evict(key);
+      clientMap.delete(key);
     };
 
     const clientPromise = client
       .connect(transport, { timeout: 30_000 })
       .then(() => client)
       .catch((e) => {
-        evict(key);
+        clientMap.delete(key);
         throw e;
       });
 
