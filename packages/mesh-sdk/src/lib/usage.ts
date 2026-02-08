@@ -12,6 +12,7 @@
 export interface UsageData {
   inputTokens?: number;
   outputTokens?: number;
+  reasoningTokens?: number;
   totalTokens?: number;
   providerMetadata?: {
     [key: string]: unknown;
@@ -21,6 +22,7 @@ export interface UsageData {
 export interface UsageStats {
   inputTokens: number;
   outputTokens: number;
+  reasoningTokens: number;
   totalTokens: number;
   cost: number;
 }
@@ -85,7 +87,13 @@ export function getCostFromUsage(usage: UsageData | null | undefined): number {
  * Create an empty UsageStats object.
  */
 export function emptyUsageStats(): UsageStats {
-  return { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0 };
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+    totalTokens: 0,
+    cost: 0,
+  };
 }
 
 /**
@@ -101,6 +109,8 @@ export function addUsage(
   return {
     inputTokens: accumulated.inputTokens + (stepUsage.inputTokens ?? 0),
     outputTokens: accumulated.outputTokens + (stepUsage.outputTokens ?? 0),
+    reasoningTokens:
+      accumulated.reasoningTokens + (stepUsage.reasoningTokens ?? 0),
     totalTokens: accumulated.totalTokens + (stepUsage.totalTokens ?? 0),
     cost: accumulated.cost + getCostFromUsage(stepUsage),
   };

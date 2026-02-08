@@ -248,6 +248,7 @@ app.post("/:org/decopilot/stream", async (c) => {
             usage: {
               inputTokens: accumulatedUsage.inputTokens,
               outputTokens: accumulatedUsage.outputTokens,
+              reasoningTokens: accumulatedUsage.reasoningTokens || undefined,
               totalTokens: accumulatedUsage.totalTokens,
               providerMetadata: part.providerMetadata,
             },
