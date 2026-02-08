@@ -106,15 +106,23 @@ export interface LLMProvider extends ProviderV2 {
 /**
  * Convert AI SDK callOptions to LLM binding format.
  *
- * Key concerns:
- * 1. Tool-call/tool-result parts must NOT be re-serialized (the downstream
- *    provider handles its own serialization).
- * 2. Provider-specific metadata (`providerOptions`) must be stripped from
- *    prompt content parts. When the AI SDK runs multi-step tool loops, it
- *    copies `providerOptions` (including e.g. OpenRouter's encrypted
- *    `reasoning_details`) onto every part — reasoning, tool-call, AND
- *    tool-result. The downstream provider then accumulates these duplicated
- *    blobs and sends them to the LLM API, which rejects them (xAI 422).
+ * Strips `providerOptions` from all prompt content parts AND messages.
+ *
+ * Why: the AI SDK multi-step tool loop copies `providerOptions` (including
+ * OpenRouter's encrypted `reasoning_details`) onto every content part AND
+ * onto messages. The downstream OpenRouter provider reads these from both
+ * part-level and message-level providerOptions, accumulates them, and
+ * includes them as `reasoning_details` in the assistant message sent to
+ * the LLM API. Providers like xAI reject these with 422 because their
+ * chat completions endpoint can't deserialize the encrypted reasoning
+ * blobs back.
+ *
+ * The reasoning TEXT content (in `reasoning` type parts) is preserved —
+ * only the provider-specific metadata blobs are stripped. This is a
+ * workaround for the OpenRouter AI SDK provider not properly handling
+ * xAI encrypted reasoning round-trips.
+ *
+ * See: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
  */
 function convertCallOptionsForBinding(
   options: LanguageModelV2CallOptions,
@@ -126,10 +134,12 @@ function convertCallOptionsForBinding(
       (msg.role === "assistant" || msg.role === "tool") &&
       Array.isArray(msg.content)
     ) {
+      const { providerOptions: _msgOpts, ...msgRest } =
+        msg as unknown as Record<string, unknown>;
       return {
-        ...msg,
+        ...msgRest,
         content: (msg.content as unknown as Record<string, unknown>[]).map(
-          ({ providerOptions: _strip, ...part }) => part,
+          ({ providerOptions: _partOpts, ...part }) => part,
         ),
       };
     }
