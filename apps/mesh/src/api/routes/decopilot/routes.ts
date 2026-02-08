@@ -244,13 +244,22 @@ app.post("/:org/decopilot/stream", async (c) => {
             ...part.usage,
             providerMetadata: part.providerMetadata,
           });
+          const provider = model.provider;
           return {
             usage: {
               inputTokens: accumulatedUsage.inputTokens,
               outputTokens: accumulatedUsage.outputTokens,
               reasoningTokens: accumulatedUsage.reasoningTokens || undefined,
               totalTokens: accumulatedUsage.totalTokens,
-              providerMetadata: part.providerMetadata,
+              providerMetadata: provider
+                ? {
+                    ...part.providerMetadata,
+                    [provider]: {
+                      ...(part.providerMetadata?.[provider] ?? {}),
+                      reasoning_details: undefined,
+                    },
+                  }
+                : part.providerMetadata,
             },
           };
         }
