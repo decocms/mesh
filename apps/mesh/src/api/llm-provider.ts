@@ -104,58 +104,33 @@ export interface LLMProvider extends ProviderV2 {
 }
 
 /**
- * Convert AI SDK v6 callOptions to LLM binding format.
- * Main differences:
- * - AI SDK v6 tool-call uses `input: object`, binding expects `input: string` (JSON)
- * - AI SDK v6 tool-result uses `output: { type, value }`, binding expects same format
+ * Convert AI SDK callOptions to LLM binding format.
+ *
+ * Key concerns:
+ * 1. Tool-call/tool-result parts must NOT be re-serialized (the downstream
+ *    provider handles its own serialization).
+ * 2. Provider-specific metadata (`providerOptions`) must be stripped from
+ *    prompt content parts. When the AI SDK runs multi-step tool loops, it
+ *    copies `providerOptions` (including e.g. OpenRouter's encrypted
+ *    `reasoning_details`) onto every part — reasoning, tool-call, AND
+ *    tool-result. The downstream provider then accumulates these duplicated
+ *    blobs and sends them to the LLM API, which rejects them (xAI 422).
  */
 function convertCallOptionsForBinding(
   options: LanguageModelV2CallOptions,
 ): Parameters<LLMBindingClient["LLM_DO_GENERATE"]>[0]["callOptions"] {
   const { prompt, ...rest } = options;
 
-  const convertedPrompt = prompt.map((msg) => {
-    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+  const cleanedPrompt = prompt.map((msg) => {
+    if (
+      (msg.role === "assistant" || msg.role === "tool") &&
+      Array.isArray(msg.content)
+    ) {
       return {
         ...msg,
-        content: msg.content.map((part) => {
-          if (part.type === "tool-call" && typeof part.input !== "string") {
-            // AI SDK v6 passes input as object, binding expects string
-            return {
-              ...part,
-              input: JSON.stringify(part.input),
-            };
-          }
-          return part;
-        }),
-      };
-    }
-    if (msg.role === "tool" && Array.isArray(msg.content)) {
-      return {
-        ...msg,
-        content: msg.content.map((part) => {
-          if (part.type === "tool-result") {
-            // Ensure output is in the correct format { type: "text", value: string }
-            const output = (part as { output?: unknown }).output;
-            let formattedOutput = output;
-            if (!output || typeof output !== "object") {
-              // If no output or not an object, wrap in text format
-              formattedOutput = {
-                type: "text",
-                value:
-                  typeof output === "string"
-                    ? output
-                    : JSON.stringify(output ?? ""),
-              };
-            }
-            return {
-              ...part,
-              output: formattedOutput,
-              result: (part as { result?: unknown }).result,
-            };
-          }
-          return part;
-        }),
+        content: (msg.content as unknown as Record<string, unknown>[]).map(
+          ({ providerOptions: _strip, ...part }) => part,
+        ),
       };
     }
     return msg;
@@ -163,7 +138,7 @@ function convertCallOptionsForBinding(
 
   return {
     ...rest,
-    prompt: convertedPrompt,
+    prompt: cleanedPrompt,
   } as Parameters<LLMBindingClient["LLM_DO_GENERATE"]>[0]["callOptions"];
 }
 
