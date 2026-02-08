@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Chat } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
-import { CreateProjectDialog } from "@/web/components/create-project-dialog";
+import { CreateProjectTemplateDialog } from "@/web/components/create-project-template-dialog";
 import { MeshSidebar } from "@/web/components/sidebar";
 import { MeshOrgSwitcher } from "@/web/components/org-switcher";
 import { SplashScreen } from "@/web/components/splash-screen";
@@ -284,7 +284,7 @@ function ShellLayoutContent() {
       </PersistentSidebarProvider>
 
       {/* Create Project Dialog */}
-      <CreateProjectDialog
+      <CreateProjectTemplateDialog
         open={createProjectDialogOpen}
         onOpenChange={setCreateProjectDialogOpen}
       />

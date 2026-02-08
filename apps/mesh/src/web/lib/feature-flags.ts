@@ -5,4 +5,4 @@
  */
 
 /** When true, projects are visible in the org sidebar and account switcher. */
-export const ENABLE_PROJECTS = false;
+export const ENABLE_PROJECTS = true;
