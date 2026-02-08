@@ -84,7 +84,17 @@ export async function toolsFromMCP(client: Client): Promise<ToolSet> {
               value: output.structuredContent as JSONValue,
             };
           }
-          return { type: "content", value: output.content as any };
+          // Convert MCP content parts to text for the model output.
+          // "content" is not a valid AI SDK output type — using it causes
+          // downstream providers (e.g. xAI) to reject the serialized prompt
+          // with a 422 deserialization error on the next step.
+          const textValue = output.content
+            .map((c) => {
+              if (c.type === "text") return c.text;
+              return JSON.stringify(c);
+            })
+            .join("\n");
+          return { type: "text", value: textValue };
         },
       }),
     ];
