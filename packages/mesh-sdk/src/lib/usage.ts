@@ -1,0 +1,120 @@
+/**
+ * Usage utilities for extracting cost and token stats from AI provider metadata.
+ *
+ * Supports provider-specific cost extraction (e.g., OpenRouter)
+ * and aggregation of usage across messages or streaming steps.
+ */
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface UsageData {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  providerMetadata?: {
+    [key: string]: unknown;
+  };
+}
+
+export interface UsageStats {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cost: number;
+}
+
+type ProviderCostExtractor = (
+  providerMetadata: NonNullable<UsageData["providerMetadata"]>,
+) => number | null;
+
+// ============================================================================
+// Provider-specific cost extractors
+// ============================================================================
+
+/**
+ * Registry of provider-specific cost extractors.
+ * Each extractor attempts to get the cost from provider metadata.
+ */
+const PROVIDER_COST_EXTRACTORS: Record<string, ProviderCostExtractor> = {
+  openrouter: (providerMetadata) => {
+    const openrouter = providerMetadata?.openrouter;
+    if (
+      typeof openrouter === "object" &&
+      openrouter !== null &&
+      "usage" in openrouter &&
+      typeof openrouter.usage === "object" &&
+      openrouter.usage !== null &&
+      "cost" in openrouter.usage &&
+      typeof openrouter.usage.cost === "number"
+    ) {
+      return openrouter.usage.cost;
+    }
+    return null;
+  },
+};
+
+// ============================================================================
+// Cost extraction
+// ============================================================================
+
+/**
+ * Extract cost from usage metadata by checking all known provider formats.
+ */
+export function getCostFromUsage(usage: UsageData | null | undefined): number {
+  if (!usage?.providerMetadata) {
+    return 0;
+  }
+
+  for (const extractor of Object.values(PROVIDER_COST_EXTRACTORS)) {
+    const cost = extractor(usage.providerMetadata);
+    if (cost !== null) {
+      return cost;
+    }
+  }
+
+  return 0;
+}
+
+// ============================================================================
+// Usage accumulation
+// ============================================================================
+
+/**
+ * Create an empty UsageStats object.
+ */
+export function emptyUsageStats(): UsageStats {
+  return { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0 };
+}
+
+/**
+ * Accumulate a step's usage into an existing UsageStats total.
+ * Returns a new UsageStats object (immutable).
+ */
+export function addUsage(
+  accumulated: UsageStats,
+  stepUsage: UsageData | null | undefined,
+): UsageStats {
+  if (!stepUsage) return accumulated;
+
+  return {
+    inputTokens: accumulated.inputTokens + (stepUsage.inputTokens ?? 0),
+    outputTokens: accumulated.outputTokens + (stepUsage.outputTokens ?? 0),
+    totalTokens: accumulated.totalTokens + (stepUsage.totalTokens ?? 0),
+    cost: accumulated.cost + getCostFromUsage(stepUsage),
+  };
+}
+
+/**
+ * Calculate aggregated usage stats from an array of messages.
+ * Each message is expected to have an optional `metadata.usage` field.
+ */
+export function calculateUsageStats(
+  messages: Array<{ metadata?: { usage?: UsageData } }>,
+): UsageStats {
+  return messages.reduce<UsageStats>(
+    (acc, message) => addUsage(acc, message.metadata?.usage),
+    emptyUsageStats(),
+  );
+}

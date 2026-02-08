@@ -14,6 +14,7 @@ import type { MeshContext } from "@/core/mesh-context";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { Metadata } from "@/web/components/chat/types";
+import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
@@ -167,7 +168,6 @@ app.post("/:org/decopilot/stream", async (c) => {
     const shouldGenerateTitle = prunedMessages.length === 1;
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
     let newTitle: string | null = null;
-
     // 4. Main stream
     const result = streamText({
       model: modelProvider.model,
@@ -212,13 +212,15 @@ app.post("/:org/decopilot/stream", async (c) => {
       },
     });
 
+    let reasoningStartAt: Date | null = null;
+    let accumulatedUsage: UsageStats = emptyUsageStats();
+
     // 5. Return the stream response with metadata
     return result.toUIMessageStreamResponse({
       originalMessages,
       // consumeSseStream ensures proper abort handling and prevents memory leaks
       consumeSseStream: consumeStream,
-
-      messageMetadata: ({ part }): Metadata => {
+      messageMetadata: ({ part }) => {
         if (part.type === "start") {
           return {
             agent: { id: agent.id ?? null, mode: agent.mode },
@@ -228,14 +230,27 @@ app.post("/:org/decopilot/stream", async (c) => {
           };
         }
         if (part.type === "reasoning-start") {
-          return { reasoning_start_at: new Date() };
+          if (reasoningStartAt === null) {
+            reasoningStartAt = new Date();
+          }
+          return { reasoning_start_at: reasoningStartAt };
         }
         if (part.type === "reasoning-end") {
           return { reasoning_end_at: new Date() };
         }
+
         if (part.type === "finish-step") {
+          accumulatedUsage = addUsage(accumulatedUsage, {
+            ...part.usage,
+            providerMetadata: part.providerMetadata,
+          });
           return {
-            usage: { ...part.usage, providerMetadata: part.providerMetadata },
+            usage: {
+              inputTokens: accumulatedUsage.inputTokens,
+              outputTokens: accumulatedUsage.outputTokens,
+              totalTokens: accumulatedUsage.totalTokens,
+              providerMetadata: part.providerMetadata,
+            },
           };
         }
 
@@ -244,7 +259,8 @@ app.post("/:org/decopilot/stream", async (c) => {
             title: newTitle ?? undefined,
           };
         }
-        return {};
+
+        return;
       },
       onFinish: async ({
         messages: UIMessages,
