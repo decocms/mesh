@@ -77,6 +77,18 @@ jobs:
           echo "major_version=$NEW_MAJOR_VERSION" >> $GITHUB_OUTPUT
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
+      - name: Preserve deploy checkbox state
+        id: checkbox_state
+        env:
+          COMMENT_BODY: ${{ steps.find_comment.outputs.comment-body }}
+        run: |
+          # If an existing comment has the checkbox checked, preserve it
+          if echo "$COMMENT_BODY" | grep -q '\[x\] Deploy to production'; then
+            echo "deploy_checked=- [x] Deploy to production (triggers ArgoCD sync after Docker image is published)" >> $GITHUB_OUTPUT
+          else
+            echo "deploy_checked=- [ ] Deploy to production (triggers ArgoCD sync after Docker image is published)" >> $GITHUB_OUTPUT
+          fi
+
       - name: Post Release Options Comment
         uses: peter-evans/create-or-update-comment@v4
         id: comment
@@ -102,7 +114,7 @@ jobs:
             Current version: `${{ steps.calculate_versions.outputs.current_version }}`
 
             ### Deployment
-            - [ ] Deploy to production (triggers ArgoCD sync after Docker image is published)
+            ${{ steps.checkbox_state.outputs.deploy_checked }}
 
   determine-tag:
     if: github.event_name == 'push'
