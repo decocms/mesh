@@ -16,7 +16,7 @@ export async function getNavigationLinks(
   // Define the correct order for navigation
   const order = [
     "introduction",
-    // MCP Mesh (product docs)
+    // decocms (product docs)
     "mcp-mesh/overview",
     "mcp-mesh/quickstart",
     "mcp-mesh/concepts",
@@ -24,7 +24,7 @@ export async function getNavigationLinks(
     "mcp-mesh/authentication",
     "mcp-mesh/authorization-and-roles",
     "mcp-mesh/mcp-servers",
-    "mcp-mesh/mcp-gateways",
+    "mcp-mesh/virtual-mcps",
     "mcp-mesh/api-keys",
     "mcp-mesh/monitoring",
     "mcp-mesh/api-reference",

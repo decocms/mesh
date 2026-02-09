@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: Developer docs for the MCP Mesh and the deco CMS platform
+description: Developer docs for decocms and the deco CMS platform
 icon: Rocket
 ---
 
@@ -12,17 +12,16 @@ import Callout from "../../components/ui/Callout.astro";
 
 **deco CMS** is an open-source **Context Management System** for AI-native operations.
 
-If MCP is the standard interface for tool access, deco CMS is the **production layer around it**: connect MCP servers, enforce governance, and get observability as usage scales across teams and environments. The broader platform also includes a **builder framework** (MCP Studio — coming soon) and **distribution capabilities** (pre-built modules and store).
+If MCP is the standard interface for tool access, deco CMS is the **production layer around it**: connect MCP servers, enforce governance, and get observability as usage scales across teams and environments.
 
 **Official links:**
 
 - **deco CMS**: [decocms.com](https://www.decocms.com/)
-- **The MCP Mesh**: [decocms.com/mesh](https://www.decocms.com/mesh)
-- **MCP Studio**: [decocms.com/mcp-studio](https://www.decocms.com/mcp-studio)
+- **decocms**: [decocms.com/mesh](https://www.decocms.com/mesh)
 
-If you know us from before (as **deco.cx**) and you’re looking for **headless CMS + storefront** capabilities, visit [deco.cx](https://www.decocms.com/use-case/deco-cx). See the deco.cx docs at [docs.deco.cx](https://docs.deco.cx/en/getting-started/overview).
+If you know us from before (as **deco.cx**) and you're looking for **headless CMS + storefront** capabilities, visit [deco.cx](https://www.decocms.com/use-case/deco-cx). See the deco.cx docs at [docs.deco.cx](https://docs.deco.cx/en/getting-started/overview).
 
-## Start with the MCP Mesh
+## Start with decocms
 
 Choose one:
 
@@ -87,23 +86,21 @@ The application will be available at `http://localhost:8080`.
 
 **More details:** [Kubernetes: Helm Chart](/en/mcp-mesh/deploy/kubernetes-helm-chart)
 
-## Learn the Mesh (concepts + product surfaces)
+## Learn decocms (concepts + product surfaces)
 
-- **[MCP Mesh Overview](/en/mcp-mesh/overview)**
+- **[decocms Overview](/en/mcp-mesh/overview)**
 - **[Quickstart](/en/mcp-mesh/quickstart)**
 - **[Concepts](/en/mcp-mesh/concepts)**
 - **[MCP Servers (Connections)](/en/mcp-mesh/mcp-servers)**
-- **[MCP Agents](/en/mcp-mesh/mcp-gateways)**
+- **[Virtual MCPs](/en/mcp-mesh/virtual-mcps)**
 - **[API Keys](/en/mcp-mesh/api-keys)**
 - **[Monitoring](/en/mcp-mesh/monitoring)**
 
 <Callout type="warning">
   **Docs split (quick guide):**
 
-  - **The MCP Mesh** → Self-hosting, deploying, and operating the Mesh (recommended).
-  - **Legacy Admin** → If you’re using `admin.decocms.com` (still supported, **deprecated soon**).
-
-  We’re launching **MCP Studio** (on top of the Mesh), which will bring the current SaaS admin capabilities to the Mesh (including a hosted option by us) and replace the legacy SaaS over time.
+  - **decocms** → Self-hosting, deploying, and operating decocms (recommended).
+  - **Legacy Admin** → If you're using `admin.decocms.com` (still supported, **deprecated soon**).
 </Callout>
 
 ## Problem: the production gap
@@ -118,17 +115,10 @@ As tool surfaces and teams grow, most orgs run into the same production constrai
 
 For more context on our platform-level thesis, read [The architecture of an AI-native company](https://www.decocms.com/blog/post/ai-native-company).
 
-## Platform structure: Mesh → Studio → Apps & Store
+## Platform structure: Core → Apps & Store
 
-### The MCP Mesh (foundation)
+### decocms (foundation)
 An open-source **control plane for MCP traffic**. It sits between your MCP clients (Cursor, Claude, VS Code, custom agents) and your MCP servers, providing a unified layer for auth, policy, and observability.
-
-### MCP Studio (development)
-A no-code admin + SDK to package MCP capabilities as reusable building blocks.
-
-<Callout type="info">
-  **Coming soon:** This is the successor to the current SaaS admin, built on top of the MCP Mesh.
-</Callout>
 
 ### MCP Apps & Store (distribution)
 A path to distribute reusable MCP-native capabilities across teams (and eventually a store).
