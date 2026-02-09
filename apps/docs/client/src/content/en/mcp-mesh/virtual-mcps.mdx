@@ -1,98 +1,184 @@
 ---
 title: Virtual MCPs
-description: Publish a virtual MCP server that aggregates tools/resources/prompts from multiple connections
+description: Create MCP servers on the spot without writing server code or managing infrastructure
 icon: Waypoints
 ---
 
 import Callout from "../../../components/ui/Callout.astro";
 
-## What is a Virtual MCP?
+## MCP Compliance & Benefits
 
-A **Virtual MCP** is a foundational concept in MCP Mesh—it's a **virtual MCP server** that aggregates multiple connections into a single MCP surface:
+decocms is fully **MCP compliant**, following the Model Context Protocol specification. MCPs let AI agents work beyond your computer—acting on databases, APIs, SaaS tools, and production systems. MCP is a **protocol for action**, enabling agents to read, write, and orchestrate across your infrastructure.
 
-- tools (`tools/list`, `tools/call`)
-- resources (`resources/list`, `resources/read`)
-- prompts (`prompts/list`, `prompts/get`)
+## The Challenge
 
-This is how you create a curated endpoint for clients without exposing every tool from every connected integration.
+Creating traditional MCP servers requires writing server code, managing infrastructure, and maintaining updates—a barrier that prevents many teams from leveraging MCP's full potential.
 
-## Endpoint
+## Virtual MCPs: The Solution
 
-- `POST /mcp/virtual/:virtualId`
+**Virtual MCPs** are decocms's answer to this challenge. They let you **create MCP servers on the spot**, without writing server code or managing infrastructure.
 
-You can also omit `:virtualId` and rely on the organization's default Virtual MCP by providing one of these headers:
+A Virtual MCP is a **virtual MCP server** that aggregates tools, resources, and prompts into a single MCP-compliant endpoint. Instead of writing and deploying server code, you configure what capabilities to expose—and decocms handles the rest.
 
-- `x-org-id`, or
-- `x-org-slug`
+Virtual MCPs are:
 
-## Selection modes
+- **Dynamically created**: spin up new MCPs through configuration, not code
+- **Production-ready**: fully MCP-compliant endpoints that work with any MCP client
+- **Instantly updated**: attach new tools or resources without redeploying servers
+- **Foundation for advanced features**: the building block for agents and organizational tooling
 
-- **Include**: only the listed connections/tools are exposed.
-- **Exclude**: expose the whole org surface *except* excluded connections/tools.
+## How Virtual MCPs Work
 
-## Tool exposure strategies
+Virtual MCPs can be created in two fundamental ways, and you can mix both approaches as needed.
 
-Virtual MCPs also control **how tools are exposed** to clients (useful when tool surfaces get large).
-These strategies ship by default:
+### Approach 1: Composition (Mix Existing Connections)
 
-### Passthrough (baseline)
+**Composition** lets you aggregate capabilities from multiple connected MCP servers into a unified virtual MCP.
 
-- Exposes all Virtual MCP tools directly via `tools/list`.
-- Best for small tool surfaces and deterministic behavior.
+Here's how it works:
 
-### Smart tool selection
+1. **Connect MCP servers** to your decocms instance (GitHub, Slack, databases, etc.)
+2. **Select tools** from one or more connections you want to expose
+3. **Configure the virtual MCP** to include these selected capabilities
+4. **Get a single endpoint** that exposes the aggregated toolset
 
-- Exposes meta-tools for discovery and targeted execution:
-  - `VIRTUAL_SEARCH_TOOLS` (keyword search)
-  - `VIRTUAL_DESCRIBE_TOOLS` (fetch full schemas)
-  - `VIRTUAL_CALL_TOOL` (execute a chosen tool)
-- Goal: keep the tool list small and let the client request details on demand.
+**Example**: Create a "deployment" virtual MCP that combines:
+- GitHub tools (create PRs, merge, tag releases)
+- Slack tools (post updates, create threads)
+- Database tools (run migrations, verify schema)
 
-### Code execution
+Your AI agent connects to one virtual MCP endpoint and gets access to all three systems.
 
-- Exposes meta-tools for discovery + sandboxed execution:
-  - `VIRTUAL_SEARCH_TOOLS`
-  - `VIRTUAL_DESCRIBE_TOOLS`
-  - `VIRTUAL_RUN_CODE` (run JS in a sandbox that can call tools)
-- Goal: reduce tool exposure overhead on large surfaces by shifting work into a constrained runtime.
+```typescript
+// Configuration example: composition approach
+{
+  "name": "deployment-virtual-mcp",
+  "mode": "include",
+  "connections": [
+    {
+      "connectionId": "github-conn-123",
+      "tools": ["CREATE_PR", "MERGE_PR", "CREATE_TAG"]
+    },
+    {
+      "connectionId": "slack-conn-456",
+      "tools": ["POST_MESSAGE", "CREATE_THREAD"]
+    },
+    {
+      "connectionId": "database-conn-789",
+      "tools": ["RUN_MIGRATION", "VERIFY_SCHEMA"]
+    }
+  ]
+}
+```
 
-## The default Virtual MCP (auto-created per org)
+### Approach 2: Inline Creation
 
-Every new organization gets a **Default Virtual MCP**:
+**Inline creation** lets you create resources, prompts, and tools directly within decocms—no external MCP server needed.
 
-- **Strategy**: `passthrough`
-- **Mode**: `exclusion`
-- **Default exclusions**: the built-in **Mesh MCP** connection (management tools) and the **Store/Registry** connection are excluded by default
-- **Default behavior**: everything else in the org is included — so as you connect Integrations, this endpoint becomes the "all tools in the org" Virtual MCP
+This is perfect for:
 
-This is the endpoint most teams use as the single aggregated MCP surface for an org.
+- **Custom prompts** tailored to your team's workflows
+- **Resources** like documentation, guidelines, or context
+- **Tools** that orchestrate other tools or implement custom logic
 
-## Benchmark: strategy tradeoffs
+**Example**: Create a virtual MCP with inline prompts for code review:
 
-We ran a Virtual MCP strategy benchmark here: [MCP Virtual MCP Benchmark (GitHub Actions run)](https://github.com/decocms/mesh/actions/runs/20584203227).
+```typescript
+// Configuration example: inline approach
+{
+  "name": "code-review-virtual-mcp",
+  "prompts": [
+    {
+      "name": "security-review",
+      "description": "Review code for security vulnerabilities",
+      "template": "Analyze this code for security issues:\n- SQL injection\n- XSS vulnerabilities\n- Auth bypasses\n\nCode:\n{{code}}"
+    },
+    {
+      "name": "performance-review",
+      "description": "Review code for performance issues",
+      "template": "Analyze this code for performance problems:\n- N+1 queries\n- Memory leaks\n- Inefficient algorithms\n\nCode:\n{{code}}"
+    }
+  ],
+  "resources": [
+    {
+      "uri": "review://guidelines",
+      "name": "Code Review Guidelines",
+      "mimeType": "text/markdown",
+      "content": "# Review Guidelines\n\n1. Security first\n2. Performance matters\n..."
+    }
+  ]
+}
+```
 
-**Summary (high level):**
+### Hybrid: Mix Both Approaches
 
-- **Small tool surface (~10 tools)**:
-  - **Passthrough** used fewer tokens, but had lower success than **Code execution**
-  - **Smart tool selection** was the least reliable in this run
-- **Large tool surface (~128 tools)**:
-  - **Code execution** reduced token usage substantially vs **Passthrough** and had the highest success
-  - **Smart tool selection** was the most expensive in tokens in this run
+Combine composition and inline creation in the same virtual MCP:
 
-If you want the raw numbers, open the run and download the **benchmark-results** artifact.
+```typescript
+// Hybrid example: external tools + inline prompts
+{
+  "name": "development-assistant",
+  "connections": [
+    {
+      "connectionId": "github-conn-123",
+      "tools": ["CREATE_PR", "LIST_ISSUES"]
+    }
+  ],
+  "prompts": [
+    {
+      "name": "pr-template",
+      "description": "Generate PR description from commits",
+      "template": "Create a PR description from these commits:\n{{commits}}"
+    }
+  ]
+}
+```
 
-## Code Execution Tools in the Management MCP
+This virtual MCP exposes GitHub tools from an external connection alongside custom prompts defined inline.
 
-In addition to Virtual MCP strategies, you can use code execution tools directly from the **Management MCP** (`/mcp`):
+## Virtual MCP Configuration
 
-- `CODE_EXECUTION_SEARCH_TOOLS` - search tools by name or description
-- `CODE_EXECUTION_DESCRIBE_TOOLS` - get detailed tool schemas
-- `CODE_EXECUTION_RUN_CODE` - run JS in a sandbox with tool access
+Virtual MCPs are dynamically configurable:
 
-These tools operate on:
-- All active connections in the organization (by default)
-- Virtual MCP-specific connections (if `virtualId` is set in context)
+- **Tool selection**: `include` (whitelist specific tools) or `exclude` (blacklist specific tools)
+- **Runtime strategies**: control how tools are exposed (see Tool Exposure Strategies below)
+- **Dynamic updates**: attach new tools, resources, or prompts
+- **Endpoint**: Each virtual MCP gets a unique endpoint at `/mcp/virtual/:virtualId`
 
-This lets you use the code execution paradigm without configuring a specific Virtual MCP strategy.
+Every organization gets a **default virtual MCP** that aggregates all connections using `passthrough` strategy and `exclude` selection (management MCP excluded by default).
 
+## Tool Exposure Strategies
+
+Virtual MCPs offer different runtime strategies for exposing tools:
+
+- **Passthrough**: Exposes all tools via `tools/list`. Best for small surfaces.
+- **Smart Selection**: Exposes meta-tools (`VIRTUAL_SEARCH_TOOLS`, `VIRTUAL_DESCRIBE_TOOLS`, `VIRTUAL_CALL_TOOL`) for on-demand discovery.
+- **Code Execution**: Adds sandboxed `VIRTUAL_RUN_CODE` for JavaScript-based tool orchestration.
+
+## Concepts Built on Virtual MCPs
+
+Virtual MCPs are the **foundational feature** for specialized capabilities:
+
+- **Agents**: Single-purpose virtual MCPs optimized for specific tasks (see [Concepts](/en/mcp-mesh/concepts))
+- **Organization MCP**: Default virtual MCP that aggregates all your connections
+
+## Use Cases
+
+- **Unified Deployment**: Mix GitHub, Slack, and database MCPs into one endpoint for CI/CD workflows
+- **Custom Code Review**: Define inline prompts tailored to your team's review process
+- **Hybrid Development Assistant**: Combine external tools (GitHub, Jira) with inline prompts for contextual guidance
+
+## Benefits Summary
+
+Virtual MCPs eliminate infrastructure barriers:
+
+- **No server code or infrastructure**: configure capabilities, decocms handles hosting
+- **Dynamic updates**: modify tools and resources without downtime
+- **Composition and inline creation**: aggregate existing MCPs or define custom logic
+- **Foundation for advanced workflows**: building block for agents and organizational tooling
+
+Virtual MCPs make MCP accessible to every team—no DevOps required.
+
+---
+
+**Ready to create your first virtual MCP?** Head to the [Quickstart](/en/mcp-mesh/quickstart) to get started, or learn about [Connections](/en/mcp-mesh/mcp-servers) to understand how to wire up external MCP servers.
