@@ -1,0 +1,138 @@
+---
+title: Context Management
+description: How decopilot manages context across scopes and maintains efficient token usage
+icon: FileText
+---
+
+import Callout from "../../../../components/ui/Callout.astro";
+
+<Callout type="info">
+  This page documents the **planned architecture** for decopilot context management. The implementation is in development.
+</Callout>
+
+Decopilot manages context through a priority-based system that balances completeness with efficiency. Context includes conversation history, tool definitions, resources, and project-specific instructions—all within the model's limited token window.
+
+## What Gets Included in Context
+
+Decopilot builds context in priority order:
+
+1. **System Instructions** - Core behavior definition (always present)
+2. **CLAUDE.md** - Project and org-admin persistent rules
+3. **AGENTS.md** - Agent-specific instructions via MCP server instructions property
+4. **Conversation History** - Recent messages (automatically truncated)
+5. **MCP Tool Definitions** - Filtered by agent type to reduce overhead
+6. **Resources** - Loaded on-demand when explicitly requested
+
+## CLAUDE.md Support
+
+CLAUDE.md provides persistent context at two levels: org-admin (`/:org` scope) for organization-wide rules, and project (`/:org/projects/:id` scope) for project-specific guidelines.
+
+**Precedence handling**: When both levels define conflicting rules, project-level CLAUDE.md takes precedence. This allows project-specific overrides while maintaining organization-wide defaults. For example, an org-admin might enforce Conventional Commits across all projects, but a specific project could override commit message format for integration with external systems.
+
+**Conflict resolution**: Decopilot merges non-conflicting rules. If org-admin specifies testing requirements and project-level adds deployment guidelines, both apply. Only direct conflicts trigger precedence resolution.
+
+**Best practices**: Keep CLAUDE.md concise (under 500 words), focus on persistent rules rather than one-time instructions, use clear markdown formatting, and update content as patterns emerge across multiple conversations.
+
+### Example: Project-Level CLAUDE.md
+
+```markdown
+# Mobile App Project
+
+## Stack
+- React Native 0.74, TypeScript 5.9, Expo SDK 52
+
+## Code Conventions
+- Functional components with hooks
+- API calls in `src/services/`
+- Colocate tests, use Zod for validation
+
+## Testing
+- Run `bun test` before committing
+```
+
+### Example: Org-Admin Level CLAUDE.md
+
+```markdown
+# Organization Guidelines
+
+## Principles
+- Security first: validate all inputs
+- WCAG 2.1 AA compliance
+- Update docs alongside code
+
+## Git Workflow
+- Conventional commits: `type(scope): message`
+- PR review required
+```
+
+## AGENTS.md Support
+
+AGENTS.md provides agent-specific instructions via the MCP server's `instructions` property. Both project and org-admin virtual MCPs return this content—spawned agents automatically receive targeted guidance for their specific purpose.
+
+### Example: AGENTS.md Structure
+
+```markdown
+# Agent Instructions
+
+## Research Agents
+**Purpose**: Explore and analyze without modification
+
+**Guidelines**:
+- Read-only operations only
+- Document findings in structured format
+- Tools: LIST_FILES, READ_FILE, SEARCH_CODE
+
+## Development Agents
+**Purpose**: Implement features and fix bugs
+
+**Guidelines**:
+- Create feature branches
+- Write tests alongside implementation
+- Tools: CREATE_BRANCH, COMMIT_CHANGES, RUN_TESTS
+```
+
+## Context Cost Management
+
+Tool definitions consume significant tokens—a typical MCP server with 50 tools can use 5,000-10,000 tokens just for tool definitions. With Claude's 200K context window, unfiltered tools from multiple servers quickly exhaust available space.
+
+**Token cost examples**: A single comprehensive tool definition (name, description, parameters with JSON schema) averages 100-200 tokens. A project with 3 MCP servers (filesystem, git, API client) exposing 150 total tools could consume 15,000-30,000 tokens before any conversation begins. This leaves less room for conversation history, code context, and reasoning.
+
+### Tool Filtering
+
+Virtual MCPs enable dynamic filtering based on agent type and task requirements. Rather than exposing all tools to every agent, decopilot selectively includes only relevant tools:
+
+```typescript
+// Research agent sees filtered tools
+{
+  agentType: "research",
+  tools: ["LIST_FILES", "READ_FILE", "SEARCH_CODE"]
+  // CREATE_PR, DEPLOY filtered out
+}
+```
+
+**Filtering strategies**: Development agents receive write operations (CREATE_BRANCH, COMMIT_CHANGES), research agents get read-only tools (READ_FILE, SEARCH_CODE), and deployment agents access infrastructure tools (DEPLOY, ROLLBACK). This reduces average tool context from 15,000 tokens to 3,000-5,000 tokens depending on agent type.
+
+Resources load only when explicitly requested through tool calls, preventing automatic inclusion in base context. This on-demand approach keeps initial context minimal while providing access to full project resources when needed.
+
+## Context Isolation via Agent Spawning
+
+Agent spawning provides fresh context for specific tasks. As decopilot works through complex problems, context accumulates—conversation history grows, resources are loaded, and the context window fills. Spawning an agent creates clean context focused on one task, then integrates results back without polluting the parent context.
+
+**Technical implementation**: Each spawned agent receives a new task ID and isolated context. The parent decopilot maintains its conversation history and resources, while the child agent starts with only essential context. When the agent completes, results are summarized and returned to the parent—typically 200-500 tokens instead of the full 10,000+ token conversation the agent had.
+
+Spawned agents receive:
+- System instructions, CLAUDE.md, AGENTS.md
+- Task description and filtered tools
+- NO parent conversation history or accumulated resources
+
+This isolation ensures agents focus on their specific task without distraction from unrelated context. A security review agent doesn't need to know about UI design decisions from earlier in the conversation. A documentation agent doesn't need git history from unrelated branches.
+
+**Benefits**: Faster processing due to smaller context, better focus on specific objectives, parallel execution of independent tasks, and cleaner results integrated back to parent. See [Task-Based Agent Spawning](/en/mcp-mesh/decopilot/architecture#task-based-agent-spawning) for implementation details.
+
+## Summary
+
+Decopilot balances completeness with efficiency through priority-based inclusion, tool filtering, on-demand resources, and agent spawning. Virtual MCPs enable dynamic, scope-aware context management for efficient operation within token limits.
+
+---
+
+Explore [Scopes](/en/mcp-mesh/decopilot/scopes) to understand how routing determines context, or [Task-Based Agent Spawning](/en/mcp-mesh/decopilot/architecture#task-based-agent-spawning) for fresh context isolation.
