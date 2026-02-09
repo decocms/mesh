@@ -1,0 +1,1129 @@
+---
+title: Tools
+description: Built-in decopilot tools and how to work with target virtual MCP tools
+icon: Wrench
+---
+
+import Callout from "../../../../components/ui/Callout.astro";
+
+<Callout type="info">
+  This page documents the **planned architecture** for decopilot tools. The specification serves as the implementation guide for the decopilot module.
+</Callout>
+
+## What are Decopilot Tools?
+
+Decopilot tools are the mechanism through which decopilot interacts with virtual MCPs, spawns agents, asks users questions, and manages capabilities across different scopes. Tools fall into two fundamental categories with distinct purposes and availability patterns.
+
+**Built-in tools** are always available to decopilot regardless of scope. These core capabilities enable decopilot to manage agents, interact with users, and manipulate the current virtual MCP's configuration.
+
+**Target virtual MCP tools** are capabilities from the target virtual MCP (current scope) that decopilot must discover and enable before use. These include tools from connected external MCP servers and inline tools defined within the virtual MCP.
+
+Understanding the distinction between these two categories is essential—built-in tools provide foundational capabilities, while target virtual MCP tools provide domain-specific operations that vary by scope.
+
+## Tool Architecture
+
+Decopilot's tool architecture follows a two-tier model that separates meta-level operations from domain-specific capabilities.
+
+### Category 1: Built-in Tools (Always Available)
+
+Built-in tools will be implemented directly in the decopilot module and are always available regardless of the current scope. These tools enable:
+
+- **Agent management**: Spawning and searching for agents across the organization
+- **User interaction**: Asking questions and gathering input (restricted in child tasks)
+- **Virtual MCP manipulation**: Reading, editing, searching, and enabling capabilities within the current scope
+
+Built-in tools operate at the meta level—they manage the environment itself rather than performing domain-specific work. For example, `agent_spawn` doesn't write code or create pull requests; it delegates to another agent that has those capabilities.
+
+```typescript
+// Built-in tool example (specification)
+const AGENT_SPAWN = {
+  name: "agent_spawn",
+  description: "Spawn an agent with context to work on a specific task",
+  inputSchema: {
+    type: "object",
+    properties: {
+      agent_id: {
+        type: "string",
+        description: "ID of the agent to spawn"
+      },
+      prompt: {
+        type: "string",
+        description: "Task description and context for the agent"
+      }
+    },
+    required: ["agent_id", "prompt"]
+  },
+  outputSchema: {
+    type: "object",
+    properties: {
+      task_id: {
+        type: "string",
+        description: "ID of the created task"
+      }
+    },
+    required: ["task_id"]
+  }
+}
+```
+
+### Category 2: Target Virtual MCP Tools (Discovered/Enabled)
+
+Target virtual MCP tools come from the current scope's virtual MCP. These tools must be:
+
+1. **Discovered** via `tools_search` to find available capabilities
+2. **Enabled** via `tool_enable` before they can be invoked
+3. **Used** once enabled within the current task
+
+These tools include:
+
+- **External MCP tools**: Connected from external servers like GitHub, Slack, or databases
+- **Inline tools**: Defined directly within the virtual MCP configuration
+
+The discovery and enablement requirement ensures decopilot explicitly chooses which capabilities to use, preventing tool overload and maintaining focused execution.
+
+```typescript
+// Workflow: discover and enable tools
+// 1. Search for available tools
+decopilot.invokeTool("tools_search", { search_term: "github" })
+// Returns: ["CREATE_PR", "LIST_ISSUES", "CREATE_BRANCH"]
+
+// 2. Enable specific tool
+decopilot.invokeTool("tool_enable", { tool_name: "CREATE_PR" })
+// Tool is now available for invocation
+
+// 3. Use the enabled tool
+decopilot.invokeTool("CREATE_PR", {
+  title: "Add authentication feature",
+  body: "Implements biometric authentication"
+})
+```
+
+## Understanding Scope-Sensitive Tools
+
+All built-in tools that operate on the current virtual MCP are **scope-sensitive**—they adapt behavior based on whether decopilot is in org, project, or agent scope.
+
+### Scope-Dependent Behavior
+
+The same tool invocation produces different results depending on the current scope:
+
+**In org scope** (`/:org/settings`):
+- `resource_read("org://acme-corp/security-policy")` reads from org virtual MCP
+- `tools_search()` lists org-level tools and all connected external MCPs
+- `tool_enable()` enables tools within the org virtual MCP context
+
+**In project scope** (`/:org/projects/:mobile-app`):
+- `resource_read("project://mobile-app/architecture")` reads from project virtual MCP
+- `tools_search()` lists project tools, inherited org tools, and project-connected external MCPs
+- `tool_enable()` enables tools within the project virtual MCP context
+
+**In agent scope** (`/:org/agents/:security-reviewer`):
+- `resource_read("agent://security-reviewer/checklist")` reads from agent virtual MCP
+- `tools_search()` lists bounded agent tools and inherited capabilities
+- `tool_enable()` enables tools within the agent virtual MCP context
+
+The scope determines which virtual MCP the tool operates on. This automatic adaptation ensures tools always work with the correct context without requiring explicit scope parameters.
+
+### Scope Inheritance
+
+Virtual MCPs inherit capabilities from parent scopes:
+
+- **Agent scope** inherits from project (if spawned in project context) and org
+- **Project scope** inherits from org
+- **Org scope** is the foundation level
+
+When `tools_search` runs in project scope, it returns project-specific tools AND org-level tools. When `resource_read` looks for a resource, it checks the current scope first, then falls back to parent scopes.
+
+## Tool Categories
+
+Built-in tools are organized by functional category based on their purpose.
+
+### Org-Related Tools (Always Available)
+
+These tools manage agents and user interaction across the organization.
+
+**`agent_spawn`**: Spawn an agent with context to execute a specific task. Creates a child task with isolated context. Agent runs until completion, then returns results to the main decopilot loop.
+
+**`agent_search`**: Search or list agents configured in the current organization. Empty search term returns all agents. Used to discover available agents before spawning.
+
+**`user_ask_question`**: Ask the user questions to gather input or clarification. Disabled in child tasks (agent-spawned) to prevent blocking execution. Only available in top-level tasks (user-initiated).
+
+### Current Virtual MCP Tools (Always Available, Scope-Sensitive)
+
+These tools operate on the current scope's virtual MCP, adapting behavior based on org/project/agent context.
+
+**`resource_read`**: Read a resource by URI from the current scope's virtual MCP. Supports scope inheritance—searches current scope first, then parent scopes.
+
+**`resource_edit`**: Create, update, or delete a resource in the current scope. Scope determines which virtual MCP is modified. Supports content updates and deletion.
+
+**`prompt_read`**: Read a prompt by name from the current scope's virtual MCP. Prompts are templates with variables that can be invoked with parameters.
+
+**`prompt_edit`**: Create, update, or delete a prompt in the current scope. Enables decopilot to define reusable prompt templates as it works.
+
+**`tools_read`**: Read detailed information about a specific tool by name from the current scope. Returns full tool specification including input/output schemas.
+
+**`tools_edit`**: Edit an inline tool by name within the current scope. Can modify tool definitions, including changing which scope the tool belongs to. Cannot edit external MCP tools (read-only).
+
+**`tools_search`**: Search or list tools available in the target virtual MCP. Empty search term returns all tools. Returns tools from current scope, inherited parent scopes, and connected external MCPs.
+
+**`tool_enable`**: Enable a tool from the target virtual MCP before invoking it. Required before calling any target virtual MCP tool. Once enabled, the tool becomes available for the current task.
+
+## Built-in Tool Reference
+
+This section provides detailed specifications for each built-in tool.
+
+### agent_spawn
+
+Spawn an agent with context to work on a specific task. Creates a child task with isolated context that runs until the agent responds.
+
+**Signature**: `agent_spawn(agent_id: string, prompt: string) -> task_id: string`
+
+**Input Schema**:
+```typescript
+{
+  agent_id: string      // ID of the agent to spawn
+  prompt: string        // Task description and context for the agent
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  task_id: string       // ID of the created child task
+}
+```
+
+**Behavior**:
+- Creates a child task with isolated context
+- Agent receives fresh context (no parent conversation history)
+- Agent runs until it responds with findings or completion
+- Main decopilot loop continues without blocking
+- Results integrate back into parent context when task completes
+
+**Restrictions**:
+- Disabled in child tasks by default (prevents infinite spawning)
+- Only available in top-level tasks unless explicitly enabled
+
+**Example**:
+```typescript
+// Spawn security review agent on specific files
+const result = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer-001",
+  prompt: "Review src/auth/login.ts and src/auth/session.ts for security vulnerabilities. Focus on SQL injection, XSS, and auth bypasses."
+})
+// Returns: { task_id: "task-abc-123" }
+```
+
+### agent_search
+
+Search or list agents configured in the current organization. Empty search term returns all agents.
+
+**Signature**: `agent_search(search_term?: string) -> Agent[]`
+
+**Input Schema**:
+```typescript
+{
+  search_term?: string  // Optional search term (empty = list all)
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  agents: [
+    {
+      agent_id: string
+      name: string
+      purpose: string
+      capabilities: string[]
+    }
+  ]
+}
+```
+
+**Behavior**:
+- Queries organization agent registry
+- Filters by search term if provided (matches name, purpose, capabilities)
+- Returns all agents if search term is empty
+- Results ordered by relevance (if searching) or alphabetically (if listing)
+
+**Example**:
+```typescript
+// Search for security-related agents
+const result = await decopilot.invokeTool("agent_search", {
+  search_term: "security"
+})
+// Returns: [{ agent_id: "security-reviewer-001", name: "Security Reviewer", ... }]
+
+// List all agents
+const allAgents = await decopilot.invokeTool("agent_search", {})
+```
+
+### user_ask_question
+
+Ask the user a question to gather input or clarification. Disabled in child tasks to prevent blocking execution.
+
+**Signature**: `user_ask_question(question: string, options?: { type: string, choices?: string[] }) -> string`
+
+**Input Schema**:
+```typescript
+{
+  question: string      // Question to ask the user
+  options?: {
+    type: "text" | "choice" | "confirmation"
+    choices?: string[]  // For choice type
+  }
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  answer: string        // User's response
+}
+```
+
+**Behavior**:
+- Presents question to user in UI
+- Task status changes to "Needs Input"
+- Execution pauses until user responds
+- Returns user's answer when provided
+
+**Restrictions**:
+- **Disabled in child tasks** (agent-spawned tasks cannot ask user questions)
+- Only available in top-level tasks (user-initiated)
+- Prevents agents from blocking on user input
+
+**Example**:
+```typescript
+// Ask for confirmation before deployment
+const result = await decopilot.invokeTool("user_ask_question", {
+  question: "Deploy to production? This will affect live users.",
+  options: { type: "confirmation" }
+})
+// Returns: { answer: "yes" } or { answer: "no" }
+
+// Ask for choice
+const result = await decopilot.invokeTool("user_ask_question", {
+  question: "Which environment should we deploy to?",
+  options: {
+    type: "choice",
+    choices: ["staging", "production", "development"]
+  }
+})
+```
+
+### resource_read
+
+Read a resource by URI from the current scope's virtual MCP. Supports scope inheritance.
+
+**Signature**: `resource_read(uri: string) -> { content: string, mimeType: string }`
+
+**Input Schema**:
+```typescript
+{
+  uri: string           // Resource URI (e.g., "project://mobile-app/architecture")
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  content: string       // Resource content
+  mimeType: string      // MIME type (e.g., "text/markdown")
+  name: string          // Resource name
+}
+```
+
+**Behavior**:
+- Resolves URI based on current scope
+- Searches current scope's virtual MCP first
+- Falls back to parent scopes if not found (inheritance)
+- Returns resource content and metadata
+
+**Scope-sensitive**:
+- Org scope: reads from org virtual MCP
+- Project scope: reads from project virtual MCP (with org inheritance)
+- Agent scope: reads from agent virtual MCP (with project/org inheritance)
+
+**Example**:
+```typescript
+// In project scope: read project architecture doc
+const result = await decopilot.invokeTool("resource_read", {
+  uri: "project://mobile-app/architecture"
+})
+// Returns: { content: "# Architecture\n\n...", mimeType: "text/markdown", ... }
+
+// Read org-level resource (inheritance)
+const orgResource = await decopilot.invokeTool("resource_read", {
+  uri: "org://acme-corp/security-policy"
+})
+```
+
+### resource_edit
+
+Create, update, or delete a resource in the current scope's virtual MCP.
+
+**Signature**: `resource_edit(uri: string, content?: string, operation: "create" | "update" | "delete") -> { success: boolean }`
+
+**Input Schema**:
+```typescript
+{
+  uri: string           // Resource URI
+  content?: string      // Resource content (required for create/update)
+  mimeType?: string     // MIME type (default: "text/markdown")
+  name?: string         // Resource name (required for create)
+  operation: "create" | "update" | "delete"
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  success: boolean
+}
+```
+
+**Behavior**:
+- Creates, updates, or deletes resource in current scope's virtual MCP
+- Scope determines which virtual MCP is modified
+- Create fails if resource already exists
+- Update fails if resource doesn't exist
+- Delete removes resource from virtual MCP
+
+**Scope-sensitive**:
+- Org scope: modifies org virtual MCP
+- Project scope: modifies project virtual MCP
+- Agent scope: modifies agent virtual MCP
+
+**Example**:
+```typescript
+// Create new resource in project scope
+const result = await decopilot.invokeTool("resource_edit", {
+  uri: "project://mobile-app/deployment-checklist",
+  name: "Deployment Checklist",
+  content: "# Deployment\n\n- [ ] Run tests\n- [ ] Update changelog",
+  mimeType: "text/markdown",
+  operation: "create"
+})
+
+// Update existing resource
+await decopilot.invokeTool("resource_edit", {
+  uri: "project://mobile-app/deployment-checklist",
+  content: "# Deployment\n\n- [ ] Run tests\n- [ ] Update changelog\n- [ ] Notify team",
+  operation: "update"
+})
+
+// Delete resource
+await decopilot.invokeTool("resource_edit", {
+  uri: "project://mobile-app/old-doc",
+  operation: "delete"
+})
+```
+
+### prompt_read
+
+Read a prompt by name from the current scope's virtual MCP.
+
+**Signature**: `prompt_read(name: string) -> { template: string, description: string }`
+
+**Input Schema**:
+```typescript
+{
+  name: string          // Prompt name
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  name: string
+  description: string
+  template: string      // Template with {{variables}}
+}
+```
+
+**Behavior**:
+- Searches current scope's virtual MCP for prompt
+- Falls back to parent scopes if not found (inheritance)
+- Returns prompt template and metadata
+
+**Scope-sensitive**:
+- Org scope: reads from org virtual MCP
+- Project scope: reads from project virtual MCP (with org inheritance)
+- Agent scope: reads from agent virtual MCP (with project/org inheritance)
+
+**Example**:
+```typescript
+// Read code review prompt
+const result = await decopilot.invokeTool("prompt_read", {
+  name: "security-review"
+})
+// Returns: { name: "security-review", template: "Review for:\n- SQL injection\n...", ... }
+```
+
+### prompt_edit
+
+Create, update, or delete a prompt in the current scope's virtual MCP.
+
+**Signature**: `prompt_edit(name: string, template?: string, operation: "create" | "update" | "delete") -> { success: boolean }`
+
+**Input Schema**:
+```typescript
+{
+  name: string          // Prompt name
+  description?: string  // Prompt description (required for create)
+  template?: string     // Template with {{variables}} (required for create/update)
+  operation: "create" | "update" | "delete"
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  success: boolean
+}
+```
+
+**Behavior**:
+- Creates, updates, or deletes prompt in current scope's virtual MCP
+- Scope determines which virtual MCP is modified
+- Prompts can include variables using `{{variableName}}` syntax
+
+**Scope-sensitive**:
+- Org scope: modifies org virtual MCP
+- Project scope: modifies project virtual MCP
+- Agent scope: modifies agent virtual MCP
+
+**Example**:
+```typescript
+// Create new prompt template
+const result = await decopilot.invokeTool("prompt_edit", {
+  name: "mobile-pr-template",
+  description: "PR template for mobile features",
+  template: "## Mobile Feature PR\n\n{{description}}\n\n### Testing\n- [ ] iOS tested\n- [ ] Android tested",
+  operation: "create"
+})
+
+// Update prompt template
+await decopilot.invokeTool("prompt_edit", {
+  name: "mobile-pr-template",
+  template: "## Mobile Feature PR\n\n{{description}}\n\n### Testing\n- [ ] iOS tested\n- [ ] Android tested\n- [ ] Tablet tested",
+  operation: "update"
+})
+```
+
+### tools_read
+
+Read detailed information about a specific tool by name from the current scope.
+
+**Signature**: `tools_read(tool_name: string) -> { name: string, description: string, inputSchema: object, outputSchema: object }`
+
+**Input Schema**:
+```typescript
+{
+  tool_name: string     // Name of the tool to read
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  name: string
+  description: string
+  inputSchema: object   // JSON Schema for input
+  outputSchema: object  // JSON Schema for output
+  source: "inline" | "external"  // Whether tool is inline or from external MCP
+}
+```
+
+**Behavior**:
+- Returns full tool specification including schemas
+- Searches current scope's virtual MCP
+- Includes inherited tools from parent scopes
+- Useful for understanding tool capabilities before enabling
+
+**Scope-sensitive**:
+- Resolves from current scope's virtual MCP and parent scopes
+- Includes tools from connected external MCPs
+
+**Example**:
+```typescript
+// Read CREATE_PR tool specification
+const result = await decopilot.invokeTool("tools_read", {
+  tool_name: "CREATE_PR"
+})
+// Returns: { name: "CREATE_PR", description: "Create a pull request", inputSchema: {...}, ... }
+```
+
+### tools_edit
+
+Edit an inline tool by name within the current scope. Can modify tool definitions including scope assignment.
+
+**Signature**: `tools_edit(tool_name: string, definition?: object, operation: "create" | "update" | "delete") -> { success: boolean }`
+
+**Input Schema**:
+```typescript
+{
+  tool_name: string     // Tool name
+  definition?: {
+    description?: string
+    inputSchema?: object
+    outputSchema?: object
+    handler?: string    // Tool implementation (inline code or composite workflow)
+  }
+  operation: "create" | "update" | "delete"
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  success: boolean
+}
+```
+
+**Behavior**:
+- Creates, updates, or deletes inline tool in current scope's virtual MCP
+- **Cannot edit external MCP tools** (read-only)
+- Can change which scope a tool belongs to
+- Scope determines which virtual MCP is modified
+
+**Scope-sensitive**:
+- Org scope: modifies org virtual MCP
+- Project scope: modifies project virtual MCP
+- Agent scope: modifies agent virtual MCP
+
+**Restrictions**:
+- Only works with inline tools (tools defined in virtual MCP)
+- External MCP tools are read-only and cannot be modified
+
+**Example**:
+```typescript
+// Create new inline tool
+const result = await decopilot.invokeTool("tools_edit", {
+  tool_name: "DEPLOY_STAGING",
+  definition: {
+    description: "Deploy to staging environment",
+    inputSchema: {
+      type: "object",
+      properties: {
+        branch: { type: "string" }
+      }
+    },
+    handler: "composite" // Orchestrates other tools
+  },
+  operation: "create"
+})
+
+// Update existing inline tool
+await decopilot.invokeTool("tools_edit", {
+  tool_name: "DEPLOY_STAGING",
+  definition: {
+    description: "Deploy to staging environment with health checks",
+    inputSchema: {
+      type: "object",
+      properties: {
+        branch: { type: "string" },
+        runHealthChecks: { type: "boolean", default: true }
+      }
+    }
+  },
+  operation: "update"
+})
+```
+
+### tools_search
+
+Search or list tools available in the target virtual MCP. Empty search term returns all tools.
+
+**Signature**: `tools_search(search_term?: string) -> Tool[]`
+
+**Input Schema**:
+```typescript
+{
+  search_term?: string  // Optional search term (empty = list all)
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  tools: [
+    {
+      name: string
+      description: string
+      source: "inline" | "external"
+      enabled: boolean  // Whether tool is currently enabled for use
+    }
+  ]
+}
+```
+
+**Behavior**:
+- Lists tools from current scope's virtual MCP
+- Includes inherited tools from parent scopes
+- Includes tools from connected external MCPs
+- Filters by search term if provided
+- Returns all tools if search term is empty
+
+**Scope-sensitive**:
+- Org scope: lists org tools and connected external MCPs
+- Project scope: lists project tools, inherited org tools, and project-connected external MCPs
+- Agent scope: lists bounded agent tools and inherited capabilities
+
+**Example**:
+```typescript
+// Search for GitHub-related tools
+const result = await decopilot.invokeTool("tools_search", {
+  search_term: "github"
+})
+// Returns: [{ name: "CREATE_PR", description: "...", enabled: false }, ...]
+
+// List all available tools
+const allTools = await decopilot.invokeTool("tools_search", {})
+// Returns all tools from current scope and parents
+```
+
+### tool_enable
+
+Enable a tool from the target virtual MCP before invoking it. Required before calling any target virtual MCP tool.
+
+**Signature**: `tool_enable(tool_name: string) -> { success: boolean }`
+
+**Input Schema**:
+```typescript
+{
+  tool_name: string     // Name of the tool to enable
+}
+```
+
+**Output Schema**:
+```typescript
+{
+  success: boolean
+  enabled: boolean      // Whether tool is now enabled
+}
+```
+
+**Behavior**:
+- Enables tool for use in the current task
+- Must be called before invoking any target virtual MCP tool
+- Tool remains enabled for the duration of the task
+- Does not persist across tasks (each task must enable tools explicitly)
+
+**Scope-sensitive**:
+- Enables tool from current scope's virtual MCP
+- Includes inherited tools from parent scopes
+
+**Example**:
+```typescript
+// Enable CREATE_PR before using it
+const result = await decopilot.invokeTool("tool_enable", {
+  tool_name: "CREATE_PR"
+})
+// Returns: { success: true, enabled: true }
+
+// Now CREATE_PR is available for invocation
+await decopilot.invokeTool("CREATE_PR", {
+  title: "Add authentication feature",
+  body: "Implements biometric authentication"
+})
+```
+
+## Working with Target Virtual MCP Tools
+
+Target virtual MCP tools require a discovery and enablement workflow before use. This section explains the complete process.
+
+### Discovery Workflow
+
+Before using any target virtual MCP tool, you must discover what tools are available in the current scope:
+
+```typescript
+// Step 1: Discover available tools
+const result = await decopilot.invokeTool("tools_search", {})
+// Returns list of all tools in current scope
+
+// Step 2: Filter or search for specific capabilities
+const githubTools = await decopilot.invokeTool("tools_search", {
+  search_term: "github"
+})
+// Returns only GitHub-related tools
+
+// Step 3: Read tool details to understand capabilities
+const toolDetails = await decopilot.invokeTool("tools_read", {
+  tool_name: "CREATE_PR"
+})
+// Returns full specification with input/output schemas
+```
+
+### Enablement Workflow
+
+Once you've discovered a tool, enable it before invoking:
+
+```typescript
+// Step 1: Enable the tool
+await decopilot.invokeTool("tool_enable", {
+  tool_name: "CREATE_PR"
+})
+
+// Step 2: Use the enabled tool
+await decopilot.invokeTool("CREATE_PR", {
+  title: "Add authentication",
+  body: "Implements biometric auth for iOS and Android",
+  base: "main",
+  head: "feature/biometric-auth"
+})
+```
+
+### Complete Example: GitHub PR Creation
+
+```typescript
+// Full workflow from discovery to invocation
+async function createPullRequest() {
+  // 1. Search for GitHub tools
+  const githubTools = await decopilot.invokeTool("tools_search", {
+    search_term: "github"
+  })
+  console.log("Available GitHub tools:", githubTools)
+
+  // 2. Read CREATE_PR specification
+  const prToolSpec = await decopilot.invokeTool("tools_read", {
+    tool_name: "CREATE_PR"
+  })
+  console.log("CREATE_PR input schema:", prToolSpec.inputSchema)
+
+  // 3. Enable CREATE_PR
+  await decopilot.invokeTool("tool_enable", {
+    tool_name: "CREATE_PR"
+  })
+
+  // 4. Create the PR
+  const result = await decopilot.invokeTool("CREATE_PR", {
+    title: "Add biometric authentication",
+    body: "Implements face ID and fingerprint authentication for mobile app",
+    base: "main",
+    head: "feature/biometric-auth"
+  })
+
+  console.log("PR created:", result.url)
+}
+```
+
+### External vs Inline Tools
+
+Target virtual MCP tools come from two sources:
+
+**External MCP tools**:
+- Connected from external MCP servers (GitHub, Slack, databases)
+- Read-only (cannot be modified via `tools_edit`)
+- Must be enabled before use
+- Source shows as `"external"` in `tools_search` results
+
+**Inline tools**:
+- Defined directly in the virtual MCP configuration
+- Can be modified via `tools_edit`
+- Must be enabled before use
+- Source shows as `"inline"` in `tools_search` results
+
+```typescript
+// Check tool source before attempting to edit
+const toolInfo = await decopilot.invokeTool("tools_read", {
+  tool_name: "CREATE_PR"
+})
+
+if (toolInfo.source === "external") {
+  console.log("Cannot edit external MCP tool")
+} else {
+  // Safe to edit inline tool
+  await decopilot.invokeTool("tools_edit", {
+    tool_name: "DEPLOY_STAGING",
+    definition: { /* updated definition */ },
+    operation: "update"
+  })
+}
+```
+
+## Scope-Specific Tool Behavior Examples
+
+This section provides concrete examples of how tools behave differently across scopes.
+
+### Example 1: Resource Management Across Scopes
+
+```typescript
+// In org scope (/:org/settings)
+await decopilot.invokeTool("resource_edit", {
+  uri: "org://acme-corp/security-policy",
+  name: "Security Policy",
+  content: "# Security Policy\n\nAll code must be reviewed for security issues.",
+  operation: "create"
+})
+// Creates resource in org virtual MCP (available to all projects)
+
+// In project scope (/:org/projects/mobile-app)
+await decopilot.invokeTool("resource_edit", {
+  uri: "project://mobile-app/architecture",
+  name: "Mobile Architecture",
+  content: "# Architecture\n\nMobile app uses React Native with...",
+  operation: "create"
+})
+// Creates resource in project virtual MCP (available only to this project)
+
+// Reading resources with inheritance
+const securityPolicy = await decopilot.invokeTool("resource_read", {
+  uri: "org://acme-corp/security-policy"
+})
+// Works from any scope (org, project, or agent) via inheritance
+```
+
+### Example 2: Tool Discovery by Scope
+
+```typescript
+// In org scope: lists org-wide tools
+const orgTools = await decopilot.invokeTool("tools_search", {})
+// Returns: ["ORG_CONNECTION_CREATE", "ORG_RESOURCE_CREATE", ...]
+
+// In project scope: lists project + org + connected external tools
+const projectTools = await decopilot.invokeTool("tools_search", {})
+// Returns: ["CREATE_PR", "DEPLOY_STAGING", "ORG_RESOURCE_CREATE", ...]
+
+// In agent scope: lists bounded agent tools + inherited tools
+const agentTools = await decopilot.invokeTool("tools_search", {})
+// Returns: ["SECURITY_SCAN", "CVE_LOOKUP", "ORG_RESOURCE_CREATE", ...]
+```
+
+### Example 3: Prompt Templates by Scope
+
+```typescript
+// Create org-level prompt (available to all projects)
+await decopilot.invokeTool("prompt_edit", {
+  name: "code-review-checklist",
+  description: "Standard code review checklist",
+  template: "## Code Review\n\n- [ ] Security reviewed\n- [ ] Tests added\n- [ ] Docs updated",
+  operation: "create"
+})
+
+// Create project-level prompt (overrides org for this project)
+await decopilot.invokeTool("prompt_edit", {
+  name: "code-review-checklist",
+  description: "Mobile-specific code review checklist",
+  template: "## Mobile Code Review\n\n- [ ] iOS tested\n- [ ] Android tested\n- [ ] Security reviewed",
+  operation: "create"
+})
+
+// Reading prompts respects scope hierarchy
+const prompt = await decopilot.invokeTool("prompt_read", {
+  name: "code-review-checklist"
+})
+// In project scope: returns project-specific version
+// In org scope: returns org-level version
+```
+
+## Tool Availability by Task Type
+
+Tool availability varies depending on whether the task is user-initiated (top-level) or agent-spawned (child).
+
+### Top-Level Tasks (User-Initiated)
+
+Top-level tasks have full tool access:
+
+- All built-in tools available (including `user_ask_question` and `agent_spawn`)
+- Can discover and enable target virtual MCP tools
+- Can spawn child tasks via `agent_spawn`
+- Can ask user questions via `user_ask_question`
+
+```typescript
+// Top-level task can use all tools
+await decopilot.invokeTool("user_ask_question", {
+  question: "Deploy to production?"
+})
+// Works in top-level tasks
+
+await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer-001",
+  prompt: "Review authentication code"
+})
+// Works in top-level tasks
+```
+
+### Child Tasks (Agent-Spawned)
+
+Child tasks have restricted tool access:
+
+- Most built-in tools available
+- **`user_ask_question` DISABLED** (cannot ask user questions)
+- **`agent_spawn` DISABLED by default** (prevents infinite spawning)
+- Can discover and enable target virtual MCP tools
+- Can spawn grandchild tasks if explicitly enabled
+
+```typescript
+// Child task (agent-spawned)
+await decopilot.invokeTool("user_ask_question", {
+  question: "Deploy to production?"
+})
+// Throws error: "user_ask_question not available in child tasks"
+
+await decopilot.invokeTool("agent_spawn", {
+  agent_id: "another-agent",
+  prompt: "Do more work"
+})
+// Throws error: "agent_spawn disabled in child tasks" (unless explicitly enabled)
+
+// But can still use other built-in tools
+await decopilot.invokeTool("resource_read", {
+  uri: "project://mobile-app/architecture"
+})
+// Works in child tasks
+
+await decopilot.invokeTool("tools_search", {
+  search_term: "security"
+})
+// Works in child tasks
+```
+
+### Task State Transitions
+
+Tasks transition through states based on execution and completion detection:
+
+**Active**: Task is currently being processed by decopilot or an agent.
+
+**Needs Input**: Task requires user input. Triggered by `user_ask_question` or when a cheap model determines additional input is required.
+
+**Successful**: Task completed successfully. Determined by cheap model checking conversation history and tool invocations.
+
+**Failed**: Task encountered an error that prevents completion.
+
+```typescript
+// Task state example
+const task = {
+  taskId: "task-001",
+  status: "active",    // Initial state when task starts
+
+  // After user_ask_question is called
+  status: "needs_input",
+
+  // After user responds and work completes
+  status: "successful",
+
+  // Or if error occurs
+  status: "failed"
+}
+```
+
+## Tool Specification Format
+
+All tools (built-in and target virtual MCP) follow a consistent specification format:
+
+```typescript
+interface ToolSpecification {
+  name: string                    // Tool name (UPPERCASE_SNAKE_CASE convention)
+  description: string             // What the tool does
+  inputSchema: object             // JSON Schema for input validation
+  outputSchema: object            // JSON Schema for output validation
+  handler?: Function              // Tool implementation (inline tools only)
+  source: "inline" | "external"   // Whether tool is inline or from external MCP
+}
+```
+
+### Input Schema
+
+Input schemas use JSON Schema Draft 7:
+
+```typescript
+{
+  type: "object",
+  properties: {
+    param1: {
+      type: "string",
+      description: "Parameter description"
+    },
+    param2: {
+      type: "number",
+      description: "Another parameter"
+    }
+  },
+  required: ["param1"]  // Required parameters
+}
+```
+
+### Output Schema
+
+Output schemas define expected return values:
+
+```typescript
+{
+  type: "object",
+  properties: {
+    result: {
+      type: "string",
+      description: "Result description"
+    },
+    success: {
+      type: "boolean",
+      description: "Whether operation succeeded"
+    }
+  },
+  required: ["success"]
+}
+```
+
+### Example Complete Specification
+
+```typescript
+const DEPLOY_STAGING_TOOL = {
+  name: "DEPLOY_STAGING",
+  description: "Deploy the application to staging environment",
+  inputSchema: {
+    type: "object",
+    properties: {
+      branch: {
+        type: "string",
+        description: "Git branch to deploy"
+      },
+      runTests: {
+        type: "boolean",
+        description: "Whether to run tests before deployment",
+        default: true
+      }
+    },
+    required: ["branch"]
+  },
+  outputSchema: {
+    type: "object",
+    properties: {
+      deploymentUrl: {
+        type: "string",
+        description: "URL of the deployed application"
+      },
+      success: {
+        type: "boolean",
+        description: "Whether deployment succeeded"
+      }
+    },
+    required: ["success"]
+  },
+  source: "inline",
+  handler: async (input) => {
+    // Tool implementation
+  }
+}
+```
+
+## Key Takeaways
+
+**Two tool categories**: Built-in tools (always available) and target virtual MCP tools (must be discovered and enabled).
+
+**Scope-sensitive behavior**: Built-in tools that operate on virtual MCPs adapt automatically based on org/project/agent scope.
+
+**Discovery and enablement**: Target virtual MCP tools require `tools_search` to discover and `tool_enable` to activate before use.
+
+**Task type restrictions**: Top-level tasks have full tool access; child tasks have `user_ask_question` and `agent_spawn` disabled.
+
+**Scope inheritance**: Resources, prompts, and tools inherit from parent scopes, enabling reuse and consistency.
+
+**External vs inline**: External MCP tools are read-only; inline tools can be modified via `tools_edit`.
+
+Understanding these concepts is essential for working effectively with decopilot—tools are the mechanism through which decopilot interacts with virtual MCPs and accomplishes work.
+
+---
+
+**Ready to dive deeper?** Explore [Scopes](/en/mcp-mesh/decopilot/scopes) to understand scope-based routing, [Architecture](/en/mcp-mesh/decopilot/architecture) for implementation details, or [Virtual MCPs](/en/mcp-mesh/virtual-mcps) to understand the foundation layer.
