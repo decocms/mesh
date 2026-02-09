@@ -201,7 +201,7 @@ function ModelDetailsPanel({
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Input cost</span>
             <span className="text-foreground font-medium">
-              ${model.costs.input.toFixed(2)} / 1M
+              ${(model.costs.input * 1_000_000).toFixed(2)} / 1M
             </span>
           </div>
         )}
@@ -210,7 +210,7 @@ function ModelDetailsPanel({
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Output cost</span>
             <span className="text-foreground font-medium">
-              ${model.costs.output.toFixed(2)} / 1M
+              ${(model.costs.output * 1_000_000).toFixed(2)} / 1M
             </span>
           </div>
         )}
@@ -275,13 +275,15 @@ function ModelDetailsPanel({
               {model.costs?.input !== null &&
                 model.costs?.input !== undefined && (
                   <p className="text-sm text-muted-foreground">
-                    ${model.costs.input.toFixed(2)} / 1M tokens (input)
+                    ${(model.costs.input * 1_000_000).toFixed(2)} / 1M tokens
+                    (input)
                   </p>
                 )}
               {model.costs?.output !== null &&
                 model.costs?.output !== undefined && (
                   <p className="text-sm text-muted-foreground">
-                    ${model.costs.output.toFixed(2)} / 1M tokens (output)
+                    ${(model.costs.output * 1_000_000).toFixed(2)} / 1M tokens
+                    (output)
                   </p>
                 )}
             </div>
