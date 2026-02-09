@@ -1,0 +1,490 @@
+---
+title: Agents
+description: Single-purpose virtual MCPs designed for specific tasks
+icon: Bot
+---
+
+import Callout from "../../../components/ui/Callout.astro";
+
+<Callout type="info">
+  This page documents the **planned architecture** for agents in MCP Mesh. The implementation is in development.
+</Callout>
+
+## What Are Agents?
+
+**Agents** are single-purpose virtual MCPs optimized for specific tasks. While [Projects](/en/mcp-mesh/projects) provide general-purpose, project-level work environments, agents are narrowly focused on accomplishing one thing well.
+
+An agent is a complete virtual MCP with its own:
+
+- **Tools**: Curated for the agent's specific purpose
+- **Resources**: Context and documentation relevant to the task
+- **Prompts**: Templates tailored to the agent's workflow
+- **Configuration**: Agent-specific settings and constraints
+
+Agents are built on the [Virtual MCP](/en/mcp-mesh/virtual-mcps) foundation—they ARE virtual MCPs, not just connections to them. This means agents can expose tools, resources, and prompts through the MCP protocol, making them first-class participants in your MCP ecosystem.
+
+## Agents vs. Projects
+
+Understanding the distinction between agents and projects is key:
+
+**Projects** are general-purpose organizational units for ongoing work:
+- Broad scope covering multiple workflows
+- Long-lived, evolving over time
+- Team collaboration hub
+- Example: "Mobile App Rewrite" project with design, development, and deployment tools
+
+**Agents** are single-purpose virtual MCPs for specific tasks:
+- Narrow scope with clear, focused objective
+- Designed for particular operations
+- Can be spawned on-demand with fresh context
+- Example: "Agent Management Agent" that only creates/edits/deletes agents
+
+## Agents as Virtual MCPs
+
+Because agents are virtual MCPs, they have the same capabilities and configuration options as any virtual MCP. Each agent:
+
+- Exposes a unique MCP-compliant endpoint at `/:org/agents/:agent_id`
+- Can aggregate tools from multiple connections (composition)
+- Can define inline resources, prompts, and tools
+- Can be configured and updated dynamically
+- Operates within its defined scope and boundaries
+
+```typescript
+// Example: Research agent configuration
+{
+  "agentId": "research-agent-001",
+  "name": "Codebase Research Agent",
+  "purpose": "Explore and analyze codebase structure",
+  "connections": [
+    {
+      "connectionId": "github-conn-123",
+      "tools": ["LIST_FILES", "READ_FILE", "SEARCH_CODE"]
+    },
+    {
+      "connectionId": "docs-conn-456",
+      "tools": ["SEARCH_DOCS", "GET_API_REFERENCE"]
+    }
+  ],
+  "prompts": [
+    {
+      "name": "analyze-architecture",
+      "description": "Analyze codebase architecture patterns",
+      "template": "Analyze the architecture of:\n{{filepath}}\n\nFocus on:\n- Design patterns\n- Dependencies\n- Module organization"
+    }
+  ],
+  "resources": [
+    {
+      "uri": "agent://research-agent-001/guidelines",
+      "name": "Research Guidelines",
+      "mimeType": "text/markdown",
+      "content": "# Research Guidelines\n\n- Read-only operations\n- Document findings clearly\n- Focus on structure and patterns"
+    }
+  ]
+}
+```
+
+## Creating Agents
+
+Agents are created similarly to projects, with configuration determining their behavior. The key is defining a clear, single purpose for the agent.
+
+### Composition Mode
+
+Mix tools from multiple existing connections:
+
+```typescript
+// Deployment agent using composition
+{
+  "agentId": "deployment-agent-001",
+  "name": "Production Deployment Agent",
+  "purpose": "Deploy applications to production",
+  "connections": [
+    {
+      "connectionId": "github-conn-123",
+      "tools": ["CREATE_TAG", "MERGE_PR", "CREATE_RELEASE"]
+    },
+    {
+      "connectionId": "slack-conn-456",
+      "tools": ["POST_MESSAGE"]
+    },
+    {
+      "connectionId": "monitoring-conn-789",
+      "tools": ["CHECK_HEALTH", "GET_METRICS"]
+    }
+  ]
+}
+```
+
+### Inline Mode
+
+Define agent capabilities directly within MCP Mesh:
+
+```typescript
+// Testing agent with inline prompts
+{
+  "agentId": "testing-agent-001",
+  "name": "Test Analysis Agent",
+  "purpose": "Analyze test coverage and quality",
+  "prompts": [
+    {
+      "name": "coverage-report",
+      "description": "Generate test coverage analysis",
+      "template": "Analyze test coverage for:\n{{files}}\n\nReport:\n- Coverage percentage\n- Untested paths\n- Recommendations"
+    },
+    {
+      "name": "test-quality",
+      "description": "Assess test quality",
+      "template": "Review test quality:\n{{test_files}}\n\nCheck for:\n- Clear assertions\n- Edge cases\n- Maintainability"
+    }
+  ]
+}
+```
+
+### Hybrid Mode
+
+Combine external tools with inline configuration:
+
+```typescript
+// Development agent mixing both approaches
+{
+  "agentId": "dev-agent-001",
+  "name": "Development Assistant Agent",
+  "purpose": "Assist with feature development",
+  "connections": [
+    {
+      "connectionId": "github-conn-123",
+      "tools": ["CREATE_BRANCH", "CREATE_PR", "LIST_ISSUES"]
+    }
+  ],
+  "prompts": [
+    {
+      "name": "feature-pr-template",
+      "description": "Generate feature PR description",
+      "template": "Create PR for feature:\n{{feature_name}}\n\nInclude:\n- Summary\n- Testing checklist\n- Breaking changes"
+    }
+  ],
+  "resources": [
+    {
+      "uri": "agent://dev-agent-001/workflow",
+      "name": "Development Workflow",
+      "mimeType": "text/markdown",
+      "content": "# Development Workflow\n\n1. Create feature branch\n2. Implement changes\n3. Write tests\n4. Create PR with checklist"
+    }
+  ]
+}
+```
+
+## Agent Configuration
+
+Agents support the same configuration capabilities as virtual MCPs, plus agent-specific features.
+
+### AGENTS.md Support
+
+Each agent can have an `AGENTS.md` file that provides context and instructions specific to that agent's purpose. This file is loaded into the agent's context and guides its behavior.
+
+```markdown
+# Research Agent Instructions
+
+## Purpose
+Explore and analyze codebases for architectural patterns and structure.
+
+## Constraints
+- Read-only operations only
+- Document all findings
+- Focus on high-level patterns, not implementation details
+
+## Workflow
+1. Start with entry points (main files, index files)
+2. Map module dependencies
+3. Identify design patterns
+4. Document architectural decisions
+```
+
+### Tool Selection
+
+Choose tools that align with the agent's purpose. Overly broad tool access dilutes the agent's focus.
+
+**Good**: Research agent with read-only tools
+**Bad**: Research agent with write, deploy, and admin tools
+
+### Resource Configuration
+
+Provide resources that give the agent domain-specific context:
+
+- Guidelines specific to the agent's task
+- Templates for common outputs
+- Reference documentation
+- Domain knowledge
+
+## Built-in Agents
+
+MCP Mesh includes several built-in agents for common mesh operations. These agents use the **Mesh MCP**—a self-referential MCP that exposes mesh management capabilities through the MCP protocol.
+
+### The Mesh MCP
+
+The Mesh MCP is a powerful concept: **mesh has an MCP for managing itself**. This MCP provides tools for:
+
+- Managing agents (create, edit, delete)
+- Managing connections (add, remove, configure)
+- Managing permissions (roles, access control)
+- Managing users (invite, remove)
+- Installing MCPs from the store
+
+Built-in agents leverage these mesh MCP tools, which are available in the organization's virtual MCP at the org-admin level.
+
+### Agent Management Agent
+
+**Purpose**: Create, edit, and delete agents
+
+**Tools**: Agent CRUD operations from mesh MCP
+
+**Use cases**:
+- "Create a new research agent for analyzing this codebase"
+- "Edit the deployment agent to add database migration tools"
+- "Delete the testing agent that's no longer needed"
+
+**Scope**: Organization-level operations
+
+**How it works**: Uses mesh MCP tools (`CREATE_AGENT`, `UPDATE_AGENT`, `DELETE_AGENT`) to manage agents. The agent has access to the org's virtual MCP at admin level, allowing it to perform agent management operations.
+
+```typescript
+// Example: Using agent management agent
+{
+  "agentId": "agent-manager-001",
+  "name": "Agent Management Agent",
+  "purpose": "Manage agent lifecycle",
+  "connections": [
+    {
+      "connectionId": "mesh-mcp-conn",
+      "tools": ["CREATE_AGENT", "UPDATE_AGENT", "DELETE_AGENT", "LIST_AGENTS"]
+    }
+  ],
+  "prompts": [
+    {
+      "name": "create-agent-from-description",
+      "description": "Create agent from natural language description",
+      "template": "Create an agent for: {{description}}\n\nDetermine:\n- Agent name and purpose\n- Required tools\n- Relevant prompts and resources"
+    }
+  ]
+}
+```
+
+### Connection Management Agent
+
+**Purpose**: Manage MCP connections
+
+**Tools**: Connection management from mesh MCP
+
+**Use cases**:
+- "Connect to the GitHub MCP server with these credentials"
+- "Remove the unused Slack connection"
+- "Update authentication settings for the database MCP"
+
+**Scope**: Organization-level operations
+
+**How it works**: Uses mesh MCP tools (`CREATE_CONNECTION`, `UPDATE_CONNECTION`, `DELETE_CONNECTION`) to manage connections in the organization.
+
+### Permission Management Agent
+
+**Purpose**: Manage permissions and access control
+
+**Tools**: Permission management from mesh MCP
+
+**Use cases**:
+- "Grant developer role to this user"
+- "Restrict access to production connections"
+- "Update permissions for the deployment agent"
+
+**Scope**: Organization-level operations
+
+**How it works**: Uses mesh MCP tools for permission management (`GRANT_PERMISSION`, `REVOKE_PERMISSION`, `LIST_PERMISSIONS`) to control access within the organization.
+
+### MCP Store Agent
+
+**Purpose**: Install and manage MCPs from the store
+
+**Tools**: Store browsing and MCP installation from mesh MCP
+
+**Use cases**:
+- "Install the GitHub MCP from the store"
+- "Browse available database integration MCPs"
+- "Update the Slack MCP to the latest version"
+
+**Scope**: Organization-level operations
+
+**How it works**: Uses mesh MCP tools (`BROWSE_STORE`, `INSTALL_MCP`, `UPDATE_MCP`) to interact with the MCP store and install servers.
+
+### User Management Agent
+
+**Purpose**: Invite and manage organization users
+
+**Tools**: User management from mesh MCP
+
+**Use cases**:
+- "Invite a new developer to the organization"
+- "Remove user access for this email"
+- "Update user roles and permissions"
+
+**Scope**: Organization-level operations
+
+**How it works**: Uses mesh MCP tools (`INVITE_USER`, `REMOVE_USER`, `UPDATE_USER_ROLE`) to manage organization membership.
+
+### Characteristics of Built-in Agents
+
+Built-in agents share common characteristics:
+
+- **Use org's virtual MCP**: Access mesh MCP tools at org-admin level
+- **Pre-configured**: Tools, prompts, and resources tailored for specific mesh operations
+- **Available out-of-the-box**: No setup required, ready to use immediately
+- **Customizable**: Can be modified or used as templates for custom agents
+- **Org-level scope**: Operate at organization level, not project or agent scope
+
+Built-in agents make mesh operations accessible through the same MCP interface used for application development, creating a consistent experience.
+
+## Agent Types and Patterns
+
+Common agent patterns emerge based on purpose:
+
+### Research Agents
+
+**Focus**: Exploration and analysis
+
+**Tools**: Read-only operations, search, documentation access
+
+**Example**: Codebase architecture analysis agent
+
+**Characteristics**:
+- No write or mutating operations
+- Comprehensive read access
+- Documentation and analysis prompts
+
+### Development Agents
+
+**Focus**: Building and implementing features
+
+**Tools**: Full read/write access, branching, committing, testing
+
+**Example**: Feature implementation agent
+
+**Characteristics**:
+- Code modification tools
+- Git operations
+- Testing and validation tools
+
+### Testing Agents
+
+**Focus**: Verification and validation
+
+**Tools**: Test execution, coverage analysis, quality checks
+
+**Example**: Test coverage agent
+
+**Characteristics**:
+- Testing framework tools
+- Coverage reporting
+- Quality metrics
+
+### Deployment Agents
+
+**Focus**: Operations and releases
+
+**Tools**: Deployment commands, monitoring, rollback
+
+**Example**: Production deployment agent
+
+**Characteristics**:
+- Production access (carefully scoped)
+- Deployment and rollback tools
+- Health check and monitoring
+
+### Custom Agents
+
+**Focus**: Domain-specific tasks
+
+**Tools**: Tailored to specific use case
+
+**Example**: Customer support agent with CRM and ticket tools
+
+**Characteristics**:
+- Highly specialized toolset
+- Domain-specific prompts and resources
+- Often combines multiple systems
+
+## Single-Purpose Design Principle
+
+The power of agents comes from their focused design. An agent should do one thing well.
+
+### Why Single-Purpose?
+
+**Clarity**: The agent's purpose is immediately clear
+**Reliability**: Narrow scope reduces unexpected behavior
+**Maintainability**: Simpler to update and debug
+**Reusability**: Single-purpose agents compose better
+
+### Good vs. Overly Broad
+
+**Good**: "Agent Management Agent" (creates/edits/deletes agents)
+**Too broad**: "Mesh Admin Agent" (manages agents, connections, permissions, users, billing, settings...)
+
+**Good**: "Production Deployment Agent" (deploys to production)
+**Too broad**: "DevOps Agent" (deploys, monitors, manages infrastructure, handles incidents...)
+
+### Defining Clear Purpose
+
+When creating an agent, start with a purpose statement:
+
+```
+Purpose: [Verb] + [Object] + [Context]
+
+Examples:
+- "Deploy applications to production environments"
+- "Analyze test coverage for code quality"
+- "Research codebase architecture patterns"
+- "Manage agent lifecycle in the organization"
+```
+
+A clear purpose guides tool selection, resource configuration, and prompt design.
+
+## Agent Scope
+
+When working within an agent, you operate in **agent scope**. The agent's route determines this:
+
+```
+/:org/agents/:agent_id
+```
+
+In agent scope:
+- Tools are limited to those configured for the agent
+- Resources are agent-specific plus organization-level
+- Prompts are tailored to the agent's purpose
+- Operations are bounded by the agent's capabilities
+
+For more details on how scopes work, see the decopilot documentation on [Scopes](/en/mcp-mesh/decopilot/scopes).
+
+## Using Agents
+
+Agents can be used in several ways:
+
+**Spawned by decopilot**: When working in decopilot, agents can be spawned on-demand with fresh context.
+
+**Built-in agents**: Use pre-configured agents for common mesh operations without any setup.
+
+**Custom agents**: Create domain-specific agents for your team's unique workflows.
+
+**Direct connection**: Connect MCP clients directly to agent endpoints for focused work sessions.
+
+Agents provide focused capabilities with fresh context, making them ideal for specific, well-defined tasks.
+
+## Benefits Summary
+
+Agents bring several advantages:
+
+- **Focused capabilities**: Single-purpose design ensures clarity and reliability
+- **Fresh context**: Spawned agents start with clean context for their specific task
+- **Reusable patterns**: Define once, use across projects and workflows
+- **Built-in operations**: Pre-configured agents for common mesh tasks
+- **Composable design**: Combine multiple agents for complex workflows
+- **Self-referential management**: Mesh MCP enables agents to manage mesh itself
+
+---
+
+**Ready to create your first agent?** Start by understanding [Virtual MCPs](/en/mcp-mesh/virtual-mcps) to grasp the foundation, then explore built-in agents to see common patterns.
