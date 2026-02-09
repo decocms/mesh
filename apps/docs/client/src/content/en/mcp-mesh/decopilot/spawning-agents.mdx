@@ -1,0 +1,223 @@
+---
+title: Spawning Agents
+description: How decopilot spawns agents as tasks for parallel execution and context isolation
+icon: Layers
+---
+
+import Callout from "../../../../components/ui/Callout.astro";
+
+<Callout type="info">
+  This page documents the **planned architecture** for agent spawning in decopilot. The implementation is in development.
+</Callout>
+
+## What is Agent Spawning?
+
+Agent spawning creates isolated tasks with specialized agents to accomplish specific work. Decopilot creates a new task with fresh context, delegates work, and integrates results when complete.
+
+Think of spawning as delegating to focused specialists. Decopilot breaks work into focused tasks, spawns agents for each piece, and orchestrates results.
+
+A **task** is an isolated chat session with a specific agent. The codebase uses "threads" internally, but UI and documentation use "tasks." Future versions will unify terminology.
+
+Learn more in [Agents](/en/mcp-mesh/agents) and [Virtual MCPs](/en/mcp-mesh/virtual-mcps).
+
+## Benefits of Task Spawning
+
+**Parallel execution**: Spawn multiple agents for independent work simultaneously.
+
+**Context isolation**: Each task gets fresh context focused on its objective. Parent context doesn't pollute child tasks.
+
+**Focused capabilities**: Agents have bounded tool access appropriate to their purpose.
+
+**Efficient token usage**: Fresh context means minimal overhead. Results integrate as summaries.
+
+**Composable workflows**: Break complex work into focused steps handled by specialized agents.
+
+## Understanding Tasks vs Threads
+
+The codebase uses "threads" for what users see as "tasks." This terminology will converge with "tasks" becoming consistent throughout.
+
+**For users**: Think "tasks"—the UI shows tasks.
+
+**For developers**: Currently "threads" in code, transitioning to "tasks."
+
+Spawned agents create child tasks with limited context inheritance.
+
+## How agent_spawn Works
+
+The `agent_spawn` tool creates a new task with a specified agent and prompt.
+
+**Signature**: `agent_spawn(agent_id: string, prompt: string): task_id: string`
+
+**Behavior**: Creates new task with agent's [virtual MCP](/en/mcp-mesh/virtual-mcps), passes prompt as initial message, parent continues immediately.
+
+```typescript
+const taskId = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer-001",
+  prompt: "Review src/auth/login.ts for vulnerabilities."
+})
+```
+
+The spawned task runs independently. Parent doesn't block—results return when task completes.
+
+## Task States and Lifecycle
+
+**Active**: Task being processed by agent.
+
+**Needs Input**: Requires user input to continue (via `user_ask` tool or cheap model determination).
+
+**Successful**: Task completed. Cheap model detects completion criteria.
+
+**Failed**: Encountered error preventing completion.
+
+```typescript
+const taskId = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "research-agent",
+  prompt: "Analyze architecture"
+})
+// Active -> needs_input (if user_ask) -> active -> successful
+```
+
+Handle `needs_input` state by providing input via task UI:
+
+```typescript
+// Task calls user_ask -> needs_input state
+// Navigate to task, provide input
+// Task resumes -> active state
+```
+
+## Task Variants: Top-level vs Child
+
+**Top-level tasks** are user-initiated with full tool access:
+- `user_ask` available
+- `agent_spawn` available
+- Full access to built-in and virtual MCP tools
+
+**Child tasks** are agent-spawned with restrictions:
+- `user_ask` disabled (prevents blocking on input)
+- `agent_spawn` disabled by default (prevents deep nesting)
+- Access to other tools
+
+Child tasks work with provided information, return partial results if clarification needed, or fail gracefully. The parent calls `user_ask` and re-spawns with additional context.
+
+This maintains flat hierarchy: top-level spawns children, children return results, top-level coordinates.
+
+## Context Isolation and Inheritance
+
+Spawned tasks receive isolated context with selective inheritance.
+
+**Spawned agents receive**:
+- System instructions
+- CLAUDE.md (org/project rules)
+- AGENTS.md (agent-specific instructions)
+- Task prompt
+- Filtered tools
+
+**Spawned agents do NOT receive**:
+- Parent conversation history
+- Parent-loaded resources
+- Parent context accumulation
+
+Results integrate as 200-500 token summaries. See [Context Management](/en/mcp-mesh/decopilot/context-management) for details.
+
+## Agent Selection and Discovery
+
+The `agent_search` tool discovers available agents.
+
+**Signature**: `agent_search(search_term?: string): Agent[]`
+
+**Output**: List with `agent_id`, `name`, `purpose`, `capabilities`.
+
+```typescript
+const result = await decopilot.invokeTool("agent_search", {
+  search_term: "security"
+})
+```
+
+Specialized agents optimize for their purpose and produce better results.
+
+## UI Integration and Task Management
+
+**Tasks menu**: Shows all tasks for current scope with status indicators.
+
+**Task list view**: Displays tasks with active/needs input/successful/failed indicators.
+
+**Task detail view**: Full conversation history with chat interface (top-level) or read-only view (child).
+
+**Notifications**: Badge counts and toasts for state changes.
+
+Monitor multiple agents, respond when needed, review results when complete.
+
+## Spawning Workflows
+
+### Single Task Spawn
+
+Spawn one agent for focused work on a single objective.
+
+```typescript
+const taskId = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer-001",
+  prompt: "Review auth files for vulnerabilities. Report with severity levels."
+})
+```
+
+### Parallel Task Spawning
+
+Spawn multiple agents simultaneously for independent work that can run concurrently.
+
+```typescript
+const archTaskId = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "research-agent-001",
+  prompt: "Analyze architecture patterns."
+})
+
+const secTaskId = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer-001",
+  prompt: "Perform security audit."
+})
+```
+
+### Sequential Workflow
+
+Spawn agents in sequence where each task depends on previous results.
+
+```typescript
+// Research options
+const researchTaskId = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "research-agent-001",
+  prompt: "Research React state libraries."
+})
+
+// Implement chosen solution
+const devTaskId = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "development-agent-001",
+  prompt: "Implement Zustand store."
+})
+
+// Test implementation
+const testTaskId = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "testing-agent-001",
+  prompt: "Write tests for store."
+})
+```
+
+## Best Practices
+
+**Choose appropriate agents**: Match agent capabilities to task requirements. Specialized agents produce better results.
+
+**Clear prompts**: Include context, specific files, focus areas, and success criteria.
+
+**Parallel spawning**: Use for independent work to maximize throughput.
+
+**Monitor states**: Check tasks menu, respond to "Needs Input" promptly.
+
+**Handle failures**: Review errors, adjust approach, re-spawn with corrections.
+
+**Focused objectives**: One clear goal per spawned task.
+
+**Leverage inheritance**: Tasks inherit org/project context automatically.
+
+**Validate results**: Successful completion doesn't guarantee correctness.
+
+---
+
+**Ready to start?** See [Tools](/en/mcp-mesh/decopilot/tools) for agent_spawn details, [Context Management](/en/mcp-mesh/decopilot/context-management) for isolation mechanics, or [Scopes](/en/mcp-mesh/decopilot/scopes) for scope effects.
