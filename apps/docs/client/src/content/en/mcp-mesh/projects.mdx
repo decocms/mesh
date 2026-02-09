@@ -1,0 +1,182 @@
+---
+title: Projects
+description: Organizational units that are virtual MCPs with their own tools, resources, and configuration
+icon: FolderTree
+---
+
+import Callout from "../../../components/ui/Callout.astro";
+
+<Callout type="info">
+  This page documents the **planned architecture** for projects in MCP Mesh. The implementation is in development.
+</Callout>
+
+## What are Projects?
+
+**Projects** are organizational units that **are virtual MCPs themselves**. Unlike traditional project management systems where projects are mere containers, in MCP Mesh a project is a fully-functional virtual MCP server with its own tools, resources, and configuration.
+
+Projects enable teams to:
+
+- **Organize work** by product, client, or initiative
+- **Scope capabilities** to specific contexts
+- **Configure connections** at both project and organization levels
+- **Operate within boundaries** that match your organizational structure
+
+Each project is accessible at `/:org/projects/:project_id` and operates as a self-contained virtual MCP.
+
+## Projects as Virtual MCPs
+
+Projects are virtual MCPs at the organization level—they are the primary organizational container for work. Each project has:
+
+- **Tools**: Project-specific tools or aggregated from connected MCPs
+- **Resources**: Documentation, guidelines, context files
+- **Prompts**: Custom templates for common workflows
+
+Projects can connect to other virtual MCPs (including agents), compose capabilities from multiple sources, and define inline tools—just like any [Virtual MCP](/en/mcp-mesh/virtual-mcps). The key distinction: projects ARE virtual MCPs themselves, and they can aggregate capabilities from other virtual MCPs within their scope.
+
+```typescript
+// Example: Project as virtual MCP
+{
+  "projectId": "mobile-app-rewrite",
+  "name": "Mobile App Rewrite",
+  "connections": [
+    {
+      "connectionId": "github-conn-123",
+      "tools": ["CREATE_PR", "LIST_ISSUES", "CREATE_BRANCH"]
+    },
+    {
+      "connectionId": "figma-conn-456",
+      "tools": ["GET_DESIGN", "EXPORT_ASSETS"]
+    }
+  ],
+  "prompts": [
+    {
+      "name": "mobile-pr-template",
+      "description": "PR template for mobile features",
+      "template": "## Mobile Feature PR\n\n### Changes\n{{changes}}\n\n### Testing\n- [ ] iOS tested\n- [ ] Android tested"
+    }
+  ],
+  "resources": [
+    {
+      "uri": "project://mobile-app-rewrite/guidelines",
+      "name": "Mobile Development Guidelines",
+      "mimeType": "text/markdown",
+      "content": "# Mobile Guidelines\n\n- Always test on both platforms..."
+    }
+  ]
+}
+```
+
+## Configuration Hierarchy
+
+MCP Mesh supports **two levels of configuration**:
+
+**Project-level** (`/:org/projects/:project_id`):
+- Project-specific tools and resources
+- Project's `CLAUDE.md` and `AGENTS.md`
+- Connections configured for this project
+
+**Organization-level** (`/:org`):
+- Organization-wide tools available across all projects
+- Shared resources and prompts
+- Organization `CLAUDE.md` and `AGENTS.md`
+
+This mirrors Claude Code's familiar pattern: **`.claude/`** (project) and **`~/.claude/`** (global).
+
+## Project Scope and Routing
+
+The route determines the operational scope. When connecting to:
+
+```
+/:org/projects/:project_id
+```
+
+MCP clients operate within that project's virtual MCP boundary, accessing:
+
+- Project's own resources, tools, and prompts
+- Connections dynamically wired to the project
+- Project-specific context from `CLAUDE.md` and `AGENTS.md`
+
+<Callout type="info">
+  Scope isolation ensures that project A cannot access project B's tools or credentials, while still allowing shared organization-level capabilities.
+</Callout>
+
+## CLAUDE.md and AGENTS.md Support
+
+Both levels support configuration files loaded into context:
+
+**CLAUDE.md**: Provides contextual instructions for AI agents
+- **Project-level**: Project-specific coding standards, domain knowledge, workflows
+- **Organization-level**: Company-wide guidelines, security policies, best practices
+
+**AGENTS.md**: Defines specialized capabilities via MCP server instructions
+- **Project-level**: Project-specific agent configurations
+- **Organization-level**: Cross-project agent configurations
+
+## MCP Clients in Project Scope
+
+When MCP clients connect to a project, they become scope-aware:
+
+```typescript
+// MCP client operation in project scope
+{
+  "scope": "/:org/projects/mobile-app-rewrite",
+  "availableTools": [
+    "CREATE_PR",             // from GitHub connection
+    "GET_DESIGN",            // from Figma connection
+    "RUN_MOBILE_TESTS"       // project-specific tool
+  ],
+  "availableResources": [
+    "project://mobile-app-rewrite/guidelines"
+  ]
+}
+```
+
+AI agents can use any organization-level or project-specific capabilities to accomplish tasks, always operating within the project's boundary.
+
+## Example: E-commerce Redesign Project
+
+```typescript
+{
+  "projectId": "ecommerce-redesign",
+  "name": "E-commerce Platform Redesign",
+  "connections": [
+    {
+      "connectionId": "shopify-conn-789",
+      "tools": ["GET_PRODUCTS", "UPDATE_THEME", "DEPLOY_STOREFRONT"]
+    },
+    {
+      "connectionId": "analytics-conn-101",
+      "tools": ["GET_CONVERSION_RATE", "GET_USER_FLOW"]
+    }
+  ],
+  "resources": [
+    {
+      "uri": "project://ecommerce-redesign/brand-guidelines",
+      "name": "Brand Guidelines",
+      "mimeType": "text/markdown"
+    }
+  ]
+}
+```
+
+AI agents can deploy storefronts, analyze conversion metrics, and reference brand guidelines—all within the project's scope.
+
+## Use Cases
+
+- **Client Projects**: Agencies can create one project per client, each with client-specific tools and credentials
+- **Product Lines**: Separate projects for web, mobile, and backend with different toolsets
+- **Feature Development**: Temporary projects for major features, with curated tools for that work
+- **Multi-tenant SaaS**: Projects as tenant boundaries with isolated capabilities
+
+## Benefits
+
+Projects as virtual MCPs provide:
+
+- **Clear boundaries**: Scope isolation prevents cross-contamination
+- **Flexible configuration**: Two-level hierarchy matches organizational structure
+- **Dynamic capabilities**: Add or remove tools without infrastructure changes
+- **Familiar patterns**: Mirrors `.claude/` local and `~/.claude/` global convention
+
+---
+
+**Ready to create your first project?** Projects are built on [Virtual MCPs](/en/mcp-mesh/virtual-mcps)—start there to understand the underlying system. For authorization details, see [Authorization and Roles](/en/mcp-mesh/authorization-and-roles).
