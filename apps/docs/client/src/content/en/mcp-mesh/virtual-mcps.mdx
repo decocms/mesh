@@ -140,20 +140,11 @@ This virtual MCP exposes GitHub tools from an external connection alongside cust
 
 Virtual MCPs are dynamically configurable:
 
-- **Tool selection**: `include` (whitelist specific tools) or `exclude` (blacklist specific tools)
-- **Runtime strategies**: control how tools are exposed (see Tool Exposure Strategies below)
+- **Tool selection**: Specify which tools to include from each connection
 - **Dynamic updates**: attach new tools, resources, or prompts
 - **Endpoint**: Each virtual MCP gets a unique endpoint at `/mcp/virtual/:virtualId`
 
-Every organization gets a **default virtual MCP** that aggregates all connections using `passthrough` strategy and `exclude` selection (management MCP excluded by default).
-
-## Tool Exposure Strategies
-
-Virtual MCPs offer different runtime strategies for exposing tools:
-
-- **Passthrough**: Exposes all tools via `tools/list`. Best for small surfaces.
-- **Smart Selection**: Exposes meta-tools (`VIRTUAL_SEARCH_TOOLS`, `VIRTUAL_DESCRIBE_TOOLS`, `VIRTUAL_CALL_TOOL`) for on-demand discovery.
-- **Code Execution**: Adds sandboxed `VIRTUAL_RUN_CODE` for JavaScript-based tool orchestration.
+Every organization gets a **default virtual MCP** that aggregates all connections.
 
 ## Concepts Built on Virtual MCPs
 
