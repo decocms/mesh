@@ -275,13 +275,15 @@ function ModelDetailsPanel({
               {model.costs?.input !== null &&
                 model.costs?.input !== undefined && (
                   <p className="text-sm text-muted-foreground">
-                    ${(model.costs.input * 1_000_000).toFixed(2)} / 1M tokens (input)
+                    ${(model.costs.input * 1_000_000).toFixed(2)} / 1M tokens
+                    (input)
                   </p>
                 )}
               {model.costs?.output !== null &&
                 model.costs?.output !== undefined && (
                   <p className="text-sm text-muted-foreground">
-                    ${(model.costs.output * 1_000_000).toFixed(2)} / 1M tokens (output)
+                    ${(model.costs.output * 1_000_000).toFixed(2)} / 1M tokens
+                    (output)
                   </p>
                 )}
             </div>
