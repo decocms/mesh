@@ -140,11 +140,9 @@ function TreeItem({
             name={
               node.id === "mcp-mesh"
                 ? "Network"
-                : node.id === "mcp-studio"
-                  ? "LayoutDashboard"
-                  : node.id === "mcp-mesh/deploy"
-                    ? "Rocket"
-                    : "Folder"
+                : node.id === "mcp-mesh/deploy"
+                  ? "Rocket"
+                  : "Folder"
             }
             size={16}
             className={`shrink-0 ${active ? "text-primary" : ""}`}

@@ -65,7 +65,7 @@ function buildTree(docs: any[]): TreeNode[] {
         // Get parent folder to determine which order to use
         const parentPath = a.path[a.path.length - 2];
 
-        // Custom order for MCP Mesh top-level pages
+        // Custom order for decocms top-level pages
         if (parentPath === "mcp-mesh") {
           // NOTE: doc IDs do not include ".mdx" (e.g. "overview", not "overview.mdx")
           const mcpMeshOrder = [
@@ -76,7 +76,7 @@ function buildTree(docs: any[]): TreeNode[] {
             "authentication",
             "authorization-and-roles",
             "mcp-servers",
-            "mcp-gateways",
+            "virtual-mcps",
             "api-keys",
             "monitoring",
             "api-reference",
@@ -120,7 +120,7 @@ function buildTree(docs: any[]): TreeNode[] {
           if (bIndex !== -1) return 1;
         }
 
-        // Custom order for MCP Mesh deploy docs
+        // Custom order for decocms deploy docs
         const rootPath = a.path[0];
         if (rootPath === "mcp-mesh" && parentPath === "deploy") {
           const deployOrder = ["local-docker-compose", "kubernetes-helm-chart"];
@@ -137,12 +137,11 @@ function buildTree(docs: any[]): TreeNode[] {
       // For folders - custom ordering
       if (a.type === "folder" && b.type === "folder") {
         const folderOrder: Record<string, number> = {
-          // Put Mesh docs first
+          // Put decocms docs first
           "mcp-mesh": 0,
           "getting-started": 1,
           "no-code-guides": 2,
           "full-code-guides": 3,
-          "mcp-studio": 4,
         };
 
         const aOrder = folderOrder[a.name] ?? Number.POSITIVE_INFINITY;
@@ -180,10 +179,7 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
   const folders = nodes.filter((n) => n.type === "folder");
 
   const mcpMesh = folders.find((f) => f.name === "mcp-mesh");
-  const mcpStudio = folders.find((f) => f.name === "mcp-studio");
-  const legacyChildren = folders.filter(
-    (f) => f.name !== "mcp-mesh" && f.name !== "mcp-studio",
-  );
+  const legacyChildren = folders.filter((f) => f.name !== "mcp-mesh");
 
   const legacyFolder: TreeNode | null =
     legacyChildren.length > 0
@@ -205,7 +201,6 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
   const next: TreeNode[] = [];
   if (introduction) next.push(introduction);
   if (mcpMesh) next.push(mcpMesh);
-  if (mcpStudio) next.push(mcpStudio);
   next.push(...otherFiles);
   if (legacyFolder) next.push(legacyFolder);
   return next;
