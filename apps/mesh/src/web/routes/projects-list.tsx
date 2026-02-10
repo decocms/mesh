@@ -6,7 +6,7 @@ import { Page } from "@/web/components/page";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { ProjectCard } from "@/web/components/project-card";
 import { EmptyState } from "@/web/components/empty-state.tsx";
-import { CreateProjectDialog } from "@/web/components/create-project-dialog";
+import { CreateProjectTemplateDialog } from "@/web/components/create-project-template-dialog";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -138,7 +138,7 @@ export default function ProjectsListPage() {
       </Page.Content>
 
       {/* Create Project Dialog */}
-      <CreateProjectDialog
+      <CreateProjectTemplateDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
       />

@@ -84,6 +84,15 @@ export {
   type EventBusBindingClient,
 } from "./well-known/event-bus";
 
+// Re-export project template registry binding types
+export {
+  ProjectTemplateSchema,
+  TemplatePluginSchema,
+  type ProjectTemplate,
+  type TemplatePlugin,
+  PROJECT_TEMPLATE_REGISTRY_BINDING,
+} from "./well-known/project-template-registry";
+
 // Re-export object storage binding types
 export {
   OBJECT_STORAGE_BINDING,

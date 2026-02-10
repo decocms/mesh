@@ -17,7 +17,7 @@ import {
 import { ChevronDown, ChevronRight, Plus } from "@untitledui/icons";
 import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
 import { useProjects, type ProjectWithBindings } from "@/web/hooks/use-project";
-import { CreateProjectDialog } from "@/web/components/create-project-dialog";
+import { CreateProjectTemplateDialog } from "@/web/components/create-project-template-dialog";
 import { cn } from "@deco/ui/lib/utils.ts";
 
 function ProjectIcon({
@@ -168,7 +168,7 @@ function ProjectsSectionContent() {
         </SidebarGroup>
       </Collapsible>
 
-      <CreateProjectDialog
+      <CreateProjectTemplateDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
       />
