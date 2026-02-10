@@ -33,12 +33,12 @@ A **connection** is how you wire up an external MCP server to deco CMS (see [Con
 2. **Combine them** into a single virtual MCP package
 3. **Your agent gets** aggregated access to all selected capabilities in one place
 
-**Example**: A "deployment-ops" virtual MCP might remix:
-- **GitHub connection**: PR management tools + repository documentation
-- **Slack connection**: Messaging and notification tools
-- **Database connection**: Migration and schema tools
+**Example**: An "order-fulfillment-ops" virtual MCP might remix:
+- **Shopify connection**: Order management tools + product catalog
+- **ShipStation connection**: Shipping label generation and tracking tools
+- **Slack connection**: Fulfillment team notification tools
 
-Your AI agent uses this one virtual MCP to orchestrate across all three systems.
+Your AI agent uses this one virtual MCP to orchestrate the entire order fulfillment process across all three systems.
 
 ### Extend with Inline Capabilities
 
@@ -65,7 +65,7 @@ Inline tools are ideal for **feature gating**—wrapping connection tools with v
 
 Inline tools can coordinate multiple connections in a single operation.
 
-**Example**: A deployment tool that runs tests (CI connection), merges a PR (GitHub connection), and notifies the team (Slack connection)—all in one coordinated workflow.
+**Example**: An order fulfillment tool that checks inventory (warehouse connection), creates a shipping label (ShipStation connection), sends order confirmation (SendGrid connection), and notifies the fulfillment team (Slack connection)—all in one coordinated workflow.
 
 These patterns enable **authorization enforcement**, **input validation**, **audit logging** (see [Monitoring](/en/mcp-mesh/monitoring)), and **workflow orchestration** across your MCP infrastructure.
 
@@ -73,11 +73,11 @@ These patterns enable **authorization enforcement**, **input validation**, **aud
 
 The real power comes from combining both approaches—remixing capabilities from connections and extending them with inline definitions.
 
-**Example**: A "development-assistant" virtual MCP that combines:
-- **GitHub connection tools**: PR management, issue tracking
-- **GitHub connection resources**: Repository contributing guide
-- **Inline prompts**: Custom PR description templates for your team
-- **Inline resources**: Team coding standards and style guides
+**Example**: A "customer-service-assistant" virtual MCP that combines:
+- **Shopify connection tools**: Order lookup, refund processing
+- **Shopify connection resources**: Product catalog and return policies
+- **Inline prompts**: Custom customer communication templates
+- **Inline resources**: Customer service guidelines and FAQ responses
 
 One virtual MCP, multiple sources (connections + inline definitions), unified agent experience.
 
@@ -130,11 +130,11 @@ Virtual MCPs provide the **foundational capability** that powers specialized fea
 Virtual MCPs turn fragmented MCP connections into unified, reusable capability packages:
 
 **Real-world applications:**
-- **Unified Deployment Ops**: Package GitHub (PRs, releases) + Slack (notifications) + database (migrations) into one deployment MCP
-- **Custom Code Review**: Remix GitHub tools with inline security/performance prompts and team style guides
-- **Development Assistant**: Combine GitHub + Jira tools with inline workflow prompts and project context
-- **Team-wide MCP Sharing**: Share access to a Cloudflare MCP connection across your team while filtering out administrative operations—giving developers safe, scoped access to DNS management and Workers deployment without exposing account-level controls
-- **Cross-system Orchestration**: Package CRM, analytics, and communication tools for end-to-end business processes
+- **Order Fulfillment Operations**: Package Shopify (orders) + ShipStation (shipping) + Slack (notifications) into one fulfillment MCP
+- **Customer Service Hub**: Remix Shopify tools with inline customer service prompts and return policy guidelines
+- **Inventory Management**: Combine warehouse APIs + Shopify inventory tools with inline stock alert workflows
+- **Multi-brand Store Management**: Share access to a Shopify MCP connection across your team while filtering brand-specific operations—giving managers scoped access to their brand's products and orders without exposing other brands
+- **Ecommerce Analytics**: Package Shopify, Google Analytics, and Stripe tools for end-to-end sales and conversion tracking
 
 **Key benefits:**
 - **Selective remixing**: Choose exactly which tools, resources, and prompts to include from each connection
