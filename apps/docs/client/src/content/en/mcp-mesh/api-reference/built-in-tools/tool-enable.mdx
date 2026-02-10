@@ -39,27 +39,27 @@ Success status and enabled confirmation.
 ## Example Usage
 
 ```typescript
-// Enable a GitHub tool
-tool_enable("CREATE_PR")
+// Enable a Shopify tool
+tool_enable("GET_ORDERS")
 
-// Enable a Slack tool
-tool_enable("SEND_MESSAGE")
+// Enable an inventory tool
+tool_enable("UPDATE_STOCK_LEVELS")
 
-// Enable a deployment tool
-tool_enable("DEPLOY_TO_PRODUCTION")
+// Enable a shipping tool
+tool_enable("CREATE_SHIPPING_LABEL")
 ```
 
 ## Workflow Pattern
 
 ```typescript
 // 1. Discover available tools
-const tools = tool_search("github")
+const tools = tool_search("order")
 
 // 2. Enable specific tool
-tool_enable("CREATE_PR")
+tool_enable("GET_ORDERS")
 
 // 3. Use the enabled tool
-CREATE_PR({ title: "Fix bug", branch: "main" })
+GET_ORDERS({ status: "pending", limit: 50 })
 ```
 
 ## Related
