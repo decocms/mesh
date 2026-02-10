@@ -1,143 +1,70 @@
 ---
 title: Overview
-description: What decocms is, what it solves, and the main product surfaces
-icon: Network
+description: MCP platform for teams - connect once, orchestrate everywhere, audit everything
+icon: Info
 ---
 
 import Callout from "../../../components/ui/Callout.astro";
 
-## What is decocms?
+![deco](https://assets.decocache.com/mcp/9a3facd8-1199-4635-becc-bdc3f5ee7ab1/deco-banner-capy.png)
 
-**decocms** is a **control plane for MCP traffic**. It sits between MCP clients (like Claude Desktop, Cursor, or custom AI agents) and MCP servers (like GitHub, Slack, databases, or your custom tools), providing a centralized layer for **authentication, authorization, credential management, and observability**.
+## MCP is the standard for AI tool access. At scale, you need more than connections—you need audit trails, access controls, and unified logging.
 
-Think of decocms as the "Kubernetes for MCP"—it manages the infrastructure layer so you can focus on building capabilities, not managing connections.
+**deco CMS is the context management platform that makes MCP work for teams.**
 
-## The Problem: MCP at Scale
+It's the control plane for MCP traffic—register each MCP server once with centralized credentials, and it becomes available (with proper access controls and audit logging) across all your projects, agents, and workflows.
 
-The Model Context Protocol enables AI agents to take action beyond chat—querying databases, creating pull requests, sending messages, deploying code. But when you move from a few proof-of-concepts to production usage across teams, a new set of challenges emerges:
+### The Problem
 
-### Connection Sprawl
+As AI agents become core infrastructure, managing their access creates critical challenges:
 
-Without a control plane, every client (Cursor on your laptop, Claude Desktop, your custom agent) must independently configure and maintain connections to every MCP server it uses. Each connection requires:
-- Storing credentials (API keys, OAuth tokens)
-- Managing connection URLs and configuration
-- Handling credential rotation
-- Updating when MCP servers change
+- **Connection sprawl**: Every employee manually configures MCP connections on their laptop
+- **No audit trails**: Agent actions invisible to logging and compliance systems
+- **Fragmented security**: No centralized control over who accesses what
 
-For a team of 20 developers using 10 MCP servers, that's 200 individual connection configurations to manage.
+At enterprise scale, teams either abandon internal MCP integration, operate with dangerously broad permissions, or spend months building custom infrastructure.
 
-### Inconsistent Security & Policy
+### How deco CMS Solves It
 
-When each client manages its own MCP connections, security policies fragment:
-- Developer A can access production databases, Developer B cannot (but should)
-- Credential rotation happens on different schedules across clients
-- No unified answer to "who has access to what?"
-- Authorization logic lives in client applications, not infrastructure
+**Connect**: Register each MCP server once. Credentials stored securely in the vault, available across your organization. Update API keys once, not on every machine.
 
-This fragmentation makes compliance difficult and security incidents hard to investigate.
+**Orchestrate**: Fine-grained access control with RBAC. Control who uses which tools, when, and how. Complete audit trail showing caller identity, tool name, input/output, and timing.
 
-### Operational Blind Spots
+**Remix**: Combine and filter MCPs into Virtual MCPs at runtime—no code deployment. Create read-only versions, aggregate tools from multiple sources, or build role-specific tool collections.
 
-Without centralized observability, debugging failures is painful:
-- No unified logs showing which tools were invoked
-- Client-side logging (if it exists) is inconsistent
-- Cannot trace a request across multiple MCP servers
-- No visibility into performance bottlenecks or expensive operations
+### Key Features
 
-When something breaks, you're piecing together logs from different clients and servers, hoping to reconstruct what happened.
+- **Centralized authentication**: SSO/OAuth 2.1, API keys, encrypted credential vault
+- **Unified audit logging**: Every MCP request logged with full context
+- **Virtual MCPs**: Runtime-editable tool surfaces without deploying code
+- **decopilot**: Built-in orchestration for multi-step agentic workflows
+- **Model-agnostic**: Works with Claude, OpenAI, or any AI provider
 
-### Tool Surface Explosion
+### Who It's For
 
-As you connect more MCP servers, the total number of available tools grows rapidly. A typical setup might expose:
-- GitHub: 25 tools (create PR, list issues, merge, tag releases...)
-- Slack: 15 tools (post message, create channel, invite user...)
-- Database: 30 tools (query, insert, update, migrations...)
-- Custom APIs: 40+ tools
+- **Enterprises** managing AI agent access to internal systems (GitHub, Slack, databases, APIs)
+- **Teams** running agentic workflows who need orchestration, logging, and access control
+- **Security teams** requiring audit trails and compliance reporting for AI systems
 
-This creates two problems:
-- **Context bloat**: Sending 100+ tool definitions to the AI consumes precious context window
-- **Selection errors**: More tools means higher chance the AI picks the wrong one
+## Getting Started
 
-## How decocms Solves This
+Choose your path:
 
-decocms centralizes MCP infrastructure so these problems disappear:
+**Quickstart** - Get your first connection running in 5 minutes
+→ [Quickstart Guide](/en/mcp-mesh/quickstart)
 
-**One connection per MCP server** (configured once in decocms), not one per client.
+**Core Concepts** - Understand connections, virtual MCPs, authorization, and monitoring
+→ [Concepts](/en/mcp-mesh/concepts)
 
-**Unified credential vault** with encryption at rest and rotation without client updates.
+**Self-Host** - Deploy with Docker Compose or Kubernetes
+→ [Self-Hosting Guide](/en/mcp-mesh/self-hosting/quickstart)
 
-**Single authorization layer** enforcing consistent permissions across all clients and MCP servers.
+## Official Links
 
-**Built-in observability** logging every tool invocation for debugging, audit, and cost visibility.
-
-**Virtual MCPs** composing and filtering tool surfaces so clients see only relevant capabilities.
-
-By handling these concerns in infrastructure rather than application code, decocms lets teams operate MCP traffic like any other production system—with security, observability, and control.
-
-## High-level architecture
-
-```
-┌───────────────────┐   ┌──────────────────┐   ┌────────────────────┐
-│ MCP Clients       │   │ decocms (Proxy)  │   │ Downstream MCPs     │
-│ - Cursor          │──▶│ - AuthN/AuthZ    │──▶│ - Slack / Gmail     │
-│ - Claude Desktop  │   │ - Vault          │   │ - Notion / Stripe   │
-│ - Custom agents   │   │ - Virtual MCPs   │   │ - Your MCP servers  │
-└───────────────────┘   │ - Monitoring     │   └────────────────────┘
-                        └──────────────────┘
-```
-
-## Platform Capabilities
-
-### Connection Management
-
-**Connect MCP servers once**, store credentials securely, and use everywhere. Whether it's GitHub, Slack, your database, or custom MCP servers—register them in decocms and they become available across all your projects and agents.
-
-Credentials are encrypted at rest in decocms's vault and never exposed to clients. When credentials need rotation, update once in decocms rather than updating every client.
-
-### Virtual MCPs: Composition Without Code
-
-**Dynamically compose** tool surfaces from multiple MCP servers without writing or deploying server code. Virtual MCPs aggregate tools, resources, and prompts into a single MCP-compliant endpoint that can be modified at runtime.
-
-This enables:
-- Building curated tool surfaces for specific workflows
-- Filtering large tool surfaces to reduce context size
-- Adding inline resources and prompts
-- Creating organizational patterns (Projects for teams, Agents for specific tasks)
-
-### Authorization & Access Control
-
-**Centralized permission management** ensures consistent security policies across all MCP traffic. Define who can access which tools, and decocms enforces authorization before proxying requests.
-
-API keys can be scoped to specific tools (e.g., "can create GitHub PRs but not merge them"), providing fine-grained least-privilege access for automation and integrations.
-
-### Complete Observability
-
-**Every tool invocation** flowing through decocms creates a monitoring log with:
-- Tool name and connection
-- Caller identity (user or API key)
-- Input arguments and output results
-- Duration and error status
-- Request context and timestamps
-
-This unified audit trail enables debugging, cost analysis, security investigation, and usage analytics across your entire MCP infrastructure.
-
-### Multi-Tenancy & Isolation
-
-**Organization-scoped** isolation ensures clear boundaries between tenants. Each organization has its own:
-- Connection configurations and credentials
-- Virtual MCPs (projects and agents)
-- Permission policies and member roles
-- Monitoring logs and audit trails
-
-This multi-tenancy enables SaaS providers, enterprises with multiple divisions, and agencies managing client workspaces.
-
-### Self-Hosted or Cloud
-
-**Deploy anywhere**: run decocms locally for development, self-host in your infrastructure (Docker Compose, Kubernetes), or use the managed cloud service. The architecture is the same regardless of deployment model—you maintain full control over your data and credentials.
+- **deco CMS**: [decocms.com](https://www.decocms.com/)
+- **deco CMS (Control Plane)**: [decocms.com/mesh](https://www.decocms.com/mesh)
+- **GitHub Repository**: [github.com/decocms/mesh](https://github.com/decocms/mesh)
 
 <Callout type="info">
-  We're releasing decocms to the open-source community in **December 2025**.
-  It's new, so these docs reflect what exists **in production today** — but we ship new features every week and will keep updating this documentation as those features land.
+  If you know us from before as **deco.cx** (headless CMS + storefront platform), visit [deco.cx](https://www.decocms.com/use-case/deco-cx). Those docs are at [docs.deco.cx](https://docs.deco.cx/en/getting-started/overview).
 </Callout>
-
-
