@@ -1,16 +1,16 @@
 ---
 title: "Kubernetes"
-description: Deploy decocms on Kubernetes using Helm
+description: Deploy deco CMS on Kubernetes using Helm
 icon: Rocket
 ---
 
 import Callout from "../../../../../components/ui/Callout.astro";
 
-This guide explains how to deploy decocms on Kubernetes using the Helm chart.
+This guide explains how to deploy deco CMS on Kubernetes using the Helm chart.
 
-Learn more: [the decocms product page](https://www.decocms.com/mesh)
+Learn more: [the deco CMS product page](https://www.deco CMS.com/mesh)
 
-Helm chart source: [decocms/helm-chart-deco-mcp-mesh](https://github.com/decocms/helm-chart-deco-mcp-mesh)
+Helm chart source: [deco CMS/helm-chart-deco-mcp-mesh](https://github.com/deco CMS/helm-chart-deco-mcp-mesh)
 
 ## Overview
 
@@ -34,7 +34,7 @@ This Helm chart encapsulates all Kubernetes resources necessary to run the appli
 
 ### Architecture
 
-![Infrastructure](https://raw.githubusercontent.com/decocms/helm-chart-deco-mcp-mesh/main/img/mcp-mesh-infra-arch.jpg)
+![Infrastructure](https://raw.githubusercontent.com/deco CMS/helm-chart-deco-mcp-mesh/main/img/mcp-mesh-infra-arch.jpg)
 
 ## Prerequisites
 
@@ -155,7 +155,7 @@ configMap:
         provider: "resend"
         config:
           apiKey: ""  # Leave empty when using Secret
-          fromEmail: "noreply@decocms.com"
+          fromEmail: "noreply@deco CMS.com"
 ```
 
 #### Step 3: Install/Upgrade
@@ -185,7 +185,7 @@ The main configurable values are in `values.yaml`.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `replicaCount` | Number of replicas | `3` |
-| `image.repository` | Image repository | `ghcr.io/decocms/mesh/mesh` |
+| `image.repository` | Image repository | `ghcr.io/deco CMS/mesh/mesh` |
 | `image.tag` | Image tag | `latest` |
 | `service.type` | Service type | `ClusterIP` |
 | `persistence.enabled` | Enable PVC | `true` |
@@ -261,7 +261,7 @@ chart-deco-mcp-mesh/
 
 ## Templates and Functionality
 
-This section explains how the chart behaves at render/runtime. For the full sources, see the chart repository: [decocms/helm-chart-deco-mcp-mesh](https://github.com/decocms/helm-chart-deco-mcp-mesh).
+This section explains how the chart behaves at render/runtime. For the full sources, see the chart repository: [deco CMS/helm-chart-deco-mcp-mesh](https://github.com/deco CMS/helm-chart-deco-mcp-mesh).
 
 ### `_helpers.tpl` (naming + labels)
 
@@ -307,7 +307,7 @@ The full list lives in `values.yaml`; below are the most important knobs.
 
 ```yaml
 image:
-  repository: ghcr.io/decocms/mesh/mesh
+  repository: ghcr.io/deco CMS/mesh/mesh
   pullPolicy: Always # Always, IfNotPresent, Never
   tag: "latest"
 ```

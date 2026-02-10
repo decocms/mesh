@@ -1,16 +1,16 @@
 ---
 title: "Docker Compose"
-description: Deploy decocms locally using Docker Compose for testing and development
+description: Deploy deco CMS locally using Docker Compose for testing and development
 icon: Container
 ---
 
 import Callout from "../../../../../components/ui/Callout.astro";
 
-This guide covers deploying the decocms locally using Docker Compose for quick testing and development.
+This guide covers deploying the deco CMS locally using Docker Compose for quick testing and development.
 
-Learn more: [the decocms product page](https://www.decocms.com/mesh)
+Learn more: [the deco CMS product page](https://www.deco CMS.com/mesh)
 
-Source (Docker Compose + README): [decocms/mesh/deploy](https://github.com/decocms/mesh/tree/main/deploy)
+Source (Docker Compose + README): [deco CMS/mesh/deploy](https://github.com/deco CMS/mesh/tree/main/deploy)
 
 ## Overview
 
@@ -47,7 +47,7 @@ open http://localhost:3000
 ```
 
 <Callout type="tip">
-  These configurations are all you need to start testing with decocms. If you need other options, check the sections below.
+  These configurations are all you need to start testing with deco CMS. If you need other options, check the sections below.
 </Callout>
 
 ### Minimum Configuration
@@ -68,7 +68,7 @@ The `.env` file contains all configurations.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `IMAGE_REPOSITORY` | `ghcr.io/decocms/mesh/mesh` | Image repository |
+| `IMAGE_REPOSITORY` | `ghcr.io/deco CMS/mesh/mesh` | Image repository |
 | `IMAGE_TAG` | `latest` | Image tag |
 | `PORT` | `3000` | Port exposed on host |
 | `NODE_ENV` | `production` | Node.js environment |
@@ -187,7 +187,7 @@ volumes:
 
 #### When it's Loaded
 
-The Mesh application loads this file on startup to configure:
+The deco CMS application loads this file on startup to configure:
 
 - Email/Password authentication
 - Social providers (Google, GitHub)
