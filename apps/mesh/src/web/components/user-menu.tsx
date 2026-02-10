@@ -119,6 +119,12 @@ function MeshUserMenuBase({
           <LogOut01 size={18} className="text-muted-foreground" />
           Log out
         </UserMenu.Item>
+
+        <UserMenu.Separator />
+
+        <div className="px-2 py-1.5 text-[11px] text-muted-foreground/60">
+          Mesh v{__MESH_VERSION__}
+        </div>
       </UserMenu>
 
       {settingsOpen && (
