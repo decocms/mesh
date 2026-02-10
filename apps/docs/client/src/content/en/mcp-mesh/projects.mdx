@@ -1,6 +1,6 @@
 ---
 title: Projects
-description: Organizational units that are virtual MCPs with their own tools, resources, and configuration
+description: Organizational units for managing tools, resources, and prompts scoped to specific work contexts
 icon: FolderTree
 ---
 
@@ -12,171 +12,58 @@ import Callout from "../../../components/ui/Callout.astro";
 
 ## What are Projects?
 
-**Projects** are organizational units that **are virtual MCPs themselves**. Unlike traditional project management systems where projects are mere containers, in MCP Mesh a project is a fully-functional virtual MCP server with its own tools, resources, and configuration.
+**Projects** are organizational units that leverage [Virtual MCPs](/en/mcp-mesh/virtual-mcps) to manage tools, resources, and prompts within a specific work context. Use projects to isolate capabilities by product, client, team, or initiative.
 
-Projects enable teams to:
+Projects provide:
 
-- **Organize work** by product, client, or initiative
-- **Scope capabilities** to specific contexts
-- **Configure connections** at both project and organization levels
-- **Operate within boundaries** that match your organizational structure
+- **Work organization** - Group capabilities by product line, client, or feature initiative
+- **Scope isolation** - Each project operates with its own set of tools and credentials
+- **Contextual configuration** - Project-specific guidelines, documentation, and workflows
+- **Team boundaries** - Match your organizational structure with technical boundaries
 
-Each project is accessible at `/:org/projects/:project_id` and operates as a self-contained virtual MCP.
+Projects are available in the sidebar under the **Projects** section, where each operates as a self-contained workspace.
 
-## Projects as Virtual MCPs
+## How Projects Work
 
-Projects are virtual MCPs at the organization level—they are the primary organizational container for work. Each project has:
+Create a project, then configure it by remixing capabilities:
 
-- **Tools**: Project-specific tools or aggregated from connected MCPs
-- **Resources**: Documentation, guidelines, context files
-- **Prompts**: Custom templates for common workflows
+1. **Name** - Identifies the project (e.g., "Mobile App Rewrite", "Client XYZ Portal")
+2. **Description** - Explains the project's purpose, scope, and goals for your team
+3. **Instructions** - Guidelines for how AI agents should work in this project (like `CLAUDE.md` or `AGENTS.md`)
+4. **Tools** - Actions agents may take on this project (select from [connections](/en/mcp-mesh/connections) or create inline)
+5. **Resources** - Extra info for detailed skills the agent may need (documentation, guidelines, domain knowledge)
+6. **Prompts** - How users are supposed to use this project (detailed workflows that combine tools and resources to accomplish specific goals)
 
-Projects can connect to other virtual MCPs (including agents), compose capabilities from multiple sources, and define inline tools—just like any [Virtual MCP](/en/mcp-mesh/virtual-mcps). The key distinction: projects ARE virtual MCPs themselves, and they can aggregate capabilities from other virtual MCPs within their scope.
+Since projects are [Virtual MCPs](/en/mcp-mesh/virtual-mcps), you get full composability—remix external capabilities with custom definitions to build exactly what your team needs.
 
-```typescript
-// Example: Project as virtual MCP
-{
-  "projectId": "mobile-app-rewrite",
-  "name": "Mobile App Rewrite",
-  "connections": [
-    {
-      "connectionId": "github-conn-123",
-      "tools": ["CREATE_PR", "LIST_ISSUES", "CREATE_BRANCH"]
-    },
-    {
-      "connectionId": "figma-conn-456",
-      "tools": ["GET_DESIGN", "EXPORT_ASSETS"]
-    }
-  ],
-  "prompts": [
-    {
-      "name": "mobile-pr-template",
-      "description": "PR template for mobile features",
-      "template": "## Mobile Feature PR\n\n### Changes\n{{changes}}\n\n### Testing\n- [ ] iOS tested\n- [ ] Android tested"
-    }
-  ],
-  "resources": [
-    {
-      "uri": "project://mobile-app-rewrite/guidelines",
-      "name": "Mobile Development Guidelines",
-      "mimeType": "text/markdown",
-      "content": "# Mobile Guidelines\n\n- Always test on both platforms..."
-    }
-  ]
-}
-```
+## Example: E-commerce Project
 
-## Configuration Hierarchy
+An e-commerce redesign project might aggregate Shopify tools for storefront management, analytics tools for conversion tracking, and brand guidelines as resources. AI agents working in this project deploy storefronts, analyze metrics, and follow brand standards—all within the project's isolated scope.
 
-MCP Mesh supports **two levels of configuration**:
+## Scope Isolation
 
-**Project-level** (`/:org/projects/:project_id`):
-- Project-specific tools and resources
-- Project's `CLAUDE.md` and `AGENTS.md`
-- Connections configured for this project
+Projects enforce boundaries through routing. When AI agents connect to a project, they:
 
-**Organization-level** (`/:org`):
-- Organization-wide tools available across all projects
-- Shared resources and prompts
-- Organization `CLAUDE.md` and `AGENTS.md`
+- Access only tools configured for that project
+- See project-specific resources and guidelines
+- Operate within isolated credentials and permissions
 
-This mirrors Claude Code's familiar pattern: **`.claude/`** (project) and **`~/.claude/`** (global).
-
-## Project Scope and Routing
-
-The route determines the operational scope. When connecting to:
-
-```
-/:org/projects/:project_id
-```
-
-MCP clients operate within that project's virtual MCP boundary, accessing:
-
-- Project's own resources, tools, and prompts
-- Connections dynamically wired to the project
-- Project-specific context from `CLAUDE.md` and `AGENTS.md`
-
-<Callout type="info">
-  Scope isolation ensures that project A cannot access project B's tools or credentials, while still allowing shared organization-level capabilities.
-</Callout>
-
-## CLAUDE.md and AGENTS.md Support
-
-Both levels support configuration files loaded into context:
-
-**CLAUDE.md**: Provides contextual instructions for AI agents
-- **Project-level**: Project-specific coding standards, domain knowledge, workflows
-- **Organization-level**: Company-wide guidelines, security policies, best practices
-
-**AGENTS.md**: Defines specialized capabilities via MCP server instructions
-- **Project-level**: Project-specific agent configurations
-- **Organization-level**: Cross-project agent configurations
-
-## MCP Clients in Project Scope
-
-When MCP clients connect to a project, they become scope-aware:
-
-```typescript
-// MCP client operation in project scope
-{
-  "scope": "/:org/projects/mobile-app-rewrite",
-  "availableTools": [
-    "CREATE_PR",             // from GitHub connection
-    "GET_DESIGN",            // from Figma connection
-    "RUN_MOBILE_TESTS"       // project-specific tool
-  ],
-  "availableResources": [
-    "project://mobile-app-rewrite/guidelines"
-  ]
-}
-```
-
-AI agents can use any organization-level or project-specific capabilities to accomplish tasks, always operating within the project's boundary.
-
-## Example: E-commerce Redesign Project
-
-```typescript
-{
-  "projectId": "ecommerce-redesign",
-  "name": "E-commerce Platform Redesign",
-  "connections": [
-    {
-      "connectionId": "shopify-conn-789",
-      "tools": ["GET_PRODUCTS", "UPDATE_THEME", "DEPLOY_STOREFRONT"]
-    },
-    {
-      "connectionId": "analytics-conn-101",
-      "tools": ["GET_CONVERSION_RATE", "GET_USER_FLOW"]
-    }
-  ],
-  "resources": [
-    {
-      "uri": "project://ecommerce-redesign/brand-guidelines",
-      "name": "Brand Guidelines",
-      "mimeType": "text/markdown"
-    }
-  ]
-}
-```
-
-AI agents can deploy storefronts, analyze conversion metrics, and reference brand guidelines—all within the project's scope.
+Project A cannot access Project B's tools or credentials. Organization-level capabilities remain available across all projects.
 
 ## Use Cases
 
-- **Client Projects**: Agencies can create one project per client, each with client-specific tools and credentials
-- **Product Lines**: Separate projects for web, mobile, and backend with different toolsets
-- **Feature Development**: Temporary projects for major features, with curated tools for that work
-- **Multi-tenant SaaS**: Projects as tenant boundaries with isolated capabilities
+- **Client work** - One project per client with isolated tools and credentials
+- **Product lines** - Separate mobile, web, and backend projects with distinct toolsets
+- **Feature initiatives** - Temporary projects for major features with curated capabilities
+- **Multi-tenancy** - Projects as tenant boundaries in SaaS applications
 
-## Benefits
+## Why Use Projects?
 
-Projects as virtual MCPs provide:
-
-- **Clear boundaries**: Scope isolation prevents cross-contamination
-- **Flexible configuration**: Two-level hierarchy matches organizational structure
-- **Dynamic capabilities**: Add or remove tools without infrastructure changes
-- **Familiar patterns**: Mirrors `.claude/` local and `~/.claude/` global convention
+- **Clear boundaries** - Prevent tool and credential cross-contamination between initiatives
+- **Organized work** - Match technical scope to organizational structure
+- **Flexible tooling** - Add or remove capabilities without infrastructure changes
+- **Familiar patterns** - `.claude/` (project) and `~/.claude/` (global) convention
 
 ---
 
-**Ready to create your first project?** Projects are built on [Virtual MCPs](/en/mcp-mesh/virtual-mcps)—start there to understand the underlying system. For authorization details, see [Authorization and Roles](/en/mcp-mesh/authorization-and-roles).
+**Next steps**: Learn about [Virtual MCPs](/en/mcp-mesh/virtual-mcps) to understand how projects aggregate capabilities, or see [Authorization and Roles](/en/mcp-mesh/authorization-and-roles) for access control.
