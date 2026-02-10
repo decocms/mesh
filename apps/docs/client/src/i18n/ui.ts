@@ -19,6 +19,7 @@ export const ui = {
     "sidebar.section.no-code-guides": "No-Code Guides",
     "sidebar.section.full-code-guides": "Full-Code Guides",
     "sidebar.section.mcp-mesh": "decocms",
+    "sidebar.section.self-hosting": "Self-Hosting",
     "sidebar.section.deploy": "Deploy",
     "hero.title": "Build AI Agents That Connect Everything",
     "hero.subtitle":
@@ -42,6 +43,7 @@ export const ui = {
     "sidebar.section.no-code-guides": "Guias No-Code",
     "sidebar.section.full-code-guides": "Guias Full-Code",
     "sidebar.section.mcp-mesh": "decocms",
+    "sidebar.section.self-hosting": "Auto-Hospedagem",
     "sidebar.section.deploy": "Deploy",
     "hero.title": "Construa Agentes de IA Que Conectam Tudo",
     "hero.subtitle":

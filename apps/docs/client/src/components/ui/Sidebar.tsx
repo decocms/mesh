@@ -118,15 +118,17 @@ function TreeItem({
       ? `/${locale}/${docPath ?? node.path.join("/")}`
       : null;
 
+  // A node should be collapsible if it has children, regardless of whether it's a file or folder
+  const isCollapsible = node.hasChildren;
+  const isFolder = node.type === "folder";
+
   return (
     <li>
       <div
         className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
           active
             ? "bg-primary/5 text-primary" // Active state
-            : node.type === "folder"
-              ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground"
         }`}
       >
         {/* Indentation spacer for nested items */}
@@ -135,15 +137,15 @@ function TreeItem({
         )}
 
         {/* Icon */}
-        {node.type === "folder" ? (
+        {isFolder || (isCollapsible && !node.doc?.data?.icon) ? (
           <Icon
             name={
-              node.id === "mcp-mesh"
-                ? "Network"
-                : node.id === "mcp-mesh/deploy"
+              node.id === "mcp-mesh/self-hosting"
+                ? "Database"
+                : node.id === "mcp-mesh/self-hosting/deploy"
                   ? "Rocket"
                   : node.id === "mcp-mesh/decopilot"
-                    ? "Bot"
+                    ? "Cpu"
                     : "Folder"
             }
             size={16}
@@ -164,22 +166,22 @@ function TreeItem({
         )}
 
         {/* Content */}
-        {node.type === "folder" ? (
+        {isCollapsible ? (
           <button
             type="button"
             className="flex items-center justify-between w-full text-left"
             onClick={() => onToggle(node.id)}
           >
             <span className="flex-1">
-              {translations[`sidebar.section.${node.name}`] || node.name}
+              {node.doc?.data?.title ||
+                translations[`sidebar.section.${node.name}`] ||
+                node.name}
             </span>
-            {node.hasChildren && (
-              <Icon
-                name={isExpanded ? "ChevronDown" : "ChevronRight"}
-                size={16}
-                className={`shrink-0 ${active ? "text-primary" : ""}`}
-              />
-            )}
+            <Icon
+              name={isExpanded ? "ChevronDown" : "ChevronRight"}
+              size={16}
+              className={`shrink-0 ${active ? "text-primary" : ""}`}
+            />
           </button>
         ) : (
           <a
@@ -222,12 +224,6 @@ function TreeList({
     return true;
   };
 
-  // Group nodes to determine when to add separators
-  const getNodeGroup = (node: FlatNode): "root-files" | "root-folders" => {
-    if (node.depth === 0 && node.type === "file") return "root-files";
-    return "root-folders";
-  };
-
   return (
     <ul className="space-y-0.5">
       {tree.map((node, index) => {
@@ -235,16 +231,24 @@ function TreeList({
         const isExpanded = treeState.get(node.id) !== false;
         const prevNode = tree[index - 1];
 
-        // Add separator when switching between different groups at root level
+        // Add separator logic:
+        // 1. After "overview" file (before concepts and other content)
+        // 2. Before "Legacy Admin" section
         let needsSeparator = false;
-        if (prevNode && node.depth === 0 && prevNode.depth === 0) {
-          const currentGroup = getNodeGroup(node);
-          const prevGroup = getNodeGroup(prevNode);
-          needsSeparator = currentGroup !== prevGroup;
+
+        // Check if previous node is "overview" file at root level
+        if (
+          prevNode &&
+          prevNode.depth === 0 &&
+          prevNode.type === "file" &&
+          prevNode.name === "overview" &&
+          node.depth === 0
+        ) {
+          needsSeparator = true;
         }
 
-        // Also add separator when going from nested items back to root level
-        if (prevNode && node.depth === 0 && prevNode.depth > 0) {
+        // Add separator before Legacy Admin section
+        if (node.depth === 0 && node.id === "admin-decocms-com") {
           needsSeparator = true;
         }
 
@@ -292,7 +296,8 @@ export default function Sidebar({ tree, locale, translations }: SidebarProps) {
 
     // Initialize tree state - default to expanded (with a few collapsed-by-default sections)
     tree.forEach((node) => {
-      if (node.type === "folder") {
+      // Initialize state for any node that has children (files or folders)
+      if (node.hasChildren) {
         const saved = savedState[node.id];
         // Default: show "Legacy Admin" open, but keep its sections closed (as a compact TOC).
         const collapsedByDefault = new Set<string>([
