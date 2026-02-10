@@ -100,7 +100,7 @@ export function UserSettingsDialog({
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border px-5 py-4 flex items-center shrink-0">
+          <div className="border-t border-border px-5 py-4 flex items-center justify-between shrink-0">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -125,6 +125,9 @@ export function UserSettingsDialog({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <span className="text-xs text-muted-foreground/50">
+              Mesh v{__MESH_VERSION__}
+            </span>
           </div>
         </div>
       </DialogContent>
