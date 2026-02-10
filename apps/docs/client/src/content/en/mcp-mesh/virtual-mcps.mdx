@@ -1,175 +1,153 @@
 ---
 title: Virtual MCPs
-description: Create MCP servers on the spot without writing server code or managing infrastructure
+description: Remix connections into reusable packages—select tools and context from multiple sources, add custom logic, and create purpose-built MCPs for your workflows
 icon: Waypoints
 ---
 
 import Callout from "../../../components/ui/Callout.astro";
 
-## MCP Compliance & Benefits
+## What Are Virtual MCPs?
 
-decocms is fully **MCP compliant**, following the Model Context Protocol specification. MCPs let AI agents work beyond your computer—acting on databases, APIs, SaaS tools, and production systems. MCP is a **protocol for action**, enabling agents to read, write, and orchestrate across your infrastructure.
+In decocms, a **Virtual MCP** is a reusable package of capabilities—[tools, resources, and prompts](/en/mcp-mesh/concepts#mcp-protocol-primitives)—remixed from multiple [connections](/en/mcp-mesh/connections).
 
-## The Challenge
+Instead of giving your AI agent access to everything from every connection, you **compose virtual MCPs** that expose exactly what's needed for each use case. You can:
 
-Creating traditional MCP servers requires writing server code, managing infrastructure, and maintaining updates—a barrier that prevents many teams from leveraging MCP's full potential.
+- **Remix connections**: Select specific tools and context from each connection
+- **Combine multiple sources**: Package GitHub + Slack + databases into one unified MCP
+- **Add custom logic**: Extend with inline tools, prompts, and resources
+- **Update dynamically**: Change what's included without reconfiguring your agents
 
-## Virtual MCPs: The Solution
-
-**Virtual MCPs** are decocms's answer to this challenge. They let you **create MCP servers on the spot**, without writing server code or managing infrastructure.
-
-A Virtual MCP is a **virtual MCP server** that aggregates tools, resources, and prompts into a single MCP-compliant endpoint. Instead of writing and deploying server code, you configure what capabilities to expose—and decocms handles the rest.
-
-Virtual MCPs are:
-
-- **Dynamically created**: spin up new MCPs through configuration, not code
-- **Production-ready**: fully MCP-compliant endpoints that work with any MCP client
-- **Instantly updated**: attach new tools or resources without redeploying servers
-- **Foundation for advanced features**: the building block for agents and organizational tooling
+Virtual MCPs are the **backbone of decocms**—powering [Projects](/en/mcp-mesh/projects), [Agents](/en/mcp-mesh/agents), and organizational boundaries for how capabilities are packaged and composed.
 
 ## How Virtual MCPs Work
 
-Virtual MCPs can be created in two fundamental ways, and you can mix both approaches as needed.
+Virtual MCPs are built by **remixing connections**—selecting capabilities from external MCPs—and optionally **extending with custom tools, prompts, and resources**.
 
-### Approach 1: Composition (Mix Existing Connections)
+### Remix from Connections
 
-**Composition** lets you aggregate capabilities from multiple connected MCP servers into a unified virtual MCP.
+**Remixing** lets you select and combine tools, resources, and prompts from multiple [connections](/en/mcp-mesh/connections).
 
-Here's how it works:
+A **connection** is how you wire up an external MCP server to decocms (see [Connections](/en/mcp-mesh/connections) for details). Once you have connections set up, remixing works like this:
 
-1. **Connect MCP servers** to your decocms instance (GitHub, Slack, databases, etc.)
-2. **Select tools** from one or more connections you want to expose
-3. **Configure the virtual MCP** to include these selected capabilities
-4. **Get a single endpoint** that exposes the aggregated toolset
+1. **Select specific capabilities** from each connection—tools, resources, prompts
+2. **Combine them** into a single virtual MCP package
+3. **Your agent gets** aggregated access to all selected capabilities in one place
 
-**Example**: Create a "deployment" virtual MCP that combines:
-- GitHub tools (create PRs, merge, tag releases)
-- Slack tools (post updates, create threads)
-- Database tools (run migrations, verify schema)
+**Example**: A "deployment-ops" virtual MCP might remix:
+- **GitHub connection**: PR management tools + repository documentation
+- **Slack connection**: Messaging and notification tools
+- **Database connection**: Migration and schema tools
 
-Your AI agent connects to one virtual MCP endpoint and gets access to all three systems.
+Your AI agent uses this one virtual MCP to orchestrate across all three systems.
 
-```typescript
-// Configuration example: composition approach
-{
-  "name": "deployment-virtual-mcp",
-  "mode": "include",
-  "connections": [
-    {
-      "connectionId": "github-conn-123",
-      "tools": ["CREATE_PR", "MERGE_PR", "CREATE_TAG"]
-    },
-    {
-      "connectionId": "slack-conn-456",
-      "tools": ["POST_MESSAGE", "CREATE_THREAD"]
-    },
-    {
-      "connectionId": "database-conn-789",
-      "tools": ["RUN_MIGRATION", "VERIFY_SCHEMA"]
-    }
-  ]
-}
-```
+### Extend with Inline Capabilities
 
-### Approach 2: Inline Creation
+**Inline creation** lets you define tools, resources, and prompts directly within a virtual MCP—extending what connections provide.
 
-**Inline creation** lets you create resources, prompts, and tools directly within decocms—no external MCP server needed.
+Inline tools can **call any MCP connection** available in your decocms instance, enabling powerful patterns like orchestration, validation, and feature gating.
 
-This is perfect for:
+Inline tools can call other tools using `callTool(connectionId:TOOL_NAME, params)`, enabling orchestration, validation, and feature gating across your MCP infrastructure.
 
-- **Custom prompts** tailored to your team's workflows
-- **Resources** like documentation, guidelines, or context
-- **Tools** that orchestrate other tools or implement custom logic
+This remixing approach is perfect for:
 
-**Example**: Create a virtual MCP with inline prompts for code review:
+- **Custom prompts** that guide agents through team-specific workflows
+- **Context resources** like guidelines, documentation, or domain knowledge
+- **Orchestration tools** that compose tools from multiple connections into higher-level operations
+- **Feature gating and validation** that wrap connection tools with authorization logic (see [Authorization and Roles](/en/mcp-mesh/authorization-and-roles))
 
-```typescript
-// Configuration example: inline approach
-{
-  "name": "code-review-virtual-mcp",
-  "prompts": [
-    {
-      "name": "security-review",
-      "description": "Review code for security vulnerabilities",
-      "template": "Analyze this code for security issues:\n- SQL injection\n- XSS vulnerabilities\n- Auth bypasses\n\nCode:\n{{code}}"
-    },
-    {
-      "name": "performance-review",
-      "description": "Review code for performance issues",
-      "template": "Analyze this code for performance problems:\n- N+1 queries\n- Memory leaks\n- Inefficient algorithms\n\nCode:\n{{code}}"
-    }
-  ],
-  "resources": [
-    {
-      "uri": "review://guidelines",
-      "name": "Code Review Guidelines",
-      "mimeType": "text/markdown",
-      "content": "# Review Guidelines\n\n1. Security first\n2. Performance matters\n..."
-    }
-  ]
-}
-```
+#### Use Case: Feature Gating
 
-### Hybrid: Mix Both Approaches
+Inline tools are ideal for **feature gating**—wrapping connection tools with validation, authorization, or custom behavior.
 
-Combine composition and inline creation in the same virtual MCP:
+**Example**: A read-only database tool that validates queries before calling the underlying connection, blocking dangerous operations like `DROP`, `DELETE`, or `UPDATE`.
 
-```typescript
-// Hybrid example: external tools + inline prompts
-{
-  "name": "development-assistant",
-  "connections": [
-    {
-      "connectionId": "github-conn-123",
-      "tools": ["CREATE_PR", "LIST_ISSUES"]
-    }
-  ],
-  "prompts": [
-    {
-      "name": "pr-template",
-      "description": "Generate PR description from commits",
-      "template": "Create a PR description from these commits:\n{{commits}}"
-    }
-  ]
-}
-```
+#### Use Case: Orchestration
 
-This virtual MCP exposes GitHub tools from an external connection alongside custom prompts defined inline.
+Inline tools can coordinate multiple connections in a single operation.
 
-## Virtual MCP Configuration
+**Example**: A deployment tool that runs tests (CI connection), merges a PR (GitHub connection), and notifies the team (Slack connection)—all in one coordinated workflow.
 
-Virtual MCPs are dynamically configurable:
+These patterns enable **authorization enforcement**, **input validation**, **audit logging** (see [Monitoring](/en/mcp-mesh/monitoring)), and **workflow orchestration** across your MCP infrastructure.
 
-- **Tool selection**: Specify which tools to include from each connection
-- **Dynamic updates**: attach new tools, resources, or prompts
-- **Endpoint**: Each virtual MCP gets a unique endpoint at `/mcp/virtual/:virtualId`
+### Combine Both
 
-Every organization gets a **default virtual MCP** that aggregates all connections.
+The real power comes from combining both approaches—remixing capabilities from connections and extending them with inline definitions.
 
-## Concepts Built on Virtual MCPs
+**Example**: A "development-assistant" virtual MCP that combines:
+- **GitHub connection tools**: PR management, issue tracking
+- **GitHub connection resources**: Repository contributing guide
+- **Inline prompts**: Custom PR description templates for your team
+- **Inline resources**: Team coding standards and style guides
 
-Virtual MCPs are the **foundational feature** for specialized capabilities:
+One virtual MCP, multiple sources (connections + inline definitions), unified agent experience.
 
-- **Agents**: Single-purpose virtual MCPs optimized for specific tasks (see [Concepts](/en/mcp-mesh/concepts))
-- **Organization MCP**: Default virtual MCP that aggregates all your connections
+## Namespacing & Collision Avoidance
 
-## Use Cases
+When aggregating capabilities from multiple connections, decocms uses **connection-based namespacing** to avoid collisions. Each connection gets a unique ID, and all capabilities from that connection are prefixed with this ID.
 
-- **Unified Deployment**: Mix GitHub, Slack, and database MCPs into one endpoint for CI/CD workflows
-- **Custom Code Review**: Define inline prompts tailored to your team's review process
-- **Hybrid Development Assistant**: Combine external tools (GitHub, Jira) with inline prompts for contextual guidance
+### Tools and Prompts
 
-## Benefits Summary
+Tools and prompts use the format: `connection_id::CAPABILITY_NAME`
 
-Virtual MCPs eliminate infrastructure barriers:
+- **Namespace separator**: `::` (double colon) between connection ID and capability name
+- **64-character limit**: The entire namespaced name cannot exceed 64 characters
 
-- **No server code or infrastructure**: configure capabilities, decocms handles hosting
-- **Dynamic updates**: modify tools and resources without downtime
-- **Composition and inline creation**: aggregate existing MCPs or define custom logic
-- **Foundation for advanced workflows**: building block for agents and organizational tooling
+**Example**: Two GitHub connections can both expose a `CREATE_PR` tool:
+- `github_personal_456::CREATE_PR` (personal account)
+- `github_work_789::CREATE_PR` (work account)
 
-Virtual MCPs make MCP accessible to every team—no DevOps required.
+This ensures capabilities remain distinct even when multiple connections expose tools with the same name.
+
+### Resources
+
+Resources use URI-based namespacing, **except for well-known protocols**.
+
+**Custom protocols** (like `repo://`, `team://`) get namespaced with the connection ID and URL-encoded:
+- Original: `repo://my-org/my-repo/README.md`
+- Namespaced: `github_conn_123://repo%3A%2F%2Fmy-org%2Fmy-repo%2FREADME.md`
+
+**Well-known protocols** (like `http://`, `https://`, `ws://`) are **NOT namespaced** and remain unchanged.
+
+**Automatic content rewriting**: When resources are read through a virtual MCP, decocms automatically rewrites internal resource links to use the namespaced format. This ensures resources can reference each other correctly.
+
+<Callout type="info">
+Tools and prompts use `connection_id::CAPABILITY_NAME` format (max 64 chars). Resources use `connection_id://encodedUri` for custom protocols, or stay unchanged for well-known protocols.
+</Callout>
+
+## Features Powered by Virtual MCPs
+
+Virtual MCPs provide the **foundational capability** that powers specialized features across decocms. All of these inherit full [monitoring capabilities](/en/mcp-mesh/monitoring) for audit trails and observability:
+
+- **[Agents](/en/mcp-mesh/agents)**: Single-purpose capability packages optimized for specific tasks
+- **[Projects](/en/mcp-mesh/projects)**: Team-scoped capability packages for organizational boundaries
+- **Organization MCP**: Default capability package that aggregates all your connections
+
+## Use Cases & Benefits
+
+Virtual MCPs turn fragmented MCP connections into unified, reusable capability packages:
+
+**Real-world applications:**
+- **Unified Deployment Ops**: Package GitHub (PRs, releases) + Slack (notifications) + database (migrations) into one deployment MCP
+- **Custom Code Review**: Remix GitHub tools with inline security/performance prompts and team style guides
+- **Development Assistant**: Combine GitHub + Jira tools with inline workflow prompts and project context
+- **Cross-system Orchestration**: Package CRM, analytics, and communication tools for end-to-end business processes
+
+**Key benefits:**
+- **Selective remixing**: Choose exactly which tools, resources, and prompts to include from each connection
+- **Inline extensions**: Add custom orchestration, validation, and feature gating logic
+- **Dynamic updates**: Modify what's included without reconfiguring agents
+- **Foundation for specialization**: Building block for [Projects](/en/mcp-mesh/projects) and [Agents](/en/mcp-mesh/agents)
 
 ---
 
-**Ready to create your first virtual MCP?** Head to the [Quickstart](/en/mcp-mesh/quickstart) to get started, or learn about [Connections](/en/mcp-mesh/mcp-servers) to understand how to wire up external MCP servers.
+## Next Steps
+
+<Callout type="info">
+Start with [Connections](/en/mcp-mesh/connections) to understand how to wire up external MCP servers first.
+</Callout>
+
+**Ready to build?** Follow the [Quickstart](/en/mcp-mesh/quickstart) for step-by-step setup.
+
+**Building for teams?** Learn about [Projects](/en/mcp-mesh/projects) for team-scoped virtual MCPs, or [Agents](/en/mcp-mesh/agents) for single-purpose capability packages.
+
+**Need authorization controls?** See [Authorization and Roles](/en/mcp-mesh/authorization-and-roles) for securing virtual MCP access with feature gating and policies.
