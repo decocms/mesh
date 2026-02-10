@@ -8,13 +8,13 @@ import Callout from "../../../components/ui/Callout.astro";
 
 ## Observability as Infrastructure
 
-decocms treats monitoring as **infrastructure, not an afterthought**. Every tool invocation that flows through the control plane creates a monitoring log—there's no way to disable this, and that's by design.
+deco CMS treats monitoring as **infrastructure, not an afterthought**. Every tool invocation that flows through the control plane creates a monitoring log—there's no way to disable this, and that's by design.
 
 <Callout type="tip">
-**Every tool call is monitored by decocms.** Whether it's a simple GitHub query or a complex database operation, every MCP tool invocation creates a structured log entry with full request/response details, timing, attribution, and error information. This happens automatically—no configuration required.
+**Every tool call is monitored by deco CMS.** Whether it's a simple GitHub query or a complex database operation, every MCP tool invocation creates a structured log entry with full request/response details, timing, attribution, and error information. This happens automatically—no configuration required.
 </Callout>
 
-Traditional MCP deployments have fragmented observability: each client logs independently (or doesn't log at all), each MCP server has its own logging strategy, and there's no unified view of what happened across the system. decocms solves this by logging **at the control plane level**, creating a single source of truth for all MCP traffic.
+Traditional MCP deployments have fragmented observability: each client logs independently (or doesn't log at all), each MCP server has its own logging strategy, and there's no unified view of what happened across the system. deco CMS solves this by logging **at the control plane level**, creating a single source of truth for all MCP traffic.
 
 ## Why Monitoring is First-Class
 
@@ -29,13 +29,13 @@ When something breaks, you need to reconstruct what happened across this distrib
 
 ### Control Plane Logging Solves This
 
-By logging at the control plane (decocms), monitoring becomes:
+By logging at the control plane (deco CMS), monitoring becomes:
 
 **Centralized**: One place to see all tool invocations across all clients and MCP servers.
 
 **Consistent**: Every log entry follows the same schema with the same level of detail.
 
-**Complete**: No invocation can bypass monitoring—if it went through decocms, it's logged.
+**Complete**: No invocation can bypass monitoring—if it went through deco CMS, it's logged.
 
 **Correlated**: Request context connects related operations, enabling distributed tracing across multiple tool invocations.
 
@@ -73,7 +73,7 @@ When a tool invocation fails, monitoring logs provide:
 - **Timing context**: When the failure occurred and how long it took
 - **Attribution**: Which user/agent made the request
 
-This information is available immediately in the decocms UI, without SSH-ing into servers or grepping log files.
+This information is available immediately in the deco CMS UI, without SSH-ing into servers or grepping log files.
 
 ### Security & Compliance
 
@@ -107,7 +107,7 @@ This informs product decisions about which capabilities to prioritize or improve
 
 ## Monitoring as a Feedback Loop
 
-decocms monitoring isn't just passive logging—it creates a feedback loop that improves the platform:
+deco CMS monitoring isn't just passive logging—it creates a feedback loop that improves the platform:
 
 **Error patterns** → Better authorization policies or connection health checks
 
@@ -127,15 +127,15 @@ Monitoring logs include tool inputs and outputs by default. For sensitive operat
 - Implementing connection-level logging policies
 - Leveraging organization-level data retention controls
 
-decocms provides the observability infrastructure; your organization defines the privacy policies.
+deco CMS provides the observability infrastructure; your organization defines the privacy policies.
 </Callout>
 
 ## Monitoring Philosophy
 
-Traditional systems treat monitoring as "nice to have"—something you add after building the core functionality. decocms inverts this:
+Traditional systems treat monitoring as "nice to have"—something you add after building the core functionality. deco CMS inverts this:
 
 **Monitoring is not optional**. It's how the control plane operates. Without monitoring logs, you cannot debug, audit, optimize, or secure MCP traffic at scale.
 
-By making observability first-class infrastructure, decocms enables teams to run MCP in production with the same confidence they have in other critical systems.
+By making observability first-class infrastructure, deco CMS enables teams to run MCP in production with the same confidence they have in other critical systems.
 
 

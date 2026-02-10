@@ -8,10 +8,10 @@ import Callout from "../../../components/ui/Callout.astro";
 
 ## What are API Keys?
 
-API keys let external systems connect to decocms without needing a user to log in. They're simple tokens you can use in scripts, automation tools, or any system that needs to access the Mesh programmatically.
+API keys let external systems connect to deco CMS without needing a user to log in. They're simple tokens you can use in scripts, automation tools, or any system that needs to access the Mesh programmatically.
 
 <Callout type="warning">
-  API keys are for **external systems connecting to decocms**. To connect decocms to upstream MCP servers, see [Connections](/en/mcp-mesh/connections).
+  API keys are for **external systems connecting to deco CMS**. To connect deco CMS to upstream MCP servers, see [Connections](/en/mcp-mesh/connections).
 </Callout>
 
 ## When to Use API Keys vs OAuth
@@ -28,7 +28,7 @@ API keys let external systems connect to decocms without needing a user to log i
 
 ## Creating an API Key
 
-1. Open the **decocms Dashboard**
+1. Open the **deco CMS Dashboard**
 2. Go to **Settings** → **API Keys**
 3. Click **Create API Key**
 4. Give it a name (like "My Automation Script")
@@ -46,8 +46,8 @@ Add the API key to your MCP client configuration:
 ```json
 {
   "mcpServers": {
-    "decocms": {
-      "url": "https://mesh.decocms.com/mcp/agent/your-agent-id",
+    "deco CMS": {
+      "url": "https://mesh.deco CMS.com/mcp/agent/your-agent-id",
       "transport": "http",
       "headers": {
         "Authorization": "Bearer mcp_key_abc123..."

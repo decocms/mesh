@@ -1,6 +1,6 @@
 ---
 title: Connections
-description: How decocms connects to upstream MCP servers and how clients connect to the mesh
+description: How deco CMS connects to upstream MCP servers and how clients connect to the mesh
 icon: Network
 ---
 
@@ -8,13 +8,13 @@ import Callout from "../../../components/ui/Callout.astro";
 
 ## What are Connections?
 
-**Connections** represent the bridge between decocms and external MCP servers. A Connection is decocms's registered relationship with an upstream MCP server—whether that's GitHub, Slack, a database, or your custom MCP implementation.
+**Connections** represent the bridge between deco CMS and external MCP servers. A Connection is deco CMS's registered relationship with an upstream MCP server—whether that's GitHub, Slack, a database, or your custom MCP implementation.
 
 ## Connecting to Upstream MCP Servers
 
 ### Why Connections Exist
 
-The Connection abstraction solves a critical problem: **separating connection configuration from usage**. Instead of every client (Cursor, Claude Desktop, custom agents) managing their own credentials and endpoints for each MCP server, decocms centralizes this once.
+The Connection abstraction solves a critical problem: **separating connection configuration from usage**. Instead of every client (Cursor, Claude Desktop, custom agents) managing their own credentials and endpoints for each MCP server, deco CMS centralizes this once.
 
 #### The Problem Without Connections
 
@@ -29,13 +29,13 @@ Without a centralized connection layer:
 
 Connections provide:
 
-**Centralized credential management**: Store credentials once in decocms's encrypted vault. Clients authenticate to decocms, not to individual MCP servers.
+**Centralized credential management**: Store credentials once in deco CMS's encrypted vault. Clients authenticate to deco CMS, not to individual MCP servers.
 
-**Unified authorization**: Define who can access which tools through decocms's permission system, rather than managing access per MCP server.
+**Unified authorization**: Define who can access which tools through deco CMS's permission system, rather than managing access per MCP server.
 
-**Credential rotation without client updates**: Update credentials in decocms; all clients automatically use the new credentials without reconfiguration.
+**Credential rotation without client updates**: Update credentials in deco CMS; all clients automatically use the new credentials without reconfiguration.
 
-**Complete observability**: Every tool invocation flows through decocms, creating a unified audit trail across all MCP servers.
+**Complete observability**: Every tool invocation flows through deco CMS, creating a unified audit trail across all MCP servers.
 
 **Secure credential handling**: Credentials are encrypted at rest and only decrypted at request time, never exposed to clients.
 
@@ -69,16 +69,16 @@ All Connections belong to an organization. This scoping ensures:
 
 ### How Connections Work
 
-When a client invokes a tool through decocms:
+When a client invokes a tool through deco CMS:
 
-1. **Client authenticates** to decocms (OAuth or API key)
-2. **Authorization check**: decocms verifies the client has permission to invoke the requested tool
-3. **Credential loading**: decocms decrypts stored credentials for the target Connection
-4. **Request proxying**: decocms forwards the MCP request to the upstream server with credentials
-5. **Monitoring**: decocms logs the invocation (tool, duration, status, errors)
-6. **Response return**: decocms returns the MCP server's response to the client
+1. **Client authenticates** to deco CMS (OAuth or API key)
+2. **Authorization check**: deco CMS verifies the client has permission to invoke the requested tool
+3. **Credential loading**: deco CMS decrypts stored credentials for the target Connection
+4. **Request proxying**: deco CMS forwards the MCP request to the upstream server with credentials
+5. **Monitoring**: deco CMS logs the invocation (tool, duration, status, errors)
+6. **Response return**: deco CMS returns the MCP server's response to the client
 
-This flow ensures credentials never leave decocms's secure boundary while enabling seamless tool invocation.
+This flow ensures credentials never leave deco CMS's secure boundary while enabling seamless tool invocation.
 
 ### Connection Types
 
@@ -90,7 +90,7 @@ Connections typically fall into three categories:
 
 **Custom MCPs**: Your own MCP servers exposing domain-specific tools and operations.
 
-All connection types follow the same pattern: register once in decocms, use everywhere through Virtual MCPs and agents.
+All connection types follow the same pattern: register once in deco CMS, use everywhere through Virtual MCPs and agents.
 
 ### Connections vs. Direct Access
 
@@ -100,7 +100,7 @@ All connection types follow the same pattern: register once in decocms, use ever
 - ❌ No unified observability
 - ❌ Authorization logic duplicated
 
-**Through Connections** (client → decocms → MCP server):
+**Through Connections** (client → deco CMS → MCP server):
 - ✅ Centralized credential management
 - ✅ Unified authorization and observability
 - ✅ Credential rotation without client updates
@@ -112,7 +112,7 @@ For production usage, Connections provide the control plane capabilities needed 
 
 ## Connecting MCP Clients to the Mesh
 
-Once you've configured upstream connections, you need to connect your MCP clients (Cursor, Claude Desktop, custom agents) to decocms to consume the tools.
+Once you've configured upstream connections, you need to connect your MCP clients (Cursor, Claude Desktop, custom agents) to deco CMS to consume the tools.
 
 ### Client Authentication Options
 
@@ -125,7 +125,7 @@ There are two common ways to connect clients to the Mesh:
 
 Depending on your use case, you'll connect to one of these endpoints:
 
-- **Management MCP**: `POST /mcp` - Access decocms management tools (creating connections, projects, agents)
+- **Management MCP**: `POST /mcp` - Access deco CMS management tools (creating connections, projects, agents)
 - **Connection proxy**: `POST /mcp/:connectionId` - Direct access to a specific upstream connection
 - **Agent (virtual server)**: `POST /mcp/agent/:agentId` - Access a curated tool surface through an agent
 
