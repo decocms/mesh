@@ -13,7 +13,7 @@ function GitHubStars() {
     const fetchStars = async () => {
       try {
         const response = await fetch(
-          "https://api.github.com/repos/deco-cx/chat",
+          "https://api.github.com/repos/decocms/mesh",
         );
         if (response.ok) {
           const data = await response.json();
@@ -97,22 +97,24 @@ function TreeItem({
 }: TreeItemProps) {
   if (!isVisible) return null;
 
-  // Check if this item is active (current page) - client-side only
+  // Active state: start false (matches server), update after hydration
   const [active, setActive] = useState(false);
 
   useEffect(() => {
     if (node.type !== "file") return;
+    if (typeof window === "undefined") return;
 
-    const currentPath = globalThis.location.pathname;
+    const currentPath = window.location.pathname;
     const docId = node.doc?.id;
     const docPath = docId ? docId.split("/").slice(1).join("/") : null;
     const itemPath = `/${locale}/${docPath ?? node.path.join("/")}`;
 
     setActive(currentPath === itemPath);
-  }, [node.type, node.path, locale, node.doc?.id]);
+  }, [node.type, node.doc?.id, node.path, locale]);
 
   const docId = node.doc?.id;
   const docPath = docId ? docId.split("/").slice(1).join("/") : null;
+
   const href =
     node.type === "file"
       ? `/${locale}/${docPath ?? node.path.join("/")}`
@@ -122,51 +124,65 @@ function TreeItem({
   const isCollapsible = node.hasChildren;
   const isFolder = node.type === "folder";
 
+  // Shared icon rendering logic
+  const renderIcon = () => {
+    if (isFolder || (isCollapsible && !node.doc?.data?.icon)) {
+      return (
+        <Icon
+          name={
+            node.id === "mcp-mesh/self-hosting"
+              ? "Database"
+              : node.id === "mcp-mesh/self-hosting/deploy"
+                ? "Rocket"
+                : node.id === "mcp-mesh/decopilot"
+                  ? "Cpu"
+                  : "Folder"
+          }
+          size={16}
+          className={`shrink-0 ${active ? "text-primary" : ""}`}
+        />
+      );
+    }
+    if (node.doc?.data?.icon) {
+      return (
+        <Icon
+          name={node.doc.data.icon}
+          size={16}
+          className={`shrink-0 ${active ? "text-primary" : ""}`}
+        />
+      );
+    }
+    return (
+      <Icon
+        name="FileText"
+        size={16}
+        className={`shrink-0 ${active ? "text-primary" : ""}`}
+      />
+    );
+  };
+
+  const sharedClasses = `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+    active
+      ? "bg-primary/5 text-primary" // Active state
+      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+  }`;
+
   return (
     <li>
-      <div
-        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
-          active
-            ? "bg-primary/5 text-primary" // Active state
-            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-        }`}
-      >
-        {/* Indentation spacer for nested items */}
-        {node.depth > 0 && (
-          <div className="shrink-0" style={{ width: `${node.depth * 24}px` }} />
-        )}
+      {isCollapsible ? (
+        <div className={`${sharedClasses} cursor-pointer`}>
+          {/* Indentation spacer for nested items */}
+          {node.depth > 0 && (
+            <div
+              className="shrink-0"
+              style={{ width: `${node.depth * 24}px` }}
+            />
+          )}
 
-        {/* Icon */}
-        {isFolder || (isCollapsible && !node.doc?.data?.icon) ? (
-          <Icon
-            name={
-              node.id === "mcp-mesh/self-hosting"
-                ? "Database"
-                : node.id === "mcp-mesh/self-hosting/deploy"
-                  ? "Rocket"
-                  : node.id === "mcp-mesh/decopilot"
-                    ? "Cpu"
-                    : "Folder"
-            }
-            size={16}
-            className={`shrink-0 ${active ? "text-primary" : ""}`}
-          />
-        ) : node.doc?.data?.icon ? (
-          <Icon
-            name={node.doc.data.icon}
-            size={16}
-            className={`shrink-0 ${active ? "text-primary" : ""}`}
-          />
-        ) : (
-          <Icon
-            name="FileText"
-            size={16}
-            className={`shrink-0 ${active ? "text-primary" : ""}`}
-          />
-        )}
+          {/* Icon */}
+          {renderIcon()}
 
-        {/* Content */}
-        {isCollapsible ? (
+          {/* Content */}
           <button
             type="button"
             className="flex items-center justify-between w-full text-left"
@@ -183,15 +199,27 @@ function TreeItem({
               className={`shrink-0 ${active ? "text-primary" : ""}`}
             />
           </button>
-        ) : (
-          <a
-            href={href ?? `/${locale}/${node.path.join("/")}`}
-            className="flex-1"
-          >
-            {node.doc?.data?.title || node.name}
-          </a>
-        )}
-      </div>
+        </div>
+      ) : (
+        <a
+          href={href ?? `/${locale}/${node.path.join("/")}`}
+          className={sharedClasses}
+        >
+          {/* Indentation spacer for nested items */}
+          {node.depth > 0 && (
+            <div
+              className="shrink-0"
+              style={{ width: `${node.depth * 24}px` }}
+            />
+          )}
+
+          {/* Icon */}
+          {renderIcon()}
+
+          {/* Content */}
+          <span className="flex-1">{node.doc?.data?.title || node.name}</span>
+        </a>
+      )}
     </li>
   );
 }
@@ -275,50 +303,71 @@ function TreeList({
 }
 
 export default function Sidebar({ tree, locale, translations }: SidebarProps) {
-  const [treeState, setTreeState] = useState<Map<string, boolean>>(new Map());
-
-  useEffect(() => {
-    // Load saved state from localStorage
-    const savedState = JSON.parse(
-      localStorage.getItem("sidebar-tree-state") || "{}",
-    );
+  // Initialize with default state (same on server and client for hydration match)
+  const [treeState, setTreeState] = useState<Map<string, boolean>>(() => {
     const initialState = new Map();
 
-    // If the current page is inside a folder, ensure its ancestor folders are expanded
-    // so the active item is visible (even if the default is collapsed).
-    const currentPath = globalThis.location.pathname;
-    const relativePath = currentPath.replace(`/${locale}/`, "");
-    const parts = relativePath.split("/").filter(Boolean);
-    const expandedAncestors = new Set<string>();
-    for (let i = 1; i <= parts.length - 1; i++) {
-      expandedAncestors.add(parts.slice(0, i).join("/"));
-    }
+    // Default: most sections expanded, some collapsed
+    const collapsedByDefault = new Set<string>([
+      "admin-decocms-com/getting-started",
+      "admin-decocms-com/no-code-guides",
+      "admin-decocms-com/full-code-guides",
+    ]);
 
-    // Initialize tree state - default to expanded (with a few collapsed-by-default sections)
     tree.forEach((node) => {
-      // Initialize state for any node that has children (files or folders)
       if (node.hasChildren) {
-        const saved = savedState[node.id];
-        // Default: show "Legacy Admin" open, but keep its sections closed (as a compact TOC).
+        initialState.set(node.id, !collapsedByDefault.has(node.id));
+      }
+    });
+
+    return initialState;
+  });
+
+  // After hydration, apply localStorage state and expand ancestors of current page
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const savedState = JSON.parse(
+          window.localStorage.getItem("sidebar-tree-state") || "{}",
+        );
+
+        // Get current path to expand ancestors
+        const currentPath = window.location.pathname;
+        const relativePath = currentPath.replace(`/${locale}/`, "");
+        const parts = relativePath.split("/").filter(Boolean);
+        const expandedAncestors = new Set<string>();
+        for (let i = 1; i <= parts.length - 1; i++) {
+          expandedAncestors.add(parts.slice(0, i).join("/"));
+        }
+
+        // Build new state with saved values and expanded ancestors
+        const newState = new Map();
         const collapsedByDefault = new Set<string>([
           "admin-decocms-com/getting-started",
           "admin-decocms-com/no-code-guides",
           "admin-decocms-com/full-code-guides",
         ]);
-        const defaultExpanded = collapsedByDefault.has(node.id) ? false : true;
 
-        const shouldExpand =
-          typeof saved === "boolean" ? saved : defaultExpanded;
+        tree.forEach((node) => {
+          if (node.hasChildren) {
+            const saved = savedState[node.id];
+            const defaultExpanded = !collapsedByDefault.has(node.id);
+            const shouldExpand =
+              typeof saved === "boolean" ? saved : defaultExpanded;
 
-        initialState.set(
-          node.id,
-          expandedAncestors.has(node.id) ? true : shouldExpand,
-        );
+            newState.set(
+              node.id,
+              expandedAncestors.has(node.id) ? true : shouldExpand,
+            );
+          }
+        });
+
+        setTreeState(newState);
       }
-    });
-
-    setTreeState(initialState);
-  }, [tree]);
+    } catch (error) {
+      console.error("Failed to load sidebar state:", error);
+    }
+  }, [tree, locale]);
 
   const updateFolderVisibility = (folderId: string, isExpanded: boolean) => {
     setTreeState((prev) => {
@@ -327,13 +376,23 @@ export default function Sidebar({ tree, locale, translations }: SidebarProps) {
       return newState;
     });
 
-    // Save state to localStorage
-    const stateToSave: Record<string, boolean> = {};
-    treeState.forEach((value, key) => {
-      stateToSave[key] = value;
-    });
-    stateToSave[folderId] = isExpanded;
-    localStorage.setItem("sidebar-tree-state", JSON.stringify(stateToSave));
+    // Save state to localStorage (client-side only)
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const stateToSave: Record<string, boolean> = {};
+        treeState.forEach((value, key) => {
+          stateToSave[key] = value;
+        });
+        stateToSave[folderId] = isExpanded;
+        window.localStorage.setItem(
+          "sidebar-tree-state",
+          JSON.stringify(stateToSave),
+        );
+      }
+    } catch (error) {
+      // Ignore localStorage errors
+      console.error("Failed to save sidebar state to localStorage:", error);
+    }
   };
 
   const handleFolderToggle = (folderId: string) => {
