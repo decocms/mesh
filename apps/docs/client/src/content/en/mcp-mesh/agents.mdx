@@ -20,21 +20,27 @@ Agents provide:
 - **Task-specific context** - Resources and guidelines tailored to the agent's purpose
 - **Single-purpose design** - Clear objective with no unnecessary complexity
 
-Agents are available in the sidebar under the **Agents** section, where each operates as a focused workspace for its specific task.
+Agents are organization-wide and available in the sidebar under the **Agents** section, where each operates as a focused workspace for its specific task.
 
 The key distinction: projects organize capabilities for broad work contexts, while agents optimize for single-purpose execution.
 
 ## How Agents Work
 
-Create an agent by defining its purpose and curating its capabilities:
+Agents follow the same pattern as standard agent skills (`SKILL.md` files), making them familiar and easy to understand:
 
-1. **Name** - Identifies the agent (e.g., "Deployment Agent", "Research Agent")
-2. **Purpose** - Clear statement of what the agent does (e.g., "Deploy applications to production")
-3. **Tools** - Actions the agent can take (select from [connections](/en/mcp-mesh/connections) or define inline)
-4. **Resources** - Context and guidelines specific to the agent's task
-5. **Prompts** - Templates tailored to the agent's workflow
+**Like SKILL.md skills:**
+- **Description** - Brief explanation of what the agent does and when to use it (like the `description:` field in `SKILL.md`)
+- **Instructions** - Detailed guidelines for how the agent operates (like the body of a `SKILL.md` file)
 
-Since agents are [Virtual MCPs](/en/mcp-mesh/virtual-mcps), you can compose them from existing connections, define capabilities inline, or mix both approaches. The agent's configuration determines what it can do and how it operates.
+**Plus Virtual MCP capabilities:**
+- **Name** - Identifies the agent (e.g., "Deployment Agent", "Research Agent")
+- **Tools** - Actions the agent can take (select from [connections](/en/mcp-mesh/connections) or define inline)
+- **Resources** - Additional context and documentation
+- **Prompts** - Workflow templates
+
+[decopilot](/en/mcp-mesh/decopilot/overview) uses the **description** field to understand when to spawn each agent—just like it uses skill descriptions to know when to invoke skills. This makes agents discoverable and automatically available when relevant to the task at hand.
+
+Since agents are [Virtual MCPs](/en/mcp-mesh/virtual-mcps), you can compose them from existing connections, define capabilities inline, or mix both approaches.
 
 ## Example: Production Deployment Agent
 
@@ -58,12 +64,14 @@ These agents operate at organization level and leverage mesh MCP tools for platf
 
 **Single-purpose focus**: Each agent should do one thing well. Narrow scope improves clarity, reliability, and maintainability.
 
-**Clear purpose statement**: Define agents with `[Verb] + [Object] + [Context]` pattern:
+**Clear description**: Write descriptions that help decopilot understand when to spawn the agent. Use `[Verb] + [Object] + [Context]` pattern:
 - "Deploy applications to production environments"
 - "Analyze test coverage for code quality"
 - "Manage agent lifecycle in the organization"
 
-**Tool selection**: Choose tools that align with the agent's purpose. A research agent needs read-only tools; a deployment agent needs release and notification tools. Overly broad tool access dilutes focus.
+**Detailed instructions**: Provide clear guidelines in the instructions field—just like you would in a `SKILL.md` file. Include constraints, workflow steps, and behavioral guidelines.
+
+**Tool selection**: Choose tools that align with the agent's description. A research agent needs read-only tools; a deployment agent needs release and notification tools. Overly broad tool access dilutes focus.
 
 **Good**: "Deployment Agent" (deploys to production)
 **Too broad**: "DevOps Agent" (deploys, monitors, manages infrastructure, handles incidents...)
