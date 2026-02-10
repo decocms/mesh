@@ -11,40 +11,25 @@
  * - Supports StreamableHTTP and STDIO transports
  */
 
-import { getMonitoringConfig } from "@/core/config";
-import { createClient } from "@/mcp-clients";
-import { buildRequestHeaders } from "@/mcp-clients/outbound/headers";
+import {
+  clientFromConnection,
+  serverFromConnection,
+  withToolCaching,
+  type ClientWithOptionalStreamingSupport,
+  type ClientWithStreamingSupport,
+} from "@/mcp-clients";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { ServerClient } from "@decocms/bindings/mcp";
-import { createServerFromClient } from "@decocms/mesh-sdk";
+import {
+  createBridgeTransportPair,
+  createServerFromClient,
+} from "@decocms/mesh-sdk";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import {
-  type CallToolRequest,
-  type CallToolResult,
-  ErrorCode,
-  type GetPromptRequest,
-  type GetPromptResult,
-  type ListPromptsResult,
-  type ListResourcesResult,
-  type ListResourceTemplatesResult,
-  type ListToolsResult,
-  McpError,
-  type ReadResourceRequest,
-  type ReadResourceResult,
-  type Tool,
-} from "@modelcontextprotocol/sdk/types.js";
 import { Context, Hono } from "hono";
-import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
-import { compose } from "../utils/compose";
-import { handleVirtualMcpRequest } from "./virtual-mcp";
 import { handleAuthError } from "./oauth-proxy";
-import {
-  createProxyMonitoringMiddleware,
-  createProxyStreamableMonitoringMiddleware,
-  ProxyMonitoringMiddlewareParams,
-} from "./proxy-monitoring";
+import { handleVirtualMcpRequest } from "./virtual-mcp";
 
 // Define Hono variables type
 type Variables = {
@@ -65,132 +50,6 @@ const app = new Hono<{ Variables: Variables }>();
 export const MCP_TOOL_CALL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 // ============================================================================
-// Middleware Types
-// ============================================================================
-
-type CallToolMiddleware = (
-  request: CallToolRequest,
-  next: () => Promise<CallToolResult>,
-) => Promise<CallToolResult>;
-
-type CallStreamableToolMiddleware = (
-  request: CallToolRequest,
-  next: () => Promise<Response>,
-) => Promise<Response>;
-
-// ============================================================================
-// Authorization Middleware
-// ============================================================================
-
-/**
- * Authorization middleware - checks access to tool on connection
- * Inspired by withMCPAuthorization from @deco/sdk
- *
- * Permission check: { '<connectionId>': ['toolName'] }
- * Delegates to Better Auth's hasPermission API via boundAuth
- *
- * Supports public tools: if tool._meta["mcp.mesh"].public_tool is true,
- * unauthenticated requests are allowed through.
- */
-function withConnectionAuthorization(
-  ctx: MeshContext,
-  connectionId: string,
-  listToolsFn: () => Promise<ListToolsResult>,
-): CallToolMiddleware {
-  return async (request, next) => {
-    try {
-      const toolName = request.params.name;
-
-      // Create getToolMeta callback scoped to current tool
-      const getToolMeta = async () => {
-        const { tools } = await listToolsFn();
-        const tool = tools.find((t) => t.name === toolName);
-        return tool?._meta as Record<string, unknown> | undefined;
-      };
-
-      // Create AccessControl with connectionId set
-      // This checks: does user have permission for this TOOL on this CONNECTION?
-      // Better Auth resolves the user's role permissions internally
-      const connectionAccessControl = new AccessControl(
-        ctx.authInstance,
-        ctx.auth.user?.id ?? ctx.auth.apiKey?.userId,
-        toolName, // Tool being called
-        ctx.boundAuth, // Bound auth client (encapsulates headers)
-        ctx.auth.user?.role, // Role for built-in role bypass
-        connectionId, // Connection ID for permission check
-        getToolMeta, // Callback for public tool check
-      );
-
-      await connectionAccessControl.check(toolName);
-
-      return await next();
-    } catch (error) {
-      const err = error as Error;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Authorization failed: ${err.message}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  };
-}
-
-/**
- * Streamable authorization middleware - checks access to tool on connection
- * Returns Response instead of CallToolResult for streaming use cases
- *
- * Supports public tools: if tool._meta["mcp.mesh"].public_tool is true,
- * unauthenticated requests are allowed through.
- */
-function withStreamableConnectionAuthorization(
-  ctx: MeshContext,
-  connectionId: string,
-  listToolsFn: () => Promise<ListToolsResult>,
-): CallStreamableToolMiddleware {
-  return async (request, next) => {
-    try {
-      const toolName = request.params.name;
-
-      // Create getToolMeta callback scoped to current tool
-      const getToolMeta = async () => {
-        const { tools } = await listToolsFn();
-        const tool = tools.find((t) => t.name === toolName);
-        return tool?._meta as Record<string, unknown> | undefined;
-      };
-
-      const connectionAccessControl = new AccessControl(
-        ctx.authInstance,
-        ctx.auth.user?.id ?? ctx.auth.apiKey?.userId,
-        toolName,
-        ctx.boundAuth, // Bound auth client (encapsulates headers)
-        ctx.auth.user?.role,
-        connectionId,
-        getToolMeta, // Callback for public tool check
-      );
-
-      await connectionAccessControl.check(toolName);
-
-      return await next();
-    } catch (error) {
-      const err = error as Error;
-      return new Response(
-        JSON.stringify({
-          error: `Authorization failed: ${err.message}`,
-        }),
-        {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
-  };
-}
-
-// ============================================================================
 // MCP Proxy Factory
 // ============================================================================
 
@@ -199,33 +58,54 @@ function withStreamableConnectionAuthorization(
  * Pattern from @deco/api proxy() function
  *
  * Single server approach - tools from downstream are dynamically fetched and registered
+ *
+ * Pure MCP spec-compliant client (no custom extensions)
  */
 export type MCPProxyClient = Client & {
-  callStreamableTool: (
-    name: string,
-    args: Record<string, unknown>,
-  ) => Promise<Response>;
   [Symbol.asyncDispose]: () => Promise<void>;
 };
 
 /**
- * Convert MCPProxyClient to ServerClient format for bindings compatibility
+ * MCP proxy client with streaming support extension
+ * This adds the custom callStreamableTool method for HTTP streaming
  */
-export function toServerClient(client: MCPProxyClient): ServerClient {
-  return {
+export type StreamableMCPProxyClient = MCPProxyClient & {
+  callStreamableTool: (
+    name: string,
+    args: Record<string, unknown>,
+  ) => Promise<Response>;
+};
+
+/**
+ * Convert Client to ServerClient format for bindings compatibility
+ * Overloaded to handle both regular and streamable clients
+ */
+export function toServerClient(
+  client: Client,
+): Omit<ServerClient, "callStreamableTool">;
+export function toServerClient(
+  client: ClientWithStreamingSupport,
+): ServerClient;
+export function toServerClient(
+  client: ClientWithOptionalStreamingSupport,
+): ServerClient | Omit<ServerClient, "callStreamableTool"> {
+  const base = {
     client: {
       callTool: client.callTool.bind(client),
       listTools: client.listTools.bind(client),
     },
-    callStreamableTool: client.callStreamableTool.bind(client),
   };
-}
 
-const DEFAULT_SERVER_CAPABILITIES = {
-  tools: {},
-  resources: {},
-  prompts: {},
-};
+  // Only add streaming if present
+  if ("callStreamableTool" in client && client.callStreamableTool) {
+    return {
+      ...base,
+      callStreamableTool: client.callStreamableTool.bind(client),
+    };
+  }
+
+  return base;
+}
 
 async function createMCPProxyDoNotUseDirectly(
   connectionIdOrConnection: string | ConnectionEntity,
@@ -243,359 +123,54 @@ async function createMCPProxyDoNotUseDirectly(
   if (!connection) {
     throw new Error("Connection not found");
   }
-  const connectionId = connection?.id;
 
+  // Validate organization ownership
   if (ctx.organization && connection.organization_id !== ctx.organization.id) {
     throw new Error("Connection does not belong to the active organization");
   }
   ctx.organization ??= { id: connection.organization_id };
 
+  // Check connection status
   if (connection.status !== "active") {
     throw new Error(`Connection inactive: ${connection.status}`);
   }
 
-  // Create client early - needed for listTools and other operations
-  const client = await createClient(connection, ctx, superUser);
+  // Create base client with auth + monitoring transports
+  const baseClient = await clientFromConnection(connection, ctx, superUser);
 
-  // List tools from downstream connection
-  // Uses indexed tools if available, falls back to client for connections without cached tools
-  // NOTE: Defined early so it can be passed to authorization middlewares for public tool check
-  const listTools = async (): Promise<ListToolsResult> => {
-    // VIRTUAL connections always use client.listTools() because:
-    // 1. Their tools column contains virtual tool definitions (code), not cached downstream tools
-    // 2. The aggregator (via client.listTools()) returns virtual + aggregated downstream tools
-    const isVirtualConnection = connection.connection_type === "VIRTUAL";
+  // Apply tool caching decorator
+  const cachedClient = withToolCaching(baseClient, connection);
 
-    // Use indexed tools if available (except for VIRTUAL connections)
-    if (
-      !isVirtualConnection &&
-      connection.tools &&
-      connection.tools.length > 0
-    ) {
-      return {
-        tools: connection.tools.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: tool.inputSchema as Tool["inputSchema"],
-          outputSchema: tool.outputSchema as Tool["outputSchema"],
-          annotations: tool.annotations,
-          _meta: tool._meta,
-        })),
-      };
-    }
+  // Create server directly from decorated client
+  // Tool caching is handled by the decorated client
+  const server = createServerFromClient(
+    cachedClient,
+    {
+      name: "mcp-mesh-proxy-client",
+      version: "1.0.0",
+    },
+    {
+      capabilities: cachedClient.getServerCapabilities(),
+      instructions: cachedClient.getInstructions(),
+    },
+  );
 
-    // Fall back to client for connections without indexed tools (or VIRTUAL connections)
-    return await client.listTools();
-  };
+  // Create in-memory bridge transport pair for zero-overhead communication
+  const { client: clientTransport, server: serverTransport } =
+    createBridgeTransportPair();
 
-  // If ctx.connectionId is set and different from current connection,
-  // it means this proxy is being called through a Virtual MCP (agent)
-  const virtualMcpId =
-    ctx.connectionId && ctx.connectionId !== connectionId
-      ? ctx.connectionId
-      : undefined;
+  // Connect server to server-side transport
+  await server.connect(serverTransport);
 
-  const monitoringConfig: ProxyMonitoringMiddlewareParams = {
-    enabled: getMonitoringConfig().enabled,
-    connectionId,
-    connectionTitle: connection.title,
-    virtualMcpId,
-    ctx,
-  };
+  // Create client and connect to client-side transport
+  const client = new Client({
+    name: "mcp-mesh-proxy-client",
+    version: "1.0.0",
+  });
+  await client.connect(clientTransport);
 
-  // Core tool execution logic - shared between fetch and callTool
-  const executeToolCall = async (
-    request: CallToolRequest,
-  ): Promise<CallToolResult> => {
-    const callToolPipeline = compose(
-      createProxyMonitoringMiddleware(monitoringConfig),
-      superUser
-        ? async (_, next) => await next()
-        : withConnectionAuthorization(ctx, connectionId, listTools),
-    );
-
-    return callToolPipeline(request, async (): Promise<CallToolResult> => {
-      const startTime = Date.now();
-
-      // Strip _meta from arguments before forwarding to upstream server
-      // (_meta is used for internal monitoring properties and should not be sent upstream)
-      const forwardParams = { ...request.params };
-      if (forwardParams.arguments && "_meta" in forwardParams.arguments) {
-        const { _meta, ...restArgs } = forwardParams.arguments;
-        forwardParams.arguments = restArgs;
-      }
-
-      // Start span for tracing
-      return await ctx.tracer.startActiveSpan(
-        "mcp.proxy.callTool",
-        {
-          attributes: {
-            "connection.id": connectionId,
-            "tool.name": request.params.name,
-            "request.id": ctx.metadata.requestId,
-          },
-        },
-        async (span) => {
-          try {
-            const result = await client.callTool(forwardParams, undefined, {
-              timeout: MCP_TOOL_CALL_TIMEOUT_MS,
-            });
-            const duration = Date.now() - startTime;
-
-            // Record duration histogram
-            ctx.meter
-              .createHistogram("connection.proxy.duration")
-              .record(duration, {
-                "connection.id": connectionId,
-                "tool.name": request.params.name,
-                status: "success",
-              });
-
-            // Record success counter
-            ctx.meter.createCounter("connection.proxy.requests").add(1, {
-              "connection.id": connectionId,
-              "tool.name": request.params.name,
-              status: "success",
-            });
-
-            span.end();
-            return result as CallToolResult;
-          } catch (error) {
-            const err = error as Error;
-            const duration = Date.now() - startTime;
-
-            // Record duration histogram even on error
-            ctx.meter
-              .createHistogram("connection.proxy.duration")
-              .record(duration, {
-                "connection.id": connectionId,
-                "tool.name": request.params.name,
-                status: "error",
-              });
-
-            // Record error counter
-            ctx.meter.createCounter("connection.proxy.errors").add(1, {
-              "connection.id": connectionId,
-              "tool.name": request.params.name,
-              error: err.message,
-            });
-
-            span.recordException(err);
-            span.end();
-
-            throw error;
-          }
-        },
-      );
-    });
-  };
-
-  // Call tool using fetch directly for streaming support
-  // Inspired by @deco/api proxy callStreamableTool
-  // Note: Only works for HTTP connections - STDIO and VIRTUAL don't support streaming fetch
-  const callStreamableTool = async (
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<Response> => {
-    // VIRTUAL connections don't support streamable tools - fall back to regular call
-    if (connection.connection_type === "VIRTUAL") {
-      const result = await executeToolCall({
-        method: "tools/call",
-        params: { name, arguments: args },
-      });
-      return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    if (!connection.connection_url) {
-      throw new Error("Streamable tools require HTTP connection with URL");
-    }
-
-    const connectionUrl = connection.connection_url;
-
-    const request: CallToolRequest = {
-      method: "tools/call",
-      params: { name, arguments: args },
-    };
-
-    // Compose middlewares
-    const callStreamableToolPipeline = compose(
-      createProxyStreamableMonitoringMiddleware(monitoringConfig),
-      superUser
-        ? async (_, next) => await next()
-        : withStreamableConnectionAuthorization(ctx, connectionId, listTools),
-    );
-
-    return callStreamableToolPipeline(request, async (): Promise<Response> => {
-      const headers = await buildRequestHeaders(connection, ctx, superUser);
-
-      // Add custom headers from connection_headers
-      const httpParams = connection.connection_headers;
-      if (httpParams && "headers" in httpParams) {
-        Object.assign(headers, httpParams.headers);
-      }
-
-      // Use fetch directly to support streaming responses
-      // Build URL with tool name appended for call-tool endpoint pattern
-      const url = new URL(connectionUrl);
-      url.pathname =
-        url.pathname.replace(/\/$/, "") + `/call-tool/${request.params.name}`;
-
-      return await ctx.tracer.startActiveSpan(
-        "mcp.proxy.callStreamableTool",
-        {
-          attributes: {
-            "connection.id": connectionId,
-            "tool.name": request.params.name,
-            "request.id": ctx.metadata.requestId,
-          },
-        },
-        async (span) => {
-          const startTime = Date.now();
-
-          try {
-            const response = await fetch(url.toString(), {
-              method: "POST",
-              redirect: "manual",
-              body: JSON.stringify(request.params.arguments),
-              headers: {
-                ...headers,
-                "Content-Type": "application/json",
-              },
-            });
-            const duration = Date.now() - startTime;
-
-            // Record metrics
-            ctx.meter
-              .createHistogram("connection.proxy.streamable.duration")
-              .record(duration, {
-                "connection.id": connectionId,
-                "tool.name": request.params.name,
-                status: response.ok ? "success" : "error",
-              });
-
-            ctx.meter
-              .createCounter("connection.proxy.streamable.requests")
-              .add(1, {
-                "connection.id": connectionId,
-                "tool.name": request.params.name,
-                status: response.ok ? "success" : "error",
-              });
-
-            span.end();
-            return response;
-          } catch (error) {
-            const err = error as Error;
-            const duration = Date.now() - startTime;
-
-            ctx.meter
-              .createHistogram("connection.proxy.streamable.duration")
-              .record(duration, {
-                "connection.id": connectionId,
-                "tool.name": request.params.name,
-                status: "error",
-              });
-
-            ctx.meter
-              .createCounter("connection.proxy.streamable.errors")
-              .add(1, {
-                "connection.id": connectionId,
-                "tool.name": request.params.name,
-                error: err.message,
-              });
-
-            span.recordException(err);
-            span.end();
-            throw error;
-          }
-        },
-      );
-    });
-  };
-
-  // List resources from downstream connection
-  const listResources = async (): Promise<ListResourcesResult> => {
-    try {
-      return await client.listResources();
-    } catch (error) {
-      if (
-        error instanceof McpError &&
-        error.code === ErrorCode.MethodNotFound
-      ) {
-        return { resources: [] };
-      }
-
-      throw error;
-    }
-  };
-
-  // Read a specific resource from downstream connection
-  const readResource = async (
-    params: ReadResourceRequest["params"],
-  ): Promise<ReadResourceResult> => client.readResource(params);
-
-  // List resource templates from downstream connection
-  const listResourceTemplates =
-    async (): Promise<ListResourceTemplatesResult> => {
-      try {
-        return await client.listResourceTemplates();
-      } catch (error) {
-        if (
-          error instanceof McpError &&
-          error.code === ErrorCode.MethodNotFound
-        ) {
-          return { resourceTemplates: [] };
-        }
-
-        throw error;
-      }
-    };
-
-  // List prompts from downstream connection
-  const listPrompts = async (): Promise<ListPromptsResult> => {
-    try {
-      return await client.listPrompts();
-    } catch (error) {
-      if (
-        error instanceof McpError &&
-        error.code === ErrorCode.MethodNotFound
-      ) {
-        return { prompts: [] };
-      }
-
-      throw error;
-    }
-  };
-
-  // Get a specific prompt from downstream connection
-  const getPrompt = async (
-    params: GetPromptRequest["params"],
-  ): Promise<GetPromptResult> => client.getPrompt(params);
-
-  // We are currently exposing the underlying client with tools/resources/prompts capabilities
-  // This way we have an uniform API the frontend can leverage from.
-  // Frontend connects to mesh. It's garatee that all mcps have the necessary capabilities. The UI works consistently.
-  const getServerCapabilities = () => DEFAULT_SERVER_CAPABILITIES;
-
-  return {
-    callTool: (params: CallToolRequest["params"]) =>
-      executeToolCall({
-        method: "tools/call",
-        params,
-      }),
-    listTools,
-    listResources,
-    readResource,
-    listResourceTemplates,
-    listPrompts,
-    getPrompt,
-    getServerCapabilities,
-    getInstructions: () => client.getInstructions(),
-    close: () => client.close(),
-    callStreamableTool,
-    [Symbol.asyncDispose]: () => client.close(),
-  } as MCPProxyClient;
+  // Return client as MCPProxyClient (backward compatible)
+  return client as MCPProxyClient;
 }
 
 /**
@@ -654,15 +229,35 @@ app.all("/:connectionId", async (c) => {
 
   try {
     try {
-      const client = await ctx.createMCPProxy(connectionId);
+      // Fetch connection
+      const connection = await ctx.storage.connections.findById(
+        connectionId,
+        ctx.organization?.id,
+      );
+      if (!connection) {
+        throw new Error("Connection not found");
+      }
 
-      // Create server from client using the bridge
-      const server = createServerFromClient(client, {
-        name: "mcp-mesh",
-        version: "1.0.0",
-      });
+      // Validate organization ownership
+      if (
+        ctx.organization &&
+        connection.organization_id !== ctx.organization.id
+      ) {
+        throw new Error(
+          "Connection does not belong to the active organization",
+        );
+      }
+      ctx.organization ??= { id: connection.organization_id };
 
-      // Create transport
+      // Check connection status
+      if (connection.status !== "active") {
+        throw new Error(`Connection inactive: ${connection.status}`);
+      }
+
+      // Create enhanced server directly (no need for bridge - server is used directly!)
+      const server = await serverFromConnection(connection, ctx, false);
+
+      // Create HTTP transport
       const transport = new WebStandardStreamableHTTPServerTransport({
         enableJsonResponse:
           c.req.raw.headers.get("Accept")?.includes("application/json") ??
@@ -687,7 +282,7 @@ app.all("/:connectionId", async (c) => {
           reqUrl: new URL(c.req.raw.url),
           connectionId,
           connectionUrl: connection.connection_url,
-          headers: {}, // Headers are built internally by createMCPProxy
+          headers: {}, // Headers are built internally by createEnhancedServer
         });
         if (authResponse) {
           return authResponse;
@@ -719,7 +314,17 @@ app.all("/:connectionId/call-tool/:toolName", async (c) => {
   const ctx = c.get("meshContext");
 
   try {
-    const client = await ctx.createMCPProxy(connectionId);
+    // Fetch connection and create client directly
+    const connection = await ctx.storage.connections.findById(
+      connectionId,
+      ctx.organization?.id,
+    );
+    if (!connection) {
+      return c.json({ error: "Connection not found" }, 404);
+    }
+
+    // Client pool manages lifecycle, no need for await using
+    const client = await clientFromConnection(connection, ctx, false);
     const result = await client.callTool({
       name: toolName,
       arguments: await c.req.json(),

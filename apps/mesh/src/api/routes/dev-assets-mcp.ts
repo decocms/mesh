@@ -29,10 +29,23 @@ import { createHmac } from "node:crypto";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { z } from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireOrganization } from "../../core/mesh-context";
-import { mcpServer, type ToolDefinition } from "../utils/mcp";
 import { getContentType } from "./dev-assets";
+
+// Local tool definition type
+interface ToolDefinition {
+  name: string;
+  description?: string;
+  inputSchema: z.ZodTypeAny;
+  outputSchema?: z.ZodTypeAny;
+  handler: (args: Record<string, unknown>) => Promise<unknown>;
+  annotations?: {
+    [key: string]: unknown;
+  };
+}
 
 // Base directory for dev assets (relative to cwd)
 const DEV_ASSETS_BASE_DIR = "./data/assets";
@@ -472,14 +485,56 @@ export async function handleDevAssetsMcpRequest(
 ): Promise<Response> {
   const tools = createDevAssetsTools(ctx, baseUrl);
 
-  const server = mcpServer({
-    name: "dev-assets-mcp",
-    version: "1.0.0",
-  })
-    .withTools(tools)
-    .build();
+  // Create MCP server directly
+  const server = new McpServer(
+    { name: "dev-assets-mcp", version: "1.0.0" },
+    { capabilities: { tools: {} } },
+  );
 
-  return server.fetch(req);
+  // Register each tool with the server
+  for (const tool of tools) {
+    const inputShape =
+      "shape" in tool.inputSchema
+        ? (tool.inputSchema.shape as z.ZodRawShape)
+        : z.object({}).shape;
+    const outputShape =
+      tool.outputSchema && "shape" in tool.outputSchema
+        ? (tool.outputSchema.shape as z.ZodRawShape)
+        : z.object({}).shape;
+
+    server.registerTool(
+      tool.name,
+      {
+        description: tool.description ?? "",
+        inputSchema: inputShape,
+        outputSchema: outputShape,
+        annotations: tool.annotations,
+      },
+      async (args) => {
+        try {
+          const result = await tool.handler(args);
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(result) }],
+            structuredContent: result as { [x: string]: unknown },
+          };
+        } catch (error) {
+          const err = error as Error;
+          return {
+            content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+            isError: true,
+          };
+        }
+      },
+    );
+  }
+
+  // Create transport and connect
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    enableJsonResponse:
+      req.headers.get("Accept")?.includes("application/json") ?? false,
+  });
+  await server.connect(transport);
+  return transport.handleRequest(req);
 }
 
 /**
