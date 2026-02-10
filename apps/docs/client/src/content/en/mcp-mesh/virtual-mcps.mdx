@@ -8,7 +8,7 @@ import Callout from "../../../components/ui/Callout.astro";
 
 ## What Are Virtual MCPs?
 
-In decocms, a **Virtual MCP** is a reusable package of capabilities—[tools, resources, and prompts](/en/mcp-mesh/concepts#mcp-protocol-primitives)—remixed from multiple [connections](/en/mcp-mesh/connections).
+In deco CMS, a **Virtual MCP** is a reusable package of capabilities—[tools, resources, and prompts](/en/mcp-mesh/concepts#mcp-protocol-primitives)—remixed from multiple [connections](/en/mcp-mesh/connections).
 
 Instead of giving your AI agent access to everything from every connection, you **compose virtual MCPs** that expose exactly what's needed for each use case. You can:
 
@@ -17,7 +17,7 @@ Instead of giving your AI agent access to everything from every connection, you 
 - **Add custom logic**: Extend with inline tools, prompts, and resources
 - **Update dynamically**: Change what's included without reconfiguring your agents
 
-Virtual MCPs are the **backbone of decocms**—powering [Projects](/en/mcp-mesh/projects), [Agents](/en/mcp-mesh/agents), and organizational boundaries for how capabilities are packaged and composed.
+Virtual MCPs are the **backbone of deco CMS**—powering [Projects](/en/mcp-mesh/projects), [Agents](/en/mcp-mesh/agents), and organizational boundaries for how capabilities are packaged and composed.
 
 ## How Virtual MCPs Work
 
@@ -27,7 +27,7 @@ Virtual MCPs are built by **remixing connections**—selecting capabilities from
 
 **Remixing** lets you select and combine tools, resources, and prompts from multiple [connections](/en/mcp-mesh/connections).
 
-A **connection** is how you wire up an external MCP server to decocms (see [Connections](/en/mcp-mesh/connections) for details). Once you have connections set up, remixing works like this:
+A **connection** is how you wire up an external MCP server to deco CMS (see [Connections](/en/mcp-mesh/connections) for details). Once you have connections set up, remixing works like this:
 
 1. **Select specific capabilities** from each connection—tools, resources, prompts
 2. **Combine them** into a single virtual MCP package
@@ -44,7 +44,7 @@ Your AI agent uses this one virtual MCP to orchestrate across all three systems.
 
 **Inline creation** lets you define tools, resources, and prompts directly within a virtual MCP—extending what connections provide.
 
-Inline tools can **call any MCP connection** available in your decocms instance, enabling powerful patterns like orchestration, validation, and feature gating.
+Inline tools can **call any MCP connection** available in your deco CMS instance, enabling powerful patterns like orchestration, validation, and feature gating.
 
 Inline tools can call other tools using `callTool(connectionId:TOOL_NAME, params)`, enabling orchestration, validation, and feature gating across your MCP infrastructure.
 
@@ -83,7 +83,7 @@ One virtual MCP, multiple sources (connections + inline definitions), unified ag
 
 ## Namespacing & Collision Avoidance
 
-When aggregating capabilities from multiple connections, decocms uses **connection-based namespacing** to avoid collisions. Each connection gets a unique ID, and all capabilities from that connection are prefixed with this ID.
+When aggregating capabilities from multiple connections, deco CMS uses **connection-based namespacing** to avoid collisions. Each connection gets a unique ID, and all capabilities from that connection are prefixed with this ID.
 
 ### Tools and Prompts
 
@@ -108,7 +108,7 @@ Resources use URI-based namespacing, **except for well-known protocols**.
 
 **Well-known protocols** (like `http://`, `https://`, `ws://`) are **NOT namespaced** and remain unchanged.
 
-**Automatic content rewriting**: When resources are read through a virtual MCP, decocms automatically rewrites internal resource links to use the namespaced format. This ensures resources can reference each other correctly.
+**Automatic content rewriting**: When resources are read through a virtual MCP, deco CMS automatically rewrites internal resource links to use the namespaced format. This ensures resources can reference each other correctly.
 
 <Callout type="info">
 Tools and prompts use `connection_id::CAPABILITY_NAME` format (max 64 chars). Resources use `connection_id://encodedUri` for custom protocols, or stay unchanged for well-known protocols.
@@ -116,7 +116,7 @@ Tools and prompts use `connection_id::CAPABILITY_NAME` format (max 64 chars). Re
 
 ## Features Powered by Virtual MCPs
 
-Virtual MCPs provide the **foundational capability** that powers specialized features across decocms. All of these inherit full [monitoring capabilities](/en/mcp-mesh/monitoring) for audit trails and observability.
+Virtual MCPs provide the **foundational capability** that powers specialized features across deco CMS. All of these inherit full [monitoring capabilities](/en/mcp-mesh/monitoring) for audit trails and observability.
 
 **MCP Client Compatibility**: Virtual MCPs are callable by any MCP-compatible client—including Cursor, Claude Code, VS Code extensions, and any application that implements the Model Context Protocol. This makes your composed capability packages universally accessible across the AI tooling ecosystem.
 
