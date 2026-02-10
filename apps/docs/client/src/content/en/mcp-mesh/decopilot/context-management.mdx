@@ -12,20 +12,75 @@ import Callout from "../../../../components/ui/Callout.astro";
 
 Decopilot manages context through a priority-based system that balances completeness with efficiency. Context includes conversation history, tool definitions, resources, and project-specific instructions—all within the model's limited token window.
 
-## What Gets Included in Context
+## How Context Loading Works
 
-Decopilot builds context in priority order:
+When decopilot starts a task, it loads context in priority order. This ensures essential context is always present while managing token usage efficiently:
 
-1. **System Instructions** - Core behavior definition (always present)
-2. **CLAUDE.md** - Project and org-admin persistent rules
-3. **AGENTS.md** - Agent-specific instructions via MCP server instructions property
-4. **Conversation History** - Recent messages (automatically truncated)
-5. **MCP Tool Definitions** - Filtered by agent type to reduce overhead
-6. **Resources** - Loaded on-demand when explicitly requested
+1. **System instructions**: Core behavior definition (always present, ~800 tokens)
+2. **CLAUDE.md**: Organization and project persistent rules (scope-dependent, see below)
+3. **AGENTS.md**: Agent-specific instructions via MCP server's instructions property (only for spawned agents)
+4. **Conversation history**: Recent messages automatically managed and truncated as needed
+5. **MCP tool definitions**: Only enabled tools consume context (filtered by agent type to reduce overhead)
+6. **Resources**: Loaded on-demand when explicitly requested through tool invocations
+
+The priority system ensures essential instructions and rules are loaded first, with heavier elements (conversation history, tools, resources) added strategically based on need and scope.
+
+## Scope-Specific Context Loading
+
+Different scopes load different context automatically. Understanding scope-based loading helps you work efficiently and avoid unnecessary context bloat.
+
+### Organization Scope
+
+When working at org scope (the default level):
+- **System instructions**: Always present
+- **Org CLAUDE.md**: Organization-wide rules and standards
+- **Org-level tools**: Tools enabled at organization level
+- **Conversation history**: Current session
+- **NO project-specific context**: No project CLAUDE.md, no project tools
+
+Use org scope for cross-project work, administrative tasks, or when you don't need project-specific context.
+
+### Project Scope
+
+When working at project scope:
+- **System instructions**: Always present
+- **Org CLAUDE.md**: Inherited from organization
+- **Project CLAUDE.md**: Project-specific rules (takes precedence on conflicts)
+- **Project tools**: Tools enabled at project level
+- **Conversation history**: Current session
+- **Resources**: Available on-demand through `resource_read`
+
+Project scope inherits org context and adds project-specific layers. This is the most common scope for development work.
+
+### Agent Scope
+
+When you spawn an agent:
+- **System instructions**: Always present
+- **CLAUDE.md**: Inherited based on spawn location (org or project)
+- **AGENTS.md**: Agent-specific instructions from MCP server's instructions property
+- **Task prompt**: The specific task you assigned
+- **Filtered tools**: Only tools relevant to agent type
+- **NO parent conversation history**: Fresh context, no accumulated history from parent
+- **NO parent resources**: Clean slate, loads own resources if needed
+
+Agent scope provides fresh, focused context for specific tasks. See [Context Isolation via Agent Spawning](#context-isolation-via-agent-spawning) for details.
+
+### Context Inheritance
+
+| Context Element | Org Scope | Project Scope | Agent Scope (from project) |
+|----------------|-----------|---------------|---------------------------|
+| System instructions | ✓ | ✓ | ✓ |
+| Org CLAUDE.md | ✓ | ✓ (inherited) | ✓ (inherited) |
+| Project CLAUDE.md | ✗ | ✓ | ✓ (inherited) |
+| AGENTS.md | ✗ | ✗ | ✓ |
+| Parent conversation | ✓ (own) | ✓ (own) | ✗ (fresh start) |
+| Parent resources | N/A | N/A | ✗ (clean slate) |
+
+See [Scopes](/en/mcp-mesh/decopilot/overview#scopes) in the overview for more on how scope layering works in practice.
 
 ## CLAUDE.md Support
 
-CLAUDE.md provides persistent context at two levels: org-admin (`/:org` scope) for organization-wide rules, and project (`/:org/projects/:id` scope) for project-specific guidelines.
+CLAUDE.md provides persistent context at two levels: **org scope** for organization-wide rules, and **project scope** for project-specific guidelines. When working in project scope, both org and project CLAUDE.md files are loaded—project context inherits from org context.
 
 **Precedence handling**: When both levels define conflicting rules, project-level CLAUDE.md takes precedence. This allows project-specific overrides while maintaining organization-wide defaults. For example, an org-admin might enforce Conventional Commits across all projects, but a specific project could override commit message format for integration with external systems.
 
@@ -67,7 +122,7 @@ CLAUDE.md provides persistent context at two levels: org-admin (`/:org` scope) f
 
 ## AGENTS.md Support
 
-AGENTS.md provides agent-specific instructions via the MCP server's `instructions` property. Both project and org-admin virtual MCPs return this content—spawned agents automatically receive targeted guidance for their specific purpose.
+AGENTS.md provides agent-specific instructions via the MCP server's `instructions` property. **This content only appears in agent scope**—when decopilot spawns an agent. When spawned from project scope, agents receive both org CLAUDE.md and project CLAUDE.md plus AGENTS.md. When spawned from org scope, agents receive only org CLAUDE.md plus AGENTS.md.
 
 ### Example: AGENTS.md Structure
 
@@ -279,7 +334,7 @@ await tool_enable({ tool_name: "LIST_FILES" })
 
 **Problem**: Working in wrong scope, loading unnecessary inherited context.
 
-**Solution**: Use the most specific scope appropriate for your task.
+**Solution**: Use the most specific scope appropriate for your task. See [Scopes](/en/mcp-mesh/decopilot/overview#scopes) for details on scope-based capabilities and [Scope-Specific Context Loading](#scope-specific-context-loading) for what context is available at each level.
 
 **Example: Wrong Scope (Bloated)**
 
