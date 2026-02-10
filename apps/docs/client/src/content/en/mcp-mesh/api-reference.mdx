@@ -35,4 +35,69 @@ Aggregates tools/resources/prompts across multiple connections.
 - `GET /health`
 - `GET /metrics`
 
+## Decopilot Built-in Tools
+
+These tools are provided by decopilot and are always available (subject to task/subtask restrictions).
+
+### Tool Discovery & Enablement
+
+**`tool_search(search_term?: string)`**
+- Searches for tools available in the current scope (organization, project, or agent)
+- Returns tools from the current scope's virtual MCP only
+- Empty search returns all available tools in the current scope
+- Output: Array of tool definitions with name, description, and source
+
+**`tool_enable(tool_name: string)`**
+- Enables a tool for use in the current task
+- Can only enable tools that exist in the current scope's virtual MCP
+- Tool remains enabled for task duration only
+- Must be called before invoking target tools
+- Output: Success status and enabled confirmation
+
+### Agent Management
+
+**`agent_search(search_term?: string)`**
+- Searches for agents configured in the organization
+- Returns agent metadata including purpose and capabilities
+- Empty search returns all available agents
+- **Restriction**: Tasks only (not available in subtasks)
+- Output: Array of agent definitions
+
+### Task Management
+
+**`subtask_run(prompt: string, agent_id?: string)`**
+- Spawns a subtask with isolated context
+- Optionally specify an agent to use for the subtask
+- If agent_id is omitted, subtask uses current scope capabilities
+- Subtask runs until completion, then returns results
+- **Restriction**: Tasks only (not available in subtasks)
+- Output: Subtask results and completion status
+
+### User Interaction
+
+**`user_ask(question: string, options?: object)`**
+- Asks the user a question to gather input or clarification
+- Supports text input, multiple choice, or confirmation
+- Task status changes to "Needs Input" until user responds
+- **Restriction**: Tasks only (not available in subtasks)
+- Output: User's response
+
+### Context Access
+
+**`resource_read(resource_uri: string, lineStart?: number, lineEnd?: number)`**
+- Reads a resource from the current scope
+- Supports scope inheritance (project inherits from org, agent inherits from project+org)
+- Parameters:
+  - `resource_uri`: URI identifier for the resource
+  - `lineStart`: Starting line number (default: 0)
+  - `lineEnd`: Ending line number (default: 20)
+  - Set both to 0 to read entire resource
+- Output: Resource content and metadata
+
+**`prompt_read(prompt_name: string, lineStart?: number, lineEnd?: number)`**
+- Reads a prompt template from the current scope
+- Supports scope inheritance like resources
+- Same line range parameters as resource_read
+- Output: Prompt template content and metadata
+
 
