@@ -1,605 +1,468 @@
 ---
 title: Quick Start
-description: Practical workflows showing decopilot's agentic loop in action
+description: Learn how to work with decopilot through practical e-commerce examples
 icon: Rocket
 ---
 
 import Callout from "../../../../components/ui/Callout.astro";
 
-This guide shows practical decopilot workflows with the **agentic loop** in action. Each workflow demonstrates how decopilot gathers context from distributed MCP servers, takes coordinated actions, and verifies results—all while adapting based on scope.
+This guide shows you how to use decopilot for common e-commerce tasks. We'll start simple and progressively introduce features like subtasks, agents, context management, and scopes as you need them.
 
-<Callout type="info" title="Understanding Scopes">
-These workflows adapt based on scope (org/project/agent). Learn more in [Scopes](/en/mcp-mesh/decopilot/scopes).
+<Callout type="info" title="Progressive Learning">
+Each section builds on the previous one. Feel free to skip ahead if you're already familiar with basic concepts.
 </Callout>
 
 ## Prerequisites
 
 Before starting, you'll need:
 
-- **Access to a deco CMS organization**: With permission to create and modify projects
-- **At least one project with connected MCP servers**: GitHub is recommended for these examples
-- **Basic MCP familiarity**: Understanding of tools, resources, and the MCP protocol helps but isn't required
+- **Access to a deco CMS organization** with at least one project
+- **Connected integrations** like Shopify, GitHub, or other MCP servers (recommended but not required)
+- **Basic familiarity** with your e-commerce platform
 
-If you haven't set up MCP servers yet, see [Connections](/en/mcp-mesh/connections).
+If you haven't set up integrations yet, see [Connections](/en/mcp-mesh/connections).
 
-## Workflow 1: Creating a Pull Request
+## 1. Simple Requests
 
-This workflow shows the complete agentic loop with an external MCP server (GitHub).
+Just ask decopilot for what you need in natural language. Behind the scenes, decopilot follows a three-step flow:
 
-### The Request
+1. **Search** - Discovers what tools are available for your request
+2. **Enable** - Activates the specific tools it needs
+3. **Execute** - Uses those tools to accomplish your task
 
-You're working in a project and ready to create a pull request for your feature:
+You don't need to tell decopilot which tools to use—it figures this out automatically based on what you ask for.
 
-```
-User: "Create a PR for the authentication feature"
-```
-
-### Step 1: Gather Context
-
-Decopilot begins by gathering context from the GitHub MCP:
-
-```typescript
-// Decopilot internally:
-// 1. Check current branch state
-const branch = await GIT_BRANCH_STATUS({ repo: "mobile-app" })
-// => { name: "feature/biometric-auth", ahead: 5, behind: 0 }
-
-// 2. Review recent commits
-const commits = await GIT_LOG({ repo: "mobile-app", limit: 5 })
-// => [
-//   { sha: "abc123", message: "Add biometric scanner component" },
-//   { sha: "def456", message: "Implement face recognition flow" },
-//   ...
-// ]
-
-// 3. Check for uncommitted changes
-const status = await GIT_STATUS({ repo: "mobile-app" })
-// => { modified: [], staged: [], untracked: [] }
-```
-
-**Learning point**: Decopilot queries the GitHub MCP to understand the current state before taking action. This ensures the PR creation is context-aware.
-
-### Step 2: Take Action
-
-With context gathered, decopilot searches for and enables the appropriate tool:
-
-```typescript
-// 1. Search for GitHub tools related to PRs
-const tools = await tools_search({
-  search_term: "pull request github",
-  scope: "project"
-})
-// => [
-//   { name: "CREATE_PR", description: "Create a pull request on GitHub" },
-//   { name: "UPDATE_PR", description: "Update existing pull request" },
-//   ...
-// ]
-
-// 2. Enable the CREATE_PR tool
-await tool_enable({ tool_name: "CREATE_PR" })
-
-// 3. Create PR with context-aware description
-await CREATE_PR({
-  repo: "mobile-app",
-  title: "Add biometric authentication",
-  body: `## Summary
-- Implemented biometric scanner component
-- Added face recognition flow
-- Integrated with iOS/Android APIs
-
-## Testing
-- Tested on iPhone 14 Pro with Face ID
-- Tested on Pixel 7 with fingerprint scanner`,
-  base: "main",
-  head: "feature/biometric-auth"
-})
-```
-
-**Learning point**: The discover → enable → use pattern is fundamental to decopilot's tool workflow. Tools from external MCPs must be enabled before use.
-
-### Step 3: Verify Results
-
-Decopilot confirms the PR was created successfully:
-
-```typescript
-// Check PR creation result
-// => {
-//   success: true,
-//   pr_number: 142,
-//   url: "https://github.com/org/mobile-app/pull/142"
-// }
-
-// Report to user
-"✓ Created PR #142: Add biometric authentication
-  View: https://github.com/org/mobile-app/pull/142"
-```
-
-**Learning point**: The agentic loop doesn't stop at execution—decopilot verifies success and reports meaningful results.
-
-### The Complete Loop
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Decopilot
-    participant GitHub_MCP
-
-    User->>Decopilot: "Create a PR for the auth feature"
-
-    Note over Decopilot: GATHER CONTEXT
-    Decopilot->>GitHub_MCP: GIT_BRANCH_STATUS
-    GitHub_MCP-->>Decopilot: feature/biometric-auth (5 commits ahead)
-    Decopilot->>GitHub_MCP: GIT_LOG
-    GitHub_MCP-->>Decopilot: Recent commits
-    Decopilot->>GitHub_MCP: GIT_STATUS
-    GitHub_MCP-->>Decopilot: No uncommitted changes
-
-    Note over Decopilot: TAKE ACTION
-    Decopilot->>Decopilot: tools_search("pull request")
-    Decopilot->>Decopilot: tool_enable("CREATE_PR")
-    Decopilot->>GitHub_MCP: CREATE_PR(...)
-    GitHub_MCP-->>Decopilot: PR #142 created
-
-    Note over Decopilot: VERIFY RESULTS
-    Decopilot-->>User: ✓ Created PR #142 (link)
-```
-
-## Workflow 2: Spawning a Security Review Agent
-
-This workflow demonstrates agent spawning for parallel work with isolated context.
-
-### The Request
-
-You're implementing a feature and want security review to happen in parallel:
+### Example: Check Inventory
 
 ```
-User: "Add biometric authentication and run security review"
+You → "Check inventory levels for products below 20 units"
+     ↓
+Decopilot searches for inventory tools
+     ↓
+Decopilot enables inventory tools
+     ↓
+Decopilot queries your inventory system
+     ↓
+You ← "Found 8 products with low stock:
+       • SKU-2847: 12 units (Wireless Headphones)
+       • SKU-1923: 8 units (Phone Case - Black)
+       • SKU-4156: 15 units (Laptop Stand)
+       • SKU-3891: 5 units (USB-C Cable 2m)
+       • SKU-5672: 18 units (Water Bottle)
+       • SKU-7234: 9 units (Desk Lamp)
+       • SKU-8901: 14 units (Keyboard - Mechanical)
+       • SKU-4523: 7 units (Mouse Pad - Large)"
 ```
 
-### Main Loop: Implementation
+Decopilot automatically discovers and enables the tools it needs—you don't have to tell it which tools to use.
 
-Decopilot begins implementation in the main context:
-
-```typescript
-// Main decopilot loop
-// 1. Plan implementation approach
-const plan = await resource_read("project://mobile-app/architecture-decisions", {
-  lineStart: 0,
-  lineEnd: 0
-})
-
-// 2. Check existing auth infrastructure
-const authFiles = await tools_search({
-  search_term: "authentication",
-  scope: "project"
-})
-
-// 3. Spawn security agent on parallel task
-const agentTask = await agent_spawn({
-  agent_id: "security-reviewer",
-  task: "Review biometric authentication implementation for security vulnerabilities",
-  context: {
-    files: ["src/auth/biometric.ts", "src/auth/face-recognition.ts"],
-    focus: "authentication security"
-  }
-})
-// => { task_id: "task-abc123", status: "in_progress" }
-```
-
-**Learning point**: Agent spawning happens early in the workflow, allowing parallel execution while the main loop continues.
-
-### Spawned Agent: Security Review
-
-The spawned agent runs with **fresh context**, isolated from the main loop:
-
-```typescript
-// Inside security-reviewer agent (isolated context)
-// Agent has bounded tool access: security scanning, CVE lookup, file reading
-
-// 1. Gather context - read security checklist
-const checklist = await resource_read("agent://security-reviewer/checklist", {
-  lineStart: 0,
-  lineEnd: 0
-})
-
-// 2. Take action - scan authentication files
-const scanResults = await SECURITY_SCAN({
-  files: ["src/auth/biometric.ts", "src/auth/face-recognition.ts"],
-  rules: ["auth", "crypto", "input-validation"]
-})
-
-// 3. Check known vulnerabilities
-const cveResults = await CVE_LOOKUP({
-  dependencies: ["face-api.js", "biometric-sdk"]
-})
-
-// 4. Generate findings report
-const findings = {
-  critical: [],
-  high: [
-    "Biometric templates stored without encryption",
-    "Face recognition threshold too permissive (0.5)"
-  ],
-  medium: [
-    "Missing rate limiting on auth attempts"
-  ],
-  info: [
-    "Consider implementing liveness detection"
-  ]
-}
-
-// Agent completes and returns findings
-return { status: "completed", findings }
-```
-
-**Learning point**: The agent operates in an isolated context with only the tools it needs. This prevents token bloat and enables focused analysis.
-
-### Main Loop: Integration
-
-Back in the main loop, decopilot integrates the findings:
-
-```typescript
-// Main loop continues
-// 1. Complete implementation
-await tool_enable({ tool_name: "CREATE_FILE" })
-await CREATE_FILE({
-  path: "src/auth/biometric.ts",
-  content: "// Implementation..."
-})
-
-// 2. Check agent task status
-const agentResult = await agent_task_status({ task_id: "task-abc123" })
-// => { status: "completed", findings: { ... } }
-
-// 3. Update implementation based on findings
-await tool_enable({ tool_name: "UPDATE_FILE" })
-await UPDATE_FILE({
-  path: "src/auth/biometric.ts",
-  changes: [
-    "Encrypt biometric templates with AES-256",
-    "Increase face recognition threshold to 0.7",
-    "Add rate limiting middleware"
-  ]
-})
-
-// 4. Create resource documenting findings
-await resource_create({
-  uri: "project://mobile-app/security-findings-2024-02",
-  name: "Security Review: Biometric Auth",
-  content: JSON.stringify(agentResult.findings, null, 2)
-})
-```
-
-**Learning point**: The main loop continues working while the agent runs, then integrates results when ready. This is efficient parallel execution.
-
-### The Complete Flow
-
-```mermaid
-graph TB
-    A[User Request] --> B[Main Loop: Plan Implementation]
-    B --> C[Spawn Security Agent]
-    B --> D[Continue Implementation]
-
-    C --> E[Agent: Fresh Context]
-    E --> F[Agent: Scan Files]
-    F --> G[Agent: Check CVEs]
-    G --> H[Agent: Generate Findings]
-
-    D --> I[Main: Complete Implementation]
-    H --> J[Main: Integrate Findings]
-    I --> J
-    J --> K[Main: Update Code]
-    K --> L[Main: Document Results]
-```
-
-## Workflow 3: Multi-Server Orchestration
-
-This workflow shows coordination across multiple MCP servers in a single operation.
-
-### The Request
-
-You need to set up a feature branch across multiple services:
+### Example: Update Product Descriptions
 
 ```
-User: "Create feature branch, export Figma assets, and notify the team"
+You → "Update descriptions for the summer collection
+       to emphasize breathable fabrics and UV protection"
+     ↓
+Decopilot searches for product management tools
+     ↓
+Decopilot enables needed tools
+     ↓
+Decopilot identifies summer collection products
+     ↓
+Decopilot updates 24 product descriptions
+     ↓
+You ← "Updated 24 products in Summer 2026 collection:
+       ✓ Added 'breathable fabric' mentions
+       ✓ Highlighted UPF 50+ sun protection
+       ✓ Emphasized lightweight materials
+
+       Preview: example.com/products/summer-dress-azure"
 ```
 
-### The Agentic Loop
-
-Decopilot orchestrates across three MCP servers:
-
-```typescript
-// GATHER CONTEXT
-
-// 1. Check GitHub repository state
-const repo = await GIT_BRANCH_STATUS({ repo: "mobile-app" })
-// => { name: "main", clean: true }
-
-// 2. Check Figma for latest designs
-const figmaFile = await FIGMA_GET_FILE({ file_id: "mobile-app-designs" })
-// => { last_modified: "2024-02-08", version: "1.42" }
-
-// 3. Check Slack channel for previous notifications
-const history = await SLACK_GET_HISTORY({
-  channel: "engineering",
-  limit: 10
-})
-// => [...recent messages]
-
-// TAKE ACTION
-
-// 1. GitHub MCP - Create feature branch
-await tool_enable({ tool_name: "CREATE_BRANCH" })
-const branch = await CREATE_BRANCH({
-  repo: "mobile-app",
-  name: "feature/new-onboarding",
-  base: "main"
-})
-// => { success: true, branch: "feature/new-onboarding" }
-
-// 2. Figma MCP - Export design assets
-await tool_enable({ tool_name: "EXPORT_ASSETS" })
-const assets = await EXPORT_ASSETS({
-  file_id: "mobile-app-designs",
-  node_ids: ["onboarding-flow", "welcome-screen"],
-  format: "svg",
-  scale: 2
-})
-// => {
-//   success: true,
-//   files: [
-//     { name: "onboarding-flow.svg", url: "..." },
-//     { name: "welcome-screen.svg", url: "..." }
-//   ]
-// }
-
-// 3. Slack MCP - Notify team
-await tool_enable({ tool_name: "SEND_MESSAGE" })
-const notification = await SEND_MESSAGE({
-  channel: "engineering",
-  text: `🚀 Started new onboarding feature
-Branch: feature/new-onboarding
-Figma assets: ${assets.files.length} files exported
-Design version: 1.42`
-})
-// => { success: true, timestamp: "1707398400" }
-
-// VERIFY RESULTS
-
-// Confirm all operations succeeded
-const results = {
-  github: branch.success,      // ✓
-  figma: assets.success,        // ✓
-  slack: notification.success   // ✓
-}
-
-// Report to user
-"✓ Feature setup complete:
-  • Branch created: feature/new-onboarding
-  • Exported 2 Figma assets
-  • Team notified in #engineering"
-```
-
-**Learning point**: Decopilot coordinates multiple MCP servers in a single workflow. Each server is called through the MCP protocol (HTTP for remote, stdio for local), with decopilot orchestrating the sequence.
-
-### Distributed Architecture in Action
-
-```mermaid
-graph LR
-    Decopilot --> GitHub[GitHub MCP<br/>HTTP]
-    Decopilot --> Figma[Figma MCP<br/>HTTP]
-    Decopilot --> Slack[Slack MCP<br/>HTTP]
-
-    GitHub --> Branch[Create Branch]
-    Figma --> Assets[Export Assets]
-    Slack --> Notify[Send Message]
-```
-
-**Learning point**: This is the distributed MCP architecture in action—web-native coordination across multiple services through standardized protocol.
-
-## Workflow 4: Dynamic Tool Creation
-
-This workflow demonstrates decopilot's ability to edit virtual MCPs by creating tools on the fly.
-
-### The Request
-
-You need a custom tool for a project-specific operation:
+### Example: Find Missing Content
 
 ```
-User: "We need a tool to run the mobile test suite on all platforms"
+You → "Find products missing images or descriptions"
+     ↓
+Decopilot searches for content audit tools
+     ↓
+Decopilot enables tools and scans catalog
+     ↓
+You ← "Found 12 products with missing content:
+
+       Missing images (5):
+       • SKU-8821: Ceramic Mug Set
+       • SKU-9234: Garden Tool Kit
+       • SKU-7755: Yoga Mat - Purple
+       • SKU-6543: Plant Hanger - Macrame
+       • SKU-8192: Candle - Lavender
+
+       Missing descriptions (7):
+       • SKU-3421: Travel Backpack
+       • SKU-5667: Stainless Steel Thermos
+       • SKU-2198: Notebook - Dotted
+       • SKU-4456: Pen Set - Gel
+       • SKU-9981: Desk Organizer
+       • SKU-7722: Wall Clock - Wooden
+       • SKU-3388: Picture Frame - 8x10"
 ```
 
-### The Agentic Loop
-
-Decopilot operates on the project's virtual MCP to create an inline tool:
-
-```typescript
-// GATHER CONTEXT
-
-// 1. Check existing test infrastructure
-const testTools = await tools_search({
-  search_term: "test",
-  scope: "project"
-})
-// => [
-//   { name: "RUN_TESTS", description: "Run test suite for a platform" },
-//   { name: "TEST_RESULTS", description: "Get test results" }
-// ]
-
-// 2. Read project testing documentation
-const testDocs = await resource_read("project://mobile-app/testing-guide", {
-  lineStart: 0,
-  lineEnd: 0
-})
-
-// TAKE ACTION
-
-// 1. Create inline tool in project virtual MCP
-await tool_create({
-  name: "RUN_MOBILE_TESTS_ALL_PLATFORMS",
-  description: "Run complete mobile test suite on iOS and Android",
-  inputSchema: {
-    type: "object",
-    properties: {
-      suite: {
-        type: "string",
-        enum: ["unit", "integration", "e2e", "all"],
-        description: "Test suite to run"
-      }
-    }
-  },
-  implementation: {
-    type: "workflow",
-    steps: [
-      {
-        tool: "RUN_TESTS",
-        input: { platform: "ios", suite: "{{input.suite}}" }
-      },
-      {
-        tool: "RUN_TESTS",
-        input: { platform: "android", suite: "{{input.suite}}" }
-      }
-    ]
-  }
-})
-
-// 2. Enable the newly created tool
-await tool_enable({ tool_name: "RUN_MOBILE_TESTS_ALL_PLATFORMS" })
-
-// 3. Use it immediately
-const results = await RUN_MOBILE_TESTS_ALL_PLATFORMS({
-  suite: "integration"
-})
-// => {
-//   ios: { passed: 142, failed: 0, skipped: 3 },
-//   android: { passed: 138, failed: 2, skipped: 7 }
-// }
-
-// VERIFY RESULTS
-
-// Check test outcomes
-const summary = {
-  ios: results.ios.failed === 0 ? "✓ Pass" : "✗ Fail",
-  android: results.android.failed === 0 ? "✓ Pass" : "✗ Fail"
-}
-
-// Report to user
-"✓ Created RUN_MOBILE_TESTS_ALL_PLATFORMS tool
-  Results:
-  • iOS: ✓ Pass (142/145 tests)
-  • Android: ✗ Fail (138/147 tests, 2 failures)"
-```
-
-**Learning point**: Decopilot can create tools in virtual MCPs and use them immediately. This is only possible because projects are virtual MCPs—editable and configurable.
-
-### Virtual MCP Editability
-
-```mermaid
-graph TB
-    A[User Request] --> B[Gather: Check Existing Tools]
-    B --> C[Take Action: Create Inline Tool]
-    C --> D[Virtual MCP: Add Tool Definition]
-    D --> E[Enable Tool]
-    E --> F[Use Tool Immediately]
-    F --> G[Verify: Check Results]
-
-    style D fill:#e1f5ff
-```
-
-**Learning point**: The virtual MCP is the editable layer. Decopilot operates on it to add tools, resources, and configuration—something impossible with external MCP servers.
-
-## Tips for Effective Use
-
-### 1. Leverage Scopes Appropriately
-
-**Org scope** for organization-wide setup:
-- Connect external MCP servers (GitHub org, Slack workspace)
-- Create shared resources (security policies, coding standards)
-- Define org-level prompt templates
-
-**Project scope** for feature development:
-- Use project-specific tools and resources
-- Create inline tools for project operations
-- Coordinate work across connected MCPs
-
-**Agent scope** for focused tasks:
-- Delegate to specialized agents (security, testing, research)
-- Benefit from fresh context and bounded tool access
-
-### 2. Spawn Agents Strategically
-
-**Good candidates for agent spawning**:
-- Security reviews (parallel to implementation)
-- Research tasks (exploring architecture, investigating bugs)
-- Testing workflows (comprehensive test runs)
-- Code quality checks (linting, formatting, documentation)
-
-**Keep in main loop**:
-- Feature implementation (needs full context)
-- User interactions (requires responsiveness)
-- Sequential workflows (where order matters)
-
-### 3. Work with Virtual MCPs
-
-**Create resources** for documentation:
-```typescript
-await resource_create({
-  uri: "project://mobile-app/architecture-decisions",
-  name: "Architecture Decisions",
-  content: "# ADRs\n\n..."
-})
-
-// Read back the resource
-await resource_read("project://mobile-app/architecture-decisions", {
-  lineStart: 0,
-  lineEnd: 0
-})
-```
-
-**Create inline tools** for project operations:
-```typescript
-await tool_create({
-  name: "DEPLOY_STAGING",
-  description: "Deploy to staging environment",
-  // ...
-})
-```
-
-**Update prompts** based on workflow patterns:
-```typescript
-await prompt_update({
-  name: "code-review",
-  template: "Review this code for:\n- Security\n- Performance\n..."
-})
-```
-
-### 4. Monitor Task Status
-
-When spawning agents, check status:
-```typescript
-const status = await agent_task_status({ task_id: "task-abc123" })
-// => { status: "in_progress" | "completed" | "failed" }
-```
-
-Integrate results when ready:
-```typescript
-if (status.status === "completed") {
-  // Use agent findings
-}
-```
-
-## Next Steps
-
-**[Scopes](/en/mcp-mesh/decopilot/scopes)**: Understand how org/project/agent scopes determine behavior and tool availability. Essential for effective decopilot use.
-
-**[Tasks](/en/mcp-mesh/decopilot/tasks-and-spawning)**: Learn advanced patterns for agent spawning, including fan-out/fan-in, conditional spawning, and agent selection.
-
-**[Tools](/en/mcp-mesh/decopilot/tools)**: Explore the comprehensive toolset, discover patterns, and troubleshoot common issues.
-
-**[Context](/en/mcp-mesh/decopilot/context)**: Optimize token usage through strategic agent spawning and context filtering.
-
-**[Architecture](/en/mcp-mesh/decopilot/architecture)**: Deep-dive into decopilot's technical implementation and distributed MCP coordination.
+**Key takeaway:** For straightforward tasks, just describe what you want. Decopilot automatically discovers and enables the right tools, then executes your request.
 
 ---
 
-You've seen the agentic loop in action across four practical workflows. Decopilot brings proven agentic patterns to web-based development through distributed MCP architecture—gather context, take coordinated actions, and verify results, all while adapting to scope. This is the foundation for state-of-the-art agentic workflows in deco CMS.
+## 2. Using Subtasks for Heavy Work
+
+When tasks involve analyzing lots of data or doing complex research, use **subtasks**. Subtasks run in isolated context and return just a summary—keeping your main conversation clean and focused.
+
+### When to Use Subtasks
+
+- Analyzing data across many products or orders
+- Research tasks (competitor pricing, trend analysis)
+- Quality audits (checking data consistency, finding errors)
+- Any work that generates verbose output you don't need to see in full
+
+### Example: Analyze Stock Ruptures
+
+```
+You → "Run a subtask to analyze potential stock ruptures
+       across all warehouses for the next 30 days"
+     ↓
+Subtask starts with fresh context
+     ↓
+Subtask searches for inventory & analytics tools
+     ↓
+Subtask enables needed tools
+     ↓
+Subtask analyzes:
+  • 547 SKUs across 3 warehouses
+  • Historical sales data
+  • Seasonal trends
+  • Supplier lead times
+     ↓
+You ← "Stock Rupture Analysis Complete
+
+       CRITICAL (need immediate action):
+       • SKU-2847 Wireless Headphones
+         Current: 12 units | Projected shortage: Feb 18
+         Recommendation: Order 200 units from Supplier A
+
+       • SKU-7234 Desk Lamp
+         Current: 9 units | Projected shortage: Feb 15
+         Recommendation: Order 150 units from Supplier B
+
+       HIGH PRIORITY (order within 1 week):
+       • SKU-8901 Mechanical Keyboard - 14 units
+       • SKU-4156 Laptop Stand - 15 units
+       • SKU-1923 Phone Case Black - 8 units
+
+       MODERATE (monitor closely):
+       • 8 additional SKUs flagged
+
+       Full analysis saved to subtask history."
+```
+
+### Example: Research Competitor Pricing
+
+```
+You → "Run a subtask: research competitor pricing
+       for our top 20 bestselling products"
+     ↓
+Subtask searches for web research & pricing tools
+     ↓
+Subtask enables tools and analyzes competitor sites
+     ↓
+You ← "Pricing Analysis Summary:
+
+       OVERPRICED (consider reducing):
+       • Wireless Headphones: Our $79 vs avg $65
+       • Laptop Stand: Our $45 vs avg $35
+
+       COMPETITIVE (maintain):
+       • Phone Cases: Our $18 vs avg $17
+       • USB Cables: Our $12 vs avg $13
+
+       UNDERPRICED (opportunity to increase):
+       • Mechanical Keyboard: Our $89 vs avg $110
+       • Desk Lamp: Our $32 vs avg $42
+
+       Full competitor breakdown in subtask history."
+```
+
+**Key takeaway:** Use subtasks when you need analysis or research but only want to see the actionable summary. The full details are saved in task history if you need them later.
+
+Learn more: [Tasks & Subtasks](/en/mcp-mesh/decopilot/tasks-and-spawning)
+
+---
+
+## 3. Working with Specialist Agents
+
+**Agents** are specialists with focused expertise in specific domains. When you need specialized analysis or domain knowledge, use an agent—they run in subtasks with tools and instructions tailored to their area.
+
+### Available Agent Types
+
+Common agents for e-commerce teams:
+- **Inventory Specialist** - Demand forecasting, stock optimization, supplier coordination
+- **Shipping & Logistics** - Route optimization, carrier selection, delivery scheduling
+- **Customer Service** - Support strategy, communication planning, issue resolution
+- **Content Specialist** - SEO optimization, copy refinement, brand consistency
+- **Pricing Analyst** - Market analysis, competitive positioning, promotion strategy
+
+### Example: Demand Forecasting
+
+```
+You → "Use the Inventory Specialist to forecast
+       demand for winter collection launch"
+     ↓
+Decopilot searches for agents
+     ↓
+Decopilot → "Found 2 agents:
+             • Inventory Specialist (recommended)
+             • Supply Chain Analyst
+
+             Which would you prefer?"
+     ↓
+You → "Inventory Specialist"
+     ↓
+Agent spawns in subtask with specialized scope
+     ↓
+Agent searches for forecasting & inventory tools
+     ↓
+Agent enables domain-specific tools
+     ↓
+Agent analyzes with specialized expertise
+     ↓
+You ← "Winter Collection Demand Forecast
+
+       HIGH DEMAND (stock heavily):
+       • Wool Scarves: 850-1100 units
+       • Insulated Boots: 650-800 units
+       • Fleece Jackets: 920-1200 units
+
+       MODERATE DEMAND:
+       • Winter Gloves: 400-550 units
+       • Thermal Leggings: 350-480 units
+
+       STRATEGY RECOMMENDATIONS:
+       ✓ Order 70% of forecasted volume upfront
+       ✓ Schedule second shipment for mid-season
+       ✓ Monitor sell-through weekly
+       ✓ Plan flash sales if inventory exceeds 40% after Week 4
+
+       Detailed forecast model in agent task history."
+```
+
+### Example: Shipping Optimization
+
+```
+You → "Use Shipping Agent to optimize delivery
+       routes for holiday orders"
+     ↓
+Agent spawns with logistics & shipping scope
+     ↓
+Agent searches for routing & carrier tools
+     ↓
+Agent enables specialized logistics tools
+     ↓
+Agent analyzes delivery optimization
+     ↓
+You ← "Holiday Shipping Strategy
+
+       ROUTE OPTIMIZATION:
+       • West Coast: Use Carrier A (2-day) - saves $3.20/order
+       • East Coast: Use Carrier B (priority) - saves $1.80/order
+       • Midwest: Split between A & B based on weight
+
+       COST SAVINGS: $8,400/month projected
+
+       CARRIER RECOMMENDATIONS:
+       ✓ Negotiate volume discount with Carrier A (15%)
+       ✓ Set up weekend pickups with Carrier B
+       ✓ Reserve backup capacity with Carrier C for peak days
+
+       Implementation plan in agent history."
+```
+
+**Key takeaway:** Agents bring specialized knowledge to complex tasks. They analyze with domain expertise and return strategic recommendations.
+
+Learn more: [Agents](/en/mcp-mesh/agents)
+
+---
+
+## 4. Managing Context for Long Workflows
+
+When working on complex projects over multiple days, **context** matters. Your conversation history uses working memory—keeping it clean helps decopilot stay focused and productive.
+
+### The 40/80 Rule
+
+- **Below 40%** - Plenty of room, work freely
+- **40-80%** - Context filling up, consider compacting
+- **Above 80%** - Automatic compactification triggers
+
+### When to Compact
+
+Use the `/compact` command to summarize your conversation before:
+- Starting a major new project phase
+- Beginning complex multi-step work
+- Switching between different focus areas
+
+### Example: Product Launch Preparation
+
+```
+Day 1:
+You → "Let's plan the Spring Collection launch"
+     ↓
+[Discussion of strategy, timeline, SKUs...]
+     ↓
+Context: 25% full
+     ↓
+     ↓
+Day 2:
+You → "Run /compact"
+     ↓
+Decopilot summarizes previous work
+     ↓
+Context: 15% full (compacted)
+     ↓
+You → "Now create launch announcement content"
+     ↓
+[Fresh context for new phase...]
+```
+
+### Using Subtasks to Manage Context
+
+Remember: Subtasks keep your main conversation lean. When you spawn a subtask for analysis, only the summary comes back—not the detailed work.
+
+```
+You → "Run subtask: audit product data quality
+       across entire catalog"
+     ↓
+Subtask analyzes 1,200 products
+(generates 15,000 tokens of detailed findings)
+     ↓
+You ← "Quality Audit Summary (450 tokens)
+
+       CRITICAL ISSUES: 23 products
+       HIGH PRIORITY: 87 products
+       MEDIUM PRIORITY: 156 products
+       PASSED: 934 products
+
+       [Summary of top issues...]"
+```
+
+The subtask used 15,000 tokens of context—but your main conversation only sees 450 tokens. This keeps your working memory focused on what matters.
+
+**Key takeaway:** Use `/compact` before major work phases, and use subtasks to keep detailed work isolated. This maintains conversation quality and productivity.
+
+Learn more: [Context Management](/en/mcp-mesh/decopilot/context)
+
+---
+
+## 5. Switching Scopes for Different Work
+
+**Scopes** determine what tools and resources are available. Switch scopes based on what you're working on.
+
+### Three Scope Types
+
+**Organization Scope**
+- Setting up integrations (Shopify, GitHub, Slack)
+- Managing team access and permissions
+- Organization-wide configurations
+
+**Project Scope**
+- Day-to-day feature work
+- Product management
+- Content updates and campaigns
+
+**Agent Scope**
+- Specialized tasks with focused tools
+- Domain expertise (inventory, shipping, etc.)
+- Isolated analysis work
+
+### How to Switch Scopes
+
+Use the **agent selector** at the bottom-left of the chat:
+- No agent selected = Organization or Project scope (depends on current view)
+- Agent selected = Agent scope
+
+### Example: Multi-Scope Workflow
+
+```
+Organization Scope (no agent):
+You → "Connect our Shopify store to decopilot"
+     ↓
+Decopilot searches for connection tools
+     ↓
+Decopilot enables OAuth tools
+     ↓
+Decopilot guides through OAuth setup
+     ↓
+You ← "✓ Shopify connected successfully
+       Store: mystore.myshopify.com
+       Products: 1,247 available"
+     ↓
+     ↓
+Switch to Project Scope (navigate to project):
+You → "Update all summer products with new descriptions"
+     ↓
+Decopilot searches project-specific tools
+     ↓
+Decopilot enables product management tools
+     ↓
+Decopilot updates products
+     ↓
+You ← "✓ Updated 24 products in Summer 2026 collection"
+     ↓
+     ↓
+Switch to Agent Scope (select Inventory Specialist):
+You → "Analyze demand for these summer products"
+     ↓
+Agent searches specialized inventory tools
+     ↓
+Agent enables forecasting tools
+     ↓
+Agent analyzes demand
+     ↓
+You ← "Demand Forecast: [specialist analysis...]"
+```
+
+**Key takeaway:** Switch scopes based on your task. Organization for setup, project for daily work, agents for specialized analysis.
+
+Learn more: [Scopes](/en/mcp-mesh/decopilot/scopes)
+
+---
+
+## Putting It All Together
+
+You've learned the core decopilot workflow:
+
+1. **Simple requests** - Just ask for what you need
+2. **Subtasks** - Isolate complex work, get back summaries
+3. **Agents** - Bring in specialists for domain expertise
+4. **Context** - Use `/compact` and subtasks to stay focused
+5. **Scopes** - Switch contexts for different types of work
+
+### Quick Reference
+
+**When to use what:**
+- Basic task → Just ask decopilot
+- Complex analysis → Run a subtask
+- Need expertise → Use a specialist agent
+- Long project → Compact regularly, use subtasks
+- Setup work → Organization scope
+- Daily work → Project scope
+- Specialized task → Agent scope
+
+### Start Experimenting
+
+The best way to learn is to try. Start with simple requests, then progressively use subtasks and agents as your needs grow more complex.
+
+**Next steps:**
+- [Tools](/en/mcp-mesh/decopilot/tools) - See what decopilot can do
+- [Tasks](/en/mcp-mesh/decopilot/tasks-and-spawning) - Deep dive into subtasks
+- [Context](/en/mcp-mesh/decopilot/context) - Optimize your workflow
+- [Agents](/en/mcp-mesh/agents) - Learn about specialists
+- [Architecture](/en/mcp-mesh/decopilot/architecture) - Technical details
+
+---
+
+Ready to dive in? Open decopilot in your deco CMS organization and start with a simple request. The agentic harness will guide you from there.
