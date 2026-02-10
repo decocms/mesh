@@ -1,5 +1,5 @@
 ---
-title: Tasks and Agent Spawning
+title: Tasks
 description: How decopilot uses tasks with isolated contexts and spawns agents for parallel execution
 icon: Layers
 ---
@@ -173,7 +173,7 @@ Spawned tasks receive isolated context with selective inheritance.
 - Parent-loaded resources
 - Parent context accumulation
 
-Results integrate as 200-500 token summaries. See [Context Management](/en/mcp-mesh/decopilot/context-management) for details.
+Results integrate as 200-500 token summaries. See [Context](/en/mcp-mesh/decopilot/context) for details.
 
 ## Agent Selection and Discovery
 
@@ -642,4 +642,4 @@ const coordinatorTask = await decopilot.invokeTool("agent_spawn", {
 
 ---
 
-**Ready to start?** See [Tools](/en/mcp-mesh/decopilot/tools) for agent_spawn details, [Context Management](/en/mcp-mesh/decopilot/context-management) for isolation mechanics, or [Scopes](/en/mcp-mesh/decopilot/scopes) for scope effects.
+**Ready to start?** See [Tools](/en/mcp-mesh/decopilot/tools) for agent_spawn details, [Context](/en/mcp-mesh/decopilot/context) for isolation mechanics, or [Scopes](/en/mcp-mesh/decopilot/scopes) for scope effects.

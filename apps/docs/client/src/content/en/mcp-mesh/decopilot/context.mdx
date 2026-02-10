@@ -1,5 +1,5 @@
 ---
-title: Context Management
+title: Context
 description: How decopilot manages context across scopes and maintains efficient token usage
 icon: FileText
 ---
@@ -7,7 +7,7 @@ icon: FileText
 import Callout from "../../../../components/ui/Callout.astro";
 
 <Callout type="info">
-  This page documents the **planned architecture** for decopilot context management. The implementation is in development.
+  This page documents the **planned architecture** for decopilot context. The implementation is in development.
 </Callout>
 
 Decopilot manages context through a priority-based system that balances completeness with efficiency. Context includes conversation history, tool definitions, resources, and project-specific instructions—all within the model's limited token window.
@@ -186,7 +186,7 @@ This isolation ensures agents focus on their specific task without distraction f
 
 ## Optimizing Context in Practice
 
-Understanding context management concepts is essential, but applying them effectively requires practical strategies. Here are proven approaches for optimizing context in real workflows.
+Understanding context concepts is essential, but applying them effectively requires practical strategies. Here are proven approaches for optimizing context in real workflows.
 
 ### Strategy 1: Strategic Agent Spawning
 
@@ -444,7 +444,7 @@ Total:                   ~12,300 tokens
 
 ## Summary
 
-Decopilot balances completeness with efficiency through priority-based inclusion, tool filtering, on-demand resources, and agent spawning. Virtual MCPs enable dynamic, scope-aware context management for efficient operation within token limits.
+Decopilot balances completeness with efficiency through priority-based inclusion, tool filtering, on-demand resources, and agent spawning. Virtual MCPs enable dynamic, scope-aware context for efficient operation within token limits.
 
 ---
 
