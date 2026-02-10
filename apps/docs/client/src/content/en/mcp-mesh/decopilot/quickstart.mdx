@@ -163,8 +163,9 @@ Decopilot begins implementation in the main context:
 ```typescript
 // Main decopilot loop
 // 1. Plan implementation approach
-const plan = await resource_read({
-  uri: "project://mobile-app/architecture-decisions"
+const plan = await resource_read("project://mobile-app/architecture-decisions", {
+  lineStart: 0,
+  lineEnd: 0
 })
 
 // 2. Check existing auth infrastructure
@@ -196,8 +197,9 @@ The spawned agent runs with **fresh context**, isolated from the main loop:
 // Agent has bounded tool access: security scanning, CVE lookup, file reading
 
 // 1. Gather context - read security checklist
-const checklist = await resource_read({
-  uri: "agent://security-reviewer/checklist"
+const checklist = await resource_read("agent://security-reviewer/checklist", {
+  lineStart: 0,
+  lineEnd: 0
 })
 
 // 2. Take action - scan authentication files
@@ -425,8 +427,9 @@ const testTools = await tools_search({
 // ]
 
 // 2. Read project testing documentation
-const testDocs = await resource_read({
-  uri: "project://mobile-app/testing-guide"
+const testDocs = await resource_read("project://mobile-app/testing-guide", {
+  lineStart: 0,
+  lineEnd: 0
 })
 
 // TAKE ACTION
@@ -544,6 +547,12 @@ await resource_create({
   uri: "project://mobile-app/architecture-decisions",
   name: "Architecture Decisions",
   content: "# ADRs\n\n..."
+})
+
+// Read back the resource
+await resource_read("project://mobile-app/architecture-decisions", {
+  lineStart: 0,
+  lineEnd: 0
 })
 ```
 
