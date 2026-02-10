@@ -43,9 +43,9 @@ if (slug === "getting-started/context-engineers") {
   return Astro.redirect(`/${lang}/getting-started/developers`);
 }
 
-// Redirect to introduction if no document is found (i.e., when visiting /en)
+// Redirect to quickstart if no document is found (i.e., when visiting /en)
 if (!doc) {
-  return Astro.redirect(`/${lang}/introduction`);
+  return Astro.redirect(`/${lang}/mcp-mesh/quickstart`);
 }
 ---
 
