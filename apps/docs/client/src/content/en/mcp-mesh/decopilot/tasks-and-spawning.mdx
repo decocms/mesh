@@ -1,645 +1,191 @@
 ---
 title: Tasks
-description: How decopilot uses tasks with isolated contexts and spawns agents for parallel execution
+description: Understanding how tasks and subtasks keep your work organized and context efficient
 icon: Layers
 ---
 
 import Callout from "../../../../components/ui/Callout.astro";
 
 <Callout type="info">
-  This page documents the **planned architecture** for agent spawning in decopilot. The implementation is in development.
+  This page documents the **planned architecture** for tasks in decopilot. The implementation is in development.
 </Callout>
 
-## What is Agent Spawning?
+## What Are Tasks?
 
-Agent spawning creates isolated tasks with specialized agents to accomplish specific work. Decopilot creates a new task with fresh context, delegates work, and integrates results when complete.
+A **task** is your conversation with decopilot. It's where work happens—where you chat back and forth, decopilot uses tools, and context accumulates as you progress.
 
-Think of spawning as delegating to focused specialists. Decopilot breaks work into focused tasks, spawns agents for each piece, and orchestrates results.
+Tasks are accessible throughout decocms:
+- **Homepage** - Your organization's chat interface shows the current task
+- **Sidebar** - Click the chat icon to open the side panel and continue your task
+- **Task history** - Browse past tasks to review previous work
 
-A **task** is an isolated chat session with a specific agent. The codebase uses "threads" internally, but UI and documentation use "tasks." Future versions will unify terminology.
+Every task has a [scope](/en/mcp-mesh/decopilot/scopes) (organization, project, or agent) that determines which instructions load into context. You can switch scopes anytime using the button at the bottom of the chat input—switch between organization-wide work, project-specific focus, or specialized agent scopes as needed.
 
-Learn more in [Agents](/en/mcp-mesh/agents) and [Virtual MCPs](/en/mcp-mesh/virtual-mcps).
+Think of tasks as persistent workspaces where context builds up naturally as you work.
 
-## Benefits of Task Spawning
+## Task States and Monitoring
 
-**Parallel execution**: Spawn multiple agents for independent work simultaneously.
+Tasks move through different states as work progresses. Understanding these states helps you manage work and know when tasks need your attention.
 
-**Context isolation**: Each task gets fresh context focused on its objective. Parent context doesn't pollute child tasks.
+### Task Status Overview
 
-**Focused capabilities**: Agents have bounded tool access appropriate to their purpose.
+Every task has one of four statuses:
 
-**Efficient token usage**: Fresh context means minimal overhead. Results integrate as summaries.
+- **In Progress** - Active work happening, agent is executing or waiting for next message
+- **Requires Action** - Paused, waiting for your input (tool approval or question response)
+- **Success** - Work completed successfully
+- **Failed** - Something went wrong or task timed out
 
-**Composable workflows**: Break complex work into focused steps handled by specialized agents.
+### When Tasks Require Attention
 
-## Understanding Tasks vs Threads
+Tasks pause and transition to "Requires Action" status when:
 
-The codebase uses "threads" for what users see as "tasks." This terminology will converge with "tasks" becoming consistent throughout.
+**Tool approval needed** - Some tools require explicit user approval before execution. The task pauses until you review and approve or deny the tool call.
 
-**For users**: Think "tasks"—the UI shows tasks.
+**Question from agent** - When decopilot needs clarification or decisions, it asks questions using the `user_ask` tool. The task waits for your response.
 
-**For developers**: Currently "threads" in code, transitioning to "tasks."
+You can see all tasks requiring attention by clicking the **tasks icon** in the decocms sidebar. This view shows tasks grouped by status—letting you quickly identify which tasks need your input.
 
-Spawned agents create child tasks with limited context inheritance.
+### Task Timeouts
 
-## How agent_spawn Works
+Tasks automatically timeout after **30 minutes of inactivity**. When this happens:
 
-The `agent_spawn` tool creates a new task with a specified agent and prompt.
+- Task transitions from "In Progress" to "Failed" status
+- You'll see the timeout noted in task history
+- You can restart work by creating a new task
 
-**Signature**: `agent_spawn(agent_id: string, prompt: string): task_id: string`
+Timeouts prevent tasks from staying in limbo indefinitely. If you're working on something that naturally takes longer, just send a message or interact with the task periodically to keep it active.
 
-**Behavior**: Creates new task with agent's [virtual MCP](/en/mcp-mesh/virtual-mcps), passes prompt as initial message, parent continues immediately.
+### Viewing Subtask Progress
 
-```typescript
-const taskId = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "security-reviewer-001",
-  prompt: "Review src/auth/login.ts for vulnerabilities."
-})
-```
+Subtasks appear in the chat interface while they execute. You can see:
 
-The spawned task runs independently. Parent doesn't block—results return when task completes.
+- Subtask status and progress
+- Tools being used
+- Agent reasoning (if enabled)
 
-### Complete Spawn Lifecycle Example
+However, **inputs are disabled** during subtask execution—you can't interact with a subtask directly. Subtasks run autonomously and return summaries to the parent task when complete.
 
-Understanding the full lifecycle from spawn to completion helps predict behavior and handle edge cases.
+## What Are Subtasks?
 
-```typescript
-// T0: Parent task spawns security agent
-const taskId = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "security-reviewer",
-  prompt: "Review src/auth/biometric.ts for security vulnerabilities"
-})
-// Returns immediately: { task_id: "task-abc-123" }
-// Task status: "active"
+A **subtask** is a separate conversation that branches off from your main task to handle focused work. The key difference: subtasks start with fresh [context](/en/mcp-mesh/decopilot/context)—they don't inherit your accumulated conversation history.
 
-// T1: Spawned agent starts executing
-// - Loads agent virtual MCP configuration
-// - Reads CLAUDE.md (org + project context)
-// - Reads AGENTS.md (agent-specific instructions)
-// - Receives prompt as initial message
-// - Begins agentic loop (gather → act → verify)
+This makes subtasks perfect for intensive work that would otherwise fill up your main context window.
 
-// T2: Agent discovers and enables tools
-await tools_search({ search_term: "security" })
-await tool_enable({ tool_name: "SECURITY_SCAN" })
+### How Subtasks Work
 
-// T3: Agent invokes tools
-const scanResults = await SECURITY_SCAN({
-  files: ["src/auth/biometric.ts"],
-  rules: ["credential-exposure", "insecure-storage"]
-})
+When you spawn a subtask:
 
-// T4: Agent generates response
-// Response includes findings, recommendations, severity levels
-// Task status transitions: "active" -> "successful"
+1. **Fresh start** - Subtask begins with clean context (just scope instructions and system prompt)
+2. **Independent execution** - Subtask is a regular task with restricted built-in tools (no `subtask_run` or `user_ask`)
+3. **Summary return** - Parent task receives only a concise summary (200-500 tokens)
+4. **Full details preserved** - Complete subtask conversation saved in task history
 
-// T5: Parent task receives result notification
-// Result integrated as ~200-500 token summary:
-// "Security review complete. Found 2 high-severity issues:
-//  1. Biometric templates stored without encryption (line 42)
-//  2. Auth threshold too permissive (line 68)
-//  See full report in task-abc-123"
+The parent task sees just the summary—keeping your main conversation lean—while full details remain accessible in the subtask history.
 
-// T6: Parent continues with integrated findings
-await resource_create({
-  uri: "project://mobile-app/security-findings",
-  name: "Security Review: Biometric Auth",
-  content: scanResults.report
-})
-```
+### Key Differences
 
-**Key lifecycle points**:
-- Spawn returns immediately (non-blocking)
-- Agent loads isolated context
-- Agent executes autonomously
-- Results integrate as summaries
-- Parent task continues throughout
+| Feature | Main Task | Subtask |
+|---------|-----------|---------|
+| Context | Accumulated history | Fresh, clean start |
+| Available tools | All built-in tools + current scope's tools | Same, but no `subtask_run` or `user_ask` |
+| Result visibility | Full conversation | Summary only to parent |
+| User interaction | Can ask questions (`user_ask`) | Cannot ask questions |
 
-## Task States and Lifecycle
+Subtasks can't spawn additional subtasks (prevents infinite nesting) and can't ask user questions (they run autonomously).
 
-**Active**: Task being processed by agent.
+## When to Use Subtasks
 
-**Needs Input**: Requires user input to continue (via `user_ask` tool or cheap model determination).
+Subtasks shine when you need focused work that would clutter your main conversation.
 
-**Successful**: Task completed. Cheap model detects completion criteria.
+### Research and Analysis
 
-**Failed**: Encountered error preventing completion.
+Deep dives into data, exploring options, or investigating issues work well in subtasks.
 
-```typescript
-const taskId = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "research-agent",
-  prompt: "Analyze architecture"
-})
-// Active -> needs_input (if user_ask) -> active -> successful
-```
+**Example**: You're planning inventory purchases and need demand analysis. Spawn a subtask to research sales trends, seasonal patterns, and competitor behavior—then get back just the recommendation, not the dozens of data points analyzed.
 
-Handle `needs_input` state by providing input via task UI:
+### Complex Calculations
 
-```typescript
-// Task calls user_ask -> needs_input state
-// Navigate to task, provide input
-// Task resumes -> active state
-```
+Number-crunching work that generates verbose output belongs in subtasks.
 
-## Task Variants: Top-level vs Child
+**Example**: Calculating optimal shipping routes across multiple warehouses. The subtask analyzes distances, traffic, carrier schedules—you get back just the routing plan, not the calculation details.
 
-**Top-level tasks** are user-initiated with full tool access:
-- `user_ask` available
-- `agent_spawn` available
-- Full access to built-in and virtual MCP tools
+### Quality Checks and Reviews
 
-**Child tasks** are agent-spawned with restrictions:
-- `user_ask` disabled (prevents blocking on input)
-- `agent_spawn` disabled by default (prevents deep nesting)
-- Access to other tools
+Audits, validation, and review work benefit from isolated context.
 
-Child tasks work with provided information, return partial results if clarification needed, or fail gracefully. The parent calls `user_ask` and re-spawns with additional context.
+**Example**: Before transferring 500 SKUs between warehouses, spawn a subtask with an "Inventory Auditor" agent to verify stock levels. Get back a summary of issues found and transfers validated—keep the detailed audit work out of your main task.
 
-This maintains flat hierarchy: top-level spawns children, children return results, top-level coordinates.
+### Parallel Work
 
-## Context Isolation and Inheritance
+When you have independent operations that can run simultaneously, spawn multiple subtasks.
 
-Spawned tasks receive isolated context with selective inheritance.
+**Example**: Monthly reporting across departments—spawn separate subtasks for apparel, electronics, and home goods analysis. All run in parallel, summaries come back to your main task for synthesis.
 
-**Spawned agents receive**:
-- System instructions
-- CLAUDE.md (org/project rules)
-- AGENTS.md (agent-specific instructions)
-- Task prompt
-- Filtered tools
+## Working with Agent Scopes
 
-**Spawned agents do NOT receive**:
-- Parent conversation history
-- Parent-loaded resources
-- Parent context accumulation
+Subtasks can run in different [agent](/en/mcp-mesh/agents) scopes than your main task—this is how specialized agents collaborate.
 
-Results integrate as 200-500 token summaries. See [Context](/en/mcp-mesh/decopilot/context) for details.
+**Example**: Your main task is in organization scope working on order fulfillment. You spawn subtasks using:
+- **Inventory Agent** - Assesses stock availability
+- **Shipping Agent** - Plans logistics and routing
+- **Customer Service Agent** - Prepares support strategies
 
-## Agent Selection and Discovery
+Each agent brings specialized expertise. Your main task coordinates the overall strategy while agents handle domain-specific details in isolation.
 
-The `agent_search` tool discovers available agents.
+This pattern keeps specialized work contained while letting you benefit from agent expertise.
 
-**Signature**: `agent_search(search_term?: string): Agent[]`
+## Common Patterns
 
-**Output**: List with `agent_id`, `name`, `purpose`, `capabilities`.
+### Pattern 1: Parallel Execution
 
-```typescript
-const result = await decopilot.invokeTool("agent_search", {
-  search_term: "security"
-})
-```
+Spawn multiple subtasks for independent work that can run simultaneously.
 
-Specialized agents optimize for their purpose and produce better results.
+**When to use**: Monthly reporting, multi-department analysis, independent validations
 
-## Choosing the Right Agent
+**Benefit**: Faster execution, isolated contexts prevent cross-contamination
 
-Selecting the appropriate agent for your task improves results and reduces iteration. Different agent types excel at different work.
+### Pattern 2: Sequential Delegation
 
-### Research Agents
-
-**Best for**:
-- Exploring codebases and understanding architecture
-- Investigating bugs and tracing execution paths
-- Analyzing options before making decisions
-- Understanding third-party libraries and APIs
+Chain subtasks where each step builds on previous results.
 
-**Characteristics**:
-- Read-heavy tool access (file reading, code search, documentation lookup)
-- No write permissions (safe for exploratory work)
-- Fresh context ideal for deep dives
-
-**Example usage**:
-```typescript
-await decopilot.invokeTool("agent_spawn", {
-  agent_id: "research-agent",
-  prompt: "Analyze the authentication flow in src/auth/. Map the complete user login journey from form submission to session creation."
-})
-```
-
-### Development Agents
-
-**Best for**:
-- Implementing features based on specifications
-- Writing code with clear requirements
-- Refactoring existing code
-- Adding tests for new functionality
-
-**Characteristics**:
-- Read and write tool access (file editing, code generation)
-- Focused on implementation, not exploration
-- Benefits from clear specs and acceptance criteria
-
-**Example usage**:
-```typescript
-await decopilot.invokeTool("agent_spawn", {
-  agent_id: "development-agent",
-  prompt: "Implement push notification service using Firebase Cloud Messaging. Requirements: support iOS and Android, handle background notifications, respect user preferences."
-})
-```
-
-### Review Agents
-
-**Best for**:
-- Code quality analysis
-- Security vulnerability scanning
-- Performance profiling
-- Accessibility auditing
-
-**Characteristics**:
-- Specialized analysis tools (linters, security scanners, profilers)
-- Domain expertise in specific review type
-- Generate structured findings reports
+**When to use**: Multi-stage workflows, progressive refinement, decision pipelines
 
-**Example usage**:
-```typescript
-await decopilot.invokeTool("agent_spawn", {
-  agent_id: "security-reviewer",
-  prompt: "Review src/auth/biometric.ts for security issues. Focus on credential storage, authentication bypass risks, and biometric data handling. Report findings with severity levels."
-})
-```
+**Benefit**: Clear progression, focused subtasks, results build toward comprehensive outcome
 
-### Testing Agents
+### Pattern 3: Specialist Collaboration
 
-**Best for**:
-- Writing unit tests for new code
-- Creating integration tests
-- Running test suites and analyzing failures
-- Generating test data
+Use different agent scopes for subtasks requiring specialized knowledge.
 
-**Characteristics**:
-- Test framework tools (Jest, Pytest, etc.)
-- Coverage analysis capabilities
-- Can execute tests and interpret results
+**When to use**: Cross-functional work, domain expertise needed, coordinated strategies
 
-**Example usage**:
-```typescript
-await decopilot.invokeTool("agent_spawn", {
-  agent_id: "testing-agent",
-  prompt: "Write comprehensive unit tests for src/notifications/push.ts. Cover success cases, error handling, edge cases. Aim for 90%+ coverage."
-})
-```
+**Benefit**: Leverage specialized agents, integrate multi-domain insights
 
-### Deployment Agents
+## Practical Tips
 
-**Best for**:
-- Releasing features to staging/production
-- Infrastructure configuration
-- Deployment verification
-- Rollback procedures
+**Offload heavy lifting** - Research, calculations, and analysis should happen in subtasks. Keep summaries in your main task, not verbose details.
 
-**Characteristics**:
-- Deployment pipeline tools (kubectl, terraform, CI/CD)
-- Environment-specific configurations
-- Health check and monitoring capabilities
+**Match scope to work** - Use specialized agents for domain tasks, organization scope for general work. The right scope brings relevant instructions and context.
 
-**Example usage**:
-```typescript
-await decopilot.invokeTool("agent_spawn", {
-  agent_id: "deployment-agent",
-  prompt: "Deploy feature/push-notifications to staging. Run health checks. Monitor for 5 minutes. Report deployment status and any errors."
-})
-```
+**Work in parallel** - Independent subtasks can run simultaneously. Don't wait if the next subtask doesn't depend on the previous one.
 
-### Decision Guide
+**Name clearly** - Give descriptive prompts when spawning: "Analyze Q4 apparel demand trends" rather than "Do analysis". This helps when reviewing task history.
 
-Use this flowchart to choose the right agent:
+**Review full details when needed** - The complete subtask conversation lives in task history. If you need raw data or detailed analysis, open the subtask from history.
 
-```
-Need to understand code? → Research Agent
-  ├─ Exploring architecture
-  ├─ Investigating bugs
-  └─ Analyzing options
+**Watch for clutter signals** - When your main task feels heavy or context-full, spawn subtasks for the next phase of work.
 
-Need to write code? → Development Agent
-  ├─ Implementing features
-  ├─ Refactoring
-  └─ Adding tests
+## Context Benefits
 
-Need to check quality? → Review Agent
-  ├─ Security scan → Security Reviewer
-  ├─ Performance → Performance Analyzer
-  └─ Accessibility → Accessibility Checker
+Subtasks are powerful for managing your [context window](/en/mcp-mesh/decopilot/context):
 
-Need to test? → Testing Agent
-  ├─ Unit tests
-  ├─ Integration tests
-  └─ Test execution
+- **Main task stays lean** - Only summaries accumulate, not analysis details
+- **Fresh context for complexity** - Subtasks start clean, ideal for deep work
+- **Longer productivity** - Avoid premature compactification in main task
+- **Focused execution** - Each subtask tackles one thing without baggage
 
-Need to deploy? → Deployment Agent
-  ├─ Staging release
-  ├─ Production deploy
-  └─ Rollback
-```
-
-**Pro tip**: When unsure, use `agent_search` with descriptive terms to find specialized agents:
-```typescript
-await decopilot.invokeTool("agent_search", {
-  search_term: "security vulnerability scanning"
-})
-```
-
-## UI Integration and Task Management
-
-**Tasks menu**: Shows all tasks for current scope with status indicators.
-
-**Task list view**: Displays tasks with active/needs input/successful/failed indicators.
-
-**Task detail view**: Full conversation history with chat interface (top-level) or read-only view (child).
-
-**Notifications**: Badge counts and toasts for state changes.
-
-Monitor multiple agents, respond when needed, review results when complete.
-
-## Spawning Workflows
-
-### Single Task Spawn
-
-Spawn one agent for focused work on a single objective.
-
-```typescript
-const taskId = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "security-reviewer-001",
-  prompt: "Review auth files for vulnerabilities. Report with severity levels."
-})
-```
-
-### Parallel Task Spawning
-
-Spawn multiple agents simultaneously for independent work that can run concurrently.
-
-```typescript
-const archTaskId = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "research-agent-001",
-  prompt: "Analyze architecture patterns."
-})
-
-const secTaskId = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "security-reviewer-001",
-  prompt: "Perform security audit."
-})
-```
-
-### Sequential Workflow
-
-Spawn agents in sequence where each task depends on previous results.
-
-```typescript
-// Research options
-const researchTaskId = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "research-agent-001",
-  prompt: "Research React state libraries."
-})
-
-// Implement chosen solution
-const devTaskId = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "development-agent-001",
-  prompt: "Implement Zustand store."
-})
-
-// Test implementation
-const testTaskId = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "testing-agent-001",
-  prompt: "Write tests for store."
-})
-```
-
-## Advanced Spawning Patterns
-
-Beyond basic single or parallel spawning, these advanced patterns enable sophisticated workflows.
-
-### Pattern 1: Fan-out/Fan-in
-
-Spawn multiple agents for parallel work, then collect and synthesize results.
-
-```typescript
-// Fan-out: Spawn multiple review agents
-const securityTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "security-reviewer",
-  prompt: "Security audit of src/auth/"
-})
-
-const performanceTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "performance-analyzer",
-  prompt: "Performance analysis of src/auth/"
-})
-
-const accessibilityTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "accessibility-checker",
-  prompt: "Accessibility audit of auth UI"
-})
-
-// All three tasks run in parallel, each with isolated context
-
-// Fan-in: Collect results (after tasks complete)
-// Results integrate as summaries
-// Parent synthesizes findings:
-
-await resource_create({
-  uri: "project://mobile-app/auth-review-summary",
-  name: "Authentication Review Summary",
-  content: `# Authentication Review
-
-## Security
-${securityTaskResults}
-
-## Performance
-${performanceTaskResults}
-
-## Accessibility
-${accessibilityTaskResults}
-
-## Action Items
-[Synthesized priorities based on all findings]`
-})
-```
-
-**When to use**: Comprehensive analysis requiring multiple specialized perspectives. Each agent brings domain expertise.
-
-**Benefits**:
-- Parallel execution (faster than sequential)
-- Isolated contexts (no cross-contamination)
-- Specialized focus (each agent optimized)
-
-### Pattern 2: Conditional Spawning
-
-Spawn agents based on runtime conditions or previous task results.
-
-```typescript
-// Step 1: Research implementation options
-const researchTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "research-agent",
-  prompt: "Research React state management options. Compare Redux, Zustand, Jotai. Recommend best fit for our architecture."
-})
-
-// Step 2: Wait for research completion
-// (In practice, decopilot integrates results automatically)
-
-// Step 3: Conditional spawn based on recommendation
-if (researchResults.recommendation === "Zustand") {
-  // Spawn Zustand implementation agent
-  await decopilot.invokeTool("agent_spawn", {
-    agent_id: "development-agent",
-    prompt: "Implement Zustand store following the research recommendations. Focus on user state management."
-  })
-} else if (researchResults.recommendation === "Redux") {
-  // Spawn Redux implementation agent
-  await decopilot.invokeTool("agent_spawn", {
-    agent_id: "development-agent",
-    prompt: "Implement Redux store with Redux Toolkit following best practices."
-  })
-}
-
-// Step 4: Always spawn testing agent after implementation
-await decopilot.invokeTool("agent_spawn", {
-  agent_id: "testing-agent",
-  prompt: "Write comprehensive tests for the state management implementation."
-})
-```
-
-**When to use**: Multi-stage workflows where later steps depend on earlier results.
-
-**Benefits**:
-- Adaptive workflows (adjust based on findings)
-- Efficient resource use (only spawn what's needed)
-- Clear decision points
-
-### Pattern 3: Iterative Refinement
-
-Spawn agents in a loop to refine results based on quality checks.
-
-```typescript
-// Iteration 1: Initial implementation
-let implementationTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "development-agent",
-  prompt: "Implement biometric authentication with Face ID support"
-})
-
-// Quality check
-const qualityTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "security-reviewer",
-  prompt: "Review biometric implementation. Check for security issues."
-})
-
-// Iteration 2: If issues found, refine
-if (qualityResults.criticalIssues.length > 0) {
-  implementationTask = await decopilot.invokeTool("agent_spawn", {
-    agent_id: "development-agent",
-    prompt: `Refine biometric implementation addressing:
-${qualityResults.criticalIssues.map(issue => `- ${issue}`).join('\n')}
-
-Focus on security and correctness.`
-  })
-
-  // Re-check quality
-  await decopilot.invokeTool("agent_spawn", {
-    agent_id: "security-reviewer",
-    prompt: "Re-review refined implementation. Verify issues addressed."
-  })
-}
-```
-
-**When to use**: Quality-critical work requiring validation and refinement cycles.
-
-**Benefits**:
-- Ensures quality standards met
-- Fresh context for each iteration
-- Clear validation checkpoints
-
-### Pattern 4: Pipeline Architecture
-
-Chain agents in a processing pipeline where each stage adds value.
-
-```typescript
-// Stage 1: Research
-const researchTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "research-agent",
-  prompt: "Research push notification best practices. Document patterns."
-})
-
-// Stage 2: Implement (uses research findings)
-const implementTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "development-agent",
-  prompt: "Implement push notifications using research findings. Follow documented patterns."
-})
-
-// Stage 3: Test (validates implementation)
-const testTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "testing-agent",
-  prompt: "Write integration tests for push notification system. Test all platforms."
-})
-
-// Stage 4: Review (ensures quality)
-const reviewTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "security-reviewer",
-  prompt: "Security review of push notification implementation. Check credential handling."
-})
-
-// Stage 5: Document (captures knowledge)
-const docTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "documentation-agent",
-  prompt: "Document push notification system: setup, usage, troubleshooting."
-})
-
-// Each stage builds on previous work, creating comprehensive delivery
-```
-
-**When to use**: Complex features requiring multiple specialized stages (research → implement → test → review → document).
-
-**Benefits**:
-- Clear separation of concerns
-- Each agent focuses on one aspect
-- Comprehensive feature delivery
-- Knowledge capture throughout
-
-### Pattern 5: Hierarchical Delegation
-
-Spawn a coordinator agent that spawns its own sub-agents (requires enabling `agent_spawn` in child tasks).
-
-```typescript
-// Top-level: Spawn feature coordinator
-const coordinatorTask = await decopilot.invokeTool("agent_spawn", {
-  agent_id: "feature-coordinator",
-  prompt: "Coordinate implementation of complete authentication system: backend API, frontend UI, testing, documentation.",
-  allowChildSpawn: true  // Enable agent_spawn in child task
-})
-
-// Coordinator spawns sub-agents:
-// - backend-agent for API implementation
-// - frontend-agent for UI components
-// - testing-agent for test suites
-// - documentation-agent for docs
-
-// Coordinator manages dependencies and integration
-// Top-level task receives final coordinated result
-```
-
-**When to use**: Very complex features requiring orchestration of multiple work streams.
-
-**Caution**: Increases complexity. Use sparingly and only when clear coordination benefits exist.
-
-**Benefits**:
-- Distributes coordination responsibility
-- Enables complex multi-agent workflows
-- Maintains context isolation
-
-## Best Practices
-
-**Choose appropriate agents**: Match agent capabilities to task requirements. Specialized agents produce better results.
-
-**Clear prompts**: Include context, specific files, focus areas, and success criteria.
-
-**Parallel spawning**: Use for independent work to maximize throughput.
-
-**Monitor states**: Check tasks menu, respond to "Needs Input" promptly.
-
-**Handle failures**: Review errors, adjust approach, re-spawn with corrections.
-
-**Focused objectives**: One clear goal per spawned task.
-
-**Leverage inheritance**: Tasks inherit org/project context automatically.
-
-**Validate results**: Successful completion doesn't guarantee correctness.
+By keeping intensive work in subtasks, your main task remains focused and productive across longer sessions.
 
 ---
 
-**Ready to start?** See [Tools](/en/mcp-mesh/decopilot/tools) for agent_spawn details, [Context](/en/mcp-mesh/decopilot/context) for isolation mechanics, or [Scopes](/en/mcp-mesh/decopilot/scopes) for scope effects.
+**Next steps**: Learn about [Context](/en/mcp-mesh/decopilot/context) to understand how tasks manage your working memory, explore [Tools](/en/mcp-mesh/decopilot/tools) to see what decopilot can do, or check out [Agents](/en/mcp-mesh/agents) for specialized scopes you can use with subtasks.
