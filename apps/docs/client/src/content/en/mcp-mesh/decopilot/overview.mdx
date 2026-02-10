@@ -48,24 +48,26 @@ Model choice affects reasoning quality, speed, and cost. Configure which model d
 
 When this documentation says "decopilot chooses" or "decopilot decides," it's the model doing the reasoning—selecting which MCP servers to query, which tools to enable, and how to coordinate work across distributed systems.
 
-## Context Management
+## Context
 
-Context management is critical in decopilot. Your conversation history, tool definitions, resources, and MCP server configurations all compete for space in the model's limited token window. The more MCP servers you connect and tools you enable, the more context you consume.
+Context is critical in decopilot. Your conversation history, tool definitions, resources, and MCP server configurations all compete for space in the model's limited token window. The more MCP servers you connect and tools you enable, the more context you consume.
+
+When decopilot starts a task, it loads context based on your current scope—org-level instructions, project-specific guidelines, and agent instructions are all layered according to the scope levels described above. Resources and tools are loaded strategically to keep context usage under control.
 
 Decopilot manages context through:
 - **Strategic tool filtering**: Only enabled tools consume context. Use the discover → enable → use pattern to keep overhead low.
 - **Agent spawning for isolation**: Spawn agents with fresh context for focused work. They return summaries instead of full conversation history.
 - **Reserved token slots**: Decopilot reserves slots for certain operations, ensuring room for critical work even when context is full.
 
-You can always check your current context usage in the decopilot UI to understand what's consuming space and when to spawn an agent for complex work. See [Context Management](/en/mcp-mesh/decopilot/context-management) for token budgets, optimization strategies, and practical examples.
+You can always check your current context usage in the decopilot UI to understand what's consuming space and when to spawn an agent for complex work. See [Context](/en/mcp-mesh/decopilot/context) for token budgets, optimization strategies, and practical examples.
 
-## Tasks and Agent Spawning
+## Tasks
 
 As you work, decopilot can delegate specialized work to **[agents](/en/mcp-mesh/agents)**—focused assistants optimized for specific tasks like customer support, research, or data analysis. When you spawn an agent, it gets its own fresh context to work independently, then reports back with a summary.
 
 This lets you handle complex work in parallel. For example, spawn a support agent to answer a customer question about product compatibility while you continue building the checkout flow. The agent works separately with clean context, preventing your main conversation from getting bloated with support details.
 
-Learn more about when to spawn agents and spawning patterns in [Tasks and Agent Spawning](/en/mcp-mesh/decopilot/tasks-and-spawning).
+Learn more about when to spawn agents and spawning patterns in [Tasks](/en/mcp-mesh/decopilot/tasks-and-spawning).
 
 ## Scopes
 
@@ -85,7 +87,7 @@ Scopes layer naturally as you navigate:
 - **Org + Project scope**: Access org capabilities plus project-specific context
 - **Org + Agent scope**: Access org capabilities plus agent-specific instructions
 
-This layered approach means you're never locked into a narrow view—org-level tools remain available even when working in focused project or agent contexts. See [Context Management](/en/mcp-mesh/decopilot/context-management#scope-specific-context-loading) for technical details on what context loads at each scope level, and [Tasks and Agent Spawning](/en/mcp-mesh/decopilot/tasks-and-spawning) to understand how spawned agents create isolated task scopes with fresh context.
+This layered approach means you're never locked into a narrow view—org-level tools remain available even when working in focused project or agent contexts. See [Context](/en/mcp-mesh/decopilot/context#scope-specific-context-loading) for technical details on what context loads at each scope level, and [Tasks](/en/mcp-mesh/decopilot/tasks-and-spawning) to understand how spawned agents create isolated task scopes with fresh context.
 
 ## Built-in Tools
 
@@ -101,19 +103,15 @@ These built-in tools are always available and provide the foundation for working
 
 See [Tools](/en/mcp-mesh/decopilot/tools) for complete specifications, usage patterns, and examples of coordinating tools across multiple services.
 
-## Loading Context
-
-When decopilot starts a task, it loads context based on your current scope—org-level instructions, project-specific guidelines, and agent instructions are all layered according to the layers described above. Resources and tools are loaded strategically to keep context usage under control. For complete details on context loading priorities, token budgets, and optimization strategies, see [Context Management](/en/mcp-mesh/decopilot/context-management).
-
 ## Next Steps
 
 Ready to learn more? Explore these guides to understand how decopilot works:
 
 **[Quick Start](/en/mcp-mesh/decopilot/quickstart)**: See decopilot in action with step-by-step workflows. Start here for hands-on examples.
 
-**[Context Management](/en/mcp-mesh/decopilot/context-management)**: Learn strategies for managing token usage, when to spawn agents, and how to optimize context.
+**[Context](/en/mcp-mesh/decopilot/context)**: Learn strategies for managing token usage, when to spawn agents, and how to optimize context.
 
-**[Tasks and Agent Spawning](/en/mcp-mesh/decopilot/tasks-and-spawning)**: Understand task lifecycles, agent selection, and patterns for parallel execution.
+**[Tasks](/en/mcp-mesh/decopilot/tasks-and-spawning)**: Understand task lifecycles, agent selection, and patterns for parallel execution.
 
 **[Tools](/en/mcp-mesh/decopilot/tools)**: Complete reference for built-in tools and working with target virtual MCP tools.
 

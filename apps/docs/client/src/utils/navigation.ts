@@ -39,7 +39,7 @@ export async function getNavigationLinks(
     // 6. Decopilot
     "mcp-mesh/decopilot/overview",
     "mcp-mesh/decopilot/quickstart",
-    "mcp-mesh/decopilot/context-management",
+    "mcp-mesh/decopilot/context",
     "mcp-mesh/decopilot/tasks-and-spawning",
     "mcp-mesh/decopilot/tools",
     "mcp-mesh/decopilot/scopes",
