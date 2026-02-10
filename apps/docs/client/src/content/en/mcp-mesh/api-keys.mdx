@@ -6,22 +6,74 @@ icon: KeyRound
 
 import Callout from "../../../components/ui/Callout.astro";
 
-## What are API keys for?
+## What are API Keys?
 
-API keys are the simplest way to give an agent/app access to the Mesh without an interactive login flow. Keys are:
-
-- **scoped** (explicit permissions)
-- **revocable**
-- **auditable** (calls show up in Monitoring)
-
-## Best practices
-
-- **Least privilege**: only grant the tool permissions you need.
-- **Separate keys per workload**: one key per app/agent is easier to rotate.
-- **Use agents for surface control**: combine API-key permissions with a curated agent.
+API keys let external systems connect to decocms without needing a user to log in. They're simple tokens you can use in scripts, automation tools, or any system that needs to access the Mesh programmatically.
 
 <Callout type="warning">
-  Treat API keys like production secrets. Store them in a secrets manager and rotate regularly.
+  API keys are for **external systems connecting to decocms**. To connect decocms to upstream MCP servers, see [Connections](/en/mcp-mesh/connections).
 </Callout>
 
+## When to Use API Keys vs OAuth
+
+**OAuth** (Recommended for most users)
+- Use with Cursor, Claude Desktop, VS Code
+- Login with your browser
+- Easiest setup
+
+**API Keys**
+- Use for scripts and automation
+- No browser login needed
+- Better for servers and CI/CD
+
+## Creating an API Key
+
+1. Open the **decocms Dashboard**
+2. Go to **Settings** → **API Keys**
+3. Click **Create API Key**
+4. Give it a name (like "My Automation Script")
+5. Assign [roles and permissions](/en/mcp-mesh/user-management)
+6. **Copy the key immediately**
+
+<Callout type="error">
+  You can only see the API key once. Copy it now and store it somewhere safe like a password manager.
+</Callout>
+
+## Using Your API Key
+
+Add the API key to your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "decocms": {
+      "url": "https://mesh.decocms.com/mcp/agent/your-agent-id",
+      "transport": "http",
+      "headers": {
+        "Authorization": "Bearer mcp_key_abc123..."
+      }
+    }
+  }
+}
+```
+
+## Security Best Practices
+
+<Callout type="warning">
+  Treat API keys like passwords. Never share them or commit them to code repositories.
+</Callout>
+
+**Give minimum permissions**: Only grant what's actually needed.
+
+**Create separate keys**: Use one key per tool or script—easier to manage if something goes wrong.
+
+**Store securely**: Keep keys in a password manager or secrets manager, never in plain text files.
+
+**Rotate regularly**: Create new keys every few months and delete old ones.
+
+**Monitor usage**: Check the dashboard regularly for unusual activity.
+
+<Callout type="tip">
+  Combine API keys with [Agents](/en/mcp-mesh/agents) to control exactly which tools your scripts can access.
+</Callout>
 

@@ -127,7 +127,7 @@ Depending on your use case, you'll connect to one of these endpoints:
 
 - **Management MCP**: `POST /mcp` - Access decocms management tools (creating connections, projects, agents)
 - **Connection proxy**: `POST /mcp/:connectionId` - Direct access to a specific upstream connection
-- **Agent (virtual server)**: `POST /mcp/gateway/:gatewayId` - Access a curated tool surface through an agent
+- **Agent (virtual server)**: `POST /mcp/agent/:agentId` - Access a curated tool surface through an agent
 
 <Callout type="tip">
   If your goal is a "single MCP URL" for a curated tool surface, use **Agents**. If you want a direct pipe to one upstream MCP, use **Connection proxy**.

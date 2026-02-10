@@ -20,7 +20,7 @@ Agents provide:
 - **Task-specific context** - Resources and guidelines tailored to the agent's purpose
 - **Single-purpose design** - Clear objective with no unnecessary complexity
 
-Agents are organization-wide and available in the sidebar under the **Agents** section, where each operates as a focused workspace for its specific task.
+Agents are organization-wide configurations available in the sidebar under the **Agents** section. Each agent can be spawned in any scope (tasks, subtasks, projects) with fresh execution context, providing a focused workspace for its specific task.
 
 The key distinction: projects organize capabilities for broad work contexts, while agents optimize for single-purpose execution.
 
@@ -48,7 +48,7 @@ A deployment agent might aggregate GitHub tools for tagging and releases, Slack 
 
 ## Built-in Agents
 
-decocms includes built-in agents for common mesh operations. These agents use the **Mesh MCP**—a self-referential MCP that exposes mesh management capabilities through the MCP protocol.
+decocms includes built-in agents for common mesh operations. These agents use the **Management MCP**—a self-referential MCP that exposes mesh management capabilities through the MCP protocol.
 
 Built-in agents available out-of-the-box:
 
@@ -58,7 +58,7 @@ Built-in agents available out-of-the-box:
 - **MCP Store** - Browse and install MCPs from the store
 - **User Management** - Invite and manage organization members
 
-These agents operate at organization level and leverage mesh MCP tools for platform configuration.
+These agents operate at organization level and leverage Management MCP tools for platform configuration.
 
 ## Agent Design Principles
 
@@ -94,7 +94,7 @@ Agents provide focused capabilities with clear advantages:
 - **Fresh context** - Spawned agents start with clean context for their task
 - **Reusable patterns** - Define once, use across projects and workflows
 - **Built-in operations** - Pre-configured agents for common mesh tasks
-- **Self-referential management** - Mesh MCP enables agents to manage mesh itself
+- **Self-referential management** - Management MCP enables agents to manage mesh itself
 
 ---
 
