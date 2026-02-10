@@ -15,26 +15,22 @@ export async function getNavigationLinks(
 
   // Define the correct order for navigation
   const order = [
-    // 1. Introduction
-    "introduction",
+    // 1. Quickstart & Overview
+    "mcp-mesh/quickstart",
+    "mcp-mesh/overview",
 
     // 2. Getting Started
     "getting-started/ai-builders",
     "getting-started/developers",
-    "mcp-mesh/quickstart",
 
-    // 3. Core Concepts
-    "mcp-mesh/overview",
+    // 4. Core Concepts
     "mcp-mesh/concepts",
 
-    // 4. Working with MCP
+    // 5. Working with MCP
     "mcp-mesh/connections",
     "mcp-mesh/virtual-mcps",
     "mcp-mesh/projects",
     "mcp-mesh/agents",
-
-    // 5. Monitoring & Observability
-    "mcp-mesh/monitoring",
 
     // 6. Decopilot
     "mcp-mesh/decopilot/overview",
@@ -45,19 +41,23 @@ export async function getNavigationLinks(
     "mcp-mesh/decopilot/scopes",
     "mcp-mesh/decopilot/architecture",
 
-    // 7. Security & Access Control
-    "mcp-mesh/authentication",
-    "mcp-mesh/authorization-and-roles",
+    // 7. Monitoring & Observability
+    "mcp-mesh/monitoring",
+
+    // 8. User Management
     "mcp-mesh/api-keys",
+    "mcp-mesh/user-management",
 
-    // 8. Deployment
-    "mcp-mesh/deploy/local-docker-compose",
-    "mcp-mesh/deploy/kubernetes-helm-chart",
+    // 9. Self-Hosting
+    "mcp-mesh/self-hosting/quickstart",
+    "mcp-mesh/self-hosting/authentication",
+    "mcp-mesh/self-hosting/deploy/docker-compose",
+    "mcp-mesh/self-hosting/deploy/kubernetes",
 
-    // 9. Reference
+    // 10. Reference
     "mcp-mesh/api-reference",
 
-    // 10. Legacy Admin Guides (no-code and full-code guides)
+    // 11. Legacy Admin Guides (no-code and full-code guides)
     "no-code-guides/creating-tools",
     "no-code-guides/creating-agents",
     "full-code-guides/project-structure",

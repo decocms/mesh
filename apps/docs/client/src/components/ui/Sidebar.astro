@@ -51,6 +51,14 @@ function buildTree(docs: any[]): TreeNode[] {
   // Sort the tree for consistent ordering
   const sortTree = (nodes: TreeNode[]): TreeNode[] => {
     const sorted = nodes.sort((a, b) => {
+      // Special case: api-reference should come after folders
+      if (a.name === "api-reference" && b.type === "folder") {
+        return 1; // api-reference comes after folders
+      }
+      if (b.name === "api-reference" && a.type === "folder") {
+        return -1; // folders come before api-reference
+      }
+
       // First sort by type: files before folders
       if (a.type !== b.type) {
         return a.type === "file" ? -1 : 1;
@@ -58,22 +66,18 @@ function buildTree(docs: any[]): TreeNode[] {
 
       // For files only - custom ordering
       if (a.type === "file" && b.type === "file") {
-        // Force introduction to be first
-        if (a.name.includes("introduction")) return -1;
-        if (b.name.includes("introduction")) return 1;
-
         // Get parent folder to determine which order to use
         const parentPath = a.path[a.path.length - 2];
 
         // Custom order for decocms top-level pages
         if (parentPath === "mcp-mesh") {
           // NOTE: doc IDs do not include ".mdx" (e.g. "overview", not "overview.mdx")
-          // Order follows: Getting Started → Core Concepts → Working with MCP → Monitoring → Decopilot → Security → Operations → Reference
+          // Order follows: Quickstart → Overview → Core Concepts → Working with MCP → Monitoring → User Management → Reference
           const mcpMeshOrder = [
-            // Getting Started
+            // Quickstart & Overview
             "quickstart",
-            // Core Concepts
             "overview",
+            // Core Concepts
             "concepts",
             // Working with MCP
             "connections",
@@ -82,10 +86,9 @@ function buildTree(docs: any[]): TreeNode[] {
             "agents",
             // Monitoring & Observability
             "monitoring",
-            // Security & Access Control
-            "authentication",
-            "authorization-and-roles",
+            // User Management
             "api-keys",
+            "user-management",
             // Reference
             "api-reference",
           ];
@@ -148,10 +151,54 @@ function buildTree(docs: any[]): TreeNode[] {
           if (bIndex !== -1) return 1;
         }
 
-        // Custom order for decocms deploy docs
+        // Custom order for self-hosting section
+        if (parentPath === "self-hosting") {
+          const selfHostingOrder = ["quickstart", "authentication"];
+          const aIndex = selfHostingOrder.indexOf(a.name);
+          const bIndex = selfHostingOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
+
+        // Custom order for api-reference section
+        if (parentPath === "api-reference") {
+          const apiRefOrder = ["built-in-tools"];
+          const aIndex = apiRefOrder.indexOf(a.name);
+          const bIndex = apiRefOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
+
+        // Custom order for built-in-tools section
+        if (parentPath === "built-in-tools") {
+          const builtInToolsOrder = [
+            "tool-search",
+            "tool-enable",
+            "agent-search",
+            "subtask-run",
+            "user-ask",
+            "resource-read",
+            "prompt-read",
+          ];
+          const aIndex = builtInToolsOrder.indexOf(a.name);
+          const bIndex = builtInToolsOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
+
+        // Custom order for deploy docs (now under self-hosting)
         const rootPath = a.path[0];
         if (rootPath === "mcp-mesh" && parentPath === "deploy") {
-          const deployOrder = ["local-docker-compose", "kubernetes-helm-chart"];
+          const deployOrder = ["docker-compose", "kubernetes"];
           const aIndex = deployOrder.indexOf(a.name);
           const bIndex = deployOrder.indexOf(b.name);
           if (aIndex !== -1 && bIndex !== -1) {
@@ -169,9 +216,10 @@ function buildTree(docs: any[]): TreeNode[] {
           "mcp-mesh": 0, // decocms docs (main product)
           "getting-started": 1, // Getting Started (after intro)
           decopilot: 2, // Decopilot (elevated section within mcp-mesh)
-          deploy: 3, // Deploy section
-          "no-code-guides": 4, // Legacy admin guides
-          "full-code-guides": 5, // Legacy admin guides
+          "self-hosting": 3, // Self-hosting section
+          deploy: 4, // Deploy section (under self-hosting)
+          "no-code-guides": 5, // Legacy admin guides
+          "full-code-guides": 6, // Legacy admin guides
         };
 
         const aOrder = folderOrder[a.name] ?? Number.POSITIVE_INFINITY;
@@ -224,15 +272,21 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
         }
       : null;
 
-  // Make "Introduction" the primary entry point, then product docs.
-  const introduction = files.find((f) => f.name === "introduction");
-  const otherFiles = files.filter((f) => f.name !== "introduction");
-
+  // Flatten mcp-mesh folder - bring its children to the top level
+  // mcp-mesh children will be shown at the top level
   const next: TreeNode[] = [];
-  if (introduction) next.push(introduction);
-  if (mcpMesh) next.push(mcpMesh);
-  next.push(...otherFiles);
+
+  // Add all mcp-mesh children directly at top level (order controlled by mcpMeshOrder array)
+  if (mcpMesh && mcpMesh.children.length > 0) {
+    next.push(...mcpMesh.children);
+  }
+
+  // Add any other top-level files
+  next.push(...files);
+
+  // Add legacy admin section at the end
   if (legacyFolder) next.push(legacyFolder);
+
   return next;
 }
 
