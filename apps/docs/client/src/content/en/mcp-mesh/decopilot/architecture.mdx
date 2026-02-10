@@ -14,6 +14,8 @@ import Callout from "../../../../components/ui/Callout.astro";
 
 Decopilot is an MCP-native AI agent that operates through a scope-sensitive architecture where **everything is a virtual MCP**. Unlike traditional AI coding assistants that work with local filesystems, decopilot is built from the ground up to operate on virtual MCPs—editable, configurable MCP servers that can be dynamically modified at runtime.
 
+Decopilot operates through an **agentic loop**—gathering context from distributed MCP servers, taking coordinated actions, and verifying results—all while dynamically adapting based on scope. This continuous cycle enables autonomous workflows spanning multiple services, with decopilot orchestrating external MCPs (GitHub, Figma, Slack) while operating on editable virtual MCPs to reshape the environment as it works.
+
 The architecture is fundamentally defined by three core principles:
 
 **Scope-based operation**: Decopilot's behavior adapts based on the current route—operating in org scope (`/:org/settings`), project scope (`/:org/projects/:id`), or agent scope (`/:org/agents/:id`). Each scope corresponds to a different virtual MCP with distinct capabilities.
@@ -23,6 +25,73 @@ The architecture is fundamentally defined by three core principles:
 **Task-based execution model**: Decopilot spawns agents on specific tasks with isolated contexts, enabling parallel work and focused execution without context pollution.
 
 This architecture enables decopilot to dynamically reshape the environment as it works, adding tools, creating resources, and configuring capabilities on the fly—operations that are only possible with editable virtual MCPs.
+
+## The Agentic Loop in Practice
+
+Decopilot's agentic loop—**gather → act → verify**—maps directly to the architecture, showing how system components enable autonomous workflows.
+
+### Gather Context Phase
+
+Decopilot gathers context through built-in tools that query the current scope's virtual MCP and connected external MCPs:
+
+- **`tools_search`**: Discovers available tools from virtual MCP and external connections
+- **`resource_read`**: Loads project documentation, architecture decisions, guidelines
+- **`tools_read`**: Inspects tool specifications to understand capabilities
+- **External MCP queries**: Invokes tools from GitHub (branch status), Figma (design specs), databases (data state)
+
+**Architecture insight**: The scope determines which virtual MCP is queried and which external MCPs are accessible. Project scope provides project-specific context; agent scope provides bounded, focused context.
+
+### Take Action Phase
+
+Decopilot takes action by:
+
+- **Enabling and invoking external MCP tools**: `tool_enable` followed by tool invocation (CREATE_PR, EXPORT_ASSETS, SEND_MESSAGE)
+- **Creating resources**: `resource_edit` to document decisions, findings, or generate artifacts
+- **Creating inline tools**: `tools_edit` to add project-specific capabilities dynamically
+- **Spawning agents**: `agent_spawn` to delegate specialized work with isolated context
+
+**Architecture insight**: Virtual MCPs are editable, enabling decopilot to create tools and resources on the fly. External MCPs provide read-only tool access—decopilot invokes but doesn't modify them.
+
+### Verify Results Phase
+
+Decopilot verifies outcomes through:
+
+- **Tool response checking**: Confirms successful execution and validates return values
+- **Agent spawning for verification**: Spawns review agents (security, performance, quality) to validate work
+- **Resource creation**: Documents findings and results for future reference
+- **Status reporting**: Determines next actions based on verification results
+
+**Architecture insight**: Agent spawning provides fresh context for verification without polluting the main loop. Results integrate as summaries (~200-500 tokens), not full conversations.
+
+### Complete Loop Example
+
+```typescript
+// User request in project scope
+User: "Create a PR for the auth feature"
+
+// GATHER: Check current state
+const branch = await GIT_BRANCH_STATUS({ repo: "mobile-app" })
+const commits = await GIT_LOG({ repo: "mobile-app", limit: 5 })
+
+// ACT: Create PR
+await tool_enable({ tool_name: "CREATE_PR" })
+const pr = await CREATE_PR({
+  title: "Add biometric authentication",
+  body: "Implements face ID and fingerprint auth",
+  base: "main",
+  head: "feature/biometric-auth"
+})
+
+// VERIFY: Spawn security agent for review
+await agent_spawn({
+  agent_id: "security-reviewer",
+  prompt: `Review PR #${pr.number} for security issues`
+})
+
+// Loop continues: integrate findings, update PR if needed
+```
+
+**Key architectural benefit**: The agentic loop operates seamlessly across distributed MCP servers (via HTTP or stdio). Each phase leverages virtual MCPs for editability and external MCPs for domain-specific capabilities.
 
 ## Architectural Constraint: Virtual MCPs Only
 
@@ -481,7 +550,7 @@ const githubMCP = {
 
 ### Virtual MCPs
 
-Virtual MCPs are editable, configurable MCP servers managed by MCP Mesh:
+Virtual MCPs are editable, configurable MCP servers managed by decocms:
 
 **Characteristics**:
 - Dynamic toolset that can be modified at runtime
@@ -538,7 +607,7 @@ External MCPs and virtual MCPs interact through composition:
 ```typescript
 // External MCP connection to virtual MCP
 const externalToVirtual = {
-  // 1. Connect external MCP to MCP Mesh
+  // 1. Connect external MCP to decocms
   externalMCP: {
     id: "github-conn-123",
     serverUrl: "https://github-mcp.example.com",

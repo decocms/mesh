@@ -775,6 +775,105 @@ await decopilot.invokeTool("CREATE_PR", {
 })
 ```
 
+### Common Patterns
+
+Understanding common tool usage patterns improves efficiency and reduces errors.
+
+#### Pattern 1: Discover-Enable-Use
+
+The most common pattern for working with target virtual MCP tools:
+
+```typescript
+// 1. Discover what's available
+const tools = await decopilot.invokeTool("tools_search", {
+  search_term: "github"
+})
+// => [{ name: "CREATE_PR", enabled: false }, { name: "CREATE_BRANCH", enabled: false }]
+
+// 2. Enable the specific tool needed
+await decopilot.invokeTool("tool_enable", {
+  tool_name: "CREATE_PR"
+})
+
+// 3. Use the enabled tool
+await decopilot.invokeTool("CREATE_PR", {
+  title: "Add feature",
+  body: "Feature description",
+  base: "main",
+  head: "feature/new-feature"
+})
+```
+
+**When to use**: Default pattern for any target virtual MCP tool. Always follow this sequence.
+
+#### Pattern 2: Explore-Then-Enable
+
+When you're not sure what capabilities exist, explore first:
+
+```typescript
+// 1. List all available tools
+const allTools = await decopilot.invokeTool("tools_search", {})
+
+// 2. Read details for promising tools
+const prDetails = await decopilot.invokeTool("tools_read", {
+  tool_name: "CREATE_PR"
+})
+console.log("Input schema:", prDetails.inputSchema)
+
+const issueDetails = await decopilot.invokeTool("tools_read", {
+  tool_name: "CREATE_ISSUE"
+})
+console.log("Input schema:", issueDetails.inputSchema)
+
+// 3. Enable the right tool for your task
+await decopilot.invokeTool("tool_enable", {
+  tool_name: "CREATE_ISSUE"
+})
+
+// 4. Use it
+await decopilot.invokeTool("CREATE_ISSUE", {
+  title: "Bug: Login fails on iOS",
+  body: "Steps to reproduce..."
+})
+```
+
+**When to use**: When you're exploring a new project or unfamiliar MCP server. Take time to understand available tools before committing.
+
+#### Pattern 3: Multi-Tool Workflow
+
+Enable multiple tools for complex workflows:
+
+```typescript
+// Enable all tools you'll need upfront
+await decopilot.invokeTool("tool_enable", { tool_name: "CREATE_BRANCH" })
+await decopilot.invokeTool("tool_enable", { tool_name: "COMMIT_CHANGES" })
+await decopilot.invokeTool("tool_enable", { tool_name: "CREATE_PR" })
+await decopilot.invokeTool("tool_enable", { tool_name: "SEND_MESSAGE" })
+
+// Then orchestrate the workflow
+await decopilot.invokeTool("CREATE_BRANCH", {
+  name: "feature/notification-system",
+  base: "main"
+})
+
+await decopilot.invokeTool("COMMIT_CHANGES", {
+  message: "Add push notification service",
+  files: ["src/notifications/push.ts"]
+})
+
+await decopilot.invokeTool("CREATE_PR", {
+  title: "Add push notification system",
+  body: "Implements FCM-based push notifications"
+})
+
+await decopilot.invokeTool("SEND_MESSAGE", {
+  channel: "engineering",
+  text: "PR ready for review: push notification system"
+})
+```
+
+**When to use**: Complex workflows spanning multiple services. Enable all tools first, then execute the workflow smoothly.
+
 ### Complete Example: GitHub PR Creation
 
 ```typescript
@@ -842,6 +941,207 @@ if (toolInfo.source === "external") {
   })
 }
 ```
+
+## Tool Workflows by Use Case
+
+Practical examples showing tool usage patterns for common development tasks.
+
+<Callout type="tip" title="See Tools in Action">
+Check the [Quick Start](/en/mcp-mesh/decopilot/quickstart) for complete workflow examples with detailed context.
+</Callout>
+
+### Use Case 1: Code Review Workflow
+
+**Goal**: Create a PR and spawn a security review agent.
+
+**Tools needed**: `tools_search`, `tool_enable`, GitHub MCP tools, `agent_spawn`
+
+```typescript
+// 1. Discover GitHub tools
+const githubTools = await decopilot.invokeTool("tools_search", {
+  search_term: "github pull request"
+})
+
+// 2. Enable PR creation
+await decopilot.invokeTool("tool_enable", {
+  tool_name: "CREATE_PR"
+})
+
+// 3. Create the PR
+const pr = await decopilot.invokeTool("CREATE_PR", {
+  title: "Add biometric authentication",
+  body: "Implements face ID and fingerprint auth",
+  base: "main",
+  head: "feature/biometric-auth"
+})
+
+// 4. Spawn security agent for parallel review
+await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer",
+  prompt: `Review PR #${pr.number} for security vulnerabilities.
+Focus on:
+- Credential storage
+- Biometric data handling
+- Authentication bypass risks`
+})
+
+// Main loop continues while agent reviews in parallel
+```
+
+**Key pattern**: Coordinate external MCP tools (GitHub) with built-in tools (agent spawning) for parallel workflows.
+
+### Use Case 2: Resource Management
+
+**Goal**: Create and organize project resources as you work.
+
+**Tools needed**: `resource_read`, `resource_edit`
+
+```typescript
+// 1. Read existing architecture doc (if exists)
+const existingArch = await decopilot.invokeTool("resource_read", {
+  uri: "project://mobile-app/architecture"
+}).catch(() => null)  // May not exist yet
+
+// 2. Create new architecture decision document
+await decopilot.invokeTool("resource_edit", {
+  uri: "project://mobile-app/adr-001-push-notifications",
+  name: "ADR 001: Push Notifications",
+  content: `# ADR 001: Push Notification Strategy
+
+## Decision
+Use Firebase Cloud Messaging for cross-platform push.
+
+## Rationale
+- Native iOS/Android support
+- Reliable delivery at scale
+- Cost effective
+
+## Consequences
+- Adds Firebase SDK dependency
+- Requires Firebase project setup
+- Lock-in to Google infrastructure`,
+  mimeType: "text/markdown",
+  operation: "create"
+})
+
+// 3. Update main architecture doc with reference
+const updatedContent = existingArch
+  ? `${existingArch.content}\n\n## ADRs\n- [ADR 001: Push Notifications](project://mobile-app/adr-001-push-notifications)`
+  : `# Architecture\n\n## ADRs\n- [ADR 001: Push Notifications](project://mobile-app/adr-001-push-notifications)`
+
+await decopilot.invokeTool("resource_edit", {
+  uri: "project://mobile-app/architecture",
+  name: "Mobile App Architecture",
+  content: updatedContent,
+  operation: existingArch ? "update" : "create"
+})
+```
+
+**Key pattern**: Use resources to document decisions and maintain project knowledge. Resources persist across tasks and are inherited by spawned agents.
+
+### Use Case 3: Multi-Server Coordination
+
+**Goal**: Coordinate work across GitHub, Figma, and Slack in a single workflow.
+
+**Tools needed**: `tools_search`, `tool_enable`, tools from multiple external MCPs
+
+```typescript
+// 1. Discover and enable tools from multiple sources
+await decopilot.invokeTool("tool_enable", { tool_name: "CREATE_BRANCH" })    // GitHub
+await decopilot.invokeTool("tool_enable", { tool_name: "EXPORT_ASSETS" })    // Figma
+await decopilot.invokeTool("tool_enable", { tool_name: "SEND_MESSAGE" })     // Slack
+
+// 2. Create feature branch
+await decopilot.invokeTool("CREATE_BRANCH", {
+  repo: "mobile-app",
+  name: "feature/new-onboarding",
+  base: "main"
+})
+
+// 3. Export Figma assets for the feature
+const assets = await decopilot.invokeTool("EXPORT_ASSETS", {
+  file_id: "mobile-app-designs",
+  node_ids: ["onboarding-flow", "welcome-screen"],
+  format: "svg",
+  scale: 2
+})
+
+// 4. Notify team with context
+await decopilot.invokeTool("SEND_MESSAGE", {
+  channel: "engineering",
+  text: `🚀 Started new onboarding feature
+Branch: feature/new-onboarding
+Figma assets: ${assets.files.length} files exported
+Ready for development`
+})
+```
+
+**Key pattern**: Decopilot orchestrates distributed MCP servers through a single workflow. Each tool invocation reaches the appropriate external MCP via the MCP protocol (HTTP for remote servers, stdio for local servers).
+
+### Use Case 4: Dynamic Tool Creation
+
+**Goal**: Create a project-specific tool for a recurring operation.
+
+**Tools needed**: `tools_edit`, `tool_enable`, composite workflow capability
+
+```typescript
+// 1. Check existing tools for mobile testing
+const testTools = await decopilot.invokeTool("tools_search", {
+  search_term: "test mobile"
+})
+
+// 2. Create composite tool that orchestrates existing tools
+await decopilot.invokeTool("tools_edit", {
+  tool_name: "RUN_MOBILE_TESTS_ALL_PLATFORMS",
+  definition: {
+    description: "Run complete mobile test suite on iOS and Android",
+    inputSchema: {
+      type: "object",
+      properties: {
+        suite: {
+          type: "string",
+          enum: ["unit", "integration", "e2e", "all"],
+          description: "Test suite to run"
+        }
+      },
+      required: ["suite"]
+    },
+    outputSchema: {
+      type: "object",
+      properties: {
+        ios: { type: "object" },
+        android: { type: "object" }
+      }
+    },
+    handler: "composite",  // Orchestrates other tools
+    workflow: [
+      { tool: "RUN_TESTS", input: { platform: "ios", suite: "{{input.suite}}" } },
+      { tool: "RUN_TESTS", input: { platform: "android", suite: "{{input.suite}}" } }
+    ]
+  },
+  operation: "create"
+})
+
+// 3. Enable and use immediately
+await decopilot.invokeTool("tool_enable", {
+  tool_name: "RUN_MOBILE_TESTS_ALL_PLATFORMS"
+})
+
+const results = await decopilot.invokeTool("RUN_MOBILE_TESTS_ALL_PLATFORMS", {
+  suite: "integration"
+})
+
+// 4. Save results as project resource
+await decopilot.invokeTool("resource_edit", {
+  uri: "project://mobile-app/test-results-latest",
+  name: "Latest Test Results",
+  content: JSON.stringify(results, null, 2),
+  mimeType: "application/json",
+  operation: "create"
+})
+```
+
+**Key pattern**: Create inline tools to encapsulate project-specific operations. These tools become part of the project's virtual MCP and are available to all future tasks.
 
 ## Scope-Specific Tool Behavior Examples
 
@@ -1107,6 +1407,184 @@ const DEPLOY_STAGING_TOOL = {
   }
 }
 ```
+
+## Troubleshooting Common Issues
+
+Common problems when working with decopilot tools and how to resolve them.
+
+### Issue: Tool Not Found
+
+**Symptoms**: `tools_search` doesn't return the expected tool, or `tool_enable` fails with "Tool not found".
+
+**Causes**:
+1. Tool doesn't exist in current scope
+2. Connected MCP server not properly configured
+3. Wrong scope context (e.g., looking for project tool in org scope)
+
+**Solutions**:
+
+```typescript
+// 1. List ALL available tools to verify existence
+const allTools = await decopilot.invokeTool("tools_search", {})
+console.log("All available tools:", allTools)
+
+// 2. Check if you're in the right scope
+// Navigate to /:org/projects/:id for project tools
+// Navigate to /:org/settings for org tools
+
+// 3. Verify connection status for external MCP tools
+// Check that GitHub, Slack, etc. are properly connected in settings
+
+// 4. Check tool source and scope
+const toolInfo = await decopilot.invokeTool("tools_read", {
+  tool_name: "CREATE_PR"
+})
+console.log("Tool source:", toolInfo.source)
+```
+
+**Prevention**: Always use `tools_search` to discover tools before attempting to enable them. Don't assume tools exist.
+
+### Issue: Tool Enable Fails
+
+**Symptoms**: `tool_enable` returns `{ success: false }` or throws an error.
+
+**Causes**:
+1. Tool doesn't exist (see "Tool Not Found" above)
+2. Insufficient permissions in current scope
+3. External MCP server connection error
+
+**Solutions**:
+
+```typescript
+// 1. Verify tool exists first
+const tools = await decopilot.invokeTool("tools_search", {
+  search_term: "CREATE_PR"
+})
+
+if (tools.tools.length === 0) {
+  console.error("CREATE_PR tool not available in current scope")
+} else {
+  // 2. Check tool details
+  const toolInfo = await decopilot.invokeTool("tools_read", {
+    tool_name: "CREATE_PR"
+  })
+  console.log("Tool info:", toolInfo)
+
+  // 3. Try enabling
+  const result = await decopilot.invokeTool("tool_enable", {
+    tool_name: "CREATE_PR"
+  })
+
+  if (!result.success) {
+    console.error("Enable failed. Check permissions and connection status")
+  }
+}
+```
+
+**Prevention**: Check tool existence with `tools_search` before enabling. Verify external MCP connections are active.
+
+### Issue: Agent Spawn Blocked
+
+**Symptoms**: `agent_spawn` fails with "agent_spawn not available" or permission error.
+
+**Causes**:
+1. Attempting to spawn from child task (agent-spawned task)
+2. Agent doesn't exist in organization
+3. Insufficient permissions to spawn agents
+
+**Solutions**:
+
+```typescript
+// 1. Check if you're in a top-level task
+// agent_spawn is disabled in child tasks by default
+
+// 2. Search for available agents
+const agents = await decopilot.invokeTool("agent_search", {
+  search_term: "security"
+})
+console.log("Available security agents:", agents)
+
+// 3. Use exact agent_id from search results
+if (agents.agents.length > 0) {
+  await decopilot.invokeTool("agent_spawn", {
+    agent_id: agents.agents[0].agent_id,
+    prompt: "Review code for security issues"
+  })
+} else {
+  console.error("No security agents available")
+}
+```
+
+**Prevention**: Always use `agent_search` to discover available agents. Only spawn from top-level tasks unless explicitly enabled.
+
+### Issue: Resource Not Found
+
+**Symptoms**: `resource_read` fails with "Resource not found" error.
+
+**Causes**:
+1. Resource doesn't exist
+2. Wrong URI format
+3. Resource exists in different scope
+
+**Solutions**:
+
+```typescript
+// 1. Check URI format
+// Correct formats:
+// - "org://org-slug/resource-name"
+// - "project://project-slug/resource-name"
+// - "agent://agent-id/resource-name"
+
+// 2. Try reading with proper URI
+try {
+  const resource = await decopilot.invokeTool("resource_read", {
+    uri: "project://mobile-app/architecture"
+  })
+  console.log("Resource found:", resource)
+} catch (error) {
+  console.error("Resource doesn't exist. Creating...")
+
+  // 3. Create the resource if it doesn't exist
+  await decopilot.invokeTool("resource_edit", {
+    uri: "project://mobile-app/architecture",
+    name: "Architecture",
+    content: "# Architecture\n\nInitial content...",
+    operation: "create"
+  })
+}
+```
+
+**Prevention**: Use consistent URI formats. Create resources explicitly rather than assuming they exist.
+
+### Issue: Scope Confusion
+
+**Symptoms**: Tools behave unexpectedly, or expected tools aren't available.
+
+**Causes**:
+1. Misunderstanding current scope
+2. Expecting project tools in org scope (or vice versa)
+3. Scope inheritance not working as expected
+
+**Solutions**:
+
+```typescript
+// 1. Always check what scope you're in based on route
+// /:org/settings = Org scope
+// /:org/projects/:id = Project scope
+// /:org/agents/:id = Agent scope
+
+// 2. List available tools to understand current context
+const tools = await decopilot.invokeTool("tools_search", {})
+console.log(`Available tools in current scope: ${tools.tools.length}`)
+
+// 3. Remember inheritance: project scope inherits from org, agent inherits from project+org
+// Resources, prompts, and tools inherit automatically
+
+// 4. For scope-specific tools, navigate to the right route first
+// Don't try to use project tools while in org scope
+```
+
+**Prevention**: Pay attention to which route you're on. Understand that scope determines tool availability and behavior.
 
 ## Key Takeaways
 

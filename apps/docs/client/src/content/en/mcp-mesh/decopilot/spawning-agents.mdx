@@ -59,6 +59,62 @@ const taskId = await decopilot.invokeTool("agent_spawn", {
 
 The spawned task runs independently. Parent doesn't block—results return when task completes.
 
+### Complete Spawn Lifecycle Example
+
+Understanding the full lifecycle from spawn to completion helps predict behavior and handle edge cases.
+
+```typescript
+// T0: Parent task spawns security agent
+const taskId = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer",
+  prompt: "Review src/auth/biometric.ts for security vulnerabilities"
+})
+// Returns immediately: { task_id: "task-abc-123" }
+// Task status: "active"
+
+// T1: Spawned agent starts executing
+// - Loads agent virtual MCP configuration
+// - Reads CLAUDE.md (org + project context)
+// - Reads AGENTS.md (agent-specific instructions)
+// - Receives prompt as initial message
+// - Begins agentic loop (gather → act → verify)
+
+// T2: Agent discovers and enables tools
+await tools_search({ search_term: "security" })
+await tool_enable({ tool_name: "SECURITY_SCAN" })
+
+// T3: Agent invokes tools
+const scanResults = await SECURITY_SCAN({
+  files: ["src/auth/biometric.ts"],
+  rules: ["credential-exposure", "insecure-storage"]
+})
+
+// T4: Agent generates response
+// Response includes findings, recommendations, severity levels
+// Task status transitions: "active" -> "successful"
+
+// T5: Parent task receives result notification
+// Result integrated as ~200-500 token summary:
+// "Security review complete. Found 2 high-severity issues:
+//  1. Biometric templates stored without encryption (line 42)
+//  2. Auth threshold too permissive (line 68)
+//  See full report in task-abc-123"
+
+// T6: Parent continues with integrated findings
+await resource_create({
+  uri: "project://mobile-app/security-findings",
+  name: "Security Review: Biometric Auth",
+  content: scanResults.report
+})
+```
+
+**Key lifecycle points**:
+- Spawn returns immediately (non-blocking)
+- Agent loads isolated context
+- Agent executes autonomously
+- Results integrate as summaries
+- Parent task continues throughout
+
 ## Task States and Lifecycle
 
 **Active**: Task being processed by agent.
@@ -135,6 +191,153 @@ const result = await decopilot.invokeTool("agent_search", {
 
 Specialized agents optimize for their purpose and produce better results.
 
+## Choosing the Right Agent
+
+Selecting the appropriate agent for your task improves results and reduces iteration. Different agent types excel at different work.
+
+### Research Agents
+
+**Best for**:
+- Exploring codebases and understanding architecture
+- Investigating bugs and tracing execution paths
+- Analyzing options before making decisions
+- Understanding third-party libraries and APIs
+
+**Characteristics**:
+- Read-heavy tool access (file reading, code search, documentation lookup)
+- No write permissions (safe for exploratory work)
+- Fresh context ideal for deep dives
+
+**Example usage**:
+```typescript
+await decopilot.invokeTool("agent_spawn", {
+  agent_id: "research-agent",
+  prompt: "Analyze the authentication flow in src/auth/. Map the complete user login journey from form submission to session creation."
+})
+```
+
+### Development Agents
+
+**Best for**:
+- Implementing features based on specifications
+- Writing code with clear requirements
+- Refactoring existing code
+- Adding tests for new functionality
+
+**Characteristics**:
+- Read and write tool access (file editing, code generation)
+- Focused on implementation, not exploration
+- Benefits from clear specs and acceptance criteria
+
+**Example usage**:
+```typescript
+await decopilot.invokeTool("agent_spawn", {
+  agent_id: "development-agent",
+  prompt: "Implement push notification service using Firebase Cloud Messaging. Requirements: support iOS and Android, handle background notifications, respect user preferences."
+})
+```
+
+### Review Agents
+
+**Best for**:
+- Code quality analysis
+- Security vulnerability scanning
+- Performance profiling
+- Accessibility auditing
+
+**Characteristics**:
+- Specialized analysis tools (linters, security scanners, profilers)
+- Domain expertise in specific review type
+- Generate structured findings reports
+
+**Example usage**:
+```typescript
+await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer",
+  prompt: "Review src/auth/biometric.ts for security issues. Focus on credential storage, authentication bypass risks, and biometric data handling. Report findings with severity levels."
+})
+```
+
+### Testing Agents
+
+**Best for**:
+- Writing unit tests for new code
+- Creating integration tests
+- Running test suites and analyzing failures
+- Generating test data
+
+**Characteristics**:
+- Test framework tools (Jest, Pytest, etc.)
+- Coverage analysis capabilities
+- Can execute tests and interpret results
+
+**Example usage**:
+```typescript
+await decopilot.invokeTool("agent_spawn", {
+  agent_id: "testing-agent",
+  prompt: "Write comprehensive unit tests for src/notifications/push.ts. Cover success cases, error handling, edge cases. Aim for 90%+ coverage."
+})
+```
+
+### Deployment Agents
+
+**Best for**:
+- Releasing features to staging/production
+- Infrastructure configuration
+- Deployment verification
+- Rollback procedures
+
+**Characteristics**:
+- Deployment pipeline tools (kubectl, terraform, CI/CD)
+- Environment-specific configurations
+- Health check and monitoring capabilities
+
+**Example usage**:
+```typescript
+await decopilot.invokeTool("agent_spawn", {
+  agent_id: "deployment-agent",
+  prompt: "Deploy feature/push-notifications to staging. Run health checks. Monitor for 5 minutes. Report deployment status and any errors."
+})
+```
+
+### Decision Guide
+
+Use this flowchart to choose the right agent:
+
+```
+Need to understand code? → Research Agent
+  ├─ Exploring architecture
+  ├─ Investigating bugs
+  └─ Analyzing options
+
+Need to write code? → Development Agent
+  ├─ Implementing features
+  ├─ Refactoring
+  └─ Adding tests
+
+Need to check quality? → Review Agent
+  ├─ Security scan → Security Reviewer
+  ├─ Performance → Performance Analyzer
+  └─ Accessibility → Accessibility Checker
+
+Need to test? → Testing Agent
+  ├─ Unit tests
+  ├─ Integration tests
+  └─ Test execution
+
+Need to deploy? → Deployment Agent
+  ├─ Staging release
+  ├─ Production deploy
+  └─ Rollback
+```
+
+**Pro tip**: When unsure, use `agent_search` with descriptive terms to find specialized agents:
+```typescript
+await decopilot.invokeTool("agent_search", {
+  search_term: "security vulnerability scanning"
+})
+```
+
 ## UI Integration and Task Management
 
 **Tasks menu**: Shows all tasks for current scope with status indicators.
@@ -199,6 +402,225 @@ const testTaskId = await decopilot.invokeTool("agent_spawn", {
   prompt: "Write tests for store."
 })
 ```
+
+## Advanced Spawning Patterns
+
+Beyond basic single or parallel spawning, these advanced patterns enable sophisticated workflows.
+
+### Pattern 1: Fan-out/Fan-in
+
+Spawn multiple agents for parallel work, then collect and synthesize results.
+
+```typescript
+// Fan-out: Spawn multiple review agents
+const securityTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer",
+  prompt: "Security audit of src/auth/"
+})
+
+const performanceTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "performance-analyzer",
+  prompt: "Performance analysis of src/auth/"
+})
+
+const accessibilityTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "accessibility-checker",
+  prompt: "Accessibility audit of auth UI"
+})
+
+// All three tasks run in parallel, each with isolated context
+
+// Fan-in: Collect results (after tasks complete)
+// Results integrate as summaries
+// Parent synthesizes findings:
+
+await resource_create({
+  uri: "project://mobile-app/auth-review-summary",
+  name: "Authentication Review Summary",
+  content: `# Authentication Review
+
+## Security
+${securityTaskResults}
+
+## Performance
+${performanceTaskResults}
+
+## Accessibility
+${accessibilityTaskResults}
+
+## Action Items
+[Synthesized priorities based on all findings]`
+})
+```
+
+**When to use**: Comprehensive analysis requiring multiple specialized perspectives. Each agent brings domain expertise.
+
+**Benefits**:
+- Parallel execution (faster than sequential)
+- Isolated contexts (no cross-contamination)
+- Specialized focus (each agent optimized)
+
+### Pattern 2: Conditional Spawning
+
+Spawn agents based on runtime conditions or previous task results.
+
+```typescript
+// Step 1: Research implementation options
+const researchTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "research-agent",
+  prompt: "Research React state management options. Compare Redux, Zustand, Jotai. Recommend best fit for our architecture."
+})
+
+// Step 2: Wait for research completion
+// (In practice, decopilot integrates results automatically)
+
+// Step 3: Conditional spawn based on recommendation
+if (researchResults.recommendation === "Zustand") {
+  // Spawn Zustand implementation agent
+  await decopilot.invokeTool("agent_spawn", {
+    agent_id: "development-agent",
+    prompt: "Implement Zustand store following the research recommendations. Focus on user state management."
+  })
+} else if (researchResults.recommendation === "Redux") {
+  // Spawn Redux implementation agent
+  await decopilot.invokeTool("agent_spawn", {
+    agent_id: "development-agent",
+    prompt: "Implement Redux store with Redux Toolkit following best practices."
+  })
+}
+
+// Step 4: Always spawn testing agent after implementation
+await decopilot.invokeTool("agent_spawn", {
+  agent_id: "testing-agent",
+  prompt: "Write comprehensive tests for the state management implementation."
+})
+```
+
+**When to use**: Multi-stage workflows where later steps depend on earlier results.
+
+**Benefits**:
+- Adaptive workflows (adjust based on findings)
+- Efficient resource use (only spawn what's needed)
+- Clear decision points
+
+### Pattern 3: Iterative Refinement
+
+Spawn agents in a loop to refine results based on quality checks.
+
+```typescript
+// Iteration 1: Initial implementation
+let implementationTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "development-agent",
+  prompt: "Implement biometric authentication with Face ID support"
+})
+
+// Quality check
+const qualityTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer",
+  prompt: "Review biometric implementation. Check for security issues."
+})
+
+// Iteration 2: If issues found, refine
+if (qualityResults.criticalIssues.length > 0) {
+  implementationTask = await decopilot.invokeTool("agent_spawn", {
+    agent_id: "development-agent",
+    prompt: `Refine biometric implementation addressing:
+${qualityResults.criticalIssues.map(issue => `- ${issue}`).join('\n')}
+
+Focus on security and correctness.`
+  })
+
+  // Re-check quality
+  await decopilot.invokeTool("agent_spawn", {
+    agent_id: "security-reviewer",
+    prompt: "Re-review refined implementation. Verify issues addressed."
+  })
+}
+```
+
+**When to use**: Quality-critical work requiring validation and refinement cycles.
+
+**Benefits**:
+- Ensures quality standards met
+- Fresh context for each iteration
+- Clear validation checkpoints
+
+### Pattern 4: Pipeline Architecture
+
+Chain agents in a processing pipeline where each stage adds value.
+
+```typescript
+// Stage 1: Research
+const researchTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "research-agent",
+  prompt: "Research push notification best practices. Document patterns."
+})
+
+// Stage 2: Implement (uses research findings)
+const implementTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "development-agent",
+  prompt: "Implement push notifications using research findings. Follow documented patterns."
+})
+
+// Stage 3: Test (validates implementation)
+const testTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "testing-agent",
+  prompt: "Write integration tests for push notification system. Test all platforms."
+})
+
+// Stage 4: Review (ensures quality)
+const reviewTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "security-reviewer",
+  prompt: "Security review of push notification implementation. Check credential handling."
+})
+
+// Stage 5: Document (captures knowledge)
+const docTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "documentation-agent",
+  prompt: "Document push notification system: setup, usage, troubleshooting."
+})
+
+// Each stage builds on previous work, creating comprehensive delivery
+```
+
+**When to use**: Complex features requiring multiple specialized stages (research → implement → test → review → document).
+
+**Benefits**:
+- Clear separation of concerns
+- Each agent focuses on one aspect
+- Comprehensive feature delivery
+- Knowledge capture throughout
+
+### Pattern 5: Hierarchical Delegation
+
+Spawn a coordinator agent that spawns its own sub-agents (requires enabling `agent_spawn` in child tasks).
+
+```typescript
+// Top-level: Spawn feature coordinator
+const coordinatorTask = await decopilot.invokeTool("agent_spawn", {
+  agent_id: "feature-coordinator",
+  prompt: "Coordinate implementation of complete authentication system: backend API, frontend UI, testing, documentation.",
+  allowChildSpawn: true  // Enable agent_spawn in child task
+})
+
+// Coordinator spawns sub-agents:
+// - backend-agent for API implementation
+// - frontend-agent for UI components
+// - testing-agent for test suites
+// - documentation-agent for docs
+
+// Coordinator manages dependencies and integration
+// Top-level task receives final coordinated result
+```
+
+**When to use**: Very complex features requiring orchestration of multiple work streams.
+
+**Caution**: Increases complexity. Use sparingly and only when clear coordination benefits exist.
+
+**Benefits**:
+- Distributes coordination responsibility
+- Enables complex multi-agent workflows
+- Maintains context isolation
 
 ## Best Practices
 

@@ -1,6 +1,6 @@
 ---
-title: Decopilot Overview
-description: MCP-native AI agent for web-based development that operates on virtual MCPs
+title: Overview
+description: The agentic AI assistant that runs on decocms, operating through distributed MCP architecture
 icon: Sparkles
 ---
 
@@ -12,142 +12,178 @@ import Callout from "../../../../components/ui/Callout.astro";
 
 ## What is Decopilot?
 
-**Decopilot** is an MCP-native AI agent designed for web-based development within MCP Mesh. Unlike traditional AI coding assistants that operate on local filesystems, decopilot is built from the ground up to work with the Model Context Protocol—operating through MCP servers, virtual MCPs, and distributed capabilities.
+**Decopilot** is an agentic AI assistant that operates through the Model Context Protocol within decocms. Unlike traditional AI coding assistants that work with local filesystems, decopilot orchestrates distributed MCP servers over HTTP (or stdio when running locally) to deliver state-of-the-art agentic workflows.
 
-The defining characteristic of decopilot is that **it only works with virtual MCPs**. This is a fundamental architectural constraint: decopilot needs to operate and edit the MCP configurations dynamically, which is only possible with virtual MCPs. External MCP servers (like traditional GitHub or Slack servers) are read-only connections that decopilot cannot modify. This is why projects, agents, and organization scopes are all virtual MCPs—they provide the editable, configurable foundation that decopilot requires.
+Decopilot brings the proven agentic loop pattern—**gather context → take action → verify results**—to MCP orchestration. It coordinates work across multiple MCP servers, dynamically adapting based on scope, and delegating to specialized agents when needed. This distributed MCP architecture makes decopilot fundamentally different from filesystem-based assistants: it's an MCP orchestration layer, not a development tool.
 
-Decopilot is part of the MCP Mesh infrastructure, operating within the scope-based routing system to provide context-aware assistance across organization, project, and agent levels.
+Decopilot uses **virtual MCPs** to make creating and modifying MCPs as easy and liquid as creating files on a filesystem—but with the added benefit of being distributable across the web. While decopilot invokes tools from external MCP servers (GitHub, Figma, Slack), it operates on virtual MCPs to dynamically reshape the environment as it works. Projects, agents, and organization scopes are all virtual MCPs, providing the editable, programmable foundation that enables decopilot's agentic capabilities.
 
-## Why Virtual MCPs?
+<Callout type="tip" title="New to Decopilot?">
+Start with the [Quick Start](/en/mcp-mesh/decopilot/quickstart) guide to see the agentic loop in action with practical workflows.
+</Callout>
 
-Decopilot's foundation is built on [Virtual MCPs](/en/mcp-mesh/virtual-mcps), and understanding why is crucial:
+## The Agentic Loop
 
-**Virtual MCPs are editable and configurable**. When decopilot operates in a project, it can dynamically add tools, create resources, update prompts, and modify the virtual MCP configuration. This enables decopilot to:
+Decopilot operates through a continuous cycle that adapts to your work:
 
-- Add new tools to the current context on the fly
-- Create documentation resources as it works
-- Update project prompts based on workflow patterns
-- Configure agent capabilities dynamically
+**1. Gather Context**: Query connected MCP servers to understand current state
+- Read GitHub repositories to check branch status and recent commits
+- Fetch Figma designs to understand UI specifications
+- Query databases or APIs to verify data state
+- Load project resources (architecture docs, checklists, guidelines)
 
-**Regular MCP servers are read-only**. External MCP servers like GitHub or Slack provide fixed capabilities through the MCP protocol. Decopilot can use these tools, but it cannot modify the server configuration. These external connections are composed into virtual MCPs to make them part of the editable context.
+**2. Take Action**: Execute tools across distributed MCP servers
+- Create branches, commit code, open pull requests via GitHub MCP
+- Export assets, check design specs via Figma MCP
+- Send notifications, update channels via Slack MCP
+- Create inline tools in virtual MCPs for project-specific operations
 
-**Projects, agents, and org scopes are all virtual MCPs**. This ensures decopilot always has an editable foundation. When you work in a project (`/:org/projects/:id`), that project IS a virtual MCP that decopilot can operate on and modify. The same is true for agents and organization scope.
+**3. Verify Results**: Check outcomes and determine next steps
+- Confirm actions completed successfully across all services
+- Spawn specialized agents to verify code quality, security, or performance
+- Update project resources with findings
+- Report results and recommend follow-up actions
 
-This architecture makes decopilot fundamentally different from traditional AI assistants—it doesn't just use tools, it can reshape the environment it operates in.
+This loop runs continuously as you work, with decopilot adapting based on scope. The distributed nature means decopilot can orchestrate complex workflows spanning multiple services—all coordinated through the MCP protocol.
+
+```mermaid
+graph LR
+    A[Gather Context] --> B[Take Action]
+    B --> C[Verify Results]
+    C --> A
+
+    A -.-> D[GitHub MCP]
+    A -.-> E[Figma MCP]
+    A -.-> F[Project Virtual MCP]
+
+    B -.-> D
+    B -.-> E
+    B -.-> F
+
+    C -.-> G[Spawn Agent]
+    G -.-> C
+```
+
+## Distributed MCP Architecture
+
+Decopilot's core differentiator is its **distributed MCP architecture**—the ability to coordinate work across multiple MCP servers while operating on editable virtual MCPs.
+
+**External MCP Servers (Read-Only)**: Decopilot invokes tools from external MCP servers like GitHub, Figma, Slack, and databases. These servers expose their capabilities through the MCP protocol (over HTTP or stdio). Decopilot uses these tools but cannot modify the server configurations—they're external, read-only connections.
+
+**Virtual MCPs (Editable)**: Decopilot operates on virtual MCPs—editable MCP endpoints that can be modified dynamically. When working in a project, decopilot can add tools, create resources, update prompts, and reshape the virtual MCP configuration. This is the programmable layer that makes decopilot's dynamic behavior possible.
+
+**Composition**: External MCP servers are composed into virtual MCPs through connections. A project's virtual MCP might include GitHub tools, Figma tools, and custom inline tools—all available through one unified MCP endpoint. Decopilot operates on this composed virtual MCP while invoking tools from the external servers.
+
+**Protocol-Based Orchestration**: MCP coordination happens over HTTP for remote servers or stdio for local servers. Decopilot doesn't need filesystem access—it coordinates distributed MCP servers through the MCP protocol. This makes decopilot portable, scalable, and composable across your infrastructure.
+
+This architecture enables workflows that span multiple services in a single agentic loop. Need to create a branch, export Figma assets, and notify the team? Decopilot orchestrates all three through distributed MCP calls, verifies success, and reports back—pure MCP orchestration.
+
+## Key Capabilities
+
+**Agentic Workflow Orchestration**: The continuous gather → act → verify loop enables decopilot to handle complex, multi-step workflows autonomously. Decopilot breaks down ambiguous requests into concrete actions, executes them across distributed services, and adapts based on results.
+
+**Distributed Tool Coordination**: Invoke tools from multiple MCP servers in a single workflow. Decopilot seamlessly coordinates GitHub, Figma, Slack, databases, and custom tools—all through standardized MCP protocol.
+
+**Dynamic Environment Configuration**: Operating on virtual MCPs means decopilot can reshape the environment as it works. Add tools on the fly, create resources for documentation, update prompts based on patterns—all without manual configuration.
+
+**Scope-Sensitive Operations**: Decopilot automatically adapts based on where you are in the application. Organization scope provides org-wide capabilities. Project scope gives project-specific tools and context. Agent scope bounds operations to focused purposes.
+
+**Agent Spawning**: Delegate to specialized agents with fresh context for parallel work. Spawn a security agent to review code while continuing with implementation. Spawn a research agent to explore architecture while keeping the main context clean.
+
+**Context Management**: Intelligent token management through strategic agent spawning and tool filtering. Decopilot balances completeness with efficiency, ensuring relevant context without bloat.
+
+## Scope-Based Operation
+
+Decopilot operates in **three distinct scopes**, each corresponding to a different virtual MCP:
+
+**Org Scope** (`/:org/settings`): Organization-wide context with shared resources, prompts, and connected MCPs. Think of this as the foundation level—comparable to `~/.claude/` in Claude Code.
+
+**Project Scope** (`/:org/projects/:id`): Project-specific virtual MCP with project tools, resources, and connected external MCPs. Isolated work context for the project—comparable to `.claude/` in Claude Code.
+
+**Agent Scope** (`/:org/agents/:id`): Single-purpose virtual MCP optimized for repeatable tasks. Most narrowly focused scope with bounded tool access.
+
+The route determines the scope automatically. As you navigate the application, decopilot seamlessly adapts to the new context, adjusting available tools, resources, and capabilities accordingly.
+
+For detailed information on how scopes work and when to use each, see [Scopes](/en/mcp-mesh/decopilot/scopes).
+
+## Quick Examples
+
+### Multi-Server Workflow
+
+Working in a project, you ask decopilot to prepare a feature branch:
+
+```typescript
+// Decopilot orchestrates across 3 MCP servers:
+
+// 1. GitHub MCP - Create feature branch
+CREATE_BRANCH({ name: "feature/biometric-auth", base: "main" })
+
+// 2. Figma MCP - Export latest auth flow designs
+EXPORT_ASSETS({ fileId: "auth-flows", format: "svg" })
+
+// 3. Slack MCP - Notify team
+SEND_MESSAGE({ channel: "engineering", text: "Started biometric auth feature" })
+
+// All coordinated through decopilot's agentic loop
+```
+
+### Agent Spawning Pattern
+
+Need security review while continuing development:
+
+```typescript
+// Main loop: Implementing feature
+User: "Add biometric authentication"
+
+Decopilot:
+- Plans implementation approach
+- Spawns security agent on parallel task
+
+// Spawned agent (isolated context)
+Agent: security-reviewer-001
+- Scans authentication files
+- Checks for common vulnerabilities
+- Generates findings report
+- Returns to main loop
+
+// Main loop continues
+Decopilot:
+- Completes implementation
+- Integrates security findings
+- Updates code based on recommendations
+```
+
+The agent runs with fresh context, preventing token bloat while enabling focused security analysis in parallel.
 
 <Callout type="note" title="For Claude Code Users">
   If you're familiar with Claude Code, here's how decopilot concepts map to what you know:
 
 | Claude Code | Decopilot |
 |-------------|-----------|
+| Agentic loop (local) | Agentic loop (distributed MCP) |
 | Skills | Virtual MCPs (agents) |
 | `project/.claude/` | Project scope (`/:org/projects/:id`) |
 | `~/.claude/` | Org scope (org routes) |
-| Subagents | Task-based agent spawning |
+| Subagents | Agent spawning with `agent_spawn` |
 | CLAUDE.md | CLAUDE.md + AGENTS.md |
 | Skill references/assets | MCP resources |
 | `/command` invocation | MCP commands |
 
-The key difference: decopilot operates through the MCP protocol on virtual MCPs, making it web-native and composable across your infrastructure.
+**Key difference**: Decopilot brings Claude Code's agentic patterns to MCP orchestration through distributed architecture. Instead of local filesystem operations, decopilot coordinates work across multiple MCP servers—GitHub, Figma, Slack, databases, and more—all through standardized MCP protocol.
 </Callout>
-
-## Key Capabilities
-
-**Virtual MCP Foundation**: Decopilot operates exclusively on virtual MCPs, enabling it to edit and configure the environment as it works. This is not just a feature—it's the architectural foundation that makes decopilot's dynamic behavior possible.
-
-**Scope-Sensitive Operations**: Decopilot automatically adapts based on where you are in the application. Operating in org scope (`/:org/settings`) gives you organization-wide capabilities. Working in project scope (`/:org/projects/:id`) provides project-specific tools and context. Agent scope (`/:org/agents/:id`) bounds operations to the agent's focused purpose.
-
-**Task-Based Agent Spawning**: Decopilot can spawn agents on specific tasks with fresh context. Agents run until they respond, then the main decopilot loop continues. This enables parallel work and focused execution without context pollution.
-
-**Agent Selection**: When spawning agents, decopilot can pick any agent configured in your organization to accomplish the task. This allows delegation to specialized agents optimized for particular operations.
-
-**Built-in Tools**: Comprehensive toolset for MCP management, including tools for reading and editing resources, prompts, and tools within the current virtual MCP scope.
-
-## How It Works
-
-Decopilot operates in **three distinct scopes**, each corresponding to a different virtual MCP:
-
-**Org Scope** (`/:org/settings`, `/:org/connections`): Operates like an org-admin with organization-wide resources, prompts, and tools. Comparable to `~/.claude/` in Claude Code—this is the foundation level where shared context lives.
-
-**Project Scope** (`/:org/projects/:id`): Projects ARE virtual MCPs, not just containers. Each project has project-specific tools, resources, and connected MCPs. Comparable to `.claude/` in Claude Code—isolated work context for the project.
-
-**Agent Scope** (`/:org/agents/:id`): Agents ARE virtual MCPs optimized for single-purpose tasks. Most narrowly focused scope for repeatable, well-defined operations.
-
-The route determines the scope automatically. As you navigate through the application, decopilot seamlessly adapts to the new context. Each scope is a virtual MCP that decopilot can operate on and edit, providing the foundation for its dynamic capabilities.
-
-### Task-Based Agent Spawning
-
-Decopilot can spawn agents to handle specific tasks:
-
-```typescript
-// Conceptual example: spawning an agent
-decopilot.spawnAgent({
-  agentId: "research-agent-001",
-  task: "Analyze the authentication architecture in this codebase",
-  context: { projectId: "mobile-app-rewrite" }
-})
-// Agent runs until it responds, then main loop continues
-```
-
-This enables parallel execution and focused work without polluting the main decopilot context.
-
-### Editing Virtual MCPs
-
-Because decopilot operates on virtual MCPs, it can modify them dynamically:
-
-```typescript
-// Conceptual example: editing the current virtual MCP
-decopilot.addTool({
-  name: "DEPLOY_STAGING",
-  description: "Deploy to staging environment",
-  // ... tool configuration
-})
-
-decopilot.createResource({
-  uri: "project://mobile-app/deployment-checklist",
-  name: "Deployment Checklist",
-  content: "# Deployment Checklist\n\n- [ ] Run tests\n- [ ] Update changelog\n..."
-})
-```
-
-This is only possible because projects, agents, and org scopes are all virtual MCPs—editable and configurable in real-time.
-
-## Quick Examples
-
-**Working in Project Scope**:
-
-When editing a project's virtual MCP, decopilot can:
-- Add GitHub tools for creating pull requests
-- Create project-specific resources like architecture documentation
-- Update prompts for code review templates
-- Configure connections to external MCP servers
-
-**Spawning an Agent on a Task**:
-
-When analyzing a large codebase, spawn a research agent:
-- Agent gets fresh context for the specific task
-- Agent has read-only tools to explore code
-- Agent reports findings back to main decopilot loop
-- Main context remains clean and focused
-
-For detailed information on how scopes work, see [Scopes](/en/mcp-mesh/decopilot/scopes).
 
 ## Next Steps
 
-**Virtual MCPs** (foundational): Understand why decopilot uses virtual MCPs and how they enable dynamic configuration. Start here: [Virtual MCPs](/en/mcp-mesh/virtual-mcps)
+**[Quick Start](/en/mcp-mesh/decopilot/quickstart)**: See the agentic loop in action with practical workflows. Start here for hands-on examples.
 
-**Scopes**: Learn how org/project/agent scopes work and how routing determines context. See: [Scopes](/en/mcp-mesh/decopilot/scopes)
+**[Scopes](/en/mcp-mesh/decopilot/scopes)**: Learn how org/project/agent scopes determine available tools and context. Essential for understanding decopilot's behavior.
 
-**Projects**: Understand projects as virtual MCPs and how they organize work. Read: [Projects](/en/mcp-mesh/projects)
+**[Architecture](/en/mcp-mesh/decopilot/architecture)**: Deep-dive into decopilot's technical implementation, virtual MCP constraint, and distributed coordination.
 
-**Agents**: Explore single-purpose virtual MCPs and how they provide focused capabilities. Check: [Agents](/en/mcp-mesh/agents)
+**[Tools](/en/mcp-mesh/decopilot/tools)**: Explore the comprehensive toolset for MCP management and tool discovery patterns.
 
-**Architecture**: Deep-dive into decopilot's technical architecture and implementation (coming soon)
-
-**Context Management**: Learn how decopilot maintains context across scopes and agent spawning (coming soon)
-
-**Built-in Tools**: Explore the comprehensive toolset for MCP management (coming soon)
+**[Virtual MCPs](/en/mcp-mesh/virtual-mcps)**: Understand why virtual MCPs enable dynamic configuration and how they differ from external MCP servers.
 
 ---
 
-Decopilot represents a new approach to AI-assisted development—web-native, MCP-first, and built on the foundation of virtual MCPs. By operating exclusively on virtual MCPs, it can dynamically reshape the environment as it works, providing capabilities that traditional filesystem-based assistants cannot match.
+Decopilot represents a new approach to MCP orchestration—**HTTP-based, MCP-first, and built on distributed architecture**. By operating through virtual MCPs and coordinating across external MCP servers, decopilot delivers the proven agentic loop pattern as an MCP orchestration layer. This is the agentic assistant that runs on decocms.

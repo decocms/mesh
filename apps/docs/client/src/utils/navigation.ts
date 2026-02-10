@@ -15,23 +15,49 @@ export async function getNavigationLinks(
 
   // Define the correct order for navigation
   const order = [
+    // 1. Introduction
     "introduction",
-    // decocms (product docs)
-    "mcp-mesh/overview",
-    "mcp-mesh/quickstart",
-    "mcp-mesh/concepts",
-    "mcp-mesh/connect-clients",
-    "mcp-mesh/authentication",
-    "mcp-mesh/authorization-and-roles",
-    "mcp-mesh/mcp-servers",
-    "mcp-mesh/virtual-mcps",
-    "mcp-mesh/api-keys",
-    "mcp-mesh/monitoring",
-    "mcp-mesh/api-reference",
-    "mcp-mesh/deploy/local-docker-compose",
-    "mcp-mesh/deploy/kubernetes-helm-chart",
+
+    // 2. Getting Started
     "getting-started/ai-builders",
     "getting-started/developers",
+    "mcp-mesh/quickstart",
+
+    // 3. Core Concepts
+    "mcp-mesh/overview",
+    "mcp-mesh/concepts",
+
+    // 4. Working with MCP
+    "mcp-mesh/connections",
+    "mcp-mesh/virtual-mcps",
+    "mcp-mesh/projects",
+    "mcp-mesh/agents",
+
+    // 5. Monitoring & Observability
+    "mcp-mesh/monitoring",
+
+    // 6. Decopilot
+    "mcp-mesh/decopilot/overview",
+    "mcp-mesh/decopilot/quickstart",
+    "mcp-mesh/decopilot/scopes",
+    "mcp-mesh/decopilot/spawning-agents",
+    "mcp-mesh/decopilot/tools",
+    "mcp-mesh/decopilot/context-management",
+    "mcp-mesh/decopilot/architecture",
+
+    // 7. Security & Access Control
+    "mcp-mesh/authentication",
+    "mcp-mesh/authorization-and-roles",
+    "mcp-mesh/api-keys",
+
+    // 8. Deployment
+    "mcp-mesh/deploy/local-docker-compose",
+    "mcp-mesh/deploy/kubernetes-helm-chart",
+
+    // 9. Reference
+    "mcp-mesh/api-reference",
+
+    // 10. Legacy Admin Guides (no-code and full-code guides)
     "no-code-guides/creating-tools",
     "no-code-guides/creating-agents",
     "full-code-guides/project-structure",
