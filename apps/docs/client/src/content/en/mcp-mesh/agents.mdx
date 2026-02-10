@@ -14,7 +14,13 @@ import Callout from "../../../components/ui/Callout.astro";
 
 **Agents** are single-purpose virtual MCPs optimized for specific tasks. While [Projects](/en/mcp-mesh/projects) provide general-purpose work environments, agents focus narrowly on accomplishing one thing well.
 
-Agents are built on the [Virtual MCP](/en/mcp-mesh/virtual-mcps) foundation—they ARE virtual MCPs with their own tools, resources, prompts, and configuration. This makes agents first-class participants in your MCP ecosystem, exposing capabilities through standard MCP protocol endpoints at `/:org/agents/:agent_id`.
+Agents provide:
+
+- **Focused capabilities** - Curated tools for specific tasks
+- **Task-specific context** - Resources and guidelines tailored to the agent's purpose
+- **Single-purpose design** - Clear objective with no unnecessary complexity
+
+Agents are available in the sidebar under the **Agents** section, where each operates as a focused workspace for its specific task.
 
 The key distinction: projects organize capabilities for broad work contexts, while agents optimize for single-purpose execution.
 
@@ -66,12 +72,11 @@ These agents operate at organization level and leverage mesh MCP tools for platf
 
 Agents can be used in several ways:
 
-- **Spawned by decopilot** - Agents spawned on-demand with fresh context for specific tasks
+- **Spawned by decopilot** - Agents created on-demand with fresh context for specific tasks
 - **Built-in agents** - Pre-configured agents for mesh operations, ready immediately
 - **Custom agents** - Domain-specific agents for your team's unique workflows
-- **Direct connection** - Connect MCP clients to agent endpoints for focused sessions
 
-When working within an agent, you operate in **agent scope**—tools, resources, and prompts are limited to those configured for the agent. Operations are bounded by the agent's capabilities.
+When working with an agent, you'll only see the tools, resources, and prompts configured for that agent's specific purpose. This focused view helps you stay on task without distraction.
 
 ## Benefits Summary
 
