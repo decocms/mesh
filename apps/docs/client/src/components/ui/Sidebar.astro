@@ -68,21 +68,49 @@ function buildTree(docs: any[]): TreeNode[] {
         // Custom order for decocms top-level pages
         if (parentPath === "mcp-mesh") {
           // NOTE: doc IDs do not include ".mdx" (e.g. "overview", not "overview.mdx")
+          // Order follows: Getting Started → Core Concepts → Working with MCP → Monitoring → Decopilot → Security → Operations → Reference
           const mcpMeshOrder = [
-            "overview",
+            // Getting Started
             "quickstart",
+            // Core Concepts
+            "overview",
             "concepts",
-            "connect-clients",
+            // Working with MCP
+            "connections",
+            "virtual-mcps",
+            "projects",
+            "agents",
+            // Monitoring & Observability
+            "monitoring",
+            // Security & Access Control
             "authentication",
             "authorization-and-roles",
-            "mcp-servers",
-            "virtual-mcps",
             "api-keys",
-            "monitoring",
+            // Reference
             "api-reference",
           ];
           const aIndex = mcpMeshOrder.indexOf(a.name);
           const bIndex = mcpMeshOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
+
+        // Custom order for decopilot subfolder
+        if (parentPath === "decopilot") {
+          const decopilotOrder = [
+            "overview",
+            "quickstart",
+            "context-management",
+            "tasks-and-spawning",
+            "tools",
+            "scopes",
+            "architecture",
+          ];
+          const aIndex = decopilotOrder.indexOf(a.name);
+          const bIndex = decopilotOrder.indexOf(b.name);
           if (aIndex !== -1 && bIndex !== -1) {
             return aIndex - bIndex;
           }
@@ -137,11 +165,13 @@ function buildTree(docs: any[]): TreeNode[] {
       // For folders - custom ordering
       if (a.type === "folder" && b.type === "folder") {
         const folderOrder: Record<string, number> = {
-          // Put decocms docs first
-          "mcp-mesh": 0,
-          "getting-started": 1,
-          "no-code-guides": 2,
-          "full-code-guides": 3,
+          // Order follows improved information architecture
+          "mcp-mesh": 0, // decocms docs (main product)
+          "getting-started": 1, // Getting Started (after intro)
+          decopilot: 2, // Decopilot (elevated section within mcp-mesh)
+          deploy: 3, // Deploy section
+          "no-code-guides": 4, // Legacy admin guides
+          "full-code-guides": 5, // Legacy admin guides
         };
 
         const aOrder = folderOrder[a.name] ?? Number.POSITIVE_INFINITY;
