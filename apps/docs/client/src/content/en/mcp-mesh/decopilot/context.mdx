@@ -1,6 +1,6 @@
 ---
 title: Context
-description: How decopilot manages context across scopes and maintains efficient token usage
+description: Understanding context windows and how decopilot keeps your workspace focused and efficient
 icon: FileText
 ---
 
@@ -10,442 +10,141 @@ import Callout from "../../../../components/ui/Callout.astro";
   This page documents the **planned architecture** for decopilot context. The implementation is in development.
 </Callout>
 
-Decopilot manages context through a priority-based system that balances completeness with efficiency. Context includes conversation history, tool definitions, resources, and project-specific instructions—all within the model's limited token window.
+Every AI [model](https://code.claude.com/docs/en/how-claude-code-works#models) works within a fixed context window—think of it as the model's "working memory" for your conversation. Managing this space well is essential for smooth, productive workflows with decopilot.
 
-## How Context Loading Works
+Decopilot automatically balances what goes into your context window: instructions from your current [scope](/en/mcp-mesh/decopilot/overview#scopes), available [tools](/en/mcp-mesh/concepts#tools), conversation history, and more. Larger context windows mean you can accomplish more complex work in a single session before needing to refresh.
 
-When decopilot starts a task, it loads context in priority order. This ensures essential context is always present while managing token usage efficiently:
+## Understanding Context Slots
 
-1. **System instructions**: Core behavior definition (always present, ~800 tokens)
-2. **CLAUDE.md**: Organization and project persistent rules (scope-dependent, see below)
-3. **AGENTS.md**: Agent-specific instructions via MCP server's instructions property (only for spawned agents)
-4. **Conversation history**: Recent messages automatically managed and truncated as needed
-5. **MCP tool definitions**: Only enabled tools consume context (filtered by agent type to reduce overhead)
-6. **Resources**: Loaded on-demand when explicitly requested through tool invocations
+Decopilot organizes your context window into distinct slots, each serving a specific purpose:
 
-The priority system ensures essential instructions and rules are loaded first, with heavier elements (conversation history, tools, resources) added strategically based on need and scope.
+1. **System prompt** - Core decopilot behavior and capabilities
+2. **Scope instructions** - Guidelines from your current scope (organization, project, or agent-specific)
+3. **Built-in tools** - Essential decopilot operations always available
+4. **Enabled tools** - Additional [tools](/en/mcp-mesh/concepts#tools) you've activated during your session
+5. **Conversation history** - Your recent messages and decopilot's responses
+6. **Compactification buffer** - Summarized older conversation context
 
-## Scope-Specific Context Loading
+This slot system ensures the most important context stays available while managing space efficiently.
 
-Different scopes load different context automatically. Understanding scope-based loading helps you work efficiently and avoid unnecessary context bloat.
+## Context Health: The 40/80 Rule
 
-### Organization Scope
+Your context window performs best when it's not too full. Here's what to watch for:
 
-When working at org scope (the default level):
-- **System instructions**: Always present
-- **Org CLAUDE.md**: Organization-wide rules and standards
-- **Org-level tools**: Tools enabled at organization level
-- **Conversation history**: Current session
-- **NO project-specific context**: No project CLAUDE.md, no project tools
+- **Below 40%**: Optimal performance—plenty of room for complex reasoning and long conversations
+- **40-80%**: Context starts to degrade—still functional but approaching limits
+- **Above 80%**: Time to refresh—decopilot automatically compactifies your conversation history
 
-Use org scope for cross-project work, administrative tasks, or when you don't need project-specific context.
+When your context reaches 80% capacity, decopilot automatically clears the conversation history slot and compactifies it into the buffer. This process summarizes your conversation while preserving important context, giving you room to continue working.
 
-### Project Scope
+<Callout type="tip">
+You can manually trigger compactification anytime using the `/compact` command—useful when you want to free up space before starting a new phase of work.
+</Callout>
 
-When working at project scope:
-- **System instructions**: Always present
-- **Org CLAUDE.md**: Inherited from organization
-- **Project CLAUDE.md**: Project-specific rules (takes precedence on conflicts)
-- **Project tools**: Tools enabled at project level
-- **Conversation history**: Current session
-- **Resources**: Available on-demand through `resource_read`
+## Keeping Context Lean
 
-Project scope inherits org context and adds project-specific layers. This is the most common scope for development work.
+The best way to work efficiently is to avoid filling your context unnecessarily. Here are two key techniques:
 
-### Agent Scope
+### Compactification
 
-When you spawn an agent:
-- **System instructions**: Always present
-- **CLAUDE.md**: Inherited based on spawn location (org or project)
-- **AGENTS.md**: Agent-specific instructions from MCP server's instructions property
-- **Task prompt**: The specific task you assigned
-- **Filtered tools**: Only tools relevant to agent type
-- **NO parent conversation history**: Fresh context, no accumulated history from parent
-- **NO parent resources**: Clean slate, loads own resources if needed
+Compactification summarizes older conversation history while preserving key information. Think of it as consolidating your notes—you keep the important decisions and outcomes, but remove the back-and-forth exploration that led there.
 
-Agent scope provides fresh, focused context for specific tasks. See [Context Isolation via Agent Spawning](#context-isolation-via-agent-spawning) for details.
+**When to compact:**
+- Automatically triggers at 80% context capacity
+- Manually via `/compact` command before starting complex work
+- After completing a major task but before moving to the next one
 
-### Context Inheritance
+### Subtasks
 
-| Context Element | Org Scope | Project Scope | Agent Scope (from project) |
-|----------------|-----------|---------------|---------------------------|
-| System instructions | ✓ | ✓ | ✓ |
-| Org CLAUDE.md | ✓ | ✓ (inherited) | ✓ (inherited) |
-| Project CLAUDE.md | ✗ | ✓ | ✓ (inherited) |
-| AGENTS.md | ✗ | ✗ | ✓ |
-| Parent conversation | ✓ (own) | ✓ (own) | ✗ (fresh start) |
-| Parent resources | N/A | N/A | ✗ (clean slate) |
+Using subtasks for specific work keeps your main context clean. Subtasks run in their own isolated context space, then return only a summary of results to your main conversation. You can optionally spawn [agents](/en/mcp-mesh/agents)—specialists in specific fields—into subtasks to bring domain expertise to the isolated work.
 
-See [Scopes](/en/mcp-mesh/decopilot/overview#scopes) in the overview for more on how scope layering works in practice.
+**Example with subtask only:**
 
-## CLAUDE.md Support
-
-CLAUDE.md provides persistent context at two levels: **org scope** for organization-wide rules, and **project scope** for project-specific guidelines. When working in project scope, both org and project CLAUDE.md files are loaded—project context inherits from org context.
-
-**Precedence handling**: When both levels define conflicting rules, project-level CLAUDE.md takes precedence. This allows project-specific overrides while maintaining organization-wide defaults. For example, an org-admin might enforce Conventional Commits across all projects, but a specific project could override commit message format for integration with external systems.
-
-**Conflict resolution**: Decopilot merges non-conflicting rules. If org-admin specifies testing requirements and project-level adds deployment guidelines, both apply. Only direct conflicts trigger precedence resolution.
-
-**Best practices**: Keep CLAUDE.md concise (under 500 words), focus on persistent rules rather than one-time instructions, use clear markdown formatting, and update content as patterns emerge across multiple conversations.
-
-### Example: Project-Level CLAUDE.md
-
-```markdown
-# Mobile App Project
-
-## Stack
-- React Native 0.74, TypeScript 5.9, Expo SDK 52
-
-## Code Conventions
-- Functional components with hooks
-- API calls in `src/services/`
-- Colocate tests, use Zod for validation
-
-## Testing
-- Run `bun test` before committing
+```
+You: "Spawn subtask to analyze stock ruptures"
+  │
+  ▼
+Decopilot creates subtask
+  │
+  ▼
+Subtask analyzes inventory (isolated context)
+  │
+  ▼
+Returns: "3 critical SKUs need reorder, 5 can wait..."
+  │
+  ▼
+Main context: Only sees summary
 ```
 
-### Example: Org-Admin Level CLAUDE.md
+**Example with specialist agent:**
 
-```markdown
-# Organization Guidelines
-
-## Principles
-- Security first: validate all inputs
-- WCAG 2.1 AA compliance
-- Update docs alongside code
-
-## Git Workflow
-- Conventional commits: `type(scope): message`
-- PR review required
+```
+You: "Use inventory specialist to analyze stock ruptures"
+  │
+  ▼
+Decopilot searches for agents
+  │
+  ▼
+Finds: "Inventory Optimizer" & "Supply Chain Analyst"
+  │
+  ▼
+Decopilot: "Which agent would you prefer?"
+  │
+  ▼
+You: "Inventory Optimizer"
+  │
+  ▼
+Spawns Inventory Optimizer as subtask
+  │
+  ▼
+Specialist forecasts demand, optimizes reorders (isolated context)
+  │
+  ▼
+Returns: "Reorder 500 units SKU-123 from supplier B..."
+  │
+  ▼
+Main context: Only sees summary
 ```
 
-## AGENTS.md Support
+This pattern is especially powerful for:
+- Research and exploration tasks
+- Running tests and analyzing results
+- Code reviews and security scans
+- Any work that generates lots of output you don't need to see in full detail
 
-AGENTS.md provides agent-specific instructions via the MCP server's `instructions` property. **This content only appears in agent scope**—when decopilot spawns an agent. When spawned from project scope, agents receive both org CLAUDE.md and project CLAUDE.md plus AGENTS.md. When spawned from org scope, agents receive only org CLAUDE.md plus AGENTS.md.
+See [Agents](/en/mcp-mesh/agents) for more on how agents provide fresh, focused context for specific tasks.
 
-### Example: AGENTS.md Structure
+## How Scopes Affect Context
 
-```markdown
-# Agent Instructions
+Each [scope](/en/mcp-mesh/decopilot/scopes) has access only to its own tools and resources. When you switch scopes, the tools available through `tool_search` change to match that scope's virtual MCP, and the instructions that load into the scope instructions slot change—organization, project, or agent-specific. See [Scopes](/en/mcp-mesh/decopilot/scopes) for details.
 
-## Research Agents
-**Purpose**: Explore and analyze without modification
+## Practical Tips
 
-**Guidelines**:
-- Read-only operations only
-- Document findings in structured format
-- Tools: LIST_FILES, READ_FILE, SEARCH_CODE
+Here are actionable ways to keep your context healthy and productive:
 
-## Development Agents
-**Purpose**: Implement features and fix bugs
+**Watch your context health** - Pay attention to how full your context is. When it hits 40%, consider wrapping up the current phase of work or compacting.
 
-**Guidelines**:
-- Create feature branches
-- Write tests alongside implementation
-- Tools: CREATE_BRANCH, COMMIT_CHANGES, RUN_TESTS
-```
+**Use `/compact` strategically** - Manually compact before starting complex new work, after completing major tasks, or when switching between different focus areas.
 
-## Context Cost Management
+**Spawn agents for heavy lifting** - Research, testing, code reviews, and any work that generates verbose output should happen in spawned agents. Keep summaries, not details, in your main context.
 
-Tool definitions consume significant tokens—a typical MCP server with 50 tools can use 5,000-10,000 tokens just for tool definitions. With Claude's 200K context window, unfiltered tools from multiple servers quickly exhaust available space.
+**Enable tools selectively** - Don't enable every available tool "just in case." Enable tools from your current scope as you need them for specific tasks.
 
-**Token cost examples**: A single comprehensive tool definition (name, description, parameters with JSON schema) averages 100-200 tokens. A project with 3 MCP servers (filesystem, git, API client) exposing 150 total tools could consume 15,000-30,000 tokens before any conversation begins. This leaves less room for conversation history, code context, and reasoning.
+**Work in the right scope** - Use organization scope for cross-project work, project scope for focused development, and let agents handle task-specific work with fresh context.
 
-### Tool Filtering
+**Think modular** - Break complex work into phases. Complete one phase, compact or spawn for the next. This keeps each phase focused and your context manageable.
 
-Virtual MCPs enable dynamic filtering based on agent type and task requirements. Rather than exposing all tools to every agent, decopilot selectively includes only relevant tools:
+## Why Context Matters
 
-```typescript
-// Research agent sees filtered tools
-{
-  agentType: "research",
-  tools: ["LIST_FILES", "READ_FILE", "SEARCH_CODE"]
-  // CREATE_PR, DEPLOY filtered out
-}
-```
+Good context management isn't just about staying under limits—it's about maintaining quality. When context is clean and focused:
 
-**Filtering strategies**: Development agents receive write operations (CREATE_BRANCH, COMMIT_CHANGES), research agents get read-only tools (READ_FILE, SEARCH_CODE), and deployment agents access infrastructure tools (DEPLOY, ROLLBACK). This reduces average tool context from 15,000 tokens to 3,000-5,000 tokens depending on agent type.
+- Decopilot reasons more clearly about your specific problem
+- Conversations stay on track without getting lost in accumulated details
+- Complex multi-step workflows remain manageable
+- You spend more time making progress, less time resetting context
 
-Resources load only when explicitly requested through tool invocations, preventing automatic inclusion in base context. This on-demand approach keeps initial context minimal while providing access to full project resources when needed.
-
-## Context Isolation via Agent Spawning
-
-Agent spawning provides fresh context for specific tasks. As decopilot works through complex problems, context accumulates—conversation history grows, resources are loaded, and the context window fills. Spawning an agent creates clean context focused on one task, then integrates results back without polluting the parent context.
-
-**Technical implementation**: Each spawned agent receives a new task ID and isolated context. The parent decopilot maintains its conversation history and resources, while the child agent starts with only essential context. When the agent completes, results are summarized and returned to the parent—typically 200-500 tokens instead of the full 10,000+ token conversation the agent had.
-
-Spawned agents receive:
-- System instructions, CLAUDE.md, AGENTS.md
-- Task description and filtered tools
-- NO parent conversation history or accumulated resources
-
-This isolation ensures agents focus on their specific task without distraction from unrelated context. A security review agent doesn't need to know about UI design decisions from earlier in the conversation. A documentation agent doesn't need git history from unrelated branches.
-
-**Benefits**: Faster processing due to smaller context, better focus on specific objectives, parallel execution of independent tasks, and cleaner results integrated back to parent. See [Task-Based Agent Spawning](/en/mcp-mesh/decopilot/architecture#task-based-agent-spawning) for implementation details.
-
-## Optimizing Context in Practice
-
-Understanding context concepts is essential, but applying them effectively requires practical strategies. Here are proven approaches for optimizing context in real workflows.
-
-### Strategy 1: Strategic Agent Spawning
-
-**Problem**: Main context becomes bloated with exploratory work, test results, and detailed analysis.
-
-**Solution**: Spawn agents for any work that generates significant context but doesn't need to persist in the main conversation.
-
-**Example: Context Bloat (Avoid)**
-
-```typescript
-// Main decopilot context
-User: "Implement push notifications"
-
-// Decopilot explores options (adds ~5000 tokens)
-- Researches Firebase Cloud Messaging
-- Compares with OneSignal, APNs, AWS SNS
-- Reads documentation for each
-- Analyzes pros/cons
-
-// Implements feature (adds ~8000 tokens)
-- Creates notification service files
-- Implements iOS handler
-- Implements Android handler
-- Adds error handling
-
-// Tests implementation (adds ~6000 tokens)
-- Runs unit tests (full output)
-- Runs integration tests
-- Reviews test results
-- Fixes failing tests
-
-// Total context: ~19,000 tokens for one feature
-// Main conversation is polluted with exploratory details
-```
-
-**Example: Fresh Context Isolation (Better)**
-
-```typescript
-// Main decopilot context (~2000 tokens total)
-User: "Implement push notifications"
-
-// Spawn research agent (isolated context)
-const researchTask = await agent_spawn({
-  agent_id: "research-agent",
-  prompt: "Research push notification solutions. Compare Firebase, OneSignal, AWS SNS. Recommend best fit."
-})
-// Agent generates ~5000 tokens internally
-// Returns ~300 token summary: "Recommend Firebase Cloud Messaging because..."
-
-// Spawn development agent (isolated context)
-const devTask = await agent_spawn({
-  agent_id: "development-agent",
-  prompt: "Implement Firebase Cloud Messaging for push notifications. Support iOS and Android."
-})
-// Agent generates ~8000 tokens internally
-// Returns ~400 token summary: "Implemented push service in src/notifications/..."
-
-// Spawn testing agent (isolated context)
-const testTask = await agent_spawn({
-  agent_id: "testing-agent",
-  prompt: "Write tests for push notification service. Test all platforms."
-})
-// Agent generates ~6000 tokens internally
-// Returns ~300 token summary: "Tests passing. Coverage 94%..."
-
-// Main context: ~2000 + 300 + 400 + 300 = ~3000 tokens total
-// Fresh context for each task, summaries only in main conversation
-```
-
-**Key insight**: Spawning agents prevents context bloat by isolating detailed work. Main conversation stays focused on high-level decisions and results.
-
-### Strategy 2: Resource Management
-
-**Problem**: Loading all project resources upfront exhausts context before work begins.
-
-**Solution**: Load resources on-demand only when actually needed for specific tasks.
-
-**Example: Upfront Loading (Avoid)**
-
-```typescript
-// Load everything upfront
-await resource_read({ uri: "project://mobile-app/architecture" })  // 2000 tokens
-await resource_read({ uri: "project://mobile-app/api-docs" })       // 3000 tokens
-await resource_read({ uri: "project://mobile-app/testing-guide" })  // 1500 tokens
-await resource_read({ uri: "org://coding-standards" })              // 1000 tokens
-await resource_read({ uri: "org://security-policy" })               // 1500 tokens
-
-// Total: 9000 tokens consumed before any work starts
-// Most resources never actually used
-```
-
-**Example: On-Demand Loading (Better)**
-
-```typescript
-// Load only what's needed for current task
-User: "Add biometric authentication"
-
-// Only load architecture doc (relevant to feature design)
-const arch = await resource_read({ uri: "project://mobile-app/architecture" })
-// 2000 tokens - actually used
-
-// If security question arises later, load then
-const security = await resource_read({ uri: "org://security-policy" })
-// 1500 tokens - loaded when needed
-
-// Total: 3500 tokens, all actually used
-```
-
-**Key insight**: Resources should be loaded just-in-time. Don't preemptively load "everything that might be useful."
-
-### Strategy 3: Tool Filtering
-
-**Problem**: All tools from all connected MCP servers are included in context, even if irrelevant.
-
-**Solution**: Enable only the tools you actually need for the current task.
-
-**Example: Unfiltered Tools (Wasteful)**
-
-```typescript
-// All tools available from 3 connected MCPs:
-// - GitHub MCP: 50 tools (~5000 tokens)
-// - Figma MCP: 30 tools (~3000 tokens)
-// - Slack MCP: 20 tools (~2000 tokens)
-// Total: 100 tools, ~10,000 tokens
-
-// But task only needs GitHub PR creation
-```
-
-**Example: Selective Enabling (Efficient)**
-
-```typescript
-// Search for specific tools needed
-const tools = await tools_search({ search_term: "pull request" })
-
-// Enable only what's needed
-await tool_enable({ tool_name: "CREATE_PR" })
-await tool_enable({ tool_name: "LIST_FILES" })
-
-// Context: ~200 tokens for 2 tools vs 10,000 for all
-```
-
-**Key insight**: The discover → enable → use pattern naturally filters tools. Only enabled tools consume context.
-
-### Strategy 4: Scope Awareness
-
-**Problem**: Working in wrong scope, loading unnecessary inherited context.
-
-**Solution**: Use the most specific scope appropriate for your task. See [Scopes](/en/mcp-mesh/decopilot/overview#scopes) for details on scope-based capabilities and [Scope-Specific Context Loading](#scope-specific-context-loading) for what context is available at each level.
-
-**Example: Wrong Scope (Bloated)**
-
-```typescript
-// Working in org scope when you need project-specific work
-// Org scope includes:
-// - All org-level tools (~3000 tokens)
-// - All org resources (~5000 tokens)
-// - Org CLAUDE.md (~500 tokens)
-// But you're implementing a project feature
-
-// Total: ~8500 tokens of irrelevant org context
-```
-
-**Example: Right Scope (Focused)**
-
-```typescript
-// Navigate to project scope: /:org/projects/mobile-app
-// Project scope includes:
-// - Project-specific tools (~2000 tokens)
-// - Project resources (~2000 tokens)
-// - Project CLAUDE.md + inherited org CLAUDE.md (~800 tokens)
-// All relevant to the project feature
-
-// Total: ~4800 tokens, all relevant
-```
-
-**Key insight**: Navigate to the most specific scope for your work. Don't work in org scope when you need project context.
-
-## Context Budget Examples
-
-Understanding typical token budgets helps plan workflows and predict when to spawn agents.
-
-### Scenario 1: Simple PR Creation
-
-**Task**: Create a pull request for a completed feature.
-
-**Context breakdown**:
-```
-System instructions:     ~800 tokens
-CLAUDE.md (project):     ~500 tokens
-Conversation history:    ~1000 tokens (user request + planning)
-Tool definitions:        ~100 tokens (CREATE_PR only)
-Total:                   ~2400 tokens
-```
-
-**Remaining budget**: ~197,600 tokens available for PR creation, tool responses, and conversation.
-
-**Assessment**: Plenty of room. No need for agent spawning. Single-task workflow works well.
-
-### Scenario 2: Complex Multi-Agent Workflow
-
-**Task**: Implement feature with research, development, testing, and review.
-
-**Context breakdown (without agent spawning)**:
-```
-System instructions:     ~800 tokens
-CLAUDE.md (project):     ~500 tokens
-Research work:           ~5000 tokens (exploration, docs)
-Development work:        ~8000 tokens (implementation, iteration)
-Testing work:            ~6000 tokens (test runs, results)
-Review work:             ~4000 tokens (security scan, findings)
-Tool definitions:        ~5000 tokens (many tools enabled)
-Conversation history:    ~10,000 tokens (accumulated)
-Total:                   ~39,300 tokens
-```
-
-**Remaining budget**: ~160,700 tokens
-
-**Assessment**: Works but polluted context. Better approach: spawn agents.
-
-**With agent spawning**:
-```
-System instructions:     ~800 tokens
-CLAUDE.md (project):     ~500 tokens
-Research summary:        ~300 tokens (from spawned agent)
-Development summary:     ~400 tokens (from spawned agent)
-Testing summary:         ~300 tokens (from spawned agent)
-Review summary:          ~300 tokens (from spawned agent)
-Tool definitions:        ~100 tokens (minimal in main)
-Conversation history:    ~2000 tokens (high-level only)
-Total:                   ~4700 tokens
-```
-
-**Remaining budget**: ~195,300 tokens
-
-**Assessment**: Much more efficient. Main context stays focused. Each agent worked with fresh context.
-
-### Scenario 3: Research Agent Spawn
-
-**Task**: Spawned agent exploring codebase architecture.
-
-**Context breakdown (spawned agent)**:
-```
-System instructions:     ~800 tokens
-CLAUDE.md (project):     ~500 tokens
-AGENTS.md (research):    ~300 tokens
-Task prompt:             ~200 tokens
-Tool definitions:        ~500 tokens (read-only tools)
-Agent conversation:      ~10,000 tokens (detailed exploration)
-Total:                   ~12,300 tokens
-```
-
-**Parent receives**: ~400 token summary of findings
-
-**Key insight**: Agent uses ~12,300 tokens internally, but parent only receives ~400. Fresh context enables deep work without polluting parent.
-
-## Summary
-
-Decopilot balances completeness with efficiency through priority-based inclusion, tool filtering, on-demand resources, and agent spawning. Virtual MCPs enable dynamic, scope-aware context for efficient operation within token limits.
+By understanding how context works and using the tools available—compactification, agent spawning, selective tool enabling—you can work more effectively with decopilot across projects of any complexity.
 
 ---
 
-Explore [Scopes](/en/mcp-mesh/decopilot/scopes) to understand how routing determines context, or [Task-Based Agent Spawning](/en/mcp-mesh/decopilot/architecture#task-based-agent-spawning) for fresh context isolation.
+**Next steps**: Learn about [Scopes](/en/mcp-mesh/decopilot/overview#scopes) to understand how context changes at different levels, or explore [Agents](/en/mcp-mesh/agents) to see how fresh context isolation works in practice.
