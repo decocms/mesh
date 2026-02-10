@@ -35,13 +35,13 @@ All built-in tools are available across all scopes. Availability varies between 
 
 ### Scope Tools
 
-Scope tools come from the current scope—domain-specific capabilities like GitHub, Slack, or deployment tools. These are discovered via `tool_search` and enabled via `tool_enable`.
+Scope tools come from the current scope—domain-specific capabilities like Shopify, inventory systems, or shipping tools. These are discovered via `tool_search` and enabled via `tool_enable`.
 
-**Example**: A project with GitHub and Slack connections might expose:
-- `CREATE_PR` - Create a pull request
-- `CREATE_BRANCH` - Create a git branch
-- `SEND_MESSAGE` - Send a Slack message
-- `LIST_ISSUES` - List GitHub issues
+**Example**: A project with Shopify and ShipStation connections might expose:
+- `GET_ORDERS` - Fetch customer orders
+- `UPDATE_INVENTORY` - Update product stock levels
+- `CREATE_SHIPPING_LABEL` - Generate shipping labels
+- `GET_PRODUCTS` - List product catalog
 
 Scope tool availability in tasks vs subtasks depends on the tool's configuration.
 
