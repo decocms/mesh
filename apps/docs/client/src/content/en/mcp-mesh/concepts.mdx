@@ -1,6 +1,6 @@
 ---
 title: Concepts
-description: The mental model for organizations, connections, agents, API keys, and tool calls
+description: The foundational concepts that power decocms
 icon: BookOpen
 ---
 
@@ -9,23 +9,158 @@ icon: BookOpen
 - **Organization**: the top-level tenant boundary. Everything (connections, agents, logs) is org-scoped.
 - **Members**: users invited into an organization.
 - **Roles**: role assignments for members, used by access control checks.
-- **Connection**: a configured upstream MCP endpoint (usually HTTP), optionally with stored credentials.
-- **Agent**: a virtual MCP server that aggregates multiple connections into a single MCP surface.
-- **Tool call**: a `tools/call` request routed through the Mesh to a downstream MCP server (or via an agent).
-- **Monitoring log**: a record of a tool call (inputs, outputs, duration, error), used for debugging and ops.
+- **Connection**: a configured upstream MCP endpoint (usually HTTP), optionally with stored credentials. See [Connections](/en/mcp-mesh/connections).
+- **Virtual MCP**: aggregates tools/resources/prompts from connected servers into a single MCP. See [Virtual MCPs](/en/mcp-mesh/virtual-mcps).
+- **Agent**: single purpose virtual MCPs optimized for specific tasks. See [Agents](/en/mcp-mesh/agents).
+- **Project**: virtual MCP to organize project specifics like available tools, resources, prompts and config. See [Projects](/en/mcp-mesh/projects).
+- **Monitoring**: decocms built-in monitoring lets you see and replay past tool invocations.
+
+## Understanding Agents vs. Projects
+
+Both agents and projects are Virtual MCPs, but they serve different purposes in your workflow:
+
+**Projects** are general-purpose organizational units for ongoing work:
+- **Broad scope** - Cover multiple workflows and capabilities within a work context
+- **Long-lived** - Evolve over time as work progresses
+- **Team collaboration** - Shared workspace for team members
+- **Example** - "Mobile App Rewrite" project with design, development, and deployment tools
+- **When to use** - Organizing work by product line, client, team, or initiative
+
+**Agents** are single-purpose virtual MCPs for specific tasks:
+- **Narrow scope** - Clear, focused objective with curated toolset
+- **Task-specific** - Designed for particular operations or workflows
+- **Fresh context** - Can be spawned on-demand with clean context
+- **Example** - "Agent Management Agent" that only creates/edits/deletes agents
+- **When to use** - Focused operations, built-in mesh management, or specialized workflows
+
+Both follow the same Virtual MCP architecture, but their design principles differ: projects organize capabilities for broad work contexts, while agents optimize for single-purpose execution.
+
+## MCP Protocol Primitives
+
+decocms is fully [MCP compliant](https://modelcontextprotocol.io/). The Model Context Protocol defines three core primitives:
+
+- **[Tools](https://modelcontextprotocol.io/docs/concepts/tools)**: Executable functions exposed by MCP servers that enable AI agents to take actions (create files, query databases, call APIs, etc.).
+- **[Resources](https://modelcontextprotocol.io/docs/concepts/resources)**: Read-only data sources with URIs (like `org://`, `project://`, `agent://`) that provide context to AI agents.
+- **[Prompts](https://modelcontextprotocol.io/docs/concepts/prompts)**: Reusable templates with variables for common workflows and operations.
+
+For the complete protocol architecture, see the [Model Context Protocol documentation](https://modelcontextprotocol.io/docs/concepts/architecture).
 
 ## Data and security boundaries
 
 - **Credential Vault**: sensitive connection credentials are encrypted at rest (vaulted) and only decrypted at request time.
 - **Permissions**: API keys are scoped to tool permissions; the Mesh enforces authorization before proxying.
 
-## How requests flow
+## How the Platform Works
 
-1. A client authenticates (OAuth session or API key).
-2. The client calls either:
-   - the **Management MCP** (admin tools), or
-   - a **Proxy endpoint** (one connection), or
-   - an **Agent endpoint** (aggregated tools/resources/prompts).
-3. The Mesh authorizes, loads credentials, proxies to the downstream Connection(s), and logs monitoring events.
+### The Control Plane Model
+
+decocms operates as a **control plane** sitting between MCP clients and MCP servers. This architectural pattern—borrowed from Kubernetes and modern infrastructure systems—separates:
+
+**The control plane** (decocms): Handles authentication, authorization, routing, credential management, and observability.
+
+**The data plane** (MCP servers): Executes actual operations (create GitHub PRs, query databases, send Slack messages).
+
+This separation enables centralized policy enforcement and observability without decocms needing to understand the semantics of every tool—it just routes MCP protocol messages securely.
+
+### Request Flow
+
+```
+┌─────────┐                    ┌──────────┐                  ┌────────────┐
+│ Client  │ ──[authenticate]──▶│ decocms  │ ──[with creds]──▶│ MCP Server │
+│ (Cursor)│                    │          │                  │  (GitHub)  │
+└─────────┘ ◀──[response]──────└──────────┘ ◀─[response]─────└────────────┘
+                                     │
+                                     └──▶ [monitoring log]
+```
+
+1. **Client authenticates** to decocms (OAuth session or API key)
+2. **Client makes request** to either:
+   - A specific **Connection** (direct proxy to one MCP server)
+   - An **Agent** or **Project** (Virtual MCP aggregating multiple connections)
+   - The **Management MCP** (decocms's own tools for platform configuration)
+3. **decocms authorizes** the request against the client's permissions
+4. **decocms loads credentials** from the encrypted vault for the target Connection(s)
+5. **decocms proxies** the MCP protocol request to the upstream server(s)
+6. **decocms logs** the invocation for monitoring and audit
+7. **decocms returns** the response to the client
+
+This flow ensures clients never handle credentials directly, all access is authorized consistently, and every operation is observable.
+
+## Architectural Patterns
+
+### Multi-Tenancy Through Organizations
+
+Organizations provide the top-level isolation boundary. Everything in decocms is **organization-scoped**:
+
+- **Connections**: Each organization connects to MCP servers independently
+- **Virtual MCPs**: Projects and Agents are organization-specific
+- **Credentials**: Stored per-organization in isolated vaults
+- **Members & Permissions**: Role assignments are organization-scoped
+- **Monitoring logs**: Audit trails isolated per organization
+
+This multi-tenancy model enables:
+- SaaS providers to serve multiple customers from one decocms instance
+- Enterprises to separate departments or teams
+- Agencies to isolate client workspaces
+
+### Composition Over Configuration
+
+decocms follows a **composition model** rather than requiring complex configuration:
+
+**Connect** individual MCP servers (GitHub, Slack, databases)
+↓
+**Compose** them into Virtual MCPs with curated tool surfaces
+↓
+**Organize** into Projects (for teams) and Agents (for specific tasks)
+↓
+**Expose** through a single MCP-compliant endpoint
+
+This pattern enables building complex capabilities from simple, reusable components without infrastructure changes or deployments.
+
+### Security by Design
+
+**Credential isolation**: Credentials are encrypted at rest and only decrypted at request time. Clients never receive raw credentials—they authenticate to decocms, which handles credential management.
+
+**Least privilege**: API keys and permissions are scoped to specific tools. A key for "read GitHub issues" cannot create PRs or access Slack.
+
+**Audit everything**: Every tool invocation creates a monitoring log with tool name, inputs, outputs, duration, and caller identity. This audit trail is immutable and organization-scoped.
+
+**Zero trust**: Every request is authenticated and authorized, regardless of source. There's no "internal" vs "external" distinction—all access flows through the same authorization layer.
+
+## Design Decisions
+
+### Why Virtual MCPs Are Editable
+
+Traditional MCP servers expose a fixed set of tools defined in their code. decocms's Virtual MCPs are **editable at runtime** because they're configuration, not code. This enables:
+
+- **Dynamic tool surfaces**: Add or remove tools without deployments
+- **Resource creation**: Generate documentation and context on the fly
+- **Prompt evolution**: Update templates based on usage patterns
+- **No-code workflows**: Non-developers can compose capabilities
+
+This editability is why Projects and Agents are Virtual MCPs—they need to evolve as work progresses.
+
+### Why Monitoring is Built-In
+
+In traditional MCP deployments, observability is an afterthought—each client logs independently (or not at all), and there's no unified view of tool usage. decocms makes monitoring **first-class** by logging every tool invocation that flows through the control plane.
+
+This built-in monitoring enables:
+- **Debugging**: Trace failures across multiple MCP servers
+- **Cost visibility**: See which tools are expensive or slow
+- **Usage patterns**: Understand which capabilities teams actually use
+- **Security audit**: Track who accessed what, when, and why
+
+Monitoring isn't optional—it's how the platform operates.
+
+### Why the MCP Protocol
+
+decocms could have invented its own protocol for agent-tool communication, but building on MCP provides:
+
+**Ecosystem compatibility**: Works with any MCP-compliant client (Claude Desktop, Cursor) and server
+**Standard semantics**: Tools, Resources, and Prompts have well-defined meanings
+**Open specification**: MCP is vendor-neutral and evolving through community input
+**Network effects**: As the MCP ecosystem grows, decocms users benefit automatically
+
+By being "MCP-native," decocms becomes infrastructure for the broader ecosystem, not a proprietary silo.
 
 
