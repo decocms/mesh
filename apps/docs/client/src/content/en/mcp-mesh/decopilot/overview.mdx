@@ -12,7 +12,7 @@ import Callout from "../../../../components/ui/Callout.astro";
 
 ## What is decopilot?
 
-**decopilot** is an agentic AI assistant that orchestrates work across your entire stack—from GitHub and Figma to Google Sheets, email, Slack, and custom services. Unlike traditional AI assistants confined to code editors, decopilot operates through the Model Context Protocol, giving it reach into the productive applications where real work happens.
+**decopilot** is an agentic AI assistant that orchestrates work across your entire stack—from Shopify and inventory systems to email, customer service platforms, and custom services. Unlike traditional AI assistants confined to code editors, decopilot operates through the Model Context Protocol, giving it reach into the productive applications where real work happens.
 
 You interact through a **chat interface**. Start a conversation, and decopilot works autonomously in the background. Continue with other tasks—when decopilot needs your input, you'll receive a notification. This human-in-the-loop design keeps you in control while letting AI handle coordination across multiple services.
 
@@ -26,14 +26,14 @@ Start with the [Quick Start](/en/mcp-mesh/decopilot/quickstart) guide to see dec
 
 Decopilot follows the same proven agentic loop pattern as [Claude Code](https://code.claude.com/docs/en/how-claude-code-works#the-agentic-loop): **gather context → take action → verify results**. This cycle runs continuously as you work, with decopilot adapting based on what it learns.
 
-The key difference is where this loop operates. While Claude Code works with local filesystems and terminal commands, decopilot orchestrates **distributed MCP servers** over HTTP. Instead of reading local files, decopilot queries GitHub, Figma, Slack, databases, and your custom MCP servers—all through standardized MCP protocol.
+The key difference is where this loop operates. While Claude Code works with local filesystems and terminal commands, decopilot orchestrates **distributed MCP servers** over HTTP. Instead of reading local files, decopilot queries Shopify, inventory systems, customer service platforms, databases, and your custom MCP servers—all through standardized MCP protocol.
 
 Each phase uses MCP tools:
 - **Gather context**: Read from connected MCP servers to understand current state
 - **Take action**: Execute tools across multiple services in a coordinated workflow
 - **Verify results**: Check outcomes, spawn specialized agents for review, adapt approach
 
-The distributed nature means decopilot can orchestrate complex workflows spanning multiple services in a single loop—creating branches in GitHub, exporting assets from Figma, and notifying teams in Slack, all while operating on editable virtual MCPs.
+The distributed nature means decopilot can orchestrate complex workflows spanning multiple services in a single loop—processing orders in Shopify, managing inventory across warehouses, and sending customer notifications, all while operating on editable virtual MCPs.
 
 ## Models
 
@@ -99,7 +99,7 @@ Decopilot comes with built-in tools that enable meta-level operations:
 - **`resource_read` / `resource_edit`**: Manage project documentation and resources
 - **`prompt_read` / `prompt_edit`**: Create reusable prompt templates
 
-These built-in tools are always available and provide the foundation for working with virtual MCPs. Beyond these, you discover and enable tools from your connected MCP servers (GitHub, Figma, Slack, etc.) as needed.
+These built-in tools are always available and provide the foundation for working with virtual MCPs. Beyond these, you discover and enable tools from your connected MCP servers (Shopify, inventory systems, customer service platforms, etc.) as needed.
 
 See [Tools](/en/mcp-mesh/decopilot/tools) for complete specifications, usage patterns, and examples of coordinating tools across multiple services.
 

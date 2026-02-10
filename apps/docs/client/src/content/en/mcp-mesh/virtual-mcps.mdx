@@ -13,7 +13,7 @@ In deco CMS, a **Virtual MCP** is a reusable package of capabilities—[tools, r
 Instead of giving your AI agent access to everything from every connection, you **compose virtual MCPs** that expose exactly what's needed for each use case. You can:
 
 - **Remix connections**: Select specific tools and context from each connection
-- **Combine multiple sources**: Package GitHub + Slack + databases into one unified MCP
+- **Combine multiple sources**: Package Shopify + inventory systems + databases into one unified MCP
 - **Add custom logic**: Extend with inline tools, prompts, and resources
 - **Update dynamically**: Change what's included without reconfiguring your agents
 
@@ -36,7 +36,7 @@ A **connection** is how you wire up an external MCP server to deco CMS (see [Con
 **Example**: An "order-fulfillment-ops" virtual MCP might remix:
 - **Shopify connection**: Order management tools + product catalog
 - **ShipStation connection**: Shipping label generation and tracking tools
-- **Slack connection**: Fulfillment team notification tools
+- **Email provider connection**: Order confirmation and shipping notification tools
 
 Your AI agent uses this one virtual MCP to orchestrate the entire order fulfillment process across all three systems.
 
@@ -65,7 +65,7 @@ Inline tools are ideal for **feature gating**—wrapping connection tools with v
 
 Inline tools can coordinate multiple connections in a single operation.
 
-**Example**: An order fulfillment tool that checks inventory (warehouse connection), creates a shipping label (ShipStation connection), sends order confirmation (SendGrid connection), and notifies the fulfillment team (Slack connection)—all in one coordinated workflow.
+**Example**: An order fulfillment tool that checks inventory (warehouse connection), creates a shipping label (ShipStation connection), sends order confirmation (SendGrid connection), and updates order status (Shopify connection)—all in one coordinated workflow.
 
 These patterns enable **authorization enforcement**, **input validation**, **audit logging** (see [Monitoring](/en/mcp-mesh/monitoring)), and **workflow orchestration** across your MCP infrastructure.
 
@@ -92,9 +92,9 @@ Tools and prompts use the format: `connection_id::CAPABILITY_NAME`
 - **Namespace separator**: `::` (double colon) between connection ID and capability name
 - **64-character limit**: The entire namespaced name cannot exceed 64 characters
 
-**Example**: Two GitHub connections can both expose a `CREATE_PR` tool:
-- `github_personal_456::CREATE_PR` (personal account)
-- `github_work_789::CREATE_PR` (work account)
+**Example**: Two Shopify connections can both expose a `GET_ORDERS` tool:
+- `shopify_store_a_456::GET_ORDERS` (Store A account)
+- `shopify_store_b_789::GET_ORDERS` (Store B account)
 
 This ensures capabilities remain distinct even when multiple connections expose tools with the same name.
 
@@ -102,9 +102,9 @@ This ensures capabilities remain distinct even when multiple connections expose 
 
 Resources use URI-based namespacing, **except for well-known protocols**.
 
-**Custom protocols** (like `repo://`, `team://`) get namespaced with the connection ID and URL-encoded:
-- Original: `repo://my-org/my-repo/README.md`
-- Namespaced: `github_conn_123://repo%3A%2F%2Fmy-org%2Fmy-repo%2FREADME.md`
+**Custom protocols** (like `store://`, `inventory://`) get namespaced with the connection ID and URL-encoded:
+- Original: `store://my-brand/products/catalog.json`
+- Namespaced: `shopify_conn_123://store%3A%2F%2Fmy-brand%2Fproducts%2Fcatalog.json`
 
 **Well-known protocols** (like `http://`, `https://`, `ws://`) are **NOT namespaced** and remain unchanged.
 
@@ -130,7 +130,7 @@ Virtual MCPs provide the **foundational capability** that powers specialized fea
 Virtual MCPs turn fragmented MCP connections into unified, reusable capability packages:
 
 **Real-world applications:**
-- **Order Fulfillment Operations**: Package Shopify (orders) + ShipStation (shipping) + Slack (notifications) into one fulfillment MCP
+- **Order Fulfillment Operations**: Package Shopify (orders) + ShipStation (shipping) + email provider (notifications) into one fulfillment MCP
 - **Customer Service Hub**: Remix Shopify tools with inline customer service prompts and return policy guidelines
 - **Inventory Management**: Combine warehouse APIs + Shopify inventory tools with inline stock alert workflows
 - **Multi-brand Store Management**: Share access to a Shopify MCP connection across your team while filtering brand-specific operations—giving managers scoped access to their brand's products and orders without exposing other brands
