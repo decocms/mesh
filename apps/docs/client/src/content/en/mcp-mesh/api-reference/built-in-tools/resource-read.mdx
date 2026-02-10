@@ -18,9 +18,13 @@ Reads a resource from the current scope. Supports scope inheritance (project inh
 ```typescript
 resource_read(
   resource_uri: string,
-  lineStart?: number,
-  lineEnd?: number
+  options?: RangeOptions
 )
+
+type RangeOptions = {
+  lineStart?: number
+  lineEnd?: number
+}
 ```
 
 ## Parameters
@@ -28,8 +32,9 @@ resource_read(
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `resource_uri` | `string` | Required | URI identifier for the resource |
-| `lineStart` | `number` | Optional | Starting line number (default: 0) |
-| `lineEnd` | `number` | Optional | Ending line number (default: 20) |
+| `options` | `RangeOptions` | Optional | Line range options |
+| `options.lineStart` | `number` | Optional | Starting line number (default: 0) |
+| `options.lineEnd` | `number` | Optional | Ending line number (default: 20) |
 
 ## Returns
 
@@ -43,8 +48,8 @@ Resource content and metadata:
 - Supports scope inheritance:
   - Project resources inherit from organization resources
   - Agent resources inherit from project + organization resources
-- Set both `lineStart` and `lineEnd` to 0 to read entire resource
-- Default behavior reads first 20 lines (lines 0-20)
+- Set both `options.lineStart` and `options.lineEnd` to 0 to read entire resource
+- Default behavior (no options) reads first 20 lines (lines 0-20)
 - Line numbers are zero-indexed
 
 ## Example Usage
@@ -53,14 +58,14 @@ Resource content and metadata:
 
 ```typescript
 // Read entire coding guidelines document
-resource_read("coding-guidelines.md", 0, 0)
+resource_read("coding-guidelines.md", { lineStart: 0, lineEnd: 0 })
 ```
 
 ### Read Specific Lines
 
 ```typescript
 // Read lines 10-30 of API documentation
-resource_read("api-docs.md", 10, 30)
+resource_read("api-docs.md", { lineStart: 10, lineEnd: 30 })
 ```
 
 ### Read Beginning of Resource
@@ -74,13 +79,13 @@ resource_read("onboarding-guide.md")
 
 ```typescript
 // Read coding standards
-resource_read("standards/typescript-style.md", 0, 0)
+resource_read("standards/typescript-style.md", { lineStart: 0, lineEnd: 0 })
 
 // Read deployment procedures
-resource_read("procedures/deployment-checklist.md", 0, 0)
+resource_read("procedures/deployment-checklist.md", { lineStart: 0, lineEnd: 0 })
 
 // Read API documentation
-resource_read("docs/rest-api-reference.md", 0, 0)
+resource_read("docs/rest-api-reference.md", { lineStart: 0, lineEnd: 0 })
 ```
 
 ## Use Cases
@@ -91,7 +96,7 @@ Read guidelines before executing work:
 
 ```typescript
 // Read coding standards
-const standards = resource_read("coding-standards.md", 0, 0)
+const standards = resource_read("coding-standards.md", { lineStart: 0, lineEnd: 0 })
 
 // Apply standards when generating code
 // ... code generation logic
@@ -103,7 +108,7 @@ Access reference documentation during task:
 
 ```typescript
 // Read API docs
-const apiDocs = resource_read("api-reference.md", 0, 0)
+const apiDocs = resource_read("api-reference.md", { lineStart: 0, lineEnd: 0 })
 
 // Use docs to make correct API calls
 // ... API call logic
@@ -115,7 +120,7 @@ Follow documented procedures:
 
 ```typescript
 // Read deployment checklist
-const checklist = resource_read("deployment-checklist.md", 0, 0)
+const checklist = resource_read("deployment-checklist.md", { lineStart: 0, lineEnd: 0 })
 
 // Follow each step in the checklist
 // ... deployment logic

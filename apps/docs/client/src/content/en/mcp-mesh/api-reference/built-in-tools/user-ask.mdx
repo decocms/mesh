@@ -22,7 +22,16 @@ Asks the user a question to gather input or clarification. Supports text input, 
 ## Signature
 
 ```typescript
-user_ask(question: string, options?: object)
+user_ask(
+  question: string,
+  options?: UserAskOptions
+)
+
+type UserAskOptions = {
+  type?: "text" | "choice" | "confirm"
+  choices?: string[]
+  default?: string | boolean
+}
 ```
 
 ## Parameters
@@ -30,15 +39,10 @@ user_ask(question: string, options?: object)
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `question` | `string` | Required | The question to ask the user |
-| `options` | `object` | Optional | Options for the question (type, choices, etc.) |
-
-## Options Object
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | `"text" \| "choice" \| "confirm"` | Type of input expected |
-| `choices` | `string[]` | Available choices (for `type: "choice"`) |
-| `default` | `string \| boolean` | Default value |
+| `options` | `UserAskOptions` | Optional | Options for the question |
+| `options.type` | `"text" \| "choice" \| "confirm"` | Optional | Type of input expected (default: "text") |
+| `options.choices` | `string[]` | Optional | Available choices (required for `type: "choice"`) |
+| `options.default` | `string \| boolean` | Optional | Default value |
 
 ## Returns
 
