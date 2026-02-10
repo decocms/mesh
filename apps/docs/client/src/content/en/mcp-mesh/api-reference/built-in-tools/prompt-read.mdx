@@ -18,9 +18,13 @@ Reads a prompt template from the current scope. Supports scope inheritance like 
 ```typescript
 prompt_read(
   prompt_name: string,
-  lineStart?: number,
-  lineEnd?: number
+  options?: RangeOptions
 )
+
+type RangeOptions = {
+  lineStart?: number
+  lineEnd?: number
+}
 ```
 
 ## Parameters
@@ -28,8 +32,9 @@ prompt_read(
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `prompt_name` | `string` | Required | Name of the prompt template |
-| `lineStart` | `number` | Optional | Starting line number (default: 0) |
-| `lineEnd` | `number` | Optional | Ending line number (default: 20) |
+| `options` | `RangeOptions` | Optional | Line range options |
+| `options.lineStart` | `number` | Optional | Starting line number (default: 0) |
+| `options.lineEnd` | `number` | Optional | Ending line number (default: 20) |
 
 ## Returns
 
@@ -43,8 +48,8 @@ Prompt template content and metadata:
 - Supports scope inheritance (same as `resource_read`):
   - Project prompts inherit from organization prompts
   - Agent prompts inherit from project + organization prompts
-- Set both `lineStart` and `lineEnd` to 0 to read entire prompt
-- Default behavior reads first 20 lines (lines 0-20)
+- Set both `options.lineStart` and `options.lineEnd` to 0 to read entire prompt
+- Default behavior (no options) reads first 20 lines (lines 0-20)
 - Line numbers are zero-indexed
 
 ## Example Usage
@@ -53,14 +58,14 @@ Prompt template content and metadata:
 
 ```typescript
 // Read entire code review prompt
-prompt_read("code-review-workflow", 0, 0)
+prompt_read("code-review-workflow", { lineStart: 0, lineEnd: 0 })
 ```
 
 ### Read Specific Lines
 
 ```typescript
 // Read lines 5-15 of deployment prompt
-prompt_read("deployment-steps", 5, 15)
+prompt_read("deployment-steps", { lineStart: 5, lineEnd: 15 })
 ```
 
 ### Read Beginning of Prompt
@@ -74,13 +79,13 @@ prompt_read("bug-fix-workflow")
 
 ```typescript
 // Read feature development workflow
-prompt_read("feature-workflow", 0, 0)
+prompt_read("feature-workflow", { lineStart: 0, lineEnd: 0 })
 
 // Read bug triage workflow
-prompt_read("bug-triage", 0, 0)
+prompt_read("bug-triage", { lineStart: 0, lineEnd: 0 })
 
 // Read code review checklist
-prompt_read("review-checklist", 0, 0)
+prompt_read("review-checklist", { lineStart: 0, lineEnd: 0 })
 ```
 
 ## Use Cases
@@ -91,7 +96,7 @@ Follow standardized workflows:
 
 ```typescript
 // Read deployment workflow
-const workflow = prompt_read("deploy-to-production", 0, 0)
+const workflow = prompt_read("deploy-to-production", { lineStart: 0, lineEnd: 0 })
 
 // Execute each step in the workflow
 // ... workflow execution logic
@@ -103,7 +108,7 @@ Use prompt templates for consistent task execution:
 
 ```typescript
 // Read bug fix template
-const template = prompt_read("bug-fix-template", 0, 0)
+const template = prompt_read("bug-fix-template", { lineStart: 0, lineEnd: 0 })
 
 // Apply template structure to current bug
 // ... bug fix logic
@@ -115,7 +120,7 @@ Access specialized instructions:
 
 ```typescript
 // Read security review prompt
-const securityPrompt = prompt_read("security-review", 0, 0)
+const securityPrompt = prompt_read("security-review", { lineStart: 0, lineEnd: 0 })
 
 // Perform security review using the prompt
 // ... security review logic
