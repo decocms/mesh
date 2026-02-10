@@ -269,6 +269,21 @@ const { data, isLoading } = useQuery({
   queryKey: ["customers"],
   queryFn: () => client.tools.CUSTOMERS_LIST(),
 });
+
+// Display customer list with loyalty tier and total orders
+if (isLoading) return <div>Loading customers...</div>;
+
+return (
+  <div>
+    {data?.customers.map(customer => (
+      <div key={customer.id}>
+        <h3>{customer.name}</h3>
+        <p>Loyalty: {customer.loyaltyTier}</p>
+        <p>Total Orders: {customer.totalOrders}</p>
+      </div>
+    ))}
+  </div>
+);
 ```
 
 <Callout type="info">

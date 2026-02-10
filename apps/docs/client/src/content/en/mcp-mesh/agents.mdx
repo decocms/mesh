@@ -42,9 +42,9 @@ Agents follow the same pattern as standard agent skills (`SKILL.md` files), maki
 
 Since agents are [Virtual MCPs](/en/mcp-mesh/virtual-mcps), you can compose them from existing connections, define capabilities inline, or mix both approaches.
 
-## Example: Production Deployment Agent
+## Example: Order Fulfillment Agent
 
-A deployment agent might aggregate GitHub tools for tagging and releases, Slack tools for notifications, and monitoring tools for health checks. The agent handles production deployments with a focused toolset—create tags, merge PRs, post deployment notifications, verify health—all within its single-purpose scope.
+An order fulfillment agent might aggregate Shopify tools for order management, ShipStation tools for shipping label generation, and Slack tools for fulfillment team notifications. The agent handles order fulfillment with a focused toolset—fetch pending orders, check inventory, generate shipping labels, send tracking notifications—all within its single-purpose scope.
 
 ## Built-in Agents
 
@@ -65,16 +65,16 @@ These agents operate at organization level and leverage Management MCP tools for
 **Single-purpose focus**: Each agent should do one thing well. Narrow scope improves clarity, reliability, and maintainability.
 
 **Clear description**: Write descriptions that help decopilot understand when to spawn the agent. Use `[Verb] + [Object] + [Context]` pattern:
-- "Deploy applications to production environments"
-- "Analyze test coverage for code quality"
-- "Manage agent lifecycle in the organization"
+- "Fulfill customer orders and generate shipping labels"
+- "Analyze sales data for inventory optimization"
+- "Process customer refunds and returns"
 
 **Detailed instructions**: Provide clear guidelines in the instructions field—just like you would in a `SKILL.md` file. Include constraints, workflow steps, and behavioral guidelines.
 
-**Tool selection**: Choose tools that align with the agent's description. A research agent needs read-only tools; a deployment agent needs release and notification tools. Overly broad tool access dilutes focus.
+**Tool selection**: Choose tools that align with the agent's description. A customer service agent needs order lookup and refund tools; an inventory agent needs stock checking and alert tools. Overly broad tool access dilutes focus.
 
-**Good**: "Deployment Agent" (deploys to production)
-**Too broad**: "DevOps Agent" (deploys, monitors, manages infrastructure, handles incidents...)
+**Good**: "Order Fulfillment Agent" (processes and ships orders)
+**Too broad**: "Ecommerce Operations Agent" (fulfillment, customer service, inventory, marketing, analytics...)
 
 ## Using Agents
 

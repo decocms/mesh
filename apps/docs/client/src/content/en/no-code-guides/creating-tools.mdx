@@ -28,13 +28,13 @@ The easiest way to create tools is by describing what you need:
 
 **Example prompts:**
 ```
-I need a tool that checks if a domain is available for purchase
+I need a tool that checks if a product is in stock across all warehouses
 
-Create a tool to fetch weather data for a given city
+Create a tool to calculate discounts based on customer loyalty tier
 
-Help me build a tool that calculates shipping costs based on weight and destination
+Help me build a tool that recommends products based on customer purchase history
 
-I want to validate email addresses and check if the domain has MX records
+I want to validate customer email addresses and send welcome discount codes
 ```
 
 **What happens next:**
@@ -45,11 +45,11 @@ I want to validate email addresses and check if the domain has MX records
 
 **Refine as you go:**
 ```
-Add validation to the email parameter
+Add validation to ensure the customer has a valid loyalty account
 
-Include a timeout parameter with default of 30 seconds
+Include a minimum order total parameter with default of $50
 
-Change the output to also return the domain registrar
+Change the output to also return the discount expiration date
 ```
 
 This conversational approach means you start with a rough idea and iterate toward exactly what you need.
@@ -69,13 +69,13 @@ When you create a tool (whether via deco chat or by clicking the code icon to wr
 Tools follow the `RESOURCE_ACTION` pattern with `UPPERCASE_WITH_UNDERSCORES`:
 
 **Examples:**
-- `CUSTOMER_FETCH` - Fetch a customer record
-- `EMAIL_SEND` - Send an email
-- `INVOICE_CREATE` - Create an invoice
+- `PRODUCT_INVENTORY_CHECK` - Check product inventory levels
+- `ORDER_CONFIRMATION_SEND` - Send order confirmation email
+- `CART_DISCOUNT_APPLY` - Apply discount to shopping cart
 
 ```
-Good: LEAD_QUALIFY, ORDER_TOTAL_CALCULATE
-Bad: qualifyLead, calculate-order-total
+Good: CUSTOMER_LOYALTY_UPDATE, PRODUCT_PRICE_CALCULATE
+Bad: updateLoyalty, calculate-product-price
 ```
 
 **Why this matters:** Agents use tool names to decide when to use them. Descriptive names = better decisions.
@@ -84,10 +84,10 @@ Bad: qualifyLead, calculate-order-total
 
 Tells agents and workflows what the tool does and when to use it:
 ```
-Good: "Qualify a lead based on company size, industry, and budget. 
-Returns score 0-100 and tier (A/B/C)."
+Good: "Check product inventory across all warehouses and calculate available stock.
+Returns total quantity, location breakdown, and low stock alert status."
 
-Bad: "Qualifies leads"
+Bad: "Checks inventory"
 ```
 
 The better the description, the better agents understand when to use it.
@@ -136,7 +136,8 @@ deco CMS automatically generates a form based on your input schema. Fill in the 
 
 **Via chat:**
 ```
-@YOUR_TOOL_NAME param1="value" param2=123
+@PRODUCT_INVENTORY_CHECK sku="SKU-12345"
+@ORDER_CONFIRMATION_SEND customerEmail="customer@example.com" orderNumber="ORD-789"
 ```
 
 Iterate until it works as expected.
@@ -182,7 +183,8 @@ Once connected, any tools your custom app provides will automatically appear in 
 Ask deco chat to make changes or edit TypeScript directly:
 
 ```
-Update CUSTOMER_FETCH to also return the customer's last order date
+Update PRODUCT_INVENTORY_CHECK to also return the product's reorder threshold
+Update ORDER_CONFIRMATION_SEND to include estimated delivery date
 ```
 
 **Other actions:**
@@ -197,9 +199,10 @@ Hover over any tool card and click **...** to:
 Organize related tools for easier discovery:
 
 **Examples:**
-- **Customer Management** - `CUSTOMER_CREATE`, `CUSTOMER_FETCH`, `CUSTOMER_UPDATE`, `CUSTOMER_DELETE`
-- **Email** - `EMAIL_SEND`, `EMAIL_VALIDATE`, `EMAIL_TEMPLATE_RENDER`
-- **Billing** - `INVOICE_CREATE`, `PAYMENT_PROCESS`, `SUBSCRIPTION_UPDATE`
+- **Customer Management** - `CUSTOMER_CREATE`, `CUSTOMER_FETCH`, `CUSTOMER_UPDATE`, `CUSTOMER_LOYALTY_UPDATE`
+- **Order Processing** - `ORDER_CREATE`, `ORDER_UPDATE`, `ORDER_CANCEL`, `ORDER_REFUND`
+- **Inventory** - `PRODUCT_INVENTORY_CHECK`, `INVENTORY_UPDATE`, `INVENTORY_ALERT_CREATE`
+- **Notifications** - `ORDER_CONFIRMATION_SEND`, `SHIPPING_NOTIFICATION_SEND`, `CART_ABANDONED_SEND`
 
 ## Composition Principles
 
@@ -207,10 +210,10 @@ Organize related tools for easier discovery:
 
 Don't build monolithic tools:
 ```
-❌ CUSTOMER_ONBOARD_AND_EMAIL_AND_SYNC
+❌ ORDER_CREATE_AND_EMAIL_AND_UPDATE_INVENTORY_AND_NOTIFY
 
-✅ CUSTOMER_CREATE → EMAIL_WELCOME_SEND → CRM_SYNC
-   (Three simple tools composed in a workflow)
+✅ ORDER_CREATE → INVENTORY_UPDATE → ORDER_CONFIRMATION_SEND → ORDER_NOTIFICATION_SEND
+   (Four simple tools composed in a workflow)
 ```
 
 ### Schemas Enable Automation
