@@ -8,18 +8,71 @@ import Callout from "../../../components/ui/Callout.astro";
 
 ## What is decocms?
 
-**decocms** is a **control plane for MCP traffic**. It sits between MCP clients (Cursor, Claude Desktop, custom agents) and MCP servers, providing a centralized layer for **authentication, authorization, credential management, and observability**.
+**decocms** is a **control plane for MCP traffic**. It sits between MCP clients (like Claude Desktop, Cursor, or custom AI agents) and MCP servers (like GitHub, Slack, databases, or your custom tools), providing a centralized layer for **authentication, authorization, credential management, and observability**.
 
-## The problem
+Think of decocms as the "Kubernetes for MCP"—it manages the infrastructure layer so you can focus on building capabilities, not managing connections.
 
-When MCP moves from a few PoCs to production usage, teams start paying an “integration tax”:
+## The Problem: MCP at Scale
 
-- **Connection sprawl**: every client wires and maintains its own MCP connections and auth
-- **Inconsistent policy enforcement**: SSO/RBAC and approvals drift across apps and teams
-- **Operational blind spots**: no unified logs/traces to debug failures end-to-end
-- **Tool surface explosion**: too many tools increases context size, latency, and tool-selection errors
+The Model Context Protocol enables AI agents to take action beyond chat—querying databases, creating pull requests, sending messages, deploying code. But when you move from a few proof-of-concepts to production usage across teams, a new set of challenges emerges:
 
-decocms centralizes these concerns once, so you can operate MCP traffic like any other production surface.
+### Connection Sprawl
+
+Without a control plane, every client (Cursor on your laptop, Claude Desktop, your custom agent) must independently configure and maintain connections to every MCP server it uses. Each connection requires:
+- Storing credentials (API keys, OAuth tokens)
+- Managing connection URLs and configuration
+- Handling credential rotation
+- Updating when MCP servers change
+
+For a team of 20 developers using 10 MCP servers, that's 200 individual connection configurations to manage.
+
+### Inconsistent Security & Policy
+
+When each client manages its own MCP connections, security policies fragment:
+- Developer A can access production databases, Developer B cannot (but should)
+- Credential rotation happens on different schedules across clients
+- No unified answer to "who has access to what?"
+- Authorization logic lives in client applications, not infrastructure
+
+This fragmentation makes compliance difficult and security incidents hard to investigate.
+
+### Operational Blind Spots
+
+Without centralized observability, debugging failures is painful:
+- No unified logs showing which tools were invoked
+- Client-side logging (if it exists) is inconsistent
+- Cannot trace a request across multiple MCP servers
+- No visibility into performance bottlenecks or expensive operations
+
+When something breaks, you're piecing together logs from different clients and servers, hoping to reconstruct what happened.
+
+### Tool Surface Explosion
+
+As you connect more MCP servers, the total number of available tools grows rapidly. A typical setup might expose:
+- GitHub: 25 tools (create PR, list issues, merge, tag releases...)
+- Slack: 15 tools (post message, create channel, invite user...)
+- Database: 30 tools (query, insert, update, migrations...)
+- Custom APIs: 40+ tools
+
+This creates two problems:
+- **Context bloat**: Sending 100+ tool definitions to the AI consumes precious context window
+- **Selection errors**: More tools means higher chance the AI picks the wrong one
+
+## How decocms Solves This
+
+decocms centralizes MCP infrastructure so these problems disappear:
+
+**One connection per MCP server** (configured once in decocms), not one per client.
+
+**Unified credential vault** with encryption at rest and rotation without client updates.
+
+**Single authorization layer** enforcing consistent permissions across all clients and MCP servers.
+
+**Built-in observability** logging every tool invocation for debugging, audit, and cost visibility.
+
+**Virtual MCPs** composing and filtering tool surfaces so clients see only relevant capabilities.
+
+By handling these concerns in infrastructure rather than application code, decocms lets teams operate MCP traffic like any other production system—with security, observability, and control.
 
 ## High-level architecture
 
@@ -33,22 +86,54 @@ decocms centralizes these concerns once, so you can operate MCP traffic like any
                         └──────────────────┘
 ```
 
-## What decocms centralizes
+## Platform Capabilities
 
-- **Routing + execution**: which MCP to call and how to authenticate it
-- **Policy enforcement**: who can access which tools (and through which virtual MCPs)
-- **Observability**: logs, latency, errors, and request context across tool calls
-- **Runtime strategies (virtual MCPs)**: different exposure strategies as tool surfaces grow
+### Connection Management
 
-## Product surfaces (what you can do today)
+**Connect MCP servers once**, store credentials securely, and use everywhere. Whether it's GitHub, Slack, your database, or custom MCP servers—register them in decocms and they become available across all your projects and agents.
 
-- **Store**: browse a catalog of Connections you can connect to (default: the official MCP Registry).
-- **Connections**: connect and manage MCP servers (HTTP MCP endpoints).
-- **Hubs**: publish a curated "virtual MCP server" that aggregates tools/resources/prompts from multiple connections.
-- **API Keys**: create scoped keys with explicit tool permissions.
-- **Members & Roles**: invite teammates and manage roles + permissions.
-- **Monitoring**: tool-call logs, errors, latency, filtering, and streaming.
-- **Deploy**: self-host locally (npx / Docker Compose) or on Kubernetes (Helm).
+Credentials are encrypted at rest in decocms's vault and never exposed to clients. When credentials need rotation, update once in decocms rather than updating every client.
+
+### Virtual MCPs: Composition Without Code
+
+**Dynamically compose** tool surfaces from multiple MCP servers without writing or deploying server code. Virtual MCPs aggregate tools, resources, and prompts into a single MCP-compliant endpoint that can be modified at runtime.
+
+This enables:
+- Building curated tool surfaces for specific workflows
+- Filtering large tool surfaces to reduce context size
+- Adding inline resources and prompts
+- Creating organizational patterns (Projects for teams, Agents for specific tasks)
+
+### Authorization & Access Control
+
+**Centralized permission management** ensures consistent security policies across all MCP traffic. Define who can access which tools, and decocms enforces authorization before proxying requests.
+
+API keys can be scoped to specific tools (e.g., "can create GitHub PRs but not merge them"), providing fine-grained least-privilege access for automation and integrations.
+
+### Complete Observability
+
+**Every tool invocation** flowing through decocms creates a monitoring log with:
+- Tool name and connection
+- Caller identity (user or API key)
+- Input arguments and output results
+- Duration and error status
+- Request context and timestamps
+
+This unified audit trail enables debugging, cost analysis, security investigation, and usage analytics across your entire MCP infrastructure.
+
+### Multi-Tenancy & Isolation
+
+**Organization-scoped** isolation ensures clear boundaries between tenants. Each organization has its own:
+- Connection configurations and credentials
+- Virtual MCPs (projects and agents)
+- Permission policies and member roles
+- Monitoring logs and audit trails
+
+This multi-tenancy enables SaaS providers, enterprises with multiple divisions, and agencies managing client workspaces.
+
+### Self-Hosted or Cloud
+
+**Deploy anywhere**: run decocms locally for development, self-host in your infrastructure (Docker Compose, Kubernetes), or use the managed cloud service. The architecture is the same regardless of deployment model—you maintain full control over your data and credentials.
 
 <Callout type="info">
   We're releasing decocms to the open-source community in **December 2025**.

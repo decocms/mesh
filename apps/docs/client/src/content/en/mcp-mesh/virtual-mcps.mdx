@@ -116,11 +116,14 @@ Tools and prompts use `connection_id::CAPABILITY_NAME` format (max 64 chars). Re
 
 ## Features Powered by Virtual MCPs
 
-Virtual MCPs provide the **foundational capability** that powers specialized features across decocms. All of these inherit full [monitoring capabilities](/en/mcp-mesh/monitoring) for audit trails and observability:
+Virtual MCPs provide the **foundational capability** that powers specialized features across decocms. All of these inherit full [monitoring capabilities](/en/mcp-mesh/monitoring) for audit trails and observability.
+
+**MCP Client Compatibility**: Virtual MCPs are callable by any MCP-compatible client—including Cursor, Claude Code, VS Code extensions, and any application that implements the Model Context Protocol. This makes your composed capability packages universally accessible across the AI tooling ecosystem.
+
+**Specialized features built on virtual MCPs:**
 
 - **[Agents](/en/mcp-mesh/agents)**: Single-purpose capability packages optimized for specific tasks
 - **[Projects](/en/mcp-mesh/projects)**: Team-scoped capability packages for organizational boundaries
-- **Organization MCP**: Default capability package that aggregates all your connections
 
 ## Use Cases & Benefits
 
@@ -130,6 +133,7 @@ Virtual MCPs turn fragmented MCP connections into unified, reusable capability p
 - **Unified Deployment Ops**: Package GitHub (PRs, releases) + Slack (notifications) + database (migrations) into one deployment MCP
 - **Custom Code Review**: Remix GitHub tools with inline security/performance prompts and team style guides
 - **Development Assistant**: Combine GitHub + Jira tools with inline workflow prompts and project context
+- **Team-wide MCP Sharing**: Share access to a Cloudflare MCP connection across your team while filtering out administrative operations—giving developers safe, scoped access to DNS management and Workers deployment without exposing account-level controls
 - **Cross-system Orchestration**: Package CRM, analytics, and communication tools for end-to-end business processes
 
 **Key benefits:**
