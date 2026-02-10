@@ -1,0 +1,57 @@
+---
+title: tool_search
+description: Search for tools available in the current scope
+icon: Search
+---
+
+## Overview
+
+Searches for tools available in the current scope (organization, project, or agent). Returns tools from the current scope's virtual MCP only.
+
+## Availability
+
+- **Tasks**: ✓ Available
+- **Subtasks**: ✓ Available
+
+## Signature
+
+```typescript
+tool_search(search_term?: string)
+```
+
+## Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `search_term` | `string` | Optional | Search term to filter tools. Empty search returns all available tools. |
+
+## Returns
+
+Array of tool definitions with:
+- **name**: Tool identifier
+- **description**: What the tool does
+- **source**: Where the tool comes from (connection/server)
+
+## Behavior
+
+- Returns tools from the current scope's virtual MCP only
+- Empty search returns all available tools in the current scope
+- Tools must be enabled via `tool_enable` before they can be invoked
+
+## Example Usage
+
+```typescript
+// Search for all tools
+tool_search()
+
+// Search for GitHub-related tools
+tool_search("github")
+
+// Search for deployment tools
+tool_search("deploy")
+```
+
+## Related
+
+- [**tool_enable**](/en/mcp-mesh/api-reference/built-in-tools/tool-enable) - Activate discovered tools
+- [Built-in Tools Overview](/en/mcp-mesh/api-reference/built-in-tools)
