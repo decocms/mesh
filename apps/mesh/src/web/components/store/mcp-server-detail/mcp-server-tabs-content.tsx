@@ -5,20 +5,19 @@ import { useQuery } from "@tanstack/react-query";
 import { marked } from "marked";
 import { ToolsList, type Tool } from "@/web/components/tools";
 
+import DOMPurify from "dompurify";
+
 /**
- * Strip dangerous HTML tags from marked output to prevent XSS.
- * Marked does not sanitize by default; this is a lightweight filter
- * that removes script, iframe, object, embed, form, and event handlers.
+ * Sanitize HTML generated from markdown to prevent XSS.
+ * Uses DOMPurify which handles all known bypass vectors including
+ * unquoted event handlers, SVG/MathML payloads, and style injection.
  */
 function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script[\s>][\s\S]*?<\/script>/gi, "")
-    .replace(/<iframe[\s>][\s\S]*?<\/iframe>/gi, "")
-    .replace(/<object[\s>][\s\S]*?<\/object>/gi, "")
-    .replace(/<embed[\s>][\s\S]*?>/gi, "")
-    .replace(/<form[\s>][\s\S]*?<\/form>/gi, "")
-    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/\son\w+\s*=\s*'[^']*'/gi, "");
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["style", "form"],
+    FORBID_ATTR: ["style"],
+  });
 }
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { MCPServersList } from "./mcp-servers-list";
