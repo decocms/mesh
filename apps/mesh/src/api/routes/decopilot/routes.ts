@@ -5,7 +5,7 @@
  * Uses Memory and ModelProvider abstractions.
  */
 
-import { consumeStream, stepCountIs, streamText, UIMessage } from "ai";
+import { consumeStream, stepCountIs, streamText } from "ai";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -14,8 +14,9 @@ import type { MeshContext } from "@/core/mesh-context";
 import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
-import { Metadata } from "@/web/components/chat/types";
+import type { ChatMessage } from "./types";
 import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
+import { getBuiltInTools } from "./built-in-tools";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
@@ -44,7 +45,7 @@ async function validateRequest(
 
   const parseResult = StreamRequestSchema.safeParse(rawPayload);
   if (!parseResult.success) {
-    throw new HTTPException(400, { message: "Invalid request body" });
+    throw new HTTPException(400, { message: parseResult.error.message });
   }
 
   return {
@@ -160,6 +161,9 @@ app.post("/:org/decopilot/stream", async (c) => {
       }),
     ]);
 
+    // 3. Get built-in tools (client-side tools like user_ask)
+    const builtInTools = getBuiltInTools();
+
     // CRITICAL: Register abort handler to ensure client cleanup on disconnect
     // Without this, when client disconnects mid-stream, onFinish/onError are NOT called
     // and the MCP client + transport streams leak (TextDecoderStream, 256KB buffers)
@@ -174,13 +178,13 @@ app.post("/:org/decopilot/stream", async (c) => {
     // Build system prompt combining platform instructions with agent-specific instructions
     const systemPrompt = DECOPILOT_BASE_PROMPT(serverInstructions);
 
-    // 3. Process conversation
+    // 4. Process conversation
     const { memory, systemMessages, prunedMessages, originalMessages } =
       await processConversation(ctx, {
         organizationId: organization.id,
         threadId,
         windowSize,
-        messages: messages as unknown as UIMessage<Metadata>[],
+        messages: messages as unknown as ChatMessage[],
         systemPrompts: [systemPrompt],
         model,
       });
@@ -188,12 +192,12 @@ app.post("/:org/decopilot/stream", async (c) => {
     const shouldGenerateTitle = prunedMessages.length === 1;
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
     let newTitle: string | null = null;
-    // 4. Main stream
+    // 5. Main stream
     const result = streamText({
       model: modelProvider.model,
       system: systemMessages,
       messages: prunedMessages,
-      tools: mcpTools,
+      tools: { ...mcpTools, ...builtInTools },
       temperature,
       maxOutputTokens,
       abortSignal,
@@ -235,7 +239,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     let reasoningStartAt: Date | null = null;
     let accumulatedUsage: UsageStats = emptyUsageStats();
 
-    // 5. Return the stream response with metadata
+    // 6. Return the stream response with metadata
     return result.toUIMessageStreamResponse({
       originalMessages,
       // consumeSseStream ensures proper abort handling and prevents memory leaks
@@ -293,40 +297,41 @@ app.post("/:org/decopilot/stream", async (c) => {
         return;
       },
       onFinish: async ({
-        messages: UIMessages,
-        isAborted,
+        messages: _UIMessages,
+        isAborted: _isAborted,
         responseMessage,
       }) => {
-        if (isAborted) {
-          const userMsg = messages[
-            messages.length - 1
-          ] as unknown as UIMessage<Metadata>;
-          const assistantMsg = responseMessage;
-          const assistantMsgParts = assistantMsg?.parts ?? [];
-          const userMsgParts = userMsg?.parts ?? [];
-          if (assistantMsgParts.length === 0 || userMsgParts.length === 0) {
-            return;
-          }
-          const partialMessages: UIMessage<Metadata>[] = [
-            {
-              id: generatePrefixedId("msg"),
-              role: "user",
-              parts: userMsgParts as UIMessage<Metadata>["parts"],
-              metadata: userMsg?.metadata as Metadata | undefined,
-            },
-            {
-              id: generatePrefixedId("msg"),
-              role: "assistant",
-              parts: assistantMsgParts,
-              metadata: assistantMsg?.metadata,
-            },
-          ];
+        // Use request's last message (has client tool results e.g. user_ask) + stream response.
+        // UIMessages from stream lacks client-injected tool results, so we'd overwrite with stale data.
+        const requestLast = messages[messages.length - 1] as
+          | ChatMessage
+          | undefined;
+        const rawMessages = [requestLast, responseMessage].filter(Boolean);
+        // Deduplicate by id - avoid PostgreSQL "cannot affect row a second time" when
+        // request echoes response (e.g. sendAutomaticallyWhen race). Keep last occurrence
+        // (responseMessage) since it has the full streamed content.
+        const seen = new Set<string>();
+        const deduped = [...rawMessages]
+          .reverse()
+          .filter((m): m is ChatMessage => {
+            if (!m) return false;
+            const id = m.id?.trim() || "";
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+          })
+          .reverse();
 
-          const messagesToSave = partialMessages.map((message) => {
+        const messagesToSave = deduped
+          .filter(
+            (m): m is ChatMessage => m != null && (m.parts?.length ?? 0) > 0,
+          )
+          .map((message: ChatMessage, i) => {
             const now = new Date().getTime();
-            const createdAt = message.role === "user" ? now : now + 1000;
+            const createdAt = now + i * 1000;
             return {
               ...message,
+              id: message.id?.trim() ? message.id : generatePrefixedId("msg"),
               metadata: {
                 ...message.metadata,
                 title: newTitle ?? undefined,
@@ -336,29 +341,9 @@ app.post("/:org/decopilot/stream", async (c) => {
               threadId: memory.thread.id,
             };
           });
-          await memory.save(messagesToSave).catch((error) => {
-            console.error(
-              "[decopilot:stream] Error saving partial messages",
-              error,
-            );
-          });
-          return;
-        }
-        const messagesToSave = UIMessages.slice(-2).map((message) => {
-          const now = new Date().getTime();
-          const createdAt = message.role === "user" ? now : now + 1000;
-          return {
-            ...message,
-            metadata: {
-              ...message.metadata,
-              title: newTitle ?? undefined,
-            },
-            id: generatePrefixedId("msg"),
-            createdAt: new Date(createdAt).toISOString(),
-            updatedAt: new Date(createdAt).toISOString(),
-            threadId: memory.thread.id,
-          };
-        });
+
+        if (messagesToSave.length === 0) return;
+
         await memory.save(messagesToSave).catch((error) => {
           console.error("[decopilot:stream] Error saving messages", error);
         });

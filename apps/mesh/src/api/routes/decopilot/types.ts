@@ -9,7 +9,29 @@
  */
 
 import type { LanguageModelV2 } from "@ai-sdk/provider";
+import type { InferUITool, UIMessage } from "ai";
 import type { Thread, ThreadMessage } from "@/storage/types";
+import type { Metadata } from "@/web/components/chat/types";
+import type { getBuiltInTools } from "./built-in-tools";
+
+// ============================================================================
+// Stream API Message Types
+// ============================================================================
+
+/**
+ * Message type for chat - frontend and backend.
+ * Validated messages from the client with proper Metadata typing.
+ * Includes UITools for built-in tools (e.g. user_ask).
+ */
+export type ChatMessage = UIMessage<
+  Metadata,
+  {},
+  {
+    [K in keyof ReturnType<typeof getBuiltInTools>]: InferUITool<
+      ReturnType<typeof getBuiltInTools>[K]
+    >;
+  }
+>;
 
 // ============================================================================
 // Memory - Thread and message history
