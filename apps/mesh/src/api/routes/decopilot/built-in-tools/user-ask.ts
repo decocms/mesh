@@ -14,15 +14,14 @@ import { z } from "zod";
  */
 export const UserAskInputSchema = z
   .object({
-    prompt: z.string().min(1).describe("Question to ask the user"),
+    prompt: z.string().min(1).describe("The question to display"),
     type: z
       .enum(["text", "choice", "confirm"])
-      .describe("Type of input to request"),
-    options: z
-      .array(z.string())
-      .optional()
-      .describe("Available choices (required for 'choice' type)"),
-    default: z.string().optional().describe("Default value"),
+      .describe(
+        "'text': free-form, 'choice': pick from options (UI adds 'Other' automatically), 'confirm': yes/no",
+      ),
+    options: z.array(z.string()).optional().describe("Required for 'choice'"),
+    default: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -50,6 +49,9 @@ export const UserAskOutputSchema = z.object({
 
 export type UserAskOutput = z.infer<typeof UserAskOutputSchema>;
 
+const description =
+  "Ask the user instead of guessing when requirements are ambiguous, multiple valid approaches exist, or before destructive changes. Prefer this tool over asking in plain text.";
+
 /**
  * user_ask tool definition (AI SDK)
  *
@@ -58,13 +60,7 @@ export type UserAskOutput = z.infer<typeof UserAskOutputSchema>;
  * an interactive prompt and the user provides a response.
  */
 export const userAskTool = tool({
-  description: `
-Always use this tool when you need to ask the user a question. Do not ask questions in plain text—use user_ask instead.
-
-Types: 'text' (free-form input), 'choice' (select from options; requires at least 2 options), 'confirm' (yes/no).
-
-Use proactively when requirements are ambiguous, multiple valid approaches exist, a decision significantly impacts the solution, or before destructive changes.
-`.replace(/\s+/g, " "),
+  description,
   inputSchema: zodSchema(UserAskInputSchema),
   outputSchema: zodSchema(UserAskOutputSchema),
 });
