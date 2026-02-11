@@ -1,5 +1,5 @@
 /**
- * Memory Implementation
+ * Memory
  *
  * Thread-based conversation history management.
  * Wraps the thread storage for conversation-focused operations.
@@ -7,13 +7,35 @@
 
 import type { Thread, ThreadMessage } from "@/storage/types";
 import type { ThreadStoragePort } from "@/storage/ports";
-import type { Memory, MemoryConfig } from "./types";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
- * Thread-based Memory implementation
+ * Configuration for creating a Memory instance
  */
-class ThreadMemory implements Memory {
+export interface MemoryConfig {
+  /** Thread ID (creates new if not found) */
+  threadId?: string | null;
+
+  /** Organization scope */
+  organizationId: string;
+
+  /** User who owns/created the thread */
+  userId: string;
+
+  /** Default window size for pruning */
+  defaultWindowSize?: number;
+}
+
+/**
+ * Thread-based conversation memory.
+ *
+ * Provides:
+ * - Thread management (get or create)
+ * - Message history loading
+ * - Message saving
+ * - Pruning for context window management
+ */
+export class Memory {
   readonly thread: Thread;
   readonly organizationId: string;
 
@@ -83,7 +105,7 @@ export async function createMemory(
     }
   }
 
-  return new ThreadMemory({
+  return new Memory({
     thread,
     storage,
     defaultWindowSize,

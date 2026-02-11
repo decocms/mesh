@@ -13,7 +13,7 @@ import {
   validateUIMessages,
 } from "ai";
 import type { ChatMessage } from "./types";
-import type { Memory } from "./types";
+import type { Memory } from "./memory";
 import { HTTPException } from "hono/http-exception";
 
 export interface ProcessedConversation {
