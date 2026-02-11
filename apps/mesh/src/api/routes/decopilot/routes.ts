@@ -13,25 +13,27 @@ import { HTTPException } from "hono/http-exception";
 import type { MeshContext } from "@/core/mesh-context";
 import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
-import { generatePrefixedId } from "@/shared/utils/generate-id";
-import type { ChatMessage } from "./types";
 import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
 import { getBuiltInTools } from "./built-in-tools";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
   DEFAULT_WINDOW_SIZE,
+  generateMessageId,
 } from "./constants";
 import { processConversation } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
-import { createModelProviderFromClient } from "./model-provider";
+import { createMemory } from "./memory";
+import { ensureModelCompatibility } from "./model-compat";
 import {
   checkModelPermission,
   fetchModelPermissions,
   parseModelsToMap,
 } from "./model-permissions";
+import { createModelProviderFromClient } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
 import { generateTitleInBackground } from "./title-generator";
+import type { ChatMessage } from "./types";
 
 // ============================================================================
 // Request Validation
@@ -104,12 +106,18 @@ app.post("/:org/decopilot/stream", async (c) => {
       thread_id,
     } = await validateRequest(c);
 
+    const userId = ctx.auth?.user?.id;
+    if (!userId) {
+      throw new HTTPException(401, { message: "User ID is required" });
+    }
+
     // 2. Check model permissions
     const allowedModels = await fetchModelPermissions(
       ctx.db,
       organization.id,
       ctx.auth.user?.role,
     );
+
     if (!checkModelPermission(allowedModels, model.connectionId, model.id)) {
       throw new HTTPException(403, {
         message: "Model not allowed for your role",
@@ -151,13 +159,19 @@ app.post("/:org/decopilot/stream", async (c) => {
       { superUser: false },
     );
 
-    // 2. Extract tools from virtual MCP client and create model provider
-    const [mcpTools, modelProvider] = await Promise.all([
+    // 2. Extract tools from virtual MCP client, create model provider, and create/load memory
+    const [mcpTools, modelProvider, memory] = await Promise.all([
       toolsFromMCP(mcpClient),
       createModelProviderFromClient(streamableModelClient, {
         modelId: model.id,
         connectionId: model.connectionId,
         fastId: model.fastId ?? null,
+      }),
+      createMemory(ctx.storage.threads, {
+        organizationId: organization.id,
+        threadId,
+        userId,
+        defaultWindowSize: windowSize,
       }),
     ]);
 
@@ -179,24 +193,29 @@ app.post("/:org/decopilot/stream", async (c) => {
     const systemPrompt = DECOPILOT_BASE_PROMPT(serverInstructions);
 
     // 4. Process conversation
-    const { memory, systemMessages, prunedMessages, originalMessages } =
-      await processConversation(ctx, {
-        organizationId: organization.id,
-        threadId,
-        windowSize,
-        messages: messages as unknown as ChatMessage[],
-        systemPrompts: [systemPrompt],
-        model,
-      });
+    const messagesAsChat = messages as unknown as ChatMessage[];
+    const {
+      systemMessages,
+      messages: processedMessages,
+      originalMessages,
+    } = await processConversation(memory, messagesAsChat, systemPrompt, {
+      windowSize,
+      model,
+    });
 
-    const shouldGenerateTitle = prunedMessages.length === 1;
+    ensureModelCompatibility(model, originalMessages);
+
+    const requestMessage = messagesAsChat.find((m) => m.role !== "system")!;
+
+    const shouldGenerateTitle = processedMessages.length === 1;
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
     let newTitle: string | null = null;
+
     // 5. Main stream
     const result = streamText({
       model: modelProvider.model,
       system: systemMessages,
-      messages: prunedMessages,
+      messages: processedMessages,
       tools: { ...mcpTools, ...builtInTools },
       temperature,
       maxOutputTokens,
@@ -207,7 +226,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         // This blocks the "finish-step" event and subsequent steps (for tool calls),
         // but the response text has already been sent to the client.
         if (shouldGenerateTitle && newTitle === null) {
-          const userMessage = JSON.stringify(prunedMessages[0]?.content);
+          const userMessage = JSON.stringify(processedMessages[0]?.content);
           const modelToUse = modelProvider.cheapModel ?? modelProvider.model;
 
           await generateTitleInBackground({
@@ -244,6 +263,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       originalMessages,
       // consumeSseStream ensures proper abort handling and prevents memory leaks
       consumeSseStream: consumeStream,
+      generateMessageId,
       messageMetadata: ({ part }) => {
         if (part.type === "start") {
           return {
@@ -301,46 +321,20 @@ app.post("/:org/decopilot/stream", async (c) => {
         isAborted: _isAborted,
         responseMessage,
       }) => {
-        // Use request's last message (has client tool results e.g. user_ask) + stream response.
-        // UIMessages from stream lacks client-injected tool results, so we'd overwrite with stale data.
-        const requestLast = messages[messages.length - 1] as
-          | ChatMessage
-          | undefined;
-        const rawMessages = [requestLast, responseMessage].filter(Boolean);
-        // Deduplicate by id - avoid PostgreSQL "cannot affect row a second time" when
-        // request echoes response (e.g. sendAutomaticallyWhen race). Keep last occurrence
-        // (responseMessage) since it has the full streamed content.
-        const seen = new Set<string>();
-        const deduped = [...rawMessages]
-          .reverse()
-          .filter((m): m is ChatMessage => {
-            if (!m) return false;
-            const id = m.id?.trim() || "";
-            if (seen.has(id)) return false;
-            seen.add(id);
-            return true;
-          })
-          .reverse();
-
-        const messagesToSave = deduped
-          .filter(
-            (m): m is ChatMessage => m != null && (m.parts?.length ?? 0) > 0,
-          )
-          .map((message: ChatMessage, i) => {
-            const now = new Date().getTime();
-            const createdAt = now + i * 1000;
-            return {
-              ...message,
-              id: message.id?.trim() ? message.id : generatePrefixedId("msg"),
-              metadata: {
-                ...message.metadata,
-                title: newTitle ?? undefined,
-              },
-              createdAt: new Date(createdAt).toISOString(),
-              updatedAt: new Date(createdAt).toISOString(),
-              threadId: memory.thread.id,
-            };
-          });
+        const now = new Date().toISOString();
+        const messagesToSave = [
+          ...new Map(
+            [requestMessage, responseMessage]
+              .filter(Boolean)
+              .map((m) => [m.id, m]),
+          ).values(),
+        ].map((message) => ({
+          ...message,
+          metadata: { ...message.metadata, title: newTitle ?? undefined },
+          threadId: memory.thread.id,
+          createdAt: now,
+          updatedAt: now,
+        }));
 
         if (messagesToSave.length === 0) return;
 

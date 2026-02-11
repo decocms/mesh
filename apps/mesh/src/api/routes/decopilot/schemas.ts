@@ -20,7 +20,12 @@ const MemoryConfigSchema = z.object({
 });
 
 export const StreamRequestSchema = z.object({
-  messages: z.array(UIMessageSchema),
+  messages: z
+    .array(UIMessageSchema)
+    .min(1)
+    .refine((msgs) => msgs.filter((m) => m.role !== "system").length === 1, {
+      message: "Expected exactly one non-system message",
+    }),
   memory: MemoryConfigSchema.optional(),
   model: z
     .object({

@@ -1,8 +1,8 @@
-/**
- * Decopilot Constants
- *
- * Default values and system prompts for the Decopilot AI assistant.
- */
+import { generatePrefixedId } from "@/shared/utils/generate-id";
+import type { ChatMessage } from "./types";
+
+/** Message ID generator. Use as closure where a () => string is expected (e.g. toUIMessageStreamResponse). */
+export const generateMessageId = () => generatePrefixedId("msg");
 
 export const DEFAULT_MAX_TOKENS = 32768;
 export const DEFAULT_WINDOW_SIZE = 50;
@@ -11,16 +11,14 @@ export const DEFAULT_WINDOW_SIZE = 50;
  * Base system prompt for Decopilot
  *
  * @param agentInstructions - Optional instructions specific to the selected agent/virtual MCP
- * @returns The complete system prompt combining platform instructions with agent-specific instructions
+ * @returns ChatMessage with the base system prompt
  */
-export function DECOPILOT_BASE_PROMPT(agentInstructions?: string): string {
+export function DECOPILOT_BASE_PROMPT(agentInstructions?: string): ChatMessage {
   const platformPrompt = `You are decopilot, an AI assistant running inside decocms (deco context management system).`;
 
-  if (!agentInstructions?.trim()) {
-    return platformPrompt;
-  }
-
-  return `${platformPrompt}
+  let text = platformPrompt;
+  if (agentInstructions?.trim()) {
+    text += `
 
 ---
 
@@ -29,6 +27,13 @@ export function DECOPILOT_BASE_PROMPT(agentInstructions?: string): string {
 The following instructions are specific to the agent (virtual MCP) the user has selected. These instructions supplement the platform guidelines above:
 
 ${agentInstructions}`;
+  }
+
+  return {
+    id: "decopilot-system",
+    role: "system",
+    parts: [{ type: "text", text }],
+  };
 }
 
 export const TITLE_GENERATOR_PROMPT = `Your task: Generate a short title (3-6 words) summarizing the user's request.

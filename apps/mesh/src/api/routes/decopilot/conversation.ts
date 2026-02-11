@@ -4,110 +4,110 @@
  * Handles message processing, memory loading, and conversation state management.
  */
 
-import type { MeshContext } from "@/core/mesh-context";
 import { ChatModelConfig } from "@/web/components/chat/types";
 import {
   convertToModelMessages,
+  ModelMessage,
   pruneMessages,
   SystemModelMessage,
   validateUIMessages,
 } from "ai";
 import type { ChatMessage } from "./types";
-import { HTTPException } from "hono/http-exception";
-import { ensureUser } from "./helpers";
-import { createMemory } from "./memory";
 import type { Memory } from "./types";
+import { HTTPException } from "hono/http-exception";
 
 export interface ProcessedConversation {
-  memory: Memory;
   systemMessages: SystemModelMessage[];
-  prunedMessages: ReturnType<typeof pruneMessages>;
+  messages: ReturnType<typeof pruneMessages>;
   originalMessages: ChatMessage[];
 }
 
+function splitMessages<T extends ChatMessage>(
+  messages: ChatMessage[],
+): { systemMessages: ChatMessage[]; messages: ChatMessage[] };
+function splitMessages<T extends ModelMessage>(
+  messages: ModelMessage[],
+): {
+  systemMessages: Extract<ModelMessage, { role: "system" }>[];
+  messages: Extract<ModelMessage, { role: "user" | "assistant" }>[];
+};
+function splitMessages<T extends { role: string }>(messages: T[]) {
+  const [system, nonSystem] = messages.reduce(
+    (acc, m) => {
+      if (m.role === "system") acc[0].push(m);
+      else acc[1].push(m);
+      return acc;
+    },
+    [[], []] as [T[], T[]],
+  );
+  return {
+    systemMessages: system,
+    messages: nonSystem,
+  };
+}
+
 /**
- * Process messages and create/load memory for the conversation
+ * Process messages for the conversation (memory is created externally)
  */
 export async function processConversation(
-  ctx: MeshContext,
-  config: {
-    organizationId: string;
-    threadId: string | null | undefined;
-    windowSize: number;
-    messages: ChatMessage[];
-    systemPrompts: string[];
-    model: ChatModelConfig;
-  },
+  memory: Memory,
+  messages: ChatMessage[],
+  instruction: ChatMessage | null | undefined,
+  config: { windowSize: number; model: ChatModelConfig },
 ): Promise<ProcessedConversation> {
-  const userId = ensureUser(ctx);
+  const {
+    systemMessages,
+    messages: [message],
+  } = splitMessages(messages);
 
-  const modelHasVision = config.model.capabilities?.vision ?? true;
-
-  // Create or load memory
-  const memory = await createMemory(ctx.storage.threads, {
-    organizationId: config.organizationId,
-    threadId: config.threadId,
-    userId,
-    defaultWindowSize: config.windowSize,
-  });
+  if (!message) {
+    throw new HTTPException(400, {
+      message: "Expected exactly one non-system message",
+    });
+  }
 
   // Load thread history
   const threadMessages = await memory.loadHistory();
 
-  // ID-based merge: replace thread messages with config versions when ids match (client has updated, e.g. tool result)
-  const configById = new Map(
-    config.messages.map((m) => [m.id ?? crypto.randomUUID(), m]),
-  );
-  const merged = threadMessages.map((m) => configById.get(m.id) ?? m);
-  const threadIds = new Set(threadMessages.map((m) => m.id));
-  const appended = config.messages.filter((m) => !threadIds.has(m.id));
-  const allMessages = [...merged, ...appended];
+  // ID-based merge: if incoming message matches a thread message, replace it and drop the rest; else append
+  const matchIndex = threadMessages.findIndex((m) => m.id === message.id);
+  const conversation =
+    matchIndex >= 0
+      ? [...threadMessages.slice(0, matchIndex), message]
+      : [...threadMessages, message];
 
-  // Check if messages contain files when model doesn't support vision
-  if (!modelHasVision) {
-    const hasFiles = allMessages.some((message) =>
-      message.parts?.some((part) => part.type === "file"),
-    );
-    if (hasFiles) {
-      throw new HTTPException(400, {
-        message:
-          "This model does not support file uploads. Please change the model and try again.",
-      });
-    }
-  }
+  const allMessages: ChatMessage[] = [
+    ...(instruction ? [instruction] : []),
+    ...systemMessages,
+    ...conversation,
+  ];
 
-  const validatedMessages = await validateUIMessages({ messages: allMessages });
-  const mappedMessages = validatedMessages;
+  const validUIMessages = await validateUIMessages<ChatMessage>({
+    messages: allMessages,
+  });
 
   // Convert to model messages
-  const modelMessages = await convertToModelMessages(mappedMessages, {
+  const modelMessages = await convertToModelMessages(validUIMessages, {
     ignoreIncompleteToolCalls: true,
   });
 
-  // Build system messages from prompts + incoming system messages
-  const systemMessages: SystemModelMessage[] = [
-    ...config.systemPrompts.map((content) => ({
-      role: "system" as const,
-      content,
-    })),
-    ...(modelMessages.filter(
-      (m) => m.role === "system",
-    ) as SystemModelMessage[]),
-  ];
+  const {
+    systemMessages: systemModelMessages,
+    messages: nonSystemModelMessages,
+  } = splitMessages(modelMessages);
 
-  // Filter and prune non-system messages
-  const nonSystemMessages = modelMessages.filter((m) => m.role !== "system");
-  const prunedMessages = pruneMessages({
-    messages: nonSystemMessages,
-    reasoning: "before-last-message",
+  // Build system messages from input systemMessages + system from model (thread history)
+  // Filter and prune non-system messages (system messages are SystemModelMessage by construction)
+  const prunedModelMessages = pruneMessages({
+    messages: nonSystemModelMessages,
+    reasoning: "all",
     emptyMessages: "remove",
-    toolCalls: "all",
+    toolCalls: "none",
   }).slice(-config.windowSize);
 
   return {
-    memory,
-    systemMessages,
-    prunedMessages,
-    originalMessages: validatedMessages as ChatMessage[],
+    systemMessages: systemModelMessages,
+    messages: prunedModelMessages,
+    originalMessages: validUIMessages,
   };
 }

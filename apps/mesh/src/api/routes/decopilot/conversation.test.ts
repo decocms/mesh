@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "bun:test";
 import { processConversation } from "./conversation";
 import type { MeshContext } from "@/core/mesh-context";
+import { createMemory } from "./memory";
 import type { ChatMessage } from "./types";
 
 const mockThread = {
@@ -91,15 +92,22 @@ describe("processConversation", () => {
       });
 
       const ctx = createMockCtx(listMessagesMock);
-
-      const { originalMessages } = await processConversation(ctx, {
+      const memory = await createMemory(ctx.storage.threads, {
         organizationId: "org_1",
         threadId: "thrd_1",
-        windowSize: 50,
-        messages: configMessages,
-        systemPrompts: [],
-        model: { id: "m1", connectionId: "c1", capabilities: { text: true } },
+        userId: "user_1",
+        defaultWindowSize: 50,
       });
+
+      const { originalMessages } = await processConversation(
+        memory,
+        configMessages,
+        undefined,
+        {
+          windowSize: 50,
+          model: { id: "m1", connectionId: "c1", capabilities: { text: true } },
+        },
+      );
 
       const assistantMsg = originalMessages.find((m) => m.role === "assistant");
       expect(assistantMsg).toBeDefined();
@@ -132,22 +140,29 @@ describe("processConversation", () => {
       });
 
       const ctx = createMockCtx(listMessagesMock);
-
-      const { originalMessages } = await processConversation(ctx, {
+      const memory = await createMemory(ctx.storage.threads, {
         organizationId: "org_1",
         threadId: "thrd_1",
-        windowSize: 50,
-        messages: configMessages,
-        systemPrompts: [],
-        model: { id: "m1", connectionId: "c1", capabilities: { text: true } },
+        userId: "user_1",
+        defaultWindowSize: 50,
       });
+
+      const { originalMessages } = await processConversation(
+        memory,
+        configMessages,
+        undefined,
+        {
+          windowSize: 50,
+          model: { id: "m1", connectionId: "c1", capabilities: { text: true } },
+        },
+      );
 
       expect(originalMessages).toHaveLength(2);
       expect(originalMessages[0]!.id).toBe("msg-1");
       expect(originalMessages[1]!.id).toBe("msg-2");
     });
 
-    it("preserves thread order when merging", async () => {
+    it("replaces matching message and drops rest of thread", async () => {
       const threadMessages: ChatMessage[] = [
         { id: "msg-1", role: "user", parts: [{ type: "text", text: "A" }] },
         {
@@ -172,23 +187,29 @@ describe("processConversation", () => {
       });
 
       const ctx = createMockCtx(listMessagesMock);
-
-      const { originalMessages } = await processConversation(ctx, {
+      const memory = await createMemory(ctx.storage.threads, {
         organizationId: "org_1",
         threadId: "thrd_1",
-        windowSize: 50,
-        messages: configMessages,
-        systemPrompts: [],
-        model: { id: "m1", connectionId: "c1", capabilities: { text: true } },
+        userId: "user_1",
+        defaultWindowSize: 50,
       });
 
-      expect(originalMessages).toHaveLength(3);
+      const { originalMessages } = await processConversation(
+        memory,
+        configMessages,
+        undefined,
+        {
+          windowSize: 50,
+          model: { id: "m1", connectionId: "c1", capabilities: { text: true } },
+        },
+      );
+
+      expect(originalMessages).toHaveLength(2);
       expect(originalMessages[0]!.id).toBe("msg-1");
       expect(originalMessages[1]!.id).toBe("msg-2");
       const part0 = originalMessages[1]!.parts?.[0];
       expect(part0).toBeDefined();
       expect((part0 as { text: string }).text).toBe("B updated");
-      expect(originalMessages[2]!.id).toBe("msg-3");
     });
   });
 });
