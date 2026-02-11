@@ -80,7 +80,7 @@ export function useObjects(options: UseObjectsOptions = {}): UseObjectsResult {
     // Items appear in S3's natural order (lexicographical by key)
     objects =
       data?.pages
-        .flatMap((page) => page.objects)
+        .flatMap((page) => page.objects ?? [])
         .filter((obj) => !obj.key.endsWith("/")) // Exclude folder markers
         .map((obj) => ({
           key: obj.key,
@@ -103,7 +103,7 @@ export function useObjects(options: UseObjectsOptions = {}): UseObjectsResult {
 
     const files: ObjectItem[] =
       data?.pages.flatMap((page) =>
-        page.objects
+        (page.objects ?? [])
           .filter((obj) => !obj.key.endsWith("/")) // Exclude folder markers
           .map((obj) => ({
             key: obj.key,

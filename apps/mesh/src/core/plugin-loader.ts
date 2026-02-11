@@ -28,6 +28,18 @@ import type { CredentialVault } from "../encryption/credential-vault";
  */
 const pluginToolMap = new Map<string, string>();
 
+function isPluginEnabledForOrganization(
+  settings: { enabled_plugins?: string[] | null } | null,
+  pluginId: string,
+): boolean {
+  // Backward-compatible default: if organization settings are missing or
+  // enabled_plugins is null, do not block plugin tools.
+  if (!settings || settings.enabled_plugins == null) {
+    return true;
+  }
+  return settings.enabled_plugins.includes(pluginId);
+}
+
 /**
  * Wrap a tool with plugin-enabled check.
  * The tool will throw an error if the plugin is not enabled for the organization.
@@ -54,7 +66,7 @@ function withPluginEnabled<
       }
 
       const settings = await ctx.storage.organizationSettings.get(org.id);
-      if (!settings?.enabled_plugins?.includes(pluginId)) {
+      if (!isPluginEnabledForOrganization(settings, pluginId)) {
         throw new Error(
           `Plugin "${pluginId}" is not enabled for this organization. ` +
             `Enable it in Settings > Plugins.`,
@@ -72,7 +84,7 @@ function withPluginEnabled<
       }
 
       const settings = await ctx.storage.organizationSettings.get(org.id);
-      if (!settings?.enabled_plugins?.includes(pluginId)) {
+      if (!isPluginEnabledForOrganization(settings, pluginId)) {
         throw new Error(
           `Plugin "${pluginId}" is not enabled for this organization. ` +
             `Enable it in Settings > Plugins.`,
@@ -96,8 +108,10 @@ export function filterToolsByEnabledPlugins<T extends { name: string }>(
     const pluginId = pluginToolMap.get(tool.name);
     // Core tool (not from a plugin) - always show
     if (!pluginId) return true;
-    // Plugin tool - only show if plugin is enabled
-    return enabledPlugins?.includes(pluginId) ?? false;
+    // If org-level plugin settings are not configured, keep plugin tools visible.
+    if (enabledPlugins == null) return true;
+    // Plugin tool - only show if plugin is explicitly enabled
+    return enabledPlugins.includes(pluginId);
   });
 }
 

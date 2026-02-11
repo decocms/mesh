@@ -65,6 +65,8 @@ export interface MCPServerData {
   name: string;
   description: string;
   shortDescription: string | null;
+  readmeMarkdown: string | null;
+  readmeUrl: string | null;
   icon: string | null;
   verified?: boolean;
   publisher: string;
