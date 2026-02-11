@@ -145,23 +145,31 @@ export class SqlThreadStorage implements ThreadStoragePort {
     };
   }
 
+  /**
+   * Upserts thread messages by id.
+   * Inserts new messages; updates existing rows (by id) with parts, metadata, role, updated_at.
+   * PostgreSQL only.
+   */
   async saveMessages(data: ThreadMessage[]): Promise<void> {
     const now = new Date().toISOString();
     const threadId = data[0]?.threadId;
     if (!threadId) {
       throw new Error("threadId is required when creating multiple messages");
     }
+    // Deduplicate by id - PostgreSQL ON CONFLICT cannot affect same row twice in one INSERT.
+    const byId = new Map<string, ThreadMessage>();
+    for (const m of data) {
+      byId.set(m.id, m);
+    }
+    const unique = [...byId.values()];
     // Validate all messages target the same thread to prevent data corruption.
-    // Each message has its own threadId field, but batch inserts must be homogeneous.
-    const mismatchedMessage = data.find((m) => m.threadId !== threadId);
+    const mismatchedMessage = unique.find((m) => m.threadId !== threadId);
     if (mismatchedMessage) {
       throw new Error(
         `All messages must target the same thread. Expected threadId "${threadId}", but message "${mismatchedMessage.id}" has threadId "${mismatchedMessage.threadId}"`,
       );
     }
-    // Preserve original createdAt if provided to maintain message ordering.
-    // Messages in a batch may have been created at different times on the client.
-    const rows = data.map((message) => ({
+    const rows = unique.map((message) => ({
       id: message.id,
       thread_id: threadId,
       metadata: message.metadata ? JSON.stringify(message.metadata) : null,
@@ -170,13 +178,23 @@ export class SqlThreadStorage implements ThreadStoragePort {
       created_at: message.createdAt ?? now,
       updated_at: now,
     }));
+
     await this.db.transaction().execute(async (trx) => {
-      await trx.insertInto("thread_messages").values(rows).execute();
+      await trx
+        .insertInto("thread_messages")
+        .values(rows)
+        .onConflict((oc) =>
+          oc.column("id").doUpdateSet((eb) => ({
+            metadata: eb.ref("excluded.metadata"),
+            parts: eb.ref("excluded.parts"),
+            role: eb.ref("excluded.role"),
+            updated_at: eb.ref("excluded.updated_at"),
+          })),
+        )
+        .execute();
       await trx
         .updateTable("threads")
-        .set({
-          updated_at: now,
-        })
+        .set({ updated_at: now })
         .where("id", "=", threadId)
         .execute();
     });

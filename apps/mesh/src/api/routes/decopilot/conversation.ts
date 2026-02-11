@@ -5,14 +5,14 @@
  */
 
 import type { MeshContext } from "@/core/mesh-context";
-import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
+import { ChatModelConfig } from "@/web/components/chat/types";
 import {
   convertToModelMessages,
   pruneMessages,
   SystemModelMessage,
-  UIMessage,
   validateUIMessages,
 } from "ai";
+import type { ChatMessage } from "./types";
 import { HTTPException } from "hono/http-exception";
 import { ensureUser } from "./helpers";
 import { createMemory } from "./memory";
@@ -22,7 +22,7 @@ export interface ProcessedConversation {
   memory: Memory;
   systemMessages: SystemModelMessage[];
   prunedMessages: ReturnType<typeof pruneMessages>;
-  originalMessages: UIMessage<Metadata>[];
+  originalMessages: ChatMessage[];
 }
 
 /**
@@ -34,7 +34,7 @@ export async function processConversation(
     organizationId: string;
     threadId: string | null | undefined;
     windowSize: number;
-    messages: UIMessage<Metadata>[];
+    messages: ChatMessage[];
     systemPrompts: string[];
     model: ChatModelConfig;
   },
@@ -54,7 +54,14 @@ export async function processConversation(
   // Load thread history
   const threadMessages = await memory.loadHistory();
 
-  const allMessages = [...threadMessages, ...config.messages];
+  // ID-based merge: replace thread messages with config versions when ids match (client has updated, e.g. tool result)
+  const configById = new Map(
+    config.messages.map((m) => [m.id ?? crypto.randomUUID(), m]),
+  );
+  const merged = threadMessages.map((m) => configById.get(m.id) ?? m);
+  const threadIds = new Set(threadMessages.map((m) => m.id));
+  const appended = config.messages.filter((m) => !threadIds.has(m.id));
+  const allMessages = [...merged, ...appended];
 
   // Check if messages contain files when model doesn't support vision
   if (!modelHasVision) {
@@ -101,6 +108,6 @@ export async function processConversation(
     memory,
     systemMessages,
     prunedMessages,
-    originalMessages: validatedMessages as unknown as UIMessage<Metadata>[],
+    originalMessages: validatedMessages as ChatMessage[],
   };
 }
