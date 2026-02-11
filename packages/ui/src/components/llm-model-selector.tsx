@@ -1,5 +1,5 @@
 import { ChevronDown, SearchMd } from "@untitledui/icons";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { cn } from "../lib/utils.ts";
 import { Button } from "./button.tsx";
 import { Input } from "./input.tsx";
@@ -56,23 +56,19 @@ export function LLMModelSelector({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const selectedModel = useMemo(
-    () => models.find((model) => model.id === modelId),
-    [models, modelId],
-  );
+  const selectedModel = models.find((model) => model.id === modelId);
 
-  const filteredModels = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return models;
-    return models.filter(
-      (model) =>
-        model.title.toLowerCase().includes(query) ||
-        model.id.toLowerCase().includes(query),
-    );
-  }, [models, search]);
-  const selectedConnection = useMemo(
-    () => connections.find((connection) => connection.id === connectionId),
-    [connections, connectionId],
+  const query = search.trim().toLowerCase();
+  const filteredModels = query
+    ? models.filter(
+        (model) =>
+          model.title.toLowerCase().includes(query) ||
+          model.id.toLowerCase().includes(query),
+      )
+    : models;
+
+  const selectedConnection = connections.find(
+    (connection) => connection.id === connectionId,
   );
 
   const getCapabilityBadges = (capabilities: string[] | undefined) => {

@@ -4,6 +4,7 @@ import { Loading01 } from "@untitledui/icons";
 import { useQuery } from "@tanstack/react-query";
 import { marked } from "marked";
 import { ToolsList, type Tool } from "@/web/components/tools";
+import { KEYS } from "@/web/lib/query-keys";
 
 import DOMPurify from "dompurify";
 
@@ -67,7 +68,7 @@ export function MCPServerTabsContent({
     : null;
 
   const { data: fetchedReadmeHtml, isLoading: isLoadingReadmeUrl } = useQuery({
-    queryKey: ["store-readme-url", data.readmeUrl],
+    queryKey: KEYS.storeReadmeUrl(data.readmeUrl),
     queryFn: async () => {
       if (!data.readmeUrl) return null;
       const response = await fetch(data.readmeUrl);
