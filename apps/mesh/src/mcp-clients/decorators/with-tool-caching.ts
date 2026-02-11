@@ -56,8 +56,8 @@ export function withToolCaching(
     return await originalListTools();
   };
 
-  return {
-    ...client,
-    listTools: cachedListTools,
-  } as Client;
+  // Override listTools directly on the instance to preserve prototype methods
+  // (e.g. getServerCapabilities, getInstructions) which would be lost by spreading
+  client.listTools = cachedListTools;
+  return client;
 }
