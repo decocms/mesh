@@ -21,5 +21,3 @@ export const tools = [
   REGISTRY_DISCOVER_TOOLS,
   REGISTRY_AI_GENERATE,
 ];
-
-export { setPluginStorage } from "./utils";

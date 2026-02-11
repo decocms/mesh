@@ -1,9 +1,3 @@
-export function generatePrefixedId(prefix: string): string {
-  const timestamp = Date.now().toString(36);
-  const random = crypto.randomUUID().replace(/-/g, "").substring(0, 8);
-  return `${prefix}_${timestamp}${random}`;
-}
-
 export function encodeCursor(offset: number): string {
   return Buffer.from(String(offset), "utf8").toString("base64");
 }
