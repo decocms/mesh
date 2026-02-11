@@ -8,8 +8,9 @@ import {
 import type { ToolUIPart, UIMessage } from "ai";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MemoizedMarkdown } from "../markdown.tsx";
-import type { Metadata } from "../types.ts";
+import type { Metadata, UserAskToolPart } from "../types.ts";
 import { UsageStats } from "../usage-stats.tsx";
+import { UserAskQuestionPart } from "../highlight/user-ask-question";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
@@ -225,6 +226,8 @@ function MessagePart({
           hasNextToolCall={hasNextToolCall}
         />
       );
+    case "tool-user_ask":
+      return <UserAskQuestionPart part={part as UserAskToolPart} />;
     case "text":
       return (
         <MessageTextPart

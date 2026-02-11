@@ -1,5 +1,7 @@
+import type { ChatMessage } from "@/api/routes/decopilot/types";
+export type { ChatMessage };
+import type { UseChatHelpers } from "@ai-sdk/react";
 import type { JSONContent } from "@tiptap/core";
-import type { UIMessage } from "ai";
 
 // ============================================================================
 // Chat Config Types
@@ -89,8 +91,6 @@ export interface Thread {
   hidden?: boolean;
 }
 
-export type Message = UIMessage<Metadata>;
-
 // ============================================================================
 // Parent Thread Types
 // ============================================================================
@@ -105,3 +105,18 @@ export interface ParentThread {
   /** ID of the parent message being branched from */
   messageId: string;
 }
+
+// ============================================================================
+// Chat Message Types
+// ============================================================================
+
+export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
+
+// ============================================================================
+// Tool Part Types
+// ============================================================================
+
+export type UserAskToolPart = Extract<
+  ChatMessage["parts"][number],
+  { type: "tool-user_ask" }
+>;

@@ -1,6 +1,3 @@
-import type { UIMessage } from "ai";
-import type { Metadata } from "../types.ts";
-
 // Constants
 export const THREAD_CONSTANTS = {
   /** Page size for thread messages queries */
@@ -20,7 +17,7 @@ export interface Thread {
   hidden?: boolean;
 }
 
-export type Message = UIMessage<Metadata>;
+export type { ChatMessage } from "../types.ts";
 
 export type ThreadsInfiniteQueryData = {
   pages: Array<{

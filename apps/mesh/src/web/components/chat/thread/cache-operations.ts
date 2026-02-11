@@ -11,7 +11,7 @@ import {
 import type { QueryClient } from "@tanstack/react-query";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { KEYS } from "../../../lib/query-keys";
-import type { Message, Thread, ThreadsInfiniteQueryData } from "./types.ts";
+import type { ChatMessage, Thread, ThreadsInfiniteQueryData } from "./types.ts";
 import { THREAD_CONSTANTS } from "./types.ts";
 
 /**
@@ -184,7 +184,7 @@ export async function prefetchThreadMessages(
   const orderBy = buildOrderByExpression(
     undefined,
     undefined,
-    "updated_at" as keyof (CollectionEntity & Message),
+    "updated_at" as keyof (CollectionEntity & ChatMessage),
   );
 
   const toolArguments: CollectionListInput = {
@@ -217,7 +217,7 @@ export function updateMessagesCache(
   client: Client | null,
   orgId: string,
   threadId: string,
-  messages: Message[],
+  messages: ChatMessage[],
 ): void {
   if (!client) {
     return;
@@ -237,8 +237,8 @@ export function updateMessagesCache(
   // Use type assertion similar to useThreadMessages since runtime structure works correctly
   queryClient.setQueryData(queryKey, {
     structuredContent: {
-      items: messages as (CollectionEntity & Message)[],
-    } satisfies CollectionListOutput<CollectionEntity & Message>,
+      items: messages as (CollectionEntity & ChatMessage)[],
+    } satisfies CollectionListOutput<CollectionEntity & ChatMessage>,
     isError: false,
   });
 }

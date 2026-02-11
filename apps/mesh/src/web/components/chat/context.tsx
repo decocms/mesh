@@ -5,7 +5,8 @@
  * Provides optimized state management to minimize re-renders across the component tree.
  */
 
-import { useChat as useAIChat } from "@ai-sdk/react";
+import type { ToolSelectionStrategy } from "@/mcp-clients/virtual-mcp/types";
+import { useChat as useAIChat, type UseChatHelpers } from "@ai-sdk/react";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
 import {
   getWellKnownDecopilotVirtualMCP,
@@ -19,10 +20,8 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   DefaultChatTransport,
-  type UIDataTypes,
+  lastAssistantMessageIsCompleteWithToolCalls,
   type UIMessage,
-  type UIMessagePart,
-  type UITools,
 } from "ai";
 import {
   createContext,
@@ -34,21 +33,19 @@ import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import { useAllowedModels } from "../../hooks/use-allowed-models";
 import { useContext as useContextHook } from "../../hooks/use-context";
-import { useThreadManager } from "./thread";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import type { ToolSelectionStrategy } from "@/mcp-clients/virtual-mcp/types";
-import type { ChatMessage } from "./index";
 import {
   type ModelChangePayload,
   type SelectedModelState,
   useModels,
 } from "./select-model";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
+import { useThreadManager } from "./thread";
 import type { FileAttrs } from "./tiptap/file/node.tsx";
-import type { Message, Metadata, ParentThread, Thread } from "./types.ts";
+import type { ChatMessage, Metadata, ParentThread, Thread } from "./types.ts";
 
 // ============================================================================
 // Type Definitions
@@ -78,10 +75,22 @@ export type ChatStateAction =
   | { type: "CLEAR_FINISH_REASON" }
   | { type: "RESET" };
 
+/** Fields from useChat we pass through directly (typed via UseChatHelpers) */
+type ChatFromUseChat = Pick<
+  UseChatHelpers<ChatMessage>,
+  | "messages"
+  | "status"
+  | "setMessages"
+  | "error"
+  | "clearError"
+  | "stop"
+  | "addToolOutput"
+>;
+
 /**
  * Combined context value including interaction state, thread management, and session state
  */
-interface ChatContextValue {
+interface ChatContextValue extends ChatFromUseChat {
   // Interaction state
   tiptapDoc: Metadata["tiptapDoc"];
   setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
@@ -114,16 +123,10 @@ interface ChatContextValue {
   selectedMode: ToolSelectionStrategy;
   setSelectedMode: (mode: ToolSelectionStrategy) => void;
 
-  // Chat state
-  messages: ChatMessage[];
-  chatStatus: "submitted" | "streaming" | "ready" | "error";
+  // Chat state (extends useChat; sendMessage overridden, isStreaming/isChatEmpty derived)
+  sendMessage: (tiptapDoc: Metadata["tiptapDoc"]) => Promise<void>;
   isStreaming: boolean;
   isChatEmpty: boolean;
-  sendMessage: (tiptapDoc: Metadata["tiptapDoc"]) => Promise<void>;
-  stopStreaming: () => void;
-  setMessages: (messages: ChatMessage[]) => void;
-  chatError: Error | undefined;
-  clearChatError: () => void;
   finishReason: string | null;
   clearFinishReason: () => void;
 }
@@ -151,15 +154,24 @@ const createModelsTransport = (
             parts: [{ type: "text", text: system }],
           }
         : null;
-      const userMessage = messages.slice(-1).filter(Boolean) as Message[];
+      const userMessage = messages.slice(-1).filter(Boolean) as ChatMessage[];
       const allMessages = systemMessage
         ? [systemMessage, ...userMessage]
         : userMessage;
 
+      // Fall back to last message metadata when requestMetadata is missing model/agent
+      const lastMsgMeta = (messages.at(-1)?.metadata ?? {}) as Metadata;
+      const mergedMetadata = {
+        ...metadata,
+        agent: metadata.agent ?? lastMsgMeta.agent,
+        model: metadata.model ?? lastMsgMeta.model,
+        thread_id: metadata.thread_id ?? lastMsgMeta.thread_id,
+      };
+
       return {
         body: {
           messages: allMessages,
-          ...metadata,
+          ...mergedMetadata,
         },
       };
     },
@@ -273,8 +285,8 @@ function chatStateReducer(
 function resourcesToParts(
   contents: ReadResourceResult["contents"],
   mentionName: string, // uri for the resource
-): UIMessagePart<UIDataTypes, UITools>[] {
-  const parts: UIMessagePart<UIDataTypes, UITools>[] = [];
+): ChatMessage["parts"] {
+  const parts: ChatMessage["parts"] = [];
 
   for (const content of contents) {
     if ("text" in content && content.text) {
@@ -301,8 +313,8 @@ function resourcesToParts(
 function promptMessagesToParts(
   messages: PromptMessage[],
   mentionName: string,
-): UIMessagePart<UIDataTypes, UITools>[] {
-  const parts: UIMessagePart<UIDataTypes, UITools>[] = [];
+): ChatMessage["parts"] {
+  const parts: ChatMessage["parts"] = [];
 
   // Process MCP prompt messages and extract content
   for (const message of messages) {
@@ -384,7 +396,7 @@ function promptMessagesToParts(
 function fileAttrsToParts(
   fileAttrs: FileAttrs,
   mentionName: string,
-): UIMessagePart<UIDataTypes, UITools>[] {
+): ChatMessage["parts"] {
   const { mimeType, data } = fileAttrs;
 
   // Text files: decode base64 and return as text part
@@ -420,10 +432,10 @@ function fileAttrsToParts(
  */
 function derivePartsFromTiptapDoc(
   doc: Metadata["tiptapDoc"],
-): UIMessagePart<UIDataTypes, UITools>[] {
+): ChatMessage["parts"] {
   if (!doc) return [];
 
-  const parts: UIMessagePart<UIDataTypes, UITools>[] = [];
+  const parts: ChatMessage["parts"] = [];
   let inlineText = "";
 
   // Walk the tiptap document to build inline text and collect resources
@@ -610,10 +622,11 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // 4. HOOKS USING CALLBACKS - Hooks that depend on callback functions
   // ===========================================================================
 
-  const chat = useAIChat<UIMessage<Metadata>>({
+  const chat = useAIChat<ChatMessage>({
     id: threadManager.activeThreadId,
     messages: initialMessages,
     transport,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onFinish,
     onToolCall,
     onError,
@@ -633,7 +646,10 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // ===========================================================================
 
   // Thread actions are provided by threadManager
-  const createThread = threadManager.createThread;
+  const createThread = () => {
+    resetInteraction();
+    threadManager.createThread();
+  };
   const switchToThread = threadManager.switchThread;
   const hideThread = threadManager.hideThread;
 
@@ -701,7 +717,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       },
     };
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       parts,
@@ -711,7 +727,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     await chat.sendMessage(userMessage, { metadata });
   };
 
-  const stopStreaming = () => chat.stop();
+  const stop = () => chat.stop();
 
   const clearFinishReason = () => chatDispatch({ type: "CLEAR_FINISH_REASON" });
 
@@ -752,16 +768,17 @@ export function ChatProvider({ children }: PropsWithChildren) {
     selectedMode,
     setSelectedMode,
 
-    // Chat session state
+    // Chat session state (from useChat)
     messages: chat.messages,
-    chatStatus: chat.status,
+    status: chat.status,
+    setMessages: chat.setMessages,
+    error: chat.error,
+    clearError: chat.clearError,
+    stop,
+    addToolOutput: chat.addToolOutput,
+    sendMessage,
     isStreaming,
     isChatEmpty,
-    sendMessage,
-    stopStreaming,
-    setMessages: chat.setMessages,
-    chatError: chat.error,
-    clearChatError: chat.clearError,
     finishReason: chatState.finishReason,
     clearFinishReason,
   };

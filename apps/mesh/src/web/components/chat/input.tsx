@@ -20,8 +20,6 @@ import {
 } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  AlertCircle,
-  AlertTriangle,
   ArrowUp,
   ChevronDown,
   Edit01,
@@ -32,7 +30,7 @@ import {
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useChat } from "./context";
-import { ChatHighlight } from "./index";
+import { ChatHighlight } from "./highlight";
 import { ModeSelector } from "./select-mode";
 import { ModelSelector } from "./select-model";
 import {
@@ -285,11 +283,7 @@ export function ChatInput() {
     messages,
     isStreaming,
     sendMessage,
-    stopStreaming,
-    chatError,
-    clearChatError,
-    finishReason,
-    clearFinishReason,
+    stop,
   } = useChat();
 
   const tiptapRef = useRef<TiptapInputHandle | null>(null);
@@ -300,34 +294,10 @@ export function ChatInput() {
   const handleSubmit = (e?: FormEvent) => {
     e?.preventDefault();
     if (isStreaming) {
-      stopStreaming();
+      stop();
     } else if (canSubmit && tiptapDoc) {
       void sendMessage(tiptapDoc);
     }
-  };
-
-  const handleFixInChat = () => {
-    if (chatError) {
-      const text = `I encountered this error: ${chatError.message}. Can you help me fix it?`;
-      const doc = {
-        type: "doc" as const,
-        content: [{ type: "paragraph", content: [{ type: "text", text }] }],
-      };
-      void sendMessage(doc);
-    }
-  };
-
-  const handleContinue = () => {
-    const doc = {
-      type: "doc" as const,
-      content: [
-        {
-          type: "paragraph",
-          content: [{ type: "text", text: "Please continue." }],
-        },
-      ],
-    };
-    void sendMessage(doc);
   };
 
   const color = selectedVirtualMcp
@@ -336,55 +306,7 @@ export function ChatInput() {
 
   return (
     <div className="flex flex-col gap-2 w-full min-h-42 justify-end">
-      {/* Banners above input */}
-      {chatError && (
-        <ChatHighlight
-          variant="danger"
-          title="Error occurred"
-          description={chatError.message}
-          icon={<AlertCircle size={16} />}
-          onDismiss={clearChatError}
-        >
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleFixInChat}
-            className="h-7 text-xs"
-          >
-            Fix in chat
-          </Button>
-          <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-            Report
-          </Button>
-        </ChatHighlight>
-      )}
-
-      {finishReason && finishReason !== "stop" && (
-        <ChatHighlight
-          variant="warning"
-          title="Response incomplete"
-          description={
-            finishReason === "length"
-              ? "Response reached the model's output limit. Different models have different limits. Try switching models or asking it to continue."
-              : finishReason === "content-filter"
-                ? "Response was filtered due to content policy."
-                : finishReason === "tool-calls"
-                  ? "Response paused after tool execution to prevent infinite loops and save costs. Click continue to keep working."
-                  : `Response stopped unexpectedly: ${finishReason}`
-          }
-          icon={<AlertTriangle size={16} />}
-          onDismiss={clearFinishReason}
-        >
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleContinue}
-            className="h-7 text-xs"
-          >
-            Continue
-          </Button>
-        </ChatHighlight>
-      )}
+      <ChatHighlight />
 
       {/* Virtual MCP wrapper with badge */}
       <div
@@ -480,7 +402,7 @@ export function ChatInput() {
                       if (isStreaming) {
                         e.preventDefault();
                         e.stopPropagation();
-                        stopStreaming();
+                        stop();
                       }
                     }}
                     variant={canSubmit || isStreaming ? "default" : "ghost"}

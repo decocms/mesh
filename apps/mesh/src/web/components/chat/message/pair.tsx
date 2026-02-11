@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 import { useRef } from "react";
-import type { ChatStatus } from "../index.tsx";
+import type { ChatStatus } from "../types.ts";
 import type { Metadata } from "../types.ts";
 import { MessageAssistant } from "./assistant.tsx";
 import { MessageUser } from "./user.tsx";

@@ -1,4 +1,5 @@
 import { cn } from "@deco/ui/lib/utils.ts";
+import { useCopy } from "@deco/ui/hooks/use-copy.ts";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { type UIMessage } from "ai";
@@ -13,6 +14,44 @@ export interface MessageProps<T extends Metadata> {
   status?: "streaming" | "submitted" | "ready" | "error";
   className?: string;
   onScrollToPair?: () => void;
+}
+
+function extractTextFromMessage<T extends Metadata>(
+  message: UIMessage<T>,
+): string {
+  const { parts, metadata } = message;
+  if (metadata?.tiptapDoc) {
+    const walk = (node: {
+      type?: string;
+      text?: string;
+      content?: unknown[];
+    }): string => {
+      if (!node) return "";
+      if (node.type === "text" && typeof node.text === "string")
+        return node.text;
+      if (Array.isArray(node.content)) {
+        return node.content
+          .map((c) =>
+            walk(c as { type?: string; text?: string; content?: unknown[] }),
+          )
+          .join("");
+      }
+      return "";
+    };
+    return walk(
+      metadata.tiptapDoc as {
+        type?: string;
+        text?: string;
+        content?: unknown[];
+      },
+    ).trim();
+  }
+  if (!parts?.length) return "";
+  return parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("")
+    .trim();
 }
 
 const EXTENSIONS = [
@@ -62,15 +101,18 @@ export function MessageUser<T extends Metadata>({
 }: MessageProps<T>) {
   const { id, parts, metadata } = message;
   const [isFocused, setIsFocused] = useState(false);
+  const { handleCopy } = useCopy();
 
   // Early return if no parts
   if (!parts || parts.length === 0) {
     return null;
   }
 
-  const handleClick = () => {
+  const handleClick = async () => {
     setIsFocused(true);
     onScrollToPair?.();
+    const text = extractTextFromMessage(message);
+    if (text) await handleCopy(text);
   };
 
   // Check if we have rich content to render
@@ -80,7 +122,7 @@ export function MessageUser<T extends Metadata>({
     <>
       <div
         className={cn(
-          "message-block w-full min-w-0 group relative flex items-start gap-4 px-2.5 text-foreground flex-row-reverse",
+          "message-block w-full min-w-0 relative flex items-start gap-4 px-2.5 text-foreground flex-row-reverse",
           className,
         )}
       >
