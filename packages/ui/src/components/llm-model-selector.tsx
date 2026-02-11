@@ -94,6 +94,7 @@ export function LLMModelSelector({
             variant="outline"
             size="sm"
             className="h-9 w-full justify-between px-3"
+            aria-label={modelLabel}
           >
             <span className="truncate text-left">
               {selectedModel?.title || modelPlaceholder}

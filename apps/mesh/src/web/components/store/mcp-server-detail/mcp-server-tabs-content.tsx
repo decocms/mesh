@@ -4,6 +4,22 @@ import { Loading01 } from "@untitledui/icons";
 import { useQuery } from "@tanstack/react-query";
 import { marked } from "marked";
 import { ToolsList, type Tool } from "@/web/components/tools";
+
+/**
+ * Strip dangerous HTML tags from marked output to prevent XSS.
+ * Marked does not sanitize by default; this is a lightweight filter
+ * that removes script, iframe, object, embed, form, and event handlers.
+ */
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script[\s>][\s\S]*?<\/script>/gi, "")
+    .replace(/<iframe[\s>][\s\S]*?<\/iframe>/gi, "")
+    .replace(/<object[\s>][\s\S]*?<\/object>/gi, "")
+    .replace(/<embed[\s>][\s\S]*?>/gi, "")
+    .replace(/<form[\s>][\s\S]*?<\/form>/gi, "")
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, "");
+}
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { MCPServersList } from "./mcp-servers-list";
 import type { MCPServerData, TabItem, UnifiedServerEntry } from "./types";
@@ -46,7 +62,9 @@ export function MCPServerTabsContent({
   const hasEmbeddedReadme = Boolean(data.readmeMarkdown?.trim());
   const hasReadmeUrl = Boolean(data.readmeUrl?.trim());
   const embeddedReadmeHtml = hasEmbeddedReadme
-    ? (marked.parse(data.readmeMarkdown ?? "", { async: false }) as string)
+    ? sanitizeHtml(
+        marked.parse(data.readmeMarkdown ?? "", { async: false }) as string,
+      )
     : null;
 
   const { data: fetchedReadmeHtml, isLoading: isLoadingReadmeUrl } = useQuery({
@@ -58,7 +76,7 @@ export function MCPServerTabsContent({
         throw new Error(`Failed to fetch README (${response.status})`);
       }
       const markdown = await response.text();
-      return marked.parse(markdown, { async: false }) as string;
+      return sanitizeHtml(marked.parse(markdown, { async: false }) as string);
     },
     enabled: hasReadmeUrl && !hasEmbeddedReadme,
     staleTime: 60 * 60 * 1000,

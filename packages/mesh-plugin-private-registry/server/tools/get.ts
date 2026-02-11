@@ -28,7 +28,7 @@ export const COLLECTION_REGISTRY_APP_GET: ServerPluginToolDefinition = {
 
     const storage = getPluginStorage();
     return {
-      item: await storage.items.findById(meshCtx.organization.id, itemId),
+      item: await storage.items.findByIdOrName(meshCtx.organization.id, itemId),
     };
   },
 };

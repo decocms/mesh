@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
@@ -575,12 +575,24 @@ export function RegistryItemDialog({
   /* ── discover tools from step 1 ── */
   const discoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastDiscoveredUrlRef = useRef<string>("");
+  // Keep a ref to remoteType so the debounced callback always reads the latest value
+  const remoteTypeRef = useRef(remoteType);
+  remoteTypeRef.current = remoteType;
+
+  // Cleanup timer on unmount to avoid firing against stale state
+  useEffect(() => {
+    return () => {
+      if (discoverTimerRef.current) {
+        clearTimeout(discoverTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleDiscoverTools = async () => {
     const url = normalizeRemoteUrl(remoteHost);
     if (!url) return;
     lastDiscoveredUrlRef.current = url;
-    const discovered = await discover(url, remoteType);
+    const discovered = await discover(url, remoteTypeRef.current);
     if (discovered) {
       setTools(discovered);
     }
@@ -596,7 +608,7 @@ export function RegistryItemDialog({
     if (!host.includes(".")) return;
     discoverTimerRef.current = setTimeout(async () => {
       lastDiscoveredUrlRef.current = url;
-      const discovered = await discover(url, remoteType);
+      const discovered = await discover(url, remoteTypeRef.current);
       if (discovered) {
         setTools(discovered);
       }
