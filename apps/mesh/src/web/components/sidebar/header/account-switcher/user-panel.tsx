@@ -98,6 +98,13 @@ export function UserPanel({ user, userImage, onOpenSettings }: UserPanelProps) {
             Log out
           </MenuItem>
         </div>
+
+        {/* Version */}
+        <div className="mt-auto px-3 py-2 border-t border-border">
+          <span className="text-[11px] text-muted-foreground/75">
+            v{__MESH_VERSION__}
+          </span>
+        </div>
       </div>
     </>
   );

@@ -125,8 +125,8 @@ export function UserSettingsDialog({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <span className="text-xs text-muted-foreground/50">
-              Mesh v{__MESH_VERSION__}
+            <span className="text-xs text-muted-foreground/75">
+              v{__MESH_VERSION__}
             </span>
           </div>
         </div>
