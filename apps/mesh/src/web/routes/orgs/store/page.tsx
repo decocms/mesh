@@ -14,17 +14,22 @@ import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import {
   getWellKnownCommunityRegistryConnection,
   getWellKnownRegistryConnection,
+  SELF_MCP_ALIAS_ID,
   useConnectionActions,
   useConnections,
+  useMCPClient,
   useProjectContext,
+  WellKnownOrgMCPId,
   type ConnectionCreateData,
 } from "@decocms/mesh-sdk";
 import { Loading01 } from "@untitledui/icons";
 import { Outlet, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { KEYS } from "@/web/lib/query-keys";
 import { Suspense } from "react";
 
 export default function StorePage() {
-  const { org } = useProjectContext();
+  const { org, project } = useProjectContext();
   const allConnections = useConnections();
   const connectionActions = useConnectionActions();
 
@@ -37,11 +42,52 @@ export default function StorePage() {
   // Filter to only show registry connections (those with collections)
   const registryConnections = useRegistryConnections(allConnections);
 
-  const registryOptions = registryConnections.map((c) => ({
-    id: c.id,
-    name: c.title,
-    icon: c.icon || undefined,
-  }));
+  // Read private-registry plugin config to override self MCP branding in the selector
+  const selfMcpId = WellKnownOrgMCPId.SELF(org.id);
+  const hasSelfMcpRegistry = registryConnections.some(
+    (c) => c.id === selfMcpId,
+  );
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const { data: registryPluginConfig } = useQuery({
+    queryKey: KEYS.projectPluginConfig(project.id ?? "", "private-registry"),
+    queryFn: async () => {
+      const result = (await selfClient.callTool({
+        name: "PROJECT_PLUGIN_CONFIG_GET",
+        arguments: {
+          projectId: project.id,
+          pluginId: "private-registry",
+        },
+      })) as { structuredContent?: Record<string, unknown> };
+      return (result.structuredContent ?? result) as {
+        config?: {
+          settings?: { name?: string; icon?: string };
+        };
+      };
+    },
+    enabled: hasSelfMcpRegistry && !!project.id,
+    staleTime: 60_000,
+  });
+
+  const registryBranding = registryPluginConfig?.config?.settings;
+
+  const registryOptions = registryConnections.map((c) => {
+    // Override branding for the self MCP when private-registry plugin has custom name/icon
+    if (c.id === selfMcpId && registryBranding) {
+      return {
+        id: c.id,
+        name: registryBranding.name || c.title,
+        icon: registryBranding.icon || c.icon || undefined,
+      };
+    }
+    return {
+      id: c.id,
+      name: c.title,
+      icon: c.icon || undefined,
+    };
+  });
 
   // Persist selected registry in localStorage (scoped by org)
   const [selectedRegistryId, setSelectedRegistryId] = useLocalStorage<string>(
