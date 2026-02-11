@@ -153,7 +153,16 @@ export function publicMCPServerRoutes(
           : undefined,
     });
 
-    // Forward request to MCP server
-    return await mcpServer.fetch(newRequest, { organizationId: org.id, db }, c);
+    // Forward request to MCP server with a minimal env that satisfies DefaultEnv.
+    // This is a public endpoint (no Mesh proxy), so we provide stub values for
+    // the required fields that are only used by authenticated/internal flows.
+    const env = {
+      organizationId: org.id,
+      db,
+      MESH_REQUEST_CONTEXT: {} as never,
+      MESH_APP_DEPLOYMENT_ID: "public-registry",
+      IS_LOCAL: false,
+    };
+    return await mcpServer.fetch(newRequest, env, c);
   });
 }

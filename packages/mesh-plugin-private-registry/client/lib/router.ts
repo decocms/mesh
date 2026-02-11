@@ -19,14 +19,6 @@ export const privateRegistryRouter = createPluginRouter((ctx) => {
     ),
   });
 
-  const settingsRoute = createRoute({
-    getParentRoute: () => pluginRootRoute,
-    path: "/settings",
-    component: lazyRouteComponent(
-      () => import("../components/registry-settings-page"),
-    ),
-  });
-
   const detailsRoute = createRoute({
     getParentRoute: () => pluginRootRoute,
     path: "/$itemId",
@@ -35,7 +27,6 @@ export const privateRegistryRouter = createPluginRouter((ctx) => {
     ),
   });
 
-  return [
-    pluginRootRoute.addChildren([itemsRoute, settingsRoute, detailsRoute]),
-  ];
+  // Settings is rendered as a tab within the layout, not a separate route.
+  return [pluginRootRoute.addChildren([itemsRoute, detailsRoute])];
 });
