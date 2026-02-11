@@ -63,7 +63,7 @@ export default function StorePage() {
       })) as { structuredContent?: Record<string, unknown> };
       return (result.structuredContent ?? result) as {
         config?: {
-          settings?: { name?: string; icon?: string };
+          settings?: { registryName?: string; registryIcon?: string };
         };
       };
     },
@@ -78,8 +78,8 @@ export default function StorePage() {
     if (c.id === selfMcpId && registryBranding) {
       return {
         id: c.id,
-        name: registryBranding.name || c.title,
-        icon: registryBranding.icon || c.icon || undefined,
+        name: registryBranding.registryName || c.title,
+        icon: registryBranding.registryIcon || c.icon || undefined,
       };
     }
     return {
