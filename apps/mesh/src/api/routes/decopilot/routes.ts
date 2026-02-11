@@ -99,13 +99,14 @@ app.post("/:org/decopilot/stream", async (c) => {
     // 1. Validate request
     const {
       organization,
-      model,
+      models,
       agent,
-      messages,
+      messages: incomingMessages,
       temperature,
       memory: memoryConfig,
       thread_id,
     } = await validateRequest(c);
+    const messages = incomingMessages as unknown as ChatMessage[];
 
     const userId = ctx.auth?.user?.id;
     if (!userId) {
@@ -119,7 +120,13 @@ app.post("/:org/decopilot/stream", async (c) => {
       ctx.auth.user?.role,
     );
 
-    if (!checkModelPermission(allowedModels, model.connectionId, model.id)) {
+    if (
+      !checkModelPermission(
+        allowedModels,
+        models.connectionId,
+        models.thinking.id,
+      )
+    ) {
       throw new HTTPException(403, {
         message: "Model not allowed for your role",
       });
@@ -131,7 +138,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     // Get connection entities
     const [virtualMcp, modelConnection] = await Promise.all([
       ctx.storage.virtualMcps.findById(agent.id, organization.id),
-      ctx.storage.connections.findById(model.connectionId, organization.id),
+      ctx.storage.connections.findById(models.connectionId, organization.id),
     ]);
 
     if (!modelConnection) {
@@ -154,7 +161,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     // Add streaming support since agents may use streaming models
     const streamableModelClient = withStreamingSupport(
       modelClient,
-      model.connectionId,
+      models.connectionId,
       modelConnection,
       ctx,
       { superUser: false },
@@ -163,11 +170,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     // 2. Extract tools from virtual MCP client, create model provider, and create/load memory
     const [mcpTools, modelProvider, memory] = await Promise.all([
       toolsFromMCP(mcpClient),
-      createModelProviderFromClient(streamableModelClient, {
-        modelId: model.id,
-        connectionId: model.connectionId,
-        fastId: model.fastId ?? null,
-      }),
+      createModelProviderFromClient(streamableModelClient, models),
       createMemory(ctx.storage.threads, {
         organizationId: organization.id,
         threadId,
@@ -194,27 +197,26 @@ app.post("/:org/decopilot/stream", async (c) => {
     const systemPrompt = DECOPILOT_BASE_PROMPT(serverInstructions);
 
     // 4. Process conversation
-    const messagesAsChat = messages as unknown as ChatMessage[];
     const {
       systemMessages,
       messages: processedMessages,
       originalMessages,
-    } = await processConversation(memory, messagesAsChat, systemPrompt, {
+    } = await processConversation(memory, messages, systemPrompt, {
       windowSize,
-      model,
+      models,
     });
 
-    ensureModelCompatibility(model, originalMessages);
+    ensureModelCompatibility(models, originalMessages);
 
-    const requestMessage = messagesAsChat.find((m) => m.role !== "system")!;
+    const requestMessage = messages.find((m) => m.role !== "system")!;
 
-    const shouldGenerateTitle = memory.thread.title === DEFAULT_THREAD_TITLE;
-    const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
+    const maxOutputTokens =
+      models.thinking.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
     let newTitle: string | null = null;
 
     // 5. Main stream
     const result = streamText({
-      model: modelProvider.model,
+      model: modelProvider.thinkingModel,
       system: systemMessages,
       messages: processedMessages,
       tools: { ...mcpTools, ...builtInTools },
@@ -223,12 +225,15 @@ app.post("/:org/decopilot/stream", async (c) => {
       abortSignal,
       stopWhen: stepCountIs(30),
       onStepFinish: async () => {
+        const shouldGenerateTitle =
+          memory.thread.title === DEFAULT_THREAD_TITLE;
         // Title generation runs after first step's TEXT is already streamed.
         // This blocks the "finish-step" event and subsequent steps (for tool calls),
         // but the response text has already been sent to the client.
         if (shouldGenerateTitle && newTitle === null) {
           const userMessage = JSON.stringify(processedMessages[0]?.content);
-          const modelToUse = modelProvider.cheapModel ?? modelProvider.model;
+          const modelToUse =
+            modelProvider.fastModel ?? modelProvider.thinkingModel;
 
           await generateTitleInBackground({
             abortSignal,
@@ -269,7 +274,10 @@ app.post("/:org/decopilot/stream", async (c) => {
         if (part.type === "start") {
           return {
             agent: { id: agent.id ?? null, mode: agent.mode },
-            model: { id: model.id, connectionId: model.connectionId },
+            models: {
+              connectionId: models.connectionId,
+              thinking: models.thinking,
+            },
             created_at: new Date(),
             thread_id: memory.thread.id,
           };
@@ -289,7 +297,7 @@ app.post("/:org/decopilot/stream", async (c) => {
             ...part.usage,
             providerMetadata: part.providerMetadata,
           });
-          const provider = model.provider;
+          const provider = models.thinking.provider;
           return {
             usage: {
               inputTokens: accumulatedUsage.inputTokens,

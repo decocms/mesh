@@ -9,7 +9,7 @@ import { LanguageModelBinding } from "@decocms/bindings/llm";
 import { createLLMProvider } from "../../llm-provider";
 import { toServerClient } from "../proxy";
 import type { ClientWithOptionalStreamingSupport } from "@/mcp-clients";
-import type { ModelProvider } from "./types";
+import type { ModelProvider, ModelsConfig } from "./types";
 
 /**
  * Create a ModelProvider from an MCP client
@@ -17,24 +17,19 @@ import type { ModelProvider } from "./types";
  */
 export async function createModelProviderFromClient(
   client: ClientWithOptionalStreamingSupport,
-  config: {
-    modelId: string;
-    connectionId: string;
-    fastId?: string | null;
-  },
+  config: ModelsConfig,
 ): Promise<ModelProvider> {
   const llmBinding = LanguageModelBinding.forClient(toServerClient(client));
-
   const llmProvider = createLLMProvider(llmBinding);
-  const model = llmProvider.languageModel(config.modelId);
-  const cheapModel = config.fastId
-    ? llmProvider.languageModel(config.fastId)
-    : undefined;
 
   return {
-    model,
-    modelId: config.modelId,
+    thinkingModel: llmProvider.languageModel(config.thinking.id),
+    codingModel: config.coding
+      ? llmProvider.languageModel(config.coding.id)
+      : undefined,
+    fastModel: config.fast
+      ? llmProvider.languageModel(config.fast.id)
+      : undefined,
     connectionId: config.connectionId,
-    cheapModel,
   };
 }

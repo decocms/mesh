@@ -32,6 +32,24 @@ export type ChatMessage = UIMessage<
 >;
 
 // ============================================================================
+// Model Config Types
+// ============================================================================
+
+export interface ModelInfo {
+  id: string;
+  capabilities?: { vision?: boolean; text?: boolean; tools?: boolean };
+  provider?: string | null;
+  limits?: { contextWindow?: number; maxOutputTokens?: number };
+}
+
+export interface ModelsConfig {
+  connectionId: string;
+  thinking: ModelInfo;
+  coding?: ModelInfo;
+  fast?: ModelInfo;
+}
+
+// ============================================================================
 // ModelProvider - LLM connection abstraction
 // ============================================================================
 
@@ -39,31 +57,17 @@ export type ChatMessage = UIMessage<
  * A ModelProvider creates language models from MCP connections.
  */
 export interface ModelProvider {
-  /** The AI SDK language model */
-  readonly model: LanguageModelV2;
+  /** Thinking model - backbone for the agentic loop */
+  readonly thinkingModel: LanguageModelV2;
 
-  /** Model ID (e.g., "gpt-4", "claude-3-opus") */
-  readonly modelId: string;
+  /** Coding model - good for code generation */
+  readonly codingModel?: LanguageModelV2;
 
-  /** Connection ID that provides this model */
+  /** Fast model - cheap model for simple tasks */
+  readonly fastModel?: LanguageModelV2;
+
+  /** Connection ID that provides these models */
   readonly connectionId: string;
-
-  /** Cheap model */
-  readonly cheapModel?: LanguageModelV2 | undefined;
-}
-
-/**
- * Configuration for creating a ModelProvider
- */
-export interface ModelProviderConfig {
-  /** Model ID to use */
-  modelId: string;
-
-  /** Connection ID that provides the model */
-  connectionId: string;
-
-  /** Organization scope */
-  organizationId: string;
 }
 
 // ============================================================================

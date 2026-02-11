@@ -5,7 +5,7 @@
  * Extensible for future checks (vision, tools, context length, etc.).
  */
 
-import type { ChatModelConfig } from "@/web/components/chat/types";
+import type { ModelsConfig } from "./types";
 import { HTTPException } from "hono/http-exception";
 
 /** Message shape needed for compatibility checks (supports ChatMessage | ThreadMessage) */
@@ -16,10 +16,10 @@ type MessageWithParts = { parts?: Array<{ type: string }> };
  * Throws HTTPException if incompatible.
  */
 export function ensureModelCompatibility(
-  model: ChatModelConfig,
+  models: ModelsConfig,
   messages: MessageWithParts[],
 ): void {
-  const modelHasVision = model.capabilities?.vision ?? true;
+  const modelHasVision = models.thinking.capabilities?.vision ?? true;
 
   if (!modelHasVision) {
     const hasFiles = messages.some((message) =>
