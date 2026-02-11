@@ -172,6 +172,28 @@ export class RegistryItemStorage {
     return row ? this.deserialize(row as RawRow) : null;
   }
 
+  /**
+   * Find a registry item by ID first, then fall back to matching the title.
+   * This allows callers to pass either an exact ID or a human-readable name.
+   */
+  async findByIdOrName(
+    organizationId: string,
+    identifier: string,
+  ): Promise<PrivateRegistryItemEntity | null> {
+    // Try exact ID match first
+    const byId = await this.findById(organizationId, identifier);
+    if (byId) return byId;
+
+    // Fall back to title match
+    const row = await this.db
+      .selectFrom("private_registry_item")
+      .selectAll()
+      .where("organization_id", "=", organizationId)
+      .where("title", "=", identifier)
+      .executeTakeFirst();
+    return row ? this.deserialize(row as RawRow) : null;
+  }
+
   async update(
     organizationId: string,
     id: string,
@@ -285,38 +307,39 @@ export class RegistryItemStorage {
     organizationId: string,
     query: PrivateRegistryListQuery = {},
   ): Promise<PrivateRegistryListResult> {
-    // Query only public items from database
+    // Query only public items from database, with deterministic ordering
     const rows = await this.db
       .selectFrom("private_registry_item")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("is_public", "=", 1) // Filter for public items at DB level
+      .orderBy("created_at", "desc")
       .execute();
 
     const items = rows.map((row) => this.deserialize(row as RawRow));
 
-    // Apply in-memory filtering (tags, categories, where clause)
-    let filtered = items;
+    // Normalize requested tags/categories (same semantics as `list`)
+    const requestedTags = normalizeStringList(query.tags);
+    const requestedCategories = normalizeStringList(query.categories);
 
-    if (query.tags?.length) {
-      filtered = filtered.filter((item) =>
-        query.tags!.some((tag) =>
-          item._meta?.["mcp.mesh"]?.tags?.includes(tag),
-        ),
-      );
-    }
+    // Apply in-memory filtering (AND semantics, consistent with `list`)
+    const filtered = items.filter((item) => {
+      const meshMeta = getMeshMeta(item._meta);
+      const itemTags = normalizeStringList(meshMeta.tags);
+      const itemCategories = normalizeStringList(meshMeta.categories);
 
-    if (query.categories?.length) {
-      filtered = filtered.filter((item) =>
-        query.categories!.some((cat) =>
-          item._meta?.["mcp.mesh"]?.categories?.includes(cat),
-        ),
-      );
-    }
+      const matchesTags =
+        requestedTags.length === 0 ||
+        requestedTags.every((tag) => itemTags.includes(tag));
+      const matchesCategories =
+        requestedCategories.length === 0 ||
+        requestedCategories.every((category) =>
+          itemCategories.includes(category),
+        );
+      const matchesWhere = evaluateWhere(item, query.where);
 
-    if (query.where) {
-      filtered = filtered.filter((item) => evaluateWhere(item, query.where));
-    }
+      return matchesTags && matchesCategories && matchesWhere;
+    });
 
     // Apply pagination
     const cursorOffset = decodeCursor(query.cursor);
@@ -334,15 +357,23 @@ export class RegistryItemStorage {
     };
   }
 
-  async getFilters(organizationId: string): Promise<{
+  async getFilters(
+    organizationId: string,
+    options?: { publicOnly?: boolean },
+  ): Promise<{
     tags: Array<{ value: string; count: number }>;
     categories: Array<{ value: string; count: number }>;
   }> {
-    const rows = await this.db
+    let query = this.db
       .selectFrom("private_registry_item")
       .select(["tags", "categories"])
-      .where("organization_id", "=", organizationId)
-      .execute();
+      .where("organization_id", "=", organizationId);
+
+    if (options?.publicOnly) {
+      query = query.where("is_public", "=", 1);
+    }
+
+    const rows = await query.execute();
 
     const tagsCount = new Map<string, number>();
     const categoriesCount = new Map<string, number>();

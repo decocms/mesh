@@ -134,6 +134,9 @@ export const RegistryGetInputSchema = z
       .optional()
       .describe("Name of the registry item (alias for id)"),
   })
+  .refine((data) => data.id || data.name, {
+    message: "At least one of 'id' or 'name' is required",
+  })
   .describe(
     "Get a registry item by ID or name. At least one parameter is required.",
   );

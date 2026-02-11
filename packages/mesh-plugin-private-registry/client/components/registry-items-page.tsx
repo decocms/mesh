@@ -141,11 +141,9 @@ export default function RegistryItemsPage() {
     try {
       if ("data" in payload) {
         await updateMutation.mutateAsync(payload);
-        await Promise.all([itemsQuery.refetch(), filtersQuery.refetch()]);
         toast.success("Registry item updated");
       } else {
         await createMutation.mutateAsync(payload);
-        await Promise.all([itemsQuery.refetch(), filtersQuery.refetch()]);
         toast.success("Registry item created");
       }
     } catch (error) {

@@ -71,7 +71,7 @@ export function useRegistryItems(params: {
   const limit = params.limit ?? DEFAULT_LIMIT;
 
   return useInfiniteQuery({
-    queryKey: KEYS.itemsList(search, params.tags, params.categories),
+    queryKey: KEYS.itemsList(search, params.tags, params.categories, limit),
     queryFn: async ({ pageParam }) => {
       const where =
         search.length > 0
@@ -148,8 +148,6 @@ export function useRegistryMutations() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: KEYS.items() }),
       queryClient.invalidateQueries({ queryKey: KEYS.filters() }),
-      queryClient.refetchQueries({ queryKey: KEYS.items(), type: "active" }),
-      queryClient.refetchQueries({ queryKey: KEYS.filters(), type: "active" }),
     ]);
   };
 

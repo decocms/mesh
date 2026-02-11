@@ -45,7 +45,7 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
       if (!identifier) {
         return { item: null };
       }
-      const item = await storage.findById(orgId, identifier);
+      const item = await storage.findByIdOrName(orgId, identifier);
       // Only return if public
       if (item && item.is_public) {
         return { item };
@@ -66,7 +66,7 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
       if (!identifier) {
         return { versions: [] };
       }
-      const item = await storage.findById(orgId, identifier);
+      const item = await storage.findByIdOrName(orgId, identifier);
       // Only return if public
       if (item && item.is_public) {
         return { versions: [item] };
@@ -81,7 +81,7 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
     inputSchema: z.object({}),
     outputSchema: RegistryFiltersOutputSchema,
     execute: async () => {
-      return await storage.getFilters(orgId);
+      return await storage.getFilters(orgId, { publicOnly: true });
     },
   });
 
