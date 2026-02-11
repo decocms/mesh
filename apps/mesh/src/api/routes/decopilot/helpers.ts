@@ -30,16 +30,6 @@ export function ensureOrganization(
 }
 
 /**
- * Ensure user ID exists in context
- */
-export function ensureUser(ctx: MeshContext): string {
-  if (!ctx.auth?.user?.id) {
-    throw new Error("User ID is required");
-  }
-  return ctx.auth.user.id;
-}
-
-/**
  * Convert MCP tools to AI SDK ToolSet
  */
 export async function toolsFromMCP(client: Client): Promise<ToolSet> {
