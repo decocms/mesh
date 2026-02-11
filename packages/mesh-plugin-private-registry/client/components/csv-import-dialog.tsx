@@ -281,7 +281,7 @@ export function CsvImportDialog({
   const items = parseResult?.items ?? [];
   const warnings = parseResult?.warnings ?? [];
   const hasErrors = warnings.some((w) =>
-    REQUIRED_COLUMNS.some((c) => w.message.includes(c)),
+    w.message.startsWith("Missing required column:"),
   );
   const imported = importResult !== null;
 
