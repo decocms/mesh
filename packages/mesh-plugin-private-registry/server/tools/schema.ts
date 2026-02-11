@@ -1,7 +1,7 @@
 import { CollectionListInputSchema } from "@decocms/bindings/collections";
 import { z } from "zod";
 
-export const RegistryServerSchema = z.object({
+const RegistryServerSchema = z.object({
   name: z.string(),
   title: z.string().optional(),
   description: z.string().optional(),
@@ -42,12 +42,12 @@ export const RegistryServerSchema = z.object({
     .optional(),
 });
 
-export const RegistryToolSchema = z.object({
+const RegistryToolSchema = z.object({
   name: z.string(),
   description: z.string().nullable().optional(),
 });
 
-export const RegistryItemMetaSchema = z
+const RegistryItemMetaSchema = z
   .object({
     "mcp.mesh": z
       .object({
@@ -80,7 +80,7 @@ export const RegistryItemSchema = z.object({
   created_by: z.string().optional(),
 });
 
-export const RegistryCreateSchema = z.object({
+const RegistryCreateSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string().nullable().optional(),
@@ -89,7 +89,7 @@ export const RegistryCreateSchema = z.object({
   is_public: z.boolean().optional(),
 });
 
-export const RegistryUpdateSchema = z.object({
+const RegistryUpdateSchema = z.object({
   title: z.string().optional(),
   description: z.string().nullable().optional(),
   _meta: RegistryItemMetaSchema.optional(),
@@ -199,7 +199,7 @@ export const RegistryFiltersOutputSchema = z.object({
   ),
 });
 
-export const RegistryAIGenerateTypeSchema = z.enum([
+const RegistryAIGenerateTypeSchema = z.enum([
   "description",
   "short_description",
   "tags",
