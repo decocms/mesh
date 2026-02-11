@@ -57,19 +57,30 @@ function ChatEmptyState({ children }: PropsWithChildren) {
 function ChatMessages() {
   const { messages, status } = useChat();
   const messagePairs = useMessagePairs(messages);
+  const lastMessagePair = messagePairs.at(-1);
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-y-auto h-full overflow-x-hidden">
-      <div className="flex flex-col min-h-full min-w-0 max-w-2xl mx-auto w-full">
-        {messagePairs.map((pair, index) => (
+      <div className="flex flex-col min-w-0 max-w-2xl mx-auto w-full">
+        {messagePairs.slice(0, -1).map((pair, index) => (
           <MessagePair
             key={`pair-${pair.user.id}`}
             pair={pair}
-            isLastPair={index === messagePairs.length - 1}
+            isLastPair={false}
             status={index === messagePairs.length - 1 ? status : undefined}
           />
         ))}
       </div>
+      {lastMessagePair && (
+        <div className="min-h-full min-w-0 max-w-2xl mx-auto w-full">
+          <MessagePair
+            key={`pair-${lastMessagePair?.user.id}`}
+            pair={lastMessagePair}
+            isLastPair={true}
+            status={status}
+          />
+        </div>
+      )}
     </div>
   );
 }
