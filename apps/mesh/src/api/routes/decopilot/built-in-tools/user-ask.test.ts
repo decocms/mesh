@@ -3,7 +3,7 @@ import { userAskTool, UserAskInputSchema } from "./user-ask";
 
 describe("userAskTool", () => {
   test("has correct metadata", () => {
-    expect(userAskTool.description).toContain("ask the user a question");
+    expect(userAskTool.description).toContain("Ask the user");
     expect(userAskTool.inputSchema).toBeDefined();
     expect(userAskTool.outputSchema).toBeDefined();
   });

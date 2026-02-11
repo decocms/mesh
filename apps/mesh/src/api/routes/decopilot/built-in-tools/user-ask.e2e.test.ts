@@ -51,7 +51,7 @@ describe("user_ask E2E Integration", () => {
       const tools = getBuiltInTools();
 
       expect(tools.user_ask?.description).toBe(
-        " Always use this tool when you need to ask the user a question. Do not ask questions in plain text—use user_ask instead. Types: 'text' (free-form input), 'choice' (select from options; requires at least 2 options), 'confirm' (yes/no). Use proactively when requirements are ambiguous, multiple valid approaches exist, a decision significantly impacts the solution, or before destructive changes. ",
+        "Ask the user instead of guessing when requirements are ambiguous, multiple valid approaches exist, or before destructive changes. Prefer this tool over asking in plain text.",
       );
     });
 
