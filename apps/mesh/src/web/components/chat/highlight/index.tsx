@@ -52,7 +52,7 @@ function StatusHighlight(props: StatusHighlightProps) {
   return (
     <div
       className={cn(
-        "flex items-start gap-2 px-3 py-2.5 rounded-lg border border-dashed text-sm w-full",
+        "flex items-start gap-2 px-3 py-2.5 rounded-lg border border-dashed text-sm w-full mb-2",
         variantStyles,
       )}
     >
@@ -173,7 +173,7 @@ export function ChatHighlight() {
   };
 
   return (
-    <div className="flex flex-col gap-2 w-full">
+    <div className="flex flex-col w-full">
       {isWaitingForUserInput ? (
         <UserAskQuestionHighlight
           userAskParts={userAskParts}

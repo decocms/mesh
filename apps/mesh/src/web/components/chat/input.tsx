@@ -305,7 +305,7 @@ export function ChatInput() {
     : null;
 
   return (
-    <div className="flex flex-col gap-2 w-full min-h-42 justify-end">
+    <div className="flex flex-col w-full min-h-42 justify-end">
       <ChatHighlight />
 
       {/* Virtual MCP wrapper with badge */}
