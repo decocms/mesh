@@ -138,6 +138,17 @@ export const KEYS = {
 
   // Monitoring queries
   monitoringStats: () => ["monitoring", "stats"] as const,
+  monitoringDashboards: (locator: string) =>
+    ["monitoring", "dashboards", locator] as const,
+  monitoringDashboardDetails: (locator: string, dashboardId: string) =>
+    ["monitoring", "dashboard", locator, dashboardId] as const,
+  monitoringDashboardQuery: (
+    locator: string,
+    dashboardId: string,
+    from: string,
+    to: string,
+  ) =>
+    ["monitoring", "dashboard-query", locator, dashboardId, from, to] as const,
   monitoringLogs: (filters: {
     connectionId?: string;
     toolName?: string;

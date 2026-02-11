@@ -11,7 +11,6 @@ import {
   useProjectContext,
   useConnections,
   SELF_MCP_ALIAS_ID,
-  ORG_ADMIN_PROJECT_SLUG,
 } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -45,11 +44,6 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@deco/ui/components/toggle-group.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { toast } from "sonner";
 import { Link, useParams } from "@tanstack/react-router";
 import { ViewLayout, ViewActions } from "@/web/components/details/layout";
@@ -1004,19 +998,19 @@ function DashboardEditContent({ dashboardId }: { dashboardId: string }) {
                   canRemove={widgets.length > 1}
                   onMoveUp={() => {
                     const updated = [...widgets];
-                    [updated[index - 1], updated[index]] = [
-                      updated[index],
-                      updated[index - 1],
-                    ];
+                    const prev = updated[index - 1]!;
+                    const curr = updated[index]!;
+                    updated[index - 1] = curr;
+                    updated[index] = prev;
                     setWidgets(updated);
                     setHasChanges(true);
                   }}
                   onMoveDown={() => {
                     const updated = [...widgets];
-                    [updated[index], updated[index + 1]] = [
-                      updated[index + 1],
-                      updated[index],
-                    ];
+                    const curr = updated[index]!;
+                    const next = updated[index + 1]!;
+                    updated[index] = next;
+                    updated[index + 1] = curr;
                     setWidgets(updated);
                     setHasChanges(true);
                   }}

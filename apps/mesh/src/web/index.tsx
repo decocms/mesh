@@ -286,7 +286,6 @@ const dashboardEditRoute = createRoute({
   ),
 });
 
-
 // Store
 const storeRoute = createRoute({
   getParentRoute: () => projectLayout,

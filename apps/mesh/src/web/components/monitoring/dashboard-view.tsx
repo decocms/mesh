@@ -9,7 +9,6 @@ import {
   useMCPClient,
   useProjectContext,
   SELF_MCP_ALIAS_ID,
-  ORG_ADMIN_PROJECT_SLUG,
 } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -254,9 +253,9 @@ function TimeseriesWidget({
             <div className="flex justify-between text-[10px] text-muted-foreground mt-1.5 tabular-nums">
               {timeseries.length > 0 &&
                 (() => {
-                  const first = new Date(timeseries[0].timestamp);
+                  const first = new Date(timeseries[0]!.timestamp);
                   const last = new Date(
-                    timeseries[timeseries.length - 1].timestamp,
+                    timeseries[timeseries.length - 1]!.timestamp,
                   );
                   const rangeMs = last.getTime() - first.getTime();
                   const isMultiDay = rangeMs > 24 * 60 * 60 * 1000;
@@ -394,11 +393,21 @@ function DashboardViewContent({
     <ViewLayout breadcrumb={breadcrumb}>
       <ViewActions>
         {onEdit && (
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={onEdit}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onEdit}
+          >
             <Edit05 size={14} />
           </Button>
         )}
-        <Button variant="outline" size="icon" className="h-7 w-7" onClick={onRefresh}>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          onClick={onRefresh}
+        >
           <RefreshCw01 size={14} />
         </Button>
         <TimeRangePicker
