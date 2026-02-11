@@ -1,0 +1,35 @@
+{
+  "name": "mesh-plugin-private-registry",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Private registry plugin for Mesh organizations",
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "exports": {
+    "./shared": "./shared.ts",
+    "./server": "./server/index.ts",
+    "./client": "./client/index.ts"
+  },
+  "dependencies": {
+    "@decocms/bindings": "workspace:*",
+    "@decocms/mesh-sdk": "workspace:*",
+    "@decocms/runtime": "workspace:*",
+    "@deco/ui": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.25.3",
+    "@tanstack/react-query": "5.90.11",
+    "ai": "^6.0.1",
+    "hono": "^4.7.10",
+    "kysely": "^0.27.5",
+    "sonner": "^2.0.7",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "kysely-bun-worker": "^0.6.0",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0"
+  }
+}

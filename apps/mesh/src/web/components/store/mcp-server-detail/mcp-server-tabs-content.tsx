@@ -1,6 +1,8 @@
 import { EmptyState } from "@/web/components/empty-state";
 import { ReadmeViewer } from "@/web/components/readme";
 import { Loading01 } from "@untitledui/icons";
+import { useQuery } from "@tanstack/react-query";
+import { marked } from "marked";
 import { ToolsList, type Tool } from "@/web/components/tools";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { MCPServersList } from "./mcp-servers-list";
@@ -41,6 +43,31 @@ export function MCPServerTabsContent({
   mcpName,
   showStdio = false,
 }: MCPServerTabsContentProps) {
+  const hasEmbeddedReadme = Boolean(data.readmeMarkdown?.trim());
+  const hasReadmeUrl = Boolean(data.readmeUrl?.trim());
+  const embeddedReadmeHtml = hasEmbeddedReadme
+    ? (marked.parse(data.readmeMarkdown ?? "", { async: false }) as string)
+    : null;
+
+  const { data: fetchedReadmeHtml, isLoading: isLoadingReadmeUrl } = useQuery({
+    queryKey: ["store-readme-url", data.readmeUrl],
+    queryFn: async () => {
+      if (!data.readmeUrl) return null;
+      const response = await fetch(data.readmeUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch README (${response.status})`);
+      }
+      const markdown = await response.text();
+      return marked.parse(markdown, { async: false }) as string;
+    },
+    enabled: hasReadmeUrl && !hasEmbeddedReadme,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+  });
+
+  const customReadmeHtml = embeddedReadmeHtml ?? fetchedReadmeHtml ?? null;
+  const customReadmeLoading = !hasEmbeddedReadme && isLoadingReadmeUrl;
+
   // Convert tools to the expected format
   const tools: Tool[] = effectiveTools.map((tool) => {
     const t = tool as Record<string, unknown>;
@@ -106,7 +133,14 @@ export function MCPServerTabsContent({
       {/* README Tab Content */}
       {effectiveActiveTabId === "readme" && (
         <div className="flex-1 overflow-y-auto bg-background">
-          <ReadmeViewer repository={data?.repository} />
+          {hasEmbeddedReadme || hasReadmeUrl ? (
+            <ReadmeViewer
+              html={customReadmeHtml}
+              isLoading={customReadmeLoading}
+            />
+          ) : (
+            <ReadmeViewer repository={data?.repository} />
+          )}
         </div>
       )}
     </div>

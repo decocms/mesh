@@ -15,6 +15,12 @@ import {
   MCPServer,
 } from "./tools.ts";
 export {
+  createTool,
+  createPrivateTool,
+  createStreamableTool,
+  type Tool,
+  type ToolExecutionContext,
+  type CreatedTool,
   createPrompt,
   createPublicPrompt,
   type Prompt,

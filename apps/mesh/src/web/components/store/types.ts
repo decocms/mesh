@@ -27,6 +27,9 @@ export interface MCPRegistryServerMeta {
     updatedAt?: string;
     friendly_name?: string;
     short_description?: string;
+    owner?: string | null;
+    readme?: string | null;
+    readme_url?: string | null;
     mesh_description?: string;
     tags?: string[];
     categories?: string[];

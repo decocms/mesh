@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useProjectContext,
@@ -7,6 +7,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { toast } from "sonner";
@@ -14,6 +15,10 @@ import { sourcePlugins } from "@/web/plugins";
 import { pluginRootSidebarItems } from "@/web/index";
 import type { AnyClientPlugin } from "@decocms/bindings/plugins";
 import { BindingSelector } from "@/web/components/binding-selector";
+import {
+  ModelSelector,
+  type SelectedModelState,
+} from "@/web/components/chat/select-model";
 
 type ProjectUpdateOutput = {
   project: {
@@ -104,6 +109,13 @@ type PluginRowProps = {
   onToggle: (pluginId: string, enabled: boolean) => void;
 };
 
+type PrivateRegistrySettings = {
+  registryName?: string;
+  registryIcon?: string;
+  llmConnectionId?: string;
+  llmModelId?: string;
+};
+
 function PluginRow({
   plugin,
   isEnabled,
@@ -117,6 +129,7 @@ function PluginRow({
   onBindingChange,
   onToggle,
 }: PluginRowProps) {
+  const queryClient = useQueryClient();
   const needsBinding = pluginRequiresMcpBinding(plugin);
 
   const { data: configData, isLoading: isConfigLoading } = useQuery({
@@ -140,6 +153,77 @@ function PluginRow({
   const serverConnectionId = configData?.config?.connectionId ?? null;
   const selectorValue =
     pendingBinding !== undefined ? pendingBinding : serverConnectionId;
+  const isPrivateRegistry = plugin.id === "private-registry";
+  const currentSettings =
+    (configData?.config?.settings as PrivateRegistrySettings | null) ?? {};
+  const [registryNameDraft, setRegistryNameDraft] = useState(
+    currentSettings.registryName ?? "Private Registry",
+  );
+  const [registryIconDraft, setRegistryIconDraft] = useState(
+    currentSettings.registryIcon ?? "",
+  );
+  const [llmConnectionDraft, setLLMConnectionDraft] = useState(
+    currentSettings.llmConnectionId ?? "",
+  );
+  const [llmModelDraft, setLLMModelDraft] = useState(
+    currentSettings.llmModelId ?? "",
+  );
+
+  useEffect(() => {
+    setRegistryNameDraft(currentSettings.registryName ?? "Private Registry");
+    setRegistryIconDraft(currentSettings.registryIcon ?? "");
+    setLLMConnectionDraft(currentSettings.llmConnectionId ?? "");
+    setLLMModelDraft(currentSettings.llmModelId ?? "");
+  }, [
+    currentSettings.registryName,
+    currentSettings.registryIcon,
+    currentSettings.llmConnectionId,
+    currentSettings.llmModelId,
+  ]);
+
+  const selectedModel: SelectedModelState | undefined =
+    llmConnectionDraft && llmModelDraft
+      ? {
+          id: llmModelDraft,
+          connectionId: llmConnectionDraft,
+        }
+      : undefined;
+
+  const savePrivateRegistrySettings = useMutation({
+    mutationFn: async () => {
+      if (!projectId) {
+        throw new Error("Project ID is required.");
+      }
+      const result = await client.callTool({
+        name: "PROJECT_PLUGIN_CONFIG_UPDATE",
+        arguments: {
+          projectId,
+          pluginId: plugin.id,
+          settings: {
+            ...(currentSettings ?? {}),
+            registryName: registryNameDraft.trim() || "Private Registry",
+            registryIcon: registryIconDraft.trim(),
+            llmConnectionId: llmConnectionDraft.trim(),
+            llmModelId: llmModelDraft.trim(),
+          },
+        },
+      });
+      return unwrapToolResult<PluginConfigOutput>(result);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: KEYS.projectPluginConfig(projectId ?? "", plugin.id),
+      });
+      toast.success("Private registry settings updated");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to save private registry settings",
+      );
+    },
+  });
 
   return (
     <div className="py-3">
@@ -179,6 +263,59 @@ function PluginRow({
             className="w-56"
             disabled={isSaving || isConfigLoading}
           />
+        </div>
+      )}
+
+      {isEnabled && isPrivateRegistry && (
+        <div className="mt-3 pl-7 pr-2">
+          <div className="rounded-lg border border-border p-3 grid gap-3">
+            <h4 className="text-sm font-medium">Registry configuration</h4>
+            <div className="grid gap-1.5">
+              <Label htmlFor={`registry-name-${plugin.id}`}>
+                Registry name
+              </Label>
+              <Input
+                id={`registry-name-${plugin.id}`}
+                value={registryNameDraft}
+                onChange={(event) => setRegistryNameDraft(event.target.value)}
+                placeholder="Private Registry"
+                disabled={savePrivateRegistrySettings.isPending}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor={`registry-icon-${plugin.id}`}>
+                Registry icon URL
+              </Label>
+              <Input
+                id={`registry-icon-${plugin.id}`}
+                value={registryIconDraft}
+                onChange={(event) => setRegistryIconDraft(event.target.value)}
+                placeholder="https://example.com/icon.png"
+                disabled={savePrivateRegistrySettings.isPending}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Default AI Model</Label>
+              <ModelSelector
+                selectedModel={selectedModel}
+                onModelChange={(model) => {
+                  setLLMConnectionDraft(model.connectionId);
+                  setLLMModelDraft(model.id);
+                }}
+                variant="bordered"
+                className="w-[220px]"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={() => savePrivateRegistrySettings.mutate()}
+                disabled={savePrivateRegistrySettings.isPending}
+              >
+                {savePrivateRegistrySettings.isPending ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
