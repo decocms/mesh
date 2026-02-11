@@ -61,9 +61,11 @@ export class Memory {
     });
     // Reverse so chronological (oldest first)
     const chronological = [...messages].reverse();
-    // Ensure the window starts with a "user" message; trim from the start if needed
+    // Ensure the window starts with a "user" message; trim from the start if needed.
+    // When no user message exists in the window, keep the windowed messages to preserve
+    // assistant/tool context for follow-up turns.
     const startIndex = chronological.findIndex((m) => m.role === "user");
-    return startIndex >= 0 ? chronological.slice(startIndex) : [];
+    return startIndex >= 0 ? chronological.slice(startIndex) : chronological;
   }
 
   async save(messages: ThreadMessage[]): Promise<void> {
