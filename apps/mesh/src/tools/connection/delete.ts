@@ -48,6 +48,21 @@ export const COLLECTION_CONNECTIONS_DELETE = defineTool({
       );
     }
 
+    // Check if connection is used by any Virtual MCPs (FK RESTRICT would block deletion)
+    const referencingVirtualMcps =
+      await ctx.storage.virtualMcps.listByConnectionId(
+        organization.id,
+        input.id,
+      );
+    if (referencingVirtualMcps.length > 0) {
+      const names = referencingVirtualMcps
+        .map((v) => `"${v.title}"`)
+        .join(", ");
+      throw new Error(
+        `Cannot delete this connection because it is used by the following agent(s): ${names}. Remove it from those agents first.`,
+      );
+    }
+
     // Delete connection
     await ctx.storage.connections.delete(input.id);
 
