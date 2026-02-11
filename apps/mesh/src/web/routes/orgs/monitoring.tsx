@@ -980,7 +980,9 @@ function MonitoringDashboardContent({
         <CollectionTabs
           tabs={tabs}
           activeTab={tab}
-          onTabChange={(tabId) => onTabChange(tabId as "logs" | "analytics" | "dashboards")}
+          onTabChange={(tabId) =>
+            onTabChange(tabId as "logs" | "analytics" | "dashboards")
+          }
         />
       </div>
 

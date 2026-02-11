@@ -52,6 +52,7 @@ const createMockContext = (): MeshContext => ({
     tags: null as never,
     projects: null as never,
     projectPluginConfigs: null as never,
+    monitoringDashboards: null as never,
   },
   vault: null as never,
   authInstance: null as never,
