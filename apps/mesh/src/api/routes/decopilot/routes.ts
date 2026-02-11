@@ -18,6 +18,7 @@ import { getBuiltInTools } from "./built-in-tools";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
+  DEFAULT_THREAD_TITLE,
   DEFAULT_WINDOW_SIZE,
   generateMessageId,
 } from "./constants";
@@ -207,7 +208,7 @@ app.post("/:org/decopilot/stream", async (c) => {
 
     const requestMessage = messagesAsChat.find((m) => m.role !== "system")!;
 
-    const shouldGenerateTitle = processedMessages.length === 1;
+    const shouldGenerateTitle = memory.thread.title === DEFAULT_THREAD_TITLE;
     const maxOutputTokens = model.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
     let newTitle: string | null = null;
 

@@ -6,6 +6,7 @@ export const generateMessageId = () => generatePrefixedId("msg");
 
 export const DEFAULT_MAX_TOKENS = 32768;
 export const DEFAULT_WINDOW_SIZE = 50;
+export const DEFAULT_THREAD_TITLE = "New chat";
 
 /**
  * Base system prompt for Decopilot

@@ -7,6 +7,7 @@
 
 import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { DEFAULT_THREAD_TITLE } from "@/api/routes/decopilot/constants";
 import type { ThreadStoragePort } from "./ports";
 import type { Database, Thread, ThreadMessage } from "./types";
 
@@ -32,7 +33,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       throw new Error("createdBy is required");
     }
     if (!data.title) {
-      data.title = "New Thread - " + now;
+      data.title = DEFAULT_THREAD_TITLE;
     }
 
     const row = {
