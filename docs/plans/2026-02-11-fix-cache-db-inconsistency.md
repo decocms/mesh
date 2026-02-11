@@ -90,89 +90,29 @@ export function formatErrorForClient(error: unknown): {
 }
 ```
 
-### Step 4: Write test for error formatting
-
-Create `apps/mesh/src/api/routes/decopilot/errors.test.ts`:
-
-```typescript
-import { describe, expect, test } from "bun:test";
-import {
-  CacheInvalidationError,
-  MessageSaveError,
-  formatErrorForClient,
-} from "./errors";
-
-describe("Decopilot errors", () => {
-  test("MessageSaveError has correct name", () => {
-    const error = new MessageSaveError("Save failed");
-    expect(error.name).toBe("MessageSaveError");
-    expect(error.message).toBe("Save failed");
-  });
-
-  test("CacheInvalidationError has correct name", () => {
-    const error = new CacheInvalidationError("Cache failed");
-    expect(error.name).toBe("CacheInvalidationError");
-    expect(error.message).toBe("Cache failed");
-  });
-
-  test("formatErrorForClient handles MessageSaveError", () => {
-    const error = new MessageSaveError("DB error");
-    const formatted = formatErrorForClient(error);
-
-    expect(formatted.code).toBe("MESSAGE_SAVE_FAILED");
-    expect(formatted.recoverable).toBe(true);
-    expect(formatted.message).toContain("save message");
-  });
-
-  test("formatErrorForClient handles CacheInvalidationError", () => {
-    const error = new CacheInvalidationError("Cache error");
-    const formatted = formatErrorForClient(error);
-
-    expect(formatted.code).toBe("CACHE_INVALIDATION_FAILED");
-    expect(formatted.recoverable).toBe(true);
-    expect(formatted.message).toContain("cache");
-  });
-
-  test("formatErrorForClient handles unknown errors", () => {
-    const formatted = formatErrorForClient(new Error("Random error"));
-
-    expect(formatted.code).toBe("UNKNOWN_ERROR");
-    expect(formatted.recoverable).toBe(false);
-    expect(formatted.message).toContain("unexpected");
-  });
-});
-```
-
-### Step 5: Run test to verify it passes
-
-Run: `bun test apps/mesh/src/api/routes/decopilot/errors.test.ts -v`
-
-Expected: PASS (all error tests pass)
-
-### Step 6: Run type check
+### Step 4: Run type check
 
 Run: `bun run check`
 
 Expected: No TypeScript errors
 
-### Step 7: Format code
+### Step 5: Format code
 
 Run: `bun run fmt`
 
 Expected: All files formatted
 
-### Step 8: Commit
+### Step 6: Commit
 
 ```bash
-git add apps/mesh/src/api/routes/decopilot/errors.ts apps/mesh/src/api/routes/decopilot/errors.test.ts
+git add apps/mesh/src/api/routes/decopilot/errors.ts
 git commit -m "feat(decopilot): add error types for cache/db consistency
 
 - Create MessageSaveError and CacheInvalidationError types
 - Add formatErrorForClient for user-friendly error messages
-- Add comprehensive error handling tests
 - Prepare for proper error propagation
 
-Fixes: main-99k (part 1/4)
+Fixes: main-99k (part 1/7)
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
@@ -183,44 +123,14 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `apps/mesh/src/api/routes/decopilot/routes.ts` (add save status endpoint)
-- Create: `apps/mesh/src/api/routes/decopilot/save-status.test.ts`
 
-### Step 1: Write test for save status endpoint
-
-Create `apps/mesh/src/api/routes/decopilot/save-status.test.ts`:
-
-```typescript
-import { describe, expect, test } from "bun:test";
-
-describe("Save status endpoint", () => {
-  test("returns pending when save in progress", async () => {
-    // This will test the actual endpoint once implemented
-    expect(true).toBe(true);
-  });
-
-  test("returns success when save completed", async () => {
-    expect(true).toBe(true);
-  });
-
-  test("returns error when save failed", async () => {
-    expect(true).toBe(true);
-  });
-});
-```
-
-### Step 2: Run test to verify it fails
-
-Run: `bun test apps/mesh/src/api/routes/decopilot/save-status.test.ts`
-
-Expected: PASS (placeholder tests)
-
-### Step 3: Read current routes structure
+### Step 1: Read current routes structure
 
 Run: `bun run read apps/mesh/src/api/routes/decopilot/routes.ts --lines=1-100`
 
 Expected: See route definitions and structure
 
-### Step 4: Add save tracking map
+### Step 2: Add save tracking map
 
 Modify `apps/mesh/src/api/routes/decopilot/routes.ts`, add at the top of the file (after imports):
 
@@ -251,7 +161,7 @@ setInterval(() => {
 }, 60 * 1000); // Run every minute
 ```
 
-### Step 5: Add GET endpoint for save status
+### Step 3: Add GET endpoint for save status
 
 In the same file, add a new route (before the stream endpoint):
 
@@ -277,30 +187,29 @@ decopilot.get("/:thread_id/save-status", async (c) => {
 });
 ```
 
-### Step 6: Format code
+### Step 4: Format code
 
 Run: `bun run fmt`
 
 Expected: All files formatted
 
-### Step 7: Run type check
+### Step 5: Run type check
 
 Run: `bun run check`
 
 Expected: No TypeScript errors
 
-### Step 8: Commit
+### Step 6: Commit
 
 ```bash
-git add apps/mesh/src/api/routes/decopilot/routes.ts apps/mesh/src/api/routes/decopilot/save-status.test.ts
+git add apps/mesh/src/api/routes/decopilot/routes.ts
 git commit -m "feat(decopilot): add save status tracking endpoint
 
 - Add saveStatusMap for tracking message save operations
 - Create GET /api/decopilot/:thread_id/save-status endpoint
 - Auto-cleanup old entries after 5 minutes
-- Add placeholder tests for save status
 
-Fixes: main-99k (part 2/4)
+Fixes: main-99k (part 2/7)
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
@@ -387,13 +296,7 @@ Run: `bun run check`
 
 Expected: No TypeScript errors
 
-### Step 5: Test manually (optional)
-
-Run: `bun run dev:server`
-
-Expected: Server starts without errors
-
-### Step 6: Commit
+### Step 5: Commit
 
 ```bash
 git add apps/mesh/src/api/routes/decopilot/routes.ts
@@ -405,7 +308,7 @@ git commit -m "feat(decopilot): track save status in onFinish handler
 - Re-throw errors for proper propagation
 - Add thread_id-based status tracking
 
-Fixes: main-99k (part 3/4)
+Fixes: main-99k (part 3/7)
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
@@ -416,39 +319,9 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `apps/mesh/src/web/components/chat/hooks/use-save-status.ts`
-- Create: `apps/mesh/src/web/components/chat/hooks/use-save-status.test.ts`
 - Modify: `apps/mesh/src/web/components/chat/context.tsx:580-615`
 
-### Step 1: Write test for save status hook
-
-Create `apps/mesh/src/web/components/chat/hooks/use-save-status.test.ts`:
-
-```typescript
-import { describe, expect, test } from "bun:test";
-
-describe("useSaveStatus hook", () => {
-  test("polls save status endpoint", () => {
-    // Placeholder - will test hook once implemented
-    expect(true).toBe(true);
-  });
-
-  test("invalidates cache on success", () => {
-    expect(true).toBe(true);
-  });
-
-  test("shows error notification on failure", () => {
-    expect(true).toBe(true);
-  });
-});
-```
-
-### Step 2: Run test to verify placeholder passes
-
-Run: `bun test apps/mesh/src/web/components/chat/hooks/use-save-status.test.ts`
-
-Expected: PASS
-
-### Step 3: Create save status hook
+### Step 1: Create save status hook
 
 Create `apps/mesh/src/web/components/chat/hooks/use-save-status.ts`:
 
@@ -529,25 +402,19 @@ export function useSaveStatus({
 }
 ```
 
-### Step 4: Run tests
-
-Run: `bun test apps/mesh/src/web/components/chat/hooks/use-save-status.test.ts`
-
-Expected: PASS
-
-### Step 5: Format code
+### Step 2: Format code
 
 Run: `bun run fmt`
 
 Expected: All files formatted
 
-### Step 6: Run type check
+### Step 3: Run type check
 
 Run: `bun run check`
 
 Expected: No TypeScript errors
 
-### Step 7: Commit
+### Step 4: Commit
 
 ```bash
 git add apps/mesh/src/web/components/chat/hooks/
@@ -557,9 +424,8 @@ git commit -m "feat(chat): add save status polling hook
 - Auto-invalidate cache on successful save
 - Call onError callback on save failure
 - Poll every 500ms while pending, stop when complete
-- Add tests for hook behavior
 
-Fixes: main-99k (part 4/4)
+Fixes: main-99k (part 4/7)
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
@@ -664,7 +530,7 @@ git commit -m "feat(chat): integrate save status polling in chat context
 - Invalidate cache only after successful save
 - Show error alert on save failure
 
-Fixes: main-99k (part 5/4)
+Fixes: main-99k (part 5/7)
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
@@ -731,7 +597,7 @@ git commit -m "feat(chat): reduce stale time and add refetch options
 - Add refetchOnWindowFocus: true for better UX
 - Improve cache consistency with database
 
-Fixes: main-99k (part 6/4)
+Fixes: main-99k (part 6/7)
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
@@ -818,109 +684,14 @@ git commit -m "docs(decopilot): document message transformation contract
 - Add validation for transformed message structure
 - Ensure message consistency between cache and database
 
-Fixes: main-99k (part 7/4)
+Fixes: main-99k (part 7/7)
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 8: Add Integration Tests
-
-**Files:**
-- Create: `apps/mesh/src/api/routes/decopilot/cache-consistency.e2e.test.ts`
-
-### Step 1: Create E2E test file
-
-Create `apps/mesh/src/api/routes/decopilot/cache-consistency.e2e.test.ts`:
-
-```typescript
-/**
- * End-to-end tests for cache/database consistency
- *
- * These tests verify the full flow:
- * 1. Message sent to stream endpoint
- * 2. onFinish saves to database
- * 3. Save status tracked correctly
- * 4. Client polls save status
- * 5. Cache invalidated on success
- * 6. Fresh data fetched from database
- */
-
-import { describe, expect, test } from "bun:test";
-
-describe("Cache consistency E2E", () => {
-  test("save status transitions from pending to success", async () => {
-    // TODO: Implement E2E test with test server
-    // 1. Send message to stream endpoint
-    // 2. Poll /save-status endpoint
-    // 3. Verify status goes pending -> success
-    // 4. Verify message is in database
-    expect(true).toBe(true);
-  });
-
-  test("save status shows error on database failure", async () => {
-    // TODO: Implement E2E test with database error simulation
-    // 1. Simulate database error
-    // 2. Send message to stream endpoint
-    // 3. Poll /save-status endpoint
-    // 4. Verify status goes pending -> error
-    // 5. Verify error message is present
-    expect(true).toBe(true);
-  });
-
-  test("client cache invalidated after successful save", async () => {
-    // TODO: Implement E2E test with React Query
-    // 1. Send message
-    // 2. Wait for save success
-    // 3. Verify cache invalidated
-    // 4. Verify fresh data fetched
-    expect(true).toBe(true);
-  });
-
-  test("message transformations applied consistently", async () => {
-    // TODO: Implement E2E test verifying transformation
-    // 1. Send message without ID
-    // 2. Save to database
-    // 3. Fetch from database
-    // 4. Verify ID generated, timestamps added, metadata present
-    expect(true).toBe(true);
-  });
-});
-```
-
-### Step 2: Run tests
-
-Run: `bun test apps/mesh/src/api/routes/decopilot/cache-consistency.e2e.test.ts`
-
-Expected: PASS (placeholders pass, TODOs for future implementation)
-
-### Step 3: Format code
-
-Run: `bun run fmt`
-
-Expected: All files formatted
-
-### Step 4: Commit
-
-```bash
-git add apps/mesh/src/api/routes/decopilot/cache-consistency.e2e.test.ts
-git commit -m "test(decopilot): add cache consistency E2E test stubs
-
-- Create E2E test file for cache consistency flow
-- Add test stubs for save status transitions
-- Add test stubs for cache invalidation
-- Add test stubs for message transformations
-- Mark as TODO for future implementation
-
-Fixes: main-99k (part 8/4)
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
-
----
-
-## Task 9: Final Validation & Manual Testing
+## Task 8: Final Validation & Manual Testing
 
 **Files:**
 - All previously modified files
