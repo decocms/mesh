@@ -10,6 +10,8 @@ import {
   RegistryGetInputSchema,
   RegistryGetOutputSchema,
   RegistryFiltersOutputSchema,
+  RegistrySearchInputSchema,
+  RegistrySearchOutputSchema,
 } from "../tools/schema";
 
 /**
@@ -75,6 +77,18 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
     },
   });
 
+  const SEARCH_TOOL = createTool({
+    id: "COLLECTION_REGISTRY_APP_SEARCH",
+    description:
+      "Search public registry items returning minimal data (id, title, short_description, tags, categories, icon). " +
+      "Use this instead of LIST when you need to find items efficiently without loading full details.",
+    inputSchema: RegistrySearchInputSchema,
+    outputSchema: RegistrySearchOutputSchema,
+    execute: async ({ context }) => {
+      return await storage.search(orgId, context, { publicOnly: true });
+    },
+  });
+
   const FILTERS_TOOL = createTool({
     id: "COLLECTION_REGISTRY_APP_FILTERS",
     description: "Get available tags and categories for public registry items",
@@ -85,7 +99,7 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
     },
   });
 
-  return [LIST_TOOL, GET_TOOL, VERSIONS_TOOL, FILTERS_TOOL];
+  return [LIST_TOOL, SEARCH_TOOL, GET_TOOL, VERSIONS_TOOL, FILTERS_TOOL];
 }
 
 /**

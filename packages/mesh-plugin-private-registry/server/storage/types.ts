@@ -141,3 +141,29 @@ export interface PrivateRegistryListResult {
   hasMore: boolean;
   nextCursor?: string;
 }
+
+/** Slim projection returned by the search tool to save tokens. */
+export interface PrivateRegistrySearchItem {
+  id: string;
+  title: string;
+  short_description?: string | null;
+  tags?: string[];
+  categories?: string[];
+  is_public?: boolean;
+  icon?: string | null;
+}
+
+export interface PrivateRegistrySearchQuery {
+  query?: string;
+  tags?: string[];
+  categories?: string[];
+  limit?: number;
+  cursor?: string;
+}
+
+export interface PrivateRegistrySearchResult {
+  items: PrivateRegistrySearchItem[];
+  totalCount: number;
+  hasMore: boolean;
+  nextCursor?: string;
+}

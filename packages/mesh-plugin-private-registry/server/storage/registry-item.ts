@@ -6,6 +6,9 @@ import type {
   PrivateRegistryItemEntity,
   PrivateRegistryListQuery,
   PrivateRegistryListResult,
+  PrivateRegistrySearchItem,
+  PrivateRegistrySearchQuery,
+  PrivateRegistrySearchResult,
   PrivateRegistryUpdateInput,
   RegistryItemMeta,
   RegistryWhereExpression,
@@ -396,6 +399,109 @@ export class RegistryItemStorage {
       tags: toSortedList(tagsCount),
       categories: toSortedList(categoriesCount),
     };
+  }
+
+  /**
+   * Lightweight search returning minimal fields to save tokens.
+   * Searches across id, title, description, and server name.
+   */
+  async search(
+    organizationId: string,
+    query: PrivateRegistrySearchQuery = {},
+    options?: { publicOnly?: boolean },
+  ): Promise<PrivateRegistrySearchResult> {
+    let dbQuery = this.db
+      .selectFrom("private_registry_item")
+      .select([
+        "id",
+        "title",
+        "meta_json",
+        "server_json",
+        "tags",
+        "categories",
+        "is_public",
+      ])
+      .where("organization_id", "=", organizationId)
+      .orderBy("created_at", "desc");
+
+    if (options?.publicOnly) {
+      dbQuery = dbQuery.where("is_public", "=", 1);
+    }
+
+    const rows = await dbQuery.execute();
+
+    // Text search
+    const searchText = query.query?.trim().toLowerCase();
+    const requestedTags = normalizeStringList(query.tags);
+    const requestedCategories = normalizeStringList(query.categories);
+
+    const filtered = rows.filter((row) => {
+      // Free-text search across id, title, description, server name
+      if (searchText) {
+        const server = safeJsonParse<{ name?: string; description?: string }>(
+          row.server_json,
+          {},
+        );
+        const meta = safeJsonParse<RegistryItemMeta>(row.meta_json, {});
+        const shortDesc = meta?.["mcp.mesh"]?.short_description ?? "";
+        const haystack = [
+          row.id,
+          row.title,
+          server.name ?? "",
+          server.description ?? "",
+          shortDesc,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (!haystack.includes(searchText)) return false;
+      }
+
+      // Tag filter (AND)
+      if (requestedTags.length > 0) {
+        const itemTags = normalizeStringList(csvToList(row.tags));
+        if (!requestedTags.every((tag) => itemTags.includes(tag))) return false;
+      }
+
+      // Category filter (AND)
+      if (requestedCategories.length > 0) {
+        const itemCategories = normalizeStringList(csvToList(row.categories));
+        if (!requestedCategories.every((cat) => itemCategories.includes(cat)))
+          return false;
+      }
+
+      return true;
+    });
+
+    // Pagination
+    const cursorOffset = decodeCursor(query.cursor);
+    const offset = cursorOffset ?? 0;
+    const limit = query.limit ?? 20;
+    const page = filtered.slice(offset, offset + limit);
+    const hasMore = offset + limit < filtered.length;
+    const nextCursor = hasMore ? encodeCursor(offset + limit) : undefined;
+
+    // Project to slim shape
+    const items: PrivateRegistrySearchItem[] = page.map((row) => {
+      const meta = safeJsonParse<RegistryItemMeta>(row.meta_json, {});
+      const meshMeta = meta?.["mcp.mesh"] ?? {};
+      const server = safeJsonParse<{ icons?: Array<{ src: string }> }>(
+        row.server_json,
+        {},
+      );
+
+      return {
+        id: row.id,
+        title: row.title,
+        short_description: meshMeta.short_description ?? null,
+        tags: csvToList(row.tags),
+        categories: csvToList(row.categories),
+        is_public: row.is_public === 1,
+        icon: server.icons?.[0]?.src ?? null,
+      };
+    });
+
+    return { items, totalCount: filtered.length, hasMore, nextCursor };
   }
 
   private deserialize(row: RawRow): PrivateRegistryItemEntity {
