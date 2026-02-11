@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import {
   useCollectionList,
   useConnections,
@@ -11,41 +11,53 @@ import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { LLMModelSelector } from "@deco/ui/components/llm-model-selector.tsx";
-import { Globe01, Link01 } from "@untitledui/icons";
+import {
+  FlipBackward,
+  Globe01,
+  Link01,
+  Loading01,
+  Save01,
+} from "@untitledui/icons";
 import { toast } from "sonner";
 import { PLUGIN_ID } from "../../shared";
 import { useImageUpload } from "../hooks/use-image-upload";
 import { useRegistryConfig, useRegistryItems } from "../hooks/use-registry";
 import { ImageUpload } from "./image-upload";
 
+/**
+ * Settings page for the Private Registry plugin.
+ *
+ * Server values (`registryName`, etc.) are passed via `initialXxx` props and
+ * used to seed the local draft state on mount.  The parent renders this
+ * component with a `key` derived from the server state so that React
+ * automatically re-mounts (and re-seeds) when the server config changes —
+ * no useEffect synchronisation needed.
+ */
 interface RegistrySettingsPageProps {
-  onDirtyChange: (isDirty: boolean) => void;
-  onSavingChange: (isSaving: boolean) => void;
-  registerSave: (handler: (() => void | Promise<void>) | null) => void;
-  registerUndo: (handler: (() => void) | null) => void;
+  initialName: string;
+  initialIcon: string;
+  initialLLMConnectionId: string;
+  initialLLMModelId: string;
 }
 
 export default function RegistrySettingsPage({
-  onDirtyChange,
-  onSavingChange,
-  registerSave,
-  registerUndo,
+  initialName,
+  initialIcon,
+  initialLLMConnectionId,
+  initialLLMModelId,
 }: RegistrySettingsPageProps) {
   const { org } = useProjectContext();
   const { uploadImage, isUploading: isUploadingIcon } = useImageUpload();
-  const {
-    registryName,
-    registryIcon,
-    registryLLMConnectionId,
-    registryLLMModelId,
-    saveRegistryConfigMutation,
-  } = useRegistryConfig(PLUGIN_ID);
-  const [nameDraft, setNameDraft] = useState(registryName);
-  const [iconDraft, setIconDraft] = useState(registryIcon);
+  const { saveRegistryConfigMutation } = useRegistryConfig(PLUGIN_ID);
+
+  // ── Draft state (seeded from initial props, reset via key) ──
+  const [nameDraft, setNameDraft] = useState(initialName);
+  const [iconDraft, setIconDraft] = useState(initialIcon);
   const [llmConnectionDraft, setLLMConnectionDraft] = useState(
-    registryLLMConnectionId,
+    initialLLMConnectionId,
   );
-  const [llmModelDraft, setLLMModelDraft] = useState(registryLLMModelId);
+  const [llmModelDraft, setLLMModelDraft] = useState(initialLLMModelId);
+
   const itemsQuery = useRegistryItems({
     search: "",
     tags: [],
@@ -57,10 +69,7 @@ export default function RegistrySettingsPage({
     (connection.tools ?? []).some((tool) => tool.name === "LLM_DO_GENERATE"),
   );
   const effectiveLLMConnectionId =
-    llmConnectionDraft ||
-    registryLLMConnectionId ||
-    llmConnections[0]?.id ||
-    "";
+    llmConnectionDraft || initialLLMConnectionId || llmConnections[0]?.id || "";
   const llmClient = useMCPClientOptional({
     connectionId: effectiveLLMConnectionId || undefined,
     orgId: org.id,
@@ -75,33 +84,18 @@ export default function RegistrySettingsPage({
     capabilities?: string[];
   }>(effectiveLLMConnectionId || "no-llm-connection", "LLM", llmClient);
 
-  useEffect(() => {
-    setNameDraft(registryName);
-  }, [registryName]);
-
-  useEffect(() => {
-    setIconDraft(registryIcon);
-  }, [registryIcon]);
-
-  useEffect(() => {
-    setLLMConnectionDraft(registryLLMConnectionId);
-  }, [registryLLMConnectionId]);
-
-  useEffect(() => {
-    setLLMModelDraft(registryLLMModelId);
-  }, [registryLLMModelId]);
-
   const publicStoreUrl = `${window.location.origin}/org/${org.slug}/registry/mcp`;
-  const loadedItems = useMemo(
-    () => itemsQuery.data?.pages.flatMap((page) => page.items ?? []) ?? [],
-    [itemsQuery.data?.pages],
-  );
+  const loadedItems =
+    itemsQuery.data?.pages.flatMap((page) => page.items ?? []) ?? [];
   const publicCount = loadedItems.filter((item) => item.is_public).length;
+
   const isDirty =
-    nameDraft.trim() !== registryName.trim() ||
-    iconDraft.trim() !== registryIcon.trim() ||
-    llmConnectionDraft.trim() !== registryLLMConnectionId.trim() ||
-    llmModelDraft.trim() !== registryLLMModelId.trim();
+    nameDraft.trim() !== initialName.trim() ||
+    iconDraft.trim() !== initialIcon.trim() ||
+    llmConnectionDraft.trim() !== initialLLMConnectionId.trim() ||
+    llmModelDraft.trim() !== initialLLMModelId.trim();
+
+  const isSaving = saveRegistryConfigMutation.isPending;
 
   const handleIconFileUpload = async (file: File) => {
     if (!file) return;
@@ -143,42 +137,42 @@ export default function RegistrySettingsPage({
   };
 
   const handleUndo = () => {
-    setNameDraft(registryName);
-    setIconDraft(registryIcon);
-    setLLMConnectionDraft(registryLLMConnectionId);
-    setLLMModelDraft(registryLLMModelId);
+    setNameDraft(initialName);
+    setIconDraft(initialIcon);
+    setLLMConnectionDraft(initialLLMConnectionId);
+    setLLMModelDraft(initialLLMModelId);
   };
-
-  useEffect(() => {
-    onDirtyChange(isDirty);
-  }, [isDirty, onDirtyChange]);
-
-  useEffect(() => {
-    onSavingChange(saveRegistryConfigMutation.isPending);
-  }, [saveRegistryConfigMutation.isPending, onSavingChange]);
-
-  const saveRef = useRef(handleSave);
-  const undoRef = useRef(handleUndo);
-
-  useEffect(() => {
-    saveRef.current = handleSave;
-  });
-
-  useEffect(() => {
-    undoRef.current = handleUndo;
-  });
-
-  useEffect(() => {
-    registerSave(() => saveRef.current());
-    registerUndo(() => undoRef.current());
-    return () => {
-      registerSave(null);
-      registerUndo(null);
-    };
-  }, [registerSave, registerUndo]);
 
   return (
     <div className="h-full overflow-auto px-4 md:px-6 py-4">
+      {/* ── Save / Undo bar (sticky inside settings area) ── */}
+      <div className="flex items-center justify-end gap-2 mb-4 min-h-[32px]">
+        {isDirty && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleUndo}
+            disabled={isSaving}
+          >
+            <FlipBackward size={14} />
+            Undo
+          </Button>
+        )}
+        <Button
+          variant="default"
+          size="sm"
+          onClick={handleSave}
+          disabled={isSaving || !isDirty}
+        >
+          {isSaving ? (
+            <Loading01 size={14} className="animate-spin" />
+          ) : (
+            <Save01 size={14} />
+          )}
+          Save
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 items-start xl:grid-cols-2">
         <Card className="min-w-0 p-4 grid gap-4 content-start">
           <div>
