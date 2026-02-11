@@ -22,6 +22,7 @@ import * as EventBusTools from "./eventbus";
 import * as VirtualMCPTools from "./virtual";
 import * as VirtualToolTools from "./virtual-tool";
 import * as MonitoringTools from "./monitoring";
+import * as MonitoringDashboardTools from "./monitoring-dashboard";
 import * as OrganizationTools from "./organization";
 import * as ProjectTools from "./projects";
 import * as TagTools from "./tags";
@@ -71,6 +72,16 @@ const CORE_TOOLS = [
   // Monitoring tools
   MonitoringTools.MONITORING_LOGS_LIST,
   MonitoringTools.MONITORING_STATS,
+
+  // Monitoring Dashboard tools
+  MonitoringDashboardTools.MONITORING_DASHBOARD_CREATE,
+  MonitoringDashboardTools.MONITORING_DASHBOARD_GET,
+  MonitoringDashboardTools.MONITORING_DASHBOARD_LIST,
+  MonitoringDashboardTools.MONITORING_DASHBOARD_UPDATE,
+  MonitoringDashboardTools.MONITORING_DASHBOARD_DELETE,
+  MonitoringDashboardTools.MONITORING_DASHBOARD_QUERY,
+  MonitoringDashboardTools.MONITORING_WIDGET_PREVIEW,
+
   // API Key tools
   ApiKeyTools.API_KEY_CREATE,
   ApiKeyTools.API_KEY_LIST,

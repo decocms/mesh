@@ -17,6 +17,7 @@ import { getBaseUrl } from "./server-constants";
 import { ConnectionStorage } from "../storage/connection";
 import { VirtualMCPStorage } from "../storage/virtual";
 import { SqlMonitoringStorage } from "../storage/monitoring";
+import { SqlMonitoringDashboardStorage } from "../storage/monitoring-dashboards";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { ProjectsStorage } from "../storage/projects";
 import { ProjectPluginConfigsStorage } from "../storage/project-plugin-configs";
@@ -739,6 +740,7 @@ export async function createMeshContextFactory(
     connections: new ConnectionStorage(config.db, vault),
     organizationSettings: new OrganizationSettingsStorage(config.db),
     monitoring: new SqlMonitoringStorage(config.db, config.databaseType),
+    monitoringDashboards: new SqlMonitoringDashboardStorage(config.db),
     virtualMcps: new VirtualMCPStorage(config.db),
     users: new UserStorage(config.db),
     threads: new SqlThreadStorage(config.db),

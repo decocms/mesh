@@ -587,7 +587,7 @@ function DashboardEditContent({ dashboardId }: { dashboardId: string }) {
   const [name, setName] = useState(dashboard?.name ?? "");
   const [description, setDescription] = useState(dashboard?.description ?? "");
   const [widgets, setWidgets] = useState<WidgetInput[]>(
-    dashboard?.widgets.map(widgetToInput) ?? [{ ...DEFAULT_WIDGET }],
+    dashboard?.widgets?.map(widgetToInput) ?? [{ ...DEFAULT_WIDGET }],
   );
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -810,7 +810,7 @@ function DashboardEditContent({ dashboardId }: { dashboardId: string }) {
             setName(dashboard?.name ?? "");
             setDescription(dashboard?.description ?? "");
             setWidgets(
-              dashboard?.widgets.map(widgetToInput) ?? [{ ...DEFAULT_WIDGET }],
+              dashboard?.widgets?.map(widgetToInput) ?? [{ ...DEFAULT_WIDGET }],
             );
             setFilterConnectionIds(dashboard?.filters?.connectionIds ?? []);
             setFilterToolName(dashboard?.filters?.toolNames?.[0] ?? "");

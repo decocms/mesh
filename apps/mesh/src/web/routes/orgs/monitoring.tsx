@@ -22,6 +22,7 @@ import {
   calculateStats,
   type DateRange,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
+import { DashboardsTab } from "@/web/components/monitoring/dashboards-tab";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
 import { KEYS } from "@/web/lib/query-keys";
@@ -783,7 +784,7 @@ const MonitoringLogsTable = Object.assign(MonitoringLogsTableContent, {
 // ============================================================================
 
 interface MonitoringDashboardContentProps {
-  tab: "logs" | "analytics";
+  tab: "logs" | "analytics" | "dashboards";
   dateRange: DateRange;
   displayDateRange: DateRange;
   connectionIds: string[];
@@ -800,7 +801,7 @@ interface MonitoringDashboardContentProps {
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
   onTimeRangeChange: (range: TimeRangeValue) => void;
   onStreamingToggle: () => void;
-  onTabChange: (tab: "logs" | "analytics") => void;
+  onTabChange: (tab: "logs" | "analytics" | "dashboards") => void;
 }
 
 function MonitoringDashboardContent({
@@ -912,6 +913,7 @@ function MonitoringDashboardContent({
   const tabs = [
     { id: "logs" as const, label: "Logs" },
     { id: "analytics" as const, label: "Analytics" },
+    { id: "dashboards" as const, label: "Dashboards" },
   ];
 
   return (
@@ -978,11 +980,13 @@ function MonitoringDashboardContent({
         <CollectionTabs
           tabs={tabs}
           activeTab={tab}
-          onTabChange={(tabId) => onTabChange(tabId as "logs" | "analytics")}
+          onTabChange={(tabId) => onTabChange(tabId as "logs" | "analytics" | "dashboards")}
         />
       </div>
 
-      {tab === "logs" ? (
+      {tab === "dashboards" ? (
+        <DashboardsTab />
+      ) : tab === "logs" ? (
         <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
           {/* Stats Banner */}
           <MonitoringStats

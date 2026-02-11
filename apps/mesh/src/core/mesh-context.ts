@@ -226,6 +226,7 @@ import { SqlThreadStorage } from "@/storage/threads";
 import type { EventBus } from "../event-bus/interface";
 import type { ConnectionStorage } from "../storage/connection";
 import type { SqlMonitoringStorage } from "../storage/monitoring";
+import type { SqlMonitoringDashboardStorage } from "../storage/monitoring-dashboards";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { TagStorage } from "../storage/tags";
 import type { UserStorage } from "../storage/user";
@@ -252,6 +253,7 @@ export interface MeshStorage {
   connections: ConnectionStorage;
   organizationSettings: OrganizationSettingsStorage;
   monitoring: SqlMonitoringStorage;
+  monitoringDashboards: SqlMonitoringDashboardStorage;
   virtualMcps: VirtualMCPStorage;
   users: UserStorage;
   threads: SqlThreadStorage;

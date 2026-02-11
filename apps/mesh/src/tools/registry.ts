@@ -72,6 +72,14 @@ const ALL_TOOL_NAMES = [
   // Monitoring tools
   "MONITORING_LOGS_LIST",
   "MONITORING_STATS",
+  // Monitoring Dashboard tools
+  "MONITORING_DASHBOARD_CREATE",
+  "MONITORING_DASHBOARD_GET",
+  "MONITORING_DASHBOARD_LIST",
+  "MONITORING_DASHBOARD_UPDATE",
+  "MONITORING_DASHBOARD_DELETE",
+  "MONITORING_DASHBOARD_QUERY",
+  "MONITORING_WIDGET_PREVIEW",
   // API Key tools
   "API_KEY_CREATE",
   "API_KEY_LIST",
@@ -312,6 +320,43 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
   {
     name: "MONITORING_STATS",
     description: "View monitoring statistics",
+    category: "Monitoring",
+  },
+  // Monitoring Dashboard tools
+  {
+    name: "MONITORING_DASHBOARD_CREATE",
+    description: "Create monitoring dashboards",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_DASHBOARD_GET",
+    description: "View dashboard details",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_DASHBOARD_LIST",
+    description: "List monitoring dashboards",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_DASHBOARD_UPDATE",
+    description: "Update monitoring dashboards",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_DASHBOARD_DELETE",
+    description: "Delete monitoring dashboards",
+    category: "Monitoring",
+    dangerous: true,
+  },
+  {
+    name: "MONITORING_DASHBOARD_QUERY",
+    description: "Query dashboard widget data",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_WIDGET_PREVIEW",
+    description: "Preview widget aggregation",
     category: "Monitoring",
   },
   {
